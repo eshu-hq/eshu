@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestGrantInlineCapExceededMatchesScalarTruncation is the #5408 regression.
@@ -77,7 +79,7 @@ func TestGrantInlineCapExceededMatchesScalarTruncation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter := repositoryAccessFilter{
+			filter := querycontract.RepositoryAccessFilter{
 				AllScopes:            tc.allScopes,
 				AllowedRepositoryIDs: tc.repos,
 				AllowedScopeIDs:      tc.scopes,

@@ -114,7 +114,7 @@ type cloudInventoryFilter struct {
 	// false, rows are restricted to fact_records.scope_id matching
 	// AllowedRepositoryIDs or AllowedScopeIDs -- reducer_cloud_resource_identity
 	// facts are keyed by ingestion scope (cloud account/project/subscription),
-	// the same identifier space repositoryAccessFilter grants bind. listInventory
+	// the same identifier space querycontract.RepositoryAccessFilter grants bind. listInventory
 	// short-circuits to an empty page without a query when a scoped caller holds
 	// no grants, matching the #5137 LiveActivityStore precedent.
 	AllScopes            bool
@@ -154,7 +154,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cloudInventoryReadbackCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cloudInventoryReadbackCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -173,7 +173,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(cloudInventoryListReadModel{}, filter, nil), BuildTruthEnvelope(
 			h.profile(),

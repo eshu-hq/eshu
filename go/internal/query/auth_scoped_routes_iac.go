@@ -27,7 +27,7 @@ import "net/http"
 // scopedIaCDeadRoute reports whether the request targets the dead-IaC
 // candidate finder. handleDeadIaC (iac/handler.go) resolves every
 // repo_id/repo_ids selector through queryselector.ResolveExactForAccess bound
-// to repositoryAccessFilterFromContext (the same access-filtered chain the
+// to querycontract.RepositoryAccessFilterFromContext (the same access-filtered chain the
 // #5167 Group A single-repository routes use), so a selector naming a
 // repository outside a scoped caller's grant fails closed with a 400 before
 // either the reducer-materialized IaCReachabilityStore read or the

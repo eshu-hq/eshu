@@ -21,7 +21,7 @@ import (
 //
 //   - false (repo_count, workload_count): repoAlias is a Repository (or a
 //     Workload reached one DEFINES hop from a granted Repository), bound via
-//     repositoryAccessFilter.graphWhereClause's flat id membership check.
+//     querycontract.RepositoryAccessFilter.graphWhereClause's flat id membership check.
 //   - true (platform_count, instance_count): repoAlias is the WorkloadInstance
 //     itself, bound via infraResourceScopePredicate so the grant check lands on
 //     the instance's OWN durable repo_id rather than on repo->DEFINES->Workload
@@ -91,7 +91,7 @@ var ecosystemOverviewCounts = []struct {
 // granted scoped caller's counts are restricted to entities reachable from its
 // granted repositories (see runEcosystemOverviewCounts).
 func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.context_overview") {
+	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
 		WriteContractError(
 			w,
 			r,
@@ -105,7 +105,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_ecosystem_overview")
 	counts, err := runEcosystemOverviewCounts(r.Context(), h.Neo4j, access)
 	if err != nil {
@@ -123,7 +123,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 // and the ecosystem-wide graph-summary packet, downgrading to derived for a
 // scoped caller (#5167 Group B) since the counts are then repo-grant-bound
 // rather than the raw whole-corpus aggregate.
-func ecosystemOverviewTruth(profile QueryProfile, access repositoryAccessFilter) *TruthEnvelope {
+func ecosystemOverviewTruth(profile QueryProfile, access querycontract.RepositoryAccessFilter) *TruthEnvelope {
 	if !access.Scoped() {
 		return BuildTruthEnvelope(
 			profile,
@@ -146,10 +146,10 @@ func ecosystemOverviewTruth(profile QueryProfile, access repositoryAccessFilter)
 // returns the field->count map. A scoped caller with no granted repository or
 // ingestion scope gets all-zero counts without a graph read (#5137
 // LiveActivityStore precedent); a granted scoped caller's scopedCypher variant
-// binds repositoryAccessFilter.graphWhereClause on each entry's repoAlias so
+// binds querycontract.RepositoryAccessFilter.graphWhereClause on each entry's repoAlias so
 // counts are restricted to entities reachable from a granted Repository via
 // DEFINES/INSTANCE_OF/RUNS_ON, matching the #5167 Group B accuracy bound.
-func runEcosystemOverviewCounts(ctx context.Context, neo4j GraphQuery, access repositoryAccessFilter) (map[string]any, error) {
+func runEcosystemOverviewCounts(ctx context.Context, neo4j GraphQuery, access querycontract.RepositoryAccessFilter) (map[string]any, error) {
 	counts := make(map[string]any, len(ecosystemOverviewCounts))
 	if access.Empty() {
 		for _, entry := range ecosystemOverviewCounts {

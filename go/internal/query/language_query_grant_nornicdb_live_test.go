@@ -52,6 +52,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/language"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -84,14 +85,14 @@ const (
 )
 
 // liveGrantAccess is the caller: granted exactly one of the two repositories.
-func liveGrantAccess() repositoryAccessFilter {
-	return repositoryAccessFilter{AllowedRepositoryIDs: []string{liveGrantRepo}}
+func liveGrantAccess() querycontract.RepositoryAccessFilter {
+	return querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{liveGrantRepo}}
 }
 
 // liveGrantUnscopedAccess is the same request with no grant, used as the
 // control that shows the out-of-grant rows really do fill the page.
-func liveGrantUnscopedAccess() repositoryAccessFilter {
-	return repositoryAccessFilter{AllScopes: true}
+func liveGrantUnscopedAccess() querycontract.RepositoryAccessFilter {
+	return querycontract.RepositoryAccessFilter{AllScopes: true}
 }
 
 // liveGrantEveryRepositoryID is both seeded repositories, which is what an
@@ -206,7 +207,7 @@ func assertLiveGrantSqueezed(t *testing.T, label string, rows []map[string]any) 
 // builder rather than through two hand-written texts.
 type liveGrantCase struct {
 	name   string
-	build  func(access repositoryAccessFilter) (string, map[string]any)
+	build  func(access querycontract.RepositoryAccessFilter) (string, map[string]any)
 	params map[string]any
 }
 
@@ -248,8 +249,8 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedLiveGrantGraph(ctx, t, driver)
 
-	build := func(label string, limit int) func(repositoryAccessFilter) (string, map[string]any) {
-		return func(access repositoryAccessFilter) (string, map[string]any) {
+	build := func(label string, limit int) func(querycontract.RepositoryAccessFilter) (string, map[string]any) {
+		return func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 			return language.BuildCypherWithSemanticFilter(
 				liveGrantLanguage, label, "", "", limit, "", "", access, nil,
 			)
@@ -275,7 +276,7 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 		{name: "buildEntityCypherWithSemanticFilter", build: build("Function", 2)},
 		{
 			name: "buildEntityCypherWithSemanticFilter guard",
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				return language.BuildCypherWithSemanticFilter(
 					liveGrantLanguage, "Function", "", "", 2, "semantic_kind", "guard", access, nil,
 				)

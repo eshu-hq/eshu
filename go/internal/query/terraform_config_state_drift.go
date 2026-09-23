@@ -238,7 +238,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), terraformConfigStateDriftFindingsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), terraformConfigStateDriftFindingsCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -271,7 +271,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 	// scoped caller must supply an exact granted scope_id; ScopeID is always
 	// required here (no account-wide fallback exists for this domain), so the
 	// precheck is simpler than AWS's.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() || (access.Scoped() && !access.AllowsRepositoryID(filter.ScopeID)) {
 		writeTerraformConfigStateDriftFindings(w, r, h, filter, nil, 0)
 		return
@@ -313,7 +313,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 // carries them through to postgres.TerraformConfigStateDriftFindingFilter,
 // which intersects every row with the grant (or returns zero rows without
 // querying, for an empty grant). An all-scopes caller (no AuthContext,
-// admin, or shared-key token) is unaffected: repositoryAccessFilterFromContext
+// admin, or shared-key token) is unaffected: querycontract.RepositoryAccessFilterFromContext
 // returns allScopes true, so filter.Scoped stays false and the
 // handler-supplied scope_id alone bounds the read exactly as before this
 // field existed. AllowedScopeIDs uses the caller's merged
@@ -324,7 +324,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 // terraform_config_state_drift_test.go) -- so the SQL-layer guard must
 // intersect the same merged set the precheck already validated against.
 func bindTerraformConfigStateDriftFilterAccess(
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	filter TerraformConfigStateDriftFindingFilter,
 ) TerraformConfigStateDriftFindingFilter {
 	filter.Scoped = access.Scoped()
@@ -336,7 +336,7 @@ func bindTerraformConfigStateDriftFilterAccess(
 
 // filterTerraformConfigStateDriftAmbiguousOwnerCandidates removes
 // ambiguous_owner_candidates entries whose repo_id is outside a scoped
-// caller's grant (#5442 P1), mirroring repositoryAccessFilter.filterRepositoryMaps's
+// caller's grant (#5442 P1), mirroring querycontract.RepositoryAccessFilter.filterRepositoryMaps's
 // filter-out behavior for repository-keyed map lists. It never changes a
 // finding's Outcome: an ambiguous finding stays reported as ambiguous even
 // when every candidate is withheld, with AmbiguousOwnerCandidatesWithheldCount
@@ -346,7 +346,7 @@ func bindTerraformConfigStateDriftFilterAccess(
 // unscoped (admin) caller is unaffected and always sees every candidate.
 func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
 	findings []TerraformConfigStateDriftFindingRow,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) []TerraformConfigStateDriftFindingRow {
 	if !access.Scoped() || len(findings) == 0 {
 		return findings

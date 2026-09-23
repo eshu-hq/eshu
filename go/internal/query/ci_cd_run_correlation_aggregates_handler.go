@@ -29,7 +29,7 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -42,7 +42,7 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
@@ -95,7 +95,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -125,7 +125,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
@@ -181,7 +181,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (CICDRunCorrelationAggregateFilter, bool) {
 	repositorySelector := QueryParam(r, "repository_id")
 	repositoryID := repositorySelector
@@ -215,7 +215,7 @@ func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 
 func cicdRunCorrelationAggregateFilterWithRepositoryAccess(
 	filter CICDRunCorrelationAggregateFilter,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) CICDRunCorrelationAggregateFilter {
 	if !access.Scoped() {
 		return filter

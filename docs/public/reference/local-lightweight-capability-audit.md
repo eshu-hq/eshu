@@ -37,8 +37,8 @@ support: `exact` from the authoritative graph or durable semantic facts,
 `derived` from the deterministic content index or relational state, and
 `unsupported` when neither is available (see
 [Capability Conformance Spec](capability-conformance-spec.md)). The runtime gate
-is `capabilityUnsupported(profile, capability)` in
-`go/internal/query/handler.go`, which returns `unsupported_capability` whenever
+is `querycontract.CapabilityUnsupported(profile, capability)` in
+`go/internal/query/querycontract/http.go`, returning `unsupported_capability` when
 `maxTruthLevel(capability, profile)` is nil — before any backend is queried.
 
 Degrading a graph capability to a content-index guess would manufacture a

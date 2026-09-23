@@ -67,10 +67,6 @@ func PathParam(r *http.Request, name string) string {
 	return querycontract.PathParam(r, name)
 }
 
-func capabilityUnsupported(profile QueryProfile, capability string) bool {
-	return querycontract.CapabilityUnsupported(profile, capability)
-}
-
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
 	Repositories *RepositoryHandler

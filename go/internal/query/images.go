@@ -97,7 +97,7 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), imageListCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), imageListCapability) {
 		recordImageListError(r.Context(), "unsupported_capability")
 		recordImageListDuration(r.Context(), start, "unsupported_capability")
 		WriteContractError(

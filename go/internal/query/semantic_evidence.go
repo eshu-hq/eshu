@@ -110,7 +110,7 @@ func (h *SemanticEvidenceHandler) list(
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQuerySemanticEvidence, "GET "+route, capability)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), capability) {
+	if querycontract.CapabilityUnsupported(h.profile(), capability) {
 		WriteContractError(
 			w,
 			r,
@@ -190,7 +190,7 @@ func semanticEvidenceFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter semanticEvidenceFilter,
 ) (semanticEvidenceFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}

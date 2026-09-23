@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -18,7 +19,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cloudRuntimeDriftReadbackCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cloudRuntimeDriftReadbackCapability) {
 		h.writeContractError(
 			w, r,
 			http.StatusNotImplemented,
@@ -51,7 +52,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	// investigation packet routes use for an unresolved anchor
 	// (getImpactPacket, getDeployableUnitPacket), without reading the drift
 	// finding store.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Scoped() && !access.AllowsDirectScopeID(filter.ScopeID) {
 		packet, err := refusalPacketForAPI(InvestigationFamilyDrift, PacketRefusalScopeNotFound)
 		if err != nil {

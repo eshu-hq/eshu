@@ -73,7 +73,7 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), kubernetesCorrelationsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), kubernetesCorrelationsCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -113,7 +113,7 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 	// caller with no granted repository or ingestion scope never reaches the
 	// store (#5137 LiveActivityStore precedent); a granted scoped caller's
 	// rows are additionally bound to its grant in ListKubernetesCorrelations.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		h.writeEmptyKubernetesCorrelations(w, r, limit)
 		return

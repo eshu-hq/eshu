@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -132,7 +133,7 @@ func TestAuthorizationReplayCoverageContractRejectsBroadenedRepositoryScope(t *t
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repository:tenant-a/payments"},
 	})
-	filter := repositoryAccessFilterFromContext(ctx)
+	filter := querycontract.RepositoryAccessFilterFromContext(ctx)
 	got := filter.FilterCatalogEntries([]RepositoryCatalogEntry{
 		{ID: "repository:tenant-a/payments", Name: "payments"},
 		{ID: "repository:tenant-b/billing", Name: "billing"},

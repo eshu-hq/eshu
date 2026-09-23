@@ -3,7 +3,11 @@
 
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // Scoped-token authorization helpers for the graph-backed infra search
 // (POST /api/v0/infra/resources/search) and relationship
@@ -57,7 +61,7 @@ import "net/http"
 // the infra search WHERE chain for scoped tokens, or the empty string for
 // shared / admin / local callers (no-regression: the unscoped Cypher is
 // unchanged). The seed alias is the search node `n`.
-func infraSearchScopeClause(access repositoryAccessFilter) string {
+func infraSearchScopeClause(access querycontract.RepositoryAccessFilter) string {
 	if !access.Scoped() {
 		return ""
 	}
@@ -69,7 +73,7 @@ func infraSearchScopeClause(access repositoryAccessFilter) string {
 // granted repository for scoped tokens. A seed that resolves to no granted
 // repository matches nothing, so the handler returns not_found with no existence
 // disclosure. Returns the empty string for shared / admin / local callers.
-func infraRelationshipAnchorClause(access repositoryAccessFilter) string {
+func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) string {
 	if !access.Scoped() {
 		return ""
 	}
@@ -86,7 +90,7 @@ func infraRelationshipAnchorClause(access repositoryAccessFilter) string {
 // identity. Neighbors with no durable repository signal are excluded the same
 // way. Returns the empty string for shared / admin / local callers so the
 // unscoped Cypher is unchanged.
-func infraRelationshipNeighborClause(access repositoryAccessFilter, alias string) string {
+func infraRelationshipNeighborClause(access querycontract.RepositoryAccessFilter, alias string) string {
 	if !access.Scoped() {
 		return ""
 	}

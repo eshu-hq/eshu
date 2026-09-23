@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -98,7 +99,7 @@ func TestSQLTableBlastRadiusReportsUnseededBranchMissingLive(t *testing.T) {
 			}
 
 			rows, err := reader.Run(ctx,
-				impact.BlastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
+				impact.BlastRadiusSqlTableQuery(querycontract.RepositoryAccessFilter{AllScopes: true}),
 				map[string]any{"target_name": table, "limit": 200})
 			if err != nil {
 				t.Fatalf("run blast radius: %v", err)

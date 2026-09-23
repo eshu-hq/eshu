@@ -130,11 +130,11 @@ func TestReplatformingPlanReadinessCapabilityProfileGate(t *testing.T) {
 	// An unsupported profile must surface unsupported_capability, never a
 	// downgraded answer, for the provider-neutral replatforming readiness
 	// capability.
-	if !capabilityUnsupported(ProfileLocalLightweight, replatformingPlanReadinessCapability) {
+	if !querycontract.CapabilityUnsupported(ProfileLocalLightweight, replatformingPlanReadinessCapability) {
 		t.Fatal("local_lightweight must not support replatforming plan readiness")
 	}
 	for _, profile := range []QueryProfile{ProfileLocalAuthoritative, ProfileLocalFullStack, ProfileProduction} {
-		if capabilityUnsupported(profile, replatformingPlanReadinessCapability) {
+		if querycontract.CapabilityUnsupported(profile, replatformingPlanReadinessCapability) {
 			t.Fatalf("profile %q must support replatforming plan readiness", profile)
 		}
 	}

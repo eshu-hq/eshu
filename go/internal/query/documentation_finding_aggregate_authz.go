@@ -3,13 +3,17 @@
 
 package query
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 func documentationFindingAggregateFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter DocumentationFindingAggregateFilter,
 ) (DocumentationFindingAggregateFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}

@@ -82,7 +82,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), graphSummaryPacketCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), graphSummaryPacketCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -101,7 +101,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_graph_summary_packet")
 
 	if req.repoID() == "" {
@@ -157,7 +157,7 @@ func (h *InfraHandler) graphSummaryEnvelope() *TruthEnvelope {
 // (the same single-label count shapes as getEcosystemOverview, restricted to
 // access's grant per runEcosystemOverviewCounts) plus a note that a repo_id
 // scope is required for hot entities and relationship counts.
-func (h *InfraHandler) graphSummaryEcosystemPacket(ctx context.Context, access repositoryAccessFilter) (map[string]any, error) {
+func (h *InfraHandler) graphSummaryEcosystemPacket(ctx context.Context, access querycontract.RepositoryAccessFilter) (map[string]any, error) {
 	ecosystem, err := runEcosystemOverviewCounts(ctx, h.Neo4j, access)
 	if err != nil {
 		return nil, err
@@ -309,8 +309,9 @@ func (h *InfraHandler) graphSummaryRepoLanguages(ctx context.Context, params map
 // callGraphMetricsEdgesCypher forwards to metrics.CallGraphMetricsEdgesCypher
 // so graphSummaryHotEntities keeps its pre-move declaration bytes: the
 // queryplan source_sha256 for that symbol covers the call text, and Go has
-// no function aliases to preserve the bare name (same reason
-// repositoryAccessFilterFromContext stays a forwarder in repository_authz.go).
+// no function aliases to preserve the bare name. #6642 removed the
+// equivalent authz forwarders because nothing pinned their call text;
+// this one is pinned, so it stays until its entry is re-pinned.
 func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
 	return metrics.CallGraphMetricsEdgesCypher(repoID)
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -61,7 +62,7 @@ func reachableImportDependencyQueryplanRequests() []codemodel.ImportDependencyRe
 	// grant, so a scoped caller runs a different statement from a shared-key
 	// one and the family has to profile both.
 	accesses := []importDependencyQueryplanAccess{
-		{name: "all", filter: repositoryAccessFilter{AllScopes: true}},
+		{name: "all", filter: querycontract.RepositoryAccessFilter{AllScopes: true}},
 		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
 	}
 	requests := make([]codemodel.ImportDependencyRequest, 0, len(queryTypes)*len(accesses)*62)
@@ -84,7 +85,7 @@ func reachableImportDependencyQueryplanRequests() []codemodel.ImportDependencyRe
 // importDependencyQueryplanAccess is one caller class the family profiles.
 type importDependencyQueryplanAccess struct {
 	name   string
-	filter repositoryAccessFilter
+	filter querycontract.RepositoryAccessFilter
 }
 
 // importDependencyQueryplanAccessName reads the caller class back off a request

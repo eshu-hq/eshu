@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/language"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -247,7 +248,7 @@ func cloudResourceListQueryplanVariants() map[string]string {
 }
 
 func handlerQueryplanSafeCypherVariants() map[string]string {
-	allAccess := repositoryAccessFilter{AllScopes: true}
+	allAccess := querycontract.RepositoryAccessFilter{AllScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
 	variants := make(map[string]string, 17+len(allInfraLabels)*10+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
 
@@ -292,7 +293,7 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 	}
 	for _, access := range []struct {
 		name   string
-		filter repositoryAccessFilter
+		filter querycontract.RepositoryAccessFilter
 	}{
 		{name: "all", filter: allAccess},
 		{name: "scoped", filter: scopedAccess},
@@ -308,7 +309,7 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 	// is the only optional clause the builder splices.
 	for _, access := range []struct {
 		name   string
-		filter repositoryAccessFilter
+		filter querycontract.RepositoryAccessFilter
 		ids    []string
 	}{
 		{name: "all", filter: allAccess, ids: []string{"proof-repository"}},
@@ -358,9 +359,9 @@ func resourceSelectorQueryplanVariants() map[string]string {
 	variants := make(map[string]string, resourceSelectorQueryplanExpectedVariantCount)
 	accesses := []struct {
 		name   string
-		filter repositoryAccessFilter
+		filter querycontract.RepositoryAccessFilter
 	}{
-		{name: "all", filter: repositoryAccessFilter{AllScopes: true}},
+		{name: "all", filter: querycontract.RepositoryAccessFilter{AllScopes: true}},
 		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
 	}
 	shapes := []struct {
@@ -421,8 +422,8 @@ func resourceSelectorQueryplanVariants() map[string]string {
 	return variants
 }
 
-func queryplanScopedRepositoryAccess() repositoryAccessFilter {
-	return repositoryAccessFilter{
+func queryplanScopedRepositoryAccess() querycontract.RepositoryAccessFilter {
+	return querycontract.RepositoryAccessFilter{
 		AllowedScopeIDs:      []string{"proof-scope"},
 		AllowedRepositoryIDs: []string{"proof-repository"},
 		Allowed:              map[string]struct{}{"proof-scope": {}, "proof-repository": {}},

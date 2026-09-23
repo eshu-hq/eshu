@@ -83,7 +83,7 @@ const crossTenantEvidenceRepo = "repo-b"
 
 // postImpactEvidence drives one impact route through Mount(mux) with the given
 // auth context and returns the raw response body. A nil auth context leaves the
-// request unauthenticated, which repositoryAccessFilterFromContext treats as
+// request unauthenticated, which querycontract.RepositoryAccessFilterFromContext treats as
 // all-scopes -- the "sees everything" control case.
 func postImpactEvidence(t *testing.T, path, body string, auth *AuthContext) string {
 	t.Helper()

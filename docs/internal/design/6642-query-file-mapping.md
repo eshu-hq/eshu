@@ -108,14 +108,21 @@ appears twice and none is unaccounted for.
 | `sign_in_policy_types.go` | `auth/signin/policy_types.go` | — |
 | `sso_login_audit.go` | `auth/signin/audit.go` | — |
 
-#### `query/capability/` — 4 non-test, 1 test files
+#### `query/capability/` — 3 non-test, 1 test files
 
 | current | new | test files carried |
 | --- | --- | --- |
 | `capabilities.go` | `capability/handler.go` | `capabilities_test.go` |
-| `capability_keys.go` | `capability/keys.go` | — |
+| `capability_keys.go` | **stays at root** | — |
 | `capability_registry.go` | `capability/lookup.go` | — |
 | `permission_catalog.go` | `capability/permission_catalog.go` | — |
+
+`capability_keys.go` does **not** move, though its name says it should. It
+holds the six capability-id constants root's own handlers name, and its doc
+comment records why they are there: the registrations moved to `contract/` in
+Part C and "these keys stayed because the routes did". A trial move plus
+`go build -gcflags=-e` strands all six. This is another entry for
+[Where the prefix lies](6642-query-target-tree.md#where-the-prefix-lies).
 
 #### `query/cicd/` — 5 non-test, 8 test files
 

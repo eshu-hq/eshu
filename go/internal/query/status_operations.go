@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -70,7 +71,7 @@ func scopedOperationsRoute(r *http.Request) bool {
 //
 // Access scoping (#5137 cold-review P1-1): live_activity rows are restricted
 // to the caller's granted repositories/ingestion scopes
-// (repositoryAccessFilterFromContext, the same access.grantedRepositoryIDs/
+// (querycontract.RepositoryAccessFilterFromContext, the same access.grantedRepositoryIDs/
 // grantedScopeIDs port admin_dead_letters.go uses over the same two tables).
 // A scoped caller with NO grants (access.empty()) never reaches the reader
 // at all -- live_activity renders as an empty array without a query, so a
@@ -109,7 +110,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	// in-flight work item across every tenant would leak existence, volume,
 	// domain, and timing. Skip the call entirely rather than pass empty
 	// grants through (mirrors admin_dead_letters.go's access.empty() guard).
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	var (
 		activity  []status.LiveActivityRow
 		truncated bool

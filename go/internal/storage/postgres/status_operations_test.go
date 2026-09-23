@@ -354,7 +354,7 @@ func TestReadLiveActivityScopedWithGrantsIssuesFilteredQuery(t *testing.T) {
 // reach Postgres at all -- existence, volume, domain, and timing of another
 // tenant's work items must never leak, even with identity fields already
 // redacted at the query-handler layer. This is defense in depth alongside
-// the query handler's own repositoryAccessFilter.empty() short-circuit (see
+// the query handler's own access-filter empty() short-circuit (see
 // getOperations in go/internal/query/status_operations.go).
 func TestReadLiveActivityScopedEmptyGrantsShortCircuitsWithoutQuerying(t *testing.T) {
 	t.Parallel()

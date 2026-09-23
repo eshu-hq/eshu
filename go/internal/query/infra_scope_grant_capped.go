@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -47,7 +48,7 @@ import (
 func recordScopeGrantInlineCap(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	filter repositoryAccessFilter,
+	filter querycontract.RepositoryAccessFilter,
 	surface string,
 ) {
 	if !filter.GrantInlineCapExceeded() {

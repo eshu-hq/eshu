@@ -80,7 +80,7 @@ flowchart LR
 flowchart TB
   A["HTTP request arrives\nat ServeMux route"] --> B["handler method\n(e.g. RepositoryHandler.getRepositoryContext)"]
   B --> C{"capability supported\nfor profile?"}
-  C -- no --> D["WriteContractError\n(handler.go:40)\nErrorCodeUnsupportedCapability"]
+  C -- no --> D["WriteContractError\n(handler.go:36)\nErrorCodeUnsupportedCapability"]
   C -- yes --> E["read GraphQuery\nor ContentStore"]
   E -- graph --> F["Neo4jReader.Run\nor RunSingle\n(neo4j.go:34 / 81)"]
   E -- content --> G["ContentReader method\n(content_reader.go)"]
@@ -88,16 +88,16 @@ flowchart TB
   G --> H
   H --> I["build response model\nclassification + truth metadata"]
   I --> J{"Accept: application/eshu.envelope+json?"}
-  J -- yes --> K["WriteSuccess\n(handler.go:28)\nResponseEnvelope{Data, Truth, Error}"]
-  J -- no --> L["WriteJSON\n(handler.go:12)\nlegacy payload shape"]
+  J -- yes --> K["WriteSuccess\n(handler.go:23)\nResponseEnvelope{Data, Truth, Error}"]
+  J -- no --> L["WriteJSON\n(handler.go:14)\nlegacy payload shape"]
 ```
 
 ## Lifecycle / workflow
 
 An HTTP request hits one of the routes registered by `APIRouter.Mount`
-(`handler.go:125`). The handler method first checks whether the requested
-capability is allowed for the current `QueryProfile` using `capabilityUnsupported`
-(`handler.go:105`), which consults `capabilityMatrix` in `capability_registry.go`. If
+(`handler.go:140`). The handler method first checks whether the requested
+capability is allowed for the current `QueryProfile` using
+`querycontract.CapabilityUnsupported` (`querycontract/http.go:132`), which
 the profile does not support the capability, `WriteContractError` returns HTTP
 501 with a structured `ErrorEnvelope` carrying `ErrorCodeUnsupportedCapability`,
 the capability ID, and the `RequiredProfile`.
@@ -1295,10 +1295,10 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
   (`capability_registry.go`). All capability strings used in handlers must be
   registered from `go/internal/query/contract/` before the handler runs.
-- The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
+- `querycontract.CapabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
-  explicitly unsupported at that profile level. `APIRouter` and every handler that
-  gates on capability call this helper (`handler.go:105`, `capability_registry.go`).
+  explicitly unsupported at that profile level. Every handler that gates on a
+  capability calls it directly (`infra.go:195`, `cloud_resources.go:77`).
 - `Neo4jReader` opens a new session per query by calling `NewSession` on the
   driver (`neo4j.go:50`); the session is closed in a `defer`. Do not hold
   sessions across multiple queries in the same handler.

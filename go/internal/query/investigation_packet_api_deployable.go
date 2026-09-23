@@ -20,7 +20,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), admissionDecisionCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), admissionDecisionCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -37,7 +37,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	filter = admissionDecisionFilterWithRepositoryAccess(filter, access)
 	if access.Empty() || !admissionDecisionReadFilterAllowed(filter) {
 		h.writeEmptyDeployableUnitPacket(w, r)

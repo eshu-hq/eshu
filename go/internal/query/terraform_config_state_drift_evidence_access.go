@@ -3,6 +3,8 @@
 
 package query
 
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 // filterTerraformConfigStateDriftEvidence redacts the scope_id on any
 // Evidence atom whose scope_id is outside a scoped caller's grant (#5442 P3).
 //
@@ -27,7 +29,7 @@ package query
 // unaffected and always sees every atom's real scope_id.
 func filterTerraformConfigStateDriftEvidence(
 	findings []TerraformConfigStateDriftFindingRow,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) []TerraformConfigStateDriftFindingRow {
 	if !access.Scoped() || len(findings) == 0 {
 		return findings
@@ -51,7 +53,7 @@ func filterTerraformConfigStateDriftEvidence(
 // in-grant scope_id is left visible. The atom's other fields (id,
 // source_system, evidence_type, key, value, confidence) are never touched --
 // only the identifier that names an ungranted repository/scope is withheld.
-func redactTerraformConfigStateDriftEvidenceAtom(atom map[string]any, access repositoryAccessFilter) map[string]any {
+func redactTerraformConfigStateDriftEvidenceAtom(atom map[string]any, access querycontract.RepositoryAccessFilter) map[string]any {
 	scopeID := StringVal(atom, "scope_id")
 	if scopeID == "" || access.AllowsRepositoryID(scopeID) {
 		return atom

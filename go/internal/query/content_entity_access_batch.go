@@ -3,7 +3,11 @@
 
 package query
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // This file holds the batch half of the entity-content repository-access
 // helpers. It split from content_entity_authz.go in the #6060 lane-B1 move:
@@ -25,7 +29,7 @@ func getEntityContentsForRepositoryAccess(
 	ctx context.Context,
 	content ContentStore,
 	entityIDs []string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (map[string]*EntityContent, error) {
 	if content == nil || access.Empty() || len(entityIDs) == 0 {
 		return map[string]*EntityContent{}, nil
@@ -55,7 +59,7 @@ func getEntityContentsOneAtATime(
 	ctx context.Context,
 	content ContentStore,
 	entityIDs []string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (map[string]*EntityContent, error) {
 	results := make(map[string]*EntityContent, len(entityIDs))
 	for _, entityID := range entityIDs {

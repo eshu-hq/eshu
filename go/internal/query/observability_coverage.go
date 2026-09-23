@@ -75,7 +75,7 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), observabilityCoverageCorrelationsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), observabilityCoverageCorrelationsCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -117,7 +117,7 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 	// repository or ingestion scope never reaches the store (#5137
 	// LiveActivityStore precedent); a granted scoped caller's rows are
 	// additionally bound to its grant in ListObservabilityCoverageCorrelations.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		h.writeEmptyObservabilityCoverageCorrelations(w, r, limit)
 		return

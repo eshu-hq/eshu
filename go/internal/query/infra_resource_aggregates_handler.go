@@ -33,7 +33,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), infraResourceAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), infraResourceAggregateCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -60,7 +60,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_resource_count")
 	if access.Empty() {
 		h.writeEmptyInfraResourceCount(w, r)
@@ -98,7 +98,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), infraResourceAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), infraResourceAggregateCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -141,7 +141,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_resource_inventory")
 	if access.Empty() {
 		h.writeEmptyInfraResourceInventory(w, r, dimension, limit, offset)

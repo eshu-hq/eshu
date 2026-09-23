@@ -29,8 +29,9 @@ order is the shared spine: nothing moves before PR 1.
 
 | # | PR | files | why here |
 | ---: | --- | ---: | --- |
-| 1 | **Spine repoint.** Delete the five unexported root forwarders; point every call site at the `querycontract` / `tracing` twins that already exist. | 0 moved | 192 cross-boundary symbols, 5 of which block every later PR; also takes the dependency component from 38 destinations to 23 |
-| 2 | `capability/` — the root capability handler, plus `capability_matrix.go` and `registry.go` from today's `contract/` | 7 | small, and it starts draining the `contract/` name |
+| 1a | **Envelope spine repoint** ([#6977](https://github.com/eshu-hq/eshu/pull/6977)). Delete `requiredProfile` and `acceptsEnvelope`; repoint 31 files. | 0 moved | clears 1 of the 5 dominant spine symbols |
+| 1b | **Authz/capability spine repoint.** Delete `capabilityUnsupported`, `repositoryAccessFilterFromContext` and the `repositoryAccessFilter` type; repoint 83 files. | 0 moved | clears 3 more. `startQueryHandlerSpan` is the 5th and belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818), not here — so this series clears 4 of 5, and the spine is clear for every move that follows |
+| 2 | `capability/` — 3 root files, plus `capabilities.go`, `capability_matrix.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go` and `registry.go` from today's `contract/` | 8 | starts draining the `contract/` name. **Not small**: see the note below |
 | 3 | `querycontract`'s seven leaf extractions, in place, without the rename | 19 | closes the #6597 split; the rename waits for the name |
 | 4 | `testutil/` nesting — the `content` and `graph` leaves only. The `querytestutil` → `testutil` **rename itself belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818)** | 42 | test helpers, no production risk |
 | 6 | the 52 root auth files, nested five ways under whatever `queryauth` is called by then | 52 | the largest root family; `auth/route/` alone is 24 files |
@@ -40,6 +41,37 @@ order is the shared spine: nothing moves before PR 1.
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
 | 35 | hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
+
+### PR 2 is a hoist, not a move (measured)
+
+The earlier "7 files / small" estimate was wrong in both halves. Measured on
+2026-09-22 by performing the move in a throwaway worktree and compiling with
+`go build -gcflags=-e ./internal/query/...`:
+
+- It is **8 files** — 3 from root and 5 from `contract/`. Both the earlier
+  "7" here and the cost page's "4 root + 5 = 9" were wrong.
+  `capability_keys.go` does not move: it holds the six capability-id
+  constants root's own handlers name, and its own doc comment says they
+  stayed at root "because the routes did". Moving it strands all six.
+- The move breaks **42 files with 57 distinct undefined symbols, across two
+  packages** — root `query` and `contract`. `registry.go` holds `register`,
+  `capabilitySupport`, `truthExact` and `truthDerived`, which all 36 remaining
+  `contract/` capability rows call.
+- There is **no import cycle**, which the first draft of this note assumed there
+  would be. The ~45 capability-id constants are *duplicated* per package: root's
+  `capability_keys.go` and each `contract/` row each declare the same name with
+  the same string value. Symbols needed in the reverse direction, measured: **0**.
+- The one real back-edge is 5 root-facing helpers **defined inside the moving
+  files**, each itself a pure forwarder: `writePermissionDeniedEnvelope`,
+  `authContextAllowsPermissionFeature` and `permissionFeatureIdentityAdmin` onto
+  `queryauth`, and `parseOffset` and `parseBoundedLimit` onto `querycontract`.
+
+So PR 2 is a spine repoint in the shape of PR 1a/1b, then the move — but a far
+smaller one. Measured on the post-1b tree, those helpers plus their two
+siblings `requirePermissionFeature` and `authContextAllowsPermissionDataClasses`
+are named by only 2-3 root files each, 2-5 occurrences each. The hoist is a
+handful of files, not the 83 that PR 1b touched; the 9-file move is the bulk
+of the work.
 
 `CodeHandler` is deliberately not renamed anywhere in this plan. The issue
 requires inspecting the current query-plan entries and recording affected
@@ -85,6 +117,34 @@ real code. That is a separate change on top of PR 31.
   still names `go/internal/query/service_story_seam.go`, which has lived at
   `go/internal/query/entity/service_story_seam.go` since an earlier move. It
   sits inside a YAML comment, which is how it evaded the citation gate.
+- **Symbol reference sweep, for every deleted or renamed name.** The citation
+  sweep above covers file *paths*. Symbol names are a separate and larger
+  surface, and no compiler sees any of it: `go build` and `go vet` were green
+  through every instance below. After deleting a symbol, `rg` its bare name
+  across `go/` and `docs/` and read each hit. PRs 1a and 1b between them left
+  **fourteen stale references across eleven files** — counted from the two
+  repair commits, which touched 7 and 6 files with `README.md` and `AGENTS.md`
+  in both. They include the package's own `README.md` and `AGENTS.md`, one
+  *public* doc (`docs/public/reference/local-lightweight-capability-audit.md`),
+  a comment in another package's test, and a `t.Fatalf` message that named a
+  symbol a future failure could no longer point at. The independent review
+  caught four of the fourteen; the rest came from sweeping for the bare names.
+  Two hits also carried a stale `file.go:NN` citation, because deleting code
+  moves every line number below it: `README.md` cited `handler.go:125` for
+  `APIRouter.Mount` after it had moved to line 140, and `handler.go:105` for a
+  call site no longer in that file at all. The doc-citations gate does not
+  catch a citation that still resolves — only one that resolves to nothing —
+  so verify the target by reading it.
+- **Comment prose survives a mechanical rename badly.** A regex or `gopls`
+  rename rewrites comments as well as code, which both leaves bare names behind
+  *and* wedges qualified names mid-sentence (`the correct
+  querycontract.RequiredProfile() answer for ...`). Budget a hand pass over
+  every comment in the diff that contains the renamed symbol.
+- Grandfathered Markdown may shrink but MUST NOT grow. `go/internal/query/README.md`
+  is pinned at 1418 lines and `AGENTS.md` at 500, so a one-line correction to
+  either has to be **reflowed** into the same line count. Two PRs reflowing the
+  same grandfathered file rebase cleanly and can still break the count between
+  them; re-measure after every rebase, never infer it from a clean merge.
 - Only the orchestrator runs the promotion gate: `make pre-push` once, and
   `make pre-pr-full` for a package move (build tags can hide files from
   `./...`, and only the whole-module race lane exercises them).
@@ -182,8 +242,11 @@ What remains is one item, and the issue itself defers it.
 
 Updated as each PR lands.
 
-- [ ] PR 1 — spine repoint
-- [ ] PR 2 — `capability/`
+- [x] PR 1a — envelope spine repoint ([#6977](https://github.com/eshu-hq/eshu/pull/6977), merged `a42ad3788`). 0 files moved.
+- [ ] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), open). 0 files moved.
+- [ ] PR 2 — `capability/`. **Held for owner approval of this mapping**: it is
+      the first PR in the series that actually moves a file, and the approval
+      gate in the drive brief has not been answered. Built and green locally.
 - [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
 - [ ] PR 4 — `testutil/` ← `querytestutil`
 - [ ] PR 6 — `auth/`

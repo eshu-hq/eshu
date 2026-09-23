@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -92,7 +93,7 @@ CREATE (artifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP {relationship_type: 'DEPLO
 			})
 		}
 	}
-	access := repositoryAccessFilter{
+	access := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{sourceID, targetA, targetB},
 		Allowed:              map[string]struct{}{sourceID: {}, targetA: {}, targetB: {}},
 	}

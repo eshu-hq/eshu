@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const argoCDCategoryProjection = `
@@ -50,7 +52,7 @@ func isArgoCDCategoryOnly(
 // first global limit rows after the deterministic merge.
 func (h *InfraHandler) searchArgoCDCategoryRows(
 	ctx context.Context,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	limit int,
 ) ([]map[string]any, error) {
 	type labelRead struct {

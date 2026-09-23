@@ -189,7 +189,7 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 // This test deliberately does not call t.Parallel(): it mutates the
 // package-level capabilityMatrix map in place for the duration of the test
 // (restored via t.Cleanup), and other tests in this package read that same
-// map concurrently through BuildTruthEnvelope and capabilityUnsupported. That
+// map concurrently through BuildTruthEnvelope and querycontract.CapabilityUnsupported. That
 // is only safe because this test runs serially -- running it in parallel
 // with any test that reads capabilityMatrix would be a data race, and could
 // also let another test observe the temporarily-cleared entry and fail for
@@ -243,7 +243,7 @@ func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T
 // TestOpenAPILanguageQueryDocuments501 proves the language-query OpenAPI
 // fragment declares the 501 response the handler can actually return:
 // handleLanguageQuery writes http.StatusNotImplemented with
-// ErrorCodeUnsupportedCapability when capabilityUnsupported gates
+// ErrorCodeUnsupportedCapability when querycontract.CapabilityUnsupported gates
 // languageQueryCapability at the running profile (language/handler.go), but
 // until this route's openapi_paths_code.go fragment listed "501" the live
 // spec omitted a response the handler could genuinely produce -- exactly the

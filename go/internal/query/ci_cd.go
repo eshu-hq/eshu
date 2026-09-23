@@ -58,7 +58,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cicdRunCorrelationsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cicdRunCorrelationsCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -75,7 +75,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	repositorySelector := QueryParam(r, "repository_id")
 	filter := CICDRunCorrelationFilter{
 		ScopeID:            QueryParam(r, "scope_id"),
@@ -187,7 +187,7 @@ func (h *CICDHandler) writeEmptyCICDRunCorrelationPage(
 
 func cicdRunCorrelationFilterWithRepositoryAccess(
 	filter CICDRunCorrelationFilter,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) CICDRunCorrelationFilter {
 	if !access.Scoped() {
 		return filter

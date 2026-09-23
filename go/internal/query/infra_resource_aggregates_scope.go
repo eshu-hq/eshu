@@ -3,7 +3,11 @@
 
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // Scoped-token authorization helpers for the graph-backed infra resource
 // aggregate read routes (count, inventory). A scoped token's grant set bounds
@@ -59,7 +63,7 @@ func (h *InfraHandler) writeEmptyInfraResourceInventory(
 // and ingestion-scope ids into the filter so the store binds the
 // repository-anchored predicate. Shared / admin / local callers leave the
 // filter unrestricted.
-func applyInfraResourceAggregateAccess(filter InfraResourceAggregateFilter, access repositoryAccessFilter) InfraResourceAggregateFilter {
+func applyInfraResourceAggregateAccess(filter InfraResourceAggregateFilter, access querycontract.RepositoryAccessFilter) InfraResourceAggregateFilter {
 	if !access.Scoped() {
 		return filter
 	}

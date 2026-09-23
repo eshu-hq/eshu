@@ -176,7 +176,7 @@ func TestQueryplanProfileParamsCoverEveryProfiledStatement(t *testing.T) {
 func TestQueryplanProfileParamsBindTheDirectoryLanguageSpellings(t *testing.T) {
 	_, production := language.BuildCypherWithSemanticFilter(
 		"go", "Directory", "", "", 10, "", "",
-		repositoryAccessFilter{AllScopes: true}, []string{"proof-repository"},
+		querycontract.RepositoryAccessFilter{AllScopes: true}, []string{"proof-repository"},
 	)
 	want, ok := production["languages"].([]string)
 	if !ok {

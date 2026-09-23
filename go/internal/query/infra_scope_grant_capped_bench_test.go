@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // BenchmarkGrantInlineCapExceeded measures the #5408 signal's cost on the read
@@ -28,23 +30,23 @@ func BenchmarkGrantInlineCapExceeded(b *testing.B) {
 
 	for _, bc := range []struct {
 		name   string
-		filter repositoryAccessFilter
+		filter querycontract.RepositoryAccessFilter
 	}{
 		{
 			name:   "all_scopes",
-			filter: repositoryAccessFilter{AllScopes: true},
+			filter: querycontract.RepositoryAccessFilter{AllScopes: true},
 		},
 		{
 			name:   "typical_8_grants",
-			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids("repo", 8)},
+			filter: querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: ids("repo", 8)},
 		},
 		{
 			name:   "at_cap_128_grants",
-			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids("repo", maxScopeGrantInlineTerms)},
+			filter: querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: ids("repo", maxScopeGrantInlineTerms)},
 		},
 		{
 			name: "over_cap_512_grants",
-			filter: repositoryAccessFilter{
+			filter: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: ids("repo", 384),
 				AllowedScopeIDs:      ids("scope", 128),
 			},

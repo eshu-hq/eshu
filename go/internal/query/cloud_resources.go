@@ -74,7 +74,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cloudResourceListCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cloudResourceListCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -111,7 +111,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 		return
 	}
 	start := time.Now()
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		recordCloudResourceList(r.Context(), start, 0, 0, false, "ok")
 		writeCloudResourceListResponse(w, r, h.profile(), filter, limit, nil, false)

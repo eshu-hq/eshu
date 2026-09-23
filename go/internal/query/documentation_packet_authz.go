@@ -21,7 +21,7 @@ func documentationEvidencePacketFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter documentationEvidencePacketFilter,
 ) (documentationEvidencePacketFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}
@@ -37,7 +37,7 @@ func documentationEvidencePacketFreshnessFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter documentationEvidencePacketFreshnessFilter,
 ) (documentationEvidencePacketFreshnessFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}

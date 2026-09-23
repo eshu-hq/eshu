@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
@@ -157,11 +158,11 @@ func scopedTagHistoryAuth(repositoryIDs ...string) *AuthContext {
 // a handler that has moved on.
 func tagHistoryScopedAudience(repositoryIDs ...string) taghistory.Audience {
 	ctx := ContextWithAuthContext(context.Background(), *scopedTagHistoryAuth(repositoryIDs...))
-	return taghistory.AudienceOf(repositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories())
+	return taghistory.AudienceOf(querycontract.RepositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories())
 }
 
 func tagHistoryUnscopedAudience() taghistory.Audience {
-	return taghistory.AudienceOf(repositoryAccessFilterFromContext(context.Background()).WithCanonicalScopeRepositories())
+	return taghistory.AudienceOf(querycontract.RepositoryAccessFilterFromContext(context.Background()).WithCanonicalScopeRepositories())
 }
 
 func tagHistoryResultTags(t *testing.T, data map[string]any) []string {

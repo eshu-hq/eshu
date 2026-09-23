@@ -46,7 +46,7 @@ func bindScopeGrantInlineScalars(params map[string]any, scalars []string) {
 // workloadScopePredicate bounds a Workload-anchored alias to the caller's
 // granted repositories. The implementation moved to querycontract for #6060;
 // this wrapper keeps root callers unchanged.
-func workloadScopePredicate(alias string, access repositoryAccessFilter) string {
+func workloadScopePredicate(alias string, access querycontract.RepositoryAccessFilter) string {
 	return querycontract.WorkloadScopePredicate(alias, access)
 }
 
