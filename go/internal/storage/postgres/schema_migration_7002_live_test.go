@@ -50,18 +50,27 @@ func definitionByPath(t *testing.T, path string) Definition {
 func plantChecksumAndRestore(t *testing.T, ctx context.Context, db *sql.DB, path, checksum string) {
 	t.Helper()
 	real := migrationChecksum(definitionByPath(t, path).SQL)
-	if _, err := db.ExecContext(ctx,
+	res, err := db.ExecContext(ctx,
 		"UPDATE eshu_schema_migrations SET checksum_sha256 = $1 WHERE path = $2 AND variant = 'full'",
 		checksum, path,
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("plant checksum for %s: %v", path, err)
 	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		t.Fatalf("plant checksum for %s: updated %d rows, want 1", path, n)
+	}
 	t.Cleanup(func() {
-		if _, err := db.ExecContext(context.Background(),
+		res, err := db.ExecContext(context.Background(),
 			"UPDATE eshu_schema_migrations SET checksum_sha256 = $1 WHERE path = $2 AND variant = 'full'",
 			real, path,
-		); err != nil {
+		)
+		if err != nil {
 			t.Errorf("restore checksum for %s: %v", path, err)
+			return
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			t.Errorf("restore checksum for %s: updated %d rows, want 1", path, n)
 		}
 	})
 }

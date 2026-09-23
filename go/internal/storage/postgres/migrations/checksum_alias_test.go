@@ -16,26 +16,41 @@ const (
 
 func TestIsSupersededChecksumAcceptsBothEditedAliases(t *testing.T) {
 	for _, recorded := range []string{migration093PR6785Checksum, migration093PR6923Checksum} {
-		if !IsSupersededChecksum(migration093Path, recorded) {
-			t.Fatalf("IsSupersededChecksum(093, %s) = false, want true", recorded)
+		if !IsSupersededChecksum(migration093Path, recorded, migration093ShippedChecksum) {
+			t.Fatalf("IsSupersededChecksum(093, %s, shipped) = false, want true", recorded)
 		}
 	}
 }
 
 func TestIsSupersededChecksumRejectsUnknownChecksum(t *testing.T) {
-	if IsSupersededChecksum(migration093Path, migration093UnknownChecksum) {
-		t.Fatal("IsSupersededChecksum(093, unknown) = true, want false")
+	if IsSupersededChecksum(migration093Path, migration093UnknownChecksum, migration093ShippedChecksum) {
+		t.Fatal("IsSupersededChecksum(093, unknown, shipped) = true, want false")
 	}
-	if IsSupersededChecksum(migration093Path, migration093ShippedChecksum) {
+	if IsSupersededChecksum(migration093Path, migration093ShippedChecksum, migration093ShippedChecksum) {
 		t.Fatal("the shipped checksum itself must never need alias treatment (it is not a mismatch)")
 	}
 }
 
 func TestIsSupersededChecksumDoesNotLeakToOtherPaths(t *testing.T) {
-	if IsSupersededChecksum(otherMigrationPathForAliasNeg, migration093PR6785Checksum) {
+	if IsSupersededChecksum(otherMigrationPathForAliasNeg, migration093PR6785Checksum, migration093ShippedChecksum) {
 		t.Fatal("093's alias must not be accepted for a different migration path")
 	}
-	if IsSupersededChecksum(otherMigrationPathForAliasNeg, migration093PR6923Checksum) {
+	if IsSupersededChecksum(otherMigrationPathForAliasNeg, migration093PR6923Checksum, migration093ShippedChecksum) {
 		t.Fatal("093's alias must not be accepted for a different migration path")
+	}
+}
+
+// TestIsSupersededChecksumRejectsAliasWhenCurrentDriftsFromShipped is the
+// #7016 P2 regression: an alias must only ever be accepted when the file on
+// disk is still exactly the shipped 093 bytes. If 093 were edited in place
+// again (current no longer equals the shipped checksum), a ledger holding
+// either old alias must NOT be silently accepted -- that would mask new,
+// unrelated drift behind a stale exception.
+func TestIsSupersededChecksumRejectsAliasWhenCurrentDriftsFromShipped(t *testing.T) {
+	for _, recorded := range []string{migration093PR6785Checksum, migration093PR6923Checksum} {
+		if IsSupersededChecksum(migration093Path, recorded, migration093PR6785Checksum) {
+			t.Fatalf("IsSupersededChecksum(093, %s, current=%s) = true, want false: current is not the shipped checksum",
+				recorded, migration093PR6785Checksum)
+		}
 	}
 }

@@ -8,9 +8,11 @@ on any database that had recorded the original 093. On ops-qa that stopped
 schema bootstrap at migration 111, so migrations 112-119 never ran and the
 `sha-a49323c` rollout's pods failed `/readyz`. The change restores 093 to its
 shipped bytes (sha256 `c95cae27…`) and accepts the two edited checksums
-(`6cdb3e58…`, `7f73153b…`) as narrow aliases for 093 only. It also adds a
-blocking gate, `scripts/verify-migration-immutability.sh`, that refuses to
-modify, delete or rename a shipped migration.
+(`6cdb3e58…`, `7f73153b…`) as narrow aliases for 093 only, and only while
+093's current on-disk checksum still equals the shipped bytes -- a future edit
+to 093 would make every alias for it stop matching instead of covering the new
+drift. It also adds a blocking gate, `scripts/verify-migration-immutability.sh`,
+that refuses to modify, delete or rename a shipped migration.
 
 No-Regression Evidence: against live Postgres 16 (`-tags integration`),
 `TestBootstrapAcceptsLedgerRecordingShippedChecksum093Live` fails on the pre-fix code with

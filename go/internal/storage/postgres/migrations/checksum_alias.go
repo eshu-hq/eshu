@@ -28,23 +28,43 @@ package migrations
 // new guarded migration instead. An alias is only ever warranted when a
 // migration was, like this one, already edited-in-place and applied to real
 // databases before the mistake was caught.
-var supersededChecksums = map[string]map[string]bool{
+// checksumAliasEntry pins the aliases accepted for path to the exact shipped
+// bytes they were carved out for: an alias is only ever valid while the file
+// on disk still checksums to shipped. If path is edited again, shipped no
+// longer matches and every alias for it stops working, instead of silently
+// covering the new drift too.
+type checksumAliasEntry struct {
+	shipped string
+	aliases map[string]bool
+}
+
+var supersededChecksums = map[string]checksumAliasEntry{
 	"go/internal/storage/postgres/migrations/093_cross_scope_completion_queue.sql": {
-		"6cdb3e58545d3cbf13649402549ee7c1e577f99666bc2a5e0e87c1b9d0735e50": true, // #6785, applied 2026-09-20 to 2026-09-22
-		"7f73153be9a782875b054085c6eafa9d7e6723507b343e2e5ec43b307168473c": true, // #6923, applied 2026-09-22 to the #7002 fix
+		shipped: "c95cae2762bd4d0d42da4720eb0ad5545d2d032914bded15a65ab01acb92ce42",
+		aliases: map[string]bool{
+			"6cdb3e58545d3cbf13649402549ee7c1e577f99666bc2a5e0e87c1b9d0735e50": true, // #6785, applied 2026-09-20 to 2026-09-22
+			"7f73153be9a782875b054085c6eafa9d7e6723507b343e2e5ec43b307168473c": true, // #6923, applied 2026-09-22 to the #7002 fix
+		},
 	},
 }
 
 // IsSupersededChecksum reports whether recorded is an accepted alias for
-// path's current checksum: a database that already applied an
-// edited-in-place copy of a shipped migration before the edit was reverted.
-// It is deliberately narrow -- only the exact (path, checksum) pairs listed
-// in supersededChecksums match, so an alias for one migration never masks a
-// genuine checksum drift on another.
-func IsSupersededChecksum(path, recorded string) bool {
-	aliases, ok := supersededChecksums[path]
+// path: a database that already applied an edited-in-place copy of a shipped
+// migration before the edit was reverted. current is path's checksum as it
+// exists right now (the file on disk); an alias only ever matches when
+// current still equals the shipped checksum a table entry was pinned to --
+// if path were edited in place again, current would diverge from shipped and
+// every alias for it would stop matching, so a new drift can never hide
+// behind an old one. It is deliberately narrow -- only the exact (path,
+// checksum) pairs listed in supersededChecksums match, so an alias for one
+// migration never masks a genuine checksum drift on another.
+func IsSupersededChecksum(path, recorded, current string) bool {
+	entry, ok := supersededChecksums[path]
 	if !ok {
 		return false
 	}
-	return aliases[recorded]
+	if current != entry.shipped {
+		return false
+	}
+	return entry.aliases[recorded]
 }
