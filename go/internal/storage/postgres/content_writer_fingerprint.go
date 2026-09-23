@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // Fingerprint side-table writes (migration 111): narrow
@@ -189,7 +189,7 @@ func (w ContentWriter) deleteFingerprintBandsForEntities(ctx context.Context, ro
 	var affected int64
 	for repoID, entityIDs := range byRepo {
 		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
-			res, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk))
+			res, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, array.StringArray(chunk))
 			if err != nil {
 				return 0, fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(chunk), err)
 			}
@@ -254,12 +254,12 @@ func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []p
 	var affected int64
 	for repoID, entityIDs := range byRepo {
 		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
-			res, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(chunk))
+			res, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, array.StringArray(chunk))
 			if err != nil {
 				return 0, fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(chunk), err)
 			}
 			affected += rowsAffected(res)
-			res, err = w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk))
+			res, err = w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, array.StringArray(chunk))
 			if err != nil {
 				return 0, fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(chunk), err)
 			}

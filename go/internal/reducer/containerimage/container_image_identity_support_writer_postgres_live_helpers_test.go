@@ -10,7 +10,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 func insertContainerImageIdentityLegacyLiveFact(
@@ -289,14 +289,14 @@ ORDER BY digest, image_ref, repository_id, outcome
 			&support.SourceRevisionProvenance,
 			&support.Reason,
 			&support.CanonicalWrites,
-			pgarray.Array(&support.SourceRepositoryIDs),
-			pgarray.Array(&support.BuildProvenanceRepositoryIDs),
-			pgarray.Array(&support.BaseImageForRepositoryIDs),
-			pgarray.Array(&support.WorkloadIDs),
-			pgarray.Array(&support.ServiceIDs),
-			pgarray.Array(&support.SourceLayers),
-			pgarray.Array(&support.EvidenceFactIDs),
-			pgarray.Array(&support.MissingEvidence),
+			array.Array(&support.SourceRepositoryIDs),
+			array.Array(&support.BuildProvenanceRepositoryIDs),
+			array.Array(&support.BaseImageForRepositoryIDs),
+			array.Array(&support.WorkloadIDs),
+			array.Array(&support.ServiceIDs),
+			array.Array(&support.SourceLayers),
+			array.Array(&support.EvidenceFactIDs),
+			array.Array(&support.MissingEvidence),
 		); err != nil {
 			return nil, err
 		}

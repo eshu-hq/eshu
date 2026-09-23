@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -84,7 +84,7 @@ func loadArgoCDGeneratorConfigFacts(
 	rows, err := queryer.QueryContext(
 		ctx,
 		listArgoCDGeneratorConfigFactRecordsQuery,
-		pgarray.StringArray(configRepoIDs),
+		array.StringArray(configRepoIDs),
 	)
 	if err != nil {
 		return nil, err

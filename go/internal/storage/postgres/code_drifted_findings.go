@@ -13,8 +13,8 @@ import (
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // driftedFindingsQuery reads active reducer_code_drifted_finding facts for
@@ -34,7 +34,7 @@ WHERE fact.fact_kind = $1
   AND fact.is_tombstone = false
   AND fact.payload->>'repo_id' = $2
   -- $3 binds NULL when the caller passes a nil window
-  -- (pgarray.StringArray(nil).Value() is SQL NULL) and cardinality(NULL)
+  -- (array.StringArray(nil).Value() is SQL NULL) and cardinality(NULL)
   -- is NULL, so the bare cardinality test would drop every row. COALESCE
   -- keeps the empty-window-means-all contract for both NULL and '{}'.
   AND (COALESCE(cardinality($3::text[]), 0) = 0 OR fact.payload->>'finding_id' = ANY($3))
@@ -122,7 +122,7 @@ func (s PostgresCodeDriftedFindingStore) queryDriftedEnvelopes(
 		return nil, fmt.Errorf("code drifted database is required")
 	}
 	// #nosec G201 -- the statement is a static const; only values bind.
-	rows, err := s.DB.QueryContext(ctx, driftedFindingsQuery, facts.ReducerCodeDriftedFindingFactKind, repoID, pgarray.StringArray(findingIDs))
+	rows, err := s.DB.QueryContext(ctx, driftedFindingsQuery, facts.ReducerCodeDriftedFindingFactKind, repoID, array.StringArray(findingIDs))
 	if err != nil {
 		return nil, fmt.Errorf("query code drifted findings: %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // deferredBackfillPartitionMemoSchemaSQL creates the memo table the deferred
@@ -159,8 +159,8 @@ func (s *deferredBackfillPartitionMemoStore) LookupMany(
 	rows, err := s.database.QueryContext(
 		ctx,
 		lookupDeferredBackfillPartitionMemosQuery,
-		pgarray.StringArray(scopeIDs),
-		pgarray.StringArray(generationIDs),
+		array.StringArray(scopeIDs),
+		array.StringArray(generationIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("lookup deferred backfill partition memos: %w", err)

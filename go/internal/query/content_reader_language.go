@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -56,7 +56,7 @@ func (cr *ContentReader) ListRepoFilesByLanguage(ctx context.Context, repoID str
 		  AND ($3 = '' OR relative_path = $3 OR strpos(relative_path, $3 || '/') = 1)
 		ORDER BY relative_path
 		LIMIT $4
-	`, repoID, pgarray.Array(languages), pathPrefix, limit)
+	`, repoID, array.Array(languages), pathPrefix, limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo files by language: %w", err)

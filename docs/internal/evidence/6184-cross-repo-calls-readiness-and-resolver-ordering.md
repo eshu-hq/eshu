@@ -67,7 +67,7 @@ happens on every backend/profile (MATCH-only write plus caller-only key)
 while the contention half of the drain is NornicDB-local-authoritative
 only. Exactly one checker runs per cycle, never both. No recovery-handler
 change was needed: refinalize already clears `graph_projection_phase_state`
-for covered generations (`storage/postgres/rebuildreset/reset.go`) and the
+for covered generations (`storage/postgres/rebuild/reset/reset.go`) and the
 projector republishes phases unconditionally on re-run
 (`projector/runtime_stages.go: writeCanonicalProjection` publishes on both
 the empty and written paths), so during a rebuild code calls drain last and

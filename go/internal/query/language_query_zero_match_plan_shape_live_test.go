@@ -169,7 +169,7 @@ func captureShippedZeroMatchStatement(ctx context.Context, t *testing.T) (string
 		// The recorder stores driver.Value; a *sql.DB call takes []any. This
 		// read binds no grant array, so every argument is a plain scalar and
 		// needs no re-wrapping -- unlike the grant-plan test, which has to
-		// rebuild its text[] through pgarray.Array.
+		// rebuild its text[] through array.Array.
 		args := make([]any, 0, len(recorder.args[i]))
 		for _, recorded := range recorder.args[i] {
 			args = append(args, recorded)

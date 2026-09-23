@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package pgarray
+package array
 
 import (
 	"database/sql"
@@ -54,7 +54,7 @@ func (a *StringArray) Scan(src any) error {
 		*a = nil
 		return nil
 	default:
-		return fmt.Errorf("pgarray: cannot convert %T to StringArray", src)
+		return fmt.Errorf("array: cannot convert %T to StringArray", src)
 	}
 	elems, err := parseLinearArray(raw, "StringArray")
 	if err != nil {
@@ -67,7 +67,7 @@ func (a *StringArray) Scan(src any) error {
 	out := make(StringArray, len(elems))
 	for i, e := range elems {
 		if e.null {
-			return fmt.Errorf("pgarray: parsing array element index %d: cannot convert nil to string", i)
+			return fmt.Errorf("array: parsing array element index %d: cannot convert nil to string", i)
 		}
 		out[i] = e.text
 	}
@@ -111,7 +111,7 @@ func (a *Float64Array) Scan(src any) error {
 		*a = nil
 		return nil
 	default:
-		return fmt.Errorf("pgarray: cannot convert %T to Float64Array", src)
+		return fmt.Errorf("array: cannot convert %T to Float64Array", src)
 	}
 	elems, err := parseLinearArray(raw, "Float64Array")
 	if err != nil {
@@ -124,11 +124,11 @@ func (a *Float64Array) Scan(src any) error {
 	out := make(Float64Array, len(elems))
 	for i, e := range elems {
 		if e.null {
-			return fmt.Errorf("pgarray: parsing array element index %d: cannot convert nil to float64", i)
+			return fmt.Errorf("array: parsing array element index %d: cannot convert nil to float64", i)
 		}
 		f, err := strconv.ParseFloat(e.text, 64)
 		if err != nil {
-			return fmt.Errorf("pgarray: parsing array element index %d: %v", i, err)
+			return fmt.Errorf("array: parsing array element index %d: %v", i, err)
 		}
 		out[i] = f
 	}
@@ -169,11 +169,11 @@ func Array(a any) interface {
 type unsupportedArray struct{ value any }
 
 func (u unsupportedArray) Value() (driver.Value, error) {
-	return nil, fmt.Errorf("pgarray: unsupported array type %T", u.value)
+	return nil, fmt.Errorf("array: unsupported array type %T", u.value)
 }
 
 func (u unsupportedArray) Scan(any) error {
-	return fmt.Errorf("pgarray: unsupported array scan target %T", u.value)
+	return fmt.Errorf("array: unsupported array scan target %T", u.value)
 }
 
 // QuoteIdentifier returns name as a double-quoted SQL identifier with every

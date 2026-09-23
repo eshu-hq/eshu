@@ -50,7 +50,7 @@
   The deadline is read at startup; runtime changes require a restart
   (`main.go:95`).
 - **Recovery response budget** — the HTTP write timeout is derived from
-  `rebuildreset.DefaultRefinalizeDrainTimeout` plus a one-minute margin. A
+  `reset.DefaultRefinalizeDrainTimeout` plus a one-minute margin. A
   hard-killed reducer can retain its lease for the drain window; shortening the
   server timeout below that bound drops the eventual recovery response.
 - **Compile-time port conformance** — `wiring.go:23` asserts that `Neo4jReader`

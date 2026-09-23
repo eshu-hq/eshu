@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // EvidenceQueryer is the Postgres connection contract the advisory
@@ -70,15 +70,15 @@ func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		ListEvidenceQuery,
-		pgarray.Array(advisoryEvidenceFactKinds),
-		pgarray.Array(EvidenceLookupIDs(filter)),
-		pgarray.Array(advisoryEvidencePackageIDs(filter)),
+		array.Array(advisoryEvidenceFactKinds),
+		array.Array(EvidenceLookupIDs(filter)),
+		array.Array(advisoryEvidencePackageIDs(filter)),
 		filter.Source,
 		EvidenceMaxFactRows,
 		filter.RepositoryID,
 		filter.ServiceID,
 		filter.WorkloadID,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)

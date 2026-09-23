@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestWriterFenceLiveInvariantUnderConcurrentWritesAndRepairs is the fence's
@@ -144,7 +144,7 @@ func snapshotInvariant(ctx context.Context, db *sql.DB, repo string) (dirty, equ
 	}
 	var contentRows, tableRows int64
 	var contentHash, tableHash string
-	if err := tx.QueryRowContext(ctx, inventory.ReconcileDigestSQL, repo, pgarray.StringArray(inventory.Labels)).
+	if err := tx.QueryRowContext(ctx, inventory.ReconcileDigestSQL, repo, array.StringArray(inventory.Labels)).
 		Scan(&contentRows, &contentHash, &tableRows, &tableHash); err != nil {
 		return false, false, err
 	}

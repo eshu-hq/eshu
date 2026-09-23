@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestAPIServerWriteTimeoutOutlivesRefinalizeDrain(t *testing.T) {
 	server := newAPIServer(":0", http.NotFoundHandler())
 	assert.GreaterOrEqual(t,
 		server.WriteTimeout,
-		rebuildreset.DefaultRefinalizeDrainTimeout+time.Minute,
+		reset.DefaultRefinalizeDrainTimeout+time.Minute,
 		"recovery responses need a full drain bound plus transport margin",
 	)
 }

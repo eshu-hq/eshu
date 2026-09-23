@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 type serviceStoryTargetSupportSourceOnlySummary struct {
@@ -67,7 +67,7 @@ SELECT
    OR (jsonb_typeof(fact.payload->'linked_entities') = 'array' AND jsonb_array_length(fact.payload->'linked_entities') > 0)
   )`,
 	}) + `
-`, []any{pgarray.Array(factKinds)}
+`, []any{array.Array(factKinds)}
 }
 
 func buildStoryTargetSupportWithSourceOnlySummary(

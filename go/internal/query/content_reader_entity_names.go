@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -113,11 +113,11 @@ func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
 			  AND entity_name ` + operator
 	args := []any{nameArg}
 	if search.Scope == EntityNameScopeRepositories {
-		args = append(args, pgarray.Array(search.RepositoryIDs))
+		args = append(args, array.Array(search.RepositoryIDs))
 		query += fmt.Sprintf(" AND repo_id = ANY($%d::text[])", len(args))
 	}
 	if len(search.Languages) > 0 {
-		args = append(args, pgarray.Array(search.Languages))
+		args = append(args, array.Array(search.Languages))
 		query += fmt.Sprintf(" AND coalesce(language, '') = ANY($%d::text[])", len(args))
 	}
 	if search.EntityType != "" {

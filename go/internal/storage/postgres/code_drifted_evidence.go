@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -166,7 +166,7 @@ func (l PostgresCodeDriftedEvidenceLoader) loadMembers(
 			}
 		}
 	}
-	rows, err := l.DB.QueryContext(ctx, listCodeDriftedMembersQuery, repoID, pgarray.StringArray(ids))
+	rows, err := l.DB.QueryContext(ctx, listCodeDriftedMembersQuery, repoID, array.StringArray(ids))
 	if err != nil {
 		return nil, nil, fmt.Errorf("list drifted members for repo %q: %w", repoID, err)
 	}

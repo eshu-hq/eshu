@@ -302,11 +302,11 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 	}
 
 	for _, dir := range queryDirs {
-		pgarrayArrayKinds, err := pgarrayArraySliceFactKinds(dir)
+		arrayBoundKinds, err := arrayBoundSliceFactKinds(dir)
 		if err != nil {
 			return realConsumerEvidence{}, err
 		}
-		for kind := range pgarrayArrayKinds {
+		for kind := range arrayBoundKinds {
 			rawSQLKinds[kind] = true
 		}
 	}

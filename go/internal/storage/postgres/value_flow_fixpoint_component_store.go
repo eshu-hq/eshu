@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const (
@@ -155,7 +155,7 @@ func (s ValueFlowFixpointComponentStore) LoadValueFlowFixpointComponents(
 	if len(keys) == 0 {
 		return map[string]interproc.Result{}, nil
 	}
-	rows, err := s.database.QueryContext(ctx, loadValueFlowFixpointComponentsSQL, pgarray.Array(keys))
+	rows, err := s.database.QueryContext(ctx, loadValueFlowFixpointComponentsSQL, array.Array(keys))
 	if err != nil {
 		return nil, fmt.Errorf("load value-flow fixpoint components: %w", err)
 	}

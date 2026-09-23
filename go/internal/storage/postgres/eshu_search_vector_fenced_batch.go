@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const fencedVectorWriteJoins = `
@@ -149,7 +149,7 @@ func upsertEshuSearchVectorValueBatchFenced(
 		args = append(args, row.ScopeID, row.GenerationID, row.DocumentID,
 			row.ProviderProfileID, row.SourceClass, row.EmbeddingModelID,
 			row.EmbeddingDimensions, row.EmbeddingContentHash, row.VectorIndexVersion,
-			pgarray.Array(row.VectorValues), row.CreatedAt, row.UpdatedAt,
+			array.Array(row.VectorValues), row.CreatedAt, row.UpdatedAt,
 			row.ProjectionRevision, row.BuildFence)
 	}
 	query := `WITH incoming (

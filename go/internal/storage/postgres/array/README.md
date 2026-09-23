@@ -1,4 +1,4 @@
-# internal/storage/postgres/pgarray
+# internal/storage/postgres/array
 
 Postgres text-array encoding and identifier quoting for the storage layer.
 This is the in-repo replacement for the four `github.com/lib/pq` symbols Eshu
@@ -48,7 +48,7 @@ and non-ASCII text all round-trip as data.
 The change landed in two steps. First this package was added alongside
 `lib/pq` with a differential test (`pq_differential_test.go`, since deleted)
 that, in one process, asserted for every row of the tables in
-`pgarray_test.go` that `pgarray`'s driver value equalled `pq`'s, that the
+`array_test.go` that `array`'s driver value equalled `pq`'s, that the
 frozen literal in the table equalled `pq`'s output, and that `Scan` agreed
 with `pq` on both decoded values and error/no-error for malformed input. The
 test was then shown to fail: an on-disk edit dropping backslash escaping and
@@ -73,7 +73,7 @@ dependency out.
 ## Verification
 
 ```bash
-cd go && go test ./internal/storage/postgres/pgarray -count=1
+cd go && go test ./internal/storage/postgres/array -count=1
 ```
 
 ## One deliberate divergence from lib/pq

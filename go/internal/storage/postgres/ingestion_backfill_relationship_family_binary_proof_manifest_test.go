@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const (
@@ -143,7 +143,7 @@ FROM deferred_backfill_partition_memo`,
 	ids := relationshipFamilyBinaryProofSortedIDs(loadedIDs)
 	if _, err := db.ExecContext(ctx,
 		`INSERT INTO `+relationshipFamilyExpectedLoadedFactIDsTable+` (fact_id) SELECT unnest($1::text[])`,
-		pgarray.Array(ids),
+		array.Array(ids),
 	); err != nil {
 		t.Fatalf(`write binary proof loaded fact IDs: %v`, err)
 	}

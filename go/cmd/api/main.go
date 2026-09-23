@@ -19,7 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -127,7 +127,7 @@ func newAPIServer(addr string, handler http.Handler) *http.Server {
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout: rebuildreset.DefaultRefinalizeDrainTimeout +
+		WriteTimeout: reset.DefaultRefinalizeDrainTimeout +
 			apiRecoveryResponseMargin,
 		IdleTimeout: 120 * time.Second,
 	}

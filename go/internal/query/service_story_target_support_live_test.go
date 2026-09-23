@@ -13,7 +13,7 @@ import (
 	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // TestServiceStoryTargetSupportSQLSemanticsLive is the committed #6794 parity
@@ -67,7 +67,7 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	kinds := []string{"work_item.record", "work_item.record", "incident_routing.coverage_warning"}
 	sourceSQL, _ := buildServiceStoryTargetSupportSourceOnlySQL(kinds)
 	var total, workItems, incidents int64
-	if err := conn.QueryRowContext(ctx, sourceSQL, pgarray.Array(kinds)).Scan(&total, &workItems, &incidents); err != nil {
+	if err := conn.QueryRowContext(ctx, sourceSQL, array.Array(kinds)).Scan(&total, &workItems, &incidents); err != nil {
 		t.Fatalf("source-only query: %v", err)
 	}
 	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "2|1|1"; got != want {

@@ -55,7 +55,7 @@ business logic it stands in for. Callers stage that behavior themselves via
 
 `database/sql`, `context`, `errors`, `fmt`, `sync`, `time` (standard library),
 plus this repo's `internal/storage/postgres/db` (the contracts it satisfies)
-and `internal/storage/postgres/pgarray` (`Rows.Scan`'s `Float64Array`
+and `internal/storage/postgres/array` (`Rows.Scan`'s `Float64Array`
 destination case, matching the array-scan shape stores actually use).
 
 ## Telemetry
@@ -83,7 +83,7 @@ durable write of its own.
   failure.
 - `Rows.Scan` supports exactly the destination types this package's stores
   use: the Go primitives, `[]byte`, `time.Time`,
-  `pgarray.Float64Array`/`[]float64`, and the `sql.Null*` wrappers. Add a new
+  `array.Float64Array`/`[]float64`, and the `sql.Null*` wrappers. Add a new
   case here only when a real store needs a new destination type -- this is
   the one place duplicating that switch across every domain package would
   otherwise happen again.

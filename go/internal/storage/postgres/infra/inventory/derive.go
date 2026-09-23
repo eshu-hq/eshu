@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // mirrorPathChunkSize bounds how many paths one derive transaction covers, so
@@ -183,7 +183,7 @@ func Mirror(ctx context.Context, database db.ExecQueryer, target Target, change 
 			return Stats{}, errors.New("infra inventory derive: database must support transactions")
 		}
 		for start := 0; start < len(ids); start += mirrorPathChunkSize {
-			chunk := pgarray.StringArray(ids[start:min(start+mirrorPathChunkSize, len(ids))])
+			chunk := array.StringArray(ids[start:min(start+mirrorPathChunkSize, len(ids))])
 			stats, err := deleteInTransaction(ctx, beginner, target.RepoID,
 				statement{mirrorDeletedIDsSQL, []any{target.RepoID, chunk}})
 			if err != nil {
@@ -251,10 +251,10 @@ func MirrorPaths(ctx context.Context, database db.ExecQueryer, target Target, pa
 	var total Stats
 	for start := 0; start < len(unique); start += mirrorPathChunkSize {
 		end := min(start+mirrorPathChunkSize, len(unique))
-		chunk := pgarray.StringArray(unique[start:end])
+		chunk := array.StringArray(unique[start:end])
 		stats, err := deriveInTransaction(ctx, beginner, target.RepoID, false,
 			statement{mirrorPathsDeleteSQL, []any{target.RepoID, chunk}},
-			statement{mirrorPathsInsertSQL, []any{target.RepoID, chunk, target.ScopeID, target.GenerationID, pgarray.StringArray(Labels)}})
+			statement{mirrorPathsInsertSQL, []any{target.RepoID, chunk, target.ScopeID, target.GenerationID, array.StringArray(Labels)}})
 		if err != nil {
 			return total, fmt.Errorf("infra inventory derive %d paths for repo %q: %w", len(chunk), target.RepoID, err)
 		}
@@ -279,7 +279,7 @@ func MirrorRepo(ctx context.Context, database db.ExecQueryer, repoID string) (St
 	}
 	stats, err := deriveInTransaction(ctx, beginner, repoID, true,
 		statement{mirrorRepoDeleteSQL, []any{repoID}},
-		statement{mirrorRepoInsertSQL, []any{repoID, pgarray.StringArray(Labels), "", ""}})
+		statement{mirrorRepoInsertSQL, []any{repoID, array.StringArray(Labels), "", ""}})
 	if err != nil {
 		return Stats{}, fmt.Errorf("infra inventory derive repo %q: %w", repoID, err)
 	}

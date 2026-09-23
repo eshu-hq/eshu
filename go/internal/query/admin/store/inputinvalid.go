@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // ListReducerInputInvalidFacts implements admin.Store for the durable
@@ -59,9 +59,9 @@ WHERE quarantine.scope_id = $1
 	// scope_id could never read its own quarantine rows (codex review on
 	// PR #5252, issue #4630).
 	if len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0 {
-		args = append(args, pgarray.Array(f.AllowedRepositoryIDs))
+		args = append(args, array.Array(f.AllowedRepositoryIDs))
 		repoArg := len(args)
-		args = append(args, pgarray.Array(f.AllowedScopeIDs))
+		args = append(args, array.Array(f.AllowedScopeIDs))
 		scopeArg := len(args)
 		_, _ = fmt.Fprintf(&builder,
 			" AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY($%d)) OR quarantine.scope_id = ANY($%d))\n",

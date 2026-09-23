@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 )
 
 // TestRefinalizeAbortsWhileReducersHoldLiveLeases is the #6184 P1 review
@@ -39,9 +39,9 @@ func TestRefinalizeAbortsWhileReducersHoldLiveLeases(t *testing.T) {
 	_, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
 		ScopeIDs: []string{scopeID},
 	}, time.Now().UTC())
-	var fenceErr *rebuildreset.InflightReducersError
+	var fenceErr *reset.InflightReducersError
 	if !errors.As(err, &fenceErr) {
-		t.Fatalf("RefinalizeScopeProjections() error = %v, want *rebuildreset.InflightReducersError: "+
+		t.Fatalf("RefinalizeScopeProjections() error = %v, want *reset.InflightReducersError: "+
 			"retiring under a live reducer lease strands the in-flight resolution", err)
 	}
 	if fenceErr.Inflight < 1 {
@@ -191,20 +191,20 @@ func TestAssertRetirementFencedDistinguishesGuardTripFromNoOp(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tx.Rollback() })
 
-	var fenced rebuildreset.Generations
+	var fenced reset.Generations
 	fenced.Append(scopeID, activeGeneration)
-	var idle rebuildreset.Generations
+	var idle reset.Generations
 	idle.Append(scopeID, "fence-nonexistent-generation-"+suffix)
 
-	var fenceErr *rebuildreset.InflightReducersError
-	if err := rebuildreset.AssertRetirementFenced(ctx, rebuildresetQueryer{Transaction: tx}, fenced, 0); !errors.As(err, &fenceErr) {
-		t.Fatalf("assertRetirementFenced(retired=0, live lease) = %v, want *rebuildreset.InflightReducersError", err)
+	var fenceErr *reset.InflightReducersError
+	if err := reset.AssertRetirementFenced(ctx, resetQueryer{Transaction: tx}, fenced, 0); !errors.As(err, &fenceErr) {
+		t.Fatalf("assertRetirementFenced(retired=0, live lease) = %v, want *reset.InflightReducersError", err)
 	}
-	if err := rebuildreset.AssertRetirementFenced(ctx, rebuildresetQueryer{Transaction: tx}, idle, 0); err != nil {
+	if err := reset.AssertRetirementFenced(ctx, resetQueryer{Transaction: tx}, idle, 0); err != nil {
 		t.Fatalf("assertRetirementFenced(retired=0, no lease) = %v, want nil: a convergent "+
 			"re-run must commit", err)
 	}
-	if err := rebuildreset.AssertRetirementFenced(ctx, rebuildresetQueryer{Transaction: tx}, fenced, 1); err != nil {
+	if err := reset.AssertRetirementFenced(ctx, resetQueryer{Transaction: tx}, fenced, 1); err != nil {
 		t.Fatalf("assertRetirementFenced(retired=1) = %v, want nil", err)
 	}
 }

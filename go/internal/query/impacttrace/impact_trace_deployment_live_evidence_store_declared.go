@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery is the
@@ -158,11 +158,11 @@ func (s PostgresKubernetesPodTemplateStore) hasLiveDeclaredObjectIdentityMatch(
 		filter.Namespace,
 		filter.Name,
 		len(filter.ImageRefs) == 0,
-		pgarray.Array(filter.ImageRefs),
+		array.Array(filter.ImageRefs),
 	}
 	if !filter.AllScopes {
 		query = hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery
-		args = append(args, pgarray.Array(filter.AllowedRepositoryIDs), pgarray.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
 	}
 	return queryLiveIdentityMatchExists(ctx, s.DB, query, args)
 }
@@ -181,11 +181,11 @@ func (s PostgresKubernetesPodTemplateStore) listLiveDeclaredObjectIdentityMatche
 		filter.Namespace,
 		filter.Name,
 		len(filter.ImageRefs) == 0,
-		pgarray.Array(filter.ImageRefs),
+		array.Array(filter.ImageRefs),
 	}
 	if !filter.AllScopes {
 		query = listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery
-		args = append(args, pgarray.Array(filter.AllowedRepositoryIDs), pgarray.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
 	}
 	args = append(args, querycontract.ServiceStoryItemLimit)
 

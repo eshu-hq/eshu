@@ -1,4 +1,4 @@
-# Replacing lib/pq with pgarray and a forked embedded-postgres
+# Replacing lib/pq with array and a forked embedded-postgres
 
 ## Why this touched hot files
 
@@ -12,7 +12,7 @@ Removing the dependency meant rewriting 348 call sites of `pq.Array`,
 in `internal/storage/postgres` files whose SQL contains `CREATE`/`MERGE`, so the
 content-based hot-path detector selects them. **The SQL text itself is
 unchanged.** The only edit in those files is the selector rename, e.g.
-`pq.Array(&ids)` to `pgarray.Array(&ids)`.
+`pq.Array(&ids)` to `array.Array(&ids)`.
 
 ## No-Regression Evidence:
 
@@ -26,7 +26,7 @@ encoder is byte-identical to the old:
   double quote, backslash, both braces, the literal word `NULL`, empty string,
   leading/trailing whitespace, tab and newline, UTF-8 (`héllo`, `日本語`, an
   emoji), quote-plus-backslash, and a `$;`/`--` injection attempt. Each asserted
-  `pgarray == pq.StringArray == pq.Array`, and each also frozen against the
+  `array == pq.StringArray == pq.Array`, and each also frozen against the
   literal pq produced.
 - `Float64Array.Value`, 9 rows including `1e-7`, `0.30000000000000004`, negative
   zero via `math.Copysign`, and `1e21`.
@@ -75,7 +75,7 @@ carries a `$24::timestamptz`. It is not caused by this change, and it is
 unrelated to array encoding.
 
 An earlier version of this note claimed the failures were confined to files
-containing no `pgarray` reference. That was wrong, and it is recorded here
+containing no `array` reference. That was wrong, and it is recorded here
 rather than quietly corrected: the plan test above contains eleven, and
 `suppression_paths_performance_live_test.go` contains three. The
 head-vs-main differential above is the claim that actually holds, and it is
@@ -97,7 +97,7 @@ the `eshu local` path, and that connection emits no telemetry.
 
 ## The embedded-postgres fork
 
-Eshu's own use of lib/pq is gone with `pgarray`, but `cmd/eshu` still linked the
+Eshu's own use of lib/pq is gone with `array`, but `cmd/eshu` still linked the
 driver through `github.com/fergusstrange/embedded-postgres`, which used
 `pq.NewConnector` in one helper feeding `createDatabase` and
 `healthCheckDatabase`. Because `database/sql` resolves driver names at run time,

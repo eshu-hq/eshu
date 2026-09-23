@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // TODO(#4795 W2b / #4784 ADR): reducer_sbom_attestation_attachment is a
@@ -80,7 +80,7 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		filter.ServiceID,
 		filter.AfterAttachmentID,
 		filter.Limit,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
@@ -202,7 +202,7 @@ func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissing
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)

@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // CatalogCorrelationFactKind is the fact kind carrying durable
@@ -106,8 +106,8 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 		filter.DriftStatus,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
+		array.Array(filter.AllowedRepositoryIDs),
+		array.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list service catalog correlations: %w", err)
@@ -154,7 +154,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 		ctx,
 		ListServiceCatalogLocalDescriptorEvidenceQuery,
 		serviceCatalogGitRepositoryScopeID(repositoryID),
-		pgarray.Array(facts.ServiceCatalogFactKinds()),
+		array.Array(facts.ServiceCatalogFactKinds()),
 		limit,
 	)
 	if err != nil {

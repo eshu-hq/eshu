@@ -12,8 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // crossScopeTargetQueryerStub answers only the scope-state probe and records
@@ -85,10 +85,10 @@ func TestStoreLoadsPinnedActiveGenerations(t *testing.T) {
 	if got := queryer.args[0]; got != "123456789012" {
 		t.Fatalf("account arg = %v", got)
 	}
-	if got, want := []string(queryer.args[1].(pgarray.StringArray)), []string{"kms", "s3"}; !slices.Equal(got, want) {
+	if got, want := []string(queryer.args[1].(array.StringArray)), []string{"kms", "s3"}; !slices.Equal(got, want) {
 		t.Fatalf("service kinds = %v, want %v", got, want)
 	}
-	if got, want := []string(queryer.args[2].(pgarray.StringArray)), []string{"us-west-2", ""}; !slices.Equal(got, want) {
+	if got, want := []string(queryer.args[2].(array.StringArray)), []string{"us-west-2", ""}; !slices.Equal(got, want) {
 		t.Fatalf("regions = %v, want %v", got, want)
 	}
 	if got := queryer.args[3]; got != "aws:123456789012:us-east-1:iam" {

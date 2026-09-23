@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // factKind is the reducer fact kind backing the reconciliation read model
@@ -95,7 +95,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 		ctx,
 		listQuery,
 		factKind,
-		pgarray.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
@@ -104,7 +104,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 		filter.ReconciliationStatus,
 		filter.AfterReconciliationID,
 		filter.Limit,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list security alert reconciliations: %w", err)

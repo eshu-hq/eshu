@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // ScopedTestAuthContext builds the scoped auth context scope-enforcement tests
@@ -58,12 +58,12 @@ func CodeGrantScopedAuthContext(allowedRepositoryIDs []string) queryauth.AuthCon
 // actually bound to the caller's id list, not left dangling: a predicate whose
 // parameter never arrives fails at execution, and a predicate bound to the
 // wrong list silently widens the scan. Shipped builders bind the list with
-// pgarray.Array, so the assertion scans args for the *pgarray.StringArray
+// array.Array, so the assertion scans args for the *array.StringArray
 // carrying want rather than demanding an exact string element.
 func AssertBoundRepositoryGrantArray(t *testing.T, args []any, want []string) {
 	t.Helper()
 	for _, arg := range args {
-		bound, ok := arg.(*pgarray.StringArray)
+		bound, ok := arg.(*array.StringArray)
 		if !ok {
 			continue
 		}
@@ -72,7 +72,7 @@ func AssertBoundRepositoryGrantArray(t *testing.T, args []any, want []string) {
 		}
 		t.Fatalf("bound grant array = %#v, want %#v", []string(*bound), want)
 	}
-	t.Fatalf("args = %#v, want one bound *pgarray.StringArray carrying %#v", args, want)
+	t.Fatalf("args = %#v, want one bound *array.StringArray carrying %#v", args, want)
 }
 
 // BoundCanonicalLanguage returns the first entry of a Cypher builder's bound

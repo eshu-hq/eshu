@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 )
 
 // replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
@@ -116,20 +116,20 @@ type RecoveryStore struct {
 
 	// refinalizeDrainTimeout bounds the in-flight reducer drain wait in
 	// RefinalizeScopeProjections; refinalizeDrainPoll is the poll interval.
-	// Zero means the rebuildreset defaults apply. They are set with
+	// Zero means the reset defaults apply. They are set with
 	// RecoveryStoreOption so existing constructors keep working.
 	refinalizeDrainTimeout time.Duration
 	refinalizeDrainPoll    time.Duration
 }
 
-// rebuildresetQueryer adapts Transaction to rebuildreset.Queryer. The row
+// resetQueryer adapts Transaction to reset.Queryer. The row
 // interfaces already match, so only the entrypoint needs adapting.
-type rebuildresetQueryer struct {
+type resetQueryer struct {
 	db.Transaction
 }
 
-// QueryContext implements rebuildreset.Queryer.
-func (q rebuildresetQueryer) QueryContext(ctx context.Context, query string, args ...any) (rebuildreset.Rows, error) {
+// QueryContext implements reset.Queryer.
+func (q resetQueryer) QueryContext(ctx context.Context, query string, args ...any) (reset.Rows, error) {
 	return q.Transaction.QueryContext(ctx, query, args...)
 }
 
@@ -351,7 +351,7 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 // active scope when the filter sets AllScopes.
 //
 // It also clears the downstream dedup state that would otherwise stop the
-// re-projection at source-local structure; the rebuildreset subpackage says
+// re-projection at source-local structure; the reset subpackage says
 // which state and why each piece blocks a rebuild.
 //
 // All four statements run in one transaction so a refinalize cannot leave the
@@ -384,43 +384,43 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	}()
 
 	// Coordination (read once, drain-wait, enqueue, fence check) lives in
-	// rebuildreset; the drain wait runs after the authoritative read and
+	// reset; the drain wait runs after the authoritative read and
 	// before any write so a resolver that claimed first cannot get its
 	// generation retired mid-flight. A resolver whose lease expires while it
 	// is still executing is fenced at relationship-generation activation by
 	// its exact queue claim (#6184 P1 review).
-	rq := rebuildresetQueryer{Transaction: tx}
+	rq := resetQueryer{Transaction: tx}
 
-	generations, err := rebuildreset.ReadAffectedGenerations(ctx, rq, filter)
+	generations, err := reset.ReadAffectedGenerations(ctx, rq, filter)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
-	if err := rebuildreset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
+	if err := reset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
-	if err := rebuildreset.AcquireReducerClaimFence(ctx, rq, generations); err != nil {
+	if err := reset.AcquireReducerClaimFence(ctx, rq, generations); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
-	scopeIDs, err := rebuildreset.EnqueueProjectorWork(ctx, rq, generations, now)
+	scopeIDs, err := reset.EnqueueProjectorWork(ctx, rq, generations, now)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
-	counts, err := rebuildreset.ApplyPreRetirement(ctx, tx, generations)
+	counts, err := reset.ApplyPreRetirement(ctx, tx, generations)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
-	counts.GenerationsRetired, err = rebuildreset.RetireResolutionGenerations(ctx, tx, generations)
+	counts.GenerationsRetired, err = reset.RetireResolutionGenerations(ctx, tx, generations)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
 	// Zero retired with live leases outstanding means the retirement guard
 	// tripped; zero with none is the convergent re-run. See
-	// rebuildreset.AssertRetirementFenced.
-	if err := rebuildreset.AssertRetirementFenced(ctx, rq, generations, counts.GenerationsRetired); err != nil {
+	// reset.AssertRetirementFenced.
+	if err := reset.AssertRetirementFenced(ctx, rq, generations, counts.GenerationsRetired); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 

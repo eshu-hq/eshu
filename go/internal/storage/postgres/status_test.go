@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
@@ -449,13 +449,13 @@ func (r *fakeRows) Scan(dest ...any) error {
 			default:
 				return fmt.Errorf("row[%d] type = %T, want time.Time or nil", i, row[i])
 			}
-		case *pgarray.StringArray:
+		case *array.StringArray:
 			switch value := row[i].(type) {
 			case nil:
-				*target = pgarray.StringArray{}
+				*target = array.StringArray{}
 			case []string:
-				*target = pgarray.StringArray(value)
-			case pgarray.StringArray:
+				*target = array.StringArray(value)
+			case array.StringArray:
 				*target = value
 			default:
 				return fmt.Errorf("row[%d] type = %T, want string array", i, row[i])

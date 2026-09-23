@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // AWSCloudRuntimeDriftFindingFactKind is the durable reducer fact emitted for
@@ -286,7 +286,7 @@ func buildAWSCloudRuntimeDriftFindingQuery(
 		// `= ANY(allowed_scope_ids)` here even against an empty array is a
 		// safe no-op (matches zero rows), not a leak, so this stays
 		// unconditional on Scoped rather than also checking length.
-		conditions = append(conditions, "fact.scope_id = ANY("+addArg(pgarray.StringArray(filter.AllowedScopeIDs))+")")
+		conditions = append(conditions, "fact.scope_id = ANY("+addArg(array.StringArray(filter.AllowedScopeIDs))+")")
 	}
 
 	var builder strings.Builder

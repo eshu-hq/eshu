@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
@@ -68,22 +68,22 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		ListReadinessQuery,
-		pgarray.Array(vulnerabilityAdvisoryFactKinds),
-		pgarray.Array(vulnerabilityExploitabilityFactKinds),
-		pgarray.Array(packageConsumptionCorrelationFactKinds),
-		pgarray.Array(packageRegistryFactKinds),
-		pgarray.Array(sbomComponentFactKinds),
-		pgarray.Array(sbomAttestationFactKinds),
-		pgarray.Array(containerImageIdentityFactKinds),
-		pgarray.Array(vulnerabilitySourceSnapshotFactKinds),
+		array.Array(vulnerabilityAdvisoryFactKinds),
+		array.Array(vulnerabilityExploitabilityFactKinds),
+		array.Array(packageConsumptionCorrelationFactKinds),
+		array.Array(packageRegistryFactKinds),
+		array.Array(sbomComponentFactKinds),
+		array.Array(sbomAttestationFactKinds),
+		array.Array(containerImageIdentityFactKinds),
+		array.Array(vulnerabilitySourceSnapshotFactKinds),
 		query.CVEID,
 		query.PackageID,
 		query.RepositoryID,
 		query.SubjectDigest,
 		query.AdvisoryID,
 		query.ImageRef,
-		pgarray.Array(vulnerabilityOSPackageFactKinds),
-		pgarray.Array(scannerWorkerAnalysisFactKinds),
+		array.Array(vulnerabilityOSPackageFactKinds),
+		array.Array(scannerWorkerAnalysisFactKinds),
 	)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
@@ -102,7 +102,7 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 		var factCount int
 		var latest sql.NullTime
 		var incompleteFlag sql.NullBool
-		var reasons pgarray.StringArray
+		var reasons array.StringArray
 		var sourceSnapshotsJSON sql.NullString
 		var sourceStatesJSON sql.NullString
 		var unsupportedTargetsJSON sql.NullString

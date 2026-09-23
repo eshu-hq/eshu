@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -274,10 +274,10 @@ func assertRuntimeEnvironmentEvidenceIndexPlan(
 	if err := db.QueryRowContext(
 		ctx,
 		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query,
-		pgarray.Array(digests),
-		pgarray.Array(environments),
-		pgarray.Array([]string{}),
-		pgarray.Array([]string{}),
+		array.Array(digests),
+		array.Array(environments),
+		array.Array([]string{}),
+		array.Array([]string{}),
 	).Scan(&raw); err != nil {
 		t.Fatalf("explain runtime environment evidence query: %v", err)
 	}

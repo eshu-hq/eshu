@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // WriterSessionSQL marks a connection as derive-aware. Migration 109's
@@ -186,7 +186,7 @@ func repairDirtyTx(ctx context.Context, database db.ExecQueryer, repoID string) 
 	if err != nil {
 		return Stats{}, false, fmt.Errorf("delete: %w", err)
 	}
-	inserted, err := tx.ExecContext(ctx, mirrorRepoInsertSQL, repoID, pgarray.StringArray(Labels), "", "")
+	inserted, err := tx.ExecContext(ctx, mirrorRepoInsertSQL, repoID, array.StringArray(Labels), "", "")
 	if err != nil {
 		return Stats{}, false, fmt.Errorf("insert: %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 func TestMirrorPathsRunsLockDeleteInsertPerChunkInOneTransaction(t *testing.T) {
@@ -53,10 +53,10 @@ func TestMirrorPathsRunsLockDeleteInsertPerChunkInOneTransaction(t *testing.T) {
 			t.Fatalf("tx %d third statement must re-derive the chunk, got %q", i, tx.execs[2].query)
 		}
 	}
-	if got := len(database.txs[0].execs[1].args[1].(pgarray.StringArray)); got != mirrorPathChunkSize {
+	if got := len(database.txs[0].execs[1].args[1].(array.StringArray)); got != mirrorPathChunkSize {
 		t.Fatalf("first chunk paths = %d, want %d", got, mirrorPathChunkSize)
 	}
-	if got := len(database.txs[1].execs[1].args[1].(pgarray.StringArray)); got != 3 {
+	if got := len(database.txs[1].execs[1].args[1].(array.StringArray)); got != 3 {
 		t.Fatalf("second chunk paths = %d, want 3 (deduplicated, blanks dropped)", got)
 	}
 	insertArgs := database.txs[0].execs[2].args
@@ -191,7 +191,7 @@ func TestMirrorDeletesTombstonedEntityIDsUnderTheRepoLock(t *testing.T) {
 		!strings.Contains(idTx.execs[1].query, "entity_id = ANY") {
 		t.Fatalf("id delete tx = %+v, want lock then delete by entity_id", idTx.execs)
 	}
-	if got := []string(idTx.execs[1].args[1].(pgarray.StringArray)); len(got) != 2 || got[0] != "e1" || got[1] != "e2" {
+	if got := []string(idTx.execs[1].args[1].(array.StringArray)); len(got) != 2 || got[0] != "e1" || got[1] != "e2" {
 		t.Fatalf("deleted ids = %v, want deduplicated [e1 e2]", got)
 	}
 }

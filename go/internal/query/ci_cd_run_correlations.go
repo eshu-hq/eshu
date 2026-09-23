@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
@@ -77,8 +77,8 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 		filter.Outcome,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
+		array.Array(filter.AllowedRepositoryIDs),
+		array.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list ci/cd run correlations: %w", err)

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const (
@@ -57,7 +57,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveReplatformingScopes(
 	args := []any{AWSCloudRuntimeDriftFindingFactKind, limit + 1}
 	if len(allowedScopeIDs) > 0 {
 		query = listScopedActiveReplatformingScopesSQL
-		args = []any{AWSCloudRuntimeDriftFindingFactKind, pgarray.StringArray(allowedScopeIDs), limit + 1}
+		args = []any{AWSCloudRuntimeDriftFindingFactKind, array.StringArray(allowedScopeIDs), limit + 1}
 	}
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {

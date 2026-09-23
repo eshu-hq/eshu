@@ -10,7 +10,7 @@ The tenant grant store move under #6693 hoisted these four helpers into the
 `db` contract leaf so the new `tenantstore` leaf and the families still in
 the root could share them without one family importing another. That broke
 `db`'s interfaces-only invariant, so they moved here: a cycle-free leaf with
-the same stdlib-only, no-SQL-text, no-I/O shape as `pgarray`.
+the same stdlib-only, no-SQL-text, no-I/O shape as `array`.
 
 ## Exported surface
 

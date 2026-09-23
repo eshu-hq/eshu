@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // ListGenerationLifecycle returns one bounded, ordered page of scope generation
@@ -47,8 +47,8 @@ func (s StatusStore) ListGenerationLifecycle(
 		filter.Status,
 		fetch,
 		filter.Scoped,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
+		array.Array(filter.AllowedRepositoryIDs),
+		array.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)

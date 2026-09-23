@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -201,7 +201,7 @@ func appendRepositoryGrantFilter(
 		return filters, args, nextArg
 	}
 	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
-	args = append(args, pgarray.Array(allowedRepositoryIDs))
+	args = append(args, array.Array(allowedRepositoryIDs))
 	return filters, args, nextArg + 1
 }
 
@@ -360,7 +360,7 @@ func (cr *ContentReader) DivergenceMembersByEntityID(
 	)
 	defer span.End()
 
-	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, pgarray.Array(entityIDs))
+	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, array.Array(entityIDs))
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("divergence members by entity: %w", err)
@@ -449,7 +449,7 @@ func (cr *ContentReader) DivergenceMembers(
 
 	// #nosec G201 -- column is one of two literals; the rest is static SQL with $N args
 	membersQuery := fmt.Sprintf(divergenceMembersQuery, "f."+column, "f."+column, "f."+column)
-	rows, err := cr.db.QueryContext(ctx, membersQuery, repoID, pgarray.Array(fingerprints))
+	rows, err := cr.db.QueryContext(ctx, membersQuery, repoID, array.Array(fingerprints))
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("divergence members: %w", err)

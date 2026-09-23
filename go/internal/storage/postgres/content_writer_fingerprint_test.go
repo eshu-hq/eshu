@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // TestFingerprintRowFromMetadata proves the writer extracts the four
@@ -589,7 +589,7 @@ func TestDeleteFingerprintBandsForEntitiesChunksAtFileBatchSize(t *testing.T) {
 func deleteArgIDs(t *testing.T, args []any) []string {
 	t.Helper()
 	for _, arg := range args[1:] {
-		if ids, ok := arg.(pgarray.StringArray); ok {
+		if ids, ok := arg.(array.StringArray); ok {
 			return []string(ids)
 		}
 	}
@@ -607,7 +607,7 @@ func assertExecTargetsEntity(t *testing.T, args []any, entityID string) {
 	}
 	found := false
 	for _, arg := range args[1:] {
-		ids, ok := arg.(pgarray.StringArray)
+		ids, ok := arg.(array.StringArray)
 		if !ok {
 			continue
 		}

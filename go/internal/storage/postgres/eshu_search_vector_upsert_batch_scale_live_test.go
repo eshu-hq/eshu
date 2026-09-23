@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -230,7 +230,7 @@ func TestEshuSearchVectorUpsertBatchScaleLive(t *testing.T) {
 		  AND provider_profile_id = $2 AND source_class = $3
 		  AND embedding_model_id = $4 AND vector_index_version = $5`,
 		batchedValues[0].ScopeID, providerProfileID, sourceClass, modelID, vectorVersion,
-	).Scan(&scannedDocumentID, &scannedDimensions, pgarray.Array(&scannedVector)); err != nil {
+	).Scan(&scannedDocumentID, &scannedDimensions, array.Array(&scannedVector)); err != nil {
 		t.Fatalf("query batched value row: %v", err)
 	}
 	if scannedDocumentID != "doc-0" {

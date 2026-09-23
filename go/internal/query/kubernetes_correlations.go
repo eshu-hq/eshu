@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const kubernetesCorrelationFactKind = "reducer_kubernetes_correlation"
@@ -138,7 +138,7 @@ func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
 	}
 	if !filter.AllScopes {
 		query = listKubernetesCorrelationsScopedQuery
-		args = append(args, pgarray.Array(filter.AllowedRepositoryIDs), pgarray.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
 	}
 	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {

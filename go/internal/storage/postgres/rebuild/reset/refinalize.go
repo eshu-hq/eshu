@@ -10,7 +10,7 @@
 // Queryer and Rows are narrow local interfaces so this package never imports
 // its caller: any QueryContext source whose rows offer Next/Scan/Err/Close
 // satisfies them implicitly.
-package rebuildreset
+package reset
 
 import (
 	"context"

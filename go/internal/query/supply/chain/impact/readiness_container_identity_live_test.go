@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -41,17 +41,17 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 	seedReadinessMutableRefProof(t, ctx, db)
 
 	args := []any{
-		pgarray.Array(vulnerabilityAdvisoryFactKinds),
-		pgarray.Array(vulnerabilityExploitabilityFactKinds),
-		pgarray.Array(packageConsumptionCorrelationFactKinds),
-		pgarray.Array(packageRegistryFactKinds),
-		pgarray.Array(sbomComponentFactKinds),
-		pgarray.Array(sbomAttestationFactKinds),
-		pgarray.Array(containerImageIdentityFactKinds),
-		pgarray.Array(vulnerabilitySourceSnapshotFactKinds),
+		array.Array(vulnerabilityAdvisoryFactKinds),
+		array.Array(vulnerabilityExploitabilityFactKinds),
+		array.Array(packageConsumptionCorrelationFactKinds),
+		array.Array(packageRegistryFactKinds),
+		array.Array(sbomComponentFactKinds),
+		array.Array(sbomAttestationFactKinds),
+		array.Array(containerImageIdentityFactKinds),
+		array.Array(vulnerabilitySourceSnapshotFactKinds),
 		"", "", "", "", "", readinessMutableRef,
-		pgarray.Array(vulnerabilityOSPackageFactKinds),
-		pgarray.Array(scannerWorkerAnalysisFactKinds),
+		array.Array(vulnerabilityOSPackageFactKinds),
+		array.Array(scannerWorkerAnalysisFactKinds),
 	}
 	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 		var factCount int
 		var latest sql.NullTime
 		var incomplete sql.NullBool
-		var reasons pgarray.StringArray
+		var reasons array.StringArray
 		var sourceSnapshots, sourceStates, unsupported sql.NullString
 		if err := rows.Scan(
 			&family,

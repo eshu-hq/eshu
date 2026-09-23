@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // terraformConfigStateDriftRetireQuery is the generation-authoritative
@@ -64,7 +64,7 @@ func retireTerraformConfigStateDriftFindings(
 ) error {
 	if _, err := db.ExecContext(
 		ctx, terraformConfigStateDriftRetireQuery,
-		terraformConfigStateDriftFactKind, scopeID, generationID, pgarray.StringArray(keepFactIDs),
+		terraformConfigStateDriftFactKind, scopeID, generationID, array.StringArray(keepFactIDs),
 	); err != nil {
 		return fmt.Errorf("retire stale terraform config state drift findings: %w", err)
 	}
