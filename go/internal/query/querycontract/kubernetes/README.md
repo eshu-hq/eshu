@@ -27,8 +27,17 @@ different graphs from the same input.
 Both surface on the wire under `relationship["reason"]`, so a consumer can tell
 a proven edge from an inferred one, and changing a value is a wire change.
 
-The two literals live only in `select_match.go` -- checked at `c31655ede`, they
-appear nowhere else in the repository, docs included.
+The literals are pinned outside this package, including across a language
+boundary. Measured at `2d68f1cbb`:
+
+| literal | also asserted in |
+| --- | --- |
+| `k8s_service_name_namespace` | `apps/console/src/api/eshuGraphDeployment.truth.test.ts`, `content_relationships_k8s_test.go`, `entity_content_iac_fallback_test.go`, `impacttrace/impact_trace_deployment_k8s_test.go` |
+| `k8s_service_selector_match` | `content_relationships_k8s_test.go`, `content_relationships_k8s_truncation_test.go`, `impacttrace/impact_trace_deployment_k8s_test.go` |
+
+The console test asserts the string on the wire
+(`expect(selectsEdge?.evidence).toContain("reason: k8s_service_name_namespace")`),
+so changing a value breaks a TypeScript test, not only Go ones.
 `docs/public/languages/kubernetes.md` documents the SELECTS capability and
 states the fallback rule ("a known selector is authoritative and never falls
 back, even on a name/namespace coincidence") but does not quote the strings. So

@@ -17,12 +17,21 @@ is not: namespace equality gates matching, so a second trim is a second truth.
 clients under `relationship["reason"]`, not internal labels, so changing a value
 is a contract change.
 
-Do not assume a doc carries the literals. Checked at `c31655ede`, both strings
-appear in `select_match.go` and nowhere else in the repository:
+Run the search before you believe anything about where these strings live,
+including anything written here. Measured at `2d68f1cbb`:
 
 ```
-rg -l 'k8s_service_selector_match' .
+rg -l 'k8s_service_name_namespace|k8s_service_selector_match' .
 ```
+
+Seven files, and one of them is `apps/console/src/api/eshuGraphDeployment.truth.test.ts`
+-- a TypeScript test asserting the value on the wire. Changing a constant breaks
+a console test as well as four Go ones.
+
+An earlier version of this file claimed both strings appeared in `select_match.go`
+alone. That was wrong because the check behind it carried `--glob '!*_test.go'`
+and searched only one of the two literals -- two filters, each hiding part of the
+answer, under a sentence that reported the whole.
 
 `docs/public/languages/kubernetes.md` documents the capability and the fallback
 rule, so read it when the BEHAVIOUR changes. The comment that used to sit above

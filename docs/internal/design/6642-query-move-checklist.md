@@ -41,19 +41,19 @@ labelling choice for those PRs rather than a coupling question.
 
 The issue's no-retained-aliases rule is tracked by count, and the count is a
 **family** count, not a `*_alias.go` glob: 21 non-test root files at
-`c31655ede`, which is 19 `*_alias.go`, plus the build-tagged
+`2d68f1cbb`, which is 19 `*_alias.go`, plus the build-tagged
 `entity_alias_live.go`, plus `envelope_aliases.go` (plural, and per the
 move-cost doc "not an alias file" — 52 real type aliases with 1022 callers).
 All 21 carry a disposition in
 [the alias ledger](6642-query-move-cost.md#the-alias-ledger); audited at
-`c31655ede`, nothing uncovered.
+`2d68f1cbb`, nothing uncovered.
 
 Anyone updating this number must use the family rule. A `*_alias.go` glob
 returns 19 and makes the docs' correct "Twenty-one" look like a miscount.
 
 | retired by | file | remaining |
 | --- | --- | ---: |
-| — | (baseline at `c31655ede`) | 21 |
+| — | (baseline at `2d68f1cbb`) | 21 |
 | the `kubernetes` leaf | `k8s_match_alias.go` | 20 |
 
 ## Performance and observability evidence for the `kubernetes` leaf
@@ -64,11 +64,14 @@ list, and that file is touched. It is worth saying exactly what the touch is
 rather than producing a benchmark shaped like proof.
 
 No-Regression Evidence: the change to every hot file in this PR is an
-identifier repoint. `trace_deployment_resources.go` changes two tokens on one
-line — `querycontract.NewK8sWorkloadMatchTarget` becomes
+identifier repoint. `trace_deployment_resources.go` changes two identifiers on
+one code line, plus the single import line that rename requires and nothing
+else — `querycontract.NewK8sWorkloadMatchTarget` becomes
 `kubernetes.NewWorkloadMatchTarget` and `querycontract.K8sSelectMatchInputFromEntity`
-becomes `kubernetes.SelectMatchInputFromEntity`. No call site, argument,
-allocation, loop bound, batch size, transaction scope or query text changes.
+becomes `kubernetes.SelectMatchInputFromEntity`. `querycontract.IsK8sResourceKind`
+on the line above is untouched — a K8s-named symbol that does not move, which the
+rename correctly left alone. No call site, argument, allocation, loop bound,
+batch size, transaction scope or query text changes.
 
 Baseline and after are the same program. That is not an assertion from reading
 the diff: normalising each moved file through the intended rename map, the
