@@ -1626,6 +1626,10 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/schema_migration_7002_live_test.go
+    tag: integration
+    class: scheduled
+    reason: needs a second empty database (ESHU_POSTGRES_7002_FRESH_TEST_DSN) for the fresh-install comparison, which the live-backend CI job does not provision
   - file: go/internal/storage/postgres/schema_migration_recovery_live_test.go
     tag: integration
     class: scheduled
