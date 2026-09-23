@@ -159,7 +159,7 @@ slipping past a blocklist:
 | `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) and loopback |
 | `nodeip` | EKS-style `ip-A-B-C-D` node names only in those documentation ranges or loopback |
 | `ipv6` | RFC 3849 `2001:db8::/32` and `::1`; six-group MAC addresses also land here, and only the RFC 7042 documentation block (`00:00:5e:00:53:xx`) and the all-zero MAC pass |
-| `account12` | `123456789012`, zero-prefixed `00000000000N`, and repdigits; twelve digits inside a hex digest are not a candidate |
+| `account12` | `123456789012`, zero-prefixed `00000000000N`, repdigits, and the reserved `0000` + 8-digit range that record-mode pseudonymization mints accounts into (the recorder's own belt checks that a run minted them; here it is a shape check); twelve digits inside a hex digest are not a candidate |
 | `arn` | an empty, `aws`, or documentation account field |
 | `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
 | `identifier` | nothing; the committed canary `eshu-canary-org` plus every literal in `ESHU_PRIVATE_IDENTIFIERS_FILE` |

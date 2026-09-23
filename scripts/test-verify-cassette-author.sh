@@ -124,6 +124,25 @@ plant_red nodeip 'ip-10-20-30-40'
 # and the all-zero MAC are allowed.
 plant_red ipv6 '3c:22:fb:12:34:56' ipv6-mac
 plant_red identifier 'eshu-canary-org'
+# Record-mode pseudonymization (#6965 Phase 3) mints accounts into the
+# reserved 0000 + 8 digit range, which doc_account admits. The extension is
+# anchored on exactly four leading zeros: an account with any other prefix,
+# including 0001, stays a finding, and so does an ARN or ECR host built on it.
+plant_red account12 '000112345678' account12-reserved-neighbour
+plant_red arn 'arn:aws:iam::000112345678:role/example' arn-reserved-neighbour
+plant_red hostname '000112345678.dkr.ecr.us-east-1.amazonaws.com' hostname-reserved-neighbour
+
+# GREEN for the reserved form itself: an account, an ARN and an ECR host in
+# the 0000xxxxxxxx range are documentation values to this scan (the
+# recorder's Verify belt, not this gate, checks that a run minted them).
+reserveddir="${scratch}/reserved-account"
+mkdir -p "${reserveddir}"
+printf '{"account_id":"000017213864","arn":"arn:aws:ecs:us-east-1:000017213864:task/example/0123456789abcdef0123456789abcdef","uri":"000017213864.dkr.ecr.us-east-1.amazonaws.com/example"}\n' >"${reserveddir}/pseudonymized.json"
+rc=0
+run_scan "${reserveddir}" "${scratch}/reserved-account.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "the reserved 0000 account form was flagged; record-mode output would fail the gate: $(cat "${scratch}/reserved-account.out")"
+printf 'GREEN reserved account form: exit %s\n' "${rc}"
 
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
@@ -226,6 +245,11 @@ mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_a
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
 	"positive control carries 11 sample(s), expected 12"
+# The reserved-account allowed sample pins the doc_account extension: delete
+# it and the hand count of 29 goes red, so the form cannot be dropped from
+# the allowlist without touching the number.
+mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
+	"negative control carries 28 sample(s), expected 29"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an
