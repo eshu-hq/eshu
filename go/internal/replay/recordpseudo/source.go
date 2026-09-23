@@ -4,7 +4,9 @@
 package recordpseudo
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -132,6 +134,11 @@ func (s *Source) drain(ctx context.Context) error {
 		}
 		envelopes := make([]facts.Envelope, 0, gen.FactCount())
 		for env := range gen.Facts {
+			normalized, err := normalizePayload(env.Payload)
+			if err != nil {
+				return fmt.Errorf("recordpseudo: scope %q fact %q: %w", gen.Scope.ScopeID, env.StableFactKey, err)
+			}
+			env.Payload = normalized
 			envelopes = append(envelopes, env)
 		}
 		if gen.FactStreamErr != nil {
@@ -212,4 +219,28 @@ func sortedKeys(counts map[string]int) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// normalizePayload reduces a payload to JSON kinds only (map[string]any,
+// []any, string, json.Number, bool, nil) through a JSON round trip. Live
+// collectors build payloads from typed values -- []string anchors,
+// map[string]string tags, *string fields, time.Time -- and a walker that
+// matched Go types would let every unknown shape through untouched, which
+// is the one failure this package must not have. json.Number keeps numeric
+// literals byte-identical to what the recorder would have marshaled.
+func normalizePayload(payload map[string]any) (map[string]any, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("normalize payload: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var out map[string]any
+	if err := decoder.Decode(&out); err != nil {
+		return nil, fmt.Errorf("normalize payload: %w", err)
+	}
+	return out, nil
 }

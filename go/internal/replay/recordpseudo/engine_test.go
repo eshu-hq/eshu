@@ -407,3 +407,37 @@ func TestPolicyRejectsUnknownAndEmpty(t *testing.T) {
 		t.Errorf("fingerprint shape %q or not key-specific", fp)
 	}
 }
+
+// TestTypedPayloadValuesAreNotFailOpen: live collectors build payloads from
+// typed values ([]string anchors, map[string]string tags, *string fields,
+// numbers). Every one of them must be classified, never passed through
+// because the walker did not recognise the Go type.
+func TestTypedPayloadValuesAreNotFailOpen(t *testing.T) {
+	key := mustKey(t, keyA)
+	arn := "arn:aws:iam::" + acct + ":role/orders-deployer"
+	name := "orders-deployer"
+	payloads, report := wrapAll(t, &sliceSource{gens: []collector.CollectedGeneration{
+		generation("aws:"+acct+":us-east-1:iam", nil, map[string]any{
+			"account_id":             acct,
+			"arn":                    &arn,
+			"name":                   &name,
+			"correlation_anchors":    []string{arn},
+			"tags":                   map[string]string{"Name": name, "org-demo:owner": "team-orders"},
+			"cpu":                    int64(256),
+			"weight":                 1.5,
+			"evaluate_target_health": true,
+		}),
+	}}, key, recordpolicy.Policy())
+	rendered := fmt.Sprint(payloads[0])
+	for _, raw := range []string{acct, "orders-deployer", "org-demo", "team-orders"} {
+		if strings.Contains(rendered, raw) {
+			t.Errorf("typed value of length %d passed through unclassified", len(raw))
+		}
+	}
+	if fmt.Sprint(payloads[0]["cpu"]) != "256" || fmt.Sprint(payloads[0]["weight"]) != "1.5" || payloads[0]["evaluate_target_health"] != true {
+		t.Errorf("numbers or booleans were altered: %v %v %v", payloads[0]["cpu"], payloads[0]["weight"], payloads[0]["evaluate_target_health"])
+	}
+	if len(report.UnclassifiedPaths) != 0 {
+		t.Errorf("unclassified paths = %v, want none", report.UnclassifiedPaths)
+	}
+}

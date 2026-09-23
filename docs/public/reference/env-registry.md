@@ -62,6 +62,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_DIFFERENTIAL_CAPTURE_DIR` | string | — | Directory differential recording files land in; the run fails closed when ESHU_DIFFERENTIAL_CAPTURE is set without it. |
 | `ESHU_PRIVATE_IDENTIFIERS_FILE` | string | — | Path to a file outside git listing organisation and product identifiers, one per line, that the cassette private-data gate (scripts/verify-cassette-author.sh) must not find in testdata/cassettes; unset scans for the committed canary only and says so on stderr (#6965). |
 | `ESHU_PRIVATE_IDENTIFIERS_REQUIRED` | string | — | Set to 1 to make the cassette private-data gate fail when ESHU_PRIVATE_IDENTIFIERS_FILE is unset, instead of running the identifier check with the canary only (#6965). |
+| `ESHU_RECORD_PSEUDONYM_KEY` | string | — | Recording key for collector -mode=record pseudonymization (#6965 Phase 3): at least 32 bytes, generated with `openssl rand -hex 32`, one key per cassette corpus so cross-cassette joins survive, kept with the corpus's other secrets and never committed; only its 8-hex fingerprint is written to the cassette and logged. |
 | `ESHU_REPOS_DIR` | string | — | Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset. |
 
 ## collector-aws-cloud
