@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"context"
@@ -12,47 +12,47 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
-// CICDRunCorrelationAggregateStore reads cheap-summary aggregates over
+// RunCorrelationAggregateStore reads cheap-summary aggregates over
 // reducer-owned CI/CD run correlations. It replaces the page-and-iterate
 // caller workflow for ecosystem-level questions like "how many runs ended in
 // each outcome per environment?" or "which repositories ran the most
 // pipelines this week?".
-type CICDRunCorrelationAggregateStore interface {
-	CountCICDRunCorrelations(context.Context, CICDRunCorrelationAggregateFilter) (CICDRunCorrelationAggregateCount, error)
-	CICDRunCorrelationInventory(
+type RunCorrelationAggregateStore interface {
+	CountRunCorrelations(context.Context, RunCorrelationAggregateFilter) (RunCorrelationAggregateCount, error)
+	RunCorrelationInventory(
 		context.Context,
-		CICDRunCorrelationAggregateFilter,
-		CICDRunCorrelationInventoryDimension,
+		RunCorrelationAggregateFilter,
+		RunCorrelationInventoryDimension,
 		int,
 		int,
-	) ([]CICDRunCorrelationInventoryRow, error)
+	) ([]RunCorrelationInventoryRow, error)
 }
 
-// CICDRunCorrelationInventoryDimension names the grouping dimension for the
+// RunCorrelationInventoryDimension names the grouping dimension for the
 // inventory aggregate.
-type CICDRunCorrelationInventoryDimension string
+type RunCorrelationInventoryDimension string
 
 const (
-	// CICDRunCorrelationInventoryByOutcome groups by reducer outcome
+	// RunCorrelationInventoryByOutcome groups by reducer outcome
 	// (exact / derived / ambiguous / unresolved / rejected).
-	CICDRunCorrelationInventoryByOutcome CICDRunCorrelationInventoryDimension = "outcome"
-	// CICDRunCorrelationInventoryByEnvironment groups by deployment
+	RunCorrelationInventoryByOutcome RunCorrelationInventoryDimension = "outcome"
+	// RunCorrelationInventoryByEnvironment groups by deployment
 	// environment.
-	CICDRunCorrelationInventoryByEnvironment CICDRunCorrelationInventoryDimension = "environment"
-	// CICDRunCorrelationInventoryByRepository groups by repository_id.
-	CICDRunCorrelationInventoryByRepository CICDRunCorrelationInventoryDimension = "repository_id"
-	// CICDRunCorrelationInventoryByProvider groups by CI provider.
-	CICDRunCorrelationInventoryByProvider CICDRunCorrelationInventoryDimension = "provider"
+	RunCorrelationInventoryByEnvironment RunCorrelationInventoryDimension = "environment"
+	// RunCorrelationInventoryByRepository groups by repository_id.
+	RunCorrelationInventoryByRepository RunCorrelationInventoryDimension = "repository_id"
+	// RunCorrelationInventoryByProvider groups by CI provider.
+	RunCorrelationInventoryByProvider RunCorrelationInventoryDimension = "provider"
 )
 
-// CICDRunCorrelationAggregateMaxLimit caps inventory result pages.
-const CICDRunCorrelationAggregateMaxLimit = 500
+// RunCorrelationAggregateMaxLimit caps inventory result pages.
+const RunCorrelationAggregateMaxLimit = 500
 
-// CICDRunCorrelationAggregateFilter narrows aggregate reads. An aggregate
+// RunCorrelationAggregateFilter narrows aggregate reads. An aggregate
 // without a scope is allowed because the totals question itself is the call
 // shape we want to support — the dataset is already bounded by `fact_kind`
 // and the active-generation predicate at index lookup time.
-type CICDRunCorrelationAggregateFilter struct {
+type RunCorrelationAggregateFilter struct {
 	ScopeID              string
 	RepositoryID         string
 	CommitSHA            string
@@ -65,28 +65,28 @@ type CICDRunCorrelationAggregateFilter struct {
 	AllowedScopeIDs      []string
 }
 
-// CICDRunCorrelationAggregateCount is the cheap-summary totals envelope used
+// RunCorrelationAggregateCount is the cheap-summary totals envelope used
 // by the count handler. ByOutcome / ByEnvironment / ByProvider are
 // pre-aggregated rollups so callers can answer "runs per outcome",
 // "runs per environment", and "runs per provider" without a second round trip.
-type CICDRunCorrelationAggregateCount struct {
+type RunCorrelationAggregateCount struct {
 	TotalCorrelations int
 	ByOutcome         map[string]int
 	ByEnvironment     map[string]int
 	ByProvider        map[string]int
 }
 
-// CICDRunCorrelationInventoryRow is one grouped bucket returned by the
+// RunCorrelationInventoryRow is one grouped bucket returned by the
 // inventory aggregate.
-type CICDRunCorrelationInventoryRow struct {
-	Dimension CICDRunCorrelationInventoryDimension `json:"dimension"`
-	Value     string                               `json:"value"`
-	Count     int                                  `json:"count"`
+type RunCorrelationInventoryRow struct {
+	Dimension RunCorrelationInventoryDimension `json:"dimension"`
+	Value     string                           `json:"value"`
+	Count     int                              `json:"count"`
 }
 
-// PostgresCICDRunCorrelationAggregateStore reads aggregate counts directly
+// PostgresRunCorrelationAggregateStore reads aggregate counts directly
 // from reducer-owned CI/CD run correlation facts.
-type PostgresCICDRunCorrelationAggregateStore struct {
+type PostgresRunCorrelationAggregateStore struct {
 	DB cicdRunCorrelationAggregateQueryer
 }
 
@@ -95,12 +95,12 @@ type cicdRunCorrelationAggregateQueryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// NewPostgresCICDRunCorrelationAggregateStore creates the Postgres-backed
+// NewPostgresRunCorrelationAggregateStore creates the Postgres-backed
 // aggregate store.
-func NewPostgresCICDRunCorrelationAggregateStore(
+func NewPostgresRunCorrelationAggregateStore(
 	db cicdRunCorrelationAggregateQueryer,
-) PostgresCICDRunCorrelationAggregateStore {
-	return PostgresCICDRunCorrelationAggregateStore{DB: db}
+) PostgresRunCorrelationAggregateStore {
+	return PostgresRunCorrelationAggregateStore{DB: db}
 }
 
 const cicdRunCorrelationAggregateTotalQuery = `
@@ -188,14 +188,14 @@ ORDER BY bucket_count DESC, bucket
 LIMIT $9 OFFSET $10;
 `
 
-// CountCICDRunCorrelations returns the cheap-summary totals envelope for the
+// CountRunCorrelations returns the cheap-summary totals envelope for the
 // scoped CI/CD slice.
-func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
+func (s PostgresRunCorrelationAggregateStore) CountRunCorrelations(
 	ctx context.Context,
-	filter CICDRunCorrelationAggregateFilter,
-) (CICDRunCorrelationAggregateCount, error) {
+	filter RunCorrelationAggregateFilter,
+) (RunCorrelationAggregateCount, error) {
 	if s.DB == nil {
-		return CICDRunCorrelationAggregateCount{}, fmt.Errorf("ci/cd run correlation aggregate database is required")
+		return RunCorrelationAggregateCount{}, fmt.Errorf("ci/cd run correlation aggregate database is required")
 	}
 
 	args := []any{
@@ -214,28 +214,28 @@ func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 	row := s.DB.QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
-		return CICDRunCorrelationAggregateCount{}, fmt.Errorf("count ci/cd run correlations: %w", err)
+		return RunCorrelationAggregateCount{}, fmt.Errorf("count ci/cd run correlations: %w", err)
 	}
 
-	out := CICDRunCorrelationAggregateCount{
+	out := RunCorrelationAggregateCount{
 		TotalCorrelations: int(total.Int64),
 		ByOutcome:         map[string]int{},
 		ByEnvironment:     map[string]int{},
 		ByProvider:        map[string]int{},
 	}
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'outcome', ''), 'unknown')", out.ByOutcome); err != nil {
-		return CICDRunCorrelationAggregateCount{}, err
+		return RunCorrelationAggregateCount{}, err
 	}
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'environment', ''), 'unknown')", out.ByEnvironment); err != nil {
-		return CICDRunCorrelationAggregateCount{}, err
+		return RunCorrelationAggregateCount{}, err
 	}
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown')", out.ByProvider); err != nil {
-		return CICDRunCorrelationAggregateCount{}, err
+		return RunCorrelationAggregateCount{}, err
 	}
 	return out, nil
 }
 
-func (s PostgresCICDRunCorrelationAggregateStore) fillBuckets(
+func (s PostgresRunCorrelationAggregateStore) fillBuckets(
 	ctx context.Context,
 	args []any,
 	groupExpr string,
@@ -258,16 +258,16 @@ func (s PostgresCICDRunCorrelationAggregateStore) fillBuckets(
 	return rows.Err()
 }
 
-// CICDRunCorrelationInventory returns a paginated grouped count along the
+// RunCorrelationInventory returns a paginated grouped count along the
 // requested dimension. Limit and offset must already be normalized by the
 // caller.
-func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
+func (s PostgresRunCorrelationAggregateStore) RunCorrelationInventory(
 	ctx context.Context,
-	filter CICDRunCorrelationAggregateFilter,
-	dimension CICDRunCorrelationInventoryDimension,
+	filter RunCorrelationAggregateFilter,
+	dimension RunCorrelationInventoryDimension,
 	limit int,
 	offset int,
-) ([]CICDRunCorrelationInventoryRow, error) {
+) ([]RunCorrelationInventoryRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("ci/cd run correlation aggregate database is required")
 	}
@@ -277,8 +277,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 	}
 	// The handler asks for one extra row to detect truncation, so the store
 	// accepts up to MaxLimit+1 for that internal pagination probe.
-	if limit <= 0 || limit > CICDRunCorrelationAggregateMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", CICDRunCorrelationAggregateMaxLimit+1)
+	if limit <= 0 || limit > RunCorrelationAggregateMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", RunCorrelationAggregateMaxLimit+1)
 	}
 	if offset < 0 {
 		offset = 0
@@ -304,14 +304,14 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 		return nil, fmt.Errorf("inventory ci/cd run correlations: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]CICDRunCorrelationInventoryRow, 0, limit)
+	out := make([]RunCorrelationInventoryRow, 0, limit)
 	for rows.Next() {
 		var bucket string
 		var bucketCount int64
 		if err := rows.Scan(&bucket, &bucketCount); err != nil {
 			return nil, fmt.Errorf("scan ci/cd run correlation inventory row: %w", err)
 		}
-		out = append(out, CICDRunCorrelationInventoryRow{
+		out = append(out, RunCorrelationInventoryRow{
 			Dimension: dimension,
 			Value:     strings.TrimSpace(bucket),
 			Count:     int(bucketCount),
@@ -328,27 +328,27 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 // known enum values are accepted, so the substitution stays parameter-safe;
 // filter values flow through bound parameters only.
 func cicdRunCorrelationInventoryGroupExpression(
-	dimension CICDRunCorrelationInventoryDimension,
+	dimension RunCorrelationInventoryDimension,
 ) (string, error) {
 	switch dimension {
-	case CICDRunCorrelationInventoryByOutcome:
+	case RunCorrelationInventoryByOutcome:
 		return "COALESCE(NULLIF(fact.payload->>'outcome', ''), 'unknown')", nil
-	case CICDRunCorrelationInventoryByEnvironment:
+	case RunCorrelationInventoryByEnvironment:
 		return "COALESCE(NULLIF(fact.payload->>'environment', ''), 'unknown')", nil
-	case CICDRunCorrelationInventoryByRepository:
+	case RunCorrelationInventoryByRepository:
 		return "COALESCE(NULLIF(fact.payload->>'repository_id', ''), 'unknown')", nil
-	case CICDRunCorrelationInventoryByProvider:
+	case RunCorrelationInventoryByProvider:
 		return "COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown')", nil
 	default:
 		return "", fmt.Errorf("unsupported ci/cd run correlation inventory dimension: %q", dimension)
 	}
 }
 
-// isSupportedCICDRunCorrelationOutcome rejects unknown outcome filters,
+// isSupportedRunCorrelationOutcome rejects unknown outcome filters,
 // matching the enum the existing list endpoint advertises in
 // openapi/paths/cicd/routes.go (`exact`, `derived`, `ambiguous`, `unresolved`,
 // `rejected`).
-func isSupportedCICDRunCorrelationOutcome(outcome string) bool {
+func isSupportedRunCorrelationOutcome(outcome string) bool {
 	switch outcome {
 	case "exact", "derived", "ambiguous", "unresolved", "rejected":
 		return true

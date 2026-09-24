@@ -52,7 +52,10 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		Status:                   "affected_exact",
 		SubjectDigest:            runningDigest,
 		CIDeclaredArtifactDigest: runningDigest,
-		EvidencePath:             []string{cicdRunCorrelationFactKind},
+		// Must stay identical to cicdRunCorrelationFactKind
+		// (go/internal/query/cicd/run_correlations.go); the const is
+		// unexported, so this test names the value directly.
+		EvidencePath: []string{"reducer_ci_cd_run_correlation"},
 	}
 
 	findingsStore := &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}}

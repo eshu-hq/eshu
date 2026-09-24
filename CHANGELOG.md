@@ -209,7 +209,7 @@ recent shipped work grouped by feature area.
   `impact_trace_deployment_k8s_select.go`) and, more directly, the CI/CD run
   correlation aggregate handler's existing
   exact/derived/ambiguous/unresolved/rejected outcome enum
-  (`go/internal/query/ci_cd_run_correlation_aggregates_handler.go:318`),
+  (`go/internal/query/cicd/run_correlation_aggregates_handler.go`),
   which already uses `"unresolved"` for this exact semantic per the
   six-value vocabulary in
   `docs/internal/design/391-observability-coverage-correlation.md`.

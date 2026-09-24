@@ -92,26 +92,27 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		},
 	},
 
-	// CICDHandler.listRunCorrelations -> h.Correlations
-	// (PostgresCICDRunCorrelationStore): fact_kind = $1 bound to
+	// Handler.listRunCorrelations -> h.Correlations
+	// (PostgresRunCorrelationStore): fact_kind = $1 bound to
 	// "reducer_ci_cd_run_correlation"
-	// (go/internal/query/ci_cd_run_correlations.go:15,144).
+	// (go/internal/query/cicd/run_correlations.go).
+	// (Moved from go/internal/query/ci_cd*.go for #6642.)
 	"GET /api/v0/ci-cd/run-correlations": {
-		RegistrationFile: "go/internal/query/ci_cd.go",
-		HandlerStruct:    "CICDHandler",
-		StructFile:       "go/internal/query/ci_cd.go",
+		RegistrationFile: "go/internal/query/cicd/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/cicd/handler.go",
 		Method:           "listRunCorrelations",
-		MethodFile:       "go/internal/query/ci_cd.go",
+		MethodFile:       "go/internal/query/cicd/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/ci_cd.go",
-			"go/internal/query/ci_cd_run_correlations.go",
+			"go/internal/query/cicd/handler.go",
+			"go/internal/query/cicd/run_correlations.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "ci_cd_run_correlation",
 			StoreField: "Correlations",
 			StoreType:  "CICDRunCorrelationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/ci_cd_run_correlations.go", Marker: "reducer_ci_cd_run_correlation"},
+				{File: "go/internal/query/cicd/run_correlations.go", Marker: "reducer_ci_cd_run_correlation"},
 			},
 		}},
 	},

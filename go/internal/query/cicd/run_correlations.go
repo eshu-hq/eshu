@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"context"
@@ -15,43 +15,28 @@ import (
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
 
-// CICDRunCorrelationStore reads reducer-owned CI/CD run correlations. It is
-// an alias onto querycontract so the moved repository handler family can
-// name it from outside this package (#6060, lane B B3).
-type CICDRunCorrelationStore = querycontract.CICDRunCorrelationStore
-
-// CICDRunCorrelationFilter bounds run-correlation reads to a concrete repo,
-// commit, run, artifact digest, environment, or scope. Alias onto
-// querycontract; see CICDRunCorrelationStore.
-type CICDRunCorrelationFilter = querycontract.CICDRunCorrelationFilter
-
-// CICDRunCorrelationRow is one durable CI/CD correlation fact decoded from
-// the reducer-owned read model. Alias onto querycontract; see
-// CICDRunCorrelationStore.
-type CICDRunCorrelationRow = querycontract.CICDRunCorrelationRow
-
 type cicdRunCorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresCICDRunCorrelationStore reads active CI/CD run correlation facts
+// PostgresRunCorrelationStore reads active CI/CD run correlation facts
 // from Postgres using bounded payload predicates and a deterministic cursor.
-type PostgresCICDRunCorrelationStore struct {
+type PostgresRunCorrelationStore struct {
 	DB cicdRunCorrelationQueryer
 }
 
-// NewPostgresCICDRunCorrelationStore creates the Postgres-backed CI/CD run
+// NewPostgresRunCorrelationStore creates the Postgres-backed CI/CD run
 // correlation read model.
-func NewPostgresCICDRunCorrelationStore(db cicdRunCorrelationQueryer) PostgresCICDRunCorrelationStore {
-	return PostgresCICDRunCorrelationStore{DB: db}
+func NewPostgresRunCorrelationStore(db cicdRunCorrelationQueryer) PostgresRunCorrelationStore {
+	return PostgresRunCorrelationStore{DB: db}
 }
 
 // ListCICDRunCorrelations returns one bounded page of active reducer CI/CD run
 // correlation facts.
-func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
+func (s PostgresRunCorrelationStore) ListCICDRunCorrelations(
 	ctx context.Context,
-	filter CICDRunCorrelationFilter,
-) ([]CICDRunCorrelationRow, error) {
+	filter querycontract.CICDRunCorrelationFilter,
+) ([]querycontract.CICDRunCorrelationRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("ci/cd run correlation database is required")
 	}
@@ -64,7 +49,7 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listCICDRunCorrelationsQuery,
+		listRunCorrelationsQuery,
 		cicdRunCorrelationFactKind,
 		filter.ScopeID,
 		filter.RepositoryID,
@@ -85,14 +70,14 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]CICDRunCorrelationRow, 0, filter.Limit)
+	out := make([]querycontract.CICDRunCorrelationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
 		if err := rows.Scan(&factID, &payloadBytes); err != nil {
 			return nil, fmt.Errorf("list ci/cd run correlations: %w", err)
 		}
-		row, err := decodeCICDRunCorrelationRow(factID, payloadBytes)
+		row, err := decodeRunCorrelationRow(factID, payloadBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +89,7 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 	return out, nil
 }
 
-const listCICDRunCorrelationsQuery = `
+const listRunCorrelationsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
@@ -135,28 +120,28 @@ ORDER BY fact.fact_id ASC
 LIMIT $12
 `
 
-func decodeCICDRunCorrelationRow(factID string, payloadBytes []byte) (CICDRunCorrelationRow, error) {
+func decodeRunCorrelationRow(factID string, payloadBytes []byte) (querycontract.CICDRunCorrelationRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return CICDRunCorrelationRow{}, fmt.Errorf("decode ci/cd run correlation: %w", err)
+		return querycontract.CICDRunCorrelationRow{}, fmt.Errorf("decode ci/cd run correlation: %w", err)
 	}
-	return CICDRunCorrelationRow{
+	return querycontract.CICDRunCorrelationRow{
 		CorrelationID:       factID,
-		Provider:            StringVal(payload, "provider"),
-		RunID:               StringVal(payload, "run_id"),
-		RunAttempt:          StringVal(payload, "run_attempt"),
-		RepositoryID:        StringVal(payload, "repository_id"),
-		CommitSHA:           StringVal(payload, "commit_sha"),
-		Environment:         StringVal(payload, "environment"),
-		EnvironmentEvidence: StringVal(payload, "environment_evidence"),
-		ArtifactDigest:      StringVal(payload, "artifact_digest"),
-		ImageRef:            StringVal(payload, "image_ref"),
-		Outcome:             StringVal(payload, "outcome"),
-		Reason:              StringVal(payload, "reason"),
-		ProvenanceOnly:      BoolVal(payload, "provenance_only"),
-		CanonicalWrites:     IntVal(payload, "canonical_writes"),
-		CanonicalTarget:     StringVal(payload, "canonical_target"),
-		CorrelationKind:     StringVal(payload, "correlation_kind"),
-		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
+		Provider:            querycontract.StringVal(payload, "provider"),
+		RunID:               querycontract.StringVal(payload, "run_id"),
+		RunAttempt:          querycontract.StringVal(payload, "run_attempt"),
+		RepositoryID:        querycontract.StringVal(payload, "repository_id"),
+		CommitSHA:           querycontract.StringVal(payload, "commit_sha"),
+		Environment:         querycontract.StringVal(payload, "environment"),
+		EnvironmentEvidence: querycontract.StringVal(payload, "environment_evidence"),
+		ArtifactDigest:      querycontract.StringVal(payload, "artifact_digest"),
+		ImageRef:            querycontract.StringVal(payload, "image_ref"),
+		Outcome:             querycontract.StringVal(payload, "outcome"),
+		Reason:              querycontract.StringVal(payload, "reason"),
+		ProvenanceOnly:      querycontract.BoolVal(payload, "provenance_only"),
+		CanonicalWrites:     querycontract.IntVal(payload, "canonical_writes"),
+		CanonicalTarget:     querycontract.StringVal(payload, "canonical_target"),
+		CorrelationKind:     querycontract.StringVal(payload, "correlation_kind"),
+		EvidenceFactIDs:     querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

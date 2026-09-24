@@ -135,15 +135,17 @@ Part C and "these keys stayed because the routes did". A trial move plus
 three, because two are named just by root test files. This is another entry for
 [Where the prefix lies](6642-query-target-tree.md#where-the-prefix-lies).
 
-#### `query/cicd/` — 5 non-test, 8 test files
+#### `query/cicd/` — 5 non-test, 6 test files (2 stay)
 
 | current | new | test files carried |
 | --- | --- | --- |
-| `ci_cd.go` | `cicd/handler.go` | `ci_cd_authz_test.go` +2 more |
+| `ci_cd.go` | `cicd/handler.go` | — (`ci_cd_authz_test.go` stays: auth + scoped-grant proofs via the alias) |
 | `ci_cd_evidence_summary.go` | `cicd/evidence_summary.go` | `ci_cd_evidence_summary_artifact_test.go` |
-| `ci_cd_run_correlation_aggregates.go` | `cicd/run_correlation_aggregates.go` | `ci_cd_run_correlation_aggregates_count_coverage_test.go` +1 more |
+| `ci_cd_run_correlation_aggregates.go` | `cicd/run_correlation_aggregates.go` | `ci_cd_run_correlation_aggregates_count_coverage_test.go` + aggregates test |
 | `ci_cd_run_correlation_aggregates_handler.go` | `cicd/run_correlation_aggregates_handler.go` | — |
-| `ci_cd_run_correlations.go` | `cicd/run_correlations.go` | `ci_cd_run_correlations_environment_evidence_test.go` +1 more |
+| `ci_cd_run_correlations.go` | `cicd/run_correlations.go` | `ci_cd_run_correlations_environment_evidence_test.go` + correlations test |
+
+Only the SQL test leaves `ci_cd_authz_test.go` (`cicd/queries_test.go`); the story tests stay, and doubles live in both places (root: `cicd_read_model_doubles_test.go`).
 
 #### `query/cloud/` — 5 non-test, 7 test files
 
@@ -432,7 +434,7 @@ they are impact's own backends.
 | --- | --- | --- |
 | `repository_authz.go` | `contract/repository_access.go` (18 consuming destinations) | — |
 | `repository_compat.go` | `contract/repository_helpers.go` | — |
-| `repository_selector.go` | `cicd/repository_selector.go` (its only consumer) | — |
+| `repository_selector.go` | DELETED — the cicd family calls `selector.ResolveForRequestWithAccess` directly like every other leaf, leaving zero callers (a callerless forwarder trips `unused` and the capability sweep) | — |
 
 #### `query/semantic/` — 2 non-test, 0 test files
 

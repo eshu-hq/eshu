@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
@@ -16,7 +19,7 @@ import (
 func TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence(t *testing.T) {
 	t.Parallel()
 
-	resp := exerciseCICDRunCorrelationEvidenceSummary(t, []CICDRunCorrelationRow{{
+	resp := exerciseRunCorrelationEvidenceSummary(t, []querycontract.CICDRunCorrelationRow{{
 		CorrelationID:  "correlation-digest",
 		RepositoryID:   "repo://example/api",
 		Provider:       "github_actions",
@@ -43,7 +46,7 @@ func TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence(t *testin
 func TestCICDListRunCorrelationsExplainsWorkflowImageRefEvidence(t *testing.T) {
 	t.Parallel()
 
-	resp := exerciseCICDRunCorrelationEvidenceSummary(t, []CICDRunCorrelationRow{{
+	resp := exerciseRunCorrelationEvidenceSummary(t, []querycontract.CICDRunCorrelationRow{{
 		CorrelationID: "correlation-image-ref",
 		RepositoryID:  "repo://example/api",
 		Provider:      "github_actions",
@@ -70,7 +73,7 @@ func TestCICDListRunCorrelationsExplainsWorkflowImageRefEvidence(t *testing.T) {
 func TestCICDListRunCorrelationsExplainsAmbiguousArtifactEvidence(t *testing.T) {
 	t.Parallel()
 
-	resp := exerciseCICDRunCorrelationEvidenceSummary(t, []CICDRunCorrelationRow{{
+	resp := exerciseRunCorrelationEvidenceSummary(t, []querycontract.CICDRunCorrelationRow{{
 		CorrelationID:  "correlation-ambiguous",
 		RepositoryID:   "repo://example/api",
 		Provider:       "github_actions",
@@ -95,7 +98,7 @@ func TestCICDListRunCorrelationsExplainsAmbiguousArtifactEvidence(t *testing.T) 
 func TestCICDListRunCorrelationsExplainsStaticWorkflowImageEvidence(t *testing.T) {
 	t.Parallel()
 
-	resp := exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, nil, []FileContent{{
+	resp := exerciseRunCorrelationEvidenceSummaryWithFiles(t, nil, []querycontract.FileContent{{
 		RepoID:       "repo://example/api",
 		RelativePath: ".github/workflows/deploy.yml",
 		ArtifactType: "github_actions_workflow",
@@ -130,7 +133,7 @@ jobs:
 func TestCICDListRunCorrelationsExplainsUnresolvedStaticWorkflowImageEvidence(t *testing.T) {
 	t.Parallel()
 
-	resp := exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, nil, []FileContent{{
+	resp := exerciseRunCorrelationEvidenceSummaryWithFiles(t, nil, []querycontract.FileContent{{
 		RepoID:       "repo://example/api",
 		RelativePath: ".github/workflows/deploy.yml",
 		ArtifactType: "github_actions_workflow",
@@ -156,7 +159,7 @@ func TestBuildCICDEvidenceSummaryNamesUnavailableLiveProviderEvidence(t *testing
 	t.Parallel()
 
 	summary := artifacts.BuildCICDRunCorrelationEvidenceSummary(
-		cicdStaticWorkflowArtifactEvidence{State: "present", Count: 1},
+		artifacts.CicdStaticWorkflowArtifactEvidence{State: "present", Count: 1},
 		nil,
 		false,
 		true,
@@ -168,27 +171,27 @@ func TestBuildCICDEvidenceSummaryNamesUnavailableLiveProviderEvidence(t *testing
 	})
 }
 
-func exerciseCICDRunCorrelationEvidenceSummary(
+func exerciseRunCorrelationEvidenceSummary(
 	t *testing.T,
-	rows []CICDRunCorrelationRow,
+	rows []querycontract.CICDRunCorrelationRow,
 ) map[string]any {
 	t.Helper()
-	return exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, rows, []FileContent{{
+	return exerciseRunCorrelationEvidenceSummaryWithFiles(t, rows, []querycontract.FileContent{{
 		RepoID:       "repo://example/api",
 		RelativePath: ".github/workflows/deploy.yml",
 		ArtifactType: "github_actions_workflow",
 	}})
 }
 
-func exerciseCICDRunCorrelationEvidenceSummaryWithFiles(
+func exerciseRunCorrelationEvidenceSummaryWithFiles(
 	t *testing.T,
-	rows []CICDRunCorrelationRow,
-	files []FileContent,
+	rows []querycontract.CICDRunCorrelationRow,
+	files []querycontract.FileContent,
 ) map[string]any {
 	t.Helper()
-	store := &recordingCICDRunCorrelationStore{rows: rows}
-	handler := &CICDHandler{
-		Content:      fakePortContentStore{repoFiles: files},
+	store := &recordingRunCorrelationStore{rows: rows}
+	handler := &Handler{
+		Content:      content.FakePortContentStore{RepoFiles: files},
 		Correlations: store,
 	}
 	mux := http.NewServeMux()

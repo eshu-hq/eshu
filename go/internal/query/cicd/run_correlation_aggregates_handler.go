@@ -1,44 +1,43 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"net/http"
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const cicdRunCorrelationAggregateCapability = "ci_cd.run_correlations.aggregate"
-
 // Mount registers the cheap-summary aggregate routes alongside the existing
 // CI/CD run correlation list route.
-func (h *CICDHandler) cicdRunCorrelationAggregateRoutes(mux *http.ServeMux) {
+func (h *Handler) cicdRunCorrelationAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/ci-cd/run-correlations/count", h.countRunCorrelations)
 	mux.HandleFunc("GET /api/v0/ci-cd/run-correlations/inventory", h.runCorrelationInventory)
 }
 
-func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countRunCorrelations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryCICDRunCorrelationAggregate,
 		"GET /api/v0/ci-cd/run-correlations/count",
-		cicdRunCorrelationAggregateCapability,
+		AggregateCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), AggregateCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"CI/CD run correlation aggregates require the Postgres reducer read model",
-			ErrorCodeUnsupportedCapability,
-			cicdRunCorrelationAggregateCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			AggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(AggregateCapability),
 		)
 		return
 	}
@@ -47,81 +46,81 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
+	if !validateRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
 	if access.Empty() {
-		h.writeEmptyCICDRunCorrelationAggregateCount(w, r)
+		h.writeEmptyRunCorrelationAggregateCount(w, r)
 		return
 	}
 	if h.Aggregates == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"CI/CD run correlation aggregates require the Postgres reducer read model",
-			ErrorCodeBackendUnavailable,
-			cicdRunCorrelationAggregateCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			AggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(AggregateCapability),
 		)
 		return
 	}
-	count, err := h.Aggregates.CountCICDRunCorrelations(r.Context(), filter)
+	count, err := h.Aggregates.CountRunCorrelations(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_correlations": count.TotalCorrelations,
 		"by_outcome":         count.ByOutcome,
 		"by_environment":     count.ByEnvironment,
 		"by_provider":        count.ByProvider,
 		"scope":              cicdRunCorrelationAggregateScope(filter),
-	}, BuildTruthEnvelope(
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		cicdRunCorrelationAggregateCapability,
-		TruthBasisSemanticFacts,
+		AggregateCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned CI/CD run correlation facts; outcome, environment, and provider rollups stay separate",
 	))
 }
 
-func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) runCorrelationInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryCICDRunCorrelationAggregate,
 		"GET /api/v0/ci-cd/run-correlations/inventory",
-		cicdRunCorrelationAggregateCapability,
+		AggregateCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), cicdRunCorrelationAggregateCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), AggregateCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"CI/CD run correlation aggregates require the Postgres reducer read model",
-			ErrorCodeUnsupportedCapability,
-			cicdRunCorrelationAggregateCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			AggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(AggregateCapability),
 		)
 		return
 	}
 
-	dimension := CICDRunCorrelationInventoryDimension(QueryParam(r, "group_by"))
+	dimension := RunCorrelationInventoryDimension(querycontract.QueryParam(r, "group_by"))
 	if dimension == "" {
-		dimension = CICDRunCorrelationInventoryByOutcome
+		dimension = RunCorrelationInventoryByOutcome
 	}
-	if !isSupportedCICDRunCorrelationDimension(dimension) {
-		WriteError(w, http.StatusBadRequest, "group_by must be one of outcome, environment, repository_id, provider")
+	if !isSupportedRunCorrelationDimension(dimension) {
+		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of outcome, environment, repository_id, provider")
 		return
 	}
-	limit, ok := parseCICDRunCorrelationAggregateLimit(w, r)
+	limit, ok := parseRunCorrelationAggregateLimit(w, r)
 	if !ok {
 		return
 	}
-	offset, ok := parseCICDRunCorrelationAggregateOffset(w, r)
+	offset, ok := parseRunCorrelationAggregateOffset(w, r)
 	if !ok {
 		return
 	}
@@ -130,30 +129,30 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
+	if !validateRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
 	if access.Empty() {
-		h.writeEmptyCICDRunCorrelationInventory(w, r, dimension, limit, offset)
+		h.writeEmptyRunCorrelationInventory(w, r, dimension, limit, offset)
 		return
 	}
 	if h.Aggregates == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"CI/CD run correlation aggregates require the Postgres reducer read model",
-			ErrorCodeBackendUnavailable,
-			cicdRunCorrelationAggregateCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			AggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(AggregateCapability),
 		)
 		return
 	}
 
-	rows, err := h.Aggregates.CICDRunCorrelationInventory(r.Context(), filter, dimension, limit+1, offset)
+	rows, err := h.Aggregates.RunCorrelationInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	truncated := len(rows) > limit
@@ -167,56 +166,56 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 		"offset":      offset,
 		"group_by":    string(dimension),
 		"truncated":   truncated,
-		"next_offset": nextCICDRunCorrelationAggregateOffset(offset, limit, truncated),
+		"next_offset": nextRunCorrelationAggregateOffset(offset, limit, truncated),
 		"scope":       cicdRunCorrelationAggregateScope(filter),
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		cicdRunCorrelationAggregateCapability,
-		TruthBasisSemanticFacts,
+		AggregateCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned CI/CD run correlation facts; one grouped bucket per row, ordered by count desc",
 	))
 }
 
-func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
+func (h *Handler) cicdRunCorrelationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,
-) (CICDRunCorrelationAggregateFilter, bool) {
-	repositorySelector := QueryParam(r, "repository_id")
+) (RunCorrelationAggregateFilter, bool) {
+	repositorySelector := querycontract.QueryParam(r, "repository_id")
 	repositoryID := repositorySelector
 	if !access.Empty() {
 		var ok bool
-		repositoryID, ok = resolveRepositorySelectorForRequestWithAccess(
+		repositoryID, ok = selector.ResolveForRequestWithAccess(
 			w,
 			r,
 			nil,
 			h.Content,
 			repositorySelector,
 			access,
-			cicdRunCorrelationAggregateCapability,
+			AggregateCapability,
 		)
 		if !ok {
-			return CICDRunCorrelationAggregateFilter{}, false
+			return RunCorrelationAggregateFilter{}, false
 		}
 	}
-	filter := CICDRunCorrelationAggregateFilter{
-		ScopeID:        QueryParam(r, "scope_id"),
+	filter := RunCorrelationAggregateFilter{
+		ScopeID:        querycontract.QueryParam(r, "scope_id"),
 		RepositoryID:   repositoryID,
-		CommitSHA:      QueryParam(r, "commit_sha"),
-		Provider:       QueryParam(r, "provider"),
-		ArtifactDigest: QueryParam(r, "artifact_digest"),
-		ImageRef:       QueryParam(r, "image_ref"),
-		Environment:    QueryParam(r, "environment"),
-		Outcome:        QueryParam(r, "outcome"),
+		CommitSHA:      querycontract.QueryParam(r, "commit_sha"),
+		Provider:       querycontract.QueryParam(r, "provider"),
+		ArtifactDigest: querycontract.QueryParam(r, "artifact_digest"),
+		ImageRef:       querycontract.QueryParam(r, "image_ref"),
+		Environment:    querycontract.QueryParam(r, "environment"),
+		Outcome:        querycontract.QueryParam(r, "outcome"),
 	}
 	return cicdRunCorrelationAggregateFilterWithRepositoryAccess(filter, access), true
 }
 
 func cicdRunCorrelationAggregateFilterWithRepositoryAccess(
-	filter CICDRunCorrelationAggregateFilter,
+	filter RunCorrelationAggregateFilter,
 	access querycontract.RepositoryAccessFilter,
-) CICDRunCorrelationAggregateFilter {
+) RunCorrelationAggregateFilter {
 	if !access.Scoped() {
 		return filter
 	}
@@ -225,33 +224,33 @@ func cicdRunCorrelationAggregateFilterWithRepositoryAccess(
 	return filter
 }
 
-func (h *CICDHandler) writeEmptyCICDRunCorrelationAggregateCount(
+func (h *Handler) writeEmptyRunCorrelationAggregateCount(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_correlations": 0,
 		"by_outcome":         map[string]int{},
 		"by_environment":     map[string]int{},
 		"by_provider":        map[string]int{},
 		"scope":              map[string]string{},
-	}, BuildTruthEnvelope(
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		cicdRunCorrelationAggregateCapability,
-		TruthBasisSemanticFacts,
+		AggregateCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned CI/CD run correlation facts; outcome, environment, and provider rollups stay separate",
 	))
 }
 
-func (h *CICDHandler) writeEmptyCICDRunCorrelationInventory(
+func (h *Handler) writeEmptyRunCorrelationInventory(
 	w http.ResponseWriter,
 	r *http.Request,
-	dimension CICDRunCorrelationInventoryDimension,
+	dimension RunCorrelationInventoryDimension,
 	limit int,
 	offset int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"buckets":     []CICDRunCorrelationInventoryRow{},
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"buckets":     []RunCorrelationInventoryRow{},
 		"count":       0,
 		"limit":       limit,
 		"offset":      offset,
@@ -259,15 +258,15 @@ func (h *CICDHandler) writeEmptyCICDRunCorrelationInventory(
 		"truncated":   false,
 		"next_offset": nil,
 		"scope":       map[string]string{},
-	}, BuildTruthEnvelope(
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		cicdRunCorrelationAggregateCapability,
-		TruthBasisSemanticFacts,
+		AggregateCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned CI/CD run correlation facts; one grouped bucket per row, ordered by count desc",
 	))
 }
 
-func cicdRunCorrelationAggregateScope(filter CICDRunCorrelationAggregateFilter) map[string]string {
+func cicdRunCorrelationAggregateScope(filter RunCorrelationAggregateFilter) map[string]string {
 	out := map[string]string{}
 	if filter.ScopeID != "" {
 		out["scope_id"] = filter.ScopeID
@@ -296,27 +295,27 @@ func cicdRunCorrelationAggregateScope(filter CICDRunCorrelationAggregateFilter) 
 	return out
 }
 
-func isSupportedCICDRunCorrelationDimension(d CICDRunCorrelationInventoryDimension) bool {
+func isSupportedRunCorrelationDimension(d RunCorrelationInventoryDimension) bool {
 	switch d {
-	case CICDRunCorrelationInventoryByOutcome,
-		CICDRunCorrelationInventoryByEnvironment,
-		CICDRunCorrelationInventoryByRepository,
-		CICDRunCorrelationInventoryByProvider:
+	case RunCorrelationInventoryByOutcome,
+		RunCorrelationInventoryByEnvironment,
+		RunCorrelationInventoryByRepository,
+		RunCorrelationInventoryByProvider:
 		return true
 	default:
 		return false
 	}
 }
 
-// validateCICDRunCorrelationAggregateOutcome rejects unknown outcome filters
+// validateRunCorrelationAggregateOutcome rejects unknown outcome filters
 // with a 400 so a typo does not silently return zero counts. Matches the
 // enum advertised by openapi/paths/cicd/routes.go for the list endpoint and the
 // new aggregate routes.
-func validateCICDRunCorrelationAggregateOutcome(w http.ResponseWriter, filter CICDRunCorrelationAggregateFilter) bool {
-	if filter.Outcome == "" || isSupportedCICDRunCorrelationOutcome(filter.Outcome) {
+func validateRunCorrelationAggregateOutcome(w http.ResponseWriter, filter RunCorrelationAggregateFilter) bool {
+	if filter.Outcome == "" || isSupportedRunCorrelationOutcome(filter.Outcome) {
 		return true
 	}
-	WriteError(w, http.StatusBadRequest, "outcome must be one of exact, derived, ambiguous, unresolved, rejected")
+	querycontract.WriteError(w, http.StatusBadRequest, "outcome must be one of exact, derived, ambiguous, unresolved, rejected")
 	return false
 }
 
@@ -330,49 +329,49 @@ const (
 	cicdRunCorrelationAggregateMaxOffset = 10000
 )
 
-func parseCICDRunCorrelationAggregateLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "limit")
+func parseRunCorrelationAggregateLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
 		return cicdRunCorrelationAggregateDefaultLimit, true
 	}
 	parsed, err := strconv.Atoi(raw)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
+		querycontract.WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
 		return 0, false
 	}
 	if parsed < cicdRunCorrelationAggregateMinLimit {
-		WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
+		querycontract.WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
 		return 0, false
 	}
-	if parsed > CICDRunCorrelationAggregateMaxLimit {
-		WriteError(w, http.StatusBadRequest, "limit exceeds maximum")
+	if parsed > RunCorrelationAggregateMaxLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, "limit exceeds maximum")
 		return 0, false
 	}
 	return parsed, true
 }
 
-func parseCICDRunCorrelationAggregateOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "offset")
+func parseRunCorrelationAggregateOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := querycontract.QueryParam(r, "offset")
 	if raw == "" {
 		return 0, true
 	}
 	parsed, err := strconv.Atoi(raw)
 	if err != nil || parsed < 0 {
-		WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+		querycontract.WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
 		return 0, false
 	}
 	if parsed > cicdRunCorrelationAggregateMaxOffset {
-		WriteError(w, http.StatusBadRequest, "offset exceeds maximum")
+		querycontract.WriteError(w, http.StatusBadRequest, "offset exceeds maximum")
 		return 0, false
 	}
 	return parsed, true
 }
 
-// nextCICDRunCorrelationAggregateOffset returns the next offset when a
+// nextRunCorrelationAggregateOffset returns the next offset when a
 // truncated page can be continued without exceeding the documented offset
 // bound, and nil otherwise. Callers serialize the nil as JSON null so
 // generated clients see a clean end-of-stream marker.
-func nextCICDRunCorrelationAggregateOffset(offset, limit int, truncated bool) any {
+func nextRunCorrelationAggregateOffset(offset, limit int, truncated bool) any {
 	if !truncated {
 		return nil
 	}

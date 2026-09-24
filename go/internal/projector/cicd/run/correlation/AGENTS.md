@@ -69,7 +69,7 @@
 
 - **Route-serves-data registry path citations.** The registry in
   `go/internal/mcp/route_serves_data_registry_routes.go` cites
-  `go/internal/query/ci_cd_run_correlations.go` and
+  `go/internal/query/cicd/run_correlations.go` and
   `go/internal/query/incident/sql/runtime.go` for the
   `ci_cd_run_correlation` domain, not any projector file — no entry cites
   this package (verified with a positive control against the cloud-inventory

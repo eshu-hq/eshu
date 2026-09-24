@@ -29,37 +29,37 @@ ecosystem totals questions.
 
 ## Committed reproducible evidence
 
-**Count and grouped-inventory rollups** — `go/internal/query/ci_cd_run_correlation_aggregates_test.go`:
-`TestCICDRunCorrelationAggregateCountReturnsRollups`,
-`TestCICDRunCorrelationAggregateCountPassesImageRefFilter`,
-`TestCICDRunCorrelationAggregateInventoryReturnsBuckets`,
-`TestCICDRunCorrelationAggregateInventoryPassesImageRefFilter`, and
-`TestCICDRunCorrelationAggregateInventoryReportsTruncated`. Reproduce:
+**Count and grouped-inventory rollups** — `go/internal/query/cicd/run_correlation_aggregates_test.go`:
+`TestRunCorrelationAggregateCountReturnsRollups`,
+`TestRunCorrelationAggregateCountPassesImageRefFilter`,
+`TestRunCorrelationAggregateInventoryReturnsBuckets`,
+`TestRunCorrelationAggregateInventoryPassesImageRefFilter`, and
+`TestRunCorrelationAggregateInventoryReportsTruncated`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestCICDRunCorrelationAggregate -count=1
+cd go && go test ./internal/query/cicd -run TestRunCorrelationAggregate -count=1
 ```
 
 **Input validation (dimension, limit, offset)** — same file:
-`TestCICDRunCorrelationAggregateRejectsUnknownOutcome`,
-`TestCICDRunCorrelationAggregateInventoryRejectsUnknownDimension`,
-`TestCICDRunCorrelationAggregateInventoryRejectsOversizedLimit`,
-`TestCICDRunCorrelationAggregateInventoryRejectsNegativeOffset`, and
-`TestCICDRunCorrelationAggregateInventoryRejectsOversizedOffset`. Reproduce:
+`TestRunCorrelationAggregateRejectsUnknownOutcome`,
+`TestRunCorrelationAggregateInventoryRejectsUnknownDimension`,
+`TestRunCorrelationAggregateInventoryRejectsOversizedLimit`,
+`TestRunCorrelationAggregateInventoryRejectsNegativeOffset`, and
+`TestRunCorrelationAggregateInventoryRejectsOversizedOffset`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run "TestCICDRunCorrelationAggregate.*Rejects" -count=1
+cd go && go test ./internal/query/cicd -run "TestRunCorrelationAggregate.*Rejects" -count=1
 ```
 
 **Store availability and pagination bound closure** — same file:
-`TestCICDRunCorrelationAggregateRoutesReturn503WhenStoreMissing`,
-`TestCICDRunCorrelationAggregateInventoryNullsNextOffsetAtCeiling`,
-`TestNextCICDRunCorrelationAggregateOffsetBound`, and
-`TestCICDRunCorrelationInventoryGroupExpressionEnumIsClosed`. Reproduce:
+`TestRunCorrelationAggregateRoutesReturn503WhenStoreMissing`,
+`TestRunCorrelationAggregateInventoryNullsNextOffsetAtCeiling`,
+`TestNextRunCorrelationAggregateOffsetBound`, and
+`TestRunCorrelationInventoryGroupExpressionEnumIsClosed`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestCICDRunCorrelationAggregateRoutesReturn503WhenStoreMissing -count=1
-cd go && go test ./internal/query -run "TestNextCICDRunCorrelationAggregateOffsetBound|TestCICDRunCorrelationInventoryGroupExpressionEnumIsClosed" -count=1
+cd go && go test ./internal/query/cicd -run TestRunCorrelationAggregateRoutesReturn503WhenStoreMissing -count=1
+cd go && go test ./internal/query/cicd -run "TestNextRunCorrelationAggregateOffsetBound|TestRunCorrelationInventoryGroupExpressionEnumIsClosed" -count=1
 ```
 
 **Repository-selector resolution** — `go/internal/query/repository_selector_read_model_routes_test.go`:

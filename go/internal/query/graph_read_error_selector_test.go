@@ -13,14 +13,14 @@ import (
 
 // These tests cover the repository-selector graph read itself
 // (selector.ResolveExactForAccess, invoked via
-// resolveRepositorySelectorForRequestWithAccess or directly), not a handler's
+// selector.ResolveForRequestWithAccess), not a handler's
 // downstream graph read. A canonical-looking selector such as "repo-1" short
 // circuits looksCanonicalRepositoryID and never reaches the graph, so every
 // case here uses a non-canonical, name-like selector ("my-repo-name") to force
 // the real MATCH (r:Repository) ... lookup and exercise the guard.
 
 // TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors
-// covers listDependencyChains's resolveRepositorySelectorForRequestWithAccess
+// covers listDependencyChains's selector.ResolveForRequestWithAccess
 // call (package/registry/dependency_chains_handler.go), a direct caller of the
 // writing variant.
 func TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
@@ -44,7 +44,7 @@ func TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors(
 }
 
 // TestSupplyChainAdvisoryEvidenceSelectorMapsGraphReadAvailabilityErrors covers
-// listAdvisoryEvidence's resolveRepositorySelectorForRequestWithAccess call
+// listAdvisoryEvidence's selector.ResolveForRequestWithAccess call
 // (evidence_handler.go), a direct caller of the writing
 // variant.
 func TestSupplyChainAdvisoryEvidenceSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
@@ -70,7 +70,7 @@ func TestSupplyChainAdvisoryEvidenceSelectorMapsGraphReadAvailabilityErrors(t *t
 // TestContainerImageIdentitiesSelectorMapsGraphReadAvailabilityErrors covers
 // listContainerImageIdentities's resolveContainerImageSourceRepositorySelector
 // call (container_image_identity_scope.go), the *_scope.go thin-wrapper family
-// that threads a capability through resolveRepositorySelectorForRequestWithAccess.
+// that threads a capability through selector.ResolveForRequestWithAccess.
 func TestContainerImageIdentitiesSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {

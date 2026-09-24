@@ -29,7 +29,7 @@ synthetic correlation rows.
 
 ## Committed reproducible evidence
 
-**Scope/limit validation and bounded Postgres store lookup** — `go/internal/query/ci_cd_run_correlations_test.go`:
+**Scope/limit validation and bounded Postgres store lookup** — `go/internal/query/cicd/run_correlations_test.go`:
 `TestCICDListRunCorrelationsRequiresScopeAndLimit`,
 `TestCICDListRunCorrelationsUsesBoundedPostgresStore`,
 `TestCICDListRunCorrelationsUsesImageRefAnchor`,
@@ -37,7 +37,7 @@ synthetic correlation rows.
 `TestCICDListRunCorrelationsPassesProviderRunDisambiguator`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestCICDListRunCorrelations -count=1
+cd go && go test ./internal/query/cicd -run TestCICDListRunCorrelations -count=1
 ```
 
 **Static workflow artifact summary without synthetic rows** — same file:
@@ -45,22 +45,24 @@ cd go && go test ./internal/query -run TestCICDListRunCorrelations -count=1
 `TestCICDListRunCorrelationsExplainsStaticWorkflowOnlyEvidence`,
 `TestCICDListRunCorrelationsExplainsLiveRunEvidence`, and
 `TestCICDListRunCorrelationsExplainsNoEvidence`; artifact-digest evidence detail in
-`go/internal/query/ci_cd_evidence_summary_artifact_test.go`:
+`go/internal/query/cicd/evidence_summary_artifact_test.go`:
 `TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence` and
 `TestCICDListRunCorrelationsExplainsAmbiguousArtifactEvidence`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run "TestCICDListRunCorrelationsHydrates|TestCICDListRunCorrelationsExplains" -count=1
+cd go && go test ./internal/query/cicd -run "TestCICDListRunCorrelationsHydrates|TestCICDListRunCorrelationsExplains" -count=1
 ```
 
 **Scoped-token authorization** — `go/internal/query/ci_cd_authz_test.go`:
 `TestAuthMiddlewareWithScopedTokensAllowsCICDRunCorrelationRoutes`,
 `TestCICDRunCorrelationScopedEmptyGrantReturnsEmptyWithoutStoreRead`,
 `TestCICDRunCorrelationScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead`, and
-`TestCICDRunCorrelationSQLAppliesScopedAuthorizationBeforeOrderAndGrouping`. Reproduce:
+`TestCICDRunCorrelationSQLAppliesScopedAuthorizationBeforeOrderAndGrouping` (now in
+`go/internal/query/cicd/queries_test.go`). Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestCICDRunCorrelation -count=1
+cd go && go test ./internal/query -run "TestCICDRunCorrelationScoped|TestCICDRunCorrelationHandlerPasses|TestAuthMiddlewareWithScopedTokensAllowsCICDRunCorrelationRoutes" -count=1
+cd go && go test ./internal/query/cicd -run TestCICDRunCorrelationSQLAppliesScopedAuthorizationBeforeOrderAndGrouping -count=1
 ```
 
 **Repository-selector resolution and contract declaration** —

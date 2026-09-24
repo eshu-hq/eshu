@@ -16,8 +16,8 @@ import (
 // Runtime-context fact kinds read at query time (#5746).
 // serviceCatalogCorrelationFactKind and cicdRunCorrelationFactKind are
 // family-local copies of the constants in service/catalog_correlations.go
-// (root keeps only the alias in service_alias.go) and root
-// ci_cd_run_correlations.go: this package must not import root, so the
+// (root keeps only the alias in service_alias.go) and
+// cicd/run_correlations.go: this package must not import root, so the
 // values are duplicated here and MUST stay byte-identical to their
 // sources. WorkloadIdentityFactKindQuery and
 // PlatformMaterializationFactKindQuery are defined here because no other

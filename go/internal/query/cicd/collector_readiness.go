@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package chain
+package cicd
 
 import (
 	"context"
@@ -14,12 +14,12 @@ import (
 // collector_list_readiness.go documents this exact split: the attach step is
 // request-time orchestration that stays out of the dependency-neutral leaf,
 // so each handler family owns its own copy and calls
-// querycontract.BuildCollectorListReadiness itself (the registry
-// family's precedent). The root copy is deleted — no package-query handler
-// uses it anymore — so this copy must stay behavior-identical to its sibling
-// family copies; do not extend it with family-specific semantics. Drift trips
+// querycontract.BuildCollectorListReadiness itself (the supplychain hub's
+// precedent). The root copy is deleted — no package-query handler uses it
+// anymore — so this copy must stay behavior-identical to its sibling family
+// copies; do not extend it with family-specific semantics. Drift trips
 // root's TestCollectorListReadinessMatchesHub parity test (#6542 review),
-// which serves the hub and cicd copies over the shared probe matrix.
+// which serves the cicd and hub copies over the shared probe matrix.
 
 // attachCollectorListReadiness runs the configured probe for kind and, when a
 // store is wired, sets the "collector_readiness" key on body. A nil store leaves
