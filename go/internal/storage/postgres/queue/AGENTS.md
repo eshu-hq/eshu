@@ -10,7 +10,9 @@
 
 - Keep the package clause as `package queuestore`; callers import the
   `storage/postgres/queue` path without an alias.
-- Keep every function pure: no database access, no logging, no globals.
+- Keep every function free of database access, logging and package state;
+  `DefaultJitterSource` is the one exception, reading `math/rand/v2`'s global
+  source.
 - Keep `QueueFailureMetadata`/`DeadLetterTriageMetadata`'s precedence: a
   self-classifying cause (`classifiedFailure`/`detailedFailure`) always
   wins over the fallback class and the triage details.

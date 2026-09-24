@@ -55,7 +55,7 @@ func TestComputeRetryDelayCapsAtMaxDelay(t *testing.T) {
 }
 
 // TestComputeRetryDelayCapsAtMaxDelayWithoutOverflowingLargeAttemptCounts
-// proves computeRetryDelay stays capped at maxDelay (never wraps to a
+// proves ComputeRetryDelay stays capped at maxDelay (never wraps to a
 // negative duration) for an attempt count large enough that a naive
 // baseDelay*(1<<attempt) computation overflows time.Duration's int64
 // nanosecond range. This is the exact shape of a non-counting reducer
@@ -99,20 +99,20 @@ func TestComputeRetryDelayAddsBoundedJitter(t *testing.T) {
 	maxDelay := time.Hour
 	jitterFraction := 0.1
 
-	// jitterSource's contract is [0, 1) (see retry_backoff.go); 1.0 is out of
+	// jitterSource's contract is [0, 1) (see backoff.go); 1.0 is out of
 	// range and unreachable in practice, so probe a representative in-contract
 	// value instead of the impossible source==1.0 case.
 	mid := func() float64 { return 0.5 }
 	got := ComputeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, mid)
 	want := baseDelay + time.Duration(float64(baseDelay)*jitterFraction*0.5)
 	if got != want {
-		t.Fatalf("computeRetryDelay with mid-range jitter = %v, want %v", got, want)
+		t.Fatalf("ComputeRetryDelay with mid-range jitter = %v, want %v", got, want)
 	}
 
 	none := func() float64 { return 0.0 }
 	got = ComputeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, none)
 	if got != baseDelay {
-		t.Fatalf("computeRetryDelay with zero jitter = %v, want %v", got, baseDelay)
+		t.Fatalf("ComputeRetryDelay with zero jitter = %v, want %v", got, baseDelay)
 	}
 }
 
@@ -159,7 +159,7 @@ func TestRetrySurgeSpreadsVisibleAtAcrossManySimultaneousFailures(t *testing.T) 
 	}
 
 	// With jitterFraction=0 (the actual production disable switch; see
-	// computeRetryDelay's `jitterFraction > 0` gate), prove the storm
+	// ComputeRetryDelay's `jitterFraction > 0` gate), prove the storm
 	// actually reproduces: all 100 collapse to exactly 1 distinct value.
 	// The jitter source is still the seeded PRNG here to prove the fraction
 	// itself, not the source, is what disables jitter.
