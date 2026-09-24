@@ -278,8 +278,10 @@ the X11 production-Cypher scan roots at `go/internal` and `go/cmd`, now one
 level further up. `go test -list` finds the same 56 tests under
 `querytestutil/...` on this branch as on `e6a8e11cb`.
 
-The one non-test change outside the moved tree is `internal/queryplan`'s
-production-import guard. It matched only an import path ending in
+Outside the moved tree, one production file changes a comment only:
+`content_reader_k8s_select_candidates.go` now says the shared `ContentStore`
+double lives in `querytestutil/content`. The one behavior change is
+`internal/queryplan`'s production-import guard. It matched only an import path ending in
 `querytestutil`, so a production import of `querytestutil/graph` passed. It now
 matches the path element and exempts files inside the helper tree.
 `TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf`

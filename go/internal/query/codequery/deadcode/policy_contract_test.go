@@ -23,7 +23,7 @@ import (
 // keyed literals over entities/incomingEntityIDs, so those names stay lowercase
 // and none of those literals changed.
 //
-// Neither read is reimplemented here. Both live in querytestutil, which is where
+// Neither read is reimplemented here. Both live in querytestutil/content, which is where
 // a handler family's tests reach them once the family moves out of this package
 // for #6060 -- a symbol declared in a _test.go file is not importable across a
 // package boundary. Two copies of a double's dispatch drift, and the drifted one

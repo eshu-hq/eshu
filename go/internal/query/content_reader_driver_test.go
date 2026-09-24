@@ -12,7 +12,7 @@ import (
 )
 
 // contentReaderQueryResult is this package's view of one queued answer for the
-// shared fake SQL driver. The behavior lives in querytestutil; this type exists
+// shared fake SQL driver. The behavior lives in querytestutil/content; this type exists
 // only so the 80-odd test files that build it with keyed literals over these
 // lowercase field names keep compiling (#6060).
 //
