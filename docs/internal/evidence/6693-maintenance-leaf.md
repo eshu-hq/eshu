@@ -1,6 +1,6 @@
 # #6693 checklist step 7: `maintenance/` leaf move
 
-Baseline: `origin/main` `a12cdb2c7` (written against `228ca326f`, rebased after #7032). Change: move
+Baseline: `origin/main` `fc15a2303` (the #7032 merge; written against `228ca326f`). Change: move
 `status_requests.go` and its test to
 `go/internal/storage/postgres/maintenance/` (package `maintenancestore`), the
 scan/reindex request lifecycle store (`StatusRequestStore`,

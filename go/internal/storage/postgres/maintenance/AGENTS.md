@@ -19,7 +19,8 @@
   explicit "no pending ... request" error, never a silent no-op.
 - Keep the package clause as `package maintenancestore`; callers import the
   `storage/postgres/maintenance` path without an alias.
-- Never import the parent `postgres` package from here.
+- Never import the parent `postgres` package from non-test code here; only
+  `requests_test.go` imports it, to check `BootstrapDefinitions`.
 
 ## Common changes
 
@@ -30,7 +31,8 @@
 
 ## Failure modes
 
-- Importing the parent `postgres` package creates an import cycle.
+- Importing the parent `postgres` package from non-test code would couple
+  this leaf back to root and block root from ever importing it.
 - Dropping the pending-only or running-only guard lets a stale or
   out-of-order caller silently skip a lifecycle state.
 

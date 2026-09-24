@@ -54,7 +54,9 @@ operator-facing signal.
   empty, `failed` otherwise.
 - `GetScanState`/`GetReindexState` return an idle, zero-value request rather
   than an error when no row exists yet for the ingester.
-- Do not import the parent `postgres` package: that is an import cycle.
+- Non-test code does not import the parent `postgres` package, so root can
+  import this leaf later without a cycle. The test imports root only to check
+  `BootstrapDefinitions`.
 
 No-Observability-Change: this extraction moves only the maintenance-request
 store, its SQL text, and its DDL constant. The request, claim, and complete
