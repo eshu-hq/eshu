@@ -57,27 +57,26 @@ func ReExportEntries(
 	return items
 }
 
-// ReExportSource returns the unquoted module specifier of an export statement,
-// reading the grammar's source field and falling back to the text after "from"
-// when that field is unset. It returns an empty string when the statement
-// re-exports nothing.
+// ReExportSource returns the unquoted module specifier of a re-export statement
+// (export { ... } from "m", export * from "m", export * as ns from "m",
+// export type { ... } from "m"). It reads only the grammar's source field and
+// accepts it only when that field is a single string literal; it returns an
+// empty string for every other export_statement.
+//
+// There is deliberately no text fallback. A declaration export such as
+// "export class X { ... }" has no source field, and scanning its text for
+// " from " matched words inside comments, strings and template literals
+// anywhere in the declaration body, minting a re-export whose module name ran
+// to the end of the file (issue #7056).
 func ReExportSource(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
-	if sourceNode := node.ChildByFieldName("source"); sourceNode != nil {
-		if moduleSource := strings.Trim(strings.TrimSpace(shared.NodeText(sourceNode, source)), `"'`); moduleSource != "" {
-			return moduleSource
-		}
-	}
-
-	text := strings.TrimSpace(shared.NodeText(node, source))
-	before, rawSource, ok := strings.Cut(text, " from ")
-	if !ok || !strings.HasPrefix(strings.TrimSpace(before), "export") {
+	sourceNode := node.ChildByFieldName("source")
+	if sourceNode == nil || sourceNode.Kind() != "string" {
 		return ""
 	}
-	rawSource = strings.TrimSpace(strings.TrimSuffix(rawSource, ";"))
-	return strings.Trim(rawSource, `"'`)
+	return strings.Trim(strings.TrimSpace(shared.NodeText(sourceNode, source)), `"'`)
 }
 
 // ReExportSpecifier records one static export-clause mapping from a
@@ -174,7 +173,22 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 	if len(specifiers) > 0 {
 		return specifiers
 	}
+	if isDeclarationExport(node) {
+		return specifiers
+	}
 	return reExportSpecifiersFromText(node, source)
+}
+
+// isDeclarationExport reports whether an export_statement exports a
+// declaration or a default value (export class/function/const ...,
+// export default ...) rather than an export clause. Such a statement has no
+// specifiers, and its braces delimit a declaration body, so the brace-text
+// fallback must not read names out of it (issue #7056).
+func isDeclarationExport(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	return node.ChildByFieldName("declaration") != nil || node.ChildByFieldName("value") != nil
 }
 
 func reExportSpecifiersFromText(

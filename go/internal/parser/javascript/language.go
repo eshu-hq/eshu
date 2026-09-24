@@ -365,6 +365,7 @@ func Parse(
 	sortNamedBucket(payload, "classes")
 	sortNamedBucket(payload, "variables")
 	sortNamedBucket(payload, "modules")
+	dropOversizedImportSources(payload, path)
 	sortNamedBucket(payload, "imports")
 	sortNamedBucket(payload, "function_calls")
 	sortNamedBucket(payload, "components")

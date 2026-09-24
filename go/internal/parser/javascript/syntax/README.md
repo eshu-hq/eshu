@@ -50,6 +50,9 @@ does not import its sibling `project` either — the two are independent.
   `RequireModuleSource` — import and `require` entry rows
 - `ReExportEntries`, `ReExportSource`, `ReExportSpecifiers`, `IsStarReExport`,
   `ReExportSpecifier` — re-export rows and their specifier pairs
+  (`ReExportSource` reads only the grammar's string-literal `source` field, and
+  the specifier text fallback never reads a declaration export's body; there is
+  no text scan for `from`, see #7056)
 - `CollectNewExpressionVariableType`, `FunctionReturnTypes`,
   `CallInferredObjectType`, `NewExpressionConstructorName`,
   `TypedBindingName`, `DeclaredTypeName` — receiver typing from local syntax

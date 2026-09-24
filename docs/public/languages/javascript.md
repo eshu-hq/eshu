@@ -150,6 +150,17 @@ Not claimed today:
   same cap ([#4808](https://github.com/eshu-hq/eshu/issues/4808)): a bounded
   file contributes no pre-scan names and the bound is logged, since pre-scan
   has no payload map to carry a `js_parse_bounded` row.
+- A re-export import row comes only from a real `export { ... } from "m"`,
+  `export * from "m"`, `export * as ns from "m"`, or `export type { ... } from
+  "m"` statement whose module specifier is a single string literal. Declaration
+  exports (`export class`, `export const`, `export default`, ...) never produce
+  one, whatever text their bodies, comments, or strings contain
+  ([#7056](https://github.com/eshu-hq/eshu/issues/7056)).
+- As defence in depth, an import, `require`, or re-export row whose module
+  specifier is longer than 1024 bytes is dropped before it reaches the graph
+  and logged as `javascript-family import source exceeds bound`
+  (`action=import_dropped`). The longest legitimate specifier measured across
+  542,380 specifiers was 121 bytes.
 
 ## Parser Performance
 
