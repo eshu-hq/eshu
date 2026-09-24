@@ -144,7 +144,6 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `ReposSnapshotted` | `eshu_dp_repos_snapshotted_total` |
 | `FilesParsed` | `eshu_dp_files_parsed_total` |
 | `SCIPSnapshotAttempts` | `eshu_dp_scip_snapshot_attempts_total` |
-| `SCIPProcessWaitDuration` | `eshu_dp_scip_process_wait_seconds` |
 | `DiscoveryDirsSkipped` | `eshu_dp_discovery_dirs_skipped_total` |
 | `DiscoveryFilesSkipped` | `eshu_dp_discovery_files_skipped_total` |
 | `LargeRepoClassifications` | `eshu_dp_large_repo_classifications_total` |
@@ -489,10 +488,8 @@ prior-config walk summary emitted by `PostgresDriftEvidenceLoader`.
 `LogKeyDriftMultiElementPrefix`, `LogKeyDriftMultiElementCount`, and
 `LogKeyDriftMultiElementSource` flag the first-wins truncation policy applied
 to multi-element repeated nested blocks — emitted at debug level from both
-`flattenStateAttributes`
-(`internal/storage/postgres/tfstate_drift_evidence_state_row.go:90`) and
-`walkBlockAttributes`
-(`internal/parser/hcl/terraform_resource_attributes.go:132`).
+`flattenStateAttributes` (`internal/storage/postgres/tfstate_drift_evidence_state_row.go:90`)
+and `walkBlockAttributes` (`internal/parser/hcl/terraform_resource_attributes.go:132`).
 
 Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
 `PhaseParsing`, `PhaseEmission`, `PhaseProjection`, `PhaseReduction`,
