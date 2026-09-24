@@ -182,6 +182,35 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 - **`ExercisedCoverageFloor` (`coverage.go`) is a ratchet.** Raise it only
   after a change (a new `RouteQueryArgs` entry, an auth fix) measurably
   increases the exercised count; never lower it.
+- **`-runs` defaults to 1 and must stay byte-for-byte identical to the
+  pre-`-runs` gate at that default.** `sweepRoute` (`sweep.go`) always runs
+  the warmup once, before run 1; run 1 alone backs `RouteLatency.P95`/
+  `Samples` when there is no warm pass. Do not move the warmup inside the
+  per-run loop (that would re-warm every run, which is not what "runs 2..R
+  are warm passes with no additional warmup" means) and do not let a
+  `Runs<=1` caller observe any behavior difference from before `-runs`
+  existed — CI's default invocation depends on this.
+  `TestSweepRoutesRunsDefaultLeavesWarmDataEmpty` pins it.
+- **`RouteLatency.P95` is computed from the pooled warm samples when any
+  exist, and from the cold pass alone otherwise.** The cold pass's connection
+  and cache are cold by construction (the same reasoning `warmupRequests`
+  applies one level up); do not fold cold samples into the warm pool or
+  report the cold pass's own p95 as the route's official one once warm data
+  exists.
+- **`-latency-report` is written BEFORE budget evaluation** (`main.go`'s
+  `run`, right after `writeWorkReportFile`). A breaching leg must still yield
+  a report — the report is measurement, not a verdict. Do not move the write
+  after the budget-evaluation block.
+- **`scripts/compare-backend-latency.sh`'s identity-match list is
+  deliberate: `seed_options`, `iterations`, `warmups`, `eshu_commit`,
+  `api_binary_sha256` — never `backend`.** The two legs are SUPPOSED to
+  differ on backend; adding it to the match list would make the comparator
+  refuse the one comparison it exists to make. Work-counter equality
+  (`work_key` in the script) is compared rounded to 2 decimal places, not
+  exactly — per-request Postgres work averages are invariant to `runs` by
+  construction but can differ in the last float bit between two
+  independently computed averages of the same integers, which is not the
+  "did different work" signal the check exists to catch.
 
 ## Verification
 

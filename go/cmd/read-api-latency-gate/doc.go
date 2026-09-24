@@ -33,4 +33,18 @@
 // scripts/verify-golden-corpus-gate.sh uses), builds eshu-api and this
 // binary, starts eshu-api, runs this binary to seed and sweep, and tears the
 // stack down.
+//
+// -runs (default 1) repeats the counted sweep per route: run 1 is always the
+// cold pass, and runs 2..-runs are warm passes issued with no additional
+// warmup between them. -latency-report writes the full per-route
+// distribution (cold and warm samples, warm n/p50/p95/min/max/stddev, the
+// per-run p95 spread, and an identity block identifying the corpus, run
+// shape, and binary) as JSON, before budget evaluation runs, so a leg that
+// goes on to breach its budget still yields a report.
+// scripts/compare-backend-latency.sh reads two such reports (one per
+// backend) and renders a markdown comparison table, refusing to compare two
+// legs whose identity disagrees in a field that must match (issue #6965
+// phase 6: proving a latency claim across NornicDB and Neo4j needs
+// distributions over repeated runs, not the single-sample comparisons this
+// binary produced before).
 package main
