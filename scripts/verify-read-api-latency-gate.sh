@@ -251,6 +251,7 @@ if [[ -n "${GATE_API_BIN:-}" ]]; then
 	[[ -x "${GATE_API_BIN}" ]] || die "GATE_API_BIN=${GATE_API_BIN} is not an executable file"
 	cp "${GATE_API_BIN}" "${bin_dir}/eshu-api"
 	log "using pre-built eshu-api from GATE_API_BIN=${GATE_API_BIN} (not building from this worktree)"
+	command -v shasum >/dev/null 2>&1 && shasum -a 256 "${bin_dir}/eshu-api"
 else
 	build_bin api
 fi
@@ -258,19 +259,29 @@ build_bin read-api-latency-gate
 
 # Recorded in the latency report's identity block (-api-binary-sha256 below)
 # so a cross-backend comparison can refuse two legs measured against
-# different eshu-api builds — see scripts/compare-backend-latency.sh. Best
-# effort: an empty string when shasum is unavailable, same as the
-# already-conditional lsof provenance print below.
+# different eshu-api builds -- see scripts/compare-backend-latency.sh. Only
+# computed (and only then does its own log line print) when a report was
+# actually asked for: GATE_LATENCY_REPORT is the only consumer, and CI's
+# default invocation never sets it, so computing/logging this unconditionally
+# would add both a new shasum cost and a new stdout line to every default
+# run -- the exact thing docs/public/reference/local-testing/
+# read-api-latency-gate.md's "byte-for-byte identical at default settings"
+# claim depends on NOT happening. Best effort: an empty string when shasum is
+# unavailable, same as the already-conditional lsof provenance print below.
 gate_api_binary_sha256=""
-if command -v shasum >/dev/null 2>&1; then
-	gate_api_binary_sha256="$(shasum -a 256 "${bin_dir}/eshu-api" | awk '{print $1}')"
-	log "eshu-api binary sha256: ${gate_api_binary_sha256}"
-fi
 # Best effort: the commit this worktree's HEAD resolves to, recorded in the
 # same identity block. Empty when git is unavailable or HEAD is detached with
 # no resolvable ref -- never fatal, the identity block is comparison metadata,
-# not a gate input.
-gate_eshu_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
+# not a gate input. Same GATE_LATENCY_REPORT gating as the sha256 above, for
+# the same reason.
+gate_eshu_commit=""
+if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
+	if command -v shasum >/dev/null 2>&1; then
+		gate_api_binary_sha256="$(shasum -a 256 "${bin_dir}/eshu-api" | awk '{print $1}')"
+		log "eshu-api binary sha256: ${gate_api_binary_sha256}"
+	fi
+	gate_eshu_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
+fi
 
 gate_report_args=()
 if [[ -n "${GATE_WORK_REPORT}" ]]; then
@@ -331,7 +342,14 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 
-log "sweep (${GATE_ITERATIONS} requests/route x ${GATE_RUNS} run(s))"
+# Exact pre-existing text at the default GATE_RUNS=1 (see the
+# "byte-for-byte identical at default settings" doc claim); only mentions
+# runs when there is more than one.
+if [[ "${GATE_RUNS}" -eq 1 ]]; then
+	log "sweep (${GATE_ITERATIONS} requests/route)"
+else
+	log "sweep (${GATE_ITERATIONS} requests/route x ${GATE_RUNS} run(s))"
+fi
 gate_status=0
 "${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -skip-seed \
 	-budgets "${GATE_BUDGETS}" \

@@ -54,8 +54,8 @@ base_report neo4j 26 4
 # --- GREEN: a matching identity pair renders the table with both routes
 # compared, no NON-COMPARABLE rows. ---
 out="$(bash "${script}" "${work}/nornicdb.json" "${work}/neo4j.json")" || fail "GREEN pair did not render"
-printf '%s\n' "${out}" | rg -qF '| GET /a | 10 | 13 | 10 | 26 | 2x | 80/80 |' || fail "GET /a row missing or wrong:\n${out}"
-printf '%s\n' "${out}" | rg -qF '| GET /b | 5 | 7 | 5 | 4 | 0.57x | 80/80 |' || fail "GET /b row missing or wrong:\n${out}"
+printf '%s\n' "${out}" | rg -qF '| GET /a | 10.00 | 13.00 | 10.00 | 26.00 | 2x | 80/80 |' || fail "GET /a row missing or wrong:\n${out}"
+printf '%s\n' "${out}" | rg -qF '| GET /b | 5.00 | 7.00 | 5.00 | 4.00 | 0.57x | 80/80 |' || fail "GET /b row missing or wrong:\n${out}"
 printf '%s\n' "${out}" | rg -q 'NON-COMPARABLE' && fail "GREEN pair must have no NON-COMPARABLE rows:\n${out}"
 
 # --- RED: --out writes the same bytes as stdout. ---
@@ -102,7 +102,7 @@ jq '.routes[0].work.calls = 900' "${work}/neo4j.json" >"${work}/neo4j-work.json"
 out="$(bash "${script}" "${work}/nornicdb.json" "${work}/neo4j-work.json")" || fail "planted work mismatch must not refuse the whole comparison"
 printf '%s\n' "${out}" | rg -qF '| GET /a | - | - | - | - | - | NON-COMPARABLE (Postgres work differs) |' \
 	|| fail "GET /a must be listed NON-COMPARABLE (Postgres work differs):\n${out}"
-printf '%s\n' "${out}" | rg -qF '| GET /b | 5 | 7 | 5 | 4 | 0.57x | 80/80 |' \
+printf '%s\n' "${out}" | rg -qF '| GET /b | 5.00 | 7.00 | 5.00 | 4.00 | 0.57x | 80/80 |' \
 	|| fail "GET /b must still compare normally despite GET /a's work mismatch:\n${out}"
 
 # --- Planted status mismatch: same non-comparable-but-not-refused shape. ---
@@ -116,6 +116,23 @@ jq '.routes += [{"route":"GET /only-neo4j","exercised":true,"status":200,"metere
 out="$(bash "${script}" "${work}/nornicdb.json" "${work}/neo4j-extra-route.json")" || fail "an extra route on one leg must not refuse the comparison"
 printf '%s\n' "${out}" | rg -qF 'GET /only-neo4j | - | - | - | - | - | NON-COMPARABLE (missing on left)' \
 	|| fail "extra route not reported as NON-COMPARABLE (missing on left):\n${out}"
+
+# --- A zero left-leg p95 must not abort the WHOLE table (jq division by
+# zero would otherwise kill every route's render, not just the degenerate
+# one): the route is listed NON-COMPARABLE and the other route still
+# compares, and the script exits 0. ---
+jq '.routes[0].warm.p95_ms = 0' "${work}/nornicdb.json" >"${work}/nornicdb-zerop95.json"
+out="$(bash "${script}" "${work}/nornicdb-zerop95.json" "${work}/neo4j.json")" || fail "a zero left p95 must not abort the whole comparison"
+printf '%s\n' "${out}" | rg -qF '| GET /a | - | - | - | - | - | NON-COMPARABLE (left p95 is 0ms; ratio is undefined) |' \
+	|| fail "GET /a with a zero left p95 must render NON-COMPARABLE, not crash the table:\n${out}"
+printf '%s\n' "${out}" | rg -qF '| GET /b | 5.00 | 7.00 | 5.00 | 4.00 | 0.57x | 80/80 |' \
+	|| fail "GET /b must still compare normally despite GET /a's zero p95:\n${out}"
+
+# --- A non-integer identity.runs refuses (exit 2, naming the field) instead
+# of letting bash's `[[ -ge ]]` throw its own uncaught arithmetic error. ---
+jq '.identity.runs = 3.5' "${work}/neo4j.json" >"${work}/neo4j-runs-float.json"
+expect_exit_and_reason 2 "identity.runs must be an integer" \
+	bash "${script}" "${work}/nornicdb.json" "${work}/neo4j-runs-float.json"
 
 # --- Malformed input is refused, not silently mis-rendered. ---
 printf '{"not":"a report"}' >"${work}/bad.json"

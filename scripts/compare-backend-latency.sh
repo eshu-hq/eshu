@@ -32,7 +32,9 @@
 # runs by construction, but binary floating point can still differ in the
 # last bit between two independently computed averages of the same integer
 # counters, and that is not the kind of "different work" this check exists
-# to catch.
+# to catch. A route whose left-leg warm p95 is exactly 0ms is also listed
+# NON-COMPARABLE (the ratio right/left is undefined) rather than aborting the
+# whole table on a jq division-by-zero.
 #
 # No --benchstat mode: the schema (n/p50/p95/min/max/stddev per route) is
 # already exactly what this script needs, and adding a benchfmt emitter plus
@@ -43,7 +45,7 @@ export LC_ALL=C
 
 die() {
 	printf 'compare-backend-latency: %s\n' "$*" >&2
-	exit "${2:-2}"
+	exit 2
 }
 
 out=""
@@ -69,13 +71,18 @@ for f in "${left}" "${right}"; do
 	jq -e '
 		(.schema_version == 1) and
 		(.identity.backend | type == "string") and
-		(.identity.runs | type == "number") and
 		(.identity.iterations | type == "number") and
 		(.identity.warmups | type == "number") and
 		(.identity.seed_options | type == "object") and
 		(.routes | type == "array")
 	' "${f}" >/dev/null 2>&1 \
 		|| die "not a schema-version-1 latency report (want {schema_version:1, identity:{backend,runs,iterations,warmups,seed_options}, routes:[...]}): ${f}"
+	# identity.runs feeds bash's `-ge 3` arithmetic comparison below, which
+	# throws its own (confusing, uncaught-by-die) "invalid arithmetic
+	# operator" on a non-integer like 3.5 -- checked separately, with its own
+	# message, rather than folded into the type check above.
+	jq -e '.identity.runs | type == "number" and . == (. | floor)' "${f}" >/dev/null 2>&1 \
+		|| die "identity.runs must be an integer: ${f}"
 done
 
 left_runs="$(jq -r '.identity.runs' "${left}")"
@@ -112,6 +119,17 @@ table="$(jq -n -r --slurpfile L "${left}" --slurpfile R "${right}" '
 	def route_map: map({key: .route, value: .}) | from_entries;
 	def round2($x): ($x * 100 | round) / 100;
 	def work_key($w): [round2($w.calls // 0), round2($w.blks // 0), round2($w.rows // 0)];
+	# Fixed 2-decimal-place ms formatting: jq has no printf-style float
+	# formatter, and plain `round2 | tostring` drops the decimal point
+	# entirely on a whole number (13, not 13.00) while the ratio column next
+	# to it keeps its precision -- a sub-millisecond route would otherwise
+	# print "0" beside an exact ratio, looking like a measurement error
+	# rather than a formatting one.
+	def fmt2ms($x):
+		($x * 100 | round) as $cents
+		| ($cents / 100 | floor) as $whole
+		| ($cents % 100) as $frac
+		| "\($whole).\(if $frac < 10 then "0" else "" end)\($frac)";
 
 	($L[0].routes | route_map) as $lm
 	| ($R[0].routes | route_map) as $rm
@@ -130,9 +148,11 @@ table="$(jq -n -r --slurpfile L "${left}" --slurpfile R "${right}" '
 		"| \($route) | - | - | - | - | - | NON-COMPARABLE (Postgres work differs) |"
 	elif ($lr.warm == null or $rr.warm == null) then
 		"| \($route) | - | - | - | - | - | NON-COMPARABLE (no warm samples on one or both legs) |"
+	elif ($lr.warm.p95_ms == 0) then
+		"| \($route) | - | - | - | - | - | NON-COMPARABLE (left p95 is 0ms; ratio is undefined) |"
 	else
 		(round2($rr.warm.p95_ms / $lr.warm.p95_ms)) as $ratio
-		| "| \($route) | \($lr.warm.p50_ms | round) | \($lr.warm.p95_ms | round) | \($rr.warm.p50_ms | round) | \($rr.warm.p95_ms | round) | \($ratio)x | \($lr.warm.n)/\($rr.warm.n) |"
+		| "| \($route) | \(fmt2ms($lr.warm.p50_ms)) | \(fmt2ms($lr.warm.p95_ms)) | \(fmt2ms($rr.warm.p50_ms)) | \(fmt2ms($rr.warm.p95_ms)) | \($ratio)x | \($lr.warm.n)/\($rr.warm.n) |"
 	end
 ')" || die "could not render the comparison table"
 
