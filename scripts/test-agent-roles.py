@@ -61,7 +61,17 @@ def main():
         muse = run(root, "muse-exec", "review-eshu", "Review", "--dry-run")
         assert muse.returncode == 0
         assert ":read-only" in muse.stdout
-        print("agent-roles: generation, inheritance, permission drift, and Muse routing pass")
+        codex = run(root, "codex-exec", "debug-eshu-deep", "Diagnose", "--dry-run")
+        assert codex.returncode == 0
+        codex_args = json.loads(codex.stdout)["argv"]
+        assert codex_args[codex_args.index("--model") + 1] == chosen
+        assert codex_args[codex_args.index("--config") + 1] == 'model_reasoning_effort="high"'
+        assert codex_args[codex_args.index("--sandbox") + 1] == "read-only"
+        writer = run(root, "codex-exec", "develop-eshu", "Implement", "--dry-run")
+        assert writer.returncode == 0
+        writer_args = json.loads(writer.stdout)["argv"]
+        assert writer_args[writer_args.index("--sandbox") + 1] == "workspace-write"
+        print("agent-roles: generation, inheritance, permission drift, and launcher routing pass")
 
 
 if __name__ == "__main__":

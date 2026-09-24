@@ -172,6 +172,24 @@ def muse_exec(role, task, dry_run):
     return subprocess.run(argv, cwd=ROOT, check=False).returncode
 
 
+def codex_exec(role, task, dry_run):
+    models, roles = load_roles()
+    spec = roles[role]
+    model = models["codex"][spec["tier"]]
+    argv = [
+        "codex", "exec", "--model", model["model"],
+        "--config", "model_reasoning_effort=" + json.dumps(model["effort"]),
+        "--sandbox", "read-only" if spec["access"] == "read" else "workspace-write",
+        "--cd", str(ROOT),
+    ]
+    prompt = "Act as the " + role + " role.\n" + instructions(spec) + "\n\nTask:\n" + task
+    argv.append(prompt)
+    if dry_run:
+        print(json.dumps({"argv": argv[:-1], "prompt": prompt}, indent=2))
+        return 0
+    return subprocess.run(argv, cwd=ROOT, check=False).returncode
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -181,6 +199,10 @@ def main():
     muse.add_argument("role")
     muse.add_argument("task")
     muse.add_argument("--dry-run", action="store_true")
+    codex = commands.add_parser("codex-exec")
+    codex.add_argument("role")
+    codex.add_argument("task")
+    codex.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.command == "generate":
         return generate_or_check(False)
@@ -189,7 +211,9 @@ def main():
     _, roles = load_roles()
     if args.role not in roles:
         parser.error("unknown role: " + args.role)
-    return muse_exec(args.role, args.task, args.dry_run)
+    if args.command == "muse-exec":
+        return muse_exec(args.role, args.task, args.dry_run)
+    return codex_exec(args.role, args.task, args.dry_run)
 
 
 if __name__ == "__main__":

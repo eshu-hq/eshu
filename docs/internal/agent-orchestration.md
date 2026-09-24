@@ -35,7 +35,7 @@ the codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and the Muse launcher | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude reads `CLAUDE.md`; Codex and opencode read `AGENTS.md` (plus opencode's
@@ -133,7 +133,7 @@ binding fails locally and in CI.
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
 | opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
-| Codex | `.codex/agents/*.toml` | `model` and `model_reasoning_effort` in the role file | `sandbox_mode = "read-only"` (also gates network, so the role sets `approval_policy = "on-request"`) |
+| Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
 | Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
 
 Muse's launcher runs one role as a headless session, rather than registering a
@@ -141,6 +141,16 @@ native subagent. Its read-only profile may prevent a diagnostic or performance
 role from running a proof that writes local artifacts. OpenCode's read roles
 cannot run shell commands. In either case, the coordinator should run blocked
 proof separately and pass the result back.
+
+Codex custom role files bind models only when the active spawn tool can select
+the named role. The tested Codex 0.156.1 CLI/app schema exposes a task
+name and optional model override, but no custom-role selector. A child merely
+named `debug_eshu_deep` inherits its parent's model; that name does not load
+`debug-eshu-deep.toml`. Use `scripts/agent-roles.py codex-exec ROLE TASK` in
+that environment. It starts a separate headless Codex session with the model,
+effort, role instructions, and sandbox read from `.agents/roles.json`; it is
+not a spawned child of the coordinator. Check the CLI startup banner for the
+resolved model and effort. Do not report task-name dispatch as role routing.
 
 The reviewer uses the same skill in all four:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
@@ -167,8 +177,8 @@ untrusted**: add the worktree path under `[projects."<path>"] trust_level =
 "trusted"` in `~/.codex/config.toml`, and note that trust is keyed by absolute
 path, so a second checkout of the same repo needs its own entry. A
 `[profiles.<name>]` in `~/.codex/config.toml` remains the way to run a whole
-Codex *session* at a chosen tier; the role file is what binds a spawned
-reviewer.
+Codex *session* at a chosen tier; the role file binds a spawned reviewer only
+when the spawn tool offers a custom-role selector.
 
 Codex's `read-only` preset gates internet access behind approval as well as
 writes, and a reviewer needs the network for the live GitHub truth the skill
