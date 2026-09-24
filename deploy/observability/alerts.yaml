@@ -103,6 +103,7 @@ groups:
           summary: "Graph orphan node count is high"
           description: "There are {{ $value }} zero-relationship graph nodes for label {{ $labels.node_label }} after multiple scrape windows."
           runbook: |
+            0. Check whether `EshuGraphGaugeSnapshotStale` is firing or `eshu_dp_gauge_snapshot_age_seconds{gauge="graph_orphan_nodes"}` is climbing; if so, the count is the last good snapshot, not a live value
             1. Check reducer logs for `graph orphan sweep cycle failed` and `failure_class=graph_orphan_sweep_error`
             2. Verify `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`, `ESHU_GRAPH_ORPHAN_SWEEP_TTL`, and `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT`
             3. Compare `eshu_dp_neo4j_query_duration_seconds` for graph write pressure during sweep cycles
