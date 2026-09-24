@@ -145,7 +145,7 @@ func readVulnerabilitySuppressionMutationJSON(
 
 func buildOperatorVulnerabilitySuppression(
 	request VulnerabilitySuppressionMutationRequest,
-	auth auth.AuthContext,
+	authCtx auth.AuthContext,
 ) (vulnerabilitysuppressionv1.Suppression, error) {
 	request.SuppressionID = strings.TrimSpace(request.SuppressionID)
 	request.Justification = strings.TrimSpace(request.Justification)
@@ -200,7 +200,7 @@ func buildOperatorVulnerabilitySuppression(
 		SuppressionID: request.SuppressionID,
 		Source:        facts.VulnerabilitySuppressionSourcePolicy,
 		Justification: request.Justification,
-		Author:        vulnerabilitySuppressionAuthor(auth),
+		Author:        vulnerabilitySuppressionAuthor(authCtx),
 		AuthoredAt:    authoredAtText,
 		ExpiresAt:     expiresAt,
 		Reason:        &reason,
@@ -225,12 +225,12 @@ func operatorSuppressionJustificationAllowed(value string) bool {
 	}
 }
 
-func vulnerabilitySuppressionAuthor(auth auth.AuthContext) string {
-	subjectClass := strings.TrimSpace(auth.SubjectClass)
+func vulnerabilitySuppressionAuthor(authCtx auth.AuthContext) string {
+	subjectClass := strings.TrimSpace(authCtx.SubjectClass)
 	if subjectClass == "" {
 		subjectClass = "authenticated_operator"
 	}
-	subjectIDHash := strings.TrimSpace(auth.SubjectIDHash)
+	subjectIDHash := strings.TrimSpace(authCtx.SubjectIDHash)
 	if subjectIDHash == "" {
 		return subjectClass
 	}

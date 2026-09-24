@@ -109,7 +109,7 @@ func TestRevokeAPITokenNotOwnedReturnsNotFound(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/local/api-tokens/token-1/revoke", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/api-tokens/token-1/revoke", bytes.NewBufferString(`{}`))
 	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, SubjectIDHash: "sha256:non-owner"}
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 	rec := httptest.NewRecorder()

@@ -58,10 +58,10 @@ func ActorClassForAuth(authCtx auth.AuthContext) governanceaudit.ActorClass {
 // synthetic identity rather than an empty one; any other caller with no
 // subject hash downgrades to anonymous, because NormalizeEvent rejects an
 // identity-bearing class without an actor identity.
-func RecoveryActor(auth auth.AuthContext) (governanceaudit.ActorClass, string) {
-	actorClass := ActorClassForAuth(auth)
-	if auth.SubjectIDHash != "" {
-		return actorClass, auth.SubjectIDHash
+func RecoveryActor(authCtx auth.AuthContext) (governanceaudit.ActorClass, string) {
+	actorClass := ActorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash != "" {
+		return actorClass, authCtx.SubjectIDHash
 	}
 	if actorClass == governanceaudit.ActorClassSharedToken {
 		return actorClass, SharedActorIDHash

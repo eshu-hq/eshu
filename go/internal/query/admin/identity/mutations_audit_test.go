@@ -48,7 +48,7 @@ func TestMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 
 			recorder := &querytestutil.FakeGovernanceAuditAppender{}
 			authCtx := auth.AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/admin/role-assignments", nil)
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/role-assignments", nil)
 			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 			h := &MutationHandler{Audit: recorder}
@@ -80,7 +80,7 @@ func TestMutationAuditsWithNoSubjectHash(t *testing.T) {
 
 	recorder := &querytestutil.FakeGovernanceAuditAppender{}
 	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, AllScopes: true}
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/admin/role-assignments", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/role-assignments", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 	h := &MutationHandler{Audit: recorder}

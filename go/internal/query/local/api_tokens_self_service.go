@@ -48,11 +48,11 @@ func (h *IdentityHandler) authorizeTokenMutation(w http.ResponseWriter, r *http.
 // to, or "" for an all-scope admin whose mutation stays unrestricted. Keeping
 // this a single helper guarantees revoke and rotate compute ownership scope
 // identically (issue #5164).
-func selfServiceTokenOwner(auth auth.AuthContext) string {
-	if auth.AllScopes {
+func selfServiceTokenOwner(authCtx auth.AuthContext) string {
+	if authCtx.AllScopes {
 		return ""
 	}
-	return auth.SubjectIDHash
+	return authCtx.SubjectIDHash
 }
 
 // writeSelfServiceTokenNotFound converts an owner-scoped store miss into a
@@ -83,7 +83,7 @@ func (h *IdentityHandler) enforceSelfServiceTokenCreateScope(
 	w http.ResponseWriter,
 	r *http.Request,
 	req *localIdentityAPITokenCreateRequest,
-	auth auth.AuthContext,
+	authCtx auth.AuthContext,
 ) bool {
 	class := localIdentityDefault(req.TokenClass, localIdentityAPITokenClassPersonal)
 	if class != localIdentityAPITokenClassPersonal || strings.TrimSpace(req.ServicePrincipalID) != "" {
@@ -91,7 +91,7 @@ func (h *IdentityHandler) enforceSelfServiceTokenCreateScope(
 		querycontract.WriteError(w, http.StatusForbidden, "self-service api token creation is limited to your own personal token")
 		return false
 	}
-	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
+	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve self-service api token user id failed", "err", err)
 		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")

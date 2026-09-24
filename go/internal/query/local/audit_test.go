@@ -41,7 +41,7 @@ func TestAuditLocalIdentityStampsActorClassByAuthMode(t *testing.T) {
 
 			audit := &querytestutil.FakeGovernanceAuditAppender{}
 			authCtx := auth.AuthContext{Mode: tc.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/local/anything", nil)
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/anything", nil)
 			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 			h := &IdentityHandler{Audit: audit}
