@@ -12,7 +12,7 @@ performance-evidence gate's hot-path scan (it flags `ESHU_GRAPH_*` names).
 
 ## No-Regression Evidence
 
-The added work per read is exactly one whitespace-collapse
+No-Regression Evidence: the added work per read is exactly one whitespace-collapse
 (`strings.Fields`+`strings.Join`) and one `sha256.Sum256` +
 `hex.EncodeToString` over the Cypher statement text -- fixed cost independent
 of row count, backend, or network round trip, computed once per `runRead`
@@ -69,6 +69,8 @@ passes; see the PR's test evidence for the full RED/GREEN and mutation-testing
 record.
 
 ## Observability Evidence
+
+Observability Evidence:
 
 - `neo4j.query` span gains `eshu.graph_read.statement_fingerprint`
   (`SpanAttrGraphReadStatementFingerprint`,
