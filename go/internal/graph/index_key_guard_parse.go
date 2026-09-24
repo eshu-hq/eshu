@@ -81,7 +81,7 @@ type cypherKeyword struct {
 	word     string
 }
 
-const cypherLabelToken = "(?:\\w+|`[^`]+`)"
+const cypherLabelExpr = "(?:\\w+|`[^`]+`)"
 
 var (
 	cypherClausePattern = regexp.MustCompile(
@@ -91,11 +91,11 @@ var (
 	// cypherNodePattern matches a node pattern opening: an optional
 	// variable, optional labels, and an optional property map brace.
 	cypherNodePattern = regexp.MustCompile(
-		`\(\s*(\w*)\s*((?::\s*` + cypherLabelToken + `(?:\s*[|&]\s*` + cypherLabelToken + `)*\s*)+)?(\{)?`,
+		`\(\s*(\w*)\s*((?::\s*` + cypherLabelExpr + `(?:\s*[|&]\s*` + cypherLabelExpr + `)*\s*)+)?(\{)?`,
 	)
-	cypherLabelName    = regexp.MustCompile(cypherLabelToken)
-	cypherSetLabel     = regexp.MustCompile(`(?s)^(\w+)\s*((?::\s*` + cypherLabelToken + `\s*)+)$`)
-	cypherWriteLabel   = regexp.MustCompile(`:\s*(` + cypherLabelToken + `)`)
+	cypherLabelName    = regexp.MustCompile(cypherLabelExpr)
+	cypherSetLabel     = regexp.MustCompile(`(?s)^(\w+)\s*((?::\s*` + cypherLabelExpr + `\s*)+)$`)
+	cypherWriteLabel   = regexp.MustCompile(`:\s*(` + cypherLabelExpr + `)`)
 	cypherUnwindParam  = regexp.MustCompile(`(?i)\bUNWIND\s+\$(\w+)\s+AS\s+(\w+)`)
 	cypherWithAlias    = regexp.MustCompile(`(?is)^(\w+)(?:\.(\w+))?\s+AS\s+(\w+)$`)
 	cypherPropAssign   = regexp.MustCompile(`(?s)^(\w+)\.(\w+)\s*=\s*(.+)$`)
