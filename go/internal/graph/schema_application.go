@@ -81,10 +81,11 @@ const (
 	// directory language-query route's seek and changes no MERGE or MATCH
 	// identity, so a writer on the previous schema writes exactly the same
 	// graph -- it merely reads that one route more slowly.
-	// The #6793 tf_module/tf_output evidence_source indexes are read-side too;
-	// see schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "9041fb74aae9f09afe78b4dacbd7b4b64a619e172ac0a107ec45dcea8f566717"
-	graphSchemaNornicDBFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"
+	// The #6793 tf_module/tf_output evidence_source indexes and the #7057
+	// Rationale/DocumentationSection uid indexes are additive too; see
+	// schema_predecessors.go.
+	graphSchemaNeo4jFingerprint    = "51025f70d0241d9af778b50d8b2c2d03ea7d0f7392c5cf6f118939436ebd1fb3"
+	graphSchemaNornicDBFingerprint = "04419f9acfe9061ae65d3d4fbe71d712b13965e6ef08685892bbb80f2e217ba5"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the
@@ -360,6 +361,7 @@ var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
 			graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
 			graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
 		},
@@ -385,6 +387,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreUnconstrainedUIDIndexFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
 			graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
 		},

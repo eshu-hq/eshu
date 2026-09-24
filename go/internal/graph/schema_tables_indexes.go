@@ -200,6 +200,15 @@ var schemaPerformanceIndexes = []string{
 	// of a scan of the whole label.
 	"CREATE INDEX tf_module_evidence_source IF NOT EXISTS FOR (m:TerraformModule) ON (m.evidence_source)",
 	"CREATE INDEX tf_output_evidence_source IF NOT EXISTS FOR (o:TerraformOutput) ON (o.evidence_source)",
+	// Rationale and DocumentationSection are MERGEd on uid
+	// (canonical_rationale_edges.go, canonical_documentation_edges.go) but
+	// carry no uid uniqueness constraint. Their uids reach API callers as the
+	// source_id of EXPLAINS / DOCUMENTS neighbours on the relationships row,
+	// and the Neo4j entity-id anchor (codemodel.Neo4jEntityIDAnchor) seeks
+	// them through these indexes instead of scanning every node (#7057). The
+	// same indexes put both writers' uid MERGE on an index lookup.
+	"CREATE INDEX rationale_uid IF NOT EXISTS FOR (r:Rationale) ON (r.uid)",
+	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
 	// Backs the #5443 MATCHES_STATE edge write: the graph writer anchors on
 	// `{repo_id, name}` where name is the config-declared bare address (e.g.
 	// "aws_instance.web") -- the most selective property available (an

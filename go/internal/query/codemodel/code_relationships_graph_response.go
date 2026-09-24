@@ -409,25 +409,40 @@ var neo4jEntityIDAnchorLabels = []string{
 	"Workload", "WorkloadInstance",
 }
 
+// neo4jEntityUIDIndexAnchorLabels is every label MERGEd on uid that carries a
+// uid RANGE index but no uid constraint (schema_tables_indexes.go). Rationale
+// and DocumentationSection uids reach callers as the source_id of EXPLAINS and
+// DOCUMENTS neighbours on the relationships row, so following one must resolve
+// (#7057). TestNeo4jEntityIDAnchorLabelsMatchSchema pins this list to the
+// schema, and TestNeo4jEntityIDAnchorCoversEveryUIDWriter fails when a writer
+// MERGEs a uid-keyed label that none of the three lists covers.
+var neo4jEntityUIDIndexAnchorLabels = []string{"DocumentationSection", "Rationale"}
+
 var (
-	neo4jEntityUIDAnchorDisjunction = strings.Join(neo4jEntityUIDAnchorLabels, "|")
-	neo4jEntityIDAnchorDisjunction  = strings.Join(neo4jEntityIDAnchorLabels, "|")
+	neo4jEntityUIDAnchorDisjunction      = strings.Join(neo4jEntityUIDAnchorLabels, "|")
+	neo4jEntityUIDIndexAnchorDisjunction = strings.Join(neo4jEntityUIDIndexAnchorLabels, "|")
+	neo4jEntityIDAnchorDisjunction       = strings.Join(neo4jEntityIDAnchorLabels, "|")
 )
 
-// Neo4jEntityIDAnchor returns a CALL subquery that binds alias to the node
-// whose uid (on a uid-constrained label) or id (on an id-constrained label)
-// equals param. It replaces the Neo4j use of GraphEntityIDPredicate as an
-// anchor: that unlabeled (alias.id = x OR alias.uid = x) predicate cannot use
-// any index and plans as an AllNodesScan, while each branch here plans as one
-// NodeUniqueIndexSeek per label (issue #7057). UNION deduplicates a node both
-// branches reach. Nodes with neither constraint (Rationale,
-// DocumentationSection, Directory, name-keyed Module) are not reachable
-// through any entity-id read; see
-// docs/internal/evidence/7057-relationship-uid-anchor.md. NornicDB readers keep
-// their own label-resolved anchors and must not use this clause.
+// Neo4jEntityIDAnchor returns a scoped CALL () subquery that binds alias to
+// the node whose uid (on a uid-constrained or uid-indexed label) or id (on an
+// id-constrained label) equals param. It replaces the Neo4j use of
+// GraphEntityIDPredicate as an anchor: that unlabeled
+// (alias.id = x OR alias.uid = x) predicate cannot use any index and plans as
+// an AllNodesScan, while each branch here plans as one index seek per label
+// (issue #7057). UNION deduplicates a node more than one branch reaches. The
+// empty variable scope clause needs Neo4j 5.23, the documented floor; bare
+// CALL { } is deprecated from 5.23. Nodes with no uid or id at all
+// (Parameter, Directory, name-keyed Module) were never matched by the old
+// predicate either; see docs/internal/evidence/7057-relationship-uid-anchor.md.
+// NornicDB readers keep their own label-resolved anchors and must not use this
+// clause.
 func Neo4jEntityIDAnchor(alias string, param string) string {
-	return "CALL {\n" +
+	return "CALL () {\n" +
 		"\t\t\tMATCH (" + alias + ":" + neo4jEntityUIDAnchorDisjunction + " {uid: " + param + "})\n" +
+		"\t\t\tRETURN " + alias + "\n" +
+		"\t\t\tUNION\n" +
+		"\t\t\tMATCH (" + alias + ":" + neo4jEntityUIDIndexAnchorDisjunction + " {uid: " + param + "})\n" +
 		"\t\t\tRETURN " + alias + "\n" +
 		"\t\t\tUNION\n" +
 		"\t\t\tMATCH (" + alias + ":" + neo4jEntityIDAnchorDisjunction + " {id: " + param + "})\n" +

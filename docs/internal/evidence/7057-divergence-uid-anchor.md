@@ -190,9 +190,11 @@ After this change, four Neo4j reads still anchored with an id-OR-uid predicate:
   and some of those are keyed only by `id` (`Repository {id: ...}` is used
   elsewhere in the same handler). Anchoring it on the code labels would drop
   those rows. Fixed in the follow-up: it binds `e` through
-  `codemodel.Neo4jEntityIDAnchor`, a CALL-UNION of a `{uid:}` seek over every
-  uid-constrained label and an `{id:}` seek over the id-constrained labels, so
-  Repository and Workload ids still resolve without a label-resolution step.
+  `codemodel.Neo4jEntityIDAnchor`, a CALL-UNION of `{uid:}` seeks over every
+  uid-constrained label and over the uid-indexed Rationale and
+  DocumentationSection labels, and an `{id:}` seek over the id-constrained
+  labels. Repository, Workload, Rationale and DocumentationSection ids still
+  resolve without a label-resolution step.
 - `relationshipStoryGraphCypher` (`codequery/relationships/story/graph.go`)
   renders an unlabeled relationship pattern,
   `MATCH (source)-[rel:<TYPE>]->(target)`, with the id-OR-uid predicate on the

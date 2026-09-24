@@ -77,6 +77,12 @@
   with NornicDB, add it to `uidConstraintLabels`. Run
   `go test ./internal/graph -count=1` and `go test ./internal/storage/cypher -count=1`.
   Update the active ADR chunk status row.
+  A label any writer MERGEs on `{uid:}` needs a uid constraint
+  (`uidConstraintLabels`) or a uid index in `schemaPerformanceIndexes`: the
+  Neo4j entity-id anchor (`codemodel.Neo4jEntityIDAnchor`) can only seek
+  those, and `TestNeo4jEntityIDAnchorCoversEveryUIDWriter` fails otherwise
+  (#7057). Then copy the label into the matching anchor list in
+  `query/codemodel`.
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

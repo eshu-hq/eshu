@@ -36,8 +36,11 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			//
 			// #6793 adds the tf_module/tf_output evidence_source indexes, also
 			// read-side only, so the writer on the schema just before them and
-			// the one before that stay admitted.
+			// the one before that stay admitted. #7057 adds uid indexes on
+			// Rationale and DocumentationSection, which change no write
+			// identity, so the #6793 tip stays admitted as well.
 			compatible: []string{
+				graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
 				graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
 				graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
 			},
@@ -47,6 +50,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreUnconstrainedUIDIndexFingerprint,
 				graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
 				graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
 			},

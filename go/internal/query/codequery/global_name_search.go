@@ -20,21 +20,16 @@ func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, languag
 // (formerly family_code_shim_story.go in root package query). Every other
 // entry in that shim was deleted at the move and its call sites repointed
 // to name codemodel/codeshaping/codeowners/querycontract directly (see the
-// #6060 move commit). These entries did not get that treatment: each is called
-// from inside a function registered in
-// internal/queryplan/grandfathered_non_hot.go with a source digest frozen
-// from the `func` keyword through the closing brace -- callChainCandidateOneHopRows,
-// relationshipsGraphRow, and transitiveRelationshipsGraphRow. Qualifying
-// these calls (e.g. codemodel.GraphEntityIDPredicate(...)) would change
-// those three functions' source text and break their pinned digest;
-// transitiveRelationshipsGraphRow is one of the four grandfathered
-// call-graph reads that cannot be honestly typed into any existing
-// queryplan class (unbounded :CALLS reads, no LIMIT), so forcing its
-// conversion here would mean inventing a dishonest bound rather than
-// describing the read it actually performs. Keeping these names
-// resolving locally, unqualified, keeps those three functions' source
-// byte-identical across the move. Do not delete an entry here without
-// first re-deriving whether its caller is still grandfathered.
+// #6060 move commit). The entries below stay because their callers,
+// relationshipsGraphRow and transitiveRelationshipsGraphRow, carry a typed
+// non_hot pin in
+// internal/queryplan/testdata/query-source-coverage.yaml whose source_sha256
+// covers the function text from the `func` keyword through the closing brace.
+// Resolving these names locally keeps those bodies free of package
+// qualifiers, so a pure rename or move does not re-derive the digest. A
+// change that alters what a pinned reader queries re-derives its digest on
+// purpose, as #7057 did for relationshipsGraphRow. Delete an entry only when
+// no pinned reader calls it.
 
 // relationshipsRequest aliases the leaf-owned lookup request so
 // transitiveRelationshipsGraphRow's signature stays unchanged.

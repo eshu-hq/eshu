@@ -14,12 +14,16 @@ import (
 )
 
 // neo4jEntityAnchorShape matches the indexed Neo4j entity anchor for one alias
-// (issue #7057): a CALL subquery whose first branch seeks the uid uniqueness
-// constraint across a label disjunction that includes Function, and whose
-// second branch seeks the id uniqueness constraint across a disjunction that
+// (issue #7057): a scoped CALL () subquery whose first branch seeks the uid
+// uniqueness constraint across a label disjunction that includes Function,
+// whose second branch seeks the uid RANGE index on the uid-keyed labels that
+// carry no constraint (DocumentationSection, Rationale -- their uids reach
+// callers as incoming source_id values on the relationships row), and whose
+// third branch seeks the id uniqueness constraint across a disjunction that
 // includes Repository and Workload.
 func neo4jEntityAnchorShape(alias string) *regexp.Regexp {
-	return regexp.MustCompile(`(?s)CALL \{\s*MATCH \(` + alias + `:[A-Za-z0-9|]*\bFunction\b[A-Za-z0-9|]* \{uid: \$entity_id\}\)\s*RETURN ` + alias +
+	return regexp.MustCompile(`(?s)CALL \(\) \{\s*MATCH \(` + alias + `:[A-Za-z0-9|]*\bFunction\b[A-Za-z0-9|]* \{uid: \$entity_id\}\)\s*RETURN ` + alias +
+		`\s*UNION\s*MATCH \(` + alias + `:DocumentationSection\|Rationale \{uid: \$entity_id\}\)\s*RETURN ` + alias +
 		`\s*UNION\s*MATCH \(` + alias + `:[A-Za-z0-9|]*\bRepository\b[A-Za-z0-9|]*\bWorkload\b[A-Za-z0-9|]* \{id: \$entity_id\}\)\s*RETURN ` + alias + `\s*\}`)
 }
 
