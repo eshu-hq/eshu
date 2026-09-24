@@ -25,7 +25,7 @@ outside this package.
 
 ## Dependencies
 
-`internal/query/querycontract`, `internal/query/queryauth` (scoped grants),
+`internal/query/querycontract`, `internal/query/auth` (scoped grants),
 `internal/query/tracing`, `internal/telemetry`.
 
 ## Telemetry
@@ -50,7 +50,7 @@ their test moved here as `handler.go`, `correlations.go` and
 `correlations_test.go` (`git mv`). Names dropped the `ObservabilityCoverage`
 prefix the path now carries. The handler's root forwarders
 (`QueryParam`, `WriteError`, `StringVal`, ...) became direct `querycontract`
-calls, and the test's auth helpers direct `queryauth` calls. The root test
+calls, and the test's auth helpers direct `auth` calls. The root test
 helper `openScopeQueryerTestDB` moved to `querytestutil.OpenScopeQueryerTestDB`
 so this package's tests can use it.
 

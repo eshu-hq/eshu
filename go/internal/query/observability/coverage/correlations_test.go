@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -165,7 +165,7 @@ func TestObservabilityCoverageListCorrelationsScopedEmptyGrantReturnsEmptyWithou
 		"/api/v0/observability/coverage/correlations?target_uid=arn:aws:ec2:us-east-1:111122223333:instance/i-abc&limit=10",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a"}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a"}))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -221,8 +221,8 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 		"/api/v0/observability/coverage/correlations?target_uid=arn:aws:ec2:us-east-1:111122223333:instance/i-tenant-a&limit=10",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		AllowedScopeIDs:      []string{"aws-scope:tenant-a"},
 		AllowedRepositoryIDs: []string{"repo-tenant-a"},
@@ -269,7 +269,7 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 }
 
 // TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered is the
-// no-regression counterpart: a shared/admin caller (no queryauth.AuthContext) must
+// no-regression counterpart: a shared/admin caller (no auth.AuthContext) must
 // still issue the byte-identical unscoped query with no access-scoping
 // predicate.
 func TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
