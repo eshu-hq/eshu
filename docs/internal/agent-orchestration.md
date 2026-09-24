@@ -121,10 +121,14 @@ reasoning effort and bounded scopes rather than selecting a cheaper model.
 ### Goal and skill prompts
 
 The normal entry point is a goal that names project skills. The user does not
-need to name a role or invoke `agent-roles.py`. The main session owns the goal
-and loads its skills. At each bounded phase, the coordinator matches the work
-to a role description in `.agents/roles.json` and applies that role's model,
-effort, access, and instructions when delegating. A long issue goal can use
+need to name a role or invoke `agent-roles.py`. The three project
+`UserPromptSubmit` hooks run `scripts/goal-role-router.py` for explicit
+`/goal` or `GOAL:` prompts with named Eshu skills. It reads
+`.agents/roles.json` and injects candidate phase roles with model, effort,
+and access into the coordinator's context. The hook does not launch a worker;
+the coordinator owns the goal and loads its skills. At each bounded phase it
+checks the actual work against the candidates and applies the selected role's
+model, effort, access, and instructions when delegating. A long issue goal can use
 `scan-eshu` for evidence, `debug-eshu` for an unknown cause, `develop-eshu` for
 a proved fix, and `review-eshu` for an independent final diff. It does not
 assign the entire goal to the first matching role.
@@ -136,6 +140,8 @@ handling a race or lease. The coordinator preserves explicit phase ordering,
 ownership, and model choices in the goal. Small coupled work can stay in the
 main session; its selected model remains unchanged. Model savings come from
 bounded child work routed to the manifest tier.
+OpenCode is deliberately session-selected and is outside this manifest's
+model bindings.
 
 ### Where the model binds
 

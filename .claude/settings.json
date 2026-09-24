@@ -69,6 +69,11 @@
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/goal-refresh.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/goal-role-router.py\" claude",
+            "timeout": 10
           }
         ]
       }

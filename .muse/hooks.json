@@ -18,6 +18,10 @@
           {
             "type": "command",
             "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/goal-refresh.sh\""
+          },
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec python3 \"$r/scripts/goal-role-router.py\" muse"
           }
         ]
       }

@@ -226,44 +226,14 @@ actual task. Use available names and descriptions for discovery, read a skill
 once when it applies, and load its references only for the selected workflow.
 Do not reload an unchanged skill for each edit or every status message.
 
-A `/goal` command or goal prompt that names skills is enough to start role
-routing; the user does not need to name an agent or run a launcher. Keep the
-whole goal with the coordinator. At each bounded phase, use the phase's action
-and the named skills to choose the matching role in `.agents/roles.json`, then
-dispatch that role when separate context or independent work helps. A goal may
-move through scan, diagnosis, implementation, and independent review roles;
-do not assign the whole goal to one leaf agent because one skill name appears.
-`eshu-issue-driver` governs the coordinator's issue and PR sequence.
-`concurrency-deadlock-rigor`, backend, contract, and language skills refine
-the selected worker's method; they are not separate agent jobs. Preserve the
-goal's explicit ordering, ownership, and model instructions over defaults.
-Apply the manifest's model and effort when dispatching, and verify the actual
-child binding. If the active harness cannot enforce the role's model, effort,
-access, and instructions, the coordinator uses its documented launcher. The
-main session's model does not change automatically.
+A `/goal` prompt naming skills is sufficient; the user need not name agents.
+The prompt hook supplies manifest-backed phase candidates. The coordinator
+owns the goal, loads its skills, and dispatches bounded work only when useful.
+Follow [Goal and skill prompts](docs/internal/agent-orchestration.md#goal-and-skill-prompts)
+for model, access, and launcher details. OpenCode model selection remains a
+session choice. The main session's model does not change automatically.
 
-| Task | Skill |
-| --- | --- |
-| Diagnose unexplained runtime, backend, or queue behavior | `eshu-diagnostic-rigor` |
-| Benchmark, optimize, or validate a performance claim | `eshu-performance-rigor` |
-| Postgres SQL, schema, transactions, locks, or queue claims | `eshu-postgres-rigor` |
-| Go code or tests | `golang-engineering` |
-| Cypher, graph queries/writes/indexes, backend dialect | `cypher-query-rigor` |
-| Workers, leases, retries, shared state, queue ordering | `concurrency-deadlock-rigor` |
-| Correlation, materialization, deployment tracing, query truth | `eshu-correlation-truth` |
-| Eshu MCP/API calls or bounded tool contracts | `eshu-mcp-call-rigor` |
-| Facts, projected truth, query shapes asserted by B-7; cassettes or B-12 snapshot | `eshu-golden-corpus-rigor` |
-| Fact kinds, payload schemas, SDK contracts, registry or fixture packs | `eshu-contract-rigor` |
-| Release, version, image, Helm, or GitHub Release | `eshu-release` |
-| Package README, doc.go, scoped AGENTS.md | `eshu-folder-doc-keeper` |
-| Telemetry contracts, coverage, dashboards, missing signals | `telemetry-coverage-discipline` |
-| Generators and committed outputs | `generator-script-discipline` |
-| Security-scan workflow or scanner failures | `eshu-security-scan-gates` |
-| Issue/epic work explicitly requested through closure | `eshu-issue-driver` |
-| Final diff, pre-push review, merge-readiness | `eshu-code-review` |
-| Resolve review threads after verified fixes | `resolve-review-threads` |
-| Resume, handoff, PR monitoring, liveness, worktree cleanup | `eshu-session-lifecycle` |
-| Draft or polish PRs, reviews, issues, docs, or substantial updates | `eshu-humanizer` |
+Use the skill catalog in `.agents/skills/` for task-to-skill discovery.
 
 State which skills are active. Routine status messages use the same plain,
 evidence-backed house style without loading a writing playbook each time.
