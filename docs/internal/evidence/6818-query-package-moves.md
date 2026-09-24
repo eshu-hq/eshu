@@ -402,3 +402,67 @@ passes (exit 0).
 
 No-Observability-Change: no span name, attribute, registered metric, or
 log line changes; the move touches no telemetry emission point.
+
+## Performance and observability evidence for the `testutil` split (move 5)
+
+No-Regression Evidence: two commits on `refactor/6818-testutil`. 5a
+(`bc7134a73`) peels the fake `database/sql` driver family out of
+`querytestutil/content` into the new `internal/testutil/contentreader`
+leaf, package clause `contentreader`: `reader_args.go` to `args.go`,
+`reader_columns.go` to `columns.go`, `reader_defaults.go` to
+`defaults.go`, `reader_driver.go` to `driver.go`, plus the 4 reader
+tests (names kept). The 4 non-test files are byte-identical up to the
+package/import/selector swap (proven per file by normalized diff);
+the tests additionally carry the `defaults.go` filename constant the
+coverage self-check reads. 20 root test files repoint the import and
+the `content.(Reader|OpenReader)` selectors; store-fake users keep the
+content import. 5b (`d93f8d614`) is the pure rename of the 56-file
+helper tree (parent + `content` and `graph` leaves) to
+`query/testutil`, clause `testutil`: 2752+/2752- symmetric, 426 touched
+files differing only by the identifier swap plus `gofumpt` import
+resort, 20 files additionally carrying the peel selector swap, 2
+`naming-glue-gate` files carrying the exemption feature below.
+
+Byte-identity proof (all commands run against base `4e1e534b4`, exit
+0): every 5b rename pair diffs empty after normalizing
+`querytestutil` to `testutil`, except 4 doc files whose extra prose
+documents the peel-out; every modified `.go` file diffs empty after
+pairing off rename lines, except the 20 peel consumers and the 2 gate
+files; the 8 peel files diff empty after normalizing the package,
+import, and selector swap. No Cypher literal, queue bound, worker
+count, or retry knob changes anywhere in the diff.
+
+`queryplan`'s test-only-helper gate follows the rename: constant
+`testOnlyHelperPackage` to `"testutil"`, fixtures and comments
+repointed. The match stays a whole-path-element match, so a query
+production file reaching `query/testutil`, its leaves, or
+`internal/testutil/contentreader` still fails; the exemption still
+covers only files inside `queryDir/testutil`. Zero non-test files
+under `internal/query` import any of the three packages (swept), and
+no `query-source-coverage.yaml` row names a moved path (swept: zero
+hits), so no pin refresh. The name `testutil/contentreader` keeps the
+owner-approved plan-table target: nesting as `content/reader` would
+force clause `reader` and stutter `reader.Reader*` at every call
+site (naming.md rule 4), with zero collisions measured for
+`contentreader`; `scripts/lib/naming-glue-exempt.tsv` records that
+decision and the glue gate filters the full path before
+classification (a malformed ledger fails closed, exit 2).
+
+`go build ./...` and `go vet` on the touched trees exit 0;
+`go test -count=1` passes for root `query`, `queryplan`,
+`query/testutil/...`, and `testutil/contentreader`
+(`TestDiscoverQueryCallsites*` green, including the nested-leaf and
+helper-imports-own-leaf fixtures). Test-name union: `go test -list`
+under `./internal/query/...` registers 5172 Tests before and 5155
+after; the 17 relocated Tests register under
+`./internal/testutil/contentreader/` with byte-identical names
+(proven by diff), so nothing dropped, added, or renamed.
+`scripts/verify-moved-file-refs.sh --base 4e1e534b4` reports 58
+vacated Go paths with no dangling references;
+`scripts/verify-package-docs.sh` reports the `contentreader` doc
+trio present; `scripts/verify-performance-evidence.sh` passes
+(exit 0) on this section.
+
+No-Observability-Change: no span name, attribute, registered metric,
+or log line changes; the two commits touch no telemetry emission
+point.
