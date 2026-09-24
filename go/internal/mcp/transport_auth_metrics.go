@@ -17,7 +17,7 @@ import (
 // receives a *telemetry.Instruments) does not build an Instruments value, so
 // it records through the global meter provider that cmd/mcp-server installs
 // via telemetry.NewProviders -- the same self-contained-package pattern
-// go/internal/query/request_metrics.go uses for eshu_dp_api_request_*. The
+// go/internal/query/metrics/request.go uses for eshu_dp_api_request_*. The
 // instrument name is also registered in
 // go/internal/telemetry/instruments.go's NewInstruments so the
 // telemetry-coverage (X2) contract check finds it there.
