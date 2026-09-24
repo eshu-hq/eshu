@@ -189,8 +189,8 @@ func TestIaCManagementFamilyRoutesFilterByScopeGrant(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
-			req := newIaCManagementRouteRequest(t, route.path, route.body, &auth)
+			authCtx := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
+			req := newIaCManagementRouteRequest(t, route.path, route.body, &authCtx)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 
@@ -230,8 +230,8 @@ func TestIaCManagementFamilyRoutesEmptyGrantShortCircuits(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := iacGrantScopedAuthContext(nil)
-			req := newIaCManagementRouteRequest(t, route.path, route.body, &auth)
+			authCtx := iacGrantScopedAuthContext(nil)
+			req := newIaCManagementRouteRequest(t, route.path, route.body, &authCtx)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 
@@ -272,9 +272,9 @@ func TestIaCManagementStatusRoutesEnforceScopeGrant(t *testing.T) {
 				mux := http.NewServeMux()
 				handler.Mount(mux)
 
-				auth := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
+				authCtx := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
 				body := map[string]any{"account_id": iacGrantTestAccountID, "arn": iacGrantTestOtherARN}
-				req := newIaCManagementRouteRequest(t, path, body, &auth)
+				req := newIaCManagementRouteRequest(t, path, body, &authCtx)
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, req)
 
@@ -307,9 +307,9 @@ func TestIaCManagementStatusRoutesEnforceScopeGrant(t *testing.T) {
 				mux := http.NewServeMux()
 				handler.Mount(mux)
 
-				auth := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
+				authCtx := iacGrantScopedAuthContext([]string{iacGrantTestGrantedScope})
 				body := map[string]any{"account_id": iacGrantTestAccountID, "arn": iacGrantTestGrantedARN}
-				req := newIaCManagementRouteRequest(t, path, body, &auth)
+				req := newIaCManagementRouteRequest(t, path, body, &authCtx)
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, req)
 
@@ -329,9 +329,9 @@ func TestIaCManagementStatusRoutesEnforceScopeGrant(t *testing.T) {
 				mux := http.NewServeMux()
 				handler.Mount(mux)
 
-				auth := iacGrantScopedAuthContext(nil)
+				authCtx := iacGrantScopedAuthContext(nil)
 				body := map[string]any{"account_id": iacGrantTestAccountID, "arn": iacGrantTestGrantedARN}
-				req := newIaCManagementRouteRequest(t, path, body, &auth)
+				req := newIaCManagementRouteRequest(t, path, body, &authCtx)
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, req)
 

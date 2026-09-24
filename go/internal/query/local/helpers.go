@@ -70,7 +70,7 @@ func (h *IdentityHandler) handleBreakGlassSession(w http.ResponseWriter, r *http
 		querycontract.WriteError(w, http.StatusBadRequest, "invalid local identity break-glass session request")
 		return
 	}
-	auth, err := h.Store.ResolveLocalIdentityBreakGlass(r.Context(), IdentityBreakGlassAttempt{
+	authCtx, err := h.Store.ResolveLocalIdentityBreakGlass(r.Context(), IdentityBreakGlassAttempt{
 		BreakGlassCodeHash: IdentityHash(req.BreakGlassCode),
 		Now:                h.now(),
 	})
@@ -79,14 +79,14 @@ func (h *IdentityHandler) handleBreakGlassSession(w http.ResponseWriter, r *http
 		querycontract.WriteError(w, http.StatusUnauthorized, "local identity break-glass unavailable")
 		return
 	}
-	h.auditLocalIdentity(r, governanceaudit.EventTypeBreakGlass, governanceaudit.DecisionAllowed, "break_glass_session_created", auth.SubjectIDHash)
-	h.issueLocalIdentitySession(w, r, auth, "break_glass_authenticated", time.Time{})
+	h.auditLocalIdentity(r, governanceaudit.EventTypeBreakGlass, governanceaudit.DecisionAllowed, "break_glass_session_created", authCtx.SubjectIDHash)
+	h.issueLocalIdentitySession(w, r, authCtx, "break_glass_authenticated", time.Time{})
 }
 
 func (h *IdentityHandler) issueLocalIdentitySession(
 	w http.ResponseWriter,
 	r *http.Request,
-	auth IdentityAuthContext,
+	authCtx IdentityAuthContext,
 	status string,
 	lockedUntil time.Time,
 ) {
@@ -101,10 +101,10 @@ func (h *IdentityHandler) issueLocalIdentitySession(
 	// idle/absolute override, falling back to h.idleTimeout()/
 	// h.absoluteTimeout() when unset or on a policy-read error.
 	idleTimeout, absoluteTimeout := session.ResolveSessionTimeouts(
-		r.Context(), h.SignInPolicy, auth.TenantID, h.idleTimeout(), h.absoluteTimeout(),
+		r.Context(), h.SignInPolicy, authCtx.TenantID, h.idleTimeout(), h.absoluteTimeout(),
 	)
 	issued, ok := IssueSessionCookies(
-		w, r, h.Sessions, h.newSecret, h.now(), idleTimeout, absoluteTimeout, h.cookieSecureMode(), auth,
+		w, r, h.Sessions, h.newSecret, h.now(), idleTimeout, absoluteTimeout, h.cookieSecureMode(), authCtx,
 	)
 	if !ok {
 		return

@@ -70,7 +70,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 	}
 	req.normalize()
 
-	auth, _ := auth.AuthContextFromContext(r.Context())
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 
 	if req.AllScopes && len(req.ScopeIDs) > 0 {
@@ -82,20 +82,20 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Reason == "" {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_missing_reason", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_missing_reason", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusBadRequest, "reason is required and must explain why the recovery is safe")
 		return
 	}
 	if req.IdempotencyKey == "" {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_missing_idempotency_key", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_missing_idempotency_key", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusBadRequest, "idempotency_key is required to make recovery safe under retries")
 		return
 	}
 	// Authorization gate mirrors replay: an admin/all-scopes principal may
 	// recover; unauthenticated dev mode (auth.Mode == "") is intentionally open;
 	// a scoped token is denied.
-	if auth.Mode != "" && !auth.AllScopes {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_unauthorized", auth, correlationID)
+	if authCtx.Mode != "" && !authCtx.AllScopes {
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_refused_unauthorized", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusForbidden, "recover-generations requires an admin (all-scopes) token")
 		return
 	}
@@ -107,7 +107,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !claim.Claimed {
-		h.respondDuplicateRecoverGenerations(w, r, req, claim, fingerprint, auth, correlationID)
+		h.respondDuplicateRecoverGenerations(w, r, req, claim, fingerprint, authCtx, correlationID)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", auth, correlationID)
+	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", authCtx, correlationID)
 	// The four reset counts are the operator's evidence that this rebuild will
 	// restore the whole graph rather than only its source-local layer. Without
 	// them, a rebuild that re-queues every scope and still comes back short looks
@@ -154,11 +154,11 @@ func (h *Handler) respondDuplicateRecoverGenerations(
 	req recoverGenerationsRequest,
 	claim ReplayIdempotencyClaim,
 	fingerprint string,
-	auth auth.AuthContext,
+	authCtx auth.AuthContext,
 	correlationID string,
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_idempotency_key_reused", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_idempotency_key_reused", authCtx, correlationID)
 		// The fingerprint covers both the scope list and the all_scopes flag, so
 		// this also fires when a key from a scoped recovery is reused for a
 		// whole-deployment rebuild. Name both, or an operator reads "different
@@ -170,7 +170,7 @@ func (h *Handler) respondDuplicateRecoverGenerations(
 		querycontract.WriteError(w, http.StatusConflict, "a recovery for this idempotency_key is already in progress")
 		return
 	}
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_idempotent_replay", auth, correlationID)
+	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_idempotent_replay", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":          "recovered",
 		"enqueued":        claim.ReplayedCount,

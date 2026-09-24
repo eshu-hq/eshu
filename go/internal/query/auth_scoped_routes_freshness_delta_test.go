@@ -54,7 +54,7 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 		},
 	}
 
-	auth := AuthContext{
+	authCtx := AuthContext{
 		Mode:                 AuthModeScoped,
 		TenantID:             "tenant_a",
 		WorkspaceID:          "workspace_a",
@@ -75,7 +75,7 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 				wantReason = scopedRouteNotEnabledReason
 			}
 			assertBearerFreshnessDeltaRoute(
-				t, auth, BrowserSessionRoutePolicy{}, tc.path, tc.wantStatus, wantReason,
+				t, authCtx, BrowserSessionRoutePolicy{}, tc.path, tc.wantStatus, wantReason,
 			)
 		})
 	}
@@ -212,7 +212,7 @@ func TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode(t *testing.T) {
 // status-only test cannot see the two drifting into one code.
 func assertBearerFreshnessDeltaRoute(
 	t *testing.T,
-	auth AuthContext,
+	authCtx AuthContext,
 	policy BrowserSessionRoutePolicy,
 	path string,
 	wantStatus int,
@@ -220,7 +220,7 @@ func assertBearerFreshnessDeltaRoute(
 ) {
 	t.Helper()
 
-	resolver := &fakeScopedTokenResolver{context: auth, ok: true}
+	resolver := &fakeScopedTokenResolver{context: authCtx, ok: true}
 	audit := &fakeGovernanceAuditAppender{}
 	called := false
 	handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(

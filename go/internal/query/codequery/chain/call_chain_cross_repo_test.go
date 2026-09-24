@@ -234,12 +234,12 @@ func TestCallChainCandidateOneHopRowsRepoScopedFiltersTargetRepository(t *testin
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, newChainRouteRequest(t, map[string]any{
 		"start": "AmbigStart", "end": "TargetEnd",
 		"repo_id": codeGrantGrantedRepo, "max_depth": 3,
-	}, &auth))
+	}, &authCtx))
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}

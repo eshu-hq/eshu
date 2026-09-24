@@ -415,9 +415,9 @@ func (h *IdentityHandler) buildAPITokenCreateRecord(
 	}
 }
 
-func localIdentityAPITokenScope(reqTenantID string, reqWorkspaceID string, auth auth.AuthContext) (string, string) {
-	authTenantID := strings.TrimSpace(auth.TenantID)
-	authWorkspaceID := strings.TrimSpace(auth.WorkspaceID)
+func localIdentityAPITokenScope(reqTenantID string, reqWorkspaceID string, authCtx auth.AuthContext) (string, string) {
+	authTenantID := strings.TrimSpace(authCtx.TenantID)
+	authWorkspaceID := strings.TrimSpace(authCtx.WorkspaceID)
 	if authTenantID != "" || authWorkspaceID != "" {
 		return authTenantID, authWorkspaceID
 	}

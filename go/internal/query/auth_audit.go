@@ -239,14 +239,14 @@ func recordReadAuthorizationUnavailable(
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
-	auth AuthContext,
+	authCtx AuthContext,
 	reasonCode string,
 ) {
 	if audit == nil {
 		return
 	}
-	actorClass := actorClassForAuth(auth)
-	if auth.SubjectIDHash == "" {
+	actorClass := actorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
 	reasonCode = strings.TrimSpace(reasonCode)
@@ -256,15 +256,15 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         actorClass,
-		ActorIDHash:        auth.SubjectIDHash,
+		ActorIDHash:        authCtx.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionDenied,
 		ReasonCode:         reasonCode,
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
 	defer cancel()

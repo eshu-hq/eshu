@@ -62,19 +62,19 @@ func (h *SignInPolicyMutationHandler) storeReady(w http.ResponseWriter, r *http.
 }
 
 func (h *SignInPolicyMutationHandler) adminScope(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	auth, found := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := AuthContextFromContext(r.Context())
+	authCtx = normalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		h.audit(r, governanceaudit.DecisionDenied, "admin_scope_required", "")
 		WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		h.audit(r, governanceaudit.DecisionDenied, "admin_tenant_required", "")
 		WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", false
 	}
-	return auth.TenantID, true
+	return authCtx.TenantID, true
 }
 
 func (h *SignInPolicyMutationHandler) requirePermission(w http.ResponseWriter, r *http.Request) bool {
@@ -241,11 +241,11 @@ func (h *SignInPolicyMutationHandler) audit(
 	if h == nil || h.Audit == nil {
 		return
 	}
-	auth, _ := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
-	actorClass := actorClassForAuth(auth)
+	authCtx, _ := AuthContextFromContext(r.Context())
+	authCtx = normalizeAuthContext(authCtx)
+	actorClass := actorClassForAuth(authCtx)
 	if actorIDHash == "" {
-		actorIDHash = auth.SubjectIDHash
+		actorIDHash = authCtx.SubjectIDHash
 	}
 	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
 		actorIDHash = adminaudit.SharedActorIDHash
@@ -258,10 +258,10 @@ func (h *SignInPolicyMutationHandler) audit(
 		Decision:           decision,
 		ReasonCode:         reasonCode,
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         h.now(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
 		slog.ErrorContext(

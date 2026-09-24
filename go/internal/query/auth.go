@@ -295,7 +295,7 @@ func tryBrowserSessionAuth(
 	}
 	requireCSRF := browserSessionRequiresCSRF(r.Method)
 	csrfToken := strings.TrimSpace(r.Header.Get(BrowserSessionCSRFHeaderName))
-	auth, ok, err := resolver.ResolveBrowserSession(
+	authCtx, ok, err := resolver.ResolveBrowserSession(
 		r.Context(),
 		BrowserSessionSecretHash(sessionValue),
 		BrowserSessionSecretHash(csrfToken),
@@ -317,15 +317,15 @@ func tryBrowserSessionAuth(
 		unauthorizedResponse(w, r)
 		return true
 	}
-	auth = normalizeBrowserSessionAuthContext(auth)
-	if auth.Mode == AuthModeBrowserSession {
-		if reason := browserSessionRouteDenialReason(r, auth, policy); reason != "" {
-			recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, reason)
+	authCtx = normalizeBrowserSessionAuthContext(authCtx)
+	if authCtx.Mode == AuthModeBrowserSession {
+		if reason := browserSessionRouteDenialReason(r, authCtx, policy); reason != "" {
+			recordScopedRouteAuthorizationDeniedWithReason(r, audit, authCtx, reason)
 			scopedRouteDeniedResponse(w, r)
 			return true
 		}
 	}
-	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
+	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), authCtx)))
 	return true
 }
 
@@ -349,8 +349,8 @@ func BrowserSessionSecretHash(secret string) string {
 // session.NormalizeBrowserSessionAuthContext. The implementation moved
 // there for #6642 so a handler-family subpackage can normalize a browser
 // session's auth context without importing this package.
-func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {
-	return session.NormalizeBrowserSessionAuthContext(auth)
+func normalizeBrowserSessionAuthContext(authCtx AuthContext) AuthContext {
+	return session.NormalizeBrowserSessionAuthContext(authCtx)
 }
 
 func sharedAuthContext() AuthContext {

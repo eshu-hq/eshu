@@ -47,7 +47,7 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	}
 	req.normalize()
 
-	auth, _ := auth.AuthContextFromContext(r.Context())
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 
 	if !req.hasSelector() {
@@ -56,12 +56,12 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Reason == "" {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_missing_reason", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_missing_reason", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusBadRequest, "reason is required and must explain why the replay is safe")
 		return
 	}
 	if req.IdempotencyKey == "" {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_missing_idempotency_key", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_missing_idempotency_key", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusBadRequest, "idempotency_key is required to make replay safe under retries")
 		return
 	}
@@ -69,14 +69,14 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	// replay. A request with no auth context (auth.Mode == "") is unauthenticated
 	// dev mode, where every admin route is intentionally open, consistent with
 	// dead-letter/skip/refinalize. A scoped or otherwise limited token is denied.
-	if auth.Mode != "" && !auth.AllScopes {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_unauthorized", auth, correlationID)
+	if authCtx.Mode != "" && !authCtx.AllScopes {
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_unauthorized", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusForbidden, "replay requires an admin (all-scopes) token")
 		return
 	}
 	// Refuse an explicit unsafe failure-class target unless forced.
 	if guidance, unsafe := unsafeReplayRefusal(req.FailureClass); unsafe && !req.Force {
-		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_unsafe_class", auth, correlationID)
+		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_unsafe_class", authCtx, correlationID)
 		querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"status":        "refused",
 			"failure_class": req.FailureClass,
@@ -93,7 +93,7 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !claim.Claimed {
-		h.respondDuplicateReplay(w, r.Context(), req, claim, fingerprint, auth, correlationID)
+		h.respondDuplicateReplay(w, r.Context(), req, claim, fingerprint, authCtx, correlationID)
 		return
 	}
 
@@ -130,7 +130,7 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "replay_accepted", auth, correlationID)
+	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "replay_accepted", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":          "replayed",
 		"replayed_count":  len(items),
@@ -150,11 +150,11 @@ func (h *Handler) respondDuplicateReplay(
 	req replayRequest,
 	claim ReplayIdempotencyClaim,
 	fingerprint string,
-	auth auth.AuthContext,
+	authCtx auth.AuthContext,
 	correlationID string,
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
-		h.recordRecoveryAction(ctx, governanceaudit.DecisionDenied, "replay_idempotency_key_reused", auth, correlationID)
+		h.recordRecoveryAction(ctx, governanceaudit.DecisionDenied, "replay_idempotency_key_reused", authCtx, correlationID)
 		querycontract.WriteError(w, http.StatusConflict, "idempotency_key was already used with different replay parameters")
 		return
 	}
@@ -165,7 +165,7 @@ func (h *Handler) respondDuplicateReplay(
 		querycontract.WriteError(w, http.StatusConflict, "a replay for this idempotency_key is already in progress")
 		return
 	}
-	h.recordRecoveryAction(ctx, governanceaudit.DecisionAllowed, "replay_idempotent_replay", auth, correlationID)
+	h.recordRecoveryAction(ctx, governanceaudit.DecisionAllowed, "replay_idempotent_replay", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":          "replayed",
 		"replayed_count":  claim.ReplayedCount,
@@ -181,13 +181,13 @@ func (h *Handler) recordRecoveryAction(
 	ctx context.Context,
 	decision governanceaudit.Decision,
 	reasonCode string,
-	auth auth.AuthContext,
+	authCtx auth.AuthContext,
 	correlationID string,
 ) {
 	if h.Audit == nil {
 		return
 	}
-	actorClass, actorIDHash := audit.RecoveryActor(auth)
+	actorClass, actorIDHash := audit.RecoveryActor(authCtx)
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeAdminRecoveryAction,
 		ActorClass:         actorClass,
@@ -196,7 +196,7 @@ func (h *Handler) recordRecoveryAction(
 		Decision:           decision,
 		ReasonCode:         reasonCode,
 		CorrelationID:      correlationID,
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         h.now(),
 	}
 	appendCtx, cancel := context.WithTimeout(ctx, audit.AppendTimeout)
