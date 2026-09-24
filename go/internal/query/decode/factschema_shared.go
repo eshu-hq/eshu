@@ -5,7 +5,8 @@ package decode
 
 // DefaultSchemaMajorVersion is the schema version a query-layer decoder
 // assumes when a row carries none. It is a major-1 version because every
-// migrated supply-chain source-fact kind that uses it is at schema major 1
+// migrated fact kind that normalizes through it (supply chain, work items,
+// incidents and changes, package-registry correlations) is at schema major 1
 // today; the factschema Decode seam dispatches on the major component only.
 const DefaultSchemaMajorVersion = "1.0.0"
 
