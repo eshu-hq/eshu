@@ -18,6 +18,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // boltTestExecutor runs cypher Statements through one Bolt session per call:
@@ -67,7 +68,7 @@ func TestLiveCloudRetractEndToEnd(t *testing.T) {
 	}
 	defer func() { _ = rawDB.Close() }()
 	sqldb := postgres.SQLDB{DB: rawDB}
-	if err := postgres.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
+	if err := ownerstore.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}
 
@@ -141,7 +142,7 @@ VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $4, 'aws', $4, $5, $5, $6
 	seedAdmission(scopeB, genB1, "k-shared-b1", uidShared, false)
 	seedAdmission(scopeA, genA1, "k-dead", uidDead, false)
 
-	store := postgres.NewGraphNodeOwnerStore()
+	store := ownerstore.NewGraphNodeOwnerStore()
 	beginWork := func() postgres.SQLTx {
 		t.Helper()
 		tx, err := rawDB.BeginTx(ctx, nil)
@@ -152,7 +153,7 @@ VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $4, 'aws', $4, $5, $5, $6
 	}
 	resolve := func(q postgres.SQLTx, uid string) {
 		t.Helper()
-		if _, _, err := store.ResolveOwnedUIDs(ctx, q, []postgres.GraphNodeOwnerEntry{
+		if _, _, err := store.ResolveOwnedUIDs(ctx, q, []ownerstore.GraphNodeOwnerEntry{
 			{UID: uid, SourceOrderKey: "9999-z", WinningRow: []byte(`{}`)},
 		}, now); err != nil {
 			t.Fatalf("resolve %s: %v", uid, err)

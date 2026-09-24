@@ -77,7 +77,7 @@ VALUES ($1, $2, 'manual', $3, $3, $4, $3)`, gen, scope, now, status); err != nil
 			t.Fatalf("begin: %v", err)
 		}
 		defer func() { _ = tx.Rollback() }()
-		return ValueFlowInputsLivenessStore{DB: sqlTxExecQueryer{tx}}.PendingValueFlowInputs(ctx)
+		return ValueFlowInputsLivenessStore{DB: SQLTx{Tx: tx}}.PendingValueFlowInputs(ctx)
 	}
 
 	// Baseline: nothing seeded yet, fence must be clear.

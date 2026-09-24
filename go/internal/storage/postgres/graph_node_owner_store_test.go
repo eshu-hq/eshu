@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // TestGraphNodeOwnerSchemaSQLMatchesMigration proves the store resolves its DDL
@@ -16,9 +18,9 @@ import (
 func TestGraphNodeOwnerSchemaSQLMatchesMigration(t *testing.T) {
 	t.Parallel()
 
-	ddl, err := graphNodeOwnerSchemaSQL()
+	ddl, err := ownerstore.GraphNodeOwnerSchemaSQL()
 	if err != nil {
-		t.Fatalf("graphNodeOwnerSchemaSQL() error = %v", err)
+		t.Fatalf("ownerstore.GraphNodeOwnerSchemaSQL() error = %v", err)
 	}
 	for _, want := range []string{
 		"CREATE TABLE IF NOT EXISTS graph_node_owner",
@@ -38,11 +40,11 @@ func TestGraphNodeOwnerSchemaSQLMatchesMigration(t *testing.T) {
 func TestGraphNodeOwnerUpsertKeepsMaxOrderKey(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(graphNodeOwnerUpsertSuffix, "ON CONFLICT (uid) DO UPDATE") {
-		t.Fatalf("upsert must be keyed on uid:\n%s", graphNodeOwnerUpsertSuffix)
+	if !strings.Contains(ownerstore.GraphNodeOwnerUpsertSuffix, "ON CONFLICT (uid) DO UPDATE") {
+		t.Fatalf("upsert must be keyed on uid:\n%s", ownerstore.GraphNodeOwnerUpsertSuffix)
 	}
-	if !strings.Contains(graphNodeOwnerUpsertSuffix, "WHERE EXCLUDED.source_order_key > graph_node_owner.source_order_key") {
-		t.Fatalf("upsert must keep the strictly-greater order key:\n%s", graphNodeOwnerUpsertSuffix)
+	if !strings.Contains(ownerstore.GraphNodeOwnerUpsertSuffix, "WHERE EXCLUDED.source_order_key > graph_node_owner.source_order_key") {
+		t.Fatalf("upsert must keep the strictly-greater order key:\n%s", ownerstore.GraphNodeOwnerUpsertSuffix)
 	}
 }
 
@@ -53,7 +55,7 @@ func TestGraphNodeOwnerUpsertKeepsMaxOrderKey(t *testing.T) {
 func TestGraphNodeOwnerAcquireLocksSortsBeforeLocking(t *testing.T) {
 	t.Parallel()
 
-	sql := graphNodeOwnerAcquireLocksSQL
+	sql := ownerstore.GraphNodeOwnerAcquireLocksSQL
 	if !strings.Contains(sql, "pg_advisory_xact_lock(k)") {
 		t.Fatalf("must use transaction-scoped advisory locks:\n%s", sql)
 	}
@@ -71,9 +73,9 @@ func TestGraphNodeOwnerAcquireLocksSortsBeforeLocking(t *testing.T) {
 func TestGraphNodeOwnerAdvisoryKeyIsDeterministicAndNamespaced(t *testing.T) {
 	t.Parallel()
 
-	a := graphNodeOwnerAdvisoryKey("cloud:aws:vpc-1")
-	b := graphNodeOwnerAdvisoryKey("cloud:aws:vpc-1")
-	c := graphNodeOwnerAdvisoryKey("cloud:aws:vpc-2")
+	a := ownerstore.GraphNodeOwnerAdvisoryKey("cloud:aws:vpc-1")
+	b := ownerstore.GraphNodeOwnerAdvisoryKey("cloud:aws:vpc-1")
+	c := ownerstore.GraphNodeOwnerAdvisoryKey("cloud:aws:vpc-2")
 	if a != b {
 		t.Fatalf("advisory key not deterministic: %d != %d", a, b)
 	}
@@ -84,7 +86,7 @@ func TestGraphNodeOwnerAdvisoryKeyIsDeterministicAndNamespaced(t *testing.T) {
 		t.Fatalf("advisory key must be non-negative (63-bit), got %d", a)
 	}
 	// A different subsystem prefix must produce a different key for the same id.
-	if graphNodeOwnerAdvisoryKey("x") == packageRegistryIdentityAdvisoryLockKey("x") {
+	if ownerstore.GraphNodeOwnerAdvisoryKey("x") == packageRegistryIdentityAdvisoryLockKey("x") {
 		t.Fatal("graph node owner advisory key collides with package registry identity namespace")
 	}
 }
@@ -95,7 +97,7 @@ func TestGraphNodeOwnerAdvisoryKeyIsDeterministicAndNamespaced(t *testing.T) {
 func TestDedupeOwnerEntriesCollapsesToMaxOrderKeyAndSorts(t *testing.T) {
 	t.Parallel()
 
-	entries := []GraphNodeOwnerEntry{
+	entries := []ownerstore.GraphNodeOwnerEntry{
 		{UID: "b", SourceOrderKey: "1000"},
 		{UID: "a", SourceOrderKey: "1000"},
 		{UID: "b", SourceOrderKey: "3000"}, // higher — must win for b
@@ -103,7 +105,7 @@ func TestDedupeOwnerEntriesCollapsesToMaxOrderKeyAndSorts(t *testing.T) {
 		{UID: "  ", SourceOrderKey: "9999"}, // blank — dropped
 		{UID: "a", SourceOrderKey: "0500"},
 	}
-	got := dedupeOwnerEntries(entries)
+	got := ownerstore.DedupeOwnerEntries(entries)
 	if len(got) != 2 {
 		t.Fatalf("len(got) = %d, want 2 (a, b)", len(got))
 	}
@@ -121,11 +123,11 @@ func TestDedupeOwnerEntriesCollapsesToMaxOrderKeyAndSorts(t *testing.T) {
 func TestDedupeOwnerEntriesEmptyReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if got := dedupeOwnerEntries(nil); got != nil {
-		t.Fatalf("dedupeOwnerEntries(nil) = %v, want nil", got)
+	if got := ownerstore.DedupeOwnerEntries(nil); got != nil {
+		t.Fatalf("ownerstore.DedupeOwnerEntries(nil) = %v, want nil", got)
 	}
-	if got := dedupeOwnerEntries([]GraphNodeOwnerEntry{{UID: "  "}}); got != nil {
-		t.Fatalf("dedupeOwnerEntries(blank) = %v, want nil", got)
+	if got := ownerstore.DedupeOwnerEntries([]ownerstore.GraphNodeOwnerEntry{{UID: "  "}}); got != nil {
+		t.Fatalf("ownerstore.DedupeOwnerEntries(blank) = %v, want nil", got)
 	}
 }
 
@@ -133,12 +135,12 @@ func TestDedupeOwnerEntriesEmptyReturnsNil(t *testing.T) {
 func TestResolveOwnedUIDsRejectsNilTxAndZeroTime(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphNodeOwnerStore()
-	if _, _, err := store.ResolveOwnedUIDs(t.Context(), nil, []GraphNodeOwnerEntry{{UID: "a", SourceOrderKey: "1"}}, time.Now().UTC()); err == nil {
+	store := ownerstore.NewGraphNodeOwnerStore()
+	if _, _, err := store.ResolveOwnedUIDs(t.Context(), nil, []ownerstore.GraphNodeOwnerEntry{{UID: "a", SourceOrderKey: "1"}}, time.Now().UTC()); err == nil {
 		t.Fatal("ResolveOwnedUIDs(nil tx) = nil error, want error")
 	}
 	rec := &recordingExecQueryer{}
-	if _, _, err := store.ResolveOwnedUIDs(t.Context(), rec, []GraphNodeOwnerEntry{{UID: "a", SourceOrderKey: "1"}}, time.Time{}); err == nil {
+	if _, _, err := store.ResolveOwnedUIDs(t.Context(), rec, []ownerstore.GraphNodeOwnerEntry{{UID: "a", SourceOrderKey: "1"}}, time.Time{}); err == nil {
 		t.Fatal("ResolveOwnedUIDs(zero time) = nil error, want error")
 	}
 }
@@ -148,7 +150,7 @@ func TestResolveOwnedUIDsRejectsNilTxAndZeroTime(t *testing.T) {
 func TestResolveOwnedUIDsEmptyEntriesIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphNodeOwnerStore()
+	store := ownerstore.NewGraphNodeOwnerStore()
 	rec := &recordingExecQueryer{}
 	owned, lost, err := store.ResolveOwnedUIDs(t.Context(), rec, nil, time.Now().UTC())
 	if err != nil {
@@ -165,14 +167,14 @@ func TestResolveOwnedUIDsEmptyEntriesIsNoOp(t *testing.T) {
 // TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs proves LockUIDs (the
 // #5062 lock-only path for posture/exposure writers) acquires the identical
 // pg_advisory_xact_lock keyspace ResolveOwnedUIDs uses: it must issue the same
-// graphNodeOwnerAcquireLocksSQL statement, keyed by the same
-// graphNodeOwnerAdvisoryKey derivation, so a lock-only caller genuinely
+// ownerstore.GraphNodeOwnerAcquireLocksSQL statement, keyed by the same
+// ownerstore.GraphNodeOwnerAdvisoryKey derivation, so a lock-only caller genuinely
 // serializes against a concurrent ResolveOwnedUIDs critical section on the same
 // uid rather than acquiring an unrelated lock that provides no coordination.
 func TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphNodeOwnerStore()
+	store := ownerstore.NewGraphNodeOwnerStore()
 	rec := &recordingExecQueryer{}
 	if err := store.LockUIDs(t.Context(), rec, []string{"cloud:aws:vpc-1", "cloud:aws:vpc-2"}); err != nil {
 		t.Fatalf("LockUIDs error = %v", err)
@@ -181,8 +183,8 @@ func TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs(t *testing.T) {
 		t.Fatalf("LockUIDs issued %d exec statements, want 1 (one round-trip)", len(rec.execs))
 	}
 	call := rec.execs[0]
-	if call.query != graphNodeOwnerAcquireLocksSQL {
-		t.Fatalf("LockUIDs query = %q, want the SAME acquire-locks statement ResolveOwnedUIDs uses:\n%s", call.query, graphNodeOwnerAcquireLocksSQL)
+	if call.query != ownerstore.GraphNodeOwnerAcquireLocksSQL {
+		t.Fatalf("LockUIDs query = %q, want the SAME acquire-locks statement ResolveOwnedUIDs uses:\n%s", call.query, ownerstore.GraphNodeOwnerAcquireLocksSQL)
 	}
 	if len(call.args) != 1 {
 		t.Fatalf("LockUIDs args = %v, want exactly one []int64 key slice", call.args)
@@ -192,11 +194,11 @@ func TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs(t *testing.T) {
 		t.Fatalf("LockUIDs key arg type = %T, want []int64", call.args[0])
 	}
 	want := []int64{
-		graphNodeOwnerAdvisoryKey("cloud:aws:vpc-1"),
-		graphNodeOwnerAdvisoryKey("cloud:aws:vpc-2"),
+		ownerstore.GraphNodeOwnerAdvisoryKey("cloud:aws:vpc-1"),
+		ownerstore.GraphNodeOwnerAdvisoryKey("cloud:aws:vpc-2"),
 	}
 	if len(keys) != len(want) || keys[0] != want[0] || keys[1] != want[1] {
-		t.Fatalf("LockUIDs keys = %v, want %v (graphNodeOwnerAdvisoryKey per uid, same derivation as acquireLocks)", keys, want)
+		t.Fatalf("LockUIDs keys = %v, want %v (ownerstore.GraphNodeOwnerAdvisoryKey per uid, same derivation as acquireLocks)", keys, want)
 	}
 }
 
@@ -205,7 +207,7 @@ func TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs(t *testing.T) {
 func TestLockUIDsEmptyOrBlankIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphNodeOwnerStore()
+	store := ownerstore.NewGraphNodeOwnerStore()
 	rec := &recordingExecQueryer{}
 	if err := store.LockUIDs(t.Context(), rec, nil); err != nil {
 		t.Fatalf("LockUIDs(nil) error = %v", err)
@@ -223,7 +225,7 @@ func TestLockUIDsEmptyOrBlankIsNoOp(t *testing.T) {
 func TestLockUIDsRejectsNilTx(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphNodeOwnerStore()
+	store := ownerstore.NewGraphNodeOwnerStore()
 	if err := store.LockUIDs(t.Context(), nil, []string{"a"}); err == nil {
 		t.Fatal("LockUIDs(nil tx) = nil error, want error")
 	}
@@ -239,7 +241,7 @@ func TestGraphNodeOwnerEntryWinningRowIsJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	entry := GraphNodeOwnerEntry{UID: "a", SourceOrderKey: "1", WinningRow: raw}
+	entry := ownerstore.GraphNodeOwnerEntry{UID: "a", SourceOrderKey: "1", WinningRow: raw}
 	if !json.Valid(entry.WinningRow) {
 		t.Fatal("WinningRow is not valid JSON")
 	}

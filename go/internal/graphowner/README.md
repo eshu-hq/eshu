@@ -108,7 +108,7 @@ gap, because their graph write can still overlap a concurrent Gate-resolved
 base-property write to the same uid.
 
 `LockOnlyGate` closes that gap with a pure critical section, reusing
-`postgres.GraphNodeOwnerStore.LockUIDs` — the IDENTICAL
+`ownerstore.GraphNodeOwnerStore.LockUIDs` — the IDENTICAL
 `pg_advisory_xact_lock` key `ResolveOwnedUIDs` acquires for the SAME uid, so a
 lock-only writer genuinely serializes against a concurrent `Gate`-resolved
 write, not an unrelated lock:

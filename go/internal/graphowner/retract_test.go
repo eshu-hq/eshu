@@ -15,8 +15,8 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // fakeRetractStore is an in-memory graphNodeOwnerResolver for the #6887
@@ -32,7 +32,7 @@ type fakeRetractStore struct {
 func (f *fakeRetractStore) ResolveOwnedUIDs(
 	_ context.Context,
 	_ db.ExecQueryer,
-	entries []postgres.GraphNodeOwnerEntry,
+	entries []ownerstore.GraphNodeOwnerEntry,
 	_ time.Time,
 ) (map[string]struct{}, int, error) {
 	owned := make(map[string]struct{}, len(entries))

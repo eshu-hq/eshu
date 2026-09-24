@@ -15,6 +15,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // TestGateWriteChunkedAt20000RowsSucceedsAgainstLivePostgres is the #5007
@@ -30,7 +31,7 @@ import (
 // across every chunk boundary.
 //
 // Skipped by default; set ESHU_GRAPH_NODE_OWNER_LIVE=1 and ESHU_POSTGRES_DSN,
-// matching postgres.TestGraphNodeOwnerStoreIntegration's gating.
+// matching ownerstore.TestGraphNodeOwnerStoreIntegration's gating.
 func TestGateWriteChunkedAt20000RowsSucceedsAgainstLivePostgres(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_GRAPH_NODE_OWNER_LIVE")) == "" {
 		t.Skip("set ESHU_GRAPH_NODE_OWNER_LIVE=1 and ESHU_POSTGRES_DSN to run the P2-1 chunked live proof")
@@ -47,7 +48,7 @@ func TestGateWriteChunkedAt20000RowsSucceedsAgainstLivePostgres(t *testing.T) {
 	}
 	defer func() { _ = rawDB.Close() }()
 	sqldb := postgres.SQLDB{DB: rawDB}
-	if err := postgres.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
+	if err := ownerstore.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}
 

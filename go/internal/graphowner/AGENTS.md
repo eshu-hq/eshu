@@ -9,7 +9,8 @@ root `CLAUDE.md`, `docs/internal/design/5007-cross-scope-node-ownership.md`, and
 The per-uid critical section that makes a shared cross-scope graph node's
 scope-derived properties resolve deterministically to the max-order-key
 contributor. It does NOT own the ledger schema/SQL (that is
-`internal/storage/postgres.GraphNodeOwnerStore`) or the graph write itself (that
+`ownerstore.GraphNodeOwnerStore`, `internal/storage/postgres/graph/owner`) or
+the graph write itself (that
 is the family cypher writers in `internal/storage/cypher`); it composes them.
 
 ## Hard rules specific to this package
@@ -65,8 +66,8 @@ resolves ownership for, but are NOT order-resolved owner-ledger contributors
 no "winner").
 
 - `LockOnlyGate` MUST reuse the exact same advisory-lock keyspace `Gate` uses:
-  `postgres.GraphNodeOwnerStore.LockUIDs` calls the SAME
-  `graphNodeOwnerAdvisoryKey` derivation `acquireLocks`/`ResolveOwnedUIDs`
+  `ownerstore.GraphNodeOwnerStore.LockUIDs` calls the SAME
+  `GraphNodeOwnerAdvisoryKey` derivation `acquireLocks`/`ResolveOwnedUIDs`
   uses (verified in `graph_node_owner_store_test.go`,
   `TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs`, which asserts the exact
   SQL and key values match). If you ever add a second lock-only primitive or

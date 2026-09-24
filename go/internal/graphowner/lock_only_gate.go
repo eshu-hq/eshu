@@ -14,7 +14,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -40,11 +40,11 @@ type postureNodeWriteFunc func(ctx context.Context, rows []map[string]any, scope
 // — so wrapper types hold this only to forward it unchanged.
 type postureNodeRetractFunc func(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
 
-// graphNodeOwnerLocker is the narrow surface of postgres.GraphNodeOwnerStore a
+// graphNodeOwnerLocker is the narrow surface of ownerstore.GraphNodeOwnerStore a
 // LockOnlyGate needs: acquire the SAME per-uid advisory locks
-// ResolveOwnedUIDs uses (postgres.GraphNodeOwnerStore.LockUIDs), with no
+// ResolveOwnedUIDs uses (ownerstore.GraphNodeOwnerStore.LockUIDs), with no
 // ledger upsert or ownership resolution. It exists so a unit test can
-// substitute a fake in-memory locker; postgres.GraphNodeOwnerStore satisfies
+// substitute a fake in-memory locker; ownerstore.GraphNodeOwnerStore satisfies
 // it unchanged.
 type graphNodeOwnerLocker interface {
 	LockUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error
@@ -52,7 +52,7 @@ type graphNodeOwnerLocker interface {
 
 // LockOnlyGate serializes a graph node-property write against the SAME
 // per-uid pg_advisory_xact_lock keyspace Gate uses
-// (postgres.GraphNodeOwnerStore.LockUIDs is the identical key derivation
+// (ownerstore.GraphNodeOwnerStore.LockUIDs is the identical key derivation
 // ResolveOwnedUIDs uses), for writers whose rows are NOT order-resolved
 // owner-ledger contributors.
 //
@@ -118,7 +118,7 @@ type LockOnlyGate struct {
 // locking), matching NewGate's pass-through behavior for a deployment without
 // Postgres.
 func NewLockOnlyGate(database db.Beginner) *LockOnlyGate {
-	return &LockOnlyGate{database: database, store: postgres.NewGraphNodeOwnerStore()}
+	return &LockOnlyGate{database: database, store: ownerstore.NewGraphNodeOwnerStore()}
 }
 
 // write runs the #5062 lock-only critical section over rows in chunks of at
@@ -248,7 +248,7 @@ func recordLockOnlyGateLockedRows(ctx context.Context, instruments *telemetry.In
 }
 
 // rowUIDs extracts the "uid" string field from each row, preserving order and
-// duplicates — postgres.GraphNodeOwnerStore.LockUIDs dedupes and drops blanks
+// duplicates — ownerstore.GraphNodeOwnerStore.LockUIDs dedupes and drops blanks
 // itself, so the lock-only path does not need to repeat that work here.
 func rowUIDs(rows []map[string]any) ([]string, error) {
 	uids := make([]string, 0, len(rows))

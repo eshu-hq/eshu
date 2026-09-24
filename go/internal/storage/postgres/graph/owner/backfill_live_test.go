@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package ownerstore_test
 
 import (
 	"context"
@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -43,7 +46,7 @@ func TestLiveGraphNodeOwnerBackfillPreservesRealOwnersAndScales(t *testing.T) {
 		t.Fatalf("set isolated search path: %v", err)
 	}
 	for _, definition := range []string{"graph_node_owner", "graph_node_owner_backfill_state"} {
-		if _, err := db.ExecContext(ctx, MigrationSQL(definition)); err != nil {
+		if _, err := db.ExecContext(ctx, postgres.MigrationSQL(definition)); err != nil {
 			t.Fatalf("apply %s migration: %v", definition, err)
 		}
 	}
@@ -57,7 +60,7 @@ VALUES ($1, $2, $3, now())`, "uid-race", realKey, []byte(realRow)); err != nil {
 	}
 
 	const rowCount = 20000
-	entries := make([]GraphNodeOwnerEntry, 0, rowCount)
+	entries := make([]ownerstore.GraphNodeOwnerEntry, 0, rowCount)
 	for index := 0; index < rowCount; index++ {
 		uid := fmt.Sprintf("uid-%05d", index)
 		factID := fmt.Sprintf("fact-%05d", index)
@@ -69,19 +72,19 @@ VALUES ($1, $2, $3, now())`, "uid-race", realKey, []byte(realRow)); err != nil {
 		if err != nil {
 			t.Fatalf("marshal row %d: %v", index, err)
 		}
-		entries = append(entries, GraphNodeOwnerEntry{
+		entries = append(entries, ownerstore.GraphNodeOwnerEntry{
 			UID:            uid,
-			SourceOrderKey: GraphNodeOwnerBackfillMinimumOrderKeyPrefix + factID,
+			SourceOrderKey: ownerstore.GraphNodeOwnerBackfillMinimumOrderKeyPrefix + factID,
 			WinningRow:     row,
 		})
 	}
-	entries = append(entries, GraphNodeOwnerEntry{
+	entries = append(entries, ownerstore.GraphNodeOwnerEntry{
 		UID:            "uid-race",
-		SourceOrderKey: GraphNodeOwnerBackfillMinimumOrderKeyPrefix + "fact-old",
+		SourceOrderKey: ownerstore.GraphNodeOwnerBackfillMinimumOrderKeyPrefix + "fact-old",
 		WinningRow:     json.RawMessage(`{"uid":"uid-race","resource_type":"aws_s3_bucket","source_fact_id":"fact-old"}`),
 	})
 
-	store := NewGraphNodeOwnerBackfillStore(SQLDB{DB: db})
+	store := ownerstore.NewGraphNodeOwnerBackfillStore(postgres.SQLDB{DB: db})
 	started := time.Now()
 	if err := store.SeedExistingGraphNodeOwners(ctx, entries, started.UTC()); err != nil {
 		t.Fatalf("seed %d existing owners: %v", rowCount, err)

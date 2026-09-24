@@ -479,7 +479,7 @@ ifa_live_gate_fault_only_seams=(
 	'go/cmd/reducer/canonical_graph_writers.go|go/cmd/reducer/canonical_graph_writers.go'
 	'go/internal/graphowner/family_writers.go|go/internal/graphowner/family_writers.go'
 	'go/internal/graphowner/gated_writer.go|go/internal/graphowner/gated_writer.go'
-	'go/internal/storage/postgres/graph_node_owner_store.go|go/internal/storage/postgres/graph_node_owner_store.go'
+	'go/internal/storage/postgres/graph/owner/store.go|go/internal/storage/postgres/graph/owner/store.go'
 	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_injection_rationale_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-rationale-cases.sh'
 	# #6147 PR-0 family-registry extraction: the generic per-family fault

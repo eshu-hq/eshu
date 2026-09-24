@@ -243,7 +243,7 @@ on:
       - 'go/cmd/reducer/canonical_graph_writers.go'
       - 'go/internal/graphowner/family_writers.go'
       - 'go/internal/graphowner/gated_writer.go'
-      - 'go/internal/storage/postgres/graph_node_owner_store.go'
+      - 'go/internal/storage/postgres/graph/owner/store.go'
       - 'go/cmd/reducer/run.go'
       - 'go/cmd/reducer/config.go'
       - 'go/cmd/reducer/config_projection.go'

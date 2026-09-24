@@ -113,7 +113,7 @@ func (r *gcpFakeOwnerRows) Err() error   { return nil }
 func (r *gcpFakeOwnerRows) Close() error { return nil }
 
 // gcpFakeOwnerTx is a fake db.Transaction the REAL
-// postgres.GraphNodeOwnerStore runs its REAL SQL against, mirroring
+// ownerstore.GraphNodeOwnerStore runs its REAL SQL against, mirroring
 // ec2FakeOwnerTx: the advisory-lock acquisition and max-order-key ledger
 // upsert land on ExecContext (both succeed; results discarded), and the
 // winners read-back lands on QueryContext, answered from the configured
@@ -159,7 +159,7 @@ func (b *gcpFakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 // WriteCloudResourceNodes method, mirroring go/cmd/reducer/canonical_graph_writers.go:50/58
 // exactly. As with EC2/Azure, the #5007 owner-ledger Gate chunks rows, opens
 // one owner-ledger Postgres transaction per chunk against the REAL
-// postgres.GraphNodeOwnerStore.ResolveOwnedUIDs (run against the fake
+// ownerstore.GraphNodeOwnerStore.ResolveOwnedUIDs (run against the fake
 // transaction above), and FILTERS contended-lost rows before delegating to
 // the raw writer. The raw writer sits over a groupCountingExecutor wrapped by
 // the production cypher.InstrumentedExecutor, the same wrapper

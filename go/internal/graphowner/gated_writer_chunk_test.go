@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // fakeChunkTx is a no-op db.Transaction: fakeChunkStore below resolves
@@ -84,7 +84,7 @@ type fakeChunkStore struct {
 func (f *fakeChunkStore) ResolveOwnedUIDs(
 	_ context.Context,
 	_ db.ExecQueryer,
-	entries []postgres.GraphNodeOwnerEntry,
+	entries []ownerstore.GraphNodeOwnerEntry,
 	_ time.Time,
 ) (map[string]struct{}, int, error) {
 	f.mu.Lock()

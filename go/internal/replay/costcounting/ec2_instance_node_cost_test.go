@@ -111,7 +111,7 @@ func (r *ec2FakeOwnerRows) Err() error   { return nil }
 func (r *ec2FakeOwnerRows) Close() error { return nil }
 
 // ec2FakeOwnerTx is a fake db.Transaction the REAL
-// postgres.GraphNodeOwnerStore runs its REAL SQL against: the advisory-lock
+// ownerstore.GraphNodeOwnerStore runs its REAL SQL against: the advisory-lock
 // acquisition and the max-order-key ledger upsert land on ExecContext (both
 // succeed; results are discarded by the store), and the winners read-back
 // lands on QueryContext, answered from the configured winners map (uid ->
@@ -164,7 +164,7 @@ func (b *ec2FakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 // #5007 owner-ledger Gate is NOT a pass-through wrapper: Gate.write
 // (go/internal/graphowner/gated_writer.go:110-152) chunks rows by
 // lockChunkSize, opens one owner-ledger Postgres transaction per chunk, calls
-// the REAL postgres.GraphNodeOwnerStore.ResolveOwnedUIDs (real
+// the REAL ownerstore.GraphNodeOwnerStore.ResolveOwnedUIDs (real
 // lock/upsert/winners SQL, run against the fake transaction above), and
 // FILTERS contended-lost rows before delegating to the raw writer — so this
 // scenario drives that full gated dispatch rather than assuming it away. The

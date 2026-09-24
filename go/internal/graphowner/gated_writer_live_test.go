@@ -18,6 +18,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // TestLiveGatedWriterEndToEnd proves the #5007 owner-ledger gate over a real
@@ -46,7 +47,7 @@ func TestLiveGatedWriterEndToEnd(t *testing.T) {
 	}
 	defer func() { _ = rawDB.Close() }()
 	sqldb := postgres.SQLDB{DB: rawDB}
-	if err := postgres.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
+	if err := ownerstore.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}
 

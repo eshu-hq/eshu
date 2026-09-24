@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package ownerstore
 
 import (
 	"context"
@@ -87,7 +87,7 @@ func (s GraphNodeOwnerBackfillStore) SeedExistingGraphNodeOwners(
 	if updatedAt.IsZero() {
 		return fmt.Errorf("graph node owner backfill updated_at is required")
 	}
-	entries = dedupeOwnerEntries(entries)
+	entries = DedupeOwnerEntries(entries)
 	for _, entry := range entries {
 		if !strings.HasPrefix(entry.SourceOrderKey, GraphNodeOwnerBackfillMinimumOrderKeyPrefix) {
 			return fmt.Errorf("graph node owner backfill entry %q does not use the minimum upgrade order key", entry.UID)

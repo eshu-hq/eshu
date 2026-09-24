@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -48,15 +48,15 @@ const sourceOrderKeyRowField = "source_order_key"
 // up with the graph writer's own MERGE batch size.
 const lockChunkSize = cypher.DefaultBatchSize
 
-// graphNodeOwnerResolver is the narrow surface of postgres.GraphNodeOwnerStore
+// graphNodeOwnerResolver is the narrow surface of ownerstore.GraphNodeOwnerStore
 // the gate needs. It exists so a unit test can substitute a fake in-memory
-// store instead of a live Postgres transaction; postgres.GraphNodeOwnerStore
+// store instead of a live Postgres transaction; ownerstore.GraphNodeOwnerStore
 // satisfies it unchanged.
 type graphNodeOwnerResolver interface {
 	ResolveOwnedUIDs(
 		ctx context.Context,
 		tx db.ExecQueryer,
-		entries []postgres.GraphNodeOwnerEntry,
+		entries []ownerstore.GraphNodeOwnerEntry,
 		updatedAt time.Time,
 	) (owned map[string]struct{}, contendedLost int, err error)
 	LockUIDs(
@@ -106,7 +106,7 @@ func (g *Gate) logger() *slog.Logger {
 // NewGate returns a Gate backed by the owner ledger over db. A nil db yields a
 // pass-through gate (no ownership resolution).
 func NewGate(database db.Beginner) *Gate {
-	return &Gate{database: database, store: postgres.NewGraphNodeOwnerStore()}
+	return &Gate{database: database, store: ownerstore.NewGraphNodeOwnerStore()}
 }
 
 // write runs the #5007 per-uid critical section over rows in chunks of at
@@ -225,8 +225,8 @@ func (g *Gate) writeChunk(
 // programmer error upstream; the entry still carries the empty value so the
 // ledger's max resolution treats it consistently (an empty order key loses to
 // any real one), and the store's dedupe drops blank uids.
-func ownerEntriesFromRows(rows []map[string]any) ([]postgres.GraphNodeOwnerEntry, error) {
-	entries := make([]postgres.GraphNodeOwnerEntry, 0, len(rows))
+func ownerEntriesFromRows(rows []map[string]any) ([]ownerstore.GraphNodeOwnerEntry, error) {
+	entries := make([]ownerstore.GraphNodeOwnerEntry, 0, len(rows))
 	for _, row := range rows {
 		uid, _ := row["uid"].(string)
 		orderKey, _ := row[sourceOrderKeyRowField].(string)
@@ -234,7 +234,7 @@ func ownerEntriesFromRows(rows []map[string]any) ([]postgres.GraphNodeOwnerEntry
 		if err != nil {
 			return nil, fmt.Errorf("graphowner: marshal owner row for uid %q: %w", uid, err)
 		}
-		entries = append(entries, postgres.GraphNodeOwnerEntry{
+		entries = append(entries, ownerstore.GraphNodeOwnerEntry{
 			UID:            uid,
 			SourceOrderKey: orderKey,
 			WinningRow:     raw,

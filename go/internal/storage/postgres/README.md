@@ -448,7 +448,8 @@ over-fetch and re-sort in Go.
 
 ### Graph node owner ledger (#5007)
 
-`GraphNodeOwnerStore` (migration `056_graph_node_owner.sql`) is the
+`ownerstore.GraphNodeOwnerStore` (`graph/owner/store.go`, migration
+`056_graph_node_owner.sql`) is the
 Postgres-atomic resolver for cross-scope same-uid node ownership. When two
 ingestion scopes carry the same resource identity, both project the same
 canonical node uid and race to write its scope-derived properties; NornicDB does
@@ -496,16 +497,19 @@ and successful rebuild. Query and route proof commands are retained in
 `docs/internal/evidence/5469-tiered-version-resolution.md`.
 
 Migration `074_graph_node_owner_backfill_state.sql` records completion of the
-one-time CloudResource upgrade backfill. `GraphNodeOwnerBackfillStore` seeds
+one-time CloudResource upgrade backfill. `ownerstore.GraphNodeOwnerBackfillStore`
+(`graph/owner/backfill.go`) seeds
 graph rows written before migration 056 in 500-row transactions, using the same
 sorted per-uid advisory locks and monotonic max-upsert as the reducer gate. Each
 seed uses a year-1 order key. It can populate an empty ledger, but it cannot
 displace any real reducer owner, including one committed while the backfill is
 running. The completion marker is written only after every graph page commits;
 a failed or interrupted run retries idempotently on the next API or MCP startup.
+See `graph/owner/README.md` for the package's own documentation.
 
-Evidence: `TestGraphNodeOwner*` unit tests (dedup, advisory-key namespacing, SQL
-shape, fail-closed guards) and `TestGraphNodeOwnerStoreIntegration`
+Evidence: `graph/owner`'s `TestGraphNodeOwner*` unit tests (dedup,
+advisory-key namespacing, SQL shape, fail-closed guards) and
+`TestGraphNodeOwnerStoreIntegration`
 (single-writer owns, cross-batch max resolution, concurrent-converges-to-max).
 `TestLiveGraphNodeOwnerBackfillPreservesRealOwnersAndScales` seeds 20,000
 existing rows, proves that a real owner wins a forced overlap, and checks the
