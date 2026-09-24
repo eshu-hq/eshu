@@ -245,13 +245,21 @@ func foldStringLiteral(n ast.Node, resolve func(string) (string, bool)) (string,
 	case *ast.ParenExpr:
 		return foldStringLiteral(x.X, resolve)
 	case *ast.CallExpr:
-		// strings.Join(labels, "|") splices a label list into a statement
-		// (the Rationale EXPLAINS writer). Read it as a %s slot, the same
-		// placeholder the sweep already fills with a schema label, so the
-		// statement is analyzed whole instead of as detached fragments.
-		if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Join" {
+		// strings.Join(labels, "|") splices a named label list into a
+		// statement (the Rationale EXPLAINS writer). Read it as a %s slot, the
+		// same placeholder the sweep already fills with a schema label, so the
+		// statement is analyzed whole instead of as detached fragments. The
+		// fold assumes the list holds labels: a Join that splices a clause or
+		// property map would be read as a label here. Only a named list
+		// (identifier or selector) folds; a Join over inline literals is
+		// statement text itself, so it is left for the walk to descend into
+		// and judge, never pruned.
+		if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Join" && len(x.Args) > 0 {
 			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "strings" {
-				return "%s", true
+				switch x.Args[0].(type) {
+				case *ast.Ident, *ast.SelectorExpr:
+					return "%s", true
+				}
 			}
 		}
 	case *ast.BinaryExpr:
@@ -348,10 +356,15 @@ func TestSweepReadsJoinedLabelTemplateWhole(t *testing.T) {
 	write("joined_ok.go", "var q = `UNWIND $rows AS row\nMATCH (t:` + strings.Join(labels, \"|\") + ` {uid: row.target})\nMERGE (m:Module {name: row.name})\nMERGE (m)-[:EXPLAINS]->(t)`")
 	write("joined_bad.go", "var q = `UNWIND $rows AS row\nUNWIND row.params AS p\nMATCH (t:` + strings.Join(labels, \"|\") + ` {uid: row.target})\nMERGE (x:Parameter {name: p.name, path: row.file_path, function_line_number: 1})`")
 
+	write("joined_literals_bad.go", "var q = strings.Join([]string{\"UNWIND $rows AS row\", \"UNWIND row.params AS p\", \"MERGE (x:Parameter {name: p.name, path: row.file_path, function_line_number: 1})\"}, \"\\n\")")
+
 	findings, _, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
 	got := map[string]bool{}
 	for _, f := range findings {
 		got[filepath.Base(strings.SplitN(f.file, ":", 2)[0])] = true
+	}
+	if !got["joined_literals_bad.go"] {
+		t.Errorf("joined_literals_bad.go not flagged: a Join of statement literals must still be read; findings = %v", findings)
 	}
 	if got["joined_ok.go"] {
 		t.Errorf("joined_ok.go flagged, want clean; findings = %v", findings)
