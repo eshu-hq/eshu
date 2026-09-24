@@ -305,7 +305,7 @@ No-Regression Evidence: root's `factschema_decode_shared.go` moves to
 `newQueryDecodeError` forwarder are deleted; callers name `decode.Error` and
 `decode.New`. The schema-version literal and the `*string` deref are exported
 as `decode.DefaultSchemaMajorVersion` and `decode.DerefString`, and the five
-package-local copies of the literal and four of the deref in
+package-local copies of the literal and five of the deref in
 `package/registry`, `workitem`, `incident/store` and
 `supply/chain/{advisory,impact}` now call them. Every copy returned the same
 `"1.0.0"` or the same zero-value deref, so no decoded value changes; the full

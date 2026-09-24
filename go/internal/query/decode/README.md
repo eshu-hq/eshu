@@ -67,7 +67,7 @@ decode behavior, error classification, or wrapped-error semantics changed.
 `factschema_shared.go` came from the query root's `factschema_decode_shared.go`
 for #6642 (move-sequence row 7). Its alias and forwarder were deleted, its
 constant and helper exported, and the five package-local copies of the constant
-and four of the helper in `package/registry`, `workitem`, `incident/store` and
+and five of the helper in `package/registry`, `workitem`, `incident/store` and
 `supply/chain/{advisory,impact}` now call these instead. Every copy returned
 the same literal or the same zero-value deref, so no decoded value changes.
 
