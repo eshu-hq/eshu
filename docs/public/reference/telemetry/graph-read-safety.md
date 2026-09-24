@@ -193,10 +193,106 @@ backend transaction deadline expired while the caller was still live.
 counted as a graph-policy deadline.
 
 The `neo4j.query` span records the same outcome plus
-`eshu.graph_read.attempts` and
-`eshu.graph_read.configured_deadline_ms`. Slow, deadline, and unavailable
-reads also emit `query.graph_read.warning` with `pipeline_phase="query"`, a
-bounded `failure_class`, and `duration_seconds`.
+`eshu.graph_read.attempts`, `eshu.graph_read.configured_deadline_ms`, and
+`eshu.graph_read.statement_fingerprint` -- the first 12 hex characters of the
+sha256 of the statement's redacted shape (see below), computed on every bounded
+read regardless of outcome (issue #7035). Statements that differ only in
+literal values share one fingerprint. Bound parameters never enter the
+fingerprint or any other graph-read signal, and inline literals are redacted
+before they are hashed or logged. Slow, deadline, and unavailable reads also
+emit `query.graph_read.warning` with `pipeline_phase="query"`, a bounded
+`failure_class`, `duration_seconds`, and two fields that name the exact
+statement shape: `graph_read.statement_fingerprint` (the same value as the span
+attribute) and `graph_read.statement_head` (the same redacted shape, truncated
+to 300 characters with an `...[truncated]` marker when it exceeds that bound).
+
+The redacted shape is what makes the head safe for ad-hoc Cypher. Bound
+`$parameters` are never part of the statement text, but the read-only Cypher
+route (`POST /api/v0/code/cypher` and its `execute_cypher_query` MCP tool, plus
+`POST /api/v0/code/visualize`) runs a caller's query with every value written
+inline, so the reader redacts the
+statement itself before it reaches a hash, span, or log
+(`go/internal/query/graph/statement`):
+
+- Replaced with `<REDACTED>`: integers, floats (including exponent, `f`/`d`
+  suffix, hex `0x..` and octal `0o..` forms, Neo4j 5 digit separators such as
+  `4111_1111`, and a minus sign that touches the digits), single-quoted
+  strings, and double-quoted strings, including the bounds of a variable-length
+  range such as `*1..5`. Every character that trails a number's digits belongs
+  to the number, as in Neo4j's lexer. Backslash escapes and doubled quotes stay
+  inside their string.
+- Kept verbatim: keywords, `true`, `false` and `null`, identifiers (digits
+  inside an identifier such as `n1` are not literals), labels, relationship
+  types, property keys, `$parameters`, and backtick-quoted identifiers.
+- Dropped: `//` and `/* */` comments, because free text in a comment can carry
+  the same values a literal would. Whitespace runs collapse to one space, where
+  whitespace is ASCII space, tab, newline and the other ASCII separators plus
+  every Unicode space character (no-break space, ideographic space, and the
+  rest of Neo4j 5's lexer whitespace set), so a pasted `= 1234` cannot turn its
+  digits into a kept identifier.
+- Fail closed: an unterminated string, block comment, or backtick identifier
+  redacts to the end of the statement.
+
+The slow threshold defaults to 1 second (it was 2 seconds before #7035, so
+expect more `slow` warnings after upgrading) and is configurable through `ESHU_GRAPH_READ_SLOW_THRESHOLD` (a Go duration
+string, for example `750ms`). An unset value keeps the default; an invalid or
+non-positive value logs `query.graph_read.invalid_slow_threshold` once at
+startup and falls back to the default rather than silently disabling the
+warning.
+
+### Matching a fingerprint to NornicDB
+
+`graph_read.statement_fingerprint` identifies the Eshu-side statement shape; it
+has no equivalent on the NornicDB side, so matching relies on the statement
+text instead. The fingerprint hashes Eshu's redacted text, which NornicDB never
+sees, so hashing NornicDB's `query` field will not reproduce it.
+
+- **NornicDB slow-query log** -- NornicDB's own `event="slow_query"` log
+  (threshold `NORNICDB_SLOW_QUERY_THRESHOLD`, default 5s) carries `plan_hash`
+  and a literal-redacted `query` field truncated to 500 characters. NornicDB's
+  `RedactLiterals` (`pkg/cypher/redaction.go`) replaces exactly three lexer
+  token classes with `<REDACTED>`: integer, float, and double-quoted
+  `STRING_LITERAL` tokens. It does **not** replace single-quoted strings (a
+  separate `CHAR_LITERAL` token, `pkg/cypher/antlr/CypherLexer.g4`), hex or
+  octal numbers, or comments, and it copies whitespace through byte-for-byte,
+  so the `query` field keeps the statement's original newlines and indentation
+  (checked by running `RedactLiterals` at NornicDB `d97f02c1`).
+  Eshu's `graph_read.statement_head` replaces every numeric and string literal class, drops
+  comments, and collapses whitespace, so a raw comparison fails for any
+  statement that spans more than one line or carries a single-quoted string.
+  Normalize NornicDB's `query` field to Eshu's shape before comparing: collapse
+  each run of whitespace to one space and trim, then replace each single-quoted
+  string with `<REDACTED>` (and any hex/octal number or comment, which are
+  uncommon in Eshu's own queries). Then check whether Eshu's head is a prefix
+  of the first 300 characters of that normalized text. Both sides fold a minus
+  sign that touches a number into the literal, and both redact each bound of a
+  `*1..5` range, so those need no adjustment. For example, a NornicDB `query`
+  field reading `"MATCH (n:Repo)\n  WHERE n.name = 'x' RETURN n"` normalizes to
+  `"MATCH (n:Repo) WHERE n.name = <REDACTED> RETURN n"`, which compares directly
+  against an Eshu `graph_read.statement_head` of the same text. Because Eshu's
+  default threshold (1s) is well below NornicDB's default (5s), a read that is
+  `slow` in Eshu but absent from the NornicDB log is expected -- lower
+  `NORNICDB_SLOW_QUERY_THRESHOLD` to correlate reads in the 1-5s range.
+
+  Known limitation on current NornicDB builds (checked on upstream commits
+  `6ac958a9`, `f2163176` and `3691d795`; `f2163176` is the commit behind the
+  `fix-6915-f2163176` image): the per-database executors that serve Bolt and HTTP
+  `/db/<name>/tx/commit` queries are built without the slow-query logger or
+  threshold (`pkg/bolt/server.go` `newDatabaseScopedCypherExecutor`,
+  `cmd/nornicdb/main.go` `ConfigureDatabaseExecutor`), so Eshu's reads
+  produce no `slow_query` record at any threshold. Even where a record is
+  emitted, `plan_hash` is always `0000000000000000`, and some `CALL { ... UNION
+  ... }` and variable-length statements are logged as the literal
+  `<REDACTED>`. Until NornicDB fixes this, use the pprof capture below with
+  `graph_read.statement_head` as the correlation path.
+- **NornicDB pprof capture** -- when a statement shape recurs as `slow` or
+  `deadline`, enable `NORNICDB_PPROF_ENABLED` (bind address
+  `NORNICDB_PPROF_LISTEN`, default `127.0.0.1:9091`) and capture a profile with
+  `GET /debug/pprof/profile?seconds=N` for `N` at least as long as the
+  observed `duration_seconds`. There is no fingerprint inside the pprof
+  profile; use the capture's wall-clock window plus the statement head/shape
+  already identified from the Eshu warning and the NornicDB slow-query log to
+  find the matching stack.
 
 Session-close failures emit `query.graph_read.session_close_failed` with
 `pipeline_phase="query"` and `failure_class="session_close_error"`. Because

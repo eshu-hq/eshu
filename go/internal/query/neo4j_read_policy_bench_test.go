@@ -172,6 +172,24 @@ func benchmarkUnboundedReaderRead(
 		duration,
 		reader.policy.slowThreshold,
 	)
-	reader.recordGraphReadTelemetry(parentCtx, span, outcome, 1, duration, publicErr)
+	reader.recordGraphReadTelemetry(parentCtx, span, outcome, 1, duration, publicErr, graphStatementFingerprint(cypher), cypher)
 	return rows, nil
+}
+
+// BenchmarkGraphStatementFingerprint measures the per-read cost of the
+// statement fingerprint on a realistic multi-line statement with inline
+// literals, the shape the redacting scanner has to walk on every read (#7035).
+func BenchmarkGraphStatementFingerprint(b *testing.B) {
+	const cypher = `MATCH (r:Repository {id: $repo_id})-[:CONTAINS]->(f:File)
+WHERE f.language = 'go' AND f.line_count > 100
+OPTIONAL MATCH (f)-[:DEFINES]->(e:Function)
+RETURN f.path AS path, count(e) AS functions
+ORDER BY functions DESC
+LIMIT 50`
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if got := graphStatementFingerprint(cypher); len(got) != graphStatementFingerprintLen {
+			b.Fatalf("fingerprint length = %d", len(got))
+		}
+	}
 }

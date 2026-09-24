@@ -5,12 +5,16 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -22,12 +26,27 @@ import (
 
 const (
 	defaultGraphReadTimeout        = 10 * time.Second
-	defaultGraphReadSlowThreshold  = 2 * time.Second
+	defaultGraphReadSlowThreshold  = time.Second
 	defaultGraphReadRetryDelay     = 25 * time.Millisecond
 	graphReadSessionCloseTimeout   = time.Second
 	maxGraphReadAttempts           = 2
 	neo4jTransactionTimedOutCode   = "Neo.ClientError.Transaction.TransactionTimedOut"
 	neo4jTransactionTerminatedCode = "Neo.ClientError.Transaction.Terminated"
+
+	// graphReadSlowThresholdEnv overrides defaultGraphReadSlowThreshold; see
+	// resolveGraphReadSlowThreshold. Registered in
+	// go/internal/envregistry/entries.go.
+	graphReadSlowThresholdEnv = "ESHU_GRAPH_READ_SLOW_THRESHOLD"
+	// graphStatementHeadMaxLen bounds the redacted, whitespace-collapsed
+	// statement text carried on the query.graph_read.warning log (#7035).
+	graphStatementHeadMaxLen = 300
+	// graphStatementHeadTruncatedMarker is appended to a statement head that
+	// was cut at graphStatementHeadMaxLen, so the log line discloses the cut
+	// rather than silently presenting a partial statement as complete.
+	graphStatementHeadTruncatedMarker = "...[truncated]"
+	// graphStatementFingerprintLen bounds the fingerprint to the first N hex
+	// characters of the sha256 digest (#7035).
+	graphStatementFingerprintLen = 12
 )
 
 // These two are var aliases, not copies. errors.Is matches on identity, and two
@@ -79,12 +98,70 @@ type neo4jReadPolicy struct {
 }
 
 func defaultNeo4jReadPolicy() neo4jReadPolicy {
+	logger := slog.Default()
 	return neo4jReadPolicy{
 		readTimeout:   defaultGraphReadTimeout,
-		slowThreshold: defaultGraphReadSlowThreshold,
+		slowThreshold: resolveGraphReadSlowThreshold(os.Getenv, logger),
 		retryDelay:    defaultGraphReadRetryDelay,
-		logger:        slog.Default(),
+		logger:        logger,
 	}
+}
+
+// resolveGraphReadSlowThreshold reads graphReadSlowThresholdEnv through
+// getenv and parses it as a Go duration. An unset value keeps
+// defaultGraphReadSlowThreshold. An invalid value, or one that is zero or
+// negative, logs once at warn level and falls back to the default rather than
+// disabling the slow-read warning -- graphReadResult only emits the `slow`
+// outcome when slowThreshold > 0, so a non-positive override would silently
+// turn the warning off (#7035).
+func resolveGraphReadSlowThreshold(getenv func(string) string, logger *slog.Logger) time.Duration {
+	raw := strings.TrimSpace(getenv(graphReadSlowThresholdEnv))
+	if raw == "" {
+		return defaultGraphReadSlowThreshold
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn(
+			"invalid graph read slow threshold override, using default",
+			telemetry.EventAttr("query.graph_read.invalid_slow_threshold"),
+			telemetry.PhaseAttr(telemetry.PhaseQuery),
+			slog.String("env_var", graphReadSlowThresholdEnv),
+			slog.String("value", raw),
+			slog.Duration("default", defaultGraphReadSlowThreshold),
+		)
+		return defaultGraphReadSlowThreshold
+	}
+	return parsed
+}
+
+// graphStatementFingerprint returns the first graphStatementFingerprintLen hex
+// characters of the sha256 digest of the statement's redacted, whitespace-
+// collapsed shape (statement.Redact). Every numeric and string literal
+// is replaced before hashing (booleans and null are kept), so no
+// literal-derived value leaves the process and statements that differ only in
+// literal values share one fingerprint. Bound parameters never appear
+// in Cypher text at all (#7035).
+func graphStatementFingerprint(cypher string) string {
+	sum := sha256.Sum256([]byte(statement.Redact(cypher)))
+	return hex.EncodeToString(sum[:])[:graphStatementFingerprintLen]
+}
+
+// graphStatementHead returns the redacted, whitespace-collapsed Cypher
+// statement (statement.Redact), truncated to graphStatementHeadMaxLen runes
+// with graphStatementHeadTruncatedMarker appended when it exceeds that bound.
+// Redaction runs before truncation, so a literal straddling the cut is
+// replaced whole. Inline literals in ad-hoc Cypher never reach the log, and
+// bound parameters are not part of the text (#7035).
+func graphStatementHead(cypher string) string {
+	redacted := statement.Redact(cypher)
+	runes := []rune(redacted)
+	if len(runes) <= graphStatementHeadMaxLen {
+		return redacted
+	}
+	return string(runes[:graphStatementHeadMaxLen]) + graphStatementHeadTruncatedMarker
 }
 
 type neo4jReadSession interface {
@@ -146,7 +223,8 @@ func (r *Neo4jReader) runRead(ctx context.Context, cypher string, params map[str
 	rows, attempts, err := r.runReadAttempts(readCtx, cypher, params)
 	duration := time.Since(started)
 	outcome, publicErr := graphReadResult(parentCtx, readCtx, err, attempts, duration, r.policy.slowThreshold)
-	r.recordGraphReadTelemetry(parentCtx, span, outcome, attempts, duration, publicErr)
+	fingerprint := graphStatementFingerprint(cypher)
+	r.recordGraphReadTelemetry(parentCtx, span, outcome, attempts, duration, publicErr, fingerprint, cypher)
 	if publicErr != nil {
 		return nil, publicErr
 	}
@@ -350,10 +428,13 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 	attempts int,
 	duration time.Duration,
 	err error,
+	statementFingerprint string,
+	cypher string,
 ) {
 	span.SetAttributes(
 		attribute.String(telemetry.SpanAttrGraphReadOutcome, string(outcome)),
 		attribute.Int(telemetry.SpanAttrGraphReadAttempts, attempts),
+		attribute.String(telemetry.SpanAttrGraphReadStatementFingerprint, statementFingerprint),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -386,5 +467,7 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		telemetry.PhaseAttr(telemetry.PhaseQuery),
 		telemetry.FailureClassAttr(string(outcome)),
 		slog.Float64("duration_seconds", duration.Seconds()),
+		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
+		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
 	)
 }

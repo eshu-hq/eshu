@@ -144,8 +144,17 @@
 // SpanAttrGraphReadOutcome, SpanAttrGraphReadAttempts, and
 // SpanAttrGraphReadConfiguredDeadlineMS describe the bounded Neo4jReader
 // policy. The shared outcome vocabulary distinguishes a graph-policy deadline
-// from an earlier caller deadline without recording query text, graph
-// addresses, or raw driver errors.
+// from an earlier caller deadline without recording raw (unredacted) query text, graph
+// addresses, or raw driver errors. SpanAttrGraphReadStatementFingerprint
+// (span, every read) and LogKeyGraphReadStatementFingerprint/
+// LogKeyGraphReadStatementHead (the query.graph_read.warning log, slow/
+// deadline/unavailable outcomes) name the exact Cypher statement shape behind
+// a read: the fingerprint is a sha256 hash and the head is a bounded statement
+// text, both computed over the statement's redacted shape (every numeric
+// and string literal replaced by <REDACTED>, booleans and null kept, comments
+// dropped, whitespace collapsed; see
+// internal/query/graph/statement), so together they identify the statement
+// shape without recording a bound parameter value or an inline literal.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in
