@@ -152,7 +152,12 @@ func buildLatencyReportRoute(r RouteLatency) LatencyReportRoute {
 	for i, d := range r.Samples {
 		out.ColdSamplesMS[i] = millis(d)
 	}
-	if len(r.WarmSamples) == 0 {
+	// WarmRunP95s is required alongside WarmSamples: minMaxMS below indexes
+	// samples[0] unconditionally, and sweepRoute always grows both slices
+	// together, but RouteLatency is exported and nothing enforces that
+	// invariant on a caller-constructed value -- degrade to no warm stats
+	// rather than panic on one that violates it.
+	if len(r.WarmSamples) == 0 || len(r.WarmRunP95s) == 0 {
 		return out
 	}
 	out.WarmSamplesMS = make([]float64, len(r.WarmSamples))

@@ -79,6 +79,31 @@ func TestBuildLatencyReportIncludesColdAndWarmStats(t *testing.T) {
 	}
 }
 
+// TestBuildLatencyReportDoesNotPanicWhenWarmRunP95sIsShorterThanWarmSamples
+// guards a real panic: minMaxMS indexes samples[0] unconditionally, and
+// buildLatencyReportRoute called it on WarmRunP95s right after checking only
+// len(WarmSamples) == 0. A RouteLatency with WarmSamples populated but
+// WarmRunP95s empty (an invariant sweepRoute always keeps in sync today, but
+// this type is exported and nothing in the compiler enforces it) panicked
+// with "index out of range [0] with length 0" instead of degrading
+// gracefully.
+func TestBuildLatencyReportDoesNotPanicWhenWarmRunP95sIsShorterThanWarmSamples(t *testing.T) {
+	results := []RouteLatency{
+		{
+			Route:       "GET /malformed",
+			Exercised:   true,
+			Status:      200,
+			Samples:     []time.Duration{10 * time.Millisecond},
+			WarmSamples: []time.Duration{20 * time.Millisecond, 22 * time.Millisecond},
+			WarmRunP95s: nil,
+		},
+	}
+	report := BuildLatencyReport(LatencyReportIdentity{Backend: "nornicdb", Runs: 3, Iterations: 2, Warmups: 2}, results)
+	if got := report.Routes[0].Warm; got != nil {
+		t.Errorf("Warm = %+v, want nil when WarmRunP95s is empty despite non-empty WarmSamples", got)
+	}
+}
+
 // TestBuildLatencyReportOmitsWarmWhenRunsIsOne proves the default (Runs=1,
 // no warm passes) leaves Warm nil rather than a zero-valued stats block that
 // would misread as "warm samples exist and are all zero."
