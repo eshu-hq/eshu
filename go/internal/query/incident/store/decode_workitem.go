@@ -93,29 +93,13 @@ func newQueryDecodeError(factKind, factID string, err error) *decode.Error {
 // empty schemaVersion is normalized to the current major-1 schema version.
 func workItemSchemaEnvelope(factKind, schemaVersion string, payload map[string]any) factschema.Envelope {
 	if schemaVersion == "" {
-		schemaVersion = queryDefaultSchemaMajorVersion
+		schemaVersion = decode.DefaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
 		FactKind:      factKind,
 		SchemaVersion: schemaVersion,
 		Payload:       payload,
 	}
-}
-
-// queryDefaultSchemaMajorVersion is the schema version this package assumes
-// when a row carries none. Forked from workitem's defaultSchemaMajorVersion
-// (internal/query/workitem/factschema_decode.go): a major-1 version because
-// every migrated work_item fact kind is at schema major 1 today.
-const queryDefaultSchemaMajorVersion = "1.0.0"
-
-// workItemDerefString returns the value a *string points at, or "" when it
-// is nil. Forked from derefString
-// (internal/query/factschema_decode_shared.go).
-func workItemDerefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 // workItemDerefBool returns the value a *bool points at, or false when it is

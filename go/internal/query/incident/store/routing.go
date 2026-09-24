@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -212,9 +213,9 @@ func buildIncidentAppliedPagerDutyRouting(row incidentContextFactRow) (incidentA
 		SourceKind:                resource.SourceKind,
 		Outcome:                   resource.Outcome,
 		ResourceClass:             resource.ResourceClass,
-		ProviderObjectID:          workItemDerefString(resource.ProviderObjectID),
-		NameFingerprint:           workItemDerefString(resource.NameFingerprint),
-		EscalationPolicyReference: workItemDerefString(resource.EscalationPolicyReference),
+		ProviderObjectID:          decode.DerefString(resource.ProviderObjectID),
+		NameFingerprint:           decode.DerefString(resource.NameFingerprint),
+		EscalationPolicyReference: decode.DerefString(resource.EscalationPolicyReference),
 		TerraformStateAddress:     resource.TerraformStateAddress,
 		ProviderAddress:           resource.ProviderAddress,
 		ModuleAddress:             resource.ModuleAddress,
@@ -245,13 +246,13 @@ func buildIncidentObservedPagerDutyRouting(row incidentContextFactRow) (incident
 		Outcome:                   service.Outcome,
 		ServiceID:                 service.ServiceID,
 		ProviderObjectID:          service.ProviderObjectID,
-		NameFingerprint:           workItemDerefString(service.NameFingerprint),
-		Status:                    workItemDerefString(service.Status),
-		EscalationPolicyReference: workItemDerefString(service.EscalationPolicyReference),
+		NameFingerprint:           decode.DerefString(service.NameFingerprint),
+		Status:                    decode.DerefString(service.Status),
+		EscalationPolicyReference: decode.DerefString(service.EscalationPolicyReference),
 		DeclaredMatchState:        service.DeclaredMatchState,
-		DriftCandidateReason:      workItemDerefString(service.DriftCandidateReason),
+		DriftCandidateReason:      decode.DerefString(service.DriftCandidateReason),
 		RedactionState:            service.RedactionState,
-		SourceURL:                 workItemDerefString(service.SourceURL),
+		SourceURL:                 decode.DerefString(service.SourceURL),
 		Disabled:                  workItemDerefBool(service.Disabled),
 		Deleted:                   workItemDerefBool(service.Deleted),
 		ManuallyCreated:           workItemDerefBool(service.ManuallyCreated),
@@ -277,8 +278,8 @@ func buildIncidentRoutingCoverageWarning(row incidentContextFactRow) (incidentRo
 		SourceClass:      warning.SourceClass,
 		SourceKind:       warning.SourceKind,
 		Reason:           warning.Reason,
-		ResourceClass:    workItemDerefString(warning.ResourceClass),
-		ProviderObjectID: workItemDerefString(warning.ProviderObjectID),
+		ResourceClass:    decode.DerefString(warning.ResourceClass),
+		ProviderObjectID: decode.DerefString(warning.ProviderObjectID),
 		ObservedAt:       formatIncidentContextTime(row.ObservedAt),
 	}, true
 }

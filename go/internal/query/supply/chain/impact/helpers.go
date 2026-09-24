@@ -115,7 +115,7 @@ const ProfileComprehensive = "comprehensive"
 // home file stays in root (the staying handlers read it there) and this
 // package must not import root, so the value is duplicated here and MUST
 // stay byte-identical to its root source (same rationale as advisory's
-// supplyChainDefaultSchemaMajorVersion).
+// decode.DefaultSchemaMajorVersion).
 const supplyChainImpactFindingMaxLimit = 200
 
 // maxSupplyChainRuntimeEnvironmentCandidates bounds the finding-bound

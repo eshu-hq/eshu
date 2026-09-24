@@ -49,19 +49,10 @@ type packageCorrelationDecodeInput struct {
 	Payload       map[string]any
 }
 
-// packageCorrelationDefaultSchemaMajorVersion is the schema version this file
-// assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
-// major-1 version because every migrated package correlation fact kind is at
-// schema major 1 today; the Decode seam dispatches on the major component
-// only. Kept as this family's own copy rather than an import: the root
-// constant is unexported and this trivial literal has no shared-drift risk.
-const packageCorrelationDefaultSchemaMajorVersion = "1.0.0"
-
 // packageCorrelationSchemaEnvelope adapts one scanned package correlation
 // fact row into the contracts-module factschema.Envelope the Decode* seam
 // accepts. An empty schemaVersion normalizes to
-// packageCorrelationDefaultSchemaMajorVersion, matching the version-less
+// decode.DefaultSchemaMajorVersion, matching the version-less
 // legacy default; every in-tree package correlation writer stamps a concrete
 // major-1 version (facts.ReducerDerivedSchemaVersionV1), so the empty case is
 // defensive rather than the production path. A present but unsupported major
@@ -69,7 +60,7 @@ const packageCorrelationDefaultSchemaMajorVersion = "1.0.0"
 // being decoded as v1.
 func packageCorrelationSchemaEnvelope(factKind, schemaVersion string, payload map[string]any) factschema.Envelope {
 	if schemaVersion == "" {
-		schemaVersion = packageCorrelationDefaultSchemaMajorVersion
+		schemaVersion = decode.DefaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
 		FactKind:      factKind,

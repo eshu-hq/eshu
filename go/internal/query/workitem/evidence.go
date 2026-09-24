@@ -240,16 +240,16 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.Provider = record.Provider
 		base.WorkItemKey = record.WorkItemKey
 		base.ProviderWorkItemID = record.ProviderWorkItemID
-		base.ProjectID = derefString(record.ProjectID)
-		base.ProjectKey = derefString(record.ProjectKey)
-		base.IssueTypeID = derefString(record.IssueTypeID)
-		base.IssueTypeName = derefString(record.IssueTypeName)
-		base.StatusID = derefString(record.StatusID)
-		base.StatusName = derefString(record.StatusName)
-		base.CreatedAt = derefString(record.CreatedAt)
-		base.UpdatedAt = derefString(record.UpdatedAt)
-		base.ResolvedAt = derefString(record.ResolvedAt)
-		base.RedactionPolicyVersion = derefString(record.RedactionPolicyVersion)
+		base.ProjectID = decode.DerefString(record.ProjectID)
+		base.ProjectKey = decode.DerefString(record.ProjectKey)
+		base.IssueTypeID = decode.DerefString(record.IssueTypeID)
+		base.IssueTypeName = decode.DerefString(record.IssueTypeName)
+		base.StatusID = decode.DerefString(record.StatusID)
+		base.StatusName = decode.DerefString(record.StatusName)
+		base.CreatedAt = decode.DerefString(record.CreatedAt)
+		base.UpdatedAt = decode.DerefString(record.UpdatedAt)
+		base.ResolvedAt = decode.DerefString(record.ResolvedAt)
+		base.RedactionPolicyVersion = decode.DerefString(record.RedactionPolicyVersion)
 
 	case "work_item.transition":
 		transition, err := decodeWorkItemTransition(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -258,14 +258,14 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = transition.Provider
-		base.WorkItemKey = derefString(transition.WorkItemKey)
-		base.ProviderWorkItemID = derefString(transition.ProviderWorkItemID)
+		base.WorkItemKey = decode.DerefString(transition.WorkItemKey)
+		base.ProviderWorkItemID = decode.DerefString(transition.ProviderWorkItemID)
 		base.ProviderChangelogID = transition.ProviderChangelogID
-		base.Field = derefString(transition.Field)
-		base.From = derefString(transition.From)
-		base.To = derefString(transition.To)
+		base.Field = decode.DerefString(transition.Field)
+		base.From = decode.DerefString(transition.From)
+		base.To = decode.DerefString(transition.To)
 		base.ValueRedacted = derefBool(transition.ValueRedacted)
-		base.RedactionPolicyVersion = derefString(transition.RedactionPolicyVersion)
+		base.RedactionPolicyVersion = decode.DerefString(transition.RedactionPolicyVersion)
 
 	case "work_item.external_link":
 		link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -274,22 +274,22 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = link.Provider
-		base.WorkItemKey = derefString(link.WorkItemKey)
-		base.ProviderWorkItemID = derefString(link.ProviderWorkItemID)
-		base.ProviderRemoteLinkID = derefString(link.ProviderRemoteLinkID)
-		base.GlobalID = derefString(link.GlobalID)
-		base.ApplicationName = derefString(link.ApplicationName)
-		base.ApplicationType = derefString(link.ApplicationType)
-		base.Relationship = derefString(link.Relationship)
-		base.URLFingerprint = derefString(link.URLFingerprint)
+		base.WorkItemKey = decode.DerefString(link.WorkItemKey)
+		base.ProviderWorkItemID = decode.DerefString(link.ProviderWorkItemID)
+		base.ProviderRemoteLinkID = decode.DerefString(link.ProviderRemoteLinkID)
+		base.GlobalID = decode.DerefString(link.GlobalID)
+		base.ApplicationName = decode.DerefString(link.ApplicationName)
+		base.ApplicationType = decode.DerefString(link.ApplicationType)
+		base.Relationship = decode.DerefString(link.Relationship)
+		base.URLFingerprint = decode.DerefString(link.URLFingerprint)
 		base.URLPresent = derefBool(link.URLPresent)
 		base.URLRedacted = derefBool(link.URLRedacted)
 		base.TitlePresent = derefBool(link.TitlePresent)
 		base.SummaryPresent = derefBool(link.SummaryPresent)
-		base.AnchorClass = derefString(link.AnchorClass)
-		base.ProviderSupportState = derefString(link.ProviderSupportState)
-		base.RedactionPolicyVersion = derefString(link.RedactionPolicyVersion)
-		base.LinkedRepositoryID = derefString(link.LinkedRepositoryID)
+		base.AnchorClass = decode.DerefString(link.AnchorClass)
+		base.ProviderSupportState = decode.DerefString(link.ProviderSupportState)
+		base.RedactionPolicyVersion = decode.DerefString(link.RedactionPolicyVersion)
+		base.LinkedRepositoryID = decode.DerefString(link.LinkedRepositoryID)
 
 	case "work_item.project_metadata":
 		metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -298,9 +298,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = derefString(metadata.ProjectID)
-		base.ProjectKey = derefString(metadata.ProjectKey)
-		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
+		base.ProjectID = decode.DerefString(metadata.ProjectID)
+		base.ProjectKey = decode.DerefString(metadata.ProjectKey)
+		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.issue_type_metadata":
 		metadata, err := decodeWorkItemIssueTypeMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -309,9 +309,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = derefString(metadata.ProjectID)
+		base.ProjectID = decode.DerefString(metadata.ProjectID)
 		base.IssueTypeID = metadata.IssueTypeID
-		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
+		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":
 		metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -320,10 +320,10 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = derefString(metadata.ProjectID)
+		base.ProjectID = decode.DerefString(metadata.ProjectID)
 		base.StatusID = metadata.StatusID
-		base.StatusName = derefString(metadata.StatusName)
-		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
+		base.StatusName = decode.DerefString(metadata.StatusName)
+		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.workflow_metadata":
 		metadata, err := decodeWorkItemWorkflowMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -332,8 +332,8 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = derefString(metadata.ProjectID)
-		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
+		base.ProjectID = decode.DerefString(metadata.ProjectID)
+		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.field_metadata":
 		metadata, err := decodeWorkItemFieldMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -342,7 +342,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
+		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.metadata_warning":
 		warning, err := decodeWorkItemMetadataWarning(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
@@ -353,8 +353,8 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.Provider = warning.Provider
 		base.MetadataType = warning.MetadataType
 		base.WarningReason = warning.Reason
-		base.ProviderIDFingerprint = derefString(warning.ProviderIDFingerprint)
-		base.RedactionPolicyVersion = derefString(warning.RedactionPolicyVersion)
+		base.ProviderIDFingerprint = decode.DerefString(warning.ProviderIDFingerprint)
+		base.RedactionPolicyVersion = decode.DerefString(warning.RedactionPolicyVersion)
 
 	default:
 		// EvidenceFactKinds bounds the SQL read to the kinds this

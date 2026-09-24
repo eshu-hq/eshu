@@ -101,7 +101,7 @@ func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 
 // TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1 proves the
 // version-less legacy path still works: a fact with an empty schema_version
-// normalizes to queryDefaultSchemaMajorVersion and decodes as v1, so an
+// normalizes to decode.DefaultSchemaMajorVersion and decodes as v1, so an
 // otherwise-valid fact is not dropped just because its row carried no version.
 func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 	t.Parallel()

@@ -40,20 +40,11 @@ root -- see README.md's Move evidence.
   package-local so a recording-provider span test stays private to this
   package. Do not promote it to an exported var or move the span helper back
   to root.
-- `derefString`/`derefBool` (`factschema_decode.go`) are this package's OWN copy of the
-  nil-safe pointer-deref helpers, deliberately not imported from root's
-  `derefString` (`factschema_decode_shared.go`, whose only caller is
-  `factschema_decode_supplychain.go`; root's own `derefBool` twin was dropped
-  in #6642 since no root caller needed it any more): this package must not
-  import root, and a two-line helper is not worth hoisting into
-  `querycontract` for two callers. Do not re-fork a third copy elsewhere; if
-  a third caller needs this, ask before adding a shared home.
-- `defaultSchemaMajorVersion` (`factschema_decode.go`, `"1.0.0"`) is a deliberate
-  duplicate of root's `queryDefaultSchemaMajorVersion`
-  (`factschema_decode_shared.go`), for the same reason as the deref helpers.
-  Keep both in sync if the schema-major convention ever changes; they cover
-  disjoint fact families today (work-item here, supply-chain in root), so
-  drift is unlikely but not structurally prevented.
+- The `*string` deref and the default schema version come from
+  `decode.DerefString` and `decode.DefaultSchemaMajorVersion`, shared by every
+  query-layer factschema decoder since #6642. Do not re-fork either here.
+  `derefBool` (`factschema_decode.go`) stays package-local: no other query
+  package needs a `*bool` deref.
 
 ## Naming
 

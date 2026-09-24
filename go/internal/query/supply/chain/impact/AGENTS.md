@@ -14,15 +14,9 @@ Read `doc.go` and `README.md` first.
   `supplyChainImpactExplanationCapability`) are registered in ROOT
   (`contract_supply_chain.go`), not here — root owns the router and always
   links into production. This package only declares the read models.
-- The copied decode wrappers MUST return `*decode.Error` via
-  `decode.New`, never root's `newQueryDecodeError`. That constructor
-  forwards to `decode.New` (root's `queryDecodeError` is an alias),
-  so the values are identical — but the next family copying this seam
-  copies the constructor call too, so keep it on the leaf.
-- `supplyChainDefaultSchemaMajorVersion` MUST stay `"1.0.0"` and MUST stay
-  a family-local copy (advisory precedent). It mirrors root's
-  `queryDefaultSchemaMajorVersion`; if the schema major ever moves, both
-  change together — grep for both names.
+- The decode wrappers return `*decode.Error` via `decode.New`, and normalize
+  an empty schema version to `decode.DefaultSchemaMajorVersion`. Do not
+  re-fork either into this package.
 - `supplyChainImpactFindingMaxLimit` (200),
   `maxSupplyChainRuntimeEnvironmentCandidates`
   (= the finding limit), `serviceCatalogCorrelationFactKind`,

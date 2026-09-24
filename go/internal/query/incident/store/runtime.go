@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -296,11 +297,11 @@ func decodeIncidentServiceCatalogOperationalLink(
 	}
 	return incidentServiceCatalogOperationalLink{
 		FactID:    row.FactID,
-		Provider:  workItemDerefString(link.Provider),
-		EntityRef: workItemDerefString(link.EntityRef),
-		LinkType:  workItemDerefString(link.LinkType),
-		Title:     workItemDerefString(link.Title),
-		URL:       workItemDerefString(link.URL),
+		Provider:  decode.DerefString(link.Provider),
+		EntityRef: decode.DerefString(link.EntityRef),
+		LinkType:  decode.DerefString(link.LinkType),
+		Title:     decode.DerefString(link.Title),
+		URL:       decode.DerefString(link.URL),
 	}, true
 }
 

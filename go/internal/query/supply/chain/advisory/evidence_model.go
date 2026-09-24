@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -113,9 +114,9 @@ func (a *advisoryEvidenceAccumulator) addFact(fact EvidenceFactRow) {
 		a.row.EPSS = append(a.row.EPSS, EPSSObservation{
 			Source:      source,
 			CVEID:       score.CVEID,
-			Probability: derefString(score.Probability),
-			Percentile:  derefString(score.Percentile),
-			ScoreDate:   derefString(score.ScoreDate),
+			Probability: decode.DerefString(score.Probability),
+			Percentile:  decode.DerefString(score.Percentile),
+			ScoreDate:   decode.DerefString(score.ScoreDate),
 			FactID:      fact.FactID,
 		})
 	case "vulnerability.known_exploited":
@@ -128,10 +129,10 @@ func (a *advisoryEvidenceAccumulator) addFact(fact EvidenceFactRow) {
 		a.row.KEV = append(a.row.KEV, KEVObservation{
 			Source:                     source,
 			CVEID:                      kev.CVEID,
-			DateAdded:                  derefString(kev.DateAdded),
-			RequiredAction:             derefString(kev.RequiredAction),
-			DueDate:                    derefString(kev.DueDate),
-			KnownRansomwareCampaignUse: derefString(kev.KnownRansomwareCampaignUse),
+			DateAdded:                  decode.DerefString(kev.DateAdded),
+			RequiredAction:             decode.DerefString(kev.RequiredAction),
+			DueDate:                    decode.DerefString(kev.DueDate),
+			KnownRansomwareCampaignUse: decode.DerefString(kev.KnownRansomwareCampaignUse),
 			CWEs:                       sortedStrings(kev.CWEs),
 			FactID:                     fact.FactID,
 		})
@@ -203,12 +204,12 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 		// (go/internal/collector/vulnerabilityintelligence/envelope.go). Read
 		// raw until a W1 change extends the struct.
 		Aliases:       sortedStrings(querycontract.StringSliceVal(payload, "aliases")),
-		PublishedAt:   derefString(cve.PublishedAt),
-		ModifiedAt:    derefString(cve.ModifiedAt),
-		WithdrawnAt:   derefString(cve.WithdrawnAt),
-		SeverityLabel: derefString(cve.SeverityLabel),
+		PublishedAt:   decode.DerefString(cve.PublishedAt),
+		ModifiedAt:    decode.DerefString(cve.ModifiedAt),
+		WithdrawnAt:   decode.DerefString(cve.WithdrawnAt),
+		SeverityLabel: decode.DerefString(cve.SeverityLabel),
 		CVSSScore:     derefFloat64(cve.CVSSScore),
-		CVSSVector:    derefString(cve.CVSSVector),
+		CVSSVector:    decode.DerefString(cve.CVSSVector),
 		// TODO(#4795 struct gap): CVE has no CVSSVectorV2/V3/V4, CVSSMetrics,
 		// Severity, or CWEs fields yet; NVD-sourced facts carry cvss_metrics
 		// and OSV-sourced facts carry severity. Read raw until a W1 change
@@ -251,10 +252,10 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 		ID:            advisoryID,
 		CVEID:         cveID,
 		GHSAID:        ghsaID,
-		Ecosystem:     derefString(typedPackage.Ecosystem),
-		PackageID:     derefString(typedPackage.PackageID),
-		PURL:          derefString(typedPackage.PURL),
-		AffectedRange: derefString(typedPackage.AffectedRangeRaw),
+		Ecosystem:     decode.DerefString(typedPackage.Ecosystem),
+		PackageID:     decode.DerefString(typedPackage.PackageID),
+		PURL:          decode.DerefString(typedPackage.PURL),
+		AffectedRange: decode.DerefString(typedPackage.AffectedRangeRaw),
 		// TODO(#4795 struct gap): vulnerability/v1.AffectedPackage (sdk/go/factschema)
 		// has no ParsedAffectedRange field yet (GitLab Gemnasium-sourced facts
 		// carry a real "parsed_affected_range" object,

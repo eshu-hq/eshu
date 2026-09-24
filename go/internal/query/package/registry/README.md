@@ -208,13 +208,10 @@ itself did not change.
 **Some helpers are local copies of root helpers, not forks.** Two separate
 Go constraints force this, and they are worth keeping apart.
 
-`derefString`/`derefBool` (`correlation_deref.go`) are
-production code. Root has the same helper, `derefString` (named
-`workItemDerefString` before #6642 destuttered it; its `derefBool` twin was
-dropped in the same move), but it is unexported, and an unexported symbol
-cannot be called across a package boundary. Root exports no equivalent to
-wrap, and it cannot move here because `factschema_decode_supplychain.go`
-still calls it.
+`derefBool` (`correlation_deref.go`) is production code with no shared
+equivalent. The `*string` case used to be a local `derefString` copy of an
+unexported root helper; #6642 moved that helper to `decode.DerefString`, and
+this package calls it now.
 
 The slice-comparison and SQL-lockstep helpers (`slice_test_helpers_test.go`,
 `sql_lockstep_helpers_test.go`) are copies for a different reason: Go never

@@ -369,7 +369,7 @@ func TestDecodePackageRegistryCorrelationRowTypedSeam(t *testing.T) {
 
 // TestDecodePackageRegistryCorrelationRowDefaultsEmptySchemaVersion proves an
 // empty schema_version (a version-less legacy row) still decodes through the
-// typed seam by normalizing to queryDefaultSchemaMajorVersion, matching every
+// typed seam by normalizing to decode.DefaultSchemaMajorVersion, matching every
 // other package_registry_correlations query decode wrapper's documented
 // default.
 func TestDecodePackageRegistryCorrelationRowDefaultsEmptySchemaVersion(t *testing.T) {

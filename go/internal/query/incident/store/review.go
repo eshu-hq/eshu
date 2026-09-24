@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 )
@@ -237,12 +238,12 @@ func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemR
 		Provider:    record.Provider,
 		WorkItemID:  record.ProviderWorkItemID,
 		WorkItemKey: record.WorkItemKey,
-		Summary:     workItemDerefString(record.Summary),
-		StatusID:    workItemDerefString(record.StatusID),
-		StatusName:  workItemDerefString(record.StatusName),
-		ProjectID:   workItemDerefString(record.ProjectID),
-		ProjectKey:  workItemDerefString(record.ProjectKey),
-		SourceURL:   workItemDerefString(record.SourceURL),
+		Summary:     decode.DerefString(record.Summary),
+		StatusID:    decode.DerefString(record.StatusID),
+		StatusName:  decode.DerefString(record.StatusName),
+		ProjectID:   decode.DerefString(record.ProjectID),
+		ProjectKey:  decode.DerefString(record.ProjectKey),
+		SourceURL:   decode.DerefString(record.SourceURL),
 	}, true
 }
 
@@ -258,9 +259,9 @@ func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incident
 	return incidentWorkItemProjectMetadata{
 		FactID:          row.FactID,
 		Provider:        metadata.Provider,
-		ProjectID:       workItemDerefString(metadata.ProjectID),
-		ProjectKey:      workItemDerefString(metadata.ProjectKey),
-		VisibilityState: workItemDerefString(metadata.VisibilityState),
+		ProjectID:       decode.DerefString(metadata.ProjectID),
+		ProjectKey:      decode.DerefString(metadata.ProjectKey),
+		VisibilityState: decode.DerefString(metadata.VisibilityState),
 	}, true
 }
 
@@ -277,8 +278,8 @@ func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) (incidentW
 		FactID:            row.FactID,
 		Provider:          metadata.Provider,
 		StatusID:          metadata.StatusID,
-		ProjectID:         workItemDerefString(metadata.ProjectID),
-		StatusCategory:    workItemDerefString(metadata.StatusCategory),
-		StatusCategoryKey: workItemDerefString(metadata.StatusCategoryKey),
+		ProjectID:         decode.DerefString(metadata.ProjectID),
+		StatusCategory:    decode.DerefString(metadata.StatusCategory),
+		StatusCategoryKey: decode.DerefString(metadata.StatusCategoryKey),
 	}, true
 }

@@ -6,6 +6,7 @@ package store
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -33,18 +34,18 @@ func decodeIncidentContextIncident(row incidentContextFactRow) (model.IncidentCo
 		ProviderIncidentID: record.ProviderIncidentID,
 		ScopeID:            row.ScopeID,
 		IncidentNumber:     incidentDerefInt64(record.IncidentNumber),
-		Title:              workItemDerefString(record.Title),
-		Status:             workItemDerefString(record.Status),
-		Urgency:            workItemDerefString(record.Urgency),
+		Title:              decode.DerefString(record.Title),
+		Status:             decode.DerefString(record.Status),
+		Urgency:            decode.DerefString(record.Urgency),
 		Priority:           incidentContextServiceReference(record.Priority),
 		Service:            incidentContextServiceReference(record.Service),
 		EscalationPolicy:   incidentContextServiceReference(record.EscalationPolicy),
 		Teams:              incidentContextServiceReferences(record.Teams),
 		Assignments:        incidentContextServiceReferences(record.Assignments),
-		CreatedAt:          workItemDerefString(record.CreatedAt),
-		UpdatedAt:          workItemDerefString(record.UpdatedAt),
-		ResolvedAt:         workItemDerefString(record.ResolvedAt),
-		SourceURL:          querycontract.FirstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
+		CreatedAt:          decode.DerefString(record.CreatedAt),
+		UpdatedAt:          decode.DerefString(record.UpdatedAt),
+		ResolvedAt:         decode.DerefString(record.ResolvedAt),
+		SourceURL:          querycontract.FirstNonEmpty(decode.DerefString(record.SourceURL), row.SourceURI),
 		EvidenceFactID:     row.FactID,
 		SourceConfidence:   row.SourceConfidence,
 		ObservedAt:         formatIncidentContextTime(row.ObservedAt),
@@ -70,12 +71,12 @@ func decodeIncidentContextTimelineEvent(
 	}
 	return model.IncidentContextTimelineEvent{
 		EventID:          event.ProviderEventID,
-		EventType:        workItemDerefString(event.EventType),
+		EventType:        decode.DerefString(event.EventType),
 		Actor:            incidentContextServiceReference(event.Actor),
-		Channel:          workItemDerefString(event.Channel),
-		Summary:          workItemDerefString(event.Summary),
-		CreatedAt:        workItemDerefString(event.CreatedAt),
-		SourceURL:        querycontract.FirstNonEmpty(workItemDerefString(event.SourceURL), row.SourceURI),
+		Channel:          decode.DerefString(event.Channel),
+		Summary:          decode.DerefString(event.Summary),
+		CreatedAt:        decode.DerefString(event.CreatedAt),
+		SourceURL:        querycontract.FirstNonEmpty(decode.DerefString(event.SourceURL), row.SourceURI),
 		EvidenceFactID:   row.FactID,
 		SourceConfidence: row.SourceConfidence,
 		ObservedAt:       formatIncidentContextTime(row.ObservedAt),
@@ -101,12 +102,12 @@ func decodeIncidentContextChangeCandidate(
 	}
 	return model.IncidentContextChangeCandidate{
 		ChangeID:         record.ProviderChangeID,
-		Summary:          workItemDerefString(record.Summary),
-		Source:           workItemDerefString(record.Source),
+		Summary:          decode.DerefString(record.Summary),
+		Source:           decode.DerefString(record.Source),
 		Services:         incidentContextServiceReferences(record.Services),
 		Links:            incidentContextChangeLinks(record.Links),
-		Timestamp:        workItemDerefString(record.Timestamp),
-		SourceURL:        querycontract.FirstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
+		Timestamp:        decode.DerefString(record.Timestamp),
+		SourceURL:        querycontract.FirstNonEmpty(decode.DerefString(record.SourceURL), row.SourceURI),
 		TruthLabel:       model.IncidentTruthFallback,
 		Explanation:      "candidate matched PagerDuty service and incident time window",
 		EvidenceFactID:   row.FactID,
@@ -149,10 +150,10 @@ func incidentContextServiceReference(ref *incidentv1.ServiceReference) model.Inc
 		return model.IncidentContextReference{}
 	}
 	return model.IncidentContextReference{
-		ID:      workItemDerefString(ref.ID),
-		Type:    workItemDerefString(ref.Type),
-		Summary: workItemDerefString(ref.Summary),
-		URL:     workItemDerefString(ref.URL),
+		ID:      decode.DerefString(ref.ID),
+		Type:    decode.DerefString(ref.Type),
+		Summary: decode.DerefString(ref.Summary),
+		URL:     decode.DerefString(ref.URL),
 	}
 }
 
@@ -166,10 +167,10 @@ func incidentContextServiceReferences(refs []incidentv1.ServiceReference) []mode
 	out := make([]model.IncidentContextReference, 0, len(refs))
 	for _, ref := range refs {
 		out = append(out, model.IncidentContextReference{
-			ID:      workItemDerefString(ref.ID),
-			Type:    workItemDerefString(ref.Type),
-			Summary: workItemDerefString(ref.Summary),
-			URL:     workItemDerefString(ref.URL),
+			ID:      decode.DerefString(ref.ID),
+			Type:    decode.DerefString(ref.Type),
+			Summary: decode.DerefString(ref.Summary),
+			URL:     decode.DerefString(ref.URL),
 		})
 	}
 	return out
@@ -185,8 +186,8 @@ func incidentContextChangeLinks(links []incidentv1.ChangeLink) []model.IncidentC
 	out := make([]model.IncidentContextLink, 0, len(links))
 	for _, link := range links {
 		out = append(out, model.IncidentContextLink{
-			Href: workItemDerefString(link.Href),
-			Text: workItemDerefString(link.Text),
+			Href: decode.DerefString(link.Href),
+			Text: decode.DerefString(link.Text),
 		})
 	}
 	return out

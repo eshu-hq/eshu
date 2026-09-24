@@ -14,16 +14,11 @@ Read `doc.go` and `README.md` first.
   `EvidenceCapability`) are registered in ROOT
   (`contract_supply_chain.go`), not here — root owns the router and always
   links into production. This package only declares the constant values.
-- The typed decode wrappers MUST return `*decode.Error` via
-  `decode.New`, never root's `newQueryDecodeError`. The model drops on
-  any non-nil error without inspecting its type, and the dead-letter tests
-  pin the drop, not the error type — but the next family copying this seam
-  copies the constructor call too, so keep it on the leaf.
-- `supplyChainDefaultSchemaMajorVersion` MUST stay `"1.0.0"` and MUST stay
-  a family-local copy (the registry family's precedent). It mirrors root's
-  `queryDefaultSchemaMajorVersion`; if the schema major ever moves, both
-  change together — rg for both names.
-- `derefString`, `derefFloat64`, `mapVal`, `stringMapSliceVal` are
+- The typed decode wrappers return `*decode.Error` via `decode.New` and
+  normalize an empty schema version to `decode.DefaultSchemaMajorVersion`;
+  `*string` fields go through `decode.DerefString`. Do not re-fork any of
+  them into this package.
+- `derefFloat64`, `mapVal`, `stringMapSliceVal` are
   family-local copies of trivial root helpers. They MUST stay
   behavior-identical to their root sources (named in each provenance
   comment). Do not extend them with family-specific semantics; add a new
