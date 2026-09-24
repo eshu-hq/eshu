@@ -1,0 +1,16 @@
+go/cmd/naming-glue-gate/exempt.go
+  h_78a442cba0b3e6 37
+go/cmd/naming-glue-gate/exempt_test.go
+  h_78a442cba0b3e6 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b6e7e3b44d8180d2b50d43a242288f36c69c6410",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
