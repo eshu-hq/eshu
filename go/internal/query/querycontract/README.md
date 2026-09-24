@@ -165,7 +165,7 @@ below, and is explained after the table:
 | `BoolVal` | cost 33 (`rowvalue/decode.go:78`) | cost 38 (`response_shaping_helpers.go:98`) | cost 43 (`neo4j.go:108`) |
 | `IntVal` | cost 40 (`rowvalue/decode.go:94`) | cost 45 (`response_shaping_helpers.go:104`) | cost 50 (`neo4j.go:113`) |
 | `StringSliceVal` | cost 65 (`rowvalue/decode.go:115`) | cost 70 (`response_shaping_helpers.go:110`) | cost 75 (`neo4j.go:118`) |
-| `FloatVal` | cost 46 (`rowvalue/decode.go:140`) | cost 51 (`response_shaping_helpers.go:116`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
+| `FloatVal` | cost 46 (`rowvalue/decode.go:140`) | cost 51 (`response_shaping_helpers.go:116`) | cost 56 (`compare/handler.go`, `repository_compat.go:31`) |
 
 For `BoolVal`, `IntVal`, `StringSliceVal` and `FloatVal` all three hops collapse.
 The `-m` run reports `inlining call to rowvalue.BoolVal` at
@@ -173,7 +173,7 @@ The `-m` run reports `inlining call to rowvalue.BoolVal` at
 `StringSliceVal` (`:111:32`) and `FloatVal` (`:117:26`) — the new hop; then
 `inlining call to querycontract.BoolVal` at `neo4j.go:109:30`, `IntVal` at
 `neo4j.go:114:29`, `StringSliceVal` at `neo4j.go:119:37` and `FloatVal` at
-`compare.go:404:31` and `repository_compat.go:32:31` — the old hop; then the
+`compare/handler.go` and `repository_compat.go:32:31` — the old hop; then the
 root wrapper itself at each caller (16 sites for `BoolVal`, 43 for `IntVal`, 42
 for `StringSliceVal`, 10 for `floatVal` and 1 for `relationshipFloatVal`). A
 decode site for those four emits the same code it did before the move.
