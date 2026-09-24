@@ -16,8 +16,7 @@ This package owns handler orchestration for the impact routes and the
 `CodeSurface`, and `PathProbe` dependencies. Non-method helpers the family
 needs but that touch no handler state live in `deployment`; this package
 imports `deployment`, never the reverse, and neither imports the query
-root (the root would cycle back through `compare.go` and
-`family_impact_shim.go`).
+root (the root would cycle back through `family_impact_shim.go`).
 
 It also owns the family's capability rows (`capabilities.go`, registered via
 `querycontract.RegisterCapabilities`): each family declares the support
@@ -164,7 +163,7 @@ either way:
 Four exported identifiers led with the package word and are renamed at their
 declarations (rule 4 retires the old names, so every qualified caller inside
 `internal/query` — root's `family_impact_shim.go`/`family_impact_change_surface_code.go`/
-`family_impact_path_probe_adapter.go`/`compare.go`/`compare_story.go`/
+`family_impact_path_probe_adapter.go`/`compare/handler.go`/`compare/story.go`/
 `impact_seam_export_test.go`/`w3_scoped_grant_filter_bench_test.go`,
 `repository/context_helpers.go`, and
 `service/query_truncation_wiring_test.go`/`service/evidence_file_bound_test.go`

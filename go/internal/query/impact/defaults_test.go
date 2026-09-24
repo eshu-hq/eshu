@@ -5,8 +5,8 @@
 // handler tests. These tests ran inside package query at base, where the
 // query root's init had already assigned impact.DefaultCodeSurface,
 // DefaultTraceContext, and DefaultPathProbe. This package cannot import the
-// root from its internal test files (compare.go and family_impact_shim.go
-// import impact/, so that would cycle), but an external test package may:
+// root from its internal test files (family_impact_shim.go imports impact/,
+// so that would cycle), but an external test package may:
 // nothing imports impact_test, so wiring the exported root constructors
 // here reproduces the base environment exactly with no behavior change.
 // Tests that need narrower behavior keep injecting per-handler fakes, per

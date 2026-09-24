@@ -9,7 +9,7 @@
 ## Invariants
 
 - This package must not import the query root or graph drivers. Root
-  (`compare.go`, `family_impact_shim.go`) imports this package, so a root
+  (`family_impact_shim.go`) imports this package, so a root
   import here cycles, including from `_test.go` files in this package. The
   external `impact_test` package (`defaults_test.go`) is the only
   exception: nothing imports it, so it may wire root constructors.

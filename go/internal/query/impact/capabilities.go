@@ -5,7 +5,7 @@
 // here — declared by the family that implements the routes, following the
 // semanticsearch.Support precedent — so the family's own test binary
 // observes the same profile gates production does without importing package
-// query (which would cycle through compare.go and family_impact_shim.go).
+// query (which would cycle through family_impact_shim.go).
 // The query root's matrix no longer repeats these rows: two copies drift
 // silently. Registration is last-write-wins and idempotent for identical
 // rows; the contract suite rejects duplicate initialization, so keep each

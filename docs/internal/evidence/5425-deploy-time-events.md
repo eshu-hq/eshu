@@ -90,7 +90,7 @@ a declared free-text environment alone.
 
 Two notes for whoever picks that up. There are two canonicalizers:
 `environment.Canonical` (already used here) and the `canonicalEnvironmentName`
-in `go/internal/query/compare_evidence.go` that #5426's issue text cites. And
+in `go/internal/query/compare/evidence.go` that #5426's issue text cites. And
 `githubJob.Environment`/`DeploymentStatus` map to JSON keys the real jobs API
 does not return, so `ci.environment_observation` appears to be fixture-only —
 which would make deployment events the family's first real runtime environment

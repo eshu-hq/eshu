@@ -135,7 +135,6 @@ LINE docs/internal/design/4866-offlinetier-cassette-exemption.md go/internal/rep
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/ifa/graphdump/normalize.go:32
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/projector/gcp/resource_materialization_intents.go:37
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/query/cloud_resource_dependencies.go:43
-LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/query/compare.go:207
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_materialization.go:282
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_service_anchor.go:33
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/azure_resource_materialization.go:203
@@ -159,9 +158,6 @@ LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalo
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog.go:214
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog.go:328
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/catalog_workload_environments.go:60
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/compare.go:187
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/compare.go:189
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/compare.go:35
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/content_reader_repository_catalog.go:107
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/content_reader_repository_catalog.go:89
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity.go:283
@@ -174,7 +170,6 @@ LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/servic
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/supply_chain_impact_path.go:145
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/supply_chain_impact_runtime_context_store.go:193
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/workload_runtime_topology.go:90
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/workload_runtime_topology.go:91
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/reducer/correlated_workload_projection_input_loader.go:35
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/reducer/dependency.go:76
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/reducer/dependency.go:76
