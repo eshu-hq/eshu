@@ -77,7 +77,7 @@ func buildTransitiveRelationshipGraphResponse(
 }
 
 // graphEntityIDPredicate forwards to the leaf-owned identity predicate so
-// relationshipsGraphRow's call site stays unchanged.
+// the relationshipsGraphRow and story_reads.go call sites stay unchanged.
 func graphEntityIDPredicate(alias string, param string) string {
 	return codemodel.GraphEntityIDPredicate(alias, param)
 }
