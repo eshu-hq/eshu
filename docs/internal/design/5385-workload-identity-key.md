@@ -1328,7 +1328,7 @@ empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
 (`normalizeQualifiedIdentifier` (now `go/internal/mcp/service/context/routes.go`)), turning a three-part id into `<repo_id>:<name>`.
 Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres —
 written at `go/internal/searchdocs/project.go:283`, matched back at
-`storage/postgres/eshu_search_index.go:216,300-312` — and stay stale until
+`go/internal/storage/postgres/search/index/store.go` (`BuildEshuSearchIndexQuery` and `searchIndexHandlePredicate`) — and stay stale until
 reindexed. The catalog read model *synthesizes* graph-shaped ids from the
 separate `reducer_workload_identity` scheme (`go/internal/query/catalog.go:213`), so the Console is
 handed ids that would 404 against `/workloads/{id}/context`.

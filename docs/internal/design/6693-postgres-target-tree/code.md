@@ -198,7 +198,7 @@ eshu_search_vector_query_tuning_test.go -> search/document/vector_query_tuning_t
 
 </details>
 
-### `search/index/` (1 non-test, 4 test)
+### `search/index/` (1 non-test, 2 test)
 
 ```text
 eshu_search_index.go -> search/index/store.go
@@ -207,11 +207,19 @@ eshu_search_index.go -> search/index/store.go
 <details><summary>Tests</summary>
 
 ```text
-eshu_search_index_bm25_partition_live_test.go -> search/index/store_bm25_partition_live_test.go
 eshu_search_index_schema_test.go -> search/index/store_schema_test.go   # external test package: imports root
-eshu_search_index_terms_doc_plan_live_test.go -> search/index/store_terms_doc_plan_live_test.go
 eshu_search_index_test.go -> search/index/store_test.go
 ```
+
+`eshu_search_index_bm25_partition_live_test.go` and
+`eshu_search_index_terms_doc_plan_live_test.go` moved to `root.md` instead:
+the bm25 file reads root's live partition-proof DB helpers
+(`openSearchIndexPartitionProofDB`, `searchIndexPartitionProofConn`,
+`scannedChildPartitionsLive`, all private to root's own `_test.go` files, so
+they cannot be exported across a package boundary) and the terms-doc-plan file
+defines `planJSONSummary`, which `eshu_search_index_partition_live_test.go`
+(root, stays) already calls. See `root.md`'s `SPLIT` and `spans root=100%`
+entries for the two files.
 
 </details>
 

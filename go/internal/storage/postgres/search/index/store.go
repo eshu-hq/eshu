@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package indexstore
 
 import (
 	"context"
@@ -85,12 +85,12 @@ func (s EshuSearchIndexStore) Search(
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, err
 	}
-	terms, termKeys := sortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
+	terms, termKeys := SortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
 	if len(terms) == 0 {
 		return result, nil
 	}
 
-	query, args := buildEshuSearchIndexQuery(search, terms, termKeys)
+	query, args := BuildEshuSearchIndexQuery(search, terms, termKeys)
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("search persisted eshu search index: %w", err)
@@ -188,7 +188,11 @@ func validateEshuSearchIndexSearch(search EshuSearchIndexSearch) error {
 	return errors.Join(problems...)
 }
 
-func sortedSearchIndexTerms(counts map[string]int) ([]string, []string) {
+// SortedSearchIndexTerms is exported for the root partition-proof live tests
+// (`storage/postgres`'s BM25 partition-pruning proof), which build the same
+// query this package's Search issues to run it under EXPLAIN. It is not part
+// of the store's read API for production callers.
+func SortedSearchIndexTerms(counts map[string]int) ([]string, []string) {
 	terms := make([]string, 0, len(counts))
 	for term := range counts {
 		terms = append(terms, term)
@@ -201,7 +205,9 @@ func sortedSearchIndexTerms(counts map[string]int) ([]string, []string) {
 	return terms, termKeys
 }
 
-func buildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, termKeys []string) (string, []any) {
+// BuildEshuSearchIndexQuery is exported for the same root partition-proof
+// live tests as SortedSearchIndexTerms; see its doc comment.
+func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, termKeys []string) (string, []any) {
 	args := []any{search.ScopeID, terms, termKeys, search.RepoID, int64(search.Limit)}
 	addArg := func(value any) string {
 		args = append(args, value)

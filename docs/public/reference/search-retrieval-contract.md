@@ -258,7 +258,7 @@ fallback edges preserve order, basis, and length.
 
 ## Persisted Postgres Search Index
 
-`go/internal/storage/postgres.EshuSearchIndexStore` serves the default public
+`go/internal/storage/postgres/search/index.EshuSearchIndexStore` serves the default public
 repository-bounded search surface from persisted BM25 postings for active
 curated search documents. The reducer writes the index alongside
 `eshu_search_document` facts for each scope and generation:

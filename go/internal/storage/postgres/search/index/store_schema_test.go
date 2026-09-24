@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package indexstore_test
 
 import (
 	"os"
@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestBootstrapDefinitionsBoundEshuSearchIndexTermKeys(t *testing.T) {
@@ -70,7 +72,7 @@ func TestBootstrapDefinitionsSkipPartitionedSearchTermPKeyRebuild(t *testing.T) 
 func TestDataPlaneSearchIndexSchemaHashPartitionSearchIndexTerms(t *testing.T) {
 	t.Parallel()
 
-	schemaPath := filepath.Join("..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
+	schemaPath := filepath.Join("..", "..", "..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
 	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Fatalf("read data-plane search-index schema: %v", err)
@@ -92,7 +94,7 @@ func TestDataPlaneSearchIndexSchemaHashPartitionSearchIndexTerms(t *testing.T) {
 func TestDataPlaneSearchIndexSchemaSkipsPartitionedSearchTermPKeyRebuild(t *testing.T) {
 	t.Parallel()
 
-	schemaPath := filepath.Join("..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
+	schemaPath := filepath.Join("..", "..", "..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
 	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Fatalf("read data-plane search-index schema: %v", err)
@@ -169,21 +171,21 @@ func TestBootstrapDefinitionsAvoidRedundantSearchTermLookupIndex(t *testing.T) {
 	}
 }
 
-func mustBootstrapDefinition(t *testing.T, name string) Definition {
+func mustBootstrapDefinition(t *testing.T, name string) postgres.Definition {
 	t.Helper()
-	for _, def := range BootstrapDefinitions() {
+	for _, def := range postgres.BootstrapDefinitions() {
 		if def.Name == name {
 			return def
 		}
 	}
 	t.Fatalf("%s definition missing", name)
-	return Definition{}
+	return postgres.Definition{}
 }
 
 func TestDataPlaneSearchIndexSchemaAvoidsRedundantTermLookupIndex(t *testing.T) {
 	t.Parallel()
 
-	schemaPath := filepath.Join("..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
+	schemaPath := filepath.Join("..", "..", "..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
 	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Fatalf("read data-plane search-index schema: %v", err)
@@ -209,8 +211,8 @@ func TestDataPlaneSearchIndexSchemaAvoidsRedundantTermLookupIndex(t *testing.T) 
 func TestBootstrapDefinitionsDropRedundantSearchTermLookupIndex(t *testing.T) {
 	t.Parallel()
 
-	var marker Definition
-	for _, def := range BootstrapDefinitions() {
+	var marker postgres.Definition
+	for _, def := range postgres.BootstrapDefinitions() {
 		if def.Name == "drop_eshu_search_index_terms_lookup_idx" {
 			marker = def
 			break
@@ -231,8 +233,8 @@ func TestBootstrapDefinitionsDropRedundantSearchTermLookupIndex(t *testing.T) {
 func TestBootstrapDefinitionsDropSearchIndexTermsDocumentIndex(t *testing.T) {
 	t.Parallel()
 
-	var marker Definition
-	for _, def := range BootstrapDefinitions() {
+	var marker postgres.Definition
+	for _, def := range postgres.BootstrapDefinitions() {
 		if def.Name == "drop_eshu_search_index_terms_doc_idx" {
 			marker = def
 			break
