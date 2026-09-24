@@ -16,13 +16,14 @@ import "strings"
 // on rationale.repo_id; delta-generation retracts anchor on target.path so a
 // changed file cannot delete other files' EXPLAINS truth.
 
-// RationaleExplainsTargetLabels is the single source of truth for the code
-// entity labels an EXPLAINS edge can target. The write template's target
-// disjunction and the per-label delta retract statements are both built from
-// it, so a label added to one side cannot silently miss the other.
-var RationaleExplainsTargetLabels = []string{
-	"Function", "Class", "Struct", "Interface", "TypeAlias", "Enum", "File",
-}
+// The label disjunction is a constant so the indexed-write sweep can inspect
+// the complete Cypher statement. Delta retracts use the same source of truth.
+const rationaleExplainsTargetLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|Enum|File"
+
+// RationaleExplainsTargetLabels lists the code entity labels an EXPLAINS edge
+// can target. The write template and per-label delta retracts share the
+// disjunction above, so adding a label to one updates both paths.
+var RationaleExplainsTargetLabels = strings.Split(rationaleExplainsTargetLabelDisjunction, "|")
 
 // BatchCanonicalRationaleExplainsEdgeCypher targets its MATCH with a label
 // disjunction plus an inline {uid: ...} anchor. Probed on NornicDB v1.1.11:
@@ -31,7 +32,7 @@ var RationaleExplainsTargetLabels = []string{
 // WHERE predicate, which matches zero rows (#5116 — the reason the delta
 // retract fans out per target label instead).
 var BatchCanonicalRationaleExplainsEdgeCypher = `UNWIND $rows AS row
-MATCH (target:` + strings.Join(RationaleExplainsTargetLabels, "|") + ` {uid: row.target_entity_id})
+MATCH (target:` + rationaleExplainsTargetLabelDisjunction + ` {uid: row.target_entity_id})
 MERGE (rationale:Rationale {uid: row.rationale_uid})
 SET rationale.type = 'rationale',
     rationale.repo_id = row.repo_id,
