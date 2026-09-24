@@ -78,7 +78,10 @@ func TestNeo4jReaderSpansDoNotExposeQueryText(t *testing.T) {
 	}
 }
 
-func TestNeo4jReaderWarningDoesNotExposeQueryOrDriverCause(t *testing.T) {
+// TestNeo4jReaderWarningNamesStatementButNotDriverCause proves the warning
+// names the exact statement shape (fingerprint plus bounded head, #7035)
+// while still never exposing the raw driver failure cause (a Bolt address).
+func TestNeo4jReaderWarningNamesStatementButNotDriverCause(t *testing.T) {
 	const (
 		queryText    = "MATCH (secret:PrivateThing) RETURN secret"
 		privateCause = "bolt://private.example.invalid:7687"
@@ -97,8 +100,12 @@ func TestNeo4jReaderWarningDoesNotExposeQueryOrDriverCause(t *testing.T) {
 	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
 	_, _ = reader.Run(context.Background(), queryText, nil)
-	if got := logs.String(); strings.Contains(got, queryText) || strings.Contains(got, privateCause) {
-		t.Fatalf("warning exposed query or driver cause: %s", got)
+	got := logs.String()
+	if strings.Contains(got, privateCause) {
+		t.Fatalf("warning exposed driver cause: %s", got)
+	}
+	if !strings.Contains(got, graphStatementFingerprint(queryText)) || !strings.Contains(got, graphStatementHead(queryText)) {
+		t.Fatalf("warning = %s, want statement fingerprint and head", got)
 	}
 }
 

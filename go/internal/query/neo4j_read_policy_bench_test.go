@@ -172,6 +172,6 @@ func benchmarkUnboundedReaderRead(
 		duration,
 		reader.policy.slowThreshold,
 	)
-	reader.recordGraphReadTelemetry(parentCtx, span, outcome, 1, duration, publicErr)
+	reader.recordGraphReadTelemetry(parentCtx, span, outcome, 1, duration, publicErr, graphStatementFingerprint(cypher), cypher)
 	return rows, nil
 }

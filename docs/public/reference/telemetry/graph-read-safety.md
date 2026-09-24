@@ -193,10 +193,49 @@ backend transaction deadline expired while the caller was still live.
 counted as a graph-policy deadline.
 
 The `neo4j.query` span records the same outcome plus
-`eshu.graph_read.attempts` and
-`eshu.graph_read.configured_deadline_ms`. Slow, deadline, and unavailable
-reads also emit `query.graph_read.warning` with `pipeline_phase="query"`, a
-bounded `failure_class`, and `duration_seconds`.
+`eshu.graph_read.attempts`, `eshu.graph_read.configured_deadline_ms`, and
+`eshu.graph_read.statement_fingerprint` -- the first 12 hex characters of the
+sha256 of the statement text with whitespace runs collapsed, computed on every
+bounded read regardless of outcome (issue #7035). Bound parameters never enter
+the fingerprint or any other graph-read signal. Slow, deadline, and
+unavailable reads also emit `query.graph_read.warning` with
+`pipeline_phase="query"`, a bounded `failure_class`, `duration_seconds`, and
+two fields that name the exact statement shape: `graph_read.statement_fingerprint`
+(the same value as the span attribute) and `graph_read.statement_head` (the
+whitespace-collapsed statement, truncated to 300 characters with an
+`...[truncated]` marker when it exceeds that bound).
+
+The slow threshold defaults to 1 second, matching the API/MCP endpoint budget,
+and is configurable through `ESHU_GRAPH_READ_SLOW_THRESHOLD` (a Go duration
+string, for example `750ms`). An unset value keeps the default; an invalid or
+non-positive value logs `query.graph_read.invalid_slow_threshold` once at
+startup and falls back to the default rather than silently disabling the
+warning.
+
+### Matching a fingerprint to NornicDB
+
+`graph_read.statement_fingerprint` identifies the Eshu-side statement shape; it
+has no equivalent on the NornicDB side, so matching relies on the statement
+text instead:
+
+- **NornicDB slow-query log** -- NornicDB's own `event="slow_query"` log
+  (threshold `NORNICDB_SLOW_QUERY_THRESHOLD`, default 5s) carries `plan_hash`
+  and a literal-redacted `query` field truncated to 500 characters. Compare
+  Eshu's `graph_read.statement_head` (up to 300 characters) against the
+  leading 300 characters of NornicDB's `query` field: if Eshu's head is a
+  prefix of NornicDB's redacted query, the two log lines describe the same
+  read. Because Eshu's default threshold (1s) is well below NornicDB's
+  default (5s), a read that is `slow` in Eshu but absent from the NornicDB log
+  is expected -- lower `NORNICDB_SLOW_QUERY_THRESHOLD` to correlate reads in
+  the 1-5s range.
+- **NornicDB pprof capture** -- when a statement shape recurs as `slow` or
+  `deadline`, enable `NORNICDB_PPROF_ENABLED` (bind address
+  `NORNICDB_PPROF_LISTEN`, default `127.0.0.1:9091`) and capture a profile with
+  `GET /debug/pprof/profile?seconds=N` for `N` at least as long as the
+  observed `duration_seconds`. There is no fingerprint inside the pprof
+  profile; use the capture's wall-clock window plus the statement head/shape
+  already identified from the Eshu warning and the NornicDB slow-query log to
+  find the matching stack.
 
 Session-close failures emit `query.graph_read.session_close_failed` with
 `pipeline_phase="query"` and `failure_class="session_close_error"`. Because
