@@ -45,7 +45,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | [#7051](https://github.com/eshu-hq/eshu/pull/7051) | **merged** `31ce0cb56` | 269 |
 | `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | [#7053](https://github.com/eshu-hq/eshu/pull/7053) | **merged** `8d5949f90` | 268 |
 | `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | [#7055](https://github.com/eshu-hq/eshu/pull/7055) | **merged** `63613f158` | 267 |
-| `kubernetes/` (`handler.go`, `correlations.go`, `runtime_workload_store.go`) | 3, +1 alias | this PR | open | 265 |
+| `kubernetes/` (`handler.go`, `correlations.go`, `runtime_workload_store.go`) | 3, +1 alias | [#7072](https://github.com/eshu-hq/eshu/pull/7072) | **merged** `052054294` | 265 |
+| `metrics/` (`handler.go`, `prometheus.go`, `request.go`) | 3, +1 alias | this PR | open | 263 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -381,3 +382,22 @@ so the root performance helper can EXPLAIN the store's SQL. Root keeps
 constructors in `kubernetes_alias.go`.
 
 No-Observability-Change: same span name and tracer; no metric or log change.
+
+## Performance and observability evidence for the `metrics` leaf
+
+No-Regression Evidence: `metrics.go`, `metrics_prometheus.go` and
+`request_metrics.go` move to `metrics/`. The metric allow-list, range
+validation, the Prometheus/Mimir client, the freshness mapping and the
+request-metrics middleware (route-pattern labels, `Flush`/`Hijack` forwarding,
+meter resolution inside `sync.Once`) are unchanged. The capability row moves
+into `metrics.Support()` with identical values. The leaf's capability test is
+renamed `TestTimeSeriesSupportIsDerived`: in the leaf it sees only
+`main_test.go`'s registration, and root's `TestCapabilityMatrixMatchesYAMLContract`
+proves the production registration (a `go test -overlay` that drops
+`contract/metrics.go`'s registration fails it). The Ask SSE streaming
+regression stays in root as `ask_sse_metrics_middleware_test.go` because it
+drives root's `AskHandler`. Root keeps seven names in `metrics_alias.go` for
+`cmd/api` and `cmd/mcp-server`.
+
+No-Observability-Change: same metric names, labels and meter; no span or log
+change.
