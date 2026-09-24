@@ -55,7 +55,7 @@ func storyProbeRequest() codemodel.RelationshipStoryRequest {
 func newLiveStoryReader(ctx context.Context, t *testing.T) (*liveNornicDBReader, func()) {
 	t.Helper()
 	driver := openLiveClauseDriver(ctx, t)
-	seedLiveClauseGraph(ctx, t, driver)
+	seedLiveClauseGraph(ctx, t, driver, "nornic")
 	return newLiveNornicDBReader(driver, "nornic"), func() { _ = driver.Close(context.Background()) }
 }
 
@@ -215,42 +215,6 @@ func TestLiveNornicDBRelationshipStoryRequiredRepositoryMatchFixShape(t *testing
 	for _, leaked := range []string{liveClauseUngrantedCallee, liveClauseOrphanCallee} {
 		if liveClauseContainsName(names, leaked) {
 			t.Fatalf("required-MATCH statement returned the out-of-grant row %q: %v", leaked, names)
-		}
-	}
-}
-
-// TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows runs
-// relationshipStoryGraphCypher, the Neo4j-compat sibling. Its anchor predicate
-// sits in the SAME OPTIONAL MATCH-attached WHERE as the grant, so the probe
-// also records whether the anchor itself still binds.
-func TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	reader, closeDriver := newLiveStoryReader(ctx, t)
-	defer closeDriver()
-
-	cypher, params := relationshipStoryGraphCypher(
-		storyProbeRequest(),
-		&EntityContent{EntityID: liveClauseAnchorUID},
-		"outgoing",
-		graphEntityIDPredicate,
-		liveClauseGrantedAccess(),
-	)
-	rows, err := reader.Run(ctx, cypher, params)
-	if err != nil {
-		t.Fatalf("run shipped compat story statement: %v", err)
-	}
-	names := liveClauseRowNames(rows, "target_name")
-	sources := liveClauseRowNames(rows, "source_name")
-	t.Logf("compat outgoing statement returned %d rows; sources=%v targets=%v", len(rows), sources, names)
-	for _, leaked := range []string{liveClauseUngrantedCallee, liveClauseOrphanCallee} {
-		if liveClauseContainsName(names, leaked) {
-			t.Fatalf("the scoped compat read returned the out-of-grant row %q: %v", leaked, names)
-		}
-	}
-	for _, unrelated := range []string{liveClauseUngrantedCaller, liveClauseGrantedCaller} {
-		if liveClauseContainsName(sources, unrelated) {
-			t.Fatalf("the compat anchor predicate did not bind; %q appeared as a source: %v", unrelated, sources)
 		}
 	}
 }

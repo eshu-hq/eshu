@@ -35,12 +35,13 @@ func SplitClassHierarchyRelationships(rows []map[string]any) ([]map[string]any, 
 	return parents, children
 }
 
-// ClassMethodsCypher builds the methods-of-a-class read. The predicate
-// renders the entity anchor; the grant predicates bind both endpoints.
+// ClassMethodsCypher builds the Neo4j methods-of-a-class read. The class
+// binds through codemodel.Neo4jEntityIDAnchor, an indexed uid/id seek rather
+// than an id-OR-uid scan of every node (issue #7057); the grant predicates bind
+// both endpoints.
 func ClassMethodsCypher(
 	req codemodel.RelationshipStoryRequest,
 	entityID string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
@@ -53,11 +54,11 @@ func ClassMethodsCypher(
 	}
 	// Both endpoints bind: a class in grant can contain a method the projector
 	// attributed to another repository, and the method row is what ships.
-	predicates := append([]string{predicate("class", "$entity_id")},
-		GrantPredicates(access, "class", "method")...)
+	predicates := GrantPredicates(access, "class", "method")
 	return `
+		` + codemodel.Neo4jEntityIDAnchor("class", "$entity_id") + `
 		MATCH (class)-[:CONTAINS]->(method:Function)
-		WHERE ` + strings.Join(predicates, " AND ") + `
+		` + Where(predicates) + `
 		RETURN coalesce(method.id, method.uid) as method_id,
 		       method.name as method_name,
 		       method.path as file_path,
@@ -83,11 +84,16 @@ func ClassMethodsCypher(
 // bare property is right: a null repo_id makes the membership test null,
 // all() over a null yields null, and WHERE null drops the row, so an
 // unattributable interior class still fails closed.
+//
+// The anchored endpoint seeks the Class uid uniqueness constraint inline,
+// (target:Class {uid: $entity_id}) for incoming and the source for outgoing,
+// instead of an id-OR-uid WHERE the Neo4j planner cannot index (issue #7057).
+// The canonical and semantic entity writers both MERGE Class on uid and set
+// id to the same entity id, so the seek matches the same node.
 func InheritanceDepthCypher(
 	req codemodel.RelationshipStoryRequest,
 	entityID string,
 	direction string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := NormalizeMaxDepth(req.MaxDepth)
@@ -98,19 +104,18 @@ func InheritanceDepthCypher(
 	if access.Scoped() {
 		params = access.GraphParams(params)
 	}
-	inheritancePredicates := func(anchor string) string {
-		predicates := append([]string{predicate(anchor, "$entity_id")},
-			GrantPredicates(access, "source", "target")...)
+	inheritancePredicates := func() string {
+		predicates := GrantPredicates(access, "source", "target")
 		if access.Scoped() {
 			predicates = append(predicates,
 				"all(node IN nodes(path) WHERE "+access.GraphConditionOnProperty("node", "repo_id")+")")
 		}
-		return strings.Join(predicates, " AND ")
+		return Where(predicates)
 	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`
-		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class)
-		WHERE %s
+		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class {uid: $entity_id})
+		%s
 		RETURN 'incoming' as direction,
 		       coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
@@ -119,11 +124,11 @@ func InheritanceDepthCypher(
 		       length(path) as depth
 		ORDER BY depth DESC, source.name, source_id
 		LIMIT $limit
-	`, maxDepth, inheritancePredicates("target")), params
+	`, maxDepth, inheritancePredicates()), params
 	}
 	return fmt.Sprintf(`
-		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class)
-		WHERE %s
+		MATCH path = (source:Class {uid: $entity_id})-[:INHERITS*1..%d]->(target:Class)
+		%s
 		RETURN 'outgoing' as direction,
 		       coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
@@ -132,7 +137,7 @@ func InheritanceDepthCypher(
 		       length(path) as depth
 		ORDER BY depth DESC, target.name, target_id
 		LIMIT $limit
-	`, maxDepth, inheritancePredicates("source")), params
+	`, maxDepth, inheritancePredicates()), params
 }
 
 // EntityID resolves the entity id a story read anchors on: the resolved

@@ -66,13 +66,13 @@ func TestRelationshipStoryBuildersBindTheGrantInTheAnchoringMatch(t *testing.T) 
 		{
 			name: "compat_outgoing",
 			cypher: firstOf(relationshipStoryGraphCypher(
-				req, nil, "outgoing", graphEntityIDPredicate, access)),
+				req, nil, "outgoing", access)),
 			aliases: []string{"source", "target"},
 		},
 		{
 			name: "compat_incoming",
 			cypher: firstOf(relationshipStoryGraphCypher(
-				req, nil, "incoming", graphEntityIDPredicate, access)),
+				req, nil, "incoming", access)),
 			aliases: []string{"source", "target"},
 		},
 		{
@@ -84,7 +84,7 @@ func TestRelationshipStoryBuildersBindTheGrantInTheAnchoringMatch(t *testing.T) 
 		{
 			name: "compat_class_methods",
 			cypher: firstOf(relationshipStoryClassMethodsCypher(
-				req, storyGrantedAnchor, graphEntityIDPredicate, access)),
+				req, storyGrantedAnchor, access)),
 			aliases: []string{"class", "method"},
 		},
 		{
@@ -102,7 +102,7 @@ func TestRelationshipStoryBuildersBindTheGrantInTheAnchoringMatch(t *testing.T) 
 		{
 			name: "compat_inheritance",
 			cypher: firstOf(relationshipStoryInheritanceDepthCypher(
-				req, storyGrantedAnchor, "outgoing", graphEntityIDPredicate, access)),
+				req, storyGrantedAnchor, "outgoing", access)),
 			aliases: []string{"source", "target"},
 		},
 		{
@@ -129,10 +129,10 @@ func TestRelationshipStoryBuildersCarryNoGrantForAnUnscopedCaller(t *testing.T) 
 	for name, cypher := range map[string]string{
 		"nornicdb_outgoing":      firstOf(nornicDBRelationshipStoryGraphCypher(req, storyGrantedAnchor, "Function", "uid", "outgoing", access)),
 		"nornicdb_incoming":      firstOf(nornicDBRelationshipStoryGraphCypher(req, storyGrantedAnchor, "Function", "uid", "incoming", access)),
-		"compat_outgoing":        firstOf(relationshipStoryGraphCypher(req, nil, "outgoing", graphEntityIDPredicate, access)),
+		"compat_outgoing":        firstOf(relationshipStoryGraphCypher(req, nil, "outgoing", access)),
 		"nornicdb_class_methods": firstOf(nornicDBRelationshipStoryClassMethodsCypher(req, storyGrantedAnchor, "uid", access)),
 		"nornicdb_inheritance":   firstOf(nornicDBRelationshipStoryInheritanceDepthCypher(req, storyGrantedAnchor, "outgoing", "uid", access)),
-		"compat_inheritance":     firstOf(relationshipStoryInheritanceDepthCypher(req, storyGrantedAnchor, "outgoing", graphEntityIDPredicate, access)),
+		"compat_inheritance":     firstOf(relationshipStoryInheritanceDepthCypher(req, storyGrantedAnchor, "outgoing", access)),
 		"override_rows":          firstOf(relationshipStoryOverrideRowsCypher(codemodel.RelationshipStoryRequest{QueryType: "overrides", RepoID: codeGrantGrantedRepo, Limit: 50}, access)),
 	} {
 		if strings.Contains(cypher, "$allowed_repository_ids") || strings.Contains(cypher, "$allowed_scope_ids") {
@@ -340,7 +340,7 @@ func TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly(t *testing.T
 		t.Parallel()
 		for _, direction := range []string{"outgoing", "incoming"} {
 			cypher := firstOf(relationshipStoryInheritanceDepthCypher(
-				req, storyGrantedAnchor, direction, graphEntityIDPredicate, access))
+				req, storyGrantedAnchor, direction, access))
 			if !strings.Contains(cypher, storyInheritanceHopClause(access)) {
 				t.Fatalf("compat %s inheritance walk does not bound its interior hops with %q:\n%s",
 					direction, storyInheritanceHopClause(access), cypher)
@@ -374,7 +374,7 @@ func TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly(t *testing.T
 		t.Parallel()
 		unscoped := repositoryAccessFilter{AllScopes: true}
 		cypher := firstOf(relationshipStoryInheritanceDepthCypher(
-			req, storyGrantedAnchor, "outgoing", graphEntityIDPredicate, unscoped))
+			req, storyGrantedAnchor, "outgoing", unscoped))
 		if strings.Contains(cypher, "nodes(path)") {
 			t.Fatalf("an unscoped caller rendered a hop clause:\n%s", cypher)
 		}

@@ -285,7 +285,7 @@ func (h *CodeHandler) relationshipsGraphRow(
 	}
 
 	if strings.TrimSpace(entityID) != "" {
-		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypher(graphEntityIDPredicate("e", "$entity_id")), map[string]any{
+		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypherFromAnchor(neo4jEntityIDAnchor("e", "$entity_id")), map[string]any{
 			"entity_id": entityID,
 		})
 	}

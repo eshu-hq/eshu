@@ -37,8 +37,16 @@ func RelationshipGraphRowCypher(predicate string) string {
 // scope part of the graph traversal instead of a post-hoc existence check,
 // which both backends evaluate correctly.
 func RelationshipGraphRowCypherAnchored(matchClause, predicate string) string {
+	return RelationshipGraphRowCypherFromAnchor(matchClause + ` WHERE ` + predicate)
+}
+
+// RelationshipGraphRowCypherFromAnchor is the single-row relationship read
+// with the entity-binding clause supplied whole, so a caller can bind e with a
+// clause that takes no trailing WHERE -- the Neo4j entity-id read passes
+// Neo4jEntityIDAnchor("e", "$entity_id") here (issue #7057).
+func RelationshipGraphRowCypherFromAnchor(anchorClause string) string {
 	return `
-		` + matchClause + ` WHERE ` + predicate + `
+		` + anchorClause + `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 		OPTIONAL MATCH (e)-[outgoingRel]->(target)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
@@ -344,4 +352,100 @@ func normalizeGraphRelationshipSlice(relationships []map[string]any) []map[strin
 		normalized = append(normalized, item)
 	}
 	return normalized
+}
+
+// neo4jEntityUIDAnchorLabels is every label the graph schema gives a uid
+// uniqueness constraint (uidConstraintLabels in go/internal/graph). Every
+// writer that MERGEs one of these labels on uid also sets id to the same value
+// or leaves id unset, so a uid seek over this set finds exactly the nodes the
+// old (e.id = x OR e.uid = x) predicate found on these labels (issue #7057).
+// TestNeo4jEntityIDAnchorLabelsMatchSchema fails when the schema list moves.
+var neo4jEntityUIDAnchorLabels = []string{
+	"AnalyticsModel", "Annotation", "ArgoCDApplication",
+	"ArgoCDApplicationSet", "AtlantisProject", "AtlantisWorkflow",
+	"CidrBlock", "Class", "CloudFormationCondition", "CloudFormationExport",
+	"CloudFormationImport", "CloudFormationOutput", "CloudFormationParameter",
+	"CloudFormationResource", "CloudResource", "CodeTaintEvidence",
+	"Component", "ContainerImage", "ContainerImageDescriptor",
+	"ContainerImageIndex", "ContainerImageTagObservation", "CrossplaneClaim",
+	"CrossplaneComposition", "CrossplaneXRD", "DashboardAsset", "DataAsset",
+	"DataColumn", "DataContract", "DataOwner", "DataQualityCheck", "Enum",
+	"ExternalPrincipal", "File", "FluxBucket", "FluxGitRepository",
+	"FluxHelmRelease", "FluxHelmRepository", "FluxKustomization",
+	"FluxOCIRepository", "Function", "GitlabJob", "GitlabPipeline",
+	"HelmChart", "HelmTemplateValueUsage", "HelmValueDefinition",
+	"HelmValues", "ImplBlock", "IncidentRoutingEvidence", "Interface",
+	"K8sResource", "KubernetesNamespace", "KubernetesWorkload",
+	"KustomizeOverlay", "Macro", "Module", "OciImageDescriptor",
+	"OciImageIndex", "OciImageManifest", "OciImageReferrer",
+	"OciImageTagObservation", "OciRegistryRepository", "Package",
+	"PackageArtifact", "PackageDependency", "PackageRegistryPackage",
+	"PackageRegistryPackageArtifact", "PackageRegistryPackageDependency",
+	"PackageRegistryPackageVersion", "PackageRegistryRegistryEvent",
+	"PackageVersion", "PagerDutyDeclaration", "PrefixList", "Property",
+	"Protocol", "ProtocolImplementation", "QueryExecution", "Record",
+	"RegistryEvent", "SecretsIAMSecretMetadataPath",
+	"SecretsIAMServiceAccount", "SecretsIAMVaultAuthRole",
+	"SecretsIAMVaultPolicy", "SecurityGroupRule", "ShellCommand", "SqlColumn",
+	"SqlFunction", "SqlIndex", "SqlMigration", "SqlTable", "SqlTrigger",
+	"SqlView", "Struct", "TerraformBackend", "TerraformBlock",
+	"TerraformCheck", "TerraformDataSource", "TerraformImport",
+	"TerraformLocal", "TerraformLockProvider", "TerraformModule",
+	"TerraformMovedBlock", "TerraformOutput", "TerraformProvider",
+	"TerraformRemovedBlock", "TerraformResource", "TerraformStateResource",
+	"TerraformVariable", "TerragruntConfig", "TerragruntDependency",
+	"TerragruntInput", "TerragruntLocal", "Trait", "TypeAlias",
+	"TypeAnnotation", "Typedef", "Union", "Variable",
+}
+
+// neo4jEntityIDAnchorLabels is every label the graph schema keys by an id
+// uniqueness constraint. These nodes carry no uid (Repository, Workload and
+// the workload-materializer labels MERGE on id), and resolve and repository
+// reads hand their ids to the entity-id endpoints, so the anchor keeps an
+// indexed id branch for them. TestNeo4jEntityIDAnchorLabelsMatchSchema pins
+// this list to the schema.
+var neo4jEntityIDAnchorLabels = []string{
+	"CloudAction", "Endpoint", "EvidenceArtifact", "Platform", "Repository",
+	"Workload", "WorkloadInstance",
+}
+
+// neo4jEntityUIDIndexAnchorLabels is every label MERGEd on uid that carries a
+// uid RANGE index but no uid constraint (schema_tables_indexes.go). Rationale
+// and DocumentationSection uids reach callers as the source_id of EXPLAINS and
+// DOCUMENTS neighbours on the relationships row, so following one must resolve
+// (#7057). TestNeo4jEntityIDAnchorLabelsMatchSchema pins this list to the
+// schema, and TestNeo4jEntityIDAnchorCoversEveryUIDWriter fails when a writer
+// MERGEs a uid-keyed label that none of the three lists covers.
+var neo4jEntityUIDIndexAnchorLabels = []string{"DocumentationSection", "Rationale"}
+
+var (
+	neo4jEntityUIDAnchorDisjunction      = strings.Join(neo4jEntityUIDAnchorLabels, "|")
+	neo4jEntityUIDIndexAnchorDisjunction = strings.Join(neo4jEntityUIDIndexAnchorLabels, "|")
+	neo4jEntityIDAnchorDisjunction       = strings.Join(neo4jEntityIDAnchorLabels, "|")
+)
+
+// Neo4jEntityIDAnchor returns a scoped CALL () subquery that binds alias to
+// the node whose uid (on a uid-constrained or uid-indexed label) or id (on an
+// id-constrained label) equals param. It replaces the Neo4j use of
+// GraphEntityIDPredicate as an anchor: that unlabeled
+// (alias.id = x OR alias.uid = x) predicate cannot use any index and plans as
+// an AllNodesScan, while each branch here plans as one index seek per label
+// (issue #7057). UNION deduplicates a node more than one branch reaches. The
+// empty variable scope clause needs Neo4j 5.23, the documented floor; bare
+// CALL { } is deprecated from 5.23. Nodes with no uid or id at all
+// (Parameter, Directory, name-keyed Module) were never matched by the old
+// predicate either; see docs/internal/evidence/7057-relationship-uid-anchor.md.
+// NornicDB readers keep their own label-resolved anchors and must not use this
+// clause.
+func Neo4jEntityIDAnchor(alias string, param string) string {
+	return "CALL () {\n" +
+		"\t\t\tMATCH (" + alias + ":" + neo4jEntityUIDAnchorDisjunction + " {uid: " + param + "})\n" +
+		"\t\t\tRETURN " + alias + "\n" +
+		"\t\t\tUNION\n" +
+		"\t\t\tMATCH (" + alias + ":" + neo4jEntityUIDIndexAnchorDisjunction + " {uid: " + param + "})\n" +
+		"\t\t\tRETURN " + alias + "\n" +
+		"\t\t\tUNION\n" +
+		"\t\t\tMATCH (" + alias + ":" + neo4jEntityIDAnchorDisjunction + " {id: " + param + "})\n" +
+		"\t\t\tRETURN " + alias + "\n" +
+		"\t\t}"
 }

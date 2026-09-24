@@ -28,7 +28,7 @@ func TestLiveNornicDBRepositoryBindingLadder(t *testing.T) {
 	defer cancel()
 	driver := openLiveClauseDriver(ctx, t)
 	defer func() { _ = driver.Close(context.Background()) }()
-	seedLiveClauseGraph(ctx, t, driver)
+	seedLiveClauseGraph(ctx, t, driver, "nornic")
 	reader := newLiveNornicDBReader(driver, "nornic")
 
 	for _, tc := range []struct {

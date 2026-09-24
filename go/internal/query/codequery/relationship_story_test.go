@@ -492,7 +492,7 @@ func TestNornicDBRelationshipStoryCypherUsesAnchoredPatternAndPagination(t *test
 			t.Fatalf("cypher = %q, want fragment %q", cypher, fragment)
 		}
 	}
-	if strings.Contains(cypher, graphEntityIDPredicate("anchor", "$entity_id")) {
+	if strings.Contains(cypher, codemodel.GraphEntityIDPredicate("anchor", "$entity_id")) {
 		t.Fatalf("cypher = %q, must not use broad id-or-uid predicate", cypher)
 	}
 	if got, want := params["limit"], 26; got != want {

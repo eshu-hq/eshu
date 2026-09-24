@@ -66,6 +66,8 @@ type schemaDialect struct {
 	constraint                func(string) string
 	skipFulltextFallback      bool
 	includeMergeLookupIndexes bool
+	// includeNeo4jUIDLookupIndexes adds neo4jUIDLookupIndexes (#7057).
+	includeNeo4jUIDLookupIndexes bool
 }
 
 func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
@@ -75,7 +77,11 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 	}
 	switch normalized {
 	case SchemaBackendNeo4j:
-		return schemaDialect{backend: normalized, constraint: neo4jSchemaConstraint}, nil
+		return schemaDialect{
+			backend:                      normalized,
+			constraint:                   neo4jSchemaConstraint,
+			includeNeo4jUIDLookupIndexes: true,
+		}, nil
 	case SchemaBackendNornicDB:
 		return schemaDialect{
 			backend:                   normalized,

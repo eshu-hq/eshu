@@ -331,6 +331,22 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
 }
 
+// neo4jUIDLookupIndexes are uid RANGE indexes applied on Neo4j only, the
+// mirror of the NornicDB-only lookup lists above. Rationale and
+// DocumentationSection are MERGEd on uid (canonical_rationale_edges.go,
+// canonical_documentation_edges.go) but carry no uid uniqueness constraint.
+// Their uids reach API callers as the source_id of EXPLAINS / DOCUMENTS
+// neighbours on the relationships row, and the Neo4j entity-id anchor
+// (codemodel.Neo4jEntityIDAnchor) seeks them through these indexes instead of
+// scanning every node (#7057). NornicDB readers resolve the label first and
+// never use that anchor, so these stay off the NornicDB dialect: a NornicDB
+// fingerprint bump would force a full schema re-apply on every existing store,
+// and re-issued property indexes re-backfill there (nornicdb-pitfalls.md).
+var neo4jUIDLookupIndexes = []string{
+	"CREATE INDEX rationale_uid IF NOT EXISTS FOR (r:Rationale) ON (r.uid)",
+	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
+}
+
 // schemaFulltextIndexes lists Neo4j full-text index creation statements.
 // The primary form uses the procedure-based API; the fallback uses modern
 // CREATE FULLTEXT INDEX syntax for newer Neo4j versions.

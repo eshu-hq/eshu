@@ -33,7 +33,7 @@ func TestHandleRelationshipStoryReturnsClassHierarchyPacket(t *testing.T) {
 						{"direction": "outgoing", "target_id": "base", "target_name": "Base", "depth": 1},
 						{"direction": "outgoing", "target_id": "root", "target_name": "Root", "depth": 2},
 					}, nil
-				case strings.Contains(cypher, "WHERE (target.id = $entity_id"):
+				case strings.Contains(cypher, "MATCH (target:AnalyticsModel|"):
 					return []map[string]any{
 						{
 							"direction":   "incoming",
@@ -44,7 +44,7 @@ func TestHandleRelationshipStoryReturnsClassHierarchyPacket(t *testing.T) {
 							"target_name": "A",
 						},
 					}, nil
-				case strings.Contains(cypher, "WHERE (source.id = $entity_id"):
+				case strings.Contains(cypher, "MATCH (source:AnalyticsModel|"):
 					return []map[string]any{
 						{
 							"direction":   "outgoing",

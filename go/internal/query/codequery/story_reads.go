@@ -93,7 +93,7 @@ func (h *CodeHandler) relationshipStoryClassMethods(
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryClassMethods(ctx, req, entityID)
 	}
-	cypher, params := relationshipStoryClassMethodsCypher(req, entityID, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
+	cypher, params := relationshipStoryClassMethodsCypher(req, entityID, codeGrantAccessFilter(ctx))
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
@@ -113,7 +113,7 @@ func (h *CodeHandler) relationshipStoryInheritanceDepthRows(
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryInheritanceDepthRows(ctx, req, entityID, direction)
 	}
-	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
+	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, codeGrantAccessFilter(ctx))
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	// The compat lane bounds its interior in the statement, so no row is
 	// dropped after the read and the raw count is the returned count.
@@ -306,7 +306,6 @@ func (h *CodeHandler) relationshipStoryGraphRowsForDirection(
 		req,
 		entity,
 		direction,
-		graphEntityIDPredicate,
 		codeGrantAccessFilter(ctx),
 	)
 	return h.Neo4j.Run(ctx, cypher, params)

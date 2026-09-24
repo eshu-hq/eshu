@@ -64,8 +64,12 @@ without moving its staying callers first.
   `SortRelationshipStoryCandidates`,
   `RelationshipStoryCandidateMaps`, `RelationshipGraphRowCypher`,
   `RelationshipGraphRowCypherAnchored`,
+  `RelationshipGraphRowCypherFromAnchor`,
   `BuildTransitiveRelationship*`, `NormalizeGraphRelationships`,
-  `GraphEntityIDPredicate`, `RelationshipStoryProvenance`,
+  `GraphEntityIDPredicate` (NornicDB branches only; Neo4j reads anchor
+  through `Neo4jEntityIDAnchor`, whose label lists are pinned to the graph
+  schema by `TestNeo4jEntityIDAnchorLabelsMatchSchema`),
+  `RelationshipStoryProvenance`,
   `RelationshipStoryRowsAboveConfidenceFloor`,
   `ClassifyRelationshipStoryEvidence`,
   `BuildDeadCodeAnalysis{,ForLanguage}`, `ClassifyDeadCodeResults`,

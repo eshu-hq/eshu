@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build live_nornicdb_relationship_story || live_nornicdb_call_chain
+//go:build live_nornicdb_relationship_story || live_nornicdb_call_chain || live_neo4j_relationship_story
 
 // Shared two-tenant fixture for the #5167 batch-2b clause-attachment proofs.
 //
@@ -89,17 +89,18 @@ func openLiveClauseDriver(ctx context.Context, t *testing.T) neo4jdriver.DriverW
 	return driver
 }
 
-// seedLiveClauseGraph writes the fixture. MERGE keeps repeated runs against a
-// retained store idempotent.
+// seedLiveClauseGraph writes the fixture into the named database ("nornic" on
+// NornicDB, "neo4j" on Neo4j). MERGE keeps repeated runs against a retained
+// store idempotent.
 //
 // The orphan callee deliberately carries no repo_id and no File containment: it
 // is the row an OPTIONAL MATCH-attached predicate keeps, and the row a
 // fail-closed rewrite must drop.
-func seedLiveClauseGraph(ctx context.Context, t *testing.T, driver neo4jdriver.DriverWithContext) {
+func seedLiveClauseGraph(ctx context.Context, t *testing.T, driver neo4jdriver.DriverWithContext, database string) {
 	t.Helper()
 
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		DatabaseName: "nornic",
+		DatabaseName: database,
 		AccessMode:   neo4jdriver.AccessModeWrite,
 	})
 	defer func() { _ = session.Close(ctx) }()

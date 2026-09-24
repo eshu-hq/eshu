@@ -15,3 +15,13 @@ const (
 	graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint    = "5483f897a164b79bae02246b237351a3924481b86a3bb35ddaee5b0d673cc5f0"
 	graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint = "5ca5fcafda58ff9bc825e5bbf4196834282cff318919fabdd18eb625ebeaea0d"
 )
+
+// graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint is the Neo4j digest
+// immediately before the #7057 rationale_uid and documentation_section_uid
+// indexes were added (the #6793 tip above). The bump is additive and lists it
+// as compatible: the indexes change no MERGE or MATCH identity, so a writer on
+// the previous schema writes exactly the same graph; they let the Neo4j
+// entity-id anchor seek those uids. The indexes are Neo4j-only
+// (neo4jUIDLookupIndexes), so the NornicDB fingerprint does not move and needs
+// no predecessor.
+const graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint = "9041fb74aae9f09afe78b4dacbd7b4b64a619e172ac0a107ec45dcea8f566717"

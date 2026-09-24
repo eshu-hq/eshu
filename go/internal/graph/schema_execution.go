@@ -65,6 +65,16 @@ func ensureSchemaWithBackend(
 			failed++
 		}
 	}
+	if dialect.includeNeo4jUIDLookupIndexes {
+		for _, cypher := range neo4jUIDLookupIndexes {
+			if err := state.execute(ctx, executor, "neo4j_uid_lookup_indexes", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
+				failed++
+			}
+		}
+	}
 	if dialect.includeMergeLookupIndexes {
 		for _, cypher := range nornicDBMergeLookupIndexes {
 			if err := state.execute(ctx, executor, "nornicdb_merge_lookup_indexes", cypher); err != nil {
@@ -178,6 +188,9 @@ func schemaStatementTotal(dialect schemaDialect) int {
 		}
 	}
 	total += len(schemaPerformanceIndexes)
+	if dialect.includeNeo4jUIDLookupIndexes {
+		total += len(neo4jUIDLookupIndexes)
+	}
 	if dialect.includeMergeLookupIndexes {
 		total += len(nornicDBMergeLookupIndexes)
 		total += len(nornicDBUIDLookupIndexes())

@@ -123,8 +123,8 @@ func TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID(t *testing.T
 	handler := &CodeHandler{
 		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				if !strings.Contains(cypher, graphEntityIDPredicate("e", "$entity_id")) {
-					t.Fatalf("cypher = %q, want bridged entity-id predicate", cypher)
+				if !strings.Contains(cypher, neo4jEntityIDAnchor("e", "$entity_id")) {
+					t.Fatalf("cypher = %q, want the indexed entity-id anchor", cypher)
 				}
 				if got, want := params["entity_id"], "content-entity:impl"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)

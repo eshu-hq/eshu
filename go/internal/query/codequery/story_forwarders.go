@@ -47,10 +47,9 @@ func relationshipStoryGraphCypher(
 	req codemodel.RelationshipStoryRequest,
 	entity *EntityContent,
 	direction string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	return story.GraphCypher(req, entity, direction, predicate, access)
+	return story.GraphCypher(req, entity, direction, access)
 }
 
 // relationshipStoryEntityID resolves the entity id a story read
@@ -64,10 +63,9 @@ func relationshipStoryEntityID(req codemodel.RelationshipStoryRequest, entity *E
 func relationshipStoryClassMethodsCypher(
 	req codemodel.RelationshipStoryRequest,
 	entityID string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	return story.ClassMethodsCypher(req, entityID, predicate, access)
+	return story.ClassMethodsCypher(req, entityID, access)
 }
 
 // relationshipStoryInheritanceDepthCypher builds one direction of the
@@ -77,10 +75,9 @@ func relationshipStoryInheritanceDepthCypher(
 	req codemodel.RelationshipStoryRequest,
 	entityID string,
 	direction string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	return story.InheritanceDepthCypher(req, entityID, direction, predicate, access)
+	return story.InheritanceDepthCypher(req, entityID, direction, access)
 }
 
 // relationshipStoryOverrideRowsCypher builds the repo-anchored
