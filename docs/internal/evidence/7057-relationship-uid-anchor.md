@@ -136,7 +136,8 @@ bootstrap re-apply the full schema on every existing NornicDB store, and a
 re-issued `CREATE INDEX IF NOT EXISTS` re-backfills existing property indexes
 there (`nornicdb-pitfalls.md`, section "Pitfall: `CREATE INDEX IF NOT
 EXISTS` Rebackfills Existing Property Indexes"). The NornicDB statement list, fingerprint
-(`f957752d...`) and compatible list are byte-identical to base `a95dd0d54d`.
+(`f957752d...`) and compatible list are byte-identical to base `a95dd0d54d`
+(the PR base `373f166266` has the same graph and query reader code).
 `TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly` pins the fingerprint, and a
 statement dump from both trees compares equal.
 
@@ -203,8 +204,12 @@ would close the gap; that is left as a follow-up.
   `neo4jEntityUIDIndexAnchorLabels` fails both pins, naming
   `canonical_rationale_edges.go`. Restoring it passes.
 - `graph/schema_entity_uid_indexes_test.go`:
-  `TestSchemaIndexesUnconstrainedUIDLabels` requires both index statements in
-  the Neo4j and NornicDB schema. It failed before the DDL was added.
+  `TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly` requires both index
+  statements in the Neo4j schema, forbids them in the NornicDB schema, and pins
+  the NornicDB fingerprint to the base value (`f957752d...`).
+  `TestEnsureSchemaAppliesUnconstrainedUIDIndexesOnNeo4jOnly` checks the same
+  split on the apply path. Both failed while the indexes were on both
+  backends.
 - Updated for the new signatures, with their assertions kept:
   - `auth_scoped_relationship_story_clause_test.go` (grant and repo predicate
     binding, scoped and unscoped)
