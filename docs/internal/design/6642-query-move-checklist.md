@@ -22,12 +22,19 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 1 | `capability/` | 2 | [#6985](https://github.com/eshu-hq/eshu/pull/6985) | **merged** `2d68f1cbb` | — |
 | 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
-| 4 | `querycontract/taxonomy` (planned as `language`) | 4 | — | open | 37 |
+| 4 | `querycontract/taxonomy` (planned as `language`) | 4 | [#7031](https://github.com/eshu-hq/eshu/pull/7031) | **merged** `79752377d` | 37 |
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
 | 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
 | 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | **merged** `957772254` | 44 |
 | 8 | `querycontract/answer` | 3 | [#7025](https://github.com/eshu-hq/eshu/pull/7025) | **merged** `1d119f391` | 41 |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
+
+Move-sequence row 4 is not a `querycontract` leaf, so it has its own table.
+`querytestutil` starts at 42 non-test files.
+
+| destination | files | PR | state | `querytestutil` after |
+| --- | ---: | --- | --- | ---: |
+| `querytestutil/content` and `querytestutil/graph` | 10 + 8 | this PR | open | 24 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -255,3 +262,29 @@ removed or renamed. The moved package holds maps and pure functions.
 Why it is safe: `go vet ./...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1`, `verify-parser-relationship-kit.sh`,
 `verify-dirgate.sh --all` and `verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `querytestutil` leaves
+
+No-Regression Evidence: 18 non-test files and their tests move from
+`querytestutil/` to `querytestutil/content/` (the content-read doubles and the
+fake `database/sql` driver) and `querytestutil/graph/` (the graph-read doubles,
+the NornicDB Cypher-shape guards and the blast-radius cleanup probes). Every
+moved file is test-only code: `internal/queryplan`'s inventory rejects a
+production import of either leaf. Callers change an import line and a package
+qualifier; three test files rename a local `graph` that would shadow the new
+package. Two moved tests needed a path fix, both relative to their own
+directory: the default-rows coverage test parses its sibling by file name, and
+the X11 production-Cypher scan roots at `go/internal` and `go/cmd`, now one
+level further up. `go test -list` finds the same 56 tests under
+`querytestutil/...` on this branch as on `e6a8e11cb`.
+
+The one non-test change outside the moved tree is `internal/queryplan`'s
+production-import guard. It matched only an import path ending in
+`querytestutil`, so a production import of `querytestutil/graph` passed. It now
+matches the path element and exempts files inside the helper tree.
+`TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf`
+failed before the fix and passes after. The guard still parses imports only,
+once per non-test file.
+
+No-Observability-Change: test doubles emit no telemetry, and no span, metric,
+log or status field is added, removed or renamed.

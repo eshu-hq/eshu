@@ -46,9 +46,10 @@ for staying callers: the other packages that consume repository reads
 `deployment_trace_support_helpers.go`, documentation and target-support
 stayers), the `cmd` wiring alias, and the staying root tests that pin
 family behavior. Unexported helpers stay unexported; cross-package test
-pins go through `querytestutil` (`FakeGraphReader`,
-`FakePortContentStore`, `FakeRepoGraphReader`, `FakeScopedTokenResolver`)
-or `querycontract` (row-value decoders, shared bounds, ports).
+pins go through `querytestutil/graph` (`FakeGraphReader`,
+`FakeRepoGraphReader`), `querytestutil/content` (`FakePortContentStore`), and
+`querytestutil` (`FakeScopedTokenResolver`), or `querycontract` (row-value
+decoders, shared bounds, ports).
 
 ## Dependency-edge reads
 

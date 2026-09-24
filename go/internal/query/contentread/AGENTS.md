@@ -42,7 +42,7 @@ Read `doc.go` and `README.md` first.
 ## Test doubles that cannot be shared with root
 
 Go never compiles a package's `_test.go` files into anything another package
-can import. This package's tests use the shared `querytestutil` doubles
+can import. This package's tests use the shared `querytestutil/content` doubles
 where they exist (`FakePortContentStore`, embedded by the tripwire fake).
 Where root's `_test.go` files define something with no shared equivalent (a
 recording selector-aware store, the not-ready store), the fix is a minimal

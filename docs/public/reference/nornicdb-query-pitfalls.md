@@ -623,7 +623,7 @@ filter server-side so `LIMIT` runs over the rows the caller should see:
   pitfall's projection contract applies: verify every projected column and
   the row order live, as the infrastructure read's live test does.
 
-`querytestutil.AssertCypherHasNoIgnoredLabelPredicate` rejects the ignored
+`querytestutil/graph`'s `AssertCypherHasNoIgnoredLabelPredicate` rejects the ignored
 shapes in a rendered statement, and
 `TestProductionCypherHasNoIgnoredLabelPredicate` scans every production Cypher
 literal under `go/internal` and `go/cmd`.
