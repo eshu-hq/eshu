@@ -114,3 +114,28 @@ the PR description): queue depth and oldest age, shared-acceptance row count,
 workflow-family queue depth, active-generation age, and poison dead-letter
 counts (all in `registerReducerObservableGauges`), plus the ingester queue
 observer (`cmd/ingester/main.go`). They could reuse `telemetry/snapshot` as is.
+
+## Statement coverage on capture recordings
+
+The refresher runs the provenance count reads during the differential capture
+runs, which the scrape-driven gauge never did (nothing scraped the reducer in
+the capture). Each capture leg now records seven `eshu_dp_edges_by_source_tool`
+executions per verb per backend. Five verbs return rows; `READS_CONFIG_FROM`
+and `RUNS_ON` return zero rows on every execution, and the
+`statement-coverage` phase (`golden-corpus-gate`, CI job "differential
+nornicdb vs neo4j") failed on them as `always-empty-read` (run 36014060858,
+4 failures = 2 statements x 2 backends).
+
+Cause of the two empties, read from the recordings in that run's
+`differential-capture` artifact: no captured write statement names
+`READS_CONFIG_FROM` and no execution reports a `READS_CONFIG_FROM`
+relationship created; the 26 `RUNS_ON` writes per leg set
+`rel.source_tool = null`, so `IS NOT NULL` matches nothing (the same reason as
+the existing WorkloadInstance `RUNS_ON` read exemption).
+
+Both are legitimately empty on this corpus, so each gets a `read_exemptions`
+entry with a reason in `go/internal/queryplan/testdata/statement-builders.yaml`,
+the gate's sanctioned mechanism. The gate itself is unchanged. Replaying the
+captured recordings through the built gate: RED before the entries
+(`[FAIL] statements_executed ... 4 failure(s)`, exit 1), GREEN after
+(`[PASS] statements_executed`, exit 0).
