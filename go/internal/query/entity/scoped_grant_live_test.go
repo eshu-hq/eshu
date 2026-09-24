@@ -43,7 +43,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -149,8 +149,8 @@ func scopedGrantLiveFixture(t *testing.T) (entityLiveReader, context.Context) {
 // allowedRepositoryIDs, the shape production request middleware installs for
 // a scoped token.
 func scopedRequestContext(ctx context.Context, allowedRepositoryIDs ...string) context.Context {
-	return queryauth.ContextWithAuthContext(ctx, queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	return auth.ContextWithAuthContext(ctx, auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: allowedRepositoryIDs,
 	})
 }

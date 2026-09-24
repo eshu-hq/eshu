@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -41,8 +41,8 @@ func serveCollectorReadinessPage(t *testing.T, mux *http.ServeMux, target string
 	// short-circuit page straight into the attach step. (No auth context
 	// would mean all-scopes in this binary, which sails past the
 	// short-circuit into the stores.)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(),
-		queryauth.AuthContext{Mode: queryauth.AuthModeScoped}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(),
+		auth.AuthContext{Mode: auth.AuthModeScoped}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

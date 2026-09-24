@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -66,8 +66,8 @@ func TestIncidentContextScopedEmptyGrantReturnsNotFoundWithoutReads(t *testing.T
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -97,8 +97,8 @@ func TestIncidentContextScopedOutOfGrantReturnsNotFoundWithoutStoreRead(t *testi
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pd-prod&limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -140,8 +140,8 @@ func TestIncidentContextScopedNoDurableEdgeReturnsNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -188,8 +188,8 @@ func TestIncidentContextScopedInGrantServesContext(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -224,7 +224,7 @@ func TestIncidentContextSharedTokenSkipsAuthorizer(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeShared, SubjectClass: "shared_token", AllScopes: true}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeShared, SubjectClass: "shared_token", AllScopes: true}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

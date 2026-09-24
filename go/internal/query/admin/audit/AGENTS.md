@@ -12,7 +12,7 @@ shaping. Each helper cites the query-root source it was repointed from.
 ## Rules
 
 - The logic sources stay canonical in the root (auth, permission catalog,
-  local identity, documentation) and in the `queryauth` / `querycontract`
+  local identity, documentation) and in the `auth` / `querycontract`
   leaves. This package only re-sources them so admin code never imports the
   query root.
 - Do not add handler routes or store code here. Do not import `admin`,

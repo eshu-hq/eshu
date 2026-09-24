@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // This file proves the four generated API-token routes end to end through
@@ -110,8 +110,8 @@ func TestRevokeAPITokenNotOwnedReturnsNotFound(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/api-tokens/token-1/revoke", bytes.NewBufferString(`{}`))
-	auth := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, SubjectIDHash: "sha256:non-owner"}
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, SubjectIDHash: "sha256:non-owner"}
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 type localIdentityBootstrapRequest struct {
@@ -122,16 +122,16 @@ func localIdentityOptionalID(h *IdentityHandler, enabled bool) string {
 }
 
 func authTenantID(r *http.Request) string {
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	return queryauth.NormalizeAuthContext(auth).TenantID
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	return auth.NormalizeAuthContext(authCtx).TenantID
 }
 
 func authWorkspaceID(r *http.Request) string {
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	return queryauth.NormalizeAuthContext(auth).WorkspaceID
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	return auth.NormalizeAuthContext(authCtx).WorkspaceID
 }
 
 func authSubjectIDHash(r *http.Request) string {
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	return queryauth.NormalizeAuthContext(auth).SubjectIDHash
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	return auth.NormalizeAuthContext(authCtx).SubjectIDHash
 }

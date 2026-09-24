@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // Appender records validation-safe governance audit events. It carries the
@@ -37,15 +37,15 @@ var SharedActorIDHash = func() string {
 
 // ActorClassForAuth maps an auth context to a governance audit actor class.
 // Repointed from actorClassForAuth (internal/query/auth_audit.go): the mode
-// constants come from queryauth and the class constants from
+// constants come from auth and the class constants from
 // governanceaudit, so the mapping cannot drift from either source.
-func ActorClassForAuth(auth queryauth.AuthContext) governanceaudit.ActorClass {
-	switch auth.Mode {
-	case queryauth.AuthModeBrowserSession:
+func ActorClassForAuth(authCtx auth.AuthContext) governanceaudit.ActorClass {
+	switch authCtx.Mode {
+	case auth.AuthModeBrowserSession:
 		return governanceaudit.ActorClassBrowserSession
-	case queryauth.AuthModeScoped:
+	case auth.AuthModeScoped:
 		return governanceaudit.ActorClassScopedToken
-	case queryauth.AuthModeShared:
+	case auth.AuthModeShared:
 		return governanceaudit.ActorClassSharedToken
 	}
 	return governanceaudit.ActorClassAnonymous
@@ -58,10 +58,10 @@ func ActorClassForAuth(auth queryauth.AuthContext) governanceaudit.ActorClass {
 // synthetic identity rather than an empty one; any other caller with no
 // subject hash downgrades to anonymous, because NormalizeEvent rejects an
 // identity-bearing class without an actor identity.
-func RecoveryActor(auth queryauth.AuthContext) (governanceaudit.ActorClass, string) {
-	actorClass := ActorClassForAuth(auth)
-	if auth.SubjectIDHash != "" {
-		return actorClass, auth.SubjectIDHash
+func RecoveryActor(authCtx auth.AuthContext) (governanceaudit.ActorClass, string) {
+	actorClass := ActorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash != "" {
+		return actorClass, authCtx.SubjectIDHash
 	}
 	if actorClass == governanceaudit.ActorClassSharedToken {
 		return actorClass, SharedActorIDHash
@@ -91,9 +91,9 @@ func IdentityPolicyRevision(tenantID string, workspaceID string) string {
 
 // AuthWorkspaceID resolves the caller's workspace from the request's auth
 // context. Repointed from authWorkspaceID
-// (internal/query/local/requests.go) via queryauth, which owns the
+// (internal/query/local/requests.go) via auth, which owns the
 // context key and the normalization.
 func AuthWorkspaceID(r *http.Request) string {
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	return queryauth.NormalizeAuthContext(auth).WorkspaceID
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	return auth.NormalizeAuthContext(authCtx).WorkspaceID
 }

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -72,8 +72,8 @@ func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.
 		"/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-0001&limit=10&profile=comprehensive",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		TenantID:        "tenant-5747-a",
 		WorkspaceID:     "workspace-5747-a",
 		AllowedScopeIDs: []string{"scope:5747:tenant-a"},

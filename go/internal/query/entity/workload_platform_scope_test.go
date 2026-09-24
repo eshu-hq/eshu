@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -100,8 +100,8 @@ func TestFetchWorkloadPlatformRowsOmitUnownedEvidenceForScopedTokens(t *testing.
 			return []map[string]any{{"platform_id": "platform:unowned"}}, nil
 		},
 	}}
-	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
 

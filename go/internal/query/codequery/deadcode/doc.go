@@ -19,7 +19,7 @@
 // there is no shared mutable state.
 //
 // Import discipline: this package may import the same dependency-neutral
-// leaves codequery uses (codemodel, querycontract, queryauth, contentread,
+// leaves codequery uses (codemodel, querycontract, auth, contentread,
 // entitysemantics, codeshaping, codeprovenance, rows, telemetry)
 // but NEVER package codequery itself and NEVER root package query -- both
 // would create an import cycle (codequery delegates to Analyzer, and root

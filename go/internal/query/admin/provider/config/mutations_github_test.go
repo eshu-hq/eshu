@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -36,7 +36,7 @@ func TestHandleCreateAdminProviderConfigGitHub(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validGitHubCreateBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -76,7 +76,7 @@ func TestHandleCreateAdminProviderConfigGitHubRejectsEmptyAllowedOrgs(t *testing
 
 	body := `{"provider_kind":"github","client_id":"gh-client-1","client_secret":"gh-s3cr3t-value"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(body))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

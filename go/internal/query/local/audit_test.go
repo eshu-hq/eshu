@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -27,12 +27,12 @@ func TestAuditLocalIdentityStampsActorClassByAuthMode(t *testing.T) {
 
 	cases := []struct {
 		name string
-		mode queryauth.AuthMode
+		mode auth.AuthMode
 		want governanceaudit.ActorClass
 	}{
-		{name: "browser session", mode: queryauth.AuthModeBrowserSession, want: governanceaudit.ActorClassBrowserSession},
-		{name: "scoped bearer", mode: queryauth.AuthModeScoped, want: governanceaudit.ActorClassScopedToken},
-		{name: "shared bearer", mode: queryauth.AuthModeShared, want: governanceaudit.ActorClassSharedToken},
+		{name: "browser session", mode: auth.AuthModeBrowserSession, want: governanceaudit.ActorClassBrowserSession},
+		{name: "scoped bearer", mode: auth.AuthModeScoped, want: governanceaudit.ActorClassScopedToken},
+		{name: "shared bearer", mode: auth.AuthModeShared, want: governanceaudit.ActorClassSharedToken},
 	}
 
 	for _, tc := range cases {
@@ -40,9 +40,9 @@ func TestAuditLocalIdentityStampsActorClassByAuthMode(t *testing.T) {
 			t.Parallel()
 
 			audit := &querytestutil.FakeGovernanceAuditAppender{}
-			auth := queryauth.AuthContext{Mode: tc.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
+			authCtx := auth.AuthContext{Mode: tc.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/anything", nil)
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 			h := &IdentityHandler{Audit: audit}
 			h.auditLocalIdentity(req, governanceaudit.EventTypeBreakGlass, governanceaudit.DecisionAllowed, "break_glass_enabled", "")

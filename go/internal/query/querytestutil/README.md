@@ -157,7 +157,7 @@ consumer cost.
 
 The standard library, plus any LEAF package a fake genuinely needs to name the
 types it stands in for -- `internal/status`, `internal/governanceaudit` and
-`queryauth` are the shape, not the list. Deliberately stated as a rule rather
+`auth` are the shape, not the list. Deliberately stated as a rule rather
 than an inventory: each fake promoted here turns another leaf from allowed into
 taken, and a sentence enumerating today's imports is stale the next time one
 lands. Run `rg -l 'eshu-hq/eshu' --glob '*.go' --glob '!*_test.go' .` if you
@@ -206,7 +206,7 @@ rules — standard-library imports only, and `Run`/`RunSingle` reached only from
 fake's own `Run`/`RunSingle` delegating to its receiver. Both were proxies for
 "this cannot reach a backend", and both were wrong in a way that mattered: the
 stdlib rule blocked fakes that legitimately need `internal/status`,
-`internal/governanceaudit`, or `queryauth`, while the self-delegation whitelist
+`internal/governanceaudit`, or `auth`, while the self-delegation whitelist
 let a genuine graph read wearing that exact shape pass the gate in silence.
 Removing the call removed the need for either.
 

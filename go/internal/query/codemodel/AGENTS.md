@@ -15,12 +15,12 @@ Scope: the code-model query leaf, split out of root package `query`
   handler, delete the corresponding shim entry — never extend the shim
   for new callers.
 - `querycontract` owns envelopes, capabilities, access filter, and row
-  decoders; `queryauth` owns request auth bounds; `tracing` owns span
+  decoders; `auth` owns request auth bounds; `tracing` owns span
   plumbing. This leaf MUST NOT re-declare those — qualify to them.
 
 ## Import discipline
 
-Allowed imports: stdlib, `querycontract`/`queryauth`/`tracing`, and
+Allowed imports: stdlib, `querycontract`/`auth`/`tracing`, and
 the already-present internal leaves (`searchbench`, `searchdocs`,
 `searchembed`, `searchhybrid`, `searchretrieval`, `facts`,
 `codeprovenance`). NEVER import root package `query` (cycle).

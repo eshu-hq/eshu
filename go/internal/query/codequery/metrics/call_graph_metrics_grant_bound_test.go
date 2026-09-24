@@ -7,9 +7,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
@@ -37,7 +37,7 @@ func TestCallGraphMetricsDataRefusesARepositoryOutsideTheGrant(t *testing.T) {
 			return []map[string]any{{"name": "leaked", "callers": 3}}, nil
 		},
 	}}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{"repo-granted"}))
+	ctx := auth.ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{"repo-granted"}))
 
 	got, err := handler.CallGraphMetricsData(ctx, codemodel.CallGraphMetricsRequest{RepoID: "repo-other"})
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
@@ -48,8 +48,8 @@ func TestContentHandlerSearchByScopeUsesPagedSearcherFastPath(t *testing.T) {
 
 	fake := &fakePagedContentTripwireStore{}
 	h := &ContentHandler{Content: fake, Profile: querycontract.ProfileLocalAuthoritative}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},

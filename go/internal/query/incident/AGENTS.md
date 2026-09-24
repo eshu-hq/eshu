@@ -20,7 +20,7 @@ gates production does).
   `incidentHandlerTracer` seam (see the `tracing` package docs on why the
   tracer is package-local). The span name, route, and capability
   attributes are unchanged from the root handler.
-- This package imports `incident/model`, `queryauth`, `querycontract`,
+- This package imports `incident/model`, `auth`, `querycontract`,
   `tracing`, and `telemetry`. It MUST NOT import the query root or
   `incident/store/`.
 - `queryplan` manifests: the incident family has no entries. Keep it zero.

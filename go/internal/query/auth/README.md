@@ -109,7 +109,7 @@ to `ActorClassForAuth` in `audit_actor.go`; the function body moved
 verbatim, so the audit actor-class decision runs the same branches on the
 same `AuthContext` fields. Baseline `origin/main` vs this branch:
 `go build ./...`, `go vet ./internal/query/...`, `go test
-./internal/query/... -count=1` and the root, `queryauth` and `querycontract`
+./internal/query/... -count=1` and the root, `auth` and `querycontract`
 test-name union are unchanged (nothing dropped, added, or duplicated); no
 Cypher, SQL, queue, lease, or worker path is involved, so there is no
 throughput or latency surface to measure beyond one extra call frame per

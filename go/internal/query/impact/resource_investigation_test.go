@@ -14,8 +14,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -454,7 +454,7 @@ func TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation(t *testing.T
 		},
 	}
 	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
-	access := querycontract.RepositoryAccessFilterFromContext(queryauth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 
 	workloads, _, err := handler.ResourceInvestigationWorkloads(
 		context.Background(),
@@ -489,7 +489,7 @@ func TestResourceInvestigationRepoPathsGrantFiltersBeforeTruncation(t *testing.T
 		},
 	}
 	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative, PathProbe: stubImpactPathProbe{}}
-	access := querycontract.RepositoryAccessFilterFromContext(queryauth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 
 	paths, _, err := handler.ResourceInvestigationRepoPaths(
 		context.Background(),

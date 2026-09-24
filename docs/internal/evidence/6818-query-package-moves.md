@@ -325,3 +325,80 @@ present; `scripts/verify-performance-evidence.sh` passes (exit 0).
 
 No-Observability-Change: no span name, attribute, registered metric, or
 log line changes; the move touches no telemetry emission point.
+
+## Performance and observability evidence for the `auth` rename (move 4b)
+
+No-Regression Evidence: 8 files move from `query/queryauth/` to the
+existing `query/auth/` dir (created by 4a for `session/`), package clause
+`queryauth` to `auth`, no file renames: `context.go`, `audit_actor.go`,
+`permission_catalog.go`, `sign_in_policy.go`, `doc.go`,
+`context_normalize_test.go`, `README.md`, `AGENTS.md`. The moved bodies
+are identical up to the clause line and doc prose (no qualifier or logic
+change — the moved package names its own symbols bare). 114 files
+repoint the import `query/queryauth"` to `query/auth"` and the qualifier
+`queryauth.` to `auth.`; root `query` keeps its `AuthContext`/`AuthMode`
+aliases and forwarders, now spelling `auth.` names, so external callers
+(`oidcbearer`, `scopedtoken`, `ask/engine`) are unaffected. 39 shadowing
+`auth` locals/params across 37 files renamed to `authCtx` (the
+established convention, already used in `repository` tests) where a
+package-level symbol (`NormalizeAuthContext`, `AuthModeShared`,
+`PermissionFeatureTokens`, `ContextWithAuthContext`,
+`ActorClassForAuth`, composite `auth.AuthContext{}`) is named after the
+shadow; field-only uses needed no change. `session` repoints its parent
+import (`queryauth.AuthContext` to `auth.AuthContext`); the edge stays
+one-directional `session` → `auth`, and `auth` still does not import
+`querycontract`.
+
+Moved-file blob pairs (before → after):
+
+- `context.go` `dcb3d3f7` → `927377ea` (package clause only)
+- `audit_actor.go` `ecb18678` → `df5abc83` (package clause only)
+- `permission_catalog.go` `d48e4e1d` → `6d08ec4c` (package clause only)
+- `sign_in_policy.go` `f083af57` → `16002dc2` (package clause only)
+- `doc.go` `3d3cc5ab` → `b988d345` (package clause + `Package auth owns`)
+- `context_normalize_test.go` `9a008d3d` → `ddb3ea6e` (package clause only)
+
+Pin check (2 rows, `go/internal/queryplan/testdata/handler-hot-cypher.yaml`,
+QP-CALL-GRAPH-HUBS and QP-CALL-GRAPH-RECURSIVE): no refresh needed.
+`codequery/metrics/edges.go` is byte-identical to base, so the pinned
+`source_sha256` (`a371b5f4…`) for `CallGraphMetricsEdgesCypher` still
+matches and `TestHandlerQueryplanManifestBindsProductionBuilders`
+passes. (A mid-move `gofmt` run with the host Go 1.27.1 toolchain
+briefly reflowed that file's alignment and tripped the test; the
+commit hook's pinned `golangci-lint fmt` restored the canonical bytes
+and the rows were left untouched. Lesson recorded: never bare `gofmt`
+in a Go 1.26.6-pinned tree — the hook formatter is the authority.)
+
+Stale home prose (`lives in queryauth`, `Package queryauth`, leaf lists)
+repointed to `auth` across the touched handler-family `doc.go` files,
+consumer `README.md`/`AGENTS.md`, `auth/session` docs, and
+`source-layout.md`. Untouched: rule-illustration mentions (`naming.md`,
+`verify-filename-stutter.sh`, `queryplan/AGENTS.md` #6060 narrative),
+#6642 design docs, older evidence sections, and `moved from queryauth
+by #6818` provenance lines. No `query-source-coverage.yaml`,
+live-tests spec, parity-ledger, telemetry-coverage, golden-snapshot, or
+CI path-filter row names a moved path (swept: zero hits), and no dated
+evidence/design doc does either, so no allowlist row.
+
+`go build ./...` and `go vet ./...` exit 0;
+`go test ./internal/query/... ./internal/oidcbearer ./internal/scopedtoken -count=1`
+passes with no failures (60 ok lines);
+`TestHandlerQueryplanManifestBindsProductionBuilders` passes after the
+pin refresh. Test-name union (`auth/session` + `auth` + `querycontract`
++ root `query`, `-list '.*'`) is 2727 names, byte-identical to the
+pre-move (`auth/session` + `queryauth` + `querycontract` + root) union:
+nothing dropped, added, or renamed.
+Creating `query/auth/` trips the dirgate sibling rule for the 32
+`auth*.go` files staying in root `query` (aliases, forwarders, route
+policies, handler wiring); each carries
+`//nolint:dirgate // #6818 move 4b: …` on its package line, following
+the established root-shim precedent — relocating root's auth surface
+is a separate follow-up, not this rename. Whole-tree
+`verify-dirgate.sh --all` passes.
+`scripts/verify-moved-file-refs.sh` reports the 6 vacated Go paths with
+no dangling references; `scripts/verify-package-docs.sh` reports the
+`auth` doc trio present; `scripts/verify-performance-evidence.sh`
+passes (exit 0).
+
+No-Observability-Change: no span name, attribute, registered metric, or
+log line changes; the move touches no telemetry emission point.

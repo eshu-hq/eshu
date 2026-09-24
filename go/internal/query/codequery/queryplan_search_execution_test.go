@@ -13,8 +13,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -57,7 +57,7 @@ func TestSearchGraphEntitiesExecutesBuilderBytes(t *testing.T) {
 			handler := &CodeHandler{Neo4j: graph}
 			request := httptest.NewRequest(http.MethodPost, "/api/v0/code/search", bytes.NewBufferString(tt.body))
 			if tt.auth != nil {
-				request = request.WithContext(queryauth.ContextWithAuthContext(request.Context(), *tt.auth))
+				request = request.WithContext(auth.ContextWithAuthContext(request.Context(), *tt.auth))
 			}
 			response := httptest.NewRecorder()
 

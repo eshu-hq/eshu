@@ -14,7 +14,7 @@ Owns the `Handler` struct, its HTTP dispatch, the `EvidenceStore` Postgres
 implementation, the typed `work_item.*` fact decode wrappers, and the
 evidence-state classification, pagination, and span-attribute shaping this
 route reports. Does not own the scoped-token grant type or context helpers
-(`queryauth`), the content-model types, capability registry, or HTTP/error
+(`auth`), the content-model types, capability registry, or HTTP/error
 envelope helpers (`querycontract`), or the classified decode-error type
 (`decode`) -- those are separate leaves this package calls into.
 
@@ -90,8 +90,8 @@ and `decode.DefaultSchemaMajorVersion` and keeps only `derefBool`.
 `TestAuthMiddlewareWithScopedTokens*WorkItem*` tests exercise root's own auth
 middleware and the root-native `fakeScopedTokenResolver` fixture, so they
 stayed in root's new `auth_scoped_routes_work_item_test.go`; the rest moved
-here as `scope_test.go` using `queryauth.AuthContext`/
-`queryauth.ContextWithAuthContext`/`queryauth.AuthModeScoped` and
+here as `scope_test.go` using `auth.AuthContext`/
+`auth.ContextWithAuthContext`/`auth.AuthModeScoped` and
 `querycontract.ProfileProduction` directly.
 
 No-Regression Evidence: baseline `origin/main` vs this branch -- `go test

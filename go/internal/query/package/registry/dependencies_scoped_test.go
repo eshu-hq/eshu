@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -38,7 +38,7 @@ func TestPackageRegistryDependenciesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/dependencies?package_id=pkg:npm:private-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -63,7 +63,7 @@ func TestPackageRegistryDependenciesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/dependencies?package_id=pkg:npm:private-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -91,7 +91,7 @@ func TestPackageRegistryDependenciesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/dependencies?version_id=pv:1&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -115,7 +115,7 @@ func TestPackageRegistryDependenciesEmptyGrantReturnsEmptyWithoutAnyStoreRead(t 
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/dependencies?package_id=pkg:npm:anything&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

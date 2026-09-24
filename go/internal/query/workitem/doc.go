@@ -21,7 +21,7 @@
 // empty-string identity (Contract System v1's accuracy guarantee).
 //
 // This package imports querycontract (profiles, envelopes, capability
-// registration, HTTP helpers, the repository-access-filter port), queryauth
+// registration, HTTP helpers, the repository-access-filter port), auth
 // (the scoped-token AuthContext its own tests construct directly), decode
 // (the classified decode-error type), tracing (the shared handler-span
 // seam), sdk/go/factschema and sdk/go/factschema/workitem/v1 (the typed

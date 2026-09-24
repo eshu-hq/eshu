@@ -89,7 +89,7 @@ Internal packages, all of them leaves that never import root package
   row-value decoders, repository access filter, graph-error mapping, and
   the shared service-catalog correlation port.
 - `internal/query/tracing` -- handler span plumbing.
-- `internal/query/queryauth` -- auth context bounds (tests only: the
+- `internal/query/auth` -- auth context bounds (tests only: the
   scoped-leak double).
 
 Plus `internal/telemetry` (span names). The tracer and span helper are a
@@ -118,7 +118,7 @@ structural rather than promissory -- each names what a reader can check.
 No-Regression Evidence: the move is a package relocation, not a rewrite.
 `git diff -M --find-renames` pairs each file with its root predecessor;
 the only statement-level changes are the `package` clause, the
-`Handler` rename (via the root alias), the `querycontract`/`queryauth`
+`Handler` rename (via the root alias), the `querycontract`/`auth`
 qualification of helpers root forwards to the identical functions, the
 export renames listed in `AGENTS.md`, the family-local tracing copy
 documented above, and the queryplan manifest re-keys (file paths, symbol

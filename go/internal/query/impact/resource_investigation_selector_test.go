@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -296,7 +296,7 @@ func TestResourceInvestigationScopedSelectorAuthorizesBeforeEveryLimit(t *testin
 
 	graph := &resourceInvestigationSelectorGraph{}
 	handler := &Handler{Neo4j: graph}
-	ctx := queryauth.ContextWithAuthContext(
+	ctx := auth.ContextWithAuthContext(
 		context.Background(),
 		querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-allowed"}),
 	)

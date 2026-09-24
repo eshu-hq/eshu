@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 func TestAdminHandler_DeadLettersQueryRequiresLimitAndTimeout(t *testing.T) {
@@ -144,8 +144,8 @@ func TestAdminHandler_DeadLettersQueryScopedGrants(t *testing.T) {
 		"timeout_ms": 5000
 	}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},
@@ -174,8 +174,8 @@ func TestAdminHandler_DeadLettersQueryScopedEmptyGrantSkipsStore(t *testing.T) {
 		"timeout_ms": 5000
 	}`))
 	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))

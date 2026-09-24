@@ -8,7 +8,7 @@ Read `doc.go` and `README.md` first.
   `compat_supply_chain.go` already imports this package for its
   compatibility aliases, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `queryauth`, `selector`, `tracing`) or it does
+  (`querycontract`, `auth`, `selector`, `tracing`) or it does
   not belong in this family; ask before adding one.
 - Capabilities are registered in ROOT (`contract_supply_chain.go`), not
   here — root owns the router and always links into production. This

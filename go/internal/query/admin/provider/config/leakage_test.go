@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -87,7 +87,7 @@ func TestProviderConfigMutationResponsesAndAuditNeverLeakCanary(t *testing.T) {
 			} else {
 				req = httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
 			}
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 

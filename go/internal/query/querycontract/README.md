@@ -93,17 +93,17 @@ types and wraps the functions so existing imports keep their current API.
 The package uses the Go standard library plus four internal packages. Two
 are stdlib-only leaves: `internal/scope`, for the `scope.CollectorKind` the
 `CollectorListReadinessStore` port carries, and `internal/environment`, which
-`hostname_environment.go` reads. `internal/query/queryauth` supplies the
+`hostname_environment.go` reads. `internal/query/auth` supplies the
 `AuthContext` that `RepositoryAccessFilterFromContext` reads and (#6642) the
-`queryauth.AllowsPermissionFeature` predicate `RequirePermissionFeature`
-calls; `queryauth` itself imports only the standard library and the
+`auth.AllowsPermissionFeature` predicate `RequirePermissionFeature`
+calls; `auth` itself imports only the standard library and the
 stdlib-only `internal/governanceaudit` (for `ActorClassForAuth`, #6642).
 `internal/storage/cypher`, which `edge_materialization_coverage.go` reads,
 is not a leaf: it brings `internal/graph`, `internal/projector`,
 `internal/reducer` and `internal/telemetry` into this package's transitive
 closure, an edge that predates #6642. None of these edges creates a cycle.
 This is also why `unauthorizedResponse`/`writePermissionDeniedEnvelope`
-moved here instead of into `queryauth` for #6642: `queryauth` cannot import
+moved here instead of into `auth` for #6642: `auth` cannot import
 this package back (a cycle), so the response-writing side of the auth seam
 lives on this side of the one-way edge. `GraphQuery` and `ContentStore` are
 consumer-owned ports; concrete adapters remain outside this package.

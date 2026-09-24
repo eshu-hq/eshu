@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -49,19 +49,19 @@ var publicHTTPPaths = map[string]bool{
 }
 
 // AuthMode names the source of an authenticated request context. The type and
-// its constants live in queryauth so a handler-family subpackage can read the
+// its constants live in auth so a handler-family subpackage can read the
 // auth context without importing this package. AuthMode has no methods, so this
 // alias costs callers nothing.
-type AuthMode = queryauth.AuthMode
+type AuthMode = auth.AuthMode
 
 // Compatibility constants preserve this package's public contract.
 const (
 	// AuthModeShared identifies the legacy shared bearer-token path.
-	AuthModeShared = queryauth.AuthModeShared
+	AuthModeShared = auth.AuthModeShared
 	// AuthModeScoped identifies a token resolved through the scoped registry.
-	AuthModeScoped = queryauth.AuthModeScoped
+	AuthModeScoped = auth.AuthModeScoped
 	// AuthModeBrowserSession identifies a server-managed dashboard session.
-	AuthModeBrowserSession = queryauth.AuthModeBrowserSession
+	AuthModeBrowserSession = auth.AuthModeBrowserSession
 )
 
 // Compatibility constants preserve this package's public contract. The
@@ -89,11 +89,11 @@ var ErrBrowserSessionCSRFInvalid = errors.New("browser session csrf token invali
 var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh required")
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
-// It lives in queryauth; this alias keeps every existing reference working,
+// It lives in auth; this alias keeps every existing reference working,
 // including the ones in internal/oidcbearer, internal/scopedtoken and
 // internal/ask/engine that name it as query.AuthContext. AuthContext has no
 // methods, so the alias is complete.
-type AuthContext = queryauth.AuthContext
+type AuthContext = auth.AuthContext
 
 // ScopedTokenResolver resolves a presented bearer credential into an auth
 // context without exposing raw token values to handlers.
@@ -115,22 +115,22 @@ type BrowserSessionResolver interface {
 }
 
 // GovernanceAuditAppender records validation-safe governance audit events.
-// It lives in queryauth (#6642) so a handler-family subpackage can accept an
+// It lives in auth (#6642) so a handler-family subpackage can accept an
 // audit appender without importing this package.
-type GovernanceAuditAppender = queryauth.GovernanceAuditAppender
+type GovernanceAuditAppender = auth.GovernanceAuditAppender
 
 // AuthContextFromContext returns the authenticated request context, if any.
 func AuthContextFromContext(ctx context.Context) (AuthContext, bool) {
-	return queryauth.AuthContextFromContext(ctx)
+	return auth.AuthContextFromContext(ctx)
 }
 
 // ContextWithAuthContext returns a child context carrying authorization bounds.
 //
 // This forwards rather than storing under a local key, and that is the whole
-// point: the key has exactly one definition, in queryauth, so middleware here
+// point: the key has exactly one definition, in auth, so middleware here
 // and a handler family there read and write the same context slot.
-func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Context {
-	return queryauth.ContextWithAuthContext(ctx, auth)
+func ContextWithAuthContext(ctx context.Context, authCtx AuthContext) context.Context {
+	return auth.ContextWithAuthContext(ctx, authCtx)
 }
 
 func authMiddleware(
@@ -218,7 +218,7 @@ func authMiddlewareWithRoutePolicy(
 		}
 
 		if resolver != nil {
-			auth, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
+			authCtx, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
 			if err != nil {
 				// Rows 5/6/7/11: augment ONLY when the resolver signals the
 				// credential was never a recognized issued token
@@ -237,7 +237,7 @@ func authMiddlewareWithRoutePolicy(
 				return
 			}
 			if ok {
-				auth = normalizeAuthContext(auth)
+				authCtx = normalizeAuthContext(authCtx)
 				// #6450 residual item 1: allowlist membership used to be the
 				// whole bearer gate, so a bearer carrying AllScopes entered
 				// every grant-bound route with its grant predicate inert and
@@ -245,9 +245,9 @@ func authMiddlewareWithRoutePolicy(
 				// holds it to the same route policy the cookie session branch
 				// below applies, and says which of the two refusals it is so
 				// the audit row is actionable.
-				if auth.Mode == AuthModeScoped {
-					if reason := scopedBearerRouteDenialReason(r, auth, policy); reason != "" {
-						recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, reason)
+				if authCtx.Mode == AuthModeScoped {
+					if reason := scopedBearerRouteDenialReason(r, authCtx, policy); reason != "" {
+						recordScopedRouteAuthorizationDeniedWithReason(r, audit, authCtx, reason)
 						scopedRouteDeniedResponse(w, r)
 						return
 					}
@@ -258,8 +258,8 @@ func authMiddlewareWithRoutePolicy(
 				// allowedAudit is nil (every caller except the mcp-server
 				// transport middleware), so this is byte-identical to today for
 				// every other constructor.
-				recordScopedReadAuthorized(r, allowedAudit, auth)
-				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
+				recordScopedReadAuthorized(r, allowedAudit, authCtx)
+				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), authCtx)))
 				return
 			}
 		}
@@ -295,7 +295,7 @@ func tryBrowserSessionAuth(
 	}
 	requireCSRF := browserSessionRequiresCSRF(r.Method)
 	csrfToken := strings.TrimSpace(r.Header.Get(BrowserSessionCSRFHeaderName))
-	auth, ok, err := resolver.ResolveBrowserSession(
+	authCtx, ok, err := resolver.ResolveBrowserSession(
 		r.Context(),
 		BrowserSessionSecretHash(sessionValue),
 		BrowserSessionSecretHash(csrfToken),
@@ -317,15 +317,15 @@ func tryBrowserSessionAuth(
 		unauthorizedResponse(w, r)
 		return true
 	}
-	auth = normalizeBrowserSessionAuthContext(auth)
-	if auth.Mode == AuthModeBrowserSession {
-		if reason := browserSessionRouteDenialReason(r, auth, policy); reason != "" {
-			recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, reason)
+	authCtx = normalizeBrowserSessionAuthContext(authCtx)
+	if authCtx.Mode == AuthModeBrowserSession {
+		if reason := browserSessionRouteDenialReason(r, authCtx, policy); reason != "" {
+			recordScopedRouteAuthorizationDeniedWithReason(r, audit, authCtx, reason)
 			scopedRouteDeniedResponse(w, r)
 			return true
 		}
 	}
-	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
+	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), authCtx)))
 	return true
 }
 
@@ -349,8 +349,8 @@ func BrowserSessionSecretHash(secret string) string {
 // session.NormalizeBrowserSessionAuthContext. The implementation moved
 // there for #6642 so a handler-family subpackage can normalize a browser
 // session's auth context without importing this package.
-func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {
-	return session.NormalizeBrowserSessionAuthContext(auth)
+func normalizeBrowserSessionAuthContext(authCtx AuthContext) AuthContext {
+	return session.NormalizeBrowserSessionAuthContext(authCtx)
 }
 
 func sharedAuthContext() AuthContext {
@@ -361,16 +361,16 @@ func sharedAuthContext() AuthContext {
 	}
 }
 
-// normalizeAuthContext forwards to queryauth.NormalizeAuthContext. The
+// normalizeAuthContext forwards to auth.NormalizeAuthContext. The
 // implementation moved there for #6060 lane A so the supply-chain hub can
 // normalize without importing this package; every existing caller keeps its
 // exact behavior through this wrapper.
-func normalizeAuthContext(auth AuthContext) AuthContext {
-	return queryauth.NormalizeAuthContext(auth)
+func normalizeAuthContext(authCtx AuthContext) AuthContext {
+	return auth.NormalizeAuthContext(authCtx)
 }
 
 func cleanedAuthStrings(values []string) []string {
-	return queryauth.CleanedStrings(values)
+	return auth.CleanedStrings(values)
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.

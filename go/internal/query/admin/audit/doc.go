@@ -8,7 +8,7 @@
 //
 // Each helper cites the query-root source it was repointed from. The logic
 // sources stay canonical there (auth, permission catalog, local identity);
-// this package only re-sources them through the extracted queryauth and
+// this package only re-sources them through the extracted auth and
 // querycontract leaves so the admin packages never import the query root,
 // which would cycle back through handler.go and admin_alias.go.
 package audit

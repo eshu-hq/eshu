@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // #6818 move 4b: root auth surface (aliases, forwarders, route policies, handler wiring) stays in package query; moving it into auth/ strands root handler callers and turns this rename into a root-surface relocation, which is a separate follow-up.
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 const governanceAuditAppendTimeout = 500 * time.Millisecond
@@ -239,14 +239,14 @@ func recordReadAuthorizationUnavailable(
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
-	auth AuthContext,
+	authCtx AuthContext,
 	reasonCode string,
 ) {
 	if audit == nil {
 		return
 	}
-	actorClass := actorClassForAuth(auth)
-	if auth.SubjectIDHash == "" {
+	actorClass := actorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
 	reasonCode = strings.TrimSpace(reasonCode)
@@ -256,15 +256,15 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         actorClass,
-		ActorIDHash:        auth.SubjectIDHash,
+		ActorIDHash:        authCtx.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionDenied,
 		ReasonCode:         reasonCode,
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
 	defer cancel()
@@ -287,7 +287,7 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 // middleware (see cmd/mcp-server/wiring.go), so this is a no-op — byte
 // identical to today — everywhere else, including cmd/api and the
 // /api/v0/* authedHandler mcp-server also builds.
-func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditAppender, auth AuthContext) {
+func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditAppender, authCtx AuthContext) {
 	if allowedAudit == nil {
 		return
 	}
@@ -300,27 +300,27 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	// event would take its whole flush batch of well-formed allowed-read
 	// events down with it in the async appender's drain. Downgrading to
 	// anonymous keeps the event valid.
-	actorClass := actorClassForAuth(auth)
-	if auth.SubjectIDHash == "" {
+	actorClass := actorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         actorClass,
-		ActorIDHash:        auth.SubjectIDHash,
+		ActorIDHash:        authCtx.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionAllowed,
 		ReasonCode:         "scoped_read_allowed",
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	_ = allowedAudit.Append(r.Context(), []governanceaudit.Event{event})
 }
 
-// actorClassForAuth forwards to queryauth.ActorClassForAuth. The
+// actorClassForAuth forwards to auth.ActorClassForAuth. The
 // credential-to-actor-class mapping and the reason the switch has no
 // default moved there for #6642 so a handler-family subpackage can classify
 // an AuthContext for its own audit rows without importing this package.
@@ -342,8 +342,8 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 // cookieless request through with no context. In that posture an
 // admin_recovery_action row is anonymous, where before #6566
 // adminRecoveryActor stamped it shared_token with the synthetic identity.
-func actorClassForAuth(auth AuthContext) governanceaudit.ActorClass {
-	return queryauth.ActorClassForAuth(auth)
+func actorClassForAuth(authCtx AuthContext) governanceaudit.ActorClass {
+	return auth.ActorClassForAuth(authCtx)
 }
 
 func safeAuditCorrelationID(value string) string {

@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 )
@@ -59,8 +59,8 @@ func TestSearchEntityContentResultsAreHybridReranked(t *testing.T) {
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -121,8 +121,8 @@ func TestSearchFileContentResultsAreHybridReranked(t *testing.T) {
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -267,8 +267,8 @@ func TestSearchFileContentWithEmptyBodiesKeepsLexicalOrder(t *testing.T) {
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},

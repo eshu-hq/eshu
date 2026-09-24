@@ -14,7 +14,7 @@
    defeats the package's only purpose.
 2. Leaf packages only — never root `internal/query`, never a handler family,
    never a graph driver. Leaf dependencies such as `internal/status`,
-   `internal/governanceaudit`, or `queryauth` are fine.
+   `internal/governanceaudit`, or `auth` are fine.
 
    Only ONE of those three bans has a compiler backstop, and knowing which
    matters more than the rule itself:
@@ -82,7 +82,7 @@ Invariant 2 used to read "standard library only", enforced by the same gate,
 because the inventory skipped this directory and wanted a proxy for "nothing
 here can reach a backend". That rule was blocking real work — `fakeStatusReader`
 needs `internal/status`, `fakeGovernanceAuditAppender` needs
-`internal/governanceaudit`, `fakeScopedTokenResolver` needs `queryauth` — while
+`internal/governanceaudit`, `fakeScopedTokenResolver` needs `auth` — while
 the whitelist it came bundled with let a genuine graph read pass the gate in
 silence, so long as it wore the self-delegation shape. Dropping the skip
 retired both. Do not reintroduce either. The latter two fakes landed here as

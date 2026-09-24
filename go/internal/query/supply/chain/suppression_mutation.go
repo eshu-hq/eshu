@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -74,9 +74,9 @@ func (h *Handler) createVulnerabilitySuppression(w http.ResponseWriter, r *http.
 		span.End()
 	}()
 
-	auth, ok := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !ok || !auth.AllScopes || auth.Mode == queryauth.AuthModeBrowserSession {
+	authCtx, ok := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !ok || !authCtx.AllScopes || authCtx.Mode == auth.AuthModeBrowserSession {
 		querycontract.WriteError(w, http.StatusForbidden, "all-scopes operator authorization is required")
 		return
 	}
@@ -91,7 +91,7 @@ func (h *Handler) createVulnerabilitySuppression(w http.ResponseWriter, r *http.
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	value, err := buildOperatorVulnerabilitySuppression(request, auth)
+	value, err := buildOperatorVulnerabilitySuppression(request, authCtx)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -145,7 +145,7 @@ func readVulnerabilitySuppressionMutationJSON(
 
 func buildOperatorVulnerabilitySuppression(
 	request VulnerabilitySuppressionMutationRequest,
-	auth queryauth.AuthContext,
+	authCtx auth.AuthContext,
 ) (vulnerabilitysuppressionv1.Suppression, error) {
 	request.SuppressionID = strings.TrimSpace(request.SuppressionID)
 	request.Justification = strings.TrimSpace(request.Justification)
@@ -200,7 +200,7 @@ func buildOperatorVulnerabilitySuppression(
 		SuppressionID: request.SuppressionID,
 		Source:        facts.VulnerabilitySuppressionSourcePolicy,
 		Justification: request.Justification,
-		Author:        vulnerabilitySuppressionAuthor(auth),
+		Author:        vulnerabilitySuppressionAuthor(authCtx),
 		AuthoredAt:    authoredAtText,
 		ExpiresAt:     expiresAt,
 		Reason:        &reason,
@@ -225,12 +225,12 @@ func operatorSuppressionJustificationAllowed(value string) bool {
 	}
 }
 
-func vulnerabilitySuppressionAuthor(auth queryauth.AuthContext) string {
-	subjectClass := strings.TrimSpace(auth.SubjectClass)
+func vulnerabilitySuppressionAuthor(authCtx auth.AuthContext) string {
+	subjectClass := strings.TrimSpace(authCtx.SubjectClass)
 	if subjectClass == "" {
 		subjectClass = "authenticated_operator"
 	}
-	subjectIDHash := strings.TrimSpace(auth.SubjectIDHash)
+	subjectIDHash := strings.TrimSpace(authCtx.SubjectIDHash)
 	if subjectIDHash == "" {
 		return subjectClass
 	}

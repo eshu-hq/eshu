@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -51,9 +51,9 @@ func newProviderConfigReadMux(store ReadStore) *http.ServeMux {
 	return mux
 }
 
-func adminReadRequest(method, target string, auth queryauth.AuthContext) *http.Request {
+func adminReadRequest(method, target string, authCtx auth.AuthContext) *http.Request {
 	req := httptest.NewRequest(method, target, nil)
-	return req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
 func TestHandleListAdminProviderConfigs(t *testing.T) {
@@ -128,7 +128,7 @@ func TestHandleListRevisionsAdminProviderConfig(t *testing.T) {
 // 403 for a non-all-scope caller.
 func TestProviderConfigReadsRequireAllScope(t *testing.T) {
 	t.Parallel()
-	scoped := queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: providerConfigAdminTenant, AllScopes: false}
+	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: providerConfigAdminTenant, AllScopes: false}
 	cases := []struct{ method, target string }{
 		{http.MethodGet, "/api/v0/auth/admin/provider-configs"},
 		{http.MethodGet, "/api/v0/auth/admin/provider-configs/pc_1"},

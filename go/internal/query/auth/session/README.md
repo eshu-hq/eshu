@@ -7,8 +7,8 @@ normalizers.
 
 ## Ownership
 
-- `queryauth` owns `AuthContext`, `AuthMode`, and the context key. This
-  package names `queryauth.AuthContext`/`queryauth.AuthMode`; `queryauth`
+- `auth` owns `AuthContext`, `AuthMode`, and the context key. This
+  package names `auth.AuthContext`/`auth.AuthMode`; `auth`
   does not import this package.
 - Root package `query` keeps compatibility aliases (`BrowserSessionStore`,
   `BrowserSessionCreateRecord`, timeout defaults) and thin forwarders so
@@ -18,7 +18,7 @@ normalizers.
 
 ## Verification
 
-From `go/`: `go test ./internal/query/auth/session/ ./internal/query/queryauth/ -count=1`.
+From `go/`: `go test ./internal/query/auth/session/ ./internal/query/auth/ -count=1`.
 The cookie `__Host-` vs bare name pairing is covered by
 `cookies_test.go` (#4964); the timeout matrix by the timeout tests
 (#4968).

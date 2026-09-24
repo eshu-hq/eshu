@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 // newChainRouteRequest builds an envelope-accepting POST request for the
 // call-chain route, carrying auth as the request's AuthContext when non-nil
 // (nil means an unscoped shared-key caller).
-func newChainRouteRequest(t *testing.T, body map[string]any, auth *queryauth.AuthContext) *http.Request {
+func newChainRouteRequest(t *testing.T, body map[string]any, authCtx *auth.AuthContext) *http.Request {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -52,8 +52,8 @@ func newChainRouteRequest(t *testing.T, body map[string]any, auth *queryauth.Aut
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/call-chain", bytes.NewReader(payload))
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	if auth != nil {
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
+	if authCtx != nil {
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 	}
 	return req
 }
@@ -234,12 +234,12 @@ func TestCallChainCandidateOneHopRowsRepoScopedFiltersTargetRepository(t *testin
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, newChainRouteRequest(t, map[string]any{
 		"start": "AmbigStart", "end": "TargetEnd",
 		"repo_id": codeGrantGrantedRepo, "max_depth": 3,
-	}, &auth))
+	}, &authCtx))
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
@@ -320,8 +320,8 @@ func TestHandleCallChainRejectsCrossRepoEndpointSelectorOutsideGrant(t *testing.
 		"/api/v0/code/call-chain",
 		bytes.NewBufferString(`{"start_entity_id":"entity:a","end_entity_id":"entity:b","cross_repo":true,"start_repo_id":"repo-team-a","end_repo_id":"repo-team-b"}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	}))

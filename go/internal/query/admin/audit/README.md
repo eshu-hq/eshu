@@ -7,6 +7,6 @@ IDs, the permission-feature gate, local-identity hashes, and optional-time
 row shaping.
 
 Each helper cites the query-root source it was repointed from. The logic
-stays canonical there and in the `queryauth` / `querycontract` leaves; this
+stays canonical there and in the `auth` / `querycontract` leaves; this
 package only re-sources it so the admin packages never import the query
 root, which would cycle back through the root alias shim.

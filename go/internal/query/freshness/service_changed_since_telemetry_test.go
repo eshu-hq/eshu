@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -73,7 +73,7 @@ var oneContestedCorrelationRow = []service.CatalogCorrelationRow{{CorrelationID:
 // does not run in parallel with itself or with any other test in this
 // package that also swaps freshnessHandlerTracer.
 func recordServiceChangedSinceSpan(
-	t *testing.T, serviceID string, auth queryauth.AuthContext, ownership service.CatalogCorrelationStore,
+	t *testing.T, serviceID string, authCtx auth.AuthContext, ownership service.CatalogCorrelationStore,
 ) map[string]any {
 	t.Helper()
 
@@ -98,7 +98,7 @@ func recordServiceChangedSinceSpan(
 		nil,
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -142,7 +142,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		serviceID string
-		auth      queryauth.AuthContext
+		auth      auth.AuthContext
 		ownership service.CatalogCorrelationStore
 		// wantReason is empty for the cases that must carry no refusal
 		// attribute at all.
@@ -168,7 +168,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 		{
 			name:       "empty grant records empty_grant",
 			serviceID:  "svc-a",
-			auth:       queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+			auth:       auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
 			ownership:  fakeServiceOwnershipProbeResult{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalEmptyGrant,
 		},
@@ -191,7 +191,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			// this attribute must not pick up shared-key traffic.
 			name:      "shared key carries no refusal attribute",
 			serviceID: "svc-b",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			auth:      auth.AuthContext{Mode: auth.AuthModeShared},
 			ownership: fakeServiceOwnershipProbeResult{},
 		},
 	} {

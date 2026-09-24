@@ -20,11 +20,11 @@ Owns `IdentityHandler`, its route dispatch, the `IdentityStore`/
 type, the require_sso and allow_local_user_creation sign-in-policy gates for
 this family's routes, and `IssueSessionCookies` (the session-issuance body
 this family and the setup wizard's final step both call). Does not own the
-sign-in-policy read/write store itself (`queryauth.SignInPolicyReadStore`,
+sign-in-policy read/write store itself (`auth.SignInPolicyReadStore`,
 root's `sign_in_policy_reads.go`/`sign_in_policy_mutations.go`), the
-browser-session store or cookie primitives (`queryauth`), the governance
-audit sink (`queryauth.GovernanceAuditAppender`), or the permission catalog
-(`queryauth.AllowsPermissionFeature`) -- those are separate homes this
+browser-session store or cookie primitives (`auth`), the governance
+audit sink (`auth.GovernanceAuditAppender`), or the permission catalog
+(`auth.AllowsPermissionFeature`) -- those are separate homes this
 package calls into. Does not own `SetupHandler` (root's `setup_handler.go`
 family, moving in a later #6642 lane): it shares this package's
 `IdentityHash`/`IdentityHashes`/`IssueSessionCookies`/`PolicyRevision`
@@ -113,7 +113,7 @@ resolve.
 Helper replacements: every call the family made to a root-private
 auth/session/permission helper now calls the seam spelling the #6642
 auth-seam handoff assigned it --
-`queryauth.{GovernanceAuditAppender,AuthContext,AuthContextFromContext,
+`auth.{GovernanceAuditAppender,AuthContext,AuthContextFromContext,
 AuthModeBrowserSession,AuthModeShared,BrowserSessionAuthResponse,
 BrowserSessionCreateRecord,BrowserSessionStore,CreateBrowserSession,
 BrowserSessionSecretHash,CookieSecureMode,
@@ -134,11 +134,11 @@ stutter naming rule 4 asks the mover to flag. Collapsing `LocalIdentity` to
 one dropped unit (`local.Handler`, `local.Store`, `local.AuthContext`) was
 considered against two costs: `local.AuthContext` would collide in read (not
 name, since Go scoping resolves it, but in a reviewer's eye) with
-`queryauth.AuthContext`, a completely different type this same file already
+`auth.AuthContext`, a completely different type this same file already
 imports and uses side by side in `IssueSessionCookies` -- a package that
-reads `AuthContext` and `queryauth.AuthContext` on adjacent lines invites
+reads `AuthContext` and `auth.AuthContext` on adjacent lines invites
 mistaking one for the other far more than `IdentityAuthContext` and
-`queryauth.AuthContext` do. `local.Store` would also read one step removed
+`auth.AuthContext` do. `local.Store` would also read one step removed
 from what it stores (a local **identity**, not a local anything-else) in a
 package whose own name (`local`) says nothing about identity at all -- unlike
 `freshness.Cause` or `secrets.IAMFinding`, where the package name alone

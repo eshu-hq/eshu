@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // TestRecoveryActorMapsEveryAuthMode pins the recovery audit actor mapping
@@ -25,47 +25,47 @@ func TestRecoveryActorMapsEveryAuthMode(t *testing.T) {
 	const hash = "sha256:abcdef12"
 	cases := []struct {
 		name      string
-		auth      queryauth.AuthContext
+		auth      auth.AuthContext
 		wantClass governanceaudit.ActorClass
 		wantHash  string
 	}{
 		{
 			name:      "browser session with a subject hash is browser_session",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, SubjectIDHash: hash},
+			auth:      auth.AuthContext{Mode: auth.AuthModeBrowserSession, SubjectIDHash: hash},
 			wantClass: governanceaudit.ActorClassBrowserSession,
 			wantHash:  hash,
 		},
 		{
 			name:      "browser session with no subject hash downgrades to anonymous",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession},
+			auth:      auth.AuthContext{Mode: auth.AuthModeBrowserSession},
 			wantClass: governanceaudit.ActorClassAnonymous,
 		},
 		{
 			name:      "scoped Bearer [REDACTED] a subject hash is scoped_token",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeScoped, SubjectIDHash: hash},
+			auth:      auth.AuthContext{Mode: auth.AuthModeScoped, SubjectIDHash: hash},
 			wantClass: governanceaudit.ActorClassScopedToken,
 			wantHash:  hash,
 		},
 		{
 			name:      "scoped Bearer [REDACTED] no subject hash downgrades to anonymous",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeScoped},
+			auth:      auth.AuthContext{Mode: auth.AuthModeScoped},
 			wantClass: governanceaudit.ActorClassAnonymous,
 		},
 		{
 			name:      "shared Bearer [REDACTED] a subject hash is shared_token",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeShared, SubjectIDHash: hash},
+			auth:      auth.AuthContext{Mode: auth.AuthModeShared, SubjectIDHash: hash},
 			wantClass: governanceaudit.ActorClassSharedToken,
 			wantHash:  hash,
 		},
 		{
 			name:      "shared Bearer [REDACTED] no subject hash keeps the synthetic identity",
-			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			auth:      auth.AuthContext{Mode: auth.AuthModeShared},
 			wantClass: governanceaudit.ActorClassSharedToken,
 			wantHash:  SharedActorIDHash,
 		},
 		{
 			name:      "no auth context is anonymous",
-			auth:      queryauth.AuthContext{},
+			auth:      auth.AuthContext{},
 			wantClass: governanceaudit.ActorClassAnonymous,
 		},
 	}

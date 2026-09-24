@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // ResolveSessionTimeouts resolves the idle/absolute session timeout for one
@@ -30,7 +30,7 @@ import (
 // session timeouts without importing root.
 func ResolveSessionTimeouts(
 	ctx context.Context,
-	signInPolicy queryauth.SignInPolicyReadStore,
+	signInPolicy auth.SignInPolicyReadStore,
 	tenantID string,
 	defaultIdle time.Duration,
 	defaultAbsolute time.Duration,

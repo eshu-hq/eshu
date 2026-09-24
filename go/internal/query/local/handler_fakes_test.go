@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 // fakeStore is the shared IdentityProfileLister test double for this
@@ -195,8 +195,8 @@ func (f *fakeSessions) RevokeBrowserSession(_ context.Context, _ string, _ time.
 
 func (f *fakeSessions) SwitchBrowserSessionWorkspace(
 	_ context.Context, _, _, _ string, _ time.Time,
-) (queryauth.AuthContext, bool, error) {
-	return queryauth.AuthContext{}, false, nil
+) (auth.AuthContext, bool, error) {
+	return auth.AuthContext{}, false, nil
 }
 
 // sequenceSecrets returns a deterministic NewSecret double that hands out

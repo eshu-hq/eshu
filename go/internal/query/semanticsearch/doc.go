@@ -12,7 +12,7 @@
 // tested, and changed without pulling in the rest of the query surface. It
 // depends only on the dependency-neutral leaf packages under internal/query --
 // querycontract (response and truth envelopes, capability gates, repository
-// access filters), queryauth (the request-scoped grant snapshot and the
+// access filters), auth (the request-scoped grant snapshot and the
 // permission-catalog predicates), and tracing (the per-route HTTP span) --
 // never on root package query itself, which would create an import cycle:
 // root's semantic_search_alias.go imports this package for the compatibility

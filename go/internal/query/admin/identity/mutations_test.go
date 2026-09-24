@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -89,14 +89,14 @@ func hasAuditReason(audit *querytestutil.FakeGovernanceAuditAppender, reason str
 	return false
 }
 
-func mutationRequest(method, target, body string, auth queryauth.AuthContext) *http.Request {
+func mutationRequest(method, target, body string, authCtx auth.AuthContext) *http.Request {
 	var req *http.Request
 	if body == "" {
 		req = httptest.NewRequest(method, target, nil)
 	} else {
 		req = httptest.NewRequest(method, target, strings.NewReader(body))
 	}
-	return req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
 func newMutationMux(store MutationStore, audit *querytestutil.FakeGovernanceAuditAppender) *http.ServeMux {
@@ -131,7 +131,7 @@ func adminMutationCases() []struct {
 func TestAdminMutationsRequireAllScope(t *testing.T) {
 	t.Parallel()
 
-	scoped := queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: false}
+	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: false}
 	for _, tc := range adminMutationCases() {
 		audit := &querytestutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
@@ -151,7 +151,7 @@ func TestAdminMutationsRequireAllScope(t *testing.T) {
 func TestAdminMutationsRequireTenant(t *testing.T) {
 	t.Parallel()
 
-	tenantless := queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true}
+	tenantless := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}
 	for _, tc := range adminMutationCases() {
 		audit := &querytestutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
@@ -167,7 +167,7 @@ func TestAdminMutationsRequireTenant(t *testing.T) {
 }
 
 // TestAdminMutationsSharedTokenDenialAuditsValidEvent verifies that a denial
-// from a shared bearer-token caller (queryauth.AuthModeShared, no SubjectIDHash, no
+// from a shared bearer-token caller (auth.AuthModeShared, no SubjectIDHash, no
 // tenant) produces a governance audit event that passes NormalizeEvent. Without
 // the sharedAdminActorIDHash fallback the event has ActorClass=shared_token and
 // empty ActorIDHash, which NormalizeEvent rejects, silently dropping the record.
@@ -175,7 +175,7 @@ func TestAdminMutationsSharedTokenDenialAuditsValidEvent(t *testing.T) {
 	t.Parallel()
 
 	// Shared bearer token: no SubjectIDHash, no tenant — triggers admin_tenant_required.
-	sharedNoTenant := queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true, SubjectIDHash: ""}
+	sharedNoTenant := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true, SubjectIDHash: ""}
 	for _, tc := range adminMutationCases() {
 		audit := &querytestutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)

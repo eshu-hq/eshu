@@ -124,7 +124,7 @@ live in the repository today.
 | `go/internal/projector/workload/cloud/` | workload-cloud-relationship reducer-intent family builder |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/package/registry/` | package-registry query handler family: package/version identity, package-native dependency edges, reducer-derived correlation, and inventory reads |
-| `go/internal/query/queryauth/` | request-scoped authorization bounds a query handler reads, and the context slot they travel in |
+| `go/internal/query/auth/` | request-scoped authorization bounds a query handler reads, and the context slot they travel in |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/query/decode/` | the query layer's classified fact-decode failure, defaulting an unexpected error to non-retryable |
 | `go/internal/query/selector/` | resolves a caller-supplied repository selector to one canonical repository id under the caller's access bounds |
@@ -192,7 +192,7 @@ Read and operator surfaces live under:
 
 - `go/internal/query/`: HTTP handlers, root compatibility aliases, and OpenAPI
 - `go/internal/query/package/registry/`: package-registry handler family
-- `go/internal/query/queryauth/`: request-scoped authorization bounds and their
+- `go/internal/query/auth/`: request-scoped authorization bounds and their
   context slot
 - `go/internal/query/querycontract/`: response contracts, profile gates, and read ports
 - `go/internal/query/decode/`: classified fact-decode failure for query

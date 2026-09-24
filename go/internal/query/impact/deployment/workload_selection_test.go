@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -141,8 +141,8 @@ func TestResolveWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
 // only allowedRepositoryIDs, the same shape production request middleware
 // installs for a scoped caller.
 func scopedAuthContext(allowedRepositoryIDs ...string) context.Context {
-	return queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	return auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: allowedRepositoryIDs,
 	})
 }

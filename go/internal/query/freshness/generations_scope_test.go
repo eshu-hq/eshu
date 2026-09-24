@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -49,8 +49,8 @@ func TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery(t *testing.T) {
 		nil,
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},
@@ -81,7 +81,7 @@ func TestGenerationLifecycleLeavesSharedKeyUnbounded(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/generations?repository=repo-b", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeShared}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeShared}))
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

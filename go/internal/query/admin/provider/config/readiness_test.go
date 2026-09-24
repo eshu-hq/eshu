@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -52,7 +52,7 @@ func TestHandleEnableAdminProviderConfigRejectsMissingRedirectURL(t *testing.T) 
 			mux := newProviderConfigMutationMux(store, tester, audit, readStore)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 
@@ -112,7 +112,7 @@ func TestHandleEnableAdminProviderConfigRejectsMissingSAMLLoginFields(t *testing
 			mux := newProviderConfigMutationMux(store, tester, audit, readStore)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 
@@ -148,7 +148,7 @@ func TestHandleEnableAdminProviderConfigSucceedsWithRedirectURLPresent(t *testin
 	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{}, readStore)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -175,7 +175,7 @@ func TestHandleEnableAdminProviderConfigUnknownKindUnaffected(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{}, readStore)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -214,7 +214,7 @@ func TestHandleEnableAdminProviderConfigReadinessGapFailsOpen(t *testing.T) {
 			handler.Mount(mux)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 

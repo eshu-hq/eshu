@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // fakeAdminIdentityReadStore records the tenant/workspace it was asked for and
@@ -103,15 +103,15 @@ func (f *fakeAdminAuditReader) SummarizeAuditEventsForTenant(_ context.Context, 
 	return f.summary, nil
 }
 
-func adminRequest(t *testing.T, method, target string, auth queryauth.AuthContext) *http.Request {
+func adminRequest(t *testing.T, method, target string, authCtx auth.AuthContext) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(method, target, nil)
-	return req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
-func allScopeAdminAuth(tenantID, workspaceID string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:        queryauth.AuthModeBrowserSession,
+func allScopeAdminAuth(tenantID, workspaceID string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:        auth.AuthModeBrowserSession,
 		TenantID:    tenantID,
 		WorkspaceID: workspaceID,
 		AllScopes:   true,
@@ -130,8 +130,8 @@ func TestAdminIdentityReadsRequireAllScope(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	scopedAuth := queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	scopedAuth := auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant_a",
 		WorkspaceID: "workspace_a",
 		AllScopes:   false,
@@ -157,7 +157,7 @@ func TestAdminIdentityReadsRequireTenant(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	tenantlessAdmin := queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true}
+	tenantlessAdmin := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}
 	for _, path := range adminReadPaths() {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantlessAdmin))
@@ -168,7 +168,7 @@ func TestAdminIdentityReadsRequireTenant(t *testing.T) {
 }
 
 // TestAdminIdentityReadsTenantIsolation proves an admin can only ever read their
-// own tenant's data: the handler passes the queryauth.AuthContext tenant to the store, and
+// own tenant's data: the handler passes the auth.AuthContext tenant to the store, and
 // rows belonging to another tenant are never returned even when present.
 func TestAdminIdentityReadsTenantIsolation(t *testing.T) {
 	t.Parallel()
@@ -303,7 +303,7 @@ func TestAdminAuditEventsSetsOperatorAuthorizedAndFilters(t *testing.T) {
 	rec := httptest.NewRecorder()
 	// Audit reads require the global shared-operator scope (governance_audit_events
 	// has no tenant column; per-tenant audit is tracked in #3717).
-	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, target, queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true}))
+	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, target, auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
@@ -336,13 +336,13 @@ func TestAdminAuditEventsSetsOperatorAuthorizedAndFilters(t *testing.T) {
 // TestAdminAuditEventsGating verifies audit endpoint access control (#3717).
 //
 // Allowed callers:
-//   - Shared operator (queryauth.AuthModeShared): sees all events, no tenant filter.
+//   - Shared operator (auth.AuthModeShared): sees all events, no tenant filter.
 //   - Tenant admin (AllScopes=true + TenantID set): sees own-tenant events only.
 //
 // Denied callers:
 //   - Unauthenticated (no auth context).
 //   - Scoped token without AllScopes.
-//   - AllScopes caller with no TenantID and not queryauth.AuthModeShared.
+//   - AllScopes caller with no TenantID and not auth.AuthModeShared.
 func TestAdminAuditEventsGating(t *testing.T) {
 	t.Parallel()
 
@@ -354,7 +354,7 @@ func TestAdminAuditEventsGating(t *testing.T) {
 	auditPaths := []string{"/api/v0/auth/admin/audit/events", "/api/v0/auth/admin/audit/summary"}
 
 	// Scoped (non-admin) caller without AllScopes: must be denied.
-	scopedAuth := queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant_a", AllScopes: false}
+	scopedAuth := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant_a", AllScopes: false}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, scopedAuth))
@@ -363,8 +363,8 @@ func TestAdminAuditEventsGating(t *testing.T) {
 		}
 	}
 
-	// AllScopes with no TenantID and not queryauth.AuthModeShared: must be denied.
-	tenantlessAdmin := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, TenantID: "", AllScopes: true}
+	// AllScopes with no TenantID and not auth.AuthModeShared: must be denied.
+	tenantlessAdmin := auth.AuthContext{Mode: auth.AuthModeBrowserSession, TenantID: "", AllScopes: true}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantlessAdmin))
@@ -374,7 +374,7 @@ func TestAdminAuditEventsGating(t *testing.T) {
 	}
 
 	// Tenant admin (AllScopes + TenantID): must be allowed (scoped to own tenant).
-	tenantAdmin := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: true}
+	tenantAdmin := auth.AuthContext{Mode: auth.AuthModeBrowserSession, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: true}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantAdmin))
@@ -385,7 +385,7 @@ func TestAdminAuditEventsGating(t *testing.T) {
 	}
 
 	// Shared operator: must be allowed and must not have a tenant filter applied.
-	sharedOp := queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true}
+	sharedOp := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, sharedOp))
@@ -442,7 +442,7 @@ func TestAdminAuditEventsTruncatedReflectsEffectiveLimit(t *testing.T) {
 	handler.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, "/api/v0/auth/admin/audit/events?limit=2", queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true}))
+	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, "/api/v0/auth/admin/audit/events?limit=2", auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -260,9 +260,9 @@ func generationTwoTenantGrantAdmits(filter status.GenerationLifecycleFilter, row
 // all-scope-bearer boundary proof share: repo-a and scope-a, which
 // TwoTenantChangedSinceScopes' and TwoTenantGenerationRows' first row carries
 // and their second does not.
-func ScopedChangedSinceTenantA() queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func ScopedChangedSinceTenantA() auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},

@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -80,8 +80,8 @@ func TestSemanticSearchHandlerResolvesAuthorizedRepositoryToDistinctScope(t *tes
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:r_payments"},
 	}))
 	rec := httptest.NewRecorder()
@@ -122,8 +122,8 @@ func TestSemanticSearchHandlerUsesDirectGrantedScopeAndCanonicalRepository(t *te
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		AllowedScopeIDs: []string{"git-repository-scope:repo-payments"},
 	}))
 	rec := httptest.NewRecorder()
@@ -252,8 +252,8 @@ func TestSemanticSearchHandlerDoesNotReadIndexForStaleDirectScope(t *testing.T) 
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		AllowedScopeIDs: []string{"git-repository-scope:repo-stale"},
 	}))
 	rec := httptest.NewRecorder()
@@ -288,8 +288,8 @@ func TestSemanticSearchHandlerRejectsOutOfGrantBeforeScopeResolution(t *testing.
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:r_other"},
 	}))
 	rec := httptest.NewRecorder()
@@ -324,8 +324,8 @@ func TestSemanticSearchHandlerRejectsAmbiguousRepositoryScope(t *testing.T) {
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:r_payments"},
 	}))
 	rec := httptest.NewRecorder()

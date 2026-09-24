@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
@@ -143,8 +143,8 @@ func TestSemanticSearchKeywordReturnsResultsForDirectScopeGrant(t *testing.T) {
 		"limit":      5,
 		"timeout_ms": 2000,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		AllowedScopeIDs: []string{scopeID},
 	}))
 	rec := httptest.NewRecorder()
@@ -186,7 +186,7 @@ func TestSemanticSearchKeywordReturnsResultsForAllScopesScopeID(t *testing.T) {
 		"limit":      5,
 		"timeout_ms": 2000,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeShared}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeShared}))
 	rec := httptest.NewRecorder()
 
 	handler.search(rec, req)
@@ -225,8 +225,8 @@ func TestSemanticSearchKeywordCanonicalRepoIDStillMatches(t *testing.T) {
 		"limit":      5,
 		"timeout_ms": 2000,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{canonicalRepoID},
 	}))
 	rec := httptest.NewRecorder()
@@ -270,8 +270,8 @@ func TestSemanticSearchKeywordScopeIDWithBothGrantsReturnsCanonicalIDs(t *testin
 		"limit":      5,
 		"timeout_ms": 2000,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedScopeIDs:      []string{scopeID},
 		AllowedRepositoryIDs: []string{canonicalRepoID},
 	}))
@@ -323,8 +323,8 @@ func TestSemanticSearchScopeIDWithServiceKeepsServiceAnchor(t *testing.T) {
 		"limit":      5,
 		"timeout_ms": 2000,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		AllowedScopeIDs: []string{scopeID},
 	}))
 	rec := httptest.NewRecorder()
@@ -362,21 +362,21 @@ func TestSemanticSearchResolveScopeNeverReturnsScopeIDAsCanonicalRepository(t *t
 
 	tests := []struct {
 		name string
-		auth queryauth.AuthContext
+		auth auth.AuthContext
 	}{
 		{
 			// No active repository scope owns the id, so the direct lookup
 			// comes back empty and nothing above claims the request.
 			name: "all scopes caller, scope id has no active generation",
-			auth: queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			auth: auth.AuthContext{Mode: auth.AuthModeShared},
 		},
 		{
 			// The grant names the same scope id in both lists, so the caller
 			// holds a direct scope grant AND a canonical repository grant on
 			// it, and the scope-addressed branch is skipped.
 			name: "grant names the scope id as both a scope and a repository",
-			auth: queryauth.AuthContext{
-				Mode:                 queryauth.AuthModeScoped,
+			auth: auth.AuthContext{
+				Mode:                 auth.AuthModeScoped,
 				AllowedScopeIDs:      []string{scopeID},
 				AllowedRepositoryIDs: []string{scopeID},
 			},
@@ -392,7 +392,7 @@ func TestSemanticSearchResolveScopeNeverReturnsScopeIDAsCanonicalRepository(t *t
 			// lookup, if it ran, would produce a usable-looking resolution.
 			resolver := &fakeSemanticSearchScopeResolver{scopeID: "git-repository-scope:repo-payments"}
 			handler := &SemanticSearchHandler{ScopeResolver: resolver, Profile: querycontract.ProfileProduction}
-			ctx := queryauth.ContextWithAuthContext(context.Background(), tc.auth)
+			ctx := auth.ContextWithAuthContext(context.Background(), tc.auth)
 			access := querycontract.RepositoryAccessFilterFromContext(ctx)
 
 			resolution, err := handler.resolveScope(

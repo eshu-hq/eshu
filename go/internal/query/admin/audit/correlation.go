@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -58,10 +58,10 @@ func CorrelationID(r *http.Request) string {
 // RequirePermissionFeature enforces the permission-catalog feature gate for
 // an admin route. Repointed from requirePermissionFeature, which lived in root
 // until querycontract took ownership of the permission catalog (#6642). The
-// decision stays canonical in queryauth.AllowsPermissionFeature, and the denial
+// decision stays canonical in auth.AllowsPermissionFeature, and the denial
 // envelope keeps the root shape through querycontract.
 func RequirePermissionFeature(w http.ResponseWriter, r *http.Request, capability string, feature string) bool {
-	if queryauth.AllowsPermissionFeature(r.Context(), feature) {
+	if auth.AllowsPermissionFeature(r.Context(), feature) {
 		return true
 	}
 	WritePermissionDeniedEnvelope(w, capability)

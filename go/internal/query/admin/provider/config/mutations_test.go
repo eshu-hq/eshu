@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -102,8 +102,8 @@ func (f *fakeProviderConfigConnectionTester) TestProviderConnection(_ context.Co
 
 const providerConfigAdminTenant = "tenant_a"
 
-func providerConfigAdminAuth() queryauth.AuthContext {
-	return queryauth.AuthContext{Mode: queryauth.AuthModeShared, TenantID: providerConfigAdminTenant, AllScopes: true}
+func providerConfigAdminAuth() auth.AuthContext {
+	return auth.AuthContext{Mode: auth.AuthModeShared, TenantID: providerConfigAdminTenant, AllScopes: true}
 }
 
 // newProviderConfigMutationMux builds a mux over a fresh
@@ -154,7 +154,7 @@ func TestHandleCreateAdminProviderConfig(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validOIDCCreateBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -189,7 +189,7 @@ func TestHandleCreateAdminProviderConfigRejectsMissingSecret(t *testing.T) {
 
 	body := `{"provider_kind":"oidc","issuer":"https://idp.example.test","client_id":"client-1"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(body))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -209,7 +209,7 @@ func TestHandleUpdateAdminProviderConfig(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1", strings.NewReader(validOIDCCreateBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -227,7 +227,7 @@ func TestHandleUpdateAdminProviderConfigNotFound(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_missing", strings.NewReader(validOIDCCreateBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -248,7 +248,7 @@ func TestHandleUpdateAdminProviderConfigKindMismatch(t *testing.T) {
 
 	samlBody := `{"provider_kind":"saml","entity_id":"https://sp.example.test","metadata_xml":"<md/>","sp_private_key":"k","sp_certificate":"c"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1", strings.NewReader(samlBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -269,7 +269,7 @@ func TestHandleRevertAdminProviderConfig(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/revert", strings.NewReader(`{"revision_id":"rev_1"}`))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -291,7 +291,7 @@ func TestHandleEnableAdminProviderConfigRequiresPassingTest(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -315,7 +315,7 @@ func TestHandleEnableAdminProviderConfigPassingTest(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -340,7 +340,7 @@ func TestHandleEnableAdminProviderConfigRevisionChanged(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -355,7 +355,7 @@ func TestHandleDisableAdminProviderConfig(t *testing.T) {
 	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/disable", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -373,7 +373,7 @@ func TestHandleTestConnectionAdminProviderConfig(t *testing.T) {
 	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, tester, &querytestutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/test-connection", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -398,7 +398,7 @@ func TestHandleCreateAdminProviderConfigAuditsWhenStoreUnavailable(t *testing.T)
 	mux := newProviderConfigMutationMux(nil, &fakeProviderConfigConnectionTester{}, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validOIDCCreateBody))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -422,7 +422,7 @@ func TestHandleTestConnectionAdminProviderConfigAuditsWhenTesterUnavailable(t *t
 	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/test-connection", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -460,7 +460,7 @@ func providerConfigMutationCases() []struct {
 // returns 403 for a non-all-scope caller and audits the denial.
 func TestProviderConfigMutationsRequireAllScope(t *testing.T) {
 	t.Parallel()
-	scoped := queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: providerConfigAdminTenant, AllScopes: false}
+	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: providerConfigAdminTenant, AllScopes: false}
 	for _, tc := range providerConfigMutationCases() {
 		audit := &querytestutil.FakeGovernanceAuditAppender{}
 		mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, &fakeProviderConfigConnectionTester{}, audit)
@@ -470,7 +470,7 @@ func TestProviderConfigMutationsRequireAllScope(t *testing.T) {
 		} else {
 			req = httptest.NewRequest(tc.method, tc.target, strings.NewReader(tc.body))
 		}
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), scoped))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), scoped))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {

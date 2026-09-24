@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -62,8 +62,8 @@ func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testi
 	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve",
 		bytes.NewBufferString(`{"name":"Payments API","type":"workload","limit":5}`))
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	}))
 	rec := httptest.NewRecorder()

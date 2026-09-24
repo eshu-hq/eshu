@@ -16,7 +16,7 @@
 // It moved out of root package query (#6060 lane A) so the family can be
 // read, tested, and changed without pulling in the rest of the query
 // surface. It depends only on dependency-neutral leaves -- querycontract
-// (envelopes, capabilities, row-value decoders), queryauth (request auth
+// (envelopes, capabilities, row-value decoders), auth (request auth
 // bounds), selector (repository-selector resolution), tracing (span
 // plumbing), decode-adjacent sdk/go/factschema seams, internal/scope,
 // and the advisory/impact subpackages -- never on root package query

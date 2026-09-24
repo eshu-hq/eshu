@@ -15,10 +15,10 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/search"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
@@ -208,7 +208,7 @@ func crossRepoDeadCodeGrantConsumerRow(consumerRepoID string, entityID string) d
 // code route, carrying auth as the request's AuthContext when non-nil (nil
 // means an unscoped shared-key caller). Copy of codequery's
 // auth_scoped_code_topic_grant_test.go helper.
-func newCodeGrantRouteRequest(t *testing.T, path string, body map[string]any, auth *queryauth.AuthContext) *http.Request {
+func newCodeGrantRouteRequest(t *testing.T, path string, body map[string]any, authCtx *auth.AuthContext) *http.Request {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -216,8 +216,8 @@ func newCodeGrantRouteRequest(t *testing.T, path string, body map[string]any, au
 	}
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	if auth != nil {
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
+	if authCtx != nil {
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 	}
 	return req
 }

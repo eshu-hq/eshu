@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -87,7 +87,7 @@ func (h *SignInPolicyReadHandler) handleAdminGet(w http.ResponseWriter, r *http.
 	if !h.storeReady(w) {
 		return
 	}
-	if !querycontract.RequirePermissionFeature(w, r, "identity_admin.sign_in_policy_read", queryauth.PermissionFeatureIdentityAdmin) {
+	if !querycontract.RequirePermissionFeature(w, r, "identity_admin.sign_in_policy_read", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, ok := signInPolicyAdminScope(w, r)
@@ -106,17 +106,17 @@ func (h *SignInPolicyReadHandler) handleAdminGet(w http.ResponseWriter, r *http.
 // signInPolicyAdminScope resolves the all-scope admin caller's tenant,
 // mirroring AdminProviderConfigReadHandler.adminScope.
 func signInPolicyAdminScope(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	auth, found := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := AuthContextFromContext(r.Context())
+	authCtx = normalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", false
 	}
-	return auth.TenantID, true
+	return authCtx.TenantID, true
 }
 
 // signInPolicyDetailJSON projects SignInPolicy into the admin API response

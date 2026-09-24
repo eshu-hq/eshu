@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -113,7 +113,7 @@ func runDeadCodeIncomingProbe(
 	graph := &deadCodeIncomingProbeGraph{
 		sourcesByEntity: map[string][]deadCodeIncomingProbeSource{deadCodeIncomingProbeEntity: sources},
 	}
-	ctx := queryauth.ContextWithAuthContext(
+	ctx := auth.ContextWithAuthContext(
 		context.Background(),
 		querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}),
 	)
@@ -346,8 +346,8 @@ func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 		"name":      "unusedHelper",
 		"labels":    []any{"Function"},
 	}}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	ctx := queryauth.ContextWithAuthContext(context.Background(), auth)
+	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	ctx := auth.ContextWithAuthContext(context.Background(), authCtx)
 	incoming, err := deadCodeTestIncomingEdges(graph)(ctx, results, "Function")
 	if err != nil {
 		t.Fatalf("deadCodeResultsWithGraphIncomingEdges() error = %v, want nil", err)
@@ -451,8 +451,8 @@ func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadcod
 		}}, nil
 	}
 	probeGraph := graph.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	ctx := queryauth.ContextWithAuthContext(context.Background(), auth)
+	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	ctx := auth.ContextWithAuthContext(context.Background(), authCtx)
 	graph, err := deadCodeTestIncomingEdges(probeGraph)(ctx, []map[string]any{{
 		"entity_id": deadCodeHiddenConsumerEntityID,
 		"repo_id":   codeGrantGrantedRepo,

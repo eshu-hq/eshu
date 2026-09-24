@@ -18,7 +18,7 @@ Scope: the code-family query handlers, split out of root package `query`
   never extend the seam for new callers.
 - `codemodel` owns read-model builders and response shapers;
   `querycontract` owns envelopes, capabilities, and the access
-  filter; `queryauth` owns request auth bounds. This package MUST NOT
+  filter; `auth` owns request auth bounds. This package MUST NOT
   re-declare those -- qualify to them.
 
 ## Import discipline (cardinal)

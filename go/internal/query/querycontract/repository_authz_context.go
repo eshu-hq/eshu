@@ -6,7 +6,7 @@ package querycontract
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // RepositoryAccessFilterFromContext builds the repository-access bounds for a
@@ -15,19 +15,19 @@ import (
 // This lived in the root query package until #6060, with a comment explaining
 // that it could not move because it depends on AuthContext,
 // AuthContextFromContext and AuthModeShared, which were root concepts. Those all
-// moved to queryauth, a standard-library-only type leaf, so the reason no longer
+// moved to auth, a standard-library-only type leaf, so the reason no longer
 // holds and the constructor now sits beside the type it constructs.
 //
 // A caller with no grants must come back Empty rather than AllScopes. The
 // AllScopes shortcut is reached only for an unauthenticated context, an
 // explicit all-scopes grant, or the legacy shared-token mode.
 func RepositoryAccessFilterFromContext(ctx context.Context) RepositoryAccessFilter {
-	auth, ok := queryauth.AuthContextFromContext(ctx)
-	if !ok || auth.AllScopes || auth.Mode == queryauth.AuthModeShared {
+	authCtx, ok := auth.AuthContextFromContext(ctx)
+	if !ok || authCtx.AllScopes || authCtx.Mode == auth.AuthModeShared {
 		return RepositoryAccessFilter{AllScopes: true}
 	}
-	allowedScopeIDs := queryauth.CleanedStrings(auth.AllowedScopeIDs)
-	allowedRepositoryIDs := queryauth.CleanedStrings(auth.AllowedRepositoryIDs)
+	allowedScopeIDs := auth.CleanedStrings(authCtx.AllowedScopeIDs)
+	allowedRepositoryIDs := auth.CleanedStrings(authCtx.AllowedRepositoryIDs)
 	allowed := make(map[string]struct{}, len(allowedScopeIDs)+len(allowedRepositoryIDs))
 	for _, id := range allowedScopeIDs {
 		allowed[id] = struct{}{}

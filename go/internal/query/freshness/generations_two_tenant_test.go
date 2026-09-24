@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-func generationsRequest(t *testing.T, generationID string, auth queryauth.AuthContext) *http.Request {
+func generationsRequest(t *testing.T, generationID string, authCtx auth.AuthContext) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -22,7 +22,7 @@ func generationsRequest(t *testing.T, generationID string, auth queryauth.AuthCo
 		nil,
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	return req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
 // TestGenerationLifecycleTwoTenantGrantBoundary is the proof #5167 requires
@@ -43,7 +43,7 @@ func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		generationID string
-		auth         queryauth.AuthContext
+		auth         auth.AuthContext
 		wantStatus   int
 		// wantScoped is what the handler must have put on the filter, which
 		// is the half of the binding a status code cannot show.
@@ -74,7 +74,7 @@ func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 			// caller resolves nothing rather than everything.
 			name:           "empty grant binds and matches nothing",
 			generationID:   "gen-a",
-			auth:           queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+			auth:           auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
 			wantStatus:     http.StatusNotFound,
 			wantScoped:     true,
 			wantEmptyGrant: true,
@@ -82,13 +82,13 @@ func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 		{
 			name:         "shared key sees its own tenant",
 			generationID: "gen-a",
-			auth:         queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			auth:         auth.AuthContext{Mode: auth.AuthModeShared},
 			wantStatus:   http.StatusOK,
 		},
 		{
 			name:         "shared key sees the other tenant",
 			generationID: "gen-b",
-			auth:         queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			auth:         auth.AuthContext{Mode: auth.AuthModeShared},
 			wantStatus:   http.StatusOK,
 		},
 	} {

@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // BrowserSessionStore is the write surface for server-managed dashboard
@@ -18,7 +18,7 @@ import (
 type BrowserSessionStore interface {
 	CreateBrowserSession(context.Context, BrowserSessionCreateRecord) error
 	RevokeBrowserSession(context.Context, string, time.Time) error
-	SwitchBrowserSessionWorkspace(context.Context, string, string, string, time.Time) (queryauth.AuthContext, bool, error)
+	SwitchBrowserSessionWorkspace(context.Context, string, string, string, time.Time) (auth.AuthContext, bool, error)
 }
 
 // BrowserSessionCreateRecord is the hash-only session row requested by the
@@ -63,33 +63,33 @@ type BrowserSessionResponse struct {
 // context. Moved from root package query's browser_session_handler.go
 // (#6642).
 type BrowserSessionAuthResponse struct {
-	Mode                      queryauth.AuthMode `json:"mode"`
-	TenantID                  string             `json:"tenant_id,omitempty"`
-	WorkspaceID               string             `json:"workspace_id,omitempty"`
-	SubjectClass              string             `json:"subject_class,omitempty"`
-	SubjectIDHash             string             `json:"subject_id_hash,omitempty"`
-	PolicyRevisionHash        string             `json:"policy_revision_hash,omitempty"`
-	RoleIDs                   []string           `json:"role_ids,omitempty"`
-	AllScopes                 bool               `json:"all_scopes"`
-	AllowedScopeIDs           []string           `json:"allowed_scope_ids,omitempty"`
-	AllowedRepositoryIDs      []string           `json:"allowed_repository_ids,omitempty"`
-	PermissionCatalogEnforced bool               `json:"permission_catalog_enforced"`
-	AllowedPermissionFeatures []string           `json:"allowed_permission_features,omitempty"`
+	Mode                      auth.AuthMode `json:"mode"`
+	TenantID                  string        `json:"tenant_id,omitempty"`
+	WorkspaceID               string        `json:"workspace_id,omitempty"`
+	SubjectClass              string        `json:"subject_class,omitempty"`
+	SubjectIDHash             string        `json:"subject_id_hash,omitempty"`
+	PolicyRevisionHash        string        `json:"policy_revision_hash,omitempty"`
+	RoleIDs                   []string      `json:"role_ids,omitempty"`
+	AllScopes                 bool          `json:"all_scopes"`
+	AllowedScopeIDs           []string      `json:"allowed_scope_ids,omitempty"`
+	AllowedRepositoryIDs      []string      `json:"allowed_repository_ids,omitempty"`
+	PermissionCatalogEnforced bool          `json:"permission_catalog_enforced"`
+	AllowedPermissionFeatures []string      `json:"allowed_permission_features,omitempty"`
 	// ExternalProviderConfigID is the stored OIDC/SAML provider config ID for
 	// sessions established via an external IdP. Omitted for local sessions.
 	ExternalProviderConfigID string `json:"external_provider_config_id,omitempty"`
 }
 
 // NormalizeBrowserSessionAuthContext normalizes auth the same way
-// queryauth.NormalizeAuthContext does, and additionally promotes a scoped mode to
-// queryauth.AuthModeBrowserSession. Moved from root package query's auth.go
+// auth.NormalizeAuthContext does, and additionally promotes a scoped mode to
+// auth.AuthModeBrowserSession. Moved from root package query's auth.go
 // (normalizeBrowserSessionAuthContext, #6642).
-func NormalizeBrowserSessionAuthContext(auth queryauth.AuthContext) queryauth.AuthContext {
-	auth = queryauth.NormalizeAuthContext(auth)
-	if auth.Mode == queryauth.AuthModeScoped {
-		auth.Mode = queryauth.AuthModeBrowserSession
+func NormalizeBrowserSessionAuthContext(authCtx auth.AuthContext) auth.AuthContext {
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if authCtx.Mode == auth.AuthModeScoped {
+		authCtx.Mode = auth.AuthModeBrowserSession
 	}
-	return auth
+	return authCtx
 }
 
 // BrowserSessionAuthResponseFor builds the public JSON view of auth for a
@@ -99,21 +99,21 @@ func NormalizeBrowserSessionAuthContext(auth queryauth.AuthContext) queryauth.Au
 // also exports -- root's unexported spelling capitalized to plain
 // BrowserSessionAuthResponse would have collided with the type of the same
 // name.
-func BrowserSessionAuthResponseFor(auth queryauth.AuthContext) BrowserSessionAuthResponse {
-	auth = NormalizeBrowserSessionAuthContext(auth)
+func BrowserSessionAuthResponseFor(authCtx auth.AuthContext) BrowserSessionAuthResponse {
+	authCtx = NormalizeBrowserSessionAuthContext(authCtx)
 	return BrowserSessionAuthResponse{
-		Mode:                      auth.Mode,
-		TenantID:                  auth.TenantID,
-		WorkspaceID:               auth.WorkspaceID,
-		SubjectClass:              auth.SubjectClass,
-		SubjectIDHash:             auth.SubjectIDHash,
-		PolicyRevisionHash:        auth.PolicyRevisionHash,
-		RoleIDs:                   append([]string(nil), auth.RoleIDs...),
-		AllScopes:                 auth.AllScopes,
-		AllowedScopeIDs:           append([]string(nil), auth.AllowedScopeIDs...),
-		AllowedRepositoryIDs:      append([]string(nil), auth.AllowedRepositoryIDs...),
-		PermissionCatalogEnforced: auth.PermissionCatalogEnforced,
-		AllowedPermissionFeatures: append([]string(nil), auth.AllowedPermissionFeatures...),
-		ExternalProviderConfigID:  auth.ExternalProviderConfigID,
+		Mode:                      authCtx.Mode,
+		TenantID:                  authCtx.TenantID,
+		WorkspaceID:               authCtx.WorkspaceID,
+		SubjectClass:              authCtx.SubjectClass,
+		SubjectIDHash:             authCtx.SubjectIDHash,
+		PolicyRevisionHash:        authCtx.PolicyRevisionHash,
+		RoleIDs:                   append([]string(nil), authCtx.RoleIDs...),
+		AllScopes:                 authCtx.AllScopes,
+		AllowedScopeIDs:           append([]string(nil), authCtx.AllowedScopeIDs...),
+		AllowedRepositoryIDs:      append([]string(nil), authCtx.AllowedRepositoryIDs...),
+		PermissionCatalogEnforced: authCtx.PermissionCatalogEnforced,
+		AllowedPermissionFeatures: append([]string(nil), authCtx.AllowedPermissionFeatures...),
+		ExternalProviderConfigID:  authCtx.ExternalProviderConfigID,
 	}
 }
