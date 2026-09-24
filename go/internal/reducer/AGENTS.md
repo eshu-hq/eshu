@@ -203,7 +203,7 @@ Correctness win with a bounded, measured handler cost.
 No-Observability-Change (#4568): the typed-decode migration adds no route, graph
 query shape, queue table, worker, lease, runtime knob, metric instrument, metric
 label, or log key. A malformed fact surfaces through the EXISTING dead-letter
-path — `WorkSink.Fail` -> `deadLetterTriageMetadata` -> the durable
+path — `WorkSink.Fail` -> `queuestore.DeadLetterTriageMetadata` -> the durable
 `fact_work_items.failure_class=input_invalid` row and the reducer execution
 counters/spans operators already use. The decode error self-classifies via the
 existing `FailureClass()`/`Retryable()` reducer error interface.

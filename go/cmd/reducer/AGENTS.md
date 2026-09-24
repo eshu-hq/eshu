@@ -43,8 +43,9 @@ before touching any file in this directory.
   with a fixed identity: active same-owner leases can be renewed or released
   before expiry.
 - **Retry delay is exponential + jittered, not fixed** (#4450) — `failIntent`
-  (`reducer_queue_helpers.go`) computes `visible_at` via `computeRetryDelay`
-  (`retry_backoff.go`): `ESHU_REDUCER_RETRY_DELAY*(1<<attempt)` capped at
+  (`reducer_queue_helpers.go`) computes `visible_at` via
+  `queuestore.ComputeRetryDelay` (`storage/postgres/queue/backoff.go`):
+  `ESHU_REDUCER_RETRY_DELAY*(1<<attempt)` capped at
   `ESHU_REDUCER_MAX_RETRY_DELAY`, plus jitter from
   `[0, ESHU_REDUCER_RETRY_DELAY*ESHU_REDUCER_RETRY_JITTER_FRACTION)`. Do not
   reintroduce a fixed `now().Add(retryDelay)` retry schedule; many
