@@ -34,7 +34,14 @@ Move-sequence row 4 is not a `querycontract` leaf, so it has its own table.
 
 | destination | files | PR | state | `querytestutil` after |
 | --- | ---: | --- | --- | ---: |
-| `querytestutil/content` and `querytestutil/graph` | 10 + 8 | this PR | open | 24 |
+| `querytestutil/content` and `querytestutil/graph` | 10 + 8 | [#7043](https://github.com/eshu-hq/eshu/pull/7043) | **merged** `950c16cc4` | 24 |
+
+Move-sequence rows 7-30 move one family out of the root package per PR. Root
+`internal/query` starts that block at 271 non-test files.
+
+| destination | root files out | PR | state | root after |
+| --- | ---: | --- | --- | ---: |
+| `decode/factschema_shared.go` | 1 | this PR | open | 270 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -290,3 +297,20 @@ once per non-test file.
 
 No-Observability-Change: test doubles emit no telemetry, and no span, metric,
 log or status field is added, removed or renamed.
+
+## Performance and observability evidence for the `decode` leaf
+
+No-Regression Evidence: root's `factschema_decode_shared.go` moves to
+`decode/factschema_shared.go`. Its `queryDecodeError` alias and
+`newQueryDecodeError` forwarder are deleted; callers name `decode.Error` and
+`decode.New`. The schema-version literal and the `*string` deref are exported
+as `decode.DefaultSchemaMajorVersion` and `decode.DerefString`, and the five
+package-local copies of the literal and four of the deref in
+`package/registry`, `workitem`, `incident/store` and
+`supply/chain/{advisory,impact}` now call them. Every copy returned the same
+`"1.0.0"` or the same zero-value deref, so no decoded value changes; the full
+`internal/query` and `internal/queryplan` suites pass and no queryplan hash
+moves.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed.
