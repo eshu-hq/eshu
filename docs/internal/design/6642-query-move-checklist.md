@@ -43,7 +43,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | --- | ---: | --- | --- | ---: |
 | `decode/factschema_shared.go` | 1 | [#7044](https://github.com/eshu-hq/eshu/pull/7044) | **merged** `42020445c` | 270 |
 | `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | [#7051](https://github.com/eshu-hq/eshu/pull/7051) | **merged** `31ce0cb56` | 269 |
-| `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | this PR | open | 268 |
+| `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | [#7053](https://github.com/eshu-hq/eshu/pull/7053) | **merged** `8d5949f90` | 268 |
+| `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | this PR | open | 267 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -346,3 +347,19 @@ The `internal/mcp` route-serves-data registry points at the new files and the
 distinct `ObservabilityCorrelationStore` type name; its mutation tests pass.
 
 No-Observability-Change: same span name and tracer; no metric or log change.
+
+## Performance and observability evidence for the `terraform/drift` leaf
+
+No-Regression Evidence: `terraform_config_state_drift.go` and
+`terraform_config_state_drift_evidence_access.go` move to `terraform/drift/`.
+Request validation, the 100/500 limits, the scoped-grant precheck and SQL-layer
+grant binding, the store calls and the response shaping are unchanged. The
+handler's root forwarders were pass-throughs to `querycontract` and `iac`; the
+two root `iac` paging forwarders lost their last caller and are deleted. The
+capability row moves into `drift.Support()` with identical values. Root keeps
+`TerraformConfigStateDriftHandler` and
+`NewPostgresTerraformConfigStateDriftFindingStore` for `cmd/api` and
+`cmd/mcp-server` in `terraform_drift_alias.go`.
+
+No-Observability-Change: same span name, tracer and instrumented store name; no
+metric or log change.
