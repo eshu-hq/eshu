@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package content_test
+package contentreader_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 // scanSingleString runs one query against the fake and returns the single
@@ -50,7 +50,7 @@ func scanSingleString(t *testing.T, db *sql.DB, query string) string {
 func TestOpenContentReaderTestDBSequencesQueuedResults(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"label"}, Rows: [][]driver.Value{{"first"}}},
 		{Columns: []string{"label"}, Rows: [][]driver.Value{{"second"}}},
 	})
@@ -69,7 +69,7 @@ func TestOpenContentReaderTestDBSequencesQueuedResults(t *testing.T) {
 func TestOpenContentReaderTestDBRejectsMissingQueryFragment(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"label"}, QueryContains: []string{"FROM widgets", "WHERE repo_id = $1"}},
 	})
 
@@ -89,7 +89,7 @@ func TestOpenContentReaderTestDBRejectsMissingQueryFragment(t *testing.T) {
 func TestOpenContentReaderTestDBEnforcesFragmentOrder(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns:              []string{"label"},
 			QueryContains:        []string{"LIMIT $1", "WHERE repo_id = $2"},
@@ -116,13 +116,13 @@ func TestContentReaderQueryContainsInOrderAcceptsFragmentsInOrder(t *testing.T) 
 
 	query := "SELECT label FROM widgets WHERE repo_id = $1 ORDER BY label LIMIT $2"
 
-	if err := content.ReaderQueryContainsInOrder(query, []string{
+	if err := contentreader.ReaderQueryContainsInOrder(query, []string{
 		"FROM widgets", "WHERE repo_id = $1", "ORDER BY label", "LIMIT $2",
 	}); err != nil {
 		t.Fatalf("ReaderQueryContainsInOrder() error = %v, want nil", err)
 	}
 
-	err := content.ReaderQueryContainsInOrder(query, []string{"LIMIT $2", "FROM widgets"})
+	err := contentreader.ReaderQueryContainsInOrder(query, []string{"LIMIT $2", "FROM widgets"})
 	if err == nil {
 		t.Fatalf("ReaderQueryContainsInOrder() error = nil, want an out-of-order failure")
 	}
@@ -143,11 +143,11 @@ func TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking(t *test
 
 	args := []driver.NamedValue{{Ordinal: 1, Value: []byte(`{"a":1}`)}}
 
-	if err := content.ReaderCheckArgs(args, []driver.Value{[]byte(`{"a":1}`)}); err != nil {
+	if err := contentreader.ReaderCheckArgs(args, []driver.Value{[]byte(`{"a":1}`)}); err != nil {
 		t.Fatalf("ReaderCheckArgs() error = %v, want nil for equal []byte bind args", err)
 	}
 
-	err := content.ReaderCheckArgs(args, []driver.Value{[]byte(`{"a":2}`)})
+	err := contentreader.ReaderCheckArgs(args, []driver.Value{[]byte(`{"a":2}`)})
 	if err == nil {
 		t.Fatalf("ReaderCheckArgs() error = nil, want a mismatch error for differing []byte bind args")
 	}
@@ -165,10 +165,10 @@ func TestContentReaderCheckArgsToleratesIntWrittenForInt64(t *testing.T) {
 
 	args := []driver.NamedValue{{Ordinal: 1, Value: int64(25)}}
 
-	if err := content.ReaderCheckArgs(args, []driver.Value{25}); err != nil {
+	if err := contentreader.ReaderCheckArgs(args, []driver.Value{25}); err != nil {
 		t.Fatalf("ReaderCheckArgs() error = %v, want nil for int want vs int64 got", err)
 	}
-	if err := content.ReaderCheckArgs(args, []driver.Value{26}); err == nil {
+	if err := contentreader.ReaderCheckArgs(args, []driver.Value{26}); err == nil {
 		t.Fatalf("ReaderCheckArgs() error = nil, want a mismatch for a different number")
 	}
 }
@@ -182,7 +182,7 @@ func TestContentReaderCheckArgsReportsCountMismatch(t *testing.T) {
 
 	args := []driver.NamedValue{{Ordinal: 1, Value: "repo-1"}, {Ordinal: 2, Value: int64(10)}}
 
-	err := content.ReaderCheckArgs(args, []driver.Value{"repo-1"})
+	err := contentreader.ReaderCheckArgs(args, []driver.Value{"repo-1"})
 	if err == nil {
 		t.Fatalf("ReaderCheckArgs() error = nil, want an arity mismatch error")
 	}
@@ -190,7 +190,7 @@ func TestContentReaderCheckArgsReportsCountMismatch(t *testing.T) {
 		t.Fatalf("ReaderCheckArgs() error = %q, want it to report both counts", err.Error())
 	}
 
-	if err := content.ReaderCheckArgs(args, nil); err != nil {
+	if err := contentreader.ReaderCheckArgs(args, nil); err != nil {
 		t.Fatalf("ReaderCheckArgs() error = %v, want nil when want is nil", err)
 	}
 }
@@ -202,7 +202,7 @@ func TestContentReaderCheckArgsReportsCountMismatch(t *testing.T) {
 func TestOpenContentReaderTestDBCheckesBindArgsThroughTheDriver(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"label"}, WantArgs: []driver.Value{"repo-1", 10}},
 	})
 
@@ -223,7 +223,7 @@ func TestOpenContentReaderTestDBReturnsQueuedError(t *testing.T) {
 	t.Parallel()
 
 	sentinel := errors.New("storage unavailable")
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"label"}, Err: sentinel},
 	})
 
@@ -239,7 +239,7 @@ func TestOpenContentReaderTestDBReturnsQueuedError(t *testing.T) {
 func TestOpenContentReaderTestDBFailsAnUnqueuedQuery(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, nil)
+	db := contentreader.OpenReaderTestDB(t, nil)
 
 	_, err := db.QueryContext(context.Background(), "SELECT label FROM widgets")
 	if err == nil {

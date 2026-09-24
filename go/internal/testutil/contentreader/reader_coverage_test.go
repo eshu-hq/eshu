@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package content
+package contentreader
 
 import (
 	"database/sql/driver"
@@ -40,7 +40,7 @@ const dispatcherName = "contentReaderDefaultRows"
 func answeringBranchCounts(t *testing.T) map[string]int {
 	t.Helper()
 
-	const source = "reader_defaults.go"
+	const source = "defaults.go"
 
 	file, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
 	if err != nil {

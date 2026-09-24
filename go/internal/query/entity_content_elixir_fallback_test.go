@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 type mockEntityGraphReader struct {
@@ -33,7 +33,7 @@ func (m *mockEntityGraphReader) RunSingle(context.Context, string, map[string]an
 func TestResolveEntityFallsBackToElixirProtocolContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -91,7 +91,7 @@ func TestResolveEntityFallsBackToElixirProtocolContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToElixirProtocolImplementationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -159,7 +159,7 @@ func TestResolveEntityFallsBackToElixirProtocolImplementationContentEntity(t *te
 func TestResolveEntityFallsBackToElixirGuardContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -275,7 +275,7 @@ func TestResolveEntityUsesElixirGuardGraphEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToElixirProtocolContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -325,7 +325,7 @@ func TestGetEntityContextFallsBackToElixirProtocolContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToElixirModuleAttributeContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -379,7 +379,7 @@ func TestGetEntityContextFallsBackToElixirModuleAttributeContentEntity(t *testin
 func TestGetEntityContextFallsBackToElixirProtocolImplementationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

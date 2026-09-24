@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package content
+package contentreader
 
 // The column helpers below name the shape of one relational read model. A test
 // queues a ReaderQueryResult with the matching helper's columns to say

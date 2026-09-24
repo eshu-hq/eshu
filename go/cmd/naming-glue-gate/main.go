@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -60,6 +61,7 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 	model := fs.String("model", defaultModel, "DeepSeek model name")
 	baseURL := fs.String("base-url", defaultBaseURL, "DeepSeek API base URL")
 	timeoutSeconds := fs.Int("timeout-seconds", defaultTimeoutSeconds, "classification request timeout in seconds")
+	exemptFile := fs.String("exempt-file", defaultExemptFile, "repo-relative exemption ledger of owner-approved glued-compound directory names, resolved against repo-root")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -75,6 +77,17 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 		_, _ = fmt.Fprintf(stderr, "naming-glue-gate: cannot resolve new directories: %v\n", err)
 		return 2
 	}
+
+	exemptPath := *exemptFile
+	if !filepath.IsAbs(exemptPath) {
+		exemptPath = filepath.Join(*repoRoot, exemptPath)
+	}
+	exempt, err := loadExemptPaths(exemptPath)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "naming-glue-gate: %v\n", err)
+		return 2
+	}
+	candidates = filterExempt(candidates, exempt)
 	if len(candidates) == 0 {
 		_, _ = fmt.Fprintln(stderr, "naming-glue-gate: PASS (no newly introduced directory names to classify)")
 		return 0

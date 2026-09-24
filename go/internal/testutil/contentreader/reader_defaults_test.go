@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package content_test
+package contentreader_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 // queryColumns runs one query and returns the column names the fake answered
@@ -41,7 +41,7 @@ func queryColumns(t *testing.T, db *sql.DB, query string, args ...any) []string 
 func TestOpenContentReaderTestDBAnswersIncidentalReadsWithoutConsumingAQueuedResult(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"label"}, Rows: [][]driver.Value{{"queued"}}},
 	})
 
@@ -63,7 +63,7 @@ func TestOpenContentReaderTestDBAnswersIncidentalReadsWithoutConsumingAQueuedRes
 func TestOpenContentReaderTestDBPrefersAQueuedResultShapedLikeTheDefault(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{Columns: []string{"count"}, Rows: [][]driver.Value{{int64(7)}}},
 	})
 
@@ -104,25 +104,25 @@ func TestOpenContentReaderTestDBDefaultsMatchTheirColumnHelpers(t *testing.T) {
 		{
 			name:  "relationship read model",
 			query: "WITH scoped_relationships AS (SELECT 1) SELECT r.evidence_count FROM scoped_relationships r",
-			want:  content.ReaderRelationshipReadModelColumns(),
+			want:  contentreader.ReaderRelationshipReadModelColumns(),
 		},
 		{
 			name:  "deployment evidence",
 			query: "WITH scoped_relationships AS (SELECT 1) SELECT r.details FROM scoped_relationships r",
-			want:  content.ReaderDeploymentEvidenceColumns(),
+			want:  contentreader.ReaderDeploymentEvidenceColumns(),
 		},
 		{
 			name:  "relationship evidence",
 			query: "SELECT r.resolved_id FROM resolved_relationships r WHERE r.resolved_id = $1",
 			args:  []any{"resolved-1"},
-			want:  content.ReaderRelationshipEvidenceColumns(),
+			want:  contentreader.ReaderRelationshipEvidenceColumns(),
 		},
 		{
 			name: "dead code candidates",
 			query: "SELECT entity_id FROM content_entities WHERE repo_id = $1 AND entity_type = $2 " +
 				"ORDER BY entity_id LIMIT $3 OFFSET $4",
 			args: []any{"repo-1", "Class", 10, 0},
-			want: content.ReaderDeadCodeCandidateColumns(),
+			want: contentreader.ReaderDeadCodeCandidateColumns(),
 		},
 	}
 
@@ -130,7 +130,7 @@ func TestOpenContentReaderTestDBDefaultsMatchTheirColumnHelpers(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := content.OpenReaderTestDB(t, nil)
+			db := contentreader.OpenReaderTestDB(t, nil)
 			got := queryColumns(t, db, testCase.query, testCase.args...)
 			if len(got) != len(testCase.want) {
 				t.Fatalf("columns = %v, want %v", got, testCase.want)

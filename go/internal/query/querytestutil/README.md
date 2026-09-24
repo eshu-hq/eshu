@@ -21,10 +21,9 @@ they say whether the declaring file is included.
 Two packages nest under this one (#6642):
 
 - `content/` — the content-read test doubles (`FakePortContentStore`,
-  `FakeDeadCodeContentStore`, and related fixtures) and the fake
-  `database/sql` driver (`OpenReaderTestDB`, `ReaderQueryResult`, the query
-  assertions, and the column helpers). See `content/README.md` and
-  `content/AGENTS.md`.
+  `FakeDeadCodeContentStore`, and related fixtures). The fake `database/sql`
+  driver peeled out to `internal/testutil/contentreader` for #6818 move 5.
+  See `content/README.md` and `content/AGENTS.md`.
 - `graph/` — the graph-read test doubles (`FakeGraphReader`,
   `FakeGraphReaderWithSingle`, `FakeRepoGraphReader`, `FakeWorkloadGraphReader`)
   and the #6786 NornicDB Cypher-shape guards

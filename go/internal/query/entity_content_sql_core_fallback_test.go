@@ -11,13 +11,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestResolveEntityFallsBackToSQLFunctionContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -75,7 +75,7 @@ func TestResolveEntityFallsBackToSQLFunctionContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToSQLTableContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

@@ -37,8 +37,11 @@ entry point takes a **slice** of the result struct, and 80 root test files
 build those elements with keyed literals over lowercase field names. So root
 keeps its own unexported struct with the original names and converts the slice
 element by element before delegating. Nothing else moved into root: the queue,
-the default answers, and the assertions live only here, because two copies of
-a fake's dispatch drift and the drifted one keeps passing.
+the default answers, and the assertions live only in the driver package,
+because two copies of a fake's dispatch drift and the drifted one keeps
+passing. That package is `internal/testutil/contentreader` since #6818 move 5;
+the file names there drop the `reader_` prefix (`args.go`, `columns.go`,
+`defaults.go`, `driver.go`).
 
 If you find yourself editing consuming test files while moving a fake, the
 shape is wrong. Go back to the adapter — see the parent `../AGENTS.md` for the

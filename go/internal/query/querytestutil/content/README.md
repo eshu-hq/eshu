@@ -3,9 +3,11 @@
 ## Purpose
 
 The content half of `querytestutil`, nested under it for #6642: the
-content-read test doubles and the fake `database/sql` driver. See `doc.go` for
-the godoc contract and `../README.md` for the consumer counts and split
-history that stay with the parent.
+content-read test doubles. The fake `database/sql` driver
+(`OpenReaderTestDB`, `ReaderQueryResult`, the query assertions, and the column
+helpers) peeled out to `internal/testutil/contentreader` for #6818 move 5.
+See `doc.go` for the godoc contract and `../README.md` for the consumer counts
+and split history that stay with the parent.
 
 ## Ownership boundary
 
@@ -15,19 +17,10 @@ production behavior. A helper used by one package belongs in that package's own
 
 ## Exported surface
 
-See `doc.go` for the godoc contract.
+See `doc.go` for the godoc contract. The fake `database/sql` driver and its
+column helpers now live in `internal/testutil/contentreader` (see its README);
+what remains here are the store doubles.
 
-- `OpenReaderTestDB` / `ReaderQueryResult` — the shared fake `database/sql`
-  driver. A test queues results; each query takes the head of the queue, runs
-  that result's SQL-text and bind-value assertions, and answers with its rows.
-- `ReaderQueryContainsInOrder` / `ReaderCheckArgs` — the same two assertions,
-  callable directly for a test that holds a recorded query string rather than a
-  queued result.
-- `ReaderRelationshipReadModelColumns`, `ReaderDeploymentEvidenceColumns`,
-  `ReaderRelationshipEvidenceColumns`, `ReaderDeadCodeCandidateColumns` — the
-  column sets of four relational read models, used on both sides: a test
-  declares one to say which read it is answering, and the driver answers that
-  same read with the same helper when no result was queued.
 - `FakePortContentStore` — the content-read double. Satisfies
   `querycontract.ContentStore` plus the narrow optional ports package `query`
   type-asserts a store against (documentation read models, repository entry

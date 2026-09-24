@@ -1,0 +1,11 @@
+# Owner-approved glued-compound directory names exempt from the
+# naming-glue-gate model verdict (naming.md rule 3), one row per directory:
+# repo-relative directory path, TAB, reason, TAB, approver or issue.
+#
+# A row needs an owner decision recorded on the cited issue. The usual bar:
+# nesting the compound per rule 3 would violate another naming rule at the
+# call site (here rule 4: the nested clause stutters against the exported
+# identifiers), measured zero collisions for the kept name, and the design
+# review checked the name against naming.md. The gate stays blocking for
+# everything without a row.
+go/internal/testutil/contentreader	Fake content-read database/sql driver leaf; nesting as content/reader would force clause reader and stutter reader.Reader* at every call site (naming.md rule 4); zero collisions measured for contentreader	#6818

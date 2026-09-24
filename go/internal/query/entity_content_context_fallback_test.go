@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testing.T) {
@@ -61,7 +61,7 @@ func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testin
 func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -112,7 +112,7 @@ func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T
 func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -197,7 +197,7 @@ func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentRustImplBlockContext(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
