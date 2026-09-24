@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook: keep an active goal from going stale.
 #
-# The problem this exists for. A long session drifts: the objective set an hour
-# and forty turns ago gets summarized away by compaction, or simply falls out of
-# the model's attention, and the session starts idling or asking the owner
-# things its own rules already answer. Setting a goal once does not keep it
-# alive -- it has to be restated.
-#
-# So this hook restates it. On EVERY prompt, if a goal is active, the goal text
-# is injected back into context via `additionalContext`. That is the whole
-# anti-staleness mechanism: the objective can never be more than one turn old,
-# and it survives compaction because it is re-added after compaction too.
+# Restate the active goal through `additionalContext` on every prompt so it
+# survives long sessions and compaction.
 #
 # It is also the PRODUCER. The Stop hook goal-continue.sh reads a goal file, and
 # nothing wrote one -- so it sat inert on every machine it shipped to. A
@@ -361,6 +353,13 @@ except Exception:
 		[ "${have_cwd}" = "1" ] || [ -n "${CLAUDE_GOAL_FILE:-}" ] || exit 0
 		goal_text="${prompt#*[ :]}"
 		goal_text="${goal_text# }"
+		# Persist prepared /goal file contents, not just their path, so later
+		# refreshes and compaction retain the named skills and phase instructions.
+		goal_router="$(dirname "${BASH_SOURCE[0]}")/../../scripts/goal-role-router.py"
+		if [ -f "${goal_router}" ]; then
+			expanded="$(printf '%s' "${payload}" | python3 "${goal_router}" expand 2>/dev/null)" || expanded=""
+			[ -z "${expanded}" ] || goal_text="${expanded}"
+		fi
 		if [ -n "${goal_text}" ]; then
 			mkdir -p "$(dirname "${goal_write}")" 2>/dev/null || exit 0
 			{

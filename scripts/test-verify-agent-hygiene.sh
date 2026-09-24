@@ -306,6 +306,9 @@ if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.claude/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.codex/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'agent-roles\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'test-goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq '\.codex/hooks\.json' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'verify-agent-canon\.sh' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml"; then
   ok "agent-canon pre-commit hook watches its skill and verifier inputs"
@@ -314,6 +317,9 @@ else
 fi
 
 if rg -Fq '.opencode/agent/**' "$repo_root/specs/ci-gates.v1.yaml" \
+  && rg -Fq '.codex/hooks.json' "$repo_root/specs/ci-gates.v1.yaml" \
+  && rg -Fq 'scripts/goal-role-router.py' "$repo_root/specs/ci-gates.v1.yaml" \
+  && rg -Fq 'scripts/test-goal-role-router.py' "$repo_root/specs/ci-gates.v1.yaml" \
   && rg -Fq 'scripts/verify-agent-canon.sh' "$repo_root/specs/ci-gates.v1.yaml" \
   && rg -Fq 'scripts/test-verify-agent-hygiene.sh' "$repo_root/specs/ci-gates.v1.yaml"; then
   ok "agent-canon registry watches all policy and verifier inputs"

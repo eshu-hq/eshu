@@ -68,7 +68,14 @@ repos:
         name: shared agent canon and skill contract
         entry: scripts/verify-agent-canon.sh
         language: script
-        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/(skills|agents)/.*|\.codex/(skills|agents)/.*|\.opencode/agent/.*|scripts/(agent-roles\.py|test-agent-roles\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh))$'
+        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/(skills|agents)/.*|\.claude/settings\.json|\.codex/(skills|agents)/.*|\.codex/hooks\.json|\.muse/hooks\.json|\.opencode/agent/.*|scripts/(agent-roles\.py|test-agent-roles\.py|goal-role-router\.py|test-goal-role-router\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh))$'
+        pass_filenames: false
+
+      - id: goal-role-routing
+        name: goal skill role routing
+        entry: python3 scripts/test-goal-role-router.py
+        language: system
+        files: '^(\.agents/(roles\.json|skills/.*)|\.claude/settings\.json|\.codex/hooks\.json|\.muse/hooks\.json|scripts/(goal-role-router|test-goal-role-router)\.py)$'
         pass_filenames: false
 
       - id: no-diff-fragments

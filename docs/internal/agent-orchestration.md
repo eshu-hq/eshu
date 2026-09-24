@@ -126,7 +126,10 @@ need to name a role or invoke `agent-roles.py`. The three project
 `/goal` or `GOAL:` prompts with named Eshu skills. It reads
 `.agents/roles.json` and injects candidate phase roles with model, effort,
 and access into the coordinator's context. The hook does not launch a worker;
-the coordinator owns the goal and loads its skills. At each bounded phase it
+an explicit `/goal goal.txt` or `goal.md` reads up to 64 KiB from the
+workspace or the matching Claude session scratchpad. The Claude/Muse goal
+refresher stores its contents for later turns.
+The coordinator owns the goal and loads its skills. At each bounded phase it
 checks the actual work against the candidates and applies the selected role's
 model, effort, access, and instructions when delegating. A long issue goal can use
 `scan-eshu` for evidence, `debug-eshu` for an unknown cause, `develop-eshu` for
