@@ -32,7 +32,6 @@ func projectorCanonicalExecutorForGraphBackend(
 		Tracer:      tracer,
 		Instruments: instruments,
 	}
-	var outer sourcecypher.Executor = instrumentedExecutor
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		canonicalTimeout := projectorNornicDBCanonicalWriteTimeout(getenv)
 		bounded := sourcecypher.TimeoutExecutor{
@@ -76,6 +75,9 @@ func projectorCanonicalExecutorForGraphBackend(
 			Instruments:                 instruments,
 		}
 	}
+	// Neo4j gets the same client deadline as NornicDB so a timed-out write
+	// requeues as graph_write_timeout; an unset timeout leaves it unwrapped.
+	outer := boundNeo4jWrites(instrumentedExecutor, projectorCanonicalTransactionTimeout(graphBackend, getenv))
 	// Bound concurrent canonical writes so a slow graph backend slows intake
 	// instead of dead-lettering recoverable projector work (issue #3560). The
 	// wrapper sits outside retry/timeout so one permit covers a whole write

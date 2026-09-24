@@ -220,6 +220,7 @@ func openBootstrapCanonicalWriter(
 		_ = closeBootstrapNeo4jDriver(driver)
 		return nil, nil, err
 	}
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := bootstrapNeo4jExecutor{
 		Driver:                 driver,
 		DatabaseName:           cfg.DatabaseName,

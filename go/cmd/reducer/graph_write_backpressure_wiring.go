@@ -128,13 +128,13 @@ func (g reducerGraphWriteGate) boundCypherExecutor(inner reducer.CypherExecutor)
 func (g reducerGraphWriteGate) boundSemanticEntityExecutor(
 	rawExecutor sourcecypher.Executor,
 	graphBackend runtimecfg.GraphBackend,
-	nornicDBTimeout time.Duration,
+	writeTimeout time.Duration,
 	nornicDBGroupedWrites bool,
 ) sourcecypher.Executor {
 	inner := semanticEntityExecutorForGraphBackend(
 		rawExecutor,
 		graphBackend,
-		nornicDBTimeout,
+		writeTimeout,
 		nornicDBGroupedWrites,
 	)
 	aggregateBound := graphbackpressure.WrapExecutorWithGate(inner, g.aggregateGate)

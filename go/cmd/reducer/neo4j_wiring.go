@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -280,6 +281,7 @@ func openReducerNeo4jAdapters(
 		return nil, nil, nil, nil, nil, err
 	}
 
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	runner := neo4jSessionRunner{
 		Driver:       driver,
 		DatabaseName: cfg.DatabaseName,
@@ -308,13 +310,13 @@ func reducerTransactionTimeout(graphBackend runtimecfg.GraphBackend, getenv func
 func semanticEntityExecutorForGraphBackend(
 	rawExecutor sourcecypher.Executor,
 	graphBackend runtimecfg.GraphBackend,
-	nornicDBTimeout time.Duration,
+	writeTimeout time.Duration,
 	nornicDBGroupedWrites bool,
 ) sourcecypher.Executor {
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		bounded := sourcecypher.TimeoutExecutor{
 			Inner:       rawExecutor,
-			Timeout:     nornicDBTimeout,
+			Timeout:     writeTimeout,
 			TimeoutHint: canonicalWriteTimeoutEnv,
 		}
 		if nornicDBGroupedWrites {
@@ -322,7 +324,7 @@ func semanticEntityExecutorForGraphBackend(
 		}
 		return sourcecypher.ExecuteOnlyExecutor{Inner: nornicDBSemanticObservedExecutor{inner: bounded}}
 	}
-	return rawExecutor
+	return boundNeo4jWrites(rawExecutor, writeTimeout)
 }
 
 func semanticEntityWriterForGraphBackend(

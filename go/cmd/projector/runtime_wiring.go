@@ -209,6 +209,7 @@ func openProjectorCanonicalWriter(
 		return nil, nil, err
 	}
 
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := projectorNeo4jExecutor{
 		Driver:       driver,
 		DatabaseName: cfg.DatabaseName,

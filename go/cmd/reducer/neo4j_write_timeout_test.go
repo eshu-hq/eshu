@@ -4,6 +4,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +47,61 @@ func TestReducerTransactionTimeoutAppliesConfiguredTimeoutToBothBackends(t *test
 			}
 			if got := reducerTransactionTimeout(tt.backend, getenv); got != tt.want {
 				t.Fatalf("reducerTransactionTimeout(%s, %q) = %s, want %s", tt.backend, tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWarnUnboundedNeo4jWriteTimeoutLogsOnceWhenNeo4jHasNoTimeout pins the
+// startup WARN that makes an unbounded Neo4j write budget visible: it fires
+// once for Neo4j when ESHU_CANONICAL_WRITE_TIMEOUT is unset or invalid, and
+// never for a configured Neo4j timeout or for NornicDB.
+func TestWarnUnboundedNeo4jWriteTimeoutLogsOnceWhenNeo4jHasNoTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		backend  runtimecfg.GraphBackend
+		raw      string
+		wantWarn bool
+	}{
+		{name: "neo4j unset", backend: runtimecfg.GraphBackendNeo4j, raw: "", wantWarn: true},
+		{name: "neo4j invalid", backend: runtimecfg.GraphBackendNeo4j, raw: "soon", wantWarn: true},
+		{name: "neo4j configured", backend: runtimecfg.GraphBackendNeo4j, raw: "300s"},
+		{name: "nornicdb unset", backend: runtimecfg.GraphBackendNornicDB, raw: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, nil))
+			getenv := func(key string) string {
+				if key == "ESHU_CANONICAL_WRITE_TIMEOUT" {
+					return tt.raw
+				}
+				return ""
+			}
+			warnUnboundedNeo4jWriteTimeout(logger, tt.backend, getenv)
+
+			lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+			if !tt.wantWarn {
+				if buf.Len() != 0 {
+					t.Fatalf("unexpected log output: %s", buf.String())
+				}
+				return
+			}
+			if len(lines) != 1 {
+				t.Fatalf("log lines = %d, want 1: %s", len(lines), buf.String())
+			}
+			var record map[string]any
+			if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
+				t.Fatalf("decode log record: %v", err)
+			}
+			if record["level"] != "WARN" ||
+				record["event_name"] != "graph.write_timeout.unbounded" ||
+				record["graph_backend"] != "neo4j" ||
+				record["env_var"] != "ESHU_CANONICAL_WRITE_TIMEOUT" {
+				t.Fatalf("log record = %v, want WARN graph.write_timeout.unbounded for neo4j", record)
 			}
 		})
 	}

@@ -19,11 +19,44 @@ assumed a bounded write.
   timeout when it is set to a positive duration. Unset or invalid values keep
   Neo4j unbounded, so a deployment that never configured the budget does not
   inherit NornicDB's `30s` default. NornicDB behavior is unchanged.
+- With the variable unset on Neo4j, each graph-writing binary (ingester,
+  reducer, projector, bootstrap-index) logs one
+  `graph.write_timeout.unbounded` WARN at startup, with `graph_backend` and
+  `env_var`.
+- Retry parity: where NornicDB bounds a write with `TimeoutExecutor`, Neo4j
+  now gets the same wrapper when its timeout is set. Those paths are the
+  ingester, bootstrap-index, and projector canonical chains and the reducer
+  semantic-entity chain. The client deadline fires at the configured timeout,
+  before the server terminates the transaction (the lock-wait case returned
+  after 2.57 to 3.47s against a 2s timeout), so a timed-out write requeues as
+  retryable `graph_write_timeout` on both backends instead of dead-lettering
+  on Neo4j. With the variable unset, the chain is unchanged.
 - The retry classifier treats the three statuses Neo4j reports for a
   timed-out transaction the same way it already treated NornicDB's
   `TransactionTimedOutClientConfiguration`: no local retry, a durable
   `graph_write_timeout` deferral for the replay-safe `RUNS_ON` groups only, and
   terminal elsewhere.
+
+## Timeout gates enumerated
+
+`rg -n "TimeoutExecutor\{|nornicDBCanonicalWriteTimeout\(|TransactionTimeout\(" go/cmd go/internal`
+lists every NornicDB-only write-timeout gate, and each one is now handled:
+
+- Server transaction timeout: `canonicalTransactionTimeout` (ingester),
+  `reducerTransactionTimeout` (reducer), `bootstrapCanonicalTransactionTimeout`
+  (bootstrap-index), `projectorCanonicalTransactionTimeout` (projector).
+- Client deadline: `canonicalExecutorForGraphBackend` (ingester),
+  `bootstrapCanonicalExecutorForGraphBackend` (bootstrap-index),
+  `projectorCanonicalExecutorForGraphBackend` (projector),
+  `semanticEntityExecutorForGraphBackend` (reducer; its caller in `main.go` now
+  passes `reducerTransactionTimeout`).
+- NornicDB-only by design, with no Neo4j counterpart: the ingester and
+  projector timeout drain readers, which bound NornicDB's bounded
+  `DETACH DELETE` drain loop, a loop Neo4j does not run.
+- Out of scope: `bootstrap-data-plane`'s `statementTimeoutExecutor`, a schema
+  DDL deadline that has its own setting.
+- Already backend-neutral: the repo-dependency `GraphQuiescenceBudget`, which
+  is read from the variable on both backends.
 
 ## Classifier evidence
 
@@ -95,6 +128,24 @@ RED before the change, GREEN after:
 - `TestComposeForwardsGraphWriteBoundsToEveryGraphWriter`: run against
   origin/main's `docker-compose.neo4j.yml`, it failed with
   `compose env ESHU_CANONICAL_WRITE_TIMEOUT missing`.
+- `Test{CanonicalExecutorForGraphBackend,BootstrapCanonicalExecutor,ProjectorCanonicalExecutor,SemanticEntityExecutorForGraphBackend}BoundsNeo4jWritesLikeNornicDB`:
+  a write blocked past a 20ms timeout, in a non-`RUNS_ON` group, run on both
+  backends. Before the parity change, every Neo4j subtest hung until the
+  test's 5s guard and returned a bare `context deadline exceeded`; the NornicDB
+  subtests already passed. After the change, both backends return a retryable
+  `graph_write_timeout`. The companion `LeavesUnboundedNeo4jUnwrapped` tests
+  pin that an unset timeout leaves the chain unchanged.
+- `TestWarnUnboundedNeo4jWriteTimeoutLogsOnceWhenNeo4jHasNoTimeout`, in each
+  of the four packages: exactly one WARN record for Neo4j when the variable is
+  unset or invalid, and none when it is configured or on NornicDB.
+- `TestLiveNeo4jIngesterCanonicalWriteTimeoutRequeues`, against
+  `neo4j:2026-community` through the production Neo4j
+  `canonicalExecutorForGraphBackend` chain with a 2s timeout and a held lock:
+  it returned a retryable `graph_write_timeout` after 2.00s. After the holder
+  committed and a 4s wait, the probe still carried the holder's value, so the
+  abandoned server transaction did not commit late. With `boundNeo4jWrites`
+  mutated to a passthrough, the same test failed on a terminal
+  `LockClientStopped` after 2.67s.
 - `TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite`, run against
   `neo4j:2026-community` with `ESHU_CANONICAL_WRITE_TIMEOUT=2s` through the
   production `newReducerNeo4jExecutor` seam:
@@ -120,15 +171,23 @@ alternating origin/main and head on one shared Apple M5 Max host:
 - both: 64 B/op, 1 alloc/op
 
 The ranges overlap and the gap is host noise on code this change does not
-touch. These figures do not estimate Neo4j throughput. On Neo4j with the
+touch. The Neo4j client-deadline wrapper runs only when the timeout is set.
+It adds one `context.WithTimeout` per write, the same cost NornicDB already pays
+on these paths, next to a Bolt round trip. Unset Neo4j deployments run the
+unchanged chain. These figures do not estimate Neo4j throughput. On Neo4j with the
 variable set, a write that previously would have hung now ends at the
 configured timeout. That is the intended behavior change, and it is bounded
 by the operator's own setting.
 
-## No-Observability-Change:
+## Observability Evidence:
 
-No new metric, span, or log key. A Neo4j timeout surfaces through existing
-signals. On writers wrapped by `InstrumentedExecutor` (ingester, bootstrap-index,
+One new startup log event, `graph.write_timeout.unbounded` (a WARN, via
+`telemetry.EventAttr`, with `graph_backend` and `env_var`), documented in the
+telemetry logs reference. There is no new metric, span, or registered log key.
+A Neo4j timeout surfaces through existing signals. On the client-deadline
+paths, the error is a `GraphWriteTimeoutError` whose message names
+`ESHU_CANONICAL_WRITE_TIMEOUT`, and the queue row retries with
+`failure_class=graph_write_timeout`. On writers wrapped by `InstrumentedExecutor` (ingester, bootstrap-index,
 projector), the write span records error status with the typed code.
 A replay-safe `RUNS_ON` group's queue row is recorded as retrying with
 `failure_class=graph_write_timeout`, which feeds the existing

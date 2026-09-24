@@ -88,6 +88,7 @@ func openIngesterCanonicalWriter(
 	if err != nil {
 		return failAfterDriverOpen(err)
 	}
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := ingesterNeo4jExecutor{
 		Driver:                 driver,
 		DatabaseName:           cfg.DatabaseName,
@@ -161,7 +162,7 @@ func openIngesterCanonicalWriter(
 	canonicalExecutor := canonicalExecutorForGraphBackend(
 		rawExecutor,
 		graphBackend,
-		nornicDBCanonicalWriteTimeout(getenv),
+		canonicalTransactionTimeout(graphBackend, getenv),
 		nornicDBGroupedWrites,
 		phaseGroupStatements,
 		filePhaseStatements,
