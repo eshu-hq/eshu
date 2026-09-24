@@ -221,9 +221,10 @@ exceeds that bound).
 bounded, low-cardinality caller-supplied name for the route/handler that issued
 the read (e.g. `code_quality.complexity`, `code_quality.refactoring`,
 `entity.context`, `platform_impact.deployment_chain`), set via
-`querycontract.WithGraphQueryName` and defaulting to `unnamed` when a caller sets none, so the attribute is never
-silently absent. It makes a bounded-read timeout or slow read attributable to a
-specific route without reading Cypher text (issue #7006's telemetry gap).
+`querycontract.WithGraphQueryName` and defaulting to `unnamed` when a caller
+sets none, so the attribute is never silently absent. It makes a bounded-read
+timeout or slow read attributable to a specific route without reading Cypher
+text (issue #7006's telemetry gap).
 
 The redacted shape is what makes the head safe for ad-hoc Cypher. Bound
 `$parameters` are never part of the statement text, but the read-only Cypher
