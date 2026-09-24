@@ -433,7 +433,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
-| ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
+| ESHU_CANONICAL_WRITE_TIMEOUT | 30s (NornicDB); unset (Neo4j) | Graph write timeout. Neo4j applies it as the server transaction timeout only when set to a positive duration. |
 | ESHU_NEO4J_PROFILE_GROUP_STATEMENTS | false | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
 | ESHU_NORNICDB_CANONICAL_GROUPED_WRITES | false | Conformance toggle; on NornicDB it commits per dependency phase — whole-materialization atomic is unsupported (#4027) |
 | ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |

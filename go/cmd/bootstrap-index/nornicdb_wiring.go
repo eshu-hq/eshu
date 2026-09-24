@@ -82,7 +82,8 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	if graphBackend != runtimecfg.GraphBackendNornicDB {
 		// Neo4j has no fan-out wrapper, so the gate applies directly here.
 		// A nil session returns the chain unchanged.
-		return captureSession.Writer(graphbackpressure.WrapExecutorWithGate(instrumented, gate)), nil
+		bounded := boundNeo4jWrites(instrumented, bootstrapCanonicalTransactionTimeout(graphBackend, getenv))
+		return captureSession.Writer(graphbackpressure.WrapExecutorWithGate(bounded, gate)), nil
 	}
 
 	groupedWrites, err := nornicDBCanonicalGroupedWrites(getenv)

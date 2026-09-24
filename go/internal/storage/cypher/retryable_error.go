@@ -17,9 +17,8 @@ const (
 	nornicDBV131WriteConflictDelimiter   = ": conflict detected: "
 	nornicDBWriteConflictSuffix          = " changed after transaction start"
 
-	nornicDBRestartTransactionStartCode                = "Neo.ClientError.Transaction.TransactionStartFailed"
-	nornicDBRestartTransactionStartMsg                 = "failed to write WAL tx begin: wal: closed"
-	nornicDBTransactionTimedOutClientConfigurationCode = "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration"
+	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
+	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
 	// nornicDBEngineClosedTransactionStartMsg is the SECOND spelling NornicDB
 	// uses for the same begin-side teardown, reported when the engine itself is
 	// already closed rather than only its WAL. Observed live in the
@@ -287,35 +286,25 @@ func WrapRetryableNeo4jError(err error) error {
 	return err
 }
 
-// isNornicDBTransactionTimedOutClientConfiguration identifies the exact typed
-// error emitted after NornicDB rolls back an explicit transaction that reached
-// the configured timeout. It is durable-queue retryable only when its outer
-// error chain preserves the known rollback outcome.
-func isNornicDBTransactionTimedOutClientConfiguration(err error) bool {
-	var neo4jErr *neo4jdriver.Neo4jError
-	return errors.As(err, &neo4jErr) &&
-		neo4jErr.Code == nornicDBTransactionTimedOutClientConfigurationCode
-}
-
-// hasNornicDBTransactionTimeoutInUnknownOutcome detects typed timeouts inside
+// hasTransactionTimeoutInUnknownOutcome detects typed timeouts inside
 // driver wrappers that do not implement Unwrap. Their outer outcome remains
 // unknown, so the timeout cannot grant durable replay permission.
-func hasNornicDBTransactionTimeoutInUnknownOutcome(err error) bool {
+func hasTransactionTimeoutInUnknownOutcome(err error) bool {
 	if err == nil {
 		return false
 	}
-	if isNornicDBTransactionTimedOutClientConfiguration(err) {
+	if isTransactionTimedOut(err) {
 		return true
 	}
 	var connectivityErr *neo4jdriver.ConnectivityError
 	if errors.As(err, &connectivityErr) &&
-		hasNornicDBTransactionTimeoutInUnknownOutcome(connectivityErr.Inner) {
+		hasTransactionTimeoutInUnknownOutcome(connectivityErr.Inner) {
 		return true
 	}
 	var transactionLimit *neo4jdriver.TransactionExecutionLimit
 	if errors.As(err, &transactionLimit) {
 		for _, attemptErr := range transactionLimit.Errors {
-			if hasNornicDBTransactionTimeoutInUnknownOutcome(attemptErr) {
+			if hasTransactionTimeoutInUnknownOutcome(attemptErr) {
 				return true
 			}
 		}

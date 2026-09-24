@@ -178,23 +178,6 @@ func TestConfigureProjectorCanonicalWriterUsesNornicDBBatchedContainment(t *test
 	}
 }
 
-func TestProjectorCanonicalTransactionTimeoutOnlyAppliesToNornicDB(t *testing.T) {
-	t.Parallel()
-
-	getenv := func(name string) string {
-		if name == canonicalWriteTimeoutEnv {
-			return "4s"
-		}
-		return ""
-	}
-	if got := projectorCanonicalTransactionTimeout(runtimecfg.GraphBackendNeo4j, getenv); got != 0 {
-		t.Fatalf("Neo4j transaction timeout = %s, want 0", got)
-	}
-	if got, want := projectorCanonicalTransactionTimeout(runtimecfg.GraphBackendNornicDB, getenv), 4*time.Second; got != want {
-		t.Fatalf("NornicDB transaction timeout = %s, want %s", got, want)
-	}
-}
-
 func TestProjectorNeo4jExecutorTransactionConfigurersSetTimeout(t *testing.T) {
 	t.Parallel()
 

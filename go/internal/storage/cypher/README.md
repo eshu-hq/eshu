@@ -1580,10 +1580,13 @@ committed zero nodes.
   backend's Statement.SyntaxError compatibility shape, under the MERGE guard.
   Mixed non-MERGE groups stay terminal except the two exact atomic RUNS_ON
   groups proven replay-safe by `isCanonicalRunsOnReplaySafeGroup`. For those
-  groups only, NornicDB v1.3.3's typed rollback-complete transaction timeout
-  defers once to the bounded queue as `graph_write_timeout`, without another
-  local attempt. A timeout nested under a connectivity failure or driver
-  execution limit cannot borrow that rollback guarantee.
+  groups only, a typed rollback-complete transaction timeout defers once to
+  the bounded queue as `graph_write_timeout`, without another local attempt:
+  NornicDB v1.3.3's, or Neo4j's TransactionTimedOutClientConfiguration and
+  TransactionTimedOut. Elsewhere these stay terminal, never retried locally;
+  nested under a connectivity or driver-limit wrapper they stay terminal too.
+  Neo4j's LockClientStopped is not a timeout (any termination during a lock
+  wait: timeout, operator kill, shutdown); `lockClientStoppedRequeue` requeues it.
 - `ExecuteOnlyExecutor` intentionally hides `GroupExecutor`. Use it when the
   caller must not hold a large atomic transaction (e.g., during source-local
   ingestion that runs concurrently with canonical projection).

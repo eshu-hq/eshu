@@ -209,6 +209,7 @@ func openProjectorCanonicalWriter(
 		return nil, nil, err
 	}
 
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := projectorNeo4jExecutor{
 		Driver:       driver,
 		DatabaseName: cfg.DatabaseName,
@@ -259,14 +260,18 @@ func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Dur
 	return parsed
 }
 
+// projectorCanonicalTransactionTimeout returns the server-side transaction
+// timeout for projector graph writes. NornicDB keeps its
+// ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j applies the variable only when
+// it is explicitly configured.
 func projectorCanonicalTransactionTimeout(
 	graphBackend runtimecfg.GraphBackend,
 	getenv func(string) string,
 ) time.Duration {
-	if graphBackend != runtimecfg.GraphBackendNornicDB {
-		return 0
+	if graphBackend == runtimecfg.GraphBackendNornicDB {
+		return projectorNornicDBCanonicalWriteTimeout(getenv)
 	}
-	return projectorNornicDBCanonicalWriteTimeout(getenv)
+	return neo4jCanonicalWriteTimeout(getenv)
 }
 
 func neo4jBatchSize(getenv func(string) string) int {

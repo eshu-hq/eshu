@@ -329,23 +329,6 @@ func TestSemanticEntityExecutorForGraphBackendTimesOutGroupedWrites(t *testing.T
 	}
 }
 
-func TestReducerTransactionTimeoutOnlyAppliesToNornicDB(t *testing.T) {
-	t.Parallel()
-
-	getenv := func(key string) string {
-		if key == "ESHU_CANONICAL_WRITE_TIMEOUT" {
-			return "3s"
-		}
-		return ""
-	}
-	if got := reducerTransactionTimeout(runtimecfg.GraphBackendNeo4j, getenv); got != 0 {
-		t.Fatalf("reducerTransactionTimeout(neo4j) = %s, want 0", got)
-	}
-	if got := reducerTransactionTimeout(runtimecfg.GraphBackendNornicDB, getenv); got != 3*time.Second {
-		t.Fatalf("reducerTransactionTimeout(nornicdb) = %s, want 3s", got)
-	}
-}
-
 func TestReducerNeo4jSessionRunnerTransactionConfigurersSetTimeout(t *testing.T) {
 	t.Parallel()
 

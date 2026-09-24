@@ -181,7 +181,7 @@ func buildReducerService(
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(
 		rawNeo4jExec,
 		graphBackend,
-		nornicDBCanonicalWriteTimeout(getenv),
+		reducerTransactionTimeout(graphBackend, getenv),
 		nornicDBGroupedWrites,
 	)
 	semanticEntityWriter, err := semanticEntityWriterForGraphBackend(semanticEntityExecutor, neo4jBatchSize(getenv), graphBackend, getenv)

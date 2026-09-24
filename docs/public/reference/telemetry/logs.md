@@ -43,6 +43,12 @@ Older examples such as `resolution.work_item.completed` and
 `graph.batch.commit.started` are not universal Go event families in the current
 code.
 
+`graph.write_timeout.unbounded` is a startup WARN from the ingester, reducer,
+projector, and bootstrap-index when the graph backend is Neo4j and
+`ESHU_CANONICAL_WRITE_TIMEOUT` is unset or invalid. It carries `graph_backend`
+and `env_var`: Neo4j graph writes then have no transaction timeout, so a hung
+write can outlive the lease that admitted it.
+
 `query.graph_read.warning` is emitted only for slow, deadline, or unavailable
 graph-read outcomes. It carries `pipeline_phase="query"`, a bounded
 `failure_class`, and `duration_seconds`; it deliberately omits Cypher text,

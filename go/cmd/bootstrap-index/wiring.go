@@ -220,6 +220,7 @@ func openBootstrapCanonicalWriter(
 		_ = closeBootstrapNeo4jDriver(driver)
 		return nil, nil, err
 	}
+	warnUnboundedNeo4jWriteTimeout(slog.Default(), graphBackend, getenv)
 	rawExecutor := bootstrapNeo4jExecutor{
 		Driver:                 driver,
 		DatabaseName:           cfg.DatabaseName,
@@ -410,11 +411,14 @@ func (e bootstrapNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.Tra
 	return []func(*neo4jdriver.TransactionConfig){neo4jdriver.WithTxTimeout(e.TxTimeout)}
 }
 
+// bootstrapCanonicalTransactionTimeout returns the server-side transaction timeout for graph writes.
+// NornicDB keeps its ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j applies
+// the variable only when it is explicitly configured.
 func bootstrapCanonicalTransactionTimeout(graphBackend runtimecfg.GraphBackend, getenv func(string) string) time.Duration {
-	if graphBackend != runtimecfg.GraphBackendNornicDB {
-		return 0
+	if graphBackend == runtimecfg.GraphBackendNornicDB {
+		return nornicDBCanonicalWriteTimeout(getenv)
 	}
-	return nornicDBCanonicalWriteTimeout(getenv)
+	return neo4jCanonicalWriteTimeout(getenv)
 }
 
 func bootstrapNeo4jProfileGroupStatements(getenv func(string) string) (bool, error) {

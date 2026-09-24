@@ -127,7 +127,7 @@ func nornicDBEntityLabelPhaseGroupStatements(getenv func(string) string, entityP
 func canonicalExecutorForGraphBackend(
 	rawExecutor sourcecypher.Executor,
 	graphBackend runtimecfg.GraphBackend,
-	nornicDBTimeout time.Duration,
+	writeTimeout time.Duration,
 	nornicDBGroupedWrites bool,
 	nornicDBPhaseGroupStatements int,
 	nornicDBFilePhaseStatements int,
@@ -152,7 +152,7 @@ func canonicalExecutorForGraphBackend(
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		var bounded sourcecypher.Executor = sourcecypher.TimeoutExecutor{
 			Inner:       instrumented,
-			Timeout:     nornicDBTimeout,
+			Timeout:     writeTimeout,
 			TimeoutHint: canonicalWriteTimeoutEnv,
 		}
 		// Bound the graph-write concurrency at the INNER GroupExecutor layer
@@ -195,7 +195,7 @@ func canonicalExecutorForGraphBackend(
 		if rdr, ok := rawExecutor.(retractDrainReader); ok {
 			dr = ingesterTimeoutDrainReader{
 				inner:       rdr,
-				timeout:     nornicDBTimeout,
+				timeout:     writeTimeout,
 				timeoutHint: canonicalWriteTimeoutEnv,
 			}
 			// Gate the full-refresh DETACH DELETE drain writes too (#4729): the
@@ -228,5 +228,5 @@ func canonicalExecutorForGraphBackend(
 	}
 	// Neo4j has no phase-group fan-out wrapper, so the gate applies directly to
 	// the instrumented GroupExecutor here (nil gate = passthrough).
-	return graphbackpressure.WrapExecutorWithGate(instrumented, gate)
+	return graphbackpressure.WrapExecutorWithGate(boundNeo4jWrites(instrumented, writeTimeout), gate)
 }
