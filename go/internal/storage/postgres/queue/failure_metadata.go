@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package queuestore
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
@@ -17,7 +18,24 @@ type detailedFailure interface {
 	FailureDetails() string
 }
 
-func queueFailureMetadata(cause error, fallbackClass string) (string, string, string) {
+// sanitizeFailureText strips invalid UTF-8 and embedded NUL bytes from
+// failure text before it is written to a durable failure_class/message/
+// details column, so a byte sequence Postgres would reject (or that would
+// corrupt a terminal/log renderer) never reaches storage.
+func sanitizeFailureText(text string) string {
+	if text == "" {
+		return text
+	}
+	sanitized := strings.ToValidUTF8(text, "")
+	return strings.ReplaceAll(sanitized, "\x00", "")
+}
+
+// QueueFailureMetadata reconciles a failure cause into the durable
+// failure_class, message, and details values for a work item that is being
+// retried (not dead-lettered): a self-classifying error's own class wins
+// over fallbackClass, and its own details win over the sanitized error
+// message.
+func QueueFailureMetadata(cause error, fallbackClass string) (string, string, string) {
 	message := sanitizeFailureText(cause.Error())
 	details := message
 	failureClass := fallbackClass
@@ -39,7 +57,7 @@ func queueFailureMetadata(cause error, fallbackClass string) (string, string, st
 	return failureClass, message, details
 }
 
-// deadLetterTriageMetadata returns the durable failure_class, message, and
+// DeadLetterTriageMetadata returns the durable failure_class, message, and
 // details for a work item that is about to be dead-lettered. It reconciles three
 // sources with explicit precedence so the operator-facing triage surface never
 // loses curated context:
@@ -54,14 +72,14 @@ func queueFailureMetadata(cause error, fallbackClass string) (string, string, st
 // retryable is the canonical IsRetryable() authority for the cause; the dead
 // letter path always passes attemptsExhausted=true because by construction the
 // item is no longer being retried.
-func deadLetterTriageMetadata(cause error, stage string, retryable bool) (string, string, string) {
+func DeadLetterTriageMetadata(cause error, stage string, retryable bool) (string, string, string) {
 	triage := failure.TriageFailure(cause, stage, retryable, true)
-	failureClass, message, details := queueFailureMetadata(cause, triage.FailureClass)
+	failureClass, message, details := QueueFailureMetadata(cause, triage.FailureClass)
 
-	// queueFailureMetadata returns the sanitized message as details only when the
-	// error does not self-provide FailureDetails(). In that case prefer the
-	// structured triage details so the dead-letter row carries the triage
-	// classification rather than a bare message echo.
+	// QueueFailureMetadata returns the sanitized message as details only when
+	// the error does not self-provide FailureDetails(). In that case prefer
+	// the structured triage details so the dead-letter row carries the
+	// triage classification rather than a bare message echo.
 	if details == message {
 		details = sanitizeFailureText(triage.Details)
 	}

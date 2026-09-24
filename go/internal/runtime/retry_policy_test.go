@@ -123,8 +123,8 @@ func TestLoadRetryPolicyConfigRejectsInvalidValues(t *testing.T) {
 	// NaN passes strconv.ParseFloat (it is a valid IEEE 754 string form), and
 	// both `jitterFraction < 0` and `jitterFraction > max` evaluate false for
 	// NaN, so the plain range check alone would silently accept it and let
-	// computeRetryDelay's `jitterFraction > 0` gate also evaluate false,
-	// disabling jitter without any startup error. Reject it explicitly.
+	// queuestore.ComputeRetryDelay's `jitterFraction > 0` gate also evaluate
+	// false, disabling jitter without any startup error. Reject it explicitly.
 	if _, err := LoadRetryPolicyConfig(func(key string) string {
 		if key == "ESHU_PROJECTOR_RETRY_JITTER_FRACTION" {
 			return "NaN"

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package queuestore
 
 import (
 	"math/rand/v2"
 	"time"
 )
 
-// defaultRetryMaxDelayFallback caps the exponential backoff term when a
+// DefaultRetryMaxDelayFallback caps the exponential backoff term when a
 // caller (ProjectorQueue or ReducerQueue) leaves MaxRetryDelay unset. Matches
 // runtime.RetryPolicyConfig's default so a queue constructed directly
 // without going through the env-driven config loader still gets a sane cap.
-const defaultRetryMaxDelayFallback = time.Hour
+const DefaultRetryMaxDelayFallback = time.Hour
 
 // maxBackoffShift bounds the exponentiation shift so a very large attempt
 // count (or a caller-misconfigured MaxAttempts) cannot produce a nonsensical
@@ -25,7 +25,7 @@ const defaultRetryMaxDelayFallback = time.Hour
 // bounds how many loop iterations are possible.
 const maxBackoffShift = 32
 
-// computeRetryDelay returns the exponential-backoff-with-jitter delay to add
+// ComputeRetryDelay returns the exponential-backoff-with-jitter delay to add
 // to "now" when scheduling a retry, replacing the historical fixed-delay
 // behavior (ProjectorQueue.Fail and ReducerQueue.failIntent previously both
 // used now().Add(retryDelay) unconditionally) that let many
@@ -45,7 +45,7 @@ const maxBackoffShift = 32
 // callers pass a func wrapping math/rand/v2.Float64, and tests pass a seeded
 // or fixed source so the distribution is deterministic and reproducible
 // rather than flaky.
-func computeRetryDelay(
+func ComputeRetryDelay(
 	baseDelay time.Duration,
 	maxDelay time.Duration,
 	jitterFraction float64,
@@ -91,7 +91,7 @@ func computeRetryDelay(
 
 // newSeededJitterSource returns a jitter source function backed by a
 // deterministic, seeded PRNG. Production code paths use
-// defaultJitterSource (math/rand/v2's global source) instead; this
+// DefaultJitterSource (math/rand/v2's global source) instead; this
 // constructor exists so tests can assert a reproducible, non-flaky
 // distribution over many simulated retries without depending on wall-clock
 // entropy.
@@ -100,9 +100,9 @@ func newSeededJitterSource(seed uint64) func() float64 {
 	return source.Float64
 }
 
-// defaultJitterSource draws from math/rand/v2's global source, matching the
+// DefaultJitterSource draws from math/rand/v2's global source, matching the
 // non-cryptographic jitter pattern already used by
 // storage/cypher.RetryingExecutor for graph-write retry backoff.
-func defaultJitterSource() float64 {
+func DefaultJitterSource() float64 {
 	return rand.Float64() // #nosec G404 -- non-security jitter for exponential backoff retry delay
 }

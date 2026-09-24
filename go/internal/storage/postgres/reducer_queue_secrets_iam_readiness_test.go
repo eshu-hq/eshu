@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *testing.T) {
@@ -57,8 +58,9 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
 	// class keeps retrying indefinitely) drives the exponential term far past
 	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
-	// clamps to defaultRetryMaxDelayFallback rather than doubling forever.
-	if got, want := db.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
+	// clamps to queuestore.DefaultRetryMaxDelayFallback rather than doubling
+	// forever.
+	if got, want := db.execs[0].args[4], now.Add(queuestore.DefaultRetryMaxDelayFallback); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }

@@ -115,9 +115,10 @@ func residualMessageAggregateSQL() string {
 // pending work prints exactly what it printed before.
 //
 // On content: failure_message is err.Error() from a reducer handler, stored via
-// sanitizeFailureText, which only strips invalid UTF-8 and NUL bytes — it does
-// no redaction. In practice that text is domain names, entity keys, file paths,
-// and Postgres/Cypher error strings. This does NOT scan it for secrets; a
+// queuestore.sanitizeFailureText (unexported), which only strips invalid UTF-8
+// and NUL bytes — it does no redaction. In practice that text is domain
+// names, entity keys, file paths, and Postgres/Cypher error strings. This
+// does NOT scan it for secrets; a
 // claim to detect secrets is not one anyone can falsify (the reasoning is in
 // go/internal/urlredact/doc.go). What it does instead is bound the exposure to
 // a short prefix of a handful of groups, which is also what makes the output

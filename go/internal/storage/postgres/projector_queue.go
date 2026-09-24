@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"go.opentelemetry.io/otel/metric"
@@ -42,8 +43,8 @@ type ProjectorQueue struct {
 	// zero value keeps the pre-#4450 fixed-delay retry schedule.
 	JitterFraction float64
 	// JitterSource draws jitter in [0, 1); nil defaults to
-	// defaultJitterSource (math/rand/v2). Tests inject a seeded or fixed
-	// source for deterministic, non-flaky assertions.
+	// queuestore.DefaultJitterSource (math/rand/v2). Tests inject a seeded or
+	// fixed source for deterministic, non-flaky assertions.
 	JitterSource func() float64
 	// Instruments records operator-facing retry telemetry. Nil is safe
 	// (no-op) so existing callers that do not wire it keep working.
@@ -357,9 +358,9 @@ func (q ProjectorQueue) Fail(
 	if willRetry {
 		// Retry path: keep the existing retryable class and preserve any
 		// detailed failure context the error carries for diagnosis.
-		_, failureMessage, failureDetails := queueFailureMetadata(cause, "projection_retryable")
+		_, failureMessage, failureDetails := queuestore.QueueFailureMetadata(cause, "projection_retryable")
 		now := q.now()
-		delay := computeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, work.AttemptCount, q.jitterSource())
+		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, work.AttemptCount, q.jitterSource())
 		args := []any{
 			now,
 			"projection_retryable",
@@ -395,7 +396,7 @@ func (q ProjectorQueue) Fail(
 	// exhausted retries, terminal invalid input, or a poison projection bug) and
 	// whether replaying it unchanged is safe. The retry decision stays with
 	// IsRetryable; the triage metadata only labels the outcome (issue #3514).
-	failureClass, failureMessage, failureDetails := deadLetterTriageMetadata(cause, "project_work_item", retryable)
+	failureClass, failureMessage, failureDetails := queuestore.DeadLetterTriageMetadata(cause, "project_work_item", retryable)
 	args := []any{
 		q.now(),
 		failureClass,
@@ -420,14 +421,6 @@ func (q ProjectorQueue) Fail(
 	}
 
 	return nil
-}
-
-func sanitizeFailureText(text string) string {
-	if text == "" {
-		return text
-	}
-	sanitized := strings.ToValidUTF8(text, "")
-	return strings.ReplaceAll(sanitized, "\x00", "")
 }
 
 func (q ProjectorQueue) validate() error {
@@ -461,24 +454,25 @@ func (q ProjectorQueue) retryDelay() time.Duration {
 }
 
 // retryMaxDelay caps the exponential backoff term computed by Fail. Zero/
-// unset falls back to defaultRetryMaxDelayFallback (1 hour), matching
-// runtime.RetryPolicyConfig's default.
+// unset falls back to queuestore.DefaultRetryMaxDelayFallback (1 hour),
+// matching runtime.RetryPolicyConfig's default.
 func (q ProjectorQueue) retryMaxDelay() time.Duration {
 	if q.MaxRetryDelay > 0 {
 		return q.MaxRetryDelay
 	}
 
-	return defaultRetryMaxDelayFallback
+	return queuestore.DefaultRetryMaxDelayFallback
 }
 
 // jitterSource returns the configured JitterSource, defaulting to
-// defaultJitterSource (math/rand/v2's global source) in production.
+// queuestore.DefaultJitterSource (math/rand/v2's global source) in
+// production.
 func (q ProjectorQueue) jitterSource() func() float64 {
 	if q.JitterSource != nil {
 		return q.JitterSource
 	}
 
-	return defaultJitterSource
+	return queuestore.DefaultJitterSource
 }
 
 func (q ProjectorQueue) maxAttempts() int {

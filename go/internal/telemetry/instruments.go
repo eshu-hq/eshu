@@ -133,8 +133,9 @@ type Instruments struct {
 	ReducerHeartbeatMissed metric.Int64Counter
 	// ProjectorRetrySurge counts every projector work-item retry scheduled
 	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
-	// only (a bounded closed set from queueFailureMetadata/deadLetterTriage
-	// classification — never by scope_id or generation_id). Retries now
+	// only (a bounded closed set from queuestore.QueueFailureMetadata/
+	// DeadLetterTriageMetadata classification — never by scope_id or
+	// generation_id). Retries now
 	// carry exponential backoff plus jitter instead of a fixed delay, so a
 	// burst of same-instant failures no longer reconverges on one
 	// visible_at and starves new work. An operator can graph this

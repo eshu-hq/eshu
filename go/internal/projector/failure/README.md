@@ -52,7 +52,7 @@ instead of the coarse `projection_failed` / `reducer_failed` fallback.
 
 #3514 is resolved by wiring, not deletion: the live dead-letter path in
 `storage/postgres` (`projector_queue.go` `Fail`, `reducer_queue_helpers.go`
-`failIntent`) now calls `deadLetterTriageMetadata`, which runs `ClassifyFailure`
+`failIntent`) now calls `queuestore.DeadLetterTriageMetadata`, which runs `ClassifyFailure`
 through `TriageFailure`. `Retryable()` remains the single source of truth for the
 retry-vs-dead-letter decision; the requeue/backpressure fix from #3513 is
 unchanged because the retry branch is taken before triage classification runs.
@@ -67,7 +67,7 @@ cause never carries `non_retryable` and vice versa, asserted by
 
 Performance Evidence: the dead-letter path is the cold failure branch, not the
 success hot path. `TriageFailure` adds one `ClassifyFailure` call (the same
-`errors.As` / type-switch work the reducer already ran via `queueFailureMetadata`)
+`errors.As` / type-switch work the reducer already ran via `queuestore.QueueFailureMetadata`)
 plus one `fmt.Sprintf` per dead-lettered item; no new query, index, lease, or
 graph write is introduced, and the durable `UPDATE` is byte-for-byte the prior
 `failProjectorWorkQuery` / `failReducerWorkQuery` with only the `failure_class`,

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -89,24 +90,25 @@ func (q ReducerQueue) retryDelay() time.Duration {
 }
 
 // retryMaxDelay caps the exponential backoff term computed by failIntent.
-// Zero/unset falls back to defaultRetryMaxDelayFallback (1 hour), matching
-// runtime.RetryPolicyConfig's default.
+// Zero/unset falls back to queuestore.DefaultRetryMaxDelayFallback (1 hour),
+// matching runtime.RetryPolicyConfig's default.
 func (q ReducerQueue) retryMaxDelay() time.Duration {
 	if q.MaxRetryDelay > 0 {
 		return q.MaxRetryDelay
 	}
 
-	return defaultRetryMaxDelayFallback
+	return queuestore.DefaultRetryMaxDelayFallback
 }
 
 // jitterSource returns the configured JitterSource, defaulting to
-// defaultJitterSource (math/rand/v2's global source) in production.
+// queuestore.DefaultJitterSource (math/rand/v2's global source) in
+// production.
 func (q ReducerQueue) jitterSource() func() float64 {
 	if q.JitterSource != nil {
 		return q.JitterSource
 	}
 
-	return defaultJitterSource
+	return queuestore.DefaultJitterSource
 }
 
 func (q ReducerQueue) maxAttempts() int {
@@ -239,11 +241,11 @@ func (q ReducerQueue) failIntent(
 	// retryable() consults both the canonical Retryable() authority and the
 	// non-counting readiness class. Probe with a sentinel fallback so a
 	// self-classifying cause is distinguishable from one that does not classify:
-	// queueFailureMetadata only overrides the fallback when the error implements
-	// FailureClass(), so a returned value other than the sentinel means the cause
-	// curated its own class.
+	// queuestore.QueueFailureMetadata only overrides the fallback when the
+	// error implements FailureClass(), so a returned value other than the
+	// sentinel means the cause curated its own class.
 	const unclassifiedRetrySentinel = "reducer_failed"
-	probeClass, _, _ := queueFailureMetadata(cause, unclassifiedRetrySentinel)
+	probeClass, _, _ := queuestore.QueueFailureMetadata(cause, unclassifiedRetrySentinel)
 	willRetry := q.retryable(cause, probeClass, intent.AttemptCount)
 
 	if willRetry {
@@ -257,8 +259,8 @@ func (q ReducerQueue) failIntent(
 		if probeClass != unclassifiedRetrySentinel {
 			retryFailureClass = probeClass
 		}
-		_, failureMessage, failureDetails := queueFailureMetadata(cause, retryFailureClass)
-		delay := computeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource())
+		_, failureMessage, failureDetails := queuestore.QueueFailureMetadata(cause, retryFailureClass)
+		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource())
 		args := []any{
 			now,
 			retryFailureClass,
@@ -298,7 +300,7 @@ func (q ReducerQueue) failIntent(
 	// triage class. Retryable() stays the retry-decision authority; the triage
 	// metadata only labels the outcome (issue #3514). A self-classifying error
 	// still wins over the triage fallback class.
-	failureClass, failureMessage, failureDetails := deadLetterTriageMetadata(cause, "reduce_intent", reducer.IsRetryable(cause))
+	failureClass, failureMessage, failureDetails := queuestore.DeadLetterTriageMetadata(cause, "reduce_intent", reducer.IsRetryable(cause))
 	args := []any{
 		now,
 		failureClass,

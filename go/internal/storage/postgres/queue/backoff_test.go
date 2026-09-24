@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package queuestore
 
 import (
 	"testing"
@@ -30,9 +30,9 @@ func TestComputeRetryDelayAppliesExponentialBackoff(t *testing.T) {
 		{attempt: 3, want: 240 * time.Second},
 	}
 	for _, tc := range cases {
-		got := computeRetryDelay(baseDelay, maxDelay, 0.1, tc.attempt, zeroJitter)
+		got := ComputeRetryDelay(baseDelay, maxDelay, 0.1, tc.attempt, zeroJitter)
 		if got != tc.want {
-			t.Fatalf("computeRetryDelay(attempt=%d) = %v, want %v", tc.attempt, got, tc.want)
+			t.Fatalf("ComputeRetryDelay(attempt=%d) = %v, want %v", tc.attempt, got, tc.want)
 		}
 	}
 }
@@ -48,14 +48,14 @@ func TestComputeRetryDelayCapsAtMaxDelay(t *testing.T) {
 	maxDelay := 5 * time.Minute
 	zeroJitter := func() float64 { return 0 }
 
-	got := computeRetryDelay(baseDelay, maxDelay, 0.1, 10, zeroJitter)
+	got := ComputeRetryDelay(baseDelay, maxDelay, 0.1, 10, zeroJitter)
 	if got != maxDelay {
-		t.Fatalf("computeRetryDelay(attempt=10) = %v, want capped %v", got, maxDelay)
+		t.Fatalf("ComputeRetryDelay(attempt=10) = %v, want capped %v", got, maxDelay)
 	}
 }
 
 // TestComputeRetryDelayCapsAtMaxDelayWithoutOverflowingLargeAttemptCounts
-// proves computeRetryDelay stays capped at maxDelay (never wraps to a
+// proves ComputeRetryDelay stays capped at maxDelay (never wraps to a
 // negative duration) for an attempt count large enough that a naive
 // baseDelay*(1<<attempt) computation overflows time.Duration's int64
 // nanosecond range. This is the exact shape of a non-counting reducer
@@ -72,20 +72,20 @@ func TestComputeRetryDelayCapsAtMaxDelayWithoutOverflowingLargeAttemptCounts(t *
 	maxDelay := time.Hour
 	zeroJitter := func() float64 { return 0 }
 
-	got := computeRetryDelay(baseDelay, maxDelay, 0.1, 42, zeroJitter)
+	got := ComputeRetryDelay(baseDelay, maxDelay, 0.1, 42, zeroJitter)
 	if got != maxDelay {
-		t.Fatalf("computeRetryDelay(attempt=42) = %v, want capped %v (non-negative)", got, maxDelay)
+		t.Fatalf("ComputeRetryDelay(attempt=42) = %v, want capped %v (non-negative)", got, maxDelay)
 	}
 	if got < 0 {
-		t.Fatalf("computeRetryDelay(attempt=42) = %v, want non-negative", got)
+		t.Fatalf("ComputeRetryDelay(attempt=42) = %v, want non-negative", got)
 	}
 
 	// Also probe exactly at maxBackoffShift, the loop-iteration bound, to
 	// prove the doubling loop's own overflow break (doubled < backoff) holds
 	// even at the clamp boundary.
-	got = computeRetryDelay(baseDelay, maxDelay, 0.1, maxBackoffShift, zeroJitter)
+	got = ComputeRetryDelay(baseDelay, maxDelay, 0.1, maxBackoffShift, zeroJitter)
 	if got != maxDelay {
-		t.Fatalf("computeRetryDelay(attempt=maxBackoffShift) = %v, want capped %v (non-negative)", got, maxDelay)
+		t.Fatalf("ComputeRetryDelay(attempt=maxBackoffShift) = %v, want capped %v (non-negative)", got, maxDelay)
 	}
 }
 
@@ -99,20 +99,20 @@ func TestComputeRetryDelayAddsBoundedJitter(t *testing.T) {
 	maxDelay := time.Hour
 	jitterFraction := 0.1
 
-	// jitterSource's contract is [0, 1) (see retry_backoff.go); 1.0 is out of
+	// jitterSource's contract is [0, 1) (see backoff.go); 1.0 is out of
 	// range and unreachable in practice, so probe a representative in-contract
 	// value instead of the impossible source==1.0 case.
 	mid := func() float64 { return 0.5 }
-	got := computeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, mid)
+	got := ComputeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, mid)
 	want := baseDelay + time.Duration(float64(baseDelay)*jitterFraction*0.5)
 	if got != want {
-		t.Fatalf("computeRetryDelay with mid-range jitter = %v, want %v", got, want)
+		t.Fatalf("ComputeRetryDelay with mid-range jitter = %v, want %v", got, want)
 	}
 
 	none := func() float64 { return 0.0 }
-	got = computeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, none)
+	got = ComputeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, none)
 	if got != baseDelay {
-		t.Fatalf("computeRetryDelay with zero jitter = %v, want %v", got, baseDelay)
+		t.Fatalf("ComputeRetryDelay with zero jitter = %v, want %v", got, baseDelay)
 	}
 }
 
@@ -126,9 +126,9 @@ func TestComputeRetryDelayNegativeAttemptTreatedAsZero(t *testing.T) {
 	maxDelay := time.Hour
 	zeroJitter := func() float64 { return 0 }
 
-	got := computeRetryDelay(baseDelay, maxDelay, 0.1, -5, zeroJitter)
+	got := ComputeRetryDelay(baseDelay, maxDelay, 0.1, -5, zeroJitter)
 	if got != baseDelay {
-		t.Fatalf("computeRetryDelay(attempt=-5) = %v, want %v (treated as attempt=0)", got, baseDelay)
+		t.Fatalf("ComputeRetryDelay(attempt=-5) = %v, want %v (treated as attempt=0)", got, baseDelay)
 	}
 }
 
@@ -150,7 +150,7 @@ func TestRetrySurgeSpreadsVisibleAtAcrossManySimultaneousFailures(t *testing.T) 
 
 	visibleAtSet := make(map[time.Time]bool, 100)
 	for i := 0; i < 100; i++ {
-		delay := computeRetryDelay(baseDelay, maxDelay, 0.1, 0, seeded)
+		delay := ComputeRetryDelay(baseDelay, maxDelay, 0.1, 0, seeded)
 		visibleAtSet[now.Add(delay)] = true
 	}
 
@@ -159,13 +159,13 @@ func TestRetrySurgeSpreadsVisibleAtAcrossManySimultaneousFailures(t *testing.T) 
 	}
 
 	// With jitterFraction=0 (the actual production disable switch; see
-	// computeRetryDelay's `jitterFraction > 0` gate), prove the storm
+	// ComputeRetryDelay's `jitterFraction > 0` gate), prove the storm
 	// actually reproduces: all 100 collapse to exactly 1 distinct value.
 	// The jitter source is still the seeded PRNG here to prove the fraction
 	// itself, not the source, is what disables jitter.
 	collapsed := make(map[time.Time]bool, 100)
 	for i := 0; i < 100; i++ {
-		delay := computeRetryDelay(baseDelay, maxDelay, 0, 0, seeded)
+		delay := ComputeRetryDelay(baseDelay, maxDelay, 0, 0, seeded)
 		collapsed[now.Add(delay)] = true
 	}
 	if got, want := len(collapsed), 1; got != want {
