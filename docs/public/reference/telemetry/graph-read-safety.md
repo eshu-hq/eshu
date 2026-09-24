@@ -220,14 +220,23 @@ text instead:
 
 - **NornicDB slow-query log** -- NornicDB's own `event="slow_query"` log
   (threshold `NORNICDB_SLOW_QUERY_THRESHOLD`, default 5s) carries `plan_hash`
-  and a literal-redacted `query` field truncated to 500 characters. Compare
-  Eshu's `graph_read.statement_head` (up to 300 characters) against the
-  leading 300 characters of NornicDB's `query` field: if Eshu's head is a
-  prefix of NornicDB's redacted query, the two log lines describe the same
-  read. Because Eshu's default threshold (1s) is well below NornicDB's
-  default (5s), a read that is `slow` in Eshu but absent from the NornicDB log
-  is expected -- lower `NORNICDB_SLOW_QUERY_THRESHOLD` to correlate reads in
-  the 1-5s range.
+  and a literal-redacted `query` field truncated to 500 characters.
+  `RedactLiterals` only substitutes string/integer/float literal tokens; every
+  other token, including whitespace, is copied through byte-for-byte, so
+  NornicDB's `query` field keeps the statement's original newlines and
+  indentation. Eshu's `graph_read.statement_head` instead collapses every
+  whitespace run to a single space before truncating, so a raw byte-prefix
+  comparison fails for any statement that spans more than one line or has
+  irregular spacing. Normalize NornicDB's `query` field the same way before
+  comparing: collapse each run of whitespace to one space, trim, then check
+  whether Eshu's head is a prefix of the first 300 characters of that
+  normalized text. For example, a NornicDB `query` field reading
+  `"MATCH (n:Repo)\n  RETURN n"` normalizes to `"MATCH (n:Repo) RETURN n"`,
+  which then compares directly against an Eshu `graph_read.statement_head` of
+  `"MATCH (n:Repo) RETURN n"`. Because Eshu's default threshold (1s) is well
+  below NornicDB's default (5s), a read that is `slow` in Eshu but absent from
+  the NornicDB log is expected -- lower `NORNICDB_SLOW_QUERY_THRESHOLD` to
+  correlate reads in the 1-5s range.
 - **NornicDB pprof capture** -- when a statement shape recurs as `slow` or
   `deadline`, enable `NORNICDB_PPROF_ENABLED` (bind address
   `NORNICDB_PPROF_LISTEN`, default `127.0.0.1:9091`) and capture a profile with
