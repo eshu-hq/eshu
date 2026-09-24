@@ -110,7 +110,21 @@ package_manifest_active AS (
       AND generation.status = 'active'
       AND fact.payload->>'entity_type' = 'Variable'
       AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
+      -- #7007: push the repository anchor down into the CTE instead of
+      -- filtering it only in the downstream family/ecosystem consumers
+      -- below. Unfiltered, this CTE materializes every dependency-variable
+      -- content_entity fact repo-wide (content_entity is the largest
+      -- fact_kind in the corpus) before any repository_id predicate ever
+      -- applies, and it is referenced more than once so Postgres
+      -- materializes that unfiltered set once and rescans it per consumer.
+      -- Every downstream consumer already re-applies this exact
+      -- "$11 = '' OR payload->>'repo_id' = $11" predicate (or is a no-op
+      -- when $11 is empty), so pushing it here is a pure narrowing: byte
+      -- identical output, bounded to the requested repository's own rows
+      -- instead of every repository's.
+      AND ($11 = '' OR fact.payload->>'repo_id' = $11)
 ),
+
 package_registry_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact

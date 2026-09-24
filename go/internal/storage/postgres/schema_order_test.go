@@ -273,4 +273,13 @@ var orderedBootstrapDefinitionNames = []string{
 	// Numbered 120 because main merged the #6946 liveness-stats
 	// migration as 119 first.
 	"value_flow_refresh_code_function_summary_producer",
+	// migration 121 (#7007) gives the supply-chain impact readiness query's
+	// package_manifest_active CTE a repo_id-leading partial index on
+	// content_entity dependency-variable facts, alongside pushing the
+	// repository_id predicate into that CTE (readiness_postgres_query.go).
+	// Without it, package_manifest_active had no repository_id predicate at
+	// all and no supporting index, forcing a per-scope scan-and-filter over
+	// content_entity (the largest fact_kind in the corpus) on every
+	// impact/findings readiness read.
+	"fact_records_content_entity_dependency_variable_repo_idx",
 }

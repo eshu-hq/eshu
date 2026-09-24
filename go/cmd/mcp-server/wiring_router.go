@@ -241,6 +241,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		},
 		SupplyChain: &query.SupplyChainHandler{
 			Neo4j:                    neo4jReader,
+			Logger:                   logger,
 			Content:                  contentReader,
 			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
 			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),

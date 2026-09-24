@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -79,6 +80,12 @@ type Handler struct {
 	// with 503 rather than composing without the envelope.
 	PacketResponder ImpactPacketResponder
 	Profile         querycontract.QueryProfile
+	// Logger emits per-backing-read stage_started/stage_completed events
+	// (query_timing.go) for the impact-findings list route so an operator
+	// can attribute request latency to its Postgres or graph reads. A nil
+	// Logger disables the stage events entirely (used by unit tests that
+	// construct a Handler without one).
+	Logger *slog.Logger
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity
