@@ -61,6 +61,30 @@ class GoalRoleRouterTests(unittest.TestCase):
             with self.subTest(prompt=prompt):
                 self.assertIn("develop-eshu", context(prompt, "codex"))
 
+    def test_diagnosis_writeup_does_not_suggest_developer(self):
+        output = context("/goal Write up findings with eshu-diagnostic-rigor", "codex")
+        self.assertIn("debug-eshu", output)
+        self.assertNotIn("develop-eshu", output)
+
+    def test_capitalized_skill_name_routes(self):
+        output = context("/goal Diagnose with Eshu-Diagnostic-Rigor", "codex")
+        self.assertIn("debug-eshu", output)
+
+    def test_empty_skill_catalog_is_quiet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            (work / "scripts").mkdir()
+            (work / ".agents/skills").mkdir(parents=True)
+            shutil.copyfile(ROOT / ".agents/roles.json", work / ".agents/roles.json")
+            copy = work / "scripts/goal-role-router.py"
+            shutil.copyfile(ROUTER, copy)
+            result = subprocess.run(
+                ["python3", str(copy), "codex"],
+                input=json.dumps({"prompt": "/goal Diagnose with eshu-diagnostic-rigor"}),
+                capture_output=True, text=True, cwd=work, check=True,
+            )
+            self.assertEqual("", result.stdout)
+
     def test_non_goal_and_control_prompts_are_quiet(self):
         for prompt in ("please use eshu-code-review", "/goal done", "/goal consent push", "/goal clear"):
             self.assertEqual("", context(prompt, "codex"))
@@ -71,7 +95,14 @@ class GoalRoleRouterTests(unittest.TestCase):
             "claude": ROOT / ".claude/settings.json",
             "muse": ROOT / ".muse/hooks.json",
         }
-        payload = json.dumps({"prompt": "/goal Diagnose with eshu-diagnostic-rigor", "hook_event_name": "UserPromptSubmit"})
+        payload = json.dumps({
+            "session_id": "codex-wire-probe", "turn_id": "turn-1",
+            "transcript_path": None, "cwd": str(ROOT), "model": "gpt-6-luna",
+            "permission_mode": "bypassPermissions",
+            "prompt": "/goal Diagnose with eshu-diagnostic-rigor",
+            "hook_event_name": "UserPromptSubmit",
+        })
+        self.assertIn("hooks = true", (ROOT / ".codex/config.toml").read_text())
         for harness, config in configs.items():
             with self.subTest(harness=harness):
                 hooks = json.loads(config.read_text())["hooks"]["UserPromptSubmit"][0]["hooks"]
@@ -82,6 +113,22 @@ class GoalRoleRouterTests(unittest.TestCase):
                     check=True,
                 )
                 self.assertIn("debug-eshu", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+
+    def test_codex_and_claude_wrappers_fail_quiet_outside_repo(self):
+        configs = (ROOT / ".codex/hooks.json", ROOT / ".claude/settings.json")
+        with tempfile.TemporaryDirectory() as elsewhere:
+            for config in configs:
+                with self.subTest(config=config):
+                    hooks = json.loads(config.read_text())["hooks"]["UserPromptSubmit"][0]["hooks"]
+                    command = next(hook["command"] for hook in hooks if "goal-role-router.py" in hook["command"])
+                    env = {key: value for key, value in os.environ.items()
+                           if key not in {"CODEX_PROJECT_DIR", "CLAUDE_PROJECT_DIR"}}
+                    result = subprocess.run(
+                        ["/bin/sh", "-c", command], input=json.dumps({"prompt": "/goal Diagnose with eshu-diagnostic-rigor"}),
+                        capture_output=True, text=True, cwd=elsewhere, env=env,
+                    )
+                    self.assertEqual(0, result.returncode)
+                    self.assertEqual("", result.stdout)
 
     def test_prepared_goal_survives_refresh(self):
         with tempfile.TemporaryDirectory() as tmp:

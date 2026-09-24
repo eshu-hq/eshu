@@ -83,11 +83,14 @@ fallback hiding exactly the case worth knowing about.
 They are separate so that guidance prose cannot mint a skill id, and so
 `verify-agent-canon.sh` can match on the enforced list alone.
 
-Four of those serve Claude, and Muse Code via `.muse/hooks/`. Porting them to
-Codex still needs someone to pin the `apply_patch` payload shape for the Codex
-version in use and confirm Codex's pre-tool and session-start equivalents. Do
-not write a Codex adapter against a guessed payload shape; a hook that silently
-never fires is worse than an absent one, because the gate reads as covered.
+Four of those serve Claude, and Muse Code via `.muse/hooks/`. Porting their
+pre-tool and session-start behavior to Codex still needs the `apply_patch`
+payload shape and event equivalents pinned. Do not write those adapters
+against guessed payloads.
+
+The separate Codex `UserPromptSubmit` goal router has a live wire-contract
+probe on `codex-cli 0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md)
+for its payload, output, trust steps, and proof limits.
 
 ## The nudge table rots, so a gate watches it
 

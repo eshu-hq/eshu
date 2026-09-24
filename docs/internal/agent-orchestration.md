@@ -146,6 +146,34 @@ bounded child work routed to the manifest tier.
 OpenCode is deliberately session-selected and is outside this manifest's
 model bindings.
 
+### Task-to-skill map
+
+Use this lookup for ordinary tasks as well as goal phases. The skill body in
+`.agents/skills/` remains the source of truth for its method.
+
+| Task | Skill |
+| --- | --- |
+| Diagnose unexplained runtime, backend, or queue behavior | `eshu-diagnostic-rigor` |
+| Benchmark, optimize, or validate a performance claim | `eshu-performance-rigor` |
+| Postgres SQL, schema, transactions, locks, or queue claims | `eshu-postgres-rigor` |
+| Go code or tests | `golang-engineering` |
+| Cypher, graph queries/writes/indexes, backend dialect | `cypher-query-rigor` |
+| Workers, leases, retries, shared state, queue ordering | `concurrency-deadlock-rigor` |
+| Correlation, materialization, deployment tracing, query truth | `eshu-correlation-truth` |
+| Eshu MCP/API calls or bounded tool contracts | `eshu-mcp-call-rigor` |
+| Facts, projected truth, query shapes asserted by B-7; cassettes or B-12 snapshot | `eshu-golden-corpus-rigor` |
+| Fact kinds, payload schemas, SDK contracts, registry or fixture packs | `eshu-contract-rigor` |
+| Release, version, image, Helm, or GitHub Release | `eshu-release` |
+| Package README, doc.go, scoped AGENTS.md | `eshu-folder-doc-keeper` |
+| Telemetry contracts, coverage, dashboards, missing signals | `telemetry-coverage-discipline` |
+| Generators and committed outputs | `generator-script-discipline` |
+| Security-scan workflow or scanner failures | `eshu-security-scan-gates` |
+| Issue/epic work explicitly requested through closure | `eshu-issue-driver` |
+| Final diff, pre-push review, merge-readiness | `eshu-code-review` |
+| Resolve review threads after verified fixes | `resolve-review-threads` |
+| Resume, handoff, PR monitoring, liveness, worktree cleanup | `eshu-session-lifecycle` |
+| Draft or polish PRs, reviews, issues, docs, or substantial updates | `eshu-humanizer` |
+
 ### Where the model binds
 
 A tier is repo policy; the binding is per-harness and lives on the **role**, not

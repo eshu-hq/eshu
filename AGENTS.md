@@ -233,7 +233,8 @@ Follow [Goal and skill prompts](docs/internal/agent-orchestration.md#goal-and-sk
 for model, access, and launcher details. OpenCode model selection remains a
 session choice. The main session's model does not change automatically.
 
-Use the skill catalog in `.agents/skills/` for task-to-skill discovery.
+Use the [task-to-skill map](docs/internal/agent-orchestration.md#task-to-skill-map)
+and `.agents/skills/` for task-to-skill discovery.
 
 State which skills are active. Routine status messages use the same plain,
 evidence-backed house style without loading a writing playbook each time.

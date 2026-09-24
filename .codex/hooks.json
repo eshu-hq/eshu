@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/goal-role-router.py\" codex",
+            "command": "r=${CODEX_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}; [ -f \"$r/scripts/goal-role-router.py\" ] || exit 0; command -v python3 >/dev/null 2>&1 || exit 0; python3 \"$r/scripts/goal-role-router.py\" codex",
             "timeout": 10
           }
         ]
