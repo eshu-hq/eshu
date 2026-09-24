@@ -100,6 +100,11 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 		}
 	}
 
+	// Drop rows whose indexed key the backend would reject before any
+	// statement is built, so one oversized value skips one node instead of
+	// failing the repository's atomic write (#7058).
+	mat, oversizedSkipped := w.dropOversizedIndexKeys(ctx, mat)
+
 	mat.TerraformStateResources = w.resolveTerraformStateOwnership(ctx, mat.TerraformStateResources)
 	mat.TerraformStateResources = w.resolveTerraformStateConfigMatchAmbiguity(ctx, mat.TerraformStateResources)
 
@@ -130,6 +135,9 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 	}
 	ctx, writeSpan := w.startWriteSpan(ctx, mat, len(allStatements))
 	defer writeSpan.End()
+	if oversizedSkipped > 0 {
+		writeSpan.SetAttributes(attribute.Int("oversized_index_keys_skipped", oversizedSkipped))
+	}
 	packageRegistryLock := w.lockPackageRegistryIdentities(mat)
 	defer packageRegistryLock.unlock()
 	recordPackageRegistryIdentityLock(ctx, writeSpan, mat, packageRegistryLock)

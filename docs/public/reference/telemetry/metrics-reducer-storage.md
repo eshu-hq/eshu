@@ -139,6 +139,7 @@ or generation context.
 | `eshu_dp_canonical_write_duration_seconds` | histogram | Canonical graph/content write latency. |
 | `eshu_dp_canonical_atomic_writes_total` | counter | Atomic canonical write attempts. |
 | `eshu_dp_canonical_atomic_fallbacks_total` | counter | Atomic write fallbacks. |
+| `eshu_dp_canonical_oversized_index_keys_skipped_total` | counter | Canonical node rows dropped before the graph write because an indexed key exceeded 8000 UTF-8 bytes (`canonical.MaxIndexedKeyBytes`, under Neo4j's range-index key limit), labeled by `node_label` (closed canonical label set) and `property` (`name` or `path`). Each skip also logs a WARN `canonical row skipped: indexed value exceeds key size limit` with `scope_id`, `repo_id`, `entity_id`, `file_path`, `key_bytes`, and a 64-byte `value_prefix`. Any non-zero rate is a parser or collector bug emitting an unbounded identity value (#7058); the rest of the repository still writes. |
 | `eshu_dp_canonical_projection_duration_seconds` | histogram | Canonical projection phase cost. |
 | `eshu_dp_graph_write_backpressure_engaged_total` | counter | Graph writes that blocked for an in-flight permit (write-path backpressure engaged), labeled by operation and gate (`canonical` or `semantic`; the projector has a single pool and always reports `canonical`). |
 | `eshu_dp_graph_write_backpressure_wait_seconds` | histogram | Time a graph write blocked waiting for an in-flight permit, labeled by operation and gate (`canonical` or `semantic`). |

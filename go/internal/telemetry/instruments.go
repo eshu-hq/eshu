@@ -1527,6 +1527,12 @@ type Instruments struct {
 	// Canonical atomic write metrics
 	CanonicalAtomicWrites    metric.Int64Counter
 	CanonicalAtomicFallbacks metric.Int64Counter
+	// CanonicalOversizedIndexKeysSkipped counts canonical node rows dropped
+	// before the graph write because an indexed key exceeded the backend
+	// index key-size bound (#7058). Labels: node_label (closed canonical label
+	// set) and property (name or path). The value and repository stay in the
+	// paired WARN log line, never in a label.
+	CanonicalOversizedIndexKeysSkipped metric.Int64Counter
 
 	// Neo4j transient error retry metrics
 	Neo4jDeadlockRetries metric.Int64Counter
@@ -4731,6 +4737,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CanonicalAtomicFallbacks counter: %w", err)
 	}
 
+	inst.CanonicalOversizedIndexKeysSkipped, err = meter.Int64Counter(
+		"eshu_dp_canonical_oversized_index_keys_skipped_total",
+		metric.WithDescription("Total canonical node rows skipped before the graph write because an indexed key exceeded the index key-size bound, by node_label and property"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CanonicalOversizedIndexKeysSkipped counter: %w", err)
+	}
+
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(
 		"eshu_dp_neo4j_deadlock_retries_total",
 		metric.WithDescription("Total graph-write retries by write phase and bounded retry reason"),
@@ -5764,6 +5778,16 @@ func AttrOutcome(v string) attribute.KeyValue {
 // AttrRead returns a read attribute naming the status snapshot reader.
 func AttrRead(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionRead, v)
+}
+
+// AttrNodeLabel returns a node_label attribute naming a closed-set graph label.
+func AttrNodeLabel(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionNodeLabel, v)
+}
+
+// AttrProperty returns a property attribute naming a closed-set graph property.
+func AttrProperty(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionProperty, v)
 }
 
 // AttrGuardrail returns a guardrail attribute for metric recording.

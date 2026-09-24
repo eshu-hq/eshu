@@ -24,6 +24,12 @@ calls and never the reverse.
 - `ExtractEntityRows`, `ExtractOCIRegistryRows`, `ExtractPackageRegistryRows`,
   `ExtractTerraformStateRows` — the per-family extractors, callable on their
   own by the projection tests that assert one family's rows.
+- `DropOversizedIndexKeys` and `MaxIndexedKeyBytes` — the write-side bound
+  on indexed graph keys (#7058). `CanonicalNodeWriter.Write` calls it before
+  building statements; it removes Module, entity, and Parameter rows whose
+  indexed key is over 8000 UTF-8 bytes, plus the edge rows that reference them,
+  and returns one `OversizedIndexKey` record per skipped node for the caller's
+  metric and log.
 - `EntityMetadataFromPayload` — derives an entity's metadata map, preferring an
   explicit `entity_metadata` object and otherwise carrying through every
   non-structural payload key.

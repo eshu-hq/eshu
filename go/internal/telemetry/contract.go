@@ -847,4 +847,10 @@ const (
 	// go/cmd/reducer (edges_by_source_tool, files_by_language,
 	// graph_orphan_nodes).
 	MetricDimensionGauge = "gauge"
+
+	// MetricDimensionProperty labels
+	// eshu_dp_canonical_oversized_index_keys_skipped_total with the indexed
+	// graph property whose value was too large. The value set is closed:
+	// "name" or "path" (#7058).
+	MetricDimensionProperty = "property"
 )

@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -402,4 +403,37 @@ func (w *CanonicalNodeWriter) recordAtomicFallback(ctx context.Context) {
 		return
 	}
 	w.instruments.CanonicalAtomicFallbacks.Add(ctx, 1)
+}
+
+// dropOversizedIndexKeys removes rows whose indexed key exceeds
+// canonical.MaxIndexedKeyBytes, and reports each skipped node with one WARN
+// line and one eshu_dp_canonical_oversized_index_keys_skipped_total increment.
+// It returns the reduced materialization and the number of skipped nodes.
+func (w *CanonicalNodeWriter) dropOversizedIndexKeys(
+	ctx context.Context,
+	mat canonical.CanonicalMaterialization,
+) (canonical.CanonicalMaterialization, int) {
+	mat, dropped := canonical.DropOversizedIndexKeys(mat)
+	for _, d := range dropped {
+		slog.WarnContext(
+			ctx, "canonical row skipped: indexed value exceeds key size limit",
+			"scope_id", mat.ScopeID,
+			"repo_id", mat.RepoID,
+			"generation_id", mat.GenerationID,
+			"node_label", d.Label,
+			"property", d.Property,
+			"key_bytes", d.KeyBytes,
+			"limit_bytes", canonical.MaxIndexedKeyBytes,
+			"entity_id", d.EntityID,
+			"file_path", d.FilePath,
+			"value_prefix", d.ValuePrefix,
+		)
+		if w.instruments != nil && w.instruments.CanonicalOversizedIndexKeysSkipped != nil {
+			w.instruments.CanonicalOversizedIndexKeysSkipped.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrNodeLabel(d.Label),
+				telemetry.AttrProperty(d.Property),
+			))
+		}
+	}
+	return mat, len(dropped)
 }

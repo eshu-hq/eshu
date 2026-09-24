@@ -79,6 +79,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionCloudFormationSection,
 	MetricDimensionRead,
 	MetricDimensionGauge,
+	MetricDimensionProperty,
 }
 
 var spanNames = []string{
