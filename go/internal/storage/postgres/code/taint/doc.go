@@ -24,6 +24,7 @@
 // the reducer's backfillers and stale-cleanup runner drive these ledgers.
 //
 // This package must not import the parent internal/storage/postgres
-// package: that import direction would create a cycle, since root code
-// constructs these stores.
+// package from non-test code: leaves under storage/postgres must not depend
+// on root (#6693). cmd/reducer constructs these stores, and the applied DDL
+// lives in the storage/postgres/migrations package.
 package taintstore

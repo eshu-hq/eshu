@@ -17,10 +17,10 @@ enumeration/prune reads. It is distinct from
 `internal/reducer/code/taint`, which owns the value-flow evidence
 materialization, backfill, and stale-cleanup domain logic that calls through
 the `InterprocProjectedEdgeLedger` / `ProjectedNodeLedger` interfaces these
-stores satisfy. The parent `postgres` package keeps the migration files
-(`044_code_interproc_projected_edge.sql`,
-`045_code_taint_evidence_projected_node.sql`) and constructs these stores for
-`cmd/reducer` wiring; this package must not import it back.
+stores satisfy. The applied DDL is in the `storage/postgres/migrations`
+package (`044_code_interproc_projected_edge.sql`,
+`045_code_taint_evidence_projected_node.sql`), and `cmd/reducer` constructs
+these stores. This package must not import the parent `postgres` package.
 
 ## Exported surface
 
@@ -70,7 +70,8 @@ no metric, span, log field, worker, queue, lease, or runtime knob changed.
   generation-scoped (`generation_id <> current`): a stale-cleanup pass only
   ever prunes ledger rows for uids it actually retracted from the graph in
   the same bounded batch, never the whole stale set at once.
-- Do not import the parent `postgres` package: that is an import cycle.
+- Do not import the parent `postgres` package from non-test code: leaves
+  under `storage/postgres` must not depend on root (#6693).
   `cmd/reducer` constructs both stores and wires them into
   `internal/reducer/code/taint`'s backfillers, evidence materializers, and
   `internal/reducer.CodeValueFlowStaleCleanupRunner`.

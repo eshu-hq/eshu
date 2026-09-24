@@ -95,11 +95,9 @@ non-test `.go` file count by 2 (2 files moved). Re-pinned via
 `bash scripts/dev/precommit-go.sh dirgate-digest internal/storage/postgres`
 and regenerated `tools/golangci-lint-dirgate/grandfather.go` with `bash
 scripts/generate-dirgate-grandfather-go.sh`. The digest run additionally
-printed pre-existing `naming_violation` rows for files this step does not
-touch (`iac_reachability_materializer.go`, three `incident_freshness_*.go`
-files, `incident_routing_evidence_loader.go`, `scope_quiescence.go`) — all
-already-mapped, not-yet-moved root files from earlier plan sections; none is
-new and none is this step's concern.
+printed pre-existing `naming_violation` rows for root files that carry a
+justified dirgate marker naming the later checklist step that moves them;
+this step adds none.
 
 ## Verification (from `go/` unless noted)
 
@@ -127,9 +125,7 @@ new and none is this step's concern.
   docs present". `bash scripts/verify-performance-evidence.sh origin/main`:
   exit 0, "benchmark and observability markers found for hot-path changes".
   `bash scripts/verify-moved-file-refs.sh`: exit 0, no dangling
-  references. `bash scripts/verify-doc-citations.sh`: exit 0, "257 test
-  citation(s) checked (0 baselined dead), 289 fixture citation(s) checked (11
-  baselined unresolved), 435 raw line citation occurrence(s) tracked".
+  references. `bash scripts/verify-doc-citations.sh`: exit 0.
   `git diff --check`: exit 0, no output.
 - `rg` for `code_interproc_projected_edge_store`,
   `code_taint_evidence_projected_node_store` (old filenames, without
