@@ -36,8 +36,8 @@ See `doc.go` for the godoc contract.
 
 None. Route selection only constructs in-memory values. The parent MCP package
 keeps transport and dispatch signals, while the HTTP handlers retain the shared
-API request duration and error metrics (`request_metrics.go` in
-`internal/query`) and their own spans, such as
+API request duration and error metrics (`request.go` in
+`internal/query/metrics`) and their own spans, such as
 `SpanQueryChangeSurfaceInvestigation` on the change-surface investigation
 path.
 

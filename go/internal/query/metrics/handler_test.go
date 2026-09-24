@@ -131,23 +131,30 @@ func TestTimeSeriesRejectsInvalidRangeAsBadRequest(t *testing.T) {
 	}
 }
 
-// TestTimeSeriesSupportIsDerived pins the ceiling Support() declares. It runs
-// against main_test.go's registration, so it cannot see whether production
-// registers the row; root's TestCapabilityMatrixMatchesYAMLContract proves
-// that against specs/capability-matrix.v1.yaml.
+// TestTimeSeriesSupportIsDerived pins the ceilings Support() declares, which
+// capability.go says is the only place this row changes. It reads Support()
+// directly, so drift in any ceiling fails here rather than only in root's
+// TestCapabilityMatrixMatchesYAMLContract, which proves production registers
+// the row against specs/capability-matrix.v1.yaml.
 func TestTimeSeriesSupportIsDerived(t *testing.T) {
 	t.Parallel()
 
-	envelope := querycontract.BuildTruthEnvelope(
-		querycontract.ProfileProduction,
-		Capability,
-		querycontract.TruthBasisSemanticFacts,
-		"test",
-	)
-	if envelope.Capability != Capability {
-		t.Fatalf("capability = %q, want %q", envelope.Capability, Capability)
+	support := Support()
+	for name, ceiling := range map[string]*querycontract.TruthLevel{
+		"LocalLightweightMax":   support.LocalLightweightMax,
+		"LocalAuthoritativeMax": support.LocalAuthoritativeMax,
+		"LocalFullStackMax":     support.LocalFullStackMax,
+		"ProductionMax":         support.ProductionMax,
+	} {
+		if ceiling == nil {
+			t.Errorf("%s = nil, want derived", name)
+			continue
+		}
+		if *ceiling != querycontract.TruthLevelDerived {
+			t.Errorf("%s = %q, want derived", name, *ceiling)
+		}
 	}
-	if envelope.Level != querycontract.TruthLevelDerived {
-		t.Fatalf("level = %q, want derived", envelope.Level)
+	if support.RequiredProfile != "" {
+		t.Errorf("RequiredProfile = %q, want none", support.RequiredProfile)
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
+func TestPrometheusTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
 	t.Parallel()
 
 	var gotPath string
@@ -98,7 +98,7 @@ func TestPrometheusMetricExpressionsCoverSupportedMetrics(t *testing.T) {
 	}
 }
 
-func TestPrometheusMetricsTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
+func TestPrometheusTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -13,7 +13,7 @@ import (
 // (#6642, modelled on language_alias.go and family_codeowners_shim.go). Its
 // method files moved to freshness/. Names the rest of the program still
 // spells `query.X` (handler.go's struct field, cmd router wiring,
-// auth_scoped_routes.go, status_freshness_causality.go, metrics.go,
+// auth_scoped_routes.go, status_freshness_causality.go,
 // answer_packet.go, and staying root tests) alias here so the move touches
 // no caller outside the family.
 //
@@ -29,7 +29,7 @@ type FreshnessHandler = freshness.Handler
 
 // FreshnessCause is the closed reason a truth response is not fresh. Its
 // home is freshness/ (itself an alias of querycontract.FreshnessCause);
-// querycontract_boundary_test.go, metrics.go, and this file's own helpers
+// querycontract_boundary_test.go and this file's own helpers
 // keep spelling query.FreshnessCause unchanged.
 type FreshnessCause = freshness.Cause
 
@@ -80,8 +80,7 @@ type ChangedSinceReader = freshness.ChangedSinceReader
 type ServiceChangedSinceReader = freshness.ServiceChangedSinceReader
 
 // Freshness cause aliases preserve every pre-move root spelling of the
-// closed cause enumeration. The first four still have callers (metrics.go,
-// answer_packet_test.go, internal/mcp/summaries_test.go,
+// closed cause enumeration. The first four still have callers (answer_packet_test.go, internal/mcp/summaries_test.go,
 // internal/answerquality/report_corpus.go and
 // internal/serviceintel's suggestions test); the last four are caller-free
 // today and stay so the alias stanza keeps the whole enumeration, not a
@@ -98,7 +97,7 @@ const (
 )
 
 // WithFreshnessCause attaches a proven cause to a non-fresh envelope. Its
-// home is freshness/ (WithCause); metrics.go, answer_packet_test.go, and
+// home is freshness/ (WithCause); answer_packet_test.go and
 // internal/mcp/summaries_test.go keep spelling query.WithFreshnessCause
 // unchanged.
 func WithFreshnessCause(truth *querycontract.TruthEnvelope, cause FreshnessCause) {

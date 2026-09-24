@@ -47,12 +47,12 @@ cd go && go test ./internal/query -run TestCapabilityMatrixMatchesYAMLContract -
 
 **Prometheus/Mimir range-API source and bound enforcement** —
 `go/internal/query/metrics/prometheus_test.go`:
-`TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI`,
-`TestPrometheusMetricsTimeSeriesSourceRejectsUnboundedRanges`,
+`TestPrometheusTimeSeriesSourceQueriesRangeAPI`,
+`TestPrometheusTimeSeriesSourceRejectsUnboundedRanges`,
 `TestPrometheusMetricExpressionsCoverSupportedMetrics`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query/metrics -run TestPrometheusMetrics -count=1
+cd go && go test ./internal/query/metrics -run TestPrometheus -count=1
 ```
 
 ## Notes

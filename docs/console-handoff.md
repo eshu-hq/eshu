@@ -142,7 +142,7 @@ these.
 | `GET /api/v0/repositories/{id}/tree` | `repository/handler.go` | yes |
 | `GET /api/v0/repositories/{id}/content` | `repository/handler.go` | yes |
 | `GET /api/v0/repositories/{id}/branches` | `repository/handler.go` | yes |
-| `GET /api/v0/metrics/timeseries` | `metrics.go` | yes |
+| `GET /api/v0/metrics/timeseries` | `metrics/handler.go` | yes |
 | `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `vulnerability_detail_handler.go` | yes |
 | `POST /api/v0/impact/blast-radius` | `impact/blast_radius.go` (`findBlastRadius`) | yes |
 

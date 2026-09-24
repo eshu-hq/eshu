@@ -38,7 +38,7 @@ func TestRequestMetricsMiddlewareEmitsPerEndpointMetrics(t *testing.T) {
 	// shared helper to accept either reader type is possible but not free —
 	// it would touch this already-passing, unrelated test's setup for a
 	// concern (the OTel global-proxy delegate-once) that request-metrics
-	// instruments do not actually have: apiRequestMetrics (request_metrics.go)
+	// instruments do not actually have: apiRequestMetrics (request.go)
 	// already calls otel.Meter(apiRequestMeterName) from *inside*
 	// apiRequestInstrumentsOnce.Do, the same in-once resolution
 	// initImageQueryInstruments/initTagHistoryQueryInstruments were fixed to
