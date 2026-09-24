@@ -1,0 +1,34 @@
+go/internal/query/admin/generations.go
+  h_78a442cba0b3e6 73,85,90,97-98,110,130,157,161,173
+go/internal/query/admin/replay.go
+  h_78a442cba0b3e6 50,59,64,72-73,79,96,133,153,157,168,184,190,199
+go/internal/query/auth.go
+  h_78a442cba0b3e6 298,320-323,328,352-353
+go/internal/query/auth_audit.go
+  h_78a442cba0b3e6 242,248-249,259,264,266-267
+go/internal/query/auth_scoped_routes_freshness_delta_test.go
+  h_78a442cba0b3e6 57,78,215,223
+go/internal/query/codequery/chain/call_chain_cross_repo_test.go
+  h_78a442cba0b3e6 237,242
+go/internal/query/iac/auth_scoped_replatforming_grant_test.go
+  h_78a442cba0b3e6 192-193,233-234,275,277,310,312,332,334
+go/internal/query/local/api_tokens.go
+  h_78a442cba0b3e6 418-420
+go/internal/query/local/helpers.go
+  h_78a442cba0b3e6 73,82-83,89,104,107
+go/internal/query/sign_in_policy_mutations.go
+  h_78a442cba0b3e6 65-67,72,77,244-246,248,261,263-264
+go/internal/query/sign_in_policy_reads.go
+  h_78a442cba0b3e6 109-111,115,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "92a087a7f646cb52042f40a83499f95215eff43c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
