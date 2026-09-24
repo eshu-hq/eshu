@@ -72,10 +72,10 @@ Plan updated in this commit: `docs/internal/design/6693-postgres-target-tree/cod
 explains the reassignment; `root.md`'s root test list gained both files
 alphabetically with `# SPLIT: reads private symbols of root, search/index`
 and `# spans root=100%; follows its private symbols, not its name` tags and
-its header count moved 109 -> 111; `6693-postgres-target-tree.md`'s
-per-directory table moved `search/index/` 4 -> 2 test and root 109 -> 111
-test, and the "Test placement" tally moved 2 files out of "in-package test"
-(378 -> 376) into "SPLIT" (39 -> 40) and "stays in root" (70 -> 71).
+its header test count went up by 2; `6693-postgres-target-tree.md`'s
+per-directory table moved `search/index/` 4 -> 2 test and the root row up
+by 2 test, and the "Test placement" tally moved 2 files out of "in-package
+test" (minus 2) into "SPLIT" (plus 1) and "stays in root" (plus 1).
 
 ## Callers repointed
 
@@ -90,7 +90,7 @@ test, and the "Test placement" tally moved 2 files out of "in-package test"
 - `go/internal/storage/postgres/README.md` mentions the `eshu_search_index_*`
   Postgres tables (not the Go store) and needed no change; confirmed no other
   root doc names `EshuSearchIndexStore`/`NewEshuSearchIndexStore` by symbol.
-- `docs/public/reference/search-retrieval-contract.md:261` cited
+- `docs/public/reference/search-retrieval-contract.md` cited
   `go/internal/storage/postgres.EshuSearchIndexStore`; repointed to
   `go/internal/storage/postgres/search/index.EshuSearchIndexStore`.
 
@@ -121,8 +121,9 @@ TestBootstrapDefinitionsDropSearchIndexTermsDocumentIndex.
 The move takes one non-test file out of `internal/storage/postgres`, so the `internal/storage/postgres` row in `scripts/lib/dirgate-grandfather.tsv` is re-pinned to what `bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for the rebased tree (each rebase onto a sibling move re-derives it);
 `scripts/lib/dirgate-grandfather.tsv` and the generated
 `tools/golangci-lint-dirgate/grandfather.go` were updated to match. The run
-also prints a pre-existing, unrelated `naming_violation` for
-`scope_quiescence.go` (not part of this move; not introduced by it).
+also prints pre-existing `naming_violation` lines for root files that carry a
+justified dirgate marker naming the later checklist step that moves them; this
+move adds none.
 
 ## Unrelated same-name symbol (verified, not a collision)
 
