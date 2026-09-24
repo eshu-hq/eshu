@@ -181,9 +181,9 @@ source_coverage:
   - file: impact/contract.go
     calls:
       - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: 674df6290fa12d5ea54f15c195290cbf01524cf0a9edf0e56b513331b849b590, key_bound: single_key, max_results: 101}}
-  - file: dependencies.go
+  - file: dependency/handler.go
     calls:
-      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 7654f63d3d81bd1ae83285c45cc2623a20d03dfb6d312bbb9ad02ad185f66401, entry_ids: [QP-SC-DEPS]}
+      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: d53c1e4f6705525935967f097d8d140f7e7d0d5bf1bd66e9c7b6dd80cc169c6d, entry_ids: [QP-SC-DEPS]}
   - file: entity/handler.go
     calls:
       - symbol: "(*Handler).GetEntityContext"

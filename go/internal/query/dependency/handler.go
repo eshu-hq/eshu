@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package dependency
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	dependenciesCapability   = "dependencies.list"
 	dependenciesMaxLimit     = 200
 	dependenciesDefaultLimit = 50
 	dependenciesReadTimeout  = 10 * time.Second
@@ -27,22 +26,22 @@ const (
 	dependencyDirectionReverse = "reverse"
 )
 
-// DependenciesHandler exposes a bounded, graph-backed package dependency
+// Handler exposes a bounded, graph-backed package dependency
 // inventory: a forward view ("what does package X depend on") and a reverse
 // view ("who depends on package X"). It reads the package-native dependency
 // chain through the authoritative graph and never returns repository ownership
 // truth, which remains a reducer correlation concern.
-type DependenciesHandler struct {
-	Neo4j       GraphQuery
-	Profile     QueryProfile
+type Handler struct {
+	Neo4j       querycontract.GraphQuery
+	Profile     querycontract.QueryProfile
 	Instruments *telemetry.Instruments
 }
 
-// DependencyRow is one dependency edge in the inventory. For the forward view
+// Row is one dependency edge in the inventory. For the forward view
 // the related package is the dependency target; for the reverse view it is the
 // dependent package that declared the dependency. Identity fields are absent
 // when the source graph did not materialize a stable identity for that node.
-type DependencyRow struct {
+type Row struct {
 	Direction        string `json:"direction"`
 	AnchorPackageID  string `json:"anchor_package_id,omitempty"`
 	AnchorPackage    string `json:"anchor_package,omitempty"`
@@ -58,36 +57,36 @@ type DependencyRow struct {
 }
 
 // Mount registers the dependency inventory route.
-func (h *DependenciesHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/dependencies", h.listDependencies)
 }
 
-func (h *DependenciesHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
 	return h.Profile
 }
 
-func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listDependencies(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryDependencies,
 		"GET /api/v0/dependencies",
-		dependenciesCapability,
+		Capability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), dependenciesCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), Capability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"dependency inventory requires authoritative graph mode",
-			ErrorCodeUnsupportedCapability,
-			dependenciesCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			Capability,
 			h.profile(),
-			querycontract.RequiredProfile(dependenciesCapability),
+			querycontract.RequiredProfile(Capability),
 		)
 		return
 	}
@@ -100,30 +99,30 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	pkg := QueryParam(r, "package")
-	ecosystem := QueryParam(r, "ecosystem")
+	pkg := querycontract.QueryParam(r, "package")
+	ecosystem := querycontract.QueryParam(r, "ecosystem")
 	if direction == dependencyDirectionReverse && pkg == "" {
-		WriteError(w, http.StatusBadRequest, "package is required for direction=reverse")
+		querycontract.WriteError(w, http.StatusBadRequest, "package is required for direction=reverse")
 		return
 	}
-	afterName := QueryParam(r, "after_name")
-	afterEdge := QueryParam(r, "after_edge")
+	afterName := querycontract.QueryParam(r, "after_name")
+	afterEdge := querycontract.QueryParam(r, "after_edge")
 	if (afterName == "") != (afterEdge == "") {
-		WriteError(w, http.StatusBadRequest, "after_name and after_edge must be provided together")
+		querycontract.WriteError(w, http.StatusBadRequest, "after_name and after_edge must be provided together")
 		return
 	}
 	span.SetAttributes(attribute.String("eshu.dependency_direction", direction))
 
 	if h.Neo4j == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"dependency inventory requires the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			dependenciesCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			Capability,
 			h.profile(),
-			querycontract.RequiredProfile(dependenciesCapability),
+			querycontract.RequiredProfile(Capability),
 		)
 		return
 	}
@@ -137,10 +136,10 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 	h.recordDuration(queryCtx, direction, startedAt)
 	if err != nil {
 		h.recordError(queryCtx, direction)
-		if WriteGraphReadError(w, r, err, dependenciesCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -148,25 +147,25 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 	if truncated {
 		rows = rows[:limit]
 	}
-	results := make([]DependencyRow, 0, len(rows))
+	results := make([]Row, 0, len(rows))
 	var lastCursorName, lastEdgeID string
 	for _, row := range rows {
-		results = append(results, DependencyRow{
-			Direction:        StringVal(row, "direction"),
-			AnchorPackageID:  StringVal(row, "anchor_package_id"),
-			AnchorPackage:    StringVal(row, "anchor_package"),
-			AnchorEcosystem:  StringVal(row, "anchor_ecosystem"),
-			DeclaringVersion: StringVal(row, "declaring_version"),
-			RelatedPackageID: StringVal(row, "related_package_id"),
-			RelatedPackage:   StringVal(row, "related_package"),
-			RelatedEcosystem: StringVal(row, "related_ecosystem"),
-			DependencyRange:  StringVal(row, "dependency_range"),
-			DependencyType:   StringVal(row, "dependency_type"),
-			Optional:         BoolVal(row, "optional"),
-			EdgeID:           StringVal(row, "edge_id"),
+		results = append(results, Row{
+			Direction:        querycontract.StringVal(row, "direction"),
+			AnchorPackageID:  querycontract.StringVal(row, "anchor_package_id"),
+			AnchorPackage:    querycontract.StringVal(row, "anchor_package"),
+			AnchorEcosystem:  querycontract.StringVal(row, "anchor_ecosystem"),
+			DeclaringVersion: querycontract.StringVal(row, "declaring_version"),
+			RelatedPackageID: querycontract.StringVal(row, "related_package_id"),
+			RelatedPackage:   querycontract.StringVal(row, "related_package"),
+			RelatedEcosystem: querycontract.StringVal(row, "related_ecosystem"),
+			DependencyRange:  querycontract.StringVal(row, "dependency_range"),
+			DependencyType:   querycontract.StringVal(row, "dependency_type"),
+			Optional:         querycontract.BoolVal(row, "optional"),
+			EdgeID:           querycontract.StringVal(row, "edge_id"),
 		})
-		lastCursorName = StringVal(row, "cursor_name")
-		lastEdgeID = StringVal(row, "edge_id")
+		lastCursorName = querycontract.StringVal(row, "cursor_name")
+		lastEdgeID = querycontract.StringVal(row, "edge_id")
 	}
 
 	body := map[string]any{
@@ -182,10 +181,10 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 			"after_edge": lastEdgeID,
 		}
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		dependenciesCapability,
-		TruthBasisAuthoritativeGraph,
+		Capability,
+		querycontract.TruthBasisAuthoritativeGraph,
 		"resolved from the package-native dependency graph; repository and service ownership remain reducer correlation concerns and are not asserted here",
 	))
 }
@@ -193,14 +192,14 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 // dependencyDirection resolves the bounded direction parameter, defaulting to
 // forward when absent and rejecting any other value.
 func dependencyDirection(w http.ResponseWriter, r *http.Request) (string, bool) {
-	raw := strings.ToLower(QueryParam(r, "direction"))
+	raw := strings.ToLower(querycontract.QueryParam(r, "direction"))
 	switch raw {
 	case "":
 		return dependencyDirectionForward, true
 	case dependencyDirectionForward, dependencyDirectionReverse:
 		return raw, true
 	default:
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("direction must be %q or %q", dependencyDirectionForward, dependencyDirectionReverse))
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("direction must be %q or %q", dependencyDirectionForward, dependencyDirectionReverse))
 		return "", false
 	}
 }
@@ -214,13 +213,13 @@ func dependenciesLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit <= 0 || limit > dependenciesMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", dependenciesMaxLimit))
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", dependenciesMaxLimit))
 		return 0, false
 	}
 	return limit, true
 }
 
-func (h *DependenciesHandler) recordDuration(ctx context.Context, direction string, startedAt time.Time) {
+func (h *Handler) recordDuration(ctx context.Context, direction string, startedAt time.Time) {
 	if h == nil || h.Instruments == nil || h.Instruments.DependencyListDuration == nil {
 		return
 	}
@@ -231,7 +230,7 @@ func (h *DependenciesHandler) recordDuration(ctx context.Context, direction stri
 	)
 }
 
-func (h *DependenciesHandler) recordError(ctx context.Context, direction string) {
+func (h *Handler) recordError(ctx context.Context, direction string) {
 	if h == nil || h.Instruments == nil || h.Instruments.DependencyListErrors == nil {
 		return
 	}

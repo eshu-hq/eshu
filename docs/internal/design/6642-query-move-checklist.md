@@ -41,7 +41,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 
 | destination | root files out | PR | state | root after |
 | --- | ---: | --- | --- | ---: |
-| `decode/factschema_shared.go` | 1 | this PR | open | 270 |
+| `decode/factschema_shared.go` | 1 | [#7044](https://github.com/eshu-hq/eshu/pull/7044) | **merged** `42020445c` | 270 |
+| `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | this PR | open | 269 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -314,3 +315,19 @@ moves.
 
 No-Observability-Change: no span, metric, log or status field is added,
 removed or renamed.
+
+## Performance and observability evidence for the `dependency` leaf
+
+No-Regression Evidence: `dependencies.go` and `dependencies_cypher.go` move to
+`dependency/handler.go` and `dependency/cypher.go`. The Cypher text, parameters,
+page cap, read timeout and row decoding are unchanged; the handler's root
+forwarders (`QueryParam`, `WriteError`, `StringVal`, `BuildTruthEnvelope`, ...)
+were one-line pass-throughs, so the handler now calls `querycontract` directly.
+The queryplan source-coverage entry and the `QP-SC-DEPS` hot-cypher entry
+re-key to the new file and symbol; their hashes moved for qualifier and rename
+edits only. The `dependencies.list` capability row moves into
+`dependency.Support()` with identical values. Root keeps `DependenciesHandler`
+for `cmd/api` in `dependency_alias.go`.
+
+No-Observability-Change: the span name, tracer, metrics and attributes are the
+ones root emitted.

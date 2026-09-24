@@ -56,5 +56,5 @@ failure. Both instruments are registered in
 
 ## Focused proof
 
-`go test ./internal/query -run TestDependencies -count=1` and
+`go test ./internal/query/dependency -run TestDependencies -count=1` and
 `go test ./internal/telemetry -run TestInstrumentsRegistered -count=1`.

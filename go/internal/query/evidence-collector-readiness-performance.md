@@ -2,7 +2,7 @@
 
 This note records the query-shape contract and measured proof for
 `GET /api/v0/status/collector-readiness`. It follows the convention of
-`dependencies-evidence-performance.md`.
+`dependency/evidence-performance.md`.
 
 ## Problem and baseline
 
