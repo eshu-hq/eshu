@@ -201,8 +201,8 @@ root-file keys. `grandfathered_non_hot.go` splits 7 under `codequery/` and the
 rest on root files that move:
 
 ```
-compare.go:(*CompareHandler).environmentSnapshot                     -> compare/handler.go
-compare.go:(*CompareHandler).fetchWorkload                           -> compare/handler.go
+compare.go:(*CompareHandler).environmentSnapshot                     -> compare/handler.go (converted to typed keyed_support by the compare PR)
+compare.go:(*CompareHandler).fetchWorkload                           -> compare/handler.go (converted to typed keyed_support by the compare PR)
 infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts  -> infra/summary/packet.go
 infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap    -> infra/summary/packet.go
 infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoLanguages       -> infra/summary/packet.go
@@ -216,6 +216,13 @@ is the dangerous shape, because a stale key silently stops matching rather than
 failing loudly. **Each move PR re-keys its own pins and proves the count is
 unchanged**, and the `codequery` → `code/` PR re-keys 7 grandfathered entries
 and 15 source-coverage keys in one go.
+
+That holds only while the digest does. The digest covers the whole `func`
+declaration, receiver included, so a move that also renames the receiver type
+(`CompareHandler` -> `compare.Handler`) or requalifies a parameter changes it.
+`internal/queryplan`'s rule for a tripped grandfathered digest is a typed
+`non_hot` audit plus removal from `grandfatheredNonHotSourceDigests`, never a
+re-frozen digest; the compare PR did exactly that for its two entries.
 
 Thirty distinct `CodeHandler` methods are pinned across these manifests. That is
 the inspection the `CodeHandler` rename owes, and it is now recorded; whether

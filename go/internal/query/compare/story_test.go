@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestCompareEnvironmentsReturnsStoryGradePacket(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: compareStoryWorkloadAndInstances,
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -89,7 +91,7 @@ func TestCompareEnvironmentsReturnsStoryGradePacket(t *testing.T) {
 func TestCompareEnvironmentsStoryReportsMissingEvidenceLimitations(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (w:Workload)") {
@@ -123,7 +125,7 @@ func TestCompareEnvironmentsStoryReportsMissingEvidenceLimitations(t *testing.T)
 func TestCompareEnvironmentsStoryRecommendsLargerBoundWhenTruncated(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: compareStoryWorkloadAndInstances,
 			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
@@ -157,7 +159,7 @@ func TestCompareEnvironmentsStoryRecommendsLargerBoundWhenTruncated(t *testing.T
 func TestCompareEnvironmentsStoryMatchesResourceWithMissingIDByDescriptor(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: compareStoryWorkloadAndInstances,
 			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
@@ -214,4 +216,25 @@ func compareStoryWorkloadAndInstances(_ context.Context, cypher string, params m
 	default:
 		return nil, nil
 	}
+}
+
+// TestEnvironmentCompareResponseCarriesAnswerMetadata is the environment
+// comparison's case from root's answer_metadata_test.go sweep, which moved here
+// with the handler (#6642): the response must carry normalized answer_metadata.
+func TestEnvironmentCompareResponseCarriesAnswerMetadata(t *testing.T) {
+	t.Parallel()
+
+	environment := environmentCompareResponse(
+		compareEnvironmentsRequest{WorkloadID: "workload:payments-api", Left: "staging", Right: "prod", Limit: 1},
+		map[string]any{"id": "workload:payments-api", "name": "payments-api"},
+		map[string]any{"environment": "staging", "status": "present", "cloud_resources": []map[string]any{}},
+		map[string]any{"environment": "prod", "status": "missing", "reason": "no prod evidence", "cloud_resources": []map[string]any{}},
+		nil,
+		0.4,
+		"prod evidence missing",
+		1,
+		false,
+		false,
+	)
+	querytestutil.AssertAnswerMetadata(t, "environment comparison", environment)
 }

@@ -69,20 +69,6 @@ var errServiceCatalogOutsideGrantNeedsAGrant = service.ErrServiceCatalogOutsideG
 // name unchanged. See #6060.
 type ServiceWorkloadSelector = service.WorkloadSelector
 
-// ServiceQueryEvidence groups content-derived service evidence. Its home is
-// service/; this alias keeps the staying compare handler spelling the query
-// name unchanged. See #6060.
-type ServiceQueryEvidence = service.QueryEvidence
-
-// ServiceEvidenceReader is the content-store surface service evidence
-// reads through. Its home is service/; this alias keeps the staying compare
-// handler field spelling the query name unchanged. See #6060.
-type ServiceEvidenceReader = service.EvidenceReader
-
-// serviceEvidenceReader is the package-local spelling of
-// ServiceEvidenceReader, kept for the staying compare handler field.
-type serviceEvidenceReader = service.EvidenceReader
-
 // FrameworkRouteEvidence is one framework route evidence shape. Its canonical
 // home is querycontract (via service/); this alias keeps the staying
 // content-reader stayer spelling the query name unchanged. See #6060.

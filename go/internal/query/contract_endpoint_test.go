@@ -110,7 +110,9 @@ func TestCompareEnvironments_LocalLightweightReturnsStructuredUnsupportedCapabil
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
-	handler.compareEnvironments(w, req)
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)

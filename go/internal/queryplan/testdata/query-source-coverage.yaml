@@ -174,10 +174,10 @@ source_coverage:
   - file: codeowners/ownership_precedence.go
     calls:
       - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 5bc6fe8010838b8efff50d18d515b196ef2fb2f0031eed460b2fe7f5e1f459b1, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}
-  - file: compare.go
+  - file: compare/handler.go
     calls:
-      - {symbol: "(*CompareHandler).environmentSnapshot", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CompareHandler).fetchWorkload", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*Handler).environmentSnapshot", count: 2, non_hot: {class: keyed_support, source_sha256: d983121814415d21227781fee5719bf3ce1132575b1ba1627bb1a0bc1183c6f4, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*Handler).fetchWorkload", count: 1, non_hot: {class: keyed_support, source_sha256: 07a82ef71f59af0a002986980fc20eb140c16a136018f15d8f85ea31bede7a32, key_bound: single_key, max_results: 1}}
   - file: impact/contract.go
     calls:
       - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: 674df6290fa12d5ea54f15c195290cbf01524cf0a9edf0e56b513331b849b590, key_bound: single_key, max_results: 101}}

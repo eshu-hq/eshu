@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"context"
@@ -15,23 +15,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
-// CompareHandler provides environment comparison endpoints.
-type CompareHandler struct {
-	Neo4j   GraphQuery
-	Content serviceEvidenceReader
-	Profile QueryProfile
+// Handler provides environment comparison endpoints.
+type Handler struct {
+	Neo4j   querycontract.GraphQuery
+	Content service.EvidenceReader
+	Profile querycontract.QueryProfile
 }
 
 // Mount registers comparison routes on the given mux.
-func (h *CompareHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/compare/environments", h.compareEnvironments)
 }
 
-func (h *CompareHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
-	return NormalizeQueryProfile(string(h.Profile))
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
 // compareEnvironmentsRequest is the JSON request body.
@@ -43,17 +43,17 @@ type compareEnvironmentsRequest struct {
 }
 
 // compareEnvironments handles POST /api/v0/compare/environments.
-func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
-	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.environment_compare") {
-		WriteContractError(
+func (h *Handler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
+	if querycontract.CapabilityUnsupported(h.profile(), Capability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"environment comparison requires authoritative environment truth",
 			"unsupported_capability",
-			"platform_impact.environment_compare",
+			Capability,
 			h.profile(),
-			querycontract.RequiredProfile("platform_impact.environment_compare"),
+			querycontract.RequiredProfile(Capability),
 		)
 		return
 	}
@@ -91,7 +91,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		leftSnap := missingEnvironmentSnapshot(req.Left)
 		rightSnap := missingEnvironmentSnapshot(req.Right)
 		resp := environmentCompareResponse(req, nil, leftSnap, rightSnap, nil, 0.0, "Workload '"+req.WorkloadID+"' not found", limit, false, false)
-		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
+		querycontract.WriteSuccess(w, r, http.StatusOK, resp, querycontract.BuildTruthEnvelope(h.profile(), Capability, querycontract.TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 	}
 	if access.Empty() {
 		missingWorkloadResponse()
@@ -101,7 +101,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	// Fetch workload
 	workload, err := h.fetchWorkload(ctx, req.WorkloadID)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
 			return
 		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
@@ -127,7 +127,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 
 	leftSnap, leftTruncated, err := h.environmentSnapshot(ctx, workload, req.Left, serviceEvidence, limit)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
 			return
 		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
@@ -135,7 +135,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	}
 	rightSnap, rightTruncated, err := h.environmentSnapshot(ctx, workload, req.Right, serviceEvidence, limit)
 	if err != nil {
-		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
 			return
 		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
@@ -155,11 +155,11 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 
 	resp := environmentCompareResponse(req, workload, leftSnap, rightSnap, changed, confidence, reason, limit, leftTruncated, rightTruncated)
 
-	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, resp, querycontract.BuildTruthEnvelope(h.profile(), Capability, querycontract.TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
 }
 
 // fetchWorkload queries Neo4j for the workload by ID.
-func (h *CompareHandler) fetchWorkload(ctx context.Context, workloadID string) (map[string]any, error) {
+func (h *Handler) fetchWorkload(ctx context.Context, workloadID string) (map[string]any, error) {
 	cypher := `
 		MATCH (w:Workload) WHERE w.id = $workload_id
 		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
@@ -180,11 +180,11 @@ func (h *CompareHandler) fetchWorkload(ctx context.Context, workloadID string) (
 }
 
 // environmentSnapshot fetches the instance and cloud resources for one environment.
-func (h *CompareHandler) environmentSnapshot(
+func (h *Handler) environmentSnapshot(
 	ctx context.Context,
 	workload map[string]any,
 	environment string,
-	serviceEvidence ServiceQueryEvidence,
+	serviceEvidence service.QueryEvidence,
 	limit int,
 ) (map[string]any, bool, error) {
 	// Find the workload instance for this environment
@@ -386,14 +386,14 @@ func computeConfidence(left, right map[string]any, changed []map[string]any) (fl
 	return avgConfidence, "Comparison based on materialized cloud resource differences"
 }
 
-func (h *CompareHandler) loadServiceEvidence(ctx context.Context, workload map[string]any) (ServiceQueryEvidence, error) {
+func (h *Handler) loadServiceEvidence(ctx context.Context, workload map[string]any) (service.QueryEvidence, error) {
 	if h.Content == nil {
-		return ServiceQueryEvidence{}, nil
+		return service.QueryEvidence{}, nil
 	}
 	repoID := compareStringVal(workload, "repo_id")
 	serviceName := compareStringVal(workload, "name")
 	if repoID == "" || serviceName == "" {
-		return ServiceQueryEvidence{}, nil
+		return service.QueryEvidence{}, nil
 	}
 	return service.LoadServiceQueryEvidence(ctx, h.Content, repoID, serviceName)
 }

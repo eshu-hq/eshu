@@ -5,6 +5,7 @@ package contract
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/compare"
 	"github.com/eshu-hq/eshu/go/internal/query/dependency"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -286,13 +287,7 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 	// Declared by the repository family (repository/capability.go, #6060),
 	// not copied here. See the semanticsearch entry above for why.
 	repository.CatalogCapability: repository.CatalogSupport(),
-	"platform_impact.environment_compare": {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	},
+	compare.Capability:           compare.Support(),
 	"relationship_evidence.drilldown": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

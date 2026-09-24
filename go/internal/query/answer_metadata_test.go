@@ -73,20 +73,6 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 	if len(incident.AnswerMetadata.MissingEvidence) == 0 {
 		t.Fatal("incident answer_metadata.missing_evidence is empty, want missing incident path slots")
 	}
-
-	environment := environmentCompareResponse(
-		compareEnvironmentsRequest{WorkloadID: "workload:payments-api", Left: "staging", Right: "prod", Limit: 1},
-		map[string]any{"id": "workload:payments-api", "name": "payments-api"},
-		map[string]any{"environment": "staging", "status": "present", "cloud_resources": []map[string]any{}},
-		map[string]any{"environment": "prod", "status": "missing", "reason": "no prod evidence", "cloud_resources": []map[string]any{}},
-		nil,
-		0.4,
-		"prod evidence missing",
-		1,
-		false,
-		false,
-	)
-	querytestutil.AssertAnswerMetadata(t, "environment comparison", environment)
 }
 
 func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
