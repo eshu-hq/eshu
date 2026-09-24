@@ -4,10 +4,12 @@
 package query
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,13 +24,13 @@ import (
 // its Cypher to the requested edges instead of returning every relationship
 // regardless of the argument (#3492).
 
-// impactRelationshipAnchorLabels is impacttrace.ImpactAnchorLabelDisjunction's
+// impactRelationshipAnchorLabels is deployment.ImpactAnchorLabelDisjunction's
 // labels, split for one-label-per-MATCH iteration. getRelationships must NOT
 // interpolate the disjunction string directly into a MATCH label position: on
 // the pinned NornicDB build that silently matches zero rows for an id a
 // single-label MATCH resolves correctly (issue #7006, live-proven with a real
 // Workload id).
-var impactRelationshipAnchorLabels = strings.Split(impacttrace.ImpactAnchorLabelDisjunction, "|")
+var impactRelationshipAnchorLabels = strings.Split(deployment.ImpactAnchorLabelDisjunction, "|")
 
 // getRelationships returns the relationships for a given entity, optionally
 // filtered to a single relationship kind.
@@ -99,12 +101,12 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	// the 10s bounded-read deadline.
 	//
 	// A single-clause label DISJUNCTION (`MATCH (n:A|B) WHERE n.id = $id`,
-	// impacttrace.ImpactAnchorLabelDisjunction interpolated directly) looked
+	// deployment.ImpactAnchorLabelDisjunction interpolated directly) looked
 	// like the fix, but is live-proven unsafe on this NornicDB pin: it
 	// silently returns ZERO rows for an id a single-label MATCH resolves
 	// correctly (reproduced with a real Workload id). A many-branch
-	// `CALL{UNION}` (impacttrace's own by-id resolver shape) is also
-	// live-proven unsafe here -- 28 branches did not return before a 15s
+	// `CALL{UNION}` (the impact/deployment package's own by-id resolver
+	// shape) is also live-proven unsafe here -- 28 branches did not return before a 15s
 	// timeout even though the target existed. The only shape proven both
 	// correct and bounded is one label per MATCH: try each of
 	// impactRelationshipAnchorLabels in turn and use the first match.
@@ -136,16 +138,39 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 	access.GraphParams(params)
 
-	ctx := querycontract.WithGraphQueryName(r.Context(), "platform_impact.deployment_chain")
+	// #7006 review (P1): the per-label loop must share ONE deadline across
+	// every candidate, not let each RunSingle claim its own fresh
+	// Neo4jReader.runRead window -- production's raw request context
+	// carries no deadline of its own for this route, so an unbounded loop
+	// could pay up to len(impactRelationshipAnchorLabels) x the single-read
+	// budget (~140s for 14 labels at 10s each) instead of the one
+	// bounded-read budget the pre-fix single-statement handler had.
+	ctx, cancel := querycontract.WithBoundedGraphReadDeadline(
+		querycontract.WithGraphQueryName(r.Context(), "platform_impact.deployment_chain"),
+	)
+	defer cancel()
 	var row map[string]any
 	var err error
+	labelsAttempted := 0
 	for _, label := range impactRelationshipAnchorLabels {
+		labelsAttempted++
 		row, err = h.Neo4j.RunSingle(ctx, buildCypher(label), params)
 		if err != nil || row != nil {
 			break
 		}
 	}
+	span.SetAttributes(attribute.Int("eshu.entity_anchor_labels_tried", labelsAttempted))
 	if err != nil {
+		// A spent shared budget surfaces as the raw context.DeadlineExceeded
+		// (Neo4jReader.runRead's parentCtx.Err() branch, when the shared
+		// deadline expired between loop iterations) rather than the wrapped
+		// querycontract.ErrGraphReadDeadline a single timed-out statement
+		// returns. Translate it so this never falls through to a generic
+		// 500, or -- worse -- gets treated as a silent not-found: the caller
+		// must see the same bounded-read deadline shape (504) either way.
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = querycontract.ErrGraphReadDeadline
+		}
 		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 			return
 		}

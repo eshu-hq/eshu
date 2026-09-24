@@ -3,7 +3,10 @@
 
 package querycontract
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // graphQueryNameContextKey is the unexported context key carrying a bounded,
 // low-cardinality caller name for the current graph read across the call
@@ -39,4 +42,30 @@ func GraphQueryNameFromContext(ctx context.Context) string {
 		return name
 	}
 	return DefaultGraphQueryName
+}
+
+// DefaultGraphReadTimeout is the bounded-read deadline a single graph
+// statement gets via Neo4jReader.runRead (go/internal/query/neo4j_read_policy.go's
+// defaultGraphReadTimeout, which is defined in terms of this constant so the
+// two never drift). A caller that issues multiple sequential graph reads to
+// answer one logical request -- e.g. a per-label anchor-resolution loop --
+// must derive ONE shared deadline from this constant before the loop, never
+// let each read claim its own fresh window: Neo4jReader.runRead creates its
+// own context.WithTimeout(ctx, readTimeout) per call, so an unbounded outer
+// ctx lets N sequential reads cost up to N times this budget instead of one
+// (issue #7006 review finding).
+const DefaultGraphReadTimeout = 10 * time.Second
+
+// WithBoundedGraphReadDeadline returns ctx wrapped with a deadline of
+// DefaultGraphReadTimeout, and the cancel func the caller must defer. Because
+// context.WithTimeout resolves to the EARLIER of the parent's and the new
+// deadline, wrapping an already-short-deadlined ctx (e.g. one bounded by an
+// MCP dispatch timeout, or a test) keeps the shorter deadline -- this call
+// only ever tightens the budget, never extends it. Use this once before a
+// loop of sequential graph reads that logically answer one request (e.g.
+// GetEntityContext's or getRelationships' per-label anchor loop), so the
+// total cost across every iteration is bounded by the same single budget a
+// lone graph statement gets.
+func WithBoundedGraphReadDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, DefaultGraphReadTimeout)
 }

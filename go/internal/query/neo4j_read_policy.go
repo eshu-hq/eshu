@@ -25,7 +25,11 @@ import (
 )
 
 const (
-	defaultGraphReadTimeout        = 10 * time.Second
+	// defaultGraphReadTimeout mirrors querycontract.DefaultGraphReadTimeout
+	// so the two never drift; that constant is what a caller issuing several
+	// sequential reads for one request (e.g. a per-label anchor loop) shares
+	// across the whole loop via querycontract.WithBoundedGraphReadDeadline.
+	defaultGraphReadTimeout        = querycontract.DefaultGraphReadTimeout
 	defaultGraphReadSlowThreshold  = time.Second
 	defaultGraphReadRetryDelay     = 25 * time.Millisecond
 	graphReadSessionCloseTimeout   = time.Second

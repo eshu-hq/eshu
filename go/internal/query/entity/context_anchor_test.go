@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestGetEntityContextAnchorsOneLabelPerMatch pins the #7006 fix's final
@@ -28,7 +29,7 @@ func TestGetEntityContextAnchorsOneLabelPerMatch(t *testing.T) {
 	t.Parallel()
 
 	var triedLabels []string
-	reader := querytestutil.FakeGraphReader{
+	reader := graph.FakeGraphReader{
 		RunSingleFn: func(ctx context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			// #7006 telemetry fix: the graph read must carry a bounded query
 			// name so query.graph_read.warning can name which query hit the
@@ -88,7 +89,7 @@ func TestGetEntityContextAnchorsOneLabelPerMatch(t *testing.T) {
 // TestEntityContextAnchorLabelDisjunctionCoversEveryGraphOnlyResolveEntityType
 // pins the accuracy regression a too-narrow anchor would reintroduce: every
 // label resolve_entity can hand back with no content-store fallback
-// (querycontract.GraphBackedEntityTypes, plus Workload from
+// (taxonomy.GraphBackedEntityTypes, plus Workload from
 // resolverOnlyGraphEntityTypes) must still resolve through GetEntityContext's
 // per-label anchor loop, or a caller who resolved one of these ids would get
 // a pre-fix-working request silently 404 after the anchor-order fix.
@@ -103,7 +104,7 @@ func TestEntityContextAnchorLabelDisjunctionCoversEveryGraphOnlyResolveEntityTyp
 		present[label] = true
 	}
 
-	for _, graphOnlyLabel := range querycontract.GraphBackedEntityTypes {
+	for _, graphOnlyLabel := range taxonomy.GraphBackedEntityTypes {
 		if !present[graphOnlyLabel] {
 			t.Errorf("EntityContextAnchorLabelDisjunction is missing %q, a graph-only resolve_entity type with no content-store fallback", graphOnlyLabel)
 		}
