@@ -37,7 +37,7 @@ under the `-race` test binary with 8 parallel processes.
 
 ## Proof
 
-Host: darwin/arm64, 18 CPUs, Go 1.26.6, `go test -c -race`, 8 parallel
+Host: darwin/arm64, 18 CPUs, Go 1.27.1 (go.mod minimum 1.26.6), `go test -c -race`, 8 parallel
 processes.
 
 | Case | Runs | Failures |
