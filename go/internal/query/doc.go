@@ -148,8 +148,8 @@
 // service id, workload id, and entity ref reports service/workload catalog
 // anchor missing instead of claiming catalog evidence is absent.
 // Metrics reads expose bounded historical time-series for console trend panels
-// through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
-// PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
+// through metrics.Handler. The handler accepts a metrics.TimeSeriesSource, with
+// metrics.PrometheusTimeSeriesSource providing the Prometheus/Mimir query_range
 // implementation when the API runtime is configured with a live metrics source.
 // Component extension reads expose redacted trust decisions, policy gates,
 // missing conformance proof state, scheduler state, and read-model

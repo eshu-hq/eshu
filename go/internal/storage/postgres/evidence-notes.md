@@ -1026,7 +1026,7 @@ used by the admin MFA-reset route) with new `reason_code` values
 enrollment routes are served through the router's shared
 `eshu_dp_api_request_duration_seconds` / `eshu_dp_api_request_errors_total`
 per-endpoint middleware every other `go/internal/query` route already goes
-through (`request_metrics_test.go`'s route-labeled coverage; `route` values
+through (`metrics/request_test.go`'s route-labeled coverage; `route` values
 `POST /api/v0/auth/local/mfa/totp/begin` and `.../confirm` are part of the
 existing bounded route-pattern label set). No new `eshu_dp_*` metric,
 instrument, span name, or telemetry contract row is added.

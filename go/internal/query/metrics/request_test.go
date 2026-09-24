@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package metrics
 
 import (
 	"bufio"
@@ -38,7 +38,7 @@ func TestRequestMetricsMiddlewareEmitsPerEndpointMetrics(t *testing.T) {
 	// shared helper to accept either reader type is possible but not free —
 	// it would touch this already-passing, unrelated test's setup for a
 	// concern (the OTel global-proxy delegate-once) that request-metrics
-	// instruments do not actually have: apiRequestMetrics (request_metrics.go)
+	// instruments do not actually have: apiRequestMetrics (request.go)
 	// already calls otel.Meter(apiRequestMeterName) from *inside*
 	// apiRequestInstrumentsOnce.Do, the same in-once resolution
 	// initImageQueryInstruments/initTagHistoryQueryInstruments were fixed to
@@ -68,7 +68,7 @@ func TestRequestMetricsMiddlewareEmitsPerEndpointMetrics(t *testing.T) {
 	mux.HandleFunc("GET /api/v0/boom", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	})
-	handler := RequestMetricsMiddleware(mux)
+	handler := RequestMiddleware(mux)
 
 	// Exercise a success, a server error, and an unmatched route.
 	for _, target := range []string{"/api/v0/ok", "/api/v0/boom", "/api/v0/missing"} {
@@ -106,7 +106,7 @@ func TestRequestMetricsMiddlewareNilMuxIsNotFound(t *testing.T) {
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
-	RequestMetricsMiddleware(nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+	RequestMiddleware(nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("nil mux status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
@@ -203,37 +203,6 @@ func TestStatusCapturingResponseWriterFlushWithoutUnderlyingFlusher(t *testing.T
 	flusher.Flush() // must not panic when underlying lacks Flush
 }
 
-// TestAskSSE_StreamsThroughMetricsMiddleware is the end-to-end regression for
-// issue #3381: POST /api/v0/ask with Accept: text/event-stream served behind
-// RequestMetricsMiddleware must stream a 200 event stream, not a 500 "streaming
-// not supported by this server configuration" error.
-func TestAskSSE_StreamsThroughMetricsMiddleware(t *testing.T) {
-	t.Parallel()
-
-	h := &AskHandler{Asker: &fakeAsker{
-		answer: AskAnswer{Prose: "streamed answer", Narrated: true},
-	}}
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)
-	handler := RequestMetricsMiddleware(mux)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(`{"question":"stream check"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
-	}
-	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
-		t.Fatalf("Content-Type = %q, want text/event-stream; body=%s", ct, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "event: answer") {
-		t.Fatalf("stream missing answer event; body=%s", rec.Body.String())
-	}
-}
-
 func scrapeMetrics(t *testing.T, registry *prometheus.Registry) string {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -244,3 +213,16 @@ func scrapeMetrics(t *testing.T, registry *prometheus.Registry) string {
 	}
 	return rec.Body.String()
 }
+
+// noFlushWriter is an http.ResponseWriter that deliberately does not
+// implement http.Flusher, so the Flush-forwarding test can prove the
+// status-capturing writer degrades to a no-op instead of panicking.
+type noFlushWriter struct {
+	header http.Header
+	code   int
+	buf    strings.Builder
+}
+
+func (w *noFlushWriter) Header() http.Header         { return w.header }
+func (w *noFlushWriter) WriteHeader(code int)        { w.code = code }
+func (w *noFlushWriter) Write(b []byte) (int, error) { return w.buf.Write(b) }

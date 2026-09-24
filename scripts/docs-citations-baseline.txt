@@ -304,8 +304,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/ask_handl
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/component_extensions.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/images.go:89
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_metrics.go:75
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_metrics.go:75
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_handler.go:1
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64

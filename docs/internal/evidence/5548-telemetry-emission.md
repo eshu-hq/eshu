@@ -53,7 +53,7 @@ the operator-visible effect is the point.
   metric is still registered and emitted from a dedicated `*_metrics.go` beside
   its emitter, so the names keep reporting.
   `eshu_dp_api_request_duration_seconds` continues to feed its 5 dashboard
-  panels from `go/internal/query/request_metrics.go`.
+  panels from `go/internal/query/metrics/request.go`.
 - Coverage rows that cited deleted metrics now cite the signals that fire at
   the same stage — `eshu_dp_canonical_writes_total` and
   `eshu_dp_canonical_projection_duration_seconds` from

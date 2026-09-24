@@ -3,11 +3,8 @@
 
 package contract
 
+import "github.com/eshu-hq/eshu/go/internal/query/metrics"
+
 func init() {
-	register(metricsTimeSeriesCapability, capabilitySupport{
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-	})
+	register(metricsTimeSeriesCapability, metrics.Support())
 }

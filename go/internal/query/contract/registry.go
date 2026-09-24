@@ -5,6 +5,7 @@ package contract
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
+	"github.com/eshu-hq/eshu/go/internal/query/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/secrets"
@@ -82,7 +83,7 @@ const (
 	factSchemaVersionListCapability              = "fact_schema_version.list"
 	hostedGovernanceStatusCapability             = "hosted_governance.status"
 	kubernetesCorrelationsCapability             = kubernetes.Capability
-	metricsTimeSeriesCapability                  = "platform_metrics.timeseries"
+	metricsTimeSeriesCapability                  = metrics.Capability
 	observabilityCoverageCorrelationsCapability  = coverage.Capability
 	operationsStatusCapability                   = "operations.status"
 	replatformingOwnershipCapability             = "replatforming.ownership.candidates"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package metrics
 
 import (
 	"context"
@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
+func TestPrometheusTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
 	t.Parallel()
 
 	var gotPath string
@@ -23,7 +25,7 @@ func TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
 		gotQuery = r.URL.Query().Get("query")
 		gotAuthorization = r.Header.Get("Authorization")
 		gotTenant = r.Header.Get("X-Scope-OrgID")
-		WriteJSON(w, http.StatusOK, map[string]any{
+		querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 			"status": "success",
 			"data": map[string]any{
 				"resultType": "matrix",
@@ -39,7 +41,7 @@ func TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
 	}))
 	defer server.Close()
 
-	source, err := NewPrometheusMetricsTimeSeriesSource(PrometheusMetricsTimeSeriesConfig{
+	source, err := NewPrometheusTimeSeriesSource(PrometheusTimeSeriesConfig{
 		BaseURL:    server.URL,
 		PathPrefix: "/prometheus",
 		Token:      "token-value",
@@ -47,10 +49,10 @@ func TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI(t *testing.T) {
 		Client:     server.Client(),
 	})
 	if err != nil {
-		t.Fatalf("NewPrometheusMetricsTimeSeriesSource() error = %v, want nil", err)
+		t.Fatalf("NewPrometheusTimeSeriesSource() error = %v, want nil", err)
 	}
 
-	points, err := source.RangeQuery(context.Background(), MetricsRangeQuery{
+	points, err := source.RangeQuery(context.Background(), RangeQuery{
 		Metric: "ingest_rate",
 		Window: "1h",
 		Step:   "30m",
@@ -96,7 +98,7 @@ func TestPrometheusMetricExpressionsCoverSupportedMetrics(t *testing.T) {
 	}
 }
 
-func TestPrometheusMetricsTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
+func TestPrometheusTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,14 +106,14 @@ func TestPrometheusMetricsTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
 	}))
 	defer server.Close()
 
-	source, err := NewPrometheusMetricsTimeSeriesSource(PrometheusMetricsTimeSeriesConfig{
+	source, err := NewPrometheusTimeSeriesSource(PrometheusTimeSeriesConfig{
 		BaseURL: server.URL,
 		Client:  server.Client(),
 	})
 	if err != nil {
-		t.Fatalf("NewPrometheusMetricsTimeSeriesSource() error = %v, want nil", err)
+		t.Fatalf("NewPrometheusTimeSeriesSource() error = %v, want nil", err)
 	}
-	_, err = source.RangeQuery(context.Background(), MetricsRangeQuery{
+	_, err = source.RangeQuery(context.Background(), RangeQuery{
 		Metric: "queue_depth",
 		Window: "30d",
 		Step:   "1s",

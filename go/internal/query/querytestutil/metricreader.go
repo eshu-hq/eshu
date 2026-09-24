@@ -57,7 +57,7 @@ import (
 // through any test that resolves a package-var-cached meter) would race on
 // shared process state, mirroring the "not parallel" note on
 // TestRequestMetricsMiddlewareEmitsPerEndpointMetrics in
-// package query's request_metrics_test.go.
+// internal/query/metrics's request_test.go.
 func WithPackageMetricReader(t *testing.T, reset func()) *sdkmetric.ManualReader {
 	t.Helper()
 	previous := otel.GetMeterProvider()

@@ -845,12 +845,12 @@ diagnose failure causes. Each row maps a canonical phase to its metric.
 ## MCP / API Routes
 
 Every query API and MCP read route emits two metrics through one middleware
-(`go/internal/query/request_metrics.go:75`). One row covers the entire route
+(`go/internal/query/metrics/request.go`). One row covers the entire route
 catalog; per-route variants share the same `route` label dimension.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
-| HTTP API/MCP per-route latency | go/internal/query/request_metrics.go:75 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query surface |
+| HTTP API/MCP per-route latency | go/internal/query/metrics/request.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query surface |
 | HTTP API/MCP per-route span | go/internal/query/tracing/handler.go | `eshu_dp_api_request_duration_seconds` (parent), `query.*` span | query surface |
 | Graph-read deadline and retry policy | go/internal/query/neo4j_read_policy.go | `eshu_dp_neo4j_query_duration_seconds` (`operation="read"`; bounded `outcome`: `success`, `slow`, `recovered`, `deadline`, `caller_deadline`, `unavailable`, `canceled`, or `error`), `neo4j.query` span (with `eshu.graph_read.statement_fingerprint` on every read), sanitized `query.graph_read.warning` log carrying `graph_read.statement_fingerprint`/`graph_read.statement_head` for slow/deadline/unavailable outcomes -- the statement shape with every numeric and string literal redacted to `<REDACTED>` (booleans and null are kept), never parameters or inline literal values (#7035) | query graph |
 | Cloud resource owner-ledger upgrade backfill | go/internal/query/cloud_resource_owner_backfill.go | `No-Observability-Change: one-time API/MCP startup migration before the route is mounted; each graph page uses the shared bounded graph-read policy and carries its neo4j.query span, completion emits the structured "cloud resource owner ledger backfill complete" log with pages_seeded, rows_seeded, and duration_seconds, startup errors fail the process with context, and steady-state requests retain eshu_dp_cloud_resource_list_duration_seconds` | query cloud |

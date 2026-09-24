@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package metrics
 
 import (
 	"bufio"
@@ -11,9 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // apiRequestMeterName scopes the lazily registered per-endpoint request
@@ -66,7 +67,7 @@ func apiRequestMetrics() *apiRequestInstruments {
 	return apiRequestInstrumentsVal
 }
 
-// RequestMetricsMiddleware records a per-endpoint duration histogram and server
+// RequestMiddleware records a per-endpoint duration histogram and server
 // error counter for every request the mux serves. The route label is the
 // matched route pattern (e.g. "GET /api/v0/iac/resources"), resolved via
 // mux.Handler without mutating the request, so cardinality stays bounded by the
@@ -75,7 +76,7 @@ func apiRequestMetrics() *apiRequestInstruments {
 //
 // It wraps the application mux only; the admin surface (probes, /metrics) is
 // served by a separate mux and is intentionally not counted.
-func RequestMetricsMiddleware(mux *http.ServeMux) http.Handler {
+func RequestMiddleware(mux *http.ServeMux) http.Handler {
 	if mux == nil {
 		return http.NotFoundHandler()
 	}

@@ -8,7 +8,7 @@
 // postgres.query spans. That coverage does NOT extend to the tier-promotion
 // DECISION this probe makes (config_only -> runtime_confirmed): the generic
 // per-route "query.*" span and eshu_dp_api_request_duration_seconds
-// (go/internal/query/handler_tracing.go, go/internal/query/request_metrics.go)
+// (go/internal/query/handler_tracing.go, go/internal/query/metrics/request.go)
 // record that trace_deployment_chain ran, not why a specific workload's tier
 // did or did not flip. fetchWorkloadLiveEvidence therefore starts its own
 // "impact.live_evidence_probe" child span (tracing.HandlerTracer(), shared with
