@@ -48,6 +48,7 @@ func TestLoadExemptPathsMalformedRowFails(t *testing.T) {
 		"go/internal/testutil/contentreader\tonly reason\n",
 		"\tno path\t#0000\n",
 		"go/internal/testutil/contentreader\t\t#0000\n",
+		"go/internal/testutil/contentreader\tDriver leaf; nesting stutters\t\n",
 	} {
 		if _, err := loadExemptPaths(writeLedger(t, body)); err == nil {
 			t.Errorf("loadExemptPaths(%q) = nil error, want a malformed-row failure", body)

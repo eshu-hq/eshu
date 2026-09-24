@@ -34,7 +34,7 @@ func loadExemptPaths(path string) (map[string]string, error) {
 			continue
 		}
 		cols := strings.Split(line, "\t")
-		if len(cols) != 3 || strings.TrimSpace(cols[0]) == "" || strings.TrimSpace(cols[1]) == "" {
+		if len(cols) != 3 || strings.TrimSpace(cols[0]) == "" || strings.TrimSpace(cols[1]) == "" || strings.TrimSpace(cols[2]) == "" {
 			return nil, fmt.Errorf("exemption ledger %s line %d: want <repo-relative dir> TAB <reason> TAB <approver or issue>, got %q", path, i+1, line)
 		}
 		exempt[strings.TrimSpace(cols[0])] = strings.TrimSpace(cols[1])
