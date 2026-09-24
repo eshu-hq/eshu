@@ -7,9 +7,10 @@
 //
 // Redact is a single-pass lexical scanner, not a parser and not a regular
 // expression over the whole text. It replaces every integer, float
-// (including exponent, suffix, hex and octal forms), single-quoted string and
-// double-quoted string with Placeholder, drops comments, and collapses
-// whitespace. Identifiers, labels, relationship types, property keys,
+// (including exponent, suffix, hex, octal and Neo4j 5 digit-separator forms),
+// single-quoted string and double-quoted string with Placeholder, drops
+// comments, and collapses whitespace (ASCII and Unicode). Booleans and null are
+// kept. Identifiers, labels, relationship types, property keys,
 // $parameters and backtick-quoted identifiers are kept verbatim, because none
 // of them is a value: parameter values bind outside the statement text.
 //

@@ -3,17 +3,22 @@
 
 package statement
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
-// Placeholder replaces every literal token in a redacted statement. It is the
+// Placeholder replaces every numeric and string literal in a redacted
+// statement (booleans and null are kept). It is the
 // same spelling NornicDB's RedactLiterals uses, so an operator can line the two
 // texts up.
 const Placeholder = "<REDACTED>"
 
-// Redact returns cypher with every literal replaced by Placeholder, comments
-// dropped, and runs of whitespace collapsed to one space with the ends
-// trimmed. See the package comment for the token classes it covers and what it
-// keeps. A leading minus that touches a digit is folded into the number, the
+// Redact returns cypher with every numeric and string literal replaced by
+// Placeholder (booleans and null are kept), comments dropped, and runs of
+// whitespace collapsed to one space with the ends trimmed. See the package
+// comment for the token classes it covers and what it keeps. A leading minus that touches a digit is folded into the number, the
 // way NornicDB's lexer tokenizes it. Comments are dropped rather than kept
 // because free text in a comment can carry the same values a literal would.
 func Redact(cypher string) string {
@@ -32,10 +37,14 @@ func Redact(cypher string) string {
 
 	for i := 0; i < len(cypher); {
 		c := cypher[i]
+		if c == ' ' || c >= utf8.RuneSelf || (c >= '\t' && c <= '\r') || (c >= 0x1c && c <= 0x1f) {
+			if n := spaceLen(cypher, i); n > 0 {
+				pendingSpace = true
+				i += n
+				continue
+			}
+		}
 		switch {
-		case isSpace(c):
-			pendingSpace = true
-			i++
 		case c == '/' && i+1 < len(cypher) && cypher[i+1] == '/':
 			if end := strings.IndexByte(cypher[i:], '\n'); end >= 0 {
 				i += end
@@ -62,25 +71,19 @@ func Redact(cypher string) string {
 			}
 			i = end
 		case c == '$':
-			end := i + 1
-			for end < len(cypher) && isIdentChar(cypher[end]) {
-				end++
-			}
+			end := skipIdentifier(cypher, i+1)
 			write(cypher[i:end])
 			i = end
 		case c == '.' && i+1 < len(cypher) && cypher[i+1] == '.':
 			write("..")
 			i += 2
+		case isIdentStart(c):
+			end := skipIdentifier(cypher, i)
+			write(cypher[i:end])
+			i = end
 		case startsNumber(cypher, i):
 			i = skipNumber(cypher, i)
 			write(Placeholder)
-		case isIdentStart(c):
-			end := i + 1
-			for end < len(cypher) && isIdentChar(cypher[end]) {
-				end++
-			}
-			write(cypher[i:end])
-			i = end
 		default:
 			write(cypher[i : i+1])
 			i++
@@ -89,25 +92,101 @@ func Redact(cypher string) string {
 	return out.String()
 }
 
-func isSpace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
-}
-
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 
-func isHexDigit(c byte) bool {
-	return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
-}
+// asciiIdent marks the ASCII bytes that continue an identifier: letters,
+// digits and underscore. A table lookup keeps the per-byte identifier loop
+// branch-light on the hot path.
+var asciiIdent = func() (table [utf8.RuneSelf]bool) {
+	for c := 0; c < utf8.RuneSelf; c++ {
+		b := byte(c)
+		table[c] = isIdentStart(b) || isDigit(b)
+	}
+	return table
+}()
 
 // isIdentStart reports whether c can begin an identifier. Every byte of a
 // multi-byte UTF-8 sequence is >= 0x80 and never equals an ASCII delimiter, so
-// treating those bytes as identifier characters keeps unicode identifiers whole
-// without decoding runes.
+// treating those bytes as identifier bytes keeps unicode identifiers whole
+// without decoding runes. Callers test spaceLen first: a multi-byte space
+// character is whitespace, not an identifier byte.
 func isIdentStart(c byte) bool {
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0x80
 }
 
-func isIdentChar(c byte) bool { return isIdentStart(c) || isDigit(c) }
+// spaceLen returns the byte length of the whitespace character at src[i], or 0
+// when there is none. Whitespace is ASCII space, tab, newline, vertical tab,
+// form feed, carriage return and the ASCII separators 0x1C-0x1F, plus every
+// character unicode.IsSpace accepts. That union covers the Neo4j 5 lexer's
+// SPACE rule (U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F,
+// U+3000). U+180E, U+200B and U+FEFF are whitespace in neither and stay
+// identifier bytes, as in Neo4j's PART_LETTER.
+func spaceLen(src string, i int) int {
+	c := src[i]
+	if c < utf8.RuneSelf {
+		if c == ' ' || (c >= '\t' && c <= '\r') || (c >= 0x1c && c <= 0x1f) {
+			return 1
+		}
+		return 0
+	}
+	r, size := utf8.DecodeRuneInString(src[i:])
+	if r != utf8.RuneError && unicode.IsSpace(r) {
+		return size
+	}
+	return 0
+}
+
+// identLen returns the byte length of the identifier character at src[i], or 0
+// when src[i] is not one: an ASCII letter, digit or underscore, or any
+// non-whitespace multi-byte character.
+func identLen(src string, i int) int {
+	c := src[i]
+	if c < utf8.RuneSelf {
+		if isIdentStart(c) || isDigit(c) {
+			return 1
+		}
+		return 0
+	}
+	if spaceLen(src, i) > 0 {
+		return 0
+	}
+	_, size := utf8.DecodeRuneInString(src[i:])
+	return size
+}
+
+// numberTailLen returns the byte length of a character that continues a
+// numeric token at src[i], or 0. Neo4j 5 lexes every PART_LETTER that follows a
+// number's digits into the same token (digit separators such as 4111_1111,
+// hex and octal digits, suffixes, and control characters). Taking all of them
+// is a superset, so a value cannot survive as a kept identifier.
+func numberTailLen(src string, i int) int {
+	c := src[i]
+	if c < utf8.RuneSelf && (c == '$' || c <= 0x08 || (c >= 0x0e && c <= 0x1b) || c == 0x7f) {
+		return 1
+	}
+	return identLen(src, i)
+}
+
+// skipIdentifier returns the index just past the identifier characters that
+// start at src[i]. ASCII is handled inline: this loop runs over most of a
+// statement, and a call per byte showed up in BenchmarkGraphStatementFingerprint.
+func skipIdentifier(src string, i int) int {
+	for i < len(src) {
+		if c := src[i]; c < utf8.RuneSelf {
+			if !asciiIdent[c] {
+				break
+			}
+			i++
+			continue
+		}
+		n := identLen(src, i)
+		if n == 0 {
+			break
+		}
+		i += n
+	}
+	return i
+}
 
 // startsNumber reports whether a numeric literal begins at src[i]: a digit, a
 // .digit, or a minus immediately followed by either.
@@ -125,52 +204,32 @@ func startsNumber(src string, i int) bool {
 }
 
 // skipNumber returns the index just past the numeric literal at src[i]. It
-// consumes an optional sign, hex or octal digits, or decimal digits with an
-// optional fraction, exponent and f/d suffix.
+// consumes an optional sign and leading dot, then every character that
+// continues a number token (numberTailLen), a fraction whose dot is followed by
+// a digit, and an exponent sign that follows an e or E and precedes a digit.
+// The `..` of a range such as 1..5 ends the number, so both bounds redact
+// separately.
 func skipNumber(src string, i int) int {
 	if src[i] == '-' {
 		i++
 	}
-	if src[i] == '0' && i+2 < len(src) {
-		switch {
-		case (src[i+1] == 'x' || src[i+1] == 'X') && isHexDigit(src[i+2]):
-			i += 2
-			for i < len(src) && isHexDigit(src[i]) {
-				i++
-			}
-			return i
-		case (src[i+1] == 'o' || src[i+1] == 'O') && src[i+2] >= '0' && src[i+2] <= '7':
-			i += 2
-			for i < len(src) && src[i] >= '0' && src[i] <= '7' {
-				i++
-			}
-			return i
+	if src[i] == '.' {
+		i++
+	}
+	for i < len(src) {
+		if n := numberTailLen(src, i); n > 0 {
+			i += n
+			continue
 		}
-	}
-	for i < len(src) && isDigit(src[i]) {
-		i++
-	}
-	if i+1 < len(src) && src[i] == '.' && isDigit(src[i+1]) {
-		i++
-		for i < len(src) && isDigit(src[i]) {
+		next := i + 1
+		switch c := src[i]; {
+		case c == '.' && next < len(src) && isDigit(src[next]):
 			i++
+		case (c == '+' || c == '-') && (src[i-1] == 'e' || src[i-1] == 'E') && next < len(src) && isDigit(src[next]):
+			i++
+		default:
+			return i
 		}
-	}
-	if i < len(src) && (src[i] == 'e' || src[i] == 'E') {
-		j := i + 1
-		if j < len(src) && (src[j] == '+' || src[j] == '-') {
-			j++
-		}
-		if j < len(src) && isDigit(src[j]) {
-			for j < len(src) && isDigit(src[j]) {
-				j++
-			}
-			i = j
-		}
-	}
-	if i < len(src) && (src[i] == 'f' || src[i] == 'F' || src[i] == 'd' || src[i] == 'D') &&
-		(i+1 == len(src) || !isIdentChar(src[i+1])) {
-		i++
 	}
 	return i
 }

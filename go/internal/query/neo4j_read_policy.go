@@ -139,9 +139,10 @@ func resolveGraphReadSlowThreshold(getenv func(string) string, logger *slog.Logg
 
 // graphStatementFingerprint returns the first graphStatementFingerprintLen hex
 // characters of the sha256 digest of the statement's redacted, whitespace-
-// collapsed shape (statement.Redact). Every literal is replaced before
-// hashing, so no literal-derived value leaves the process and statements that
-// differ only in literals share one fingerprint. Bound parameters never appear
+// collapsed shape (statement.Redact). Every numeric and string literal
+// is replaced before hashing (booleans and null are kept), so no
+// literal-derived value leaves the process and statements that differ only in
+// literal values share one fingerprint. Bound parameters never appear
 // in Cypher text at all (#7035).
 func graphStatementFingerprint(cypher string) string {
 	sum := sha256.Sum256([]byte(statement.Redact(cypher)))

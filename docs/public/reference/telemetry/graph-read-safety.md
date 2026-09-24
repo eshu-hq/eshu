@@ -215,15 +215,21 @@ statement itself before it reaches a hash, span, or log
 (`go/internal/query/graph/statement`):
 
 - Replaced with `<REDACTED>`: integers, floats (including exponent, `f`/`d`
-  suffix, hex `0x..` and octal `0o..` forms, and a minus sign that touches the
-  digits), single-quoted strings, and double-quoted strings, including the
-  bounds of a variable-length range such as `*1..5`. Backslash escapes and
-  doubled quotes stay inside their string.
-- Kept verbatim: keywords, identifiers (digits inside an identifier such as
-  `n1` are not literals), labels, relationship types, property keys,
-  `$parameters`, and backtick-quoted identifiers.
+  suffix, hex `0x..` and octal `0o..` forms, Neo4j 5 digit separators such as
+  `4111_1111`, and a minus sign that touches the digits), single-quoted
+  strings, and double-quoted strings, including the bounds of a variable-length
+  range such as `*1..5`. Every character that trails a number's digits belongs
+  to the number, as in Neo4j's lexer. Backslash escapes and doubled quotes stay
+  inside their string.
+- Kept verbatim: keywords, `true`, `false` and `null`, identifiers (digits
+  inside an identifier such as `n1` are not literals), labels, relationship
+  types, property keys, `$parameters`, and backtick-quoted identifiers.
 - Dropped: `//` and `/* */` comments, because free text in a comment can carry
-  the same values a literal would. Whitespace runs collapse to one space.
+  the same values a literal would. Whitespace runs collapse to one space, where
+  whitespace is ASCII space, tab, newline and the other ASCII separators plus
+  every Unicode space character (no-break space, ideographic space, and the
+  rest of Neo4j 5's lexer whitespace set), so a pasted `= 1234` cannot turn its
+  digits into a kept identifier.
 - Fail closed: an unterminated string, block comment, or backtick identifier
   redacts to the end of the statement.
 
@@ -251,7 +257,7 @@ sees, so hashing NornicDB's `query` field will not reproduce it.
   octal numbers, or comments, and it copies whitespace through byte-for-byte,
   so the `query` field keeps the statement's original newlines and indentation
   (checked by running `RedactLiterals` at NornicDB `d97f02c1`).
-  Eshu's `graph_read.statement_head` replaces every literal class, drops
+  Eshu's `graph_read.statement_head` replaces every numeric and string literal class, drops
   comments, and collapses whitespace, so a raw comparison fails for any
   statement that spans more than one line or carries a single-quoted string.
   Normalize NornicDB's `query` field to Eshu's shape before comparing: collapse

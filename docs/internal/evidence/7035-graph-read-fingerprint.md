@@ -2,7 +2,8 @@
 
 Every bounded `Neo4jReader` read now computes a stable statement fingerprint
 (first 12 hex characters of sha256 of the statement's redacted,
-whitespace-collapsed shape -- every literal replaced by `<REDACTED>`, comments
+whitespace-collapsed shape -- every numeric and string literal replaced by
+`<REDACTED>` (booleans and null are kept), comments
 dropped; never parameters or inline literal values) in `runRead`, attaches it
 to the `neo4j.query` span on every read, and adds it plus a bounded redacted
 statement head to the `query.graph_read.warning` log for slow/deadline/
@@ -80,6 +81,16 @@ Reading it honestly:
   statement stayed at or below the previous head's cost in the second run. The
   benchmark cannot resolve the difference from run-order and load noise, so this
   document claims the fixed allocation cost, not a nanosecond figure.
+- Re-measured after the scanner learned Neo4j 5 digit separators, trailing
+  number characters, and Unicode whitespace (review round 2): the scanner now
+  decodes a rune for bytes at or above 0x80 and consumes trailing identifier
+  characters after a number. A first version of that change cost about +125 ns
+  per read on the realistic statement (median 746 vs 872 ns, interleaved runs of
+  two compiled test binaries, 12 samples each); an ASCII lookup table in the
+  identifier loop and testing identifier starts before numbers brought it to
+  627 vs 655 ns (min 602 vs 643, +28 ns median), with identical allocations
+  (672 B, 4 allocs) on both sides. Interleaving compiled binaries is what made
+  the comparison usable on a shared host.
 - No cache was added. Per-read cost is well under a microsecond even in the
   noisy run, and a cache keyed by statement text would put a shared structure on
   the read path to save less than the noise. Against the reader's 10-second
@@ -106,8 +117,8 @@ Observability Evidence:
   `graph_read.statement_fingerprint` and `graph_read.statement_head`
   (`LogKeyGraphReadStatementFingerprint`/`LogKeyGraphReadStatementHead`, same
   file). The head is the redacted, whitespace-collapsed statement shape
-  (`go/internal/query/graph/statement`: every literal replaced by
-  `<REDACTED>`, comments dropped) truncated to 300 characters with an
+  (`go/internal/query/graph/statement`: every numeric and string
+  literal replaced by `<REDACTED>`, booleans and null kept, comments dropped) truncated to 300 characters with an
   `...[truncated]` marker; neither field carries a bound parameter or an
   inline literal value.
 - The fingerprint is deliberately **not** added as a metric label:
