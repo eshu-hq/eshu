@@ -11,8 +11,8 @@ and returned zero findings.
 ## Where the time goes
 
 Read-only `EXPLAIN (ANALYZE, BUFFERS)` of `ListReadinessQuery` on ops-qa
-(PostgreSQL 18.3, `fact_records` about 69.6M rows, 794 repository scopes, 810
-active scope generations), through `PREPARE`/`EXECUTE` with the production
+(PostgreSQL 18.3; the plan shows 814 ingestion scopes and 810 active scope
+generations), through `PREPARE`/`EXECUTE` with the production
 argument shape and a repository anchor:
 
 - Execution 8119 ms. The `unsupported_target_rows` CTE alone is 8036 ms.
@@ -40,9 +40,10 @@ already required `$11 <> '' AND payload->>'repo_id' = $11`, so the rewrite is a
 pure narrowing. `ingestion_scopes.source_key` is the repository id the git
 collector stamps on every repository and repository_ref scope
 (`buildScope`, pinned by `TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID`).
-On ops-qa 794 of 794 repository scopes have `scope_id =
-'git-repository-scope:' || source_key`, and a scan of all 17 active gap facts
-found 0 whose `payload->>'repo_id'` differs from their scope's `source_key`.
+On ops-qa a scan of all 17 active gap facts (active `fact_records` joined to
+`ingestion_scopes` and `scope_generations`, counting `payload->>'repo_id' IS
+DISTINCT FROM source_key`) returned `17|0`: none differs from its scope's
+`source_key`.
 No index or DDL is added.
 
 Performance Evidence: ops-qa read-only, same argument shape, alternating
@@ -61,8 +62,9 @@ so absolute numbers carry write-load noise; the before/after gap is far larger
 than the spread. Plan cost estimates: custom plan 6554 -> 6081, forced generic
 plan 8496 -> 8023. The generic plan costs more than the custom average, so
 `plan_cache_mode=auto` does not switch to it; under a forced generic plan the
-whole query still exceeds 120 s for reasons unrelated to this CTE (see
-Follow-up).
+whole query still exceeds 120 s. That run was not repeated on the pre-fix
+SQL, so the comparison is unmeasured; the fixed CTE is bounded in the generic
+plan too (see Follow-up for the branch that is not).
 
 Row-set equivalence: both variants were run (rows, not plans) for 12
 repositories: six that carry gap facts (`unsupported_dependency` x5, x5 and

@@ -91,6 +91,13 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"'editable_dependency_unsupported'",
 		"'unsupported_dependency_unsupported'",
 		"FROM package_dependency_gap_active",
+		// #7007: the dependency-gap CTE has no repo_id-leading index, so it
+		// must end with the repository anchor and the scope bound. Without
+		// them it probes fact_records once per active scope (8s on ops-qa).
+		// The needle spans the closing of the CTE so the surrounding SQL
+		// comment cannot satisfy it and the lines cannot drift into another
+		// CTE.
+		"\n      AND $11 <> ''\n      AND scope.source_key = $11\n      AND fact.payload->>'repo_id' = $11\n),\nunsupported_target_rows AS (",
 		"warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')",
 		"doc.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 		"package_registry_warning_active AS (",
