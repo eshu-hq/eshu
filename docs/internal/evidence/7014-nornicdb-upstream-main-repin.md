@@ -350,3 +350,65 @@ No-Regression Evidence: the upstream fix was benchmarked/proven by the
 publishing session (RED-on-parent/GREEN-on-fix regression test, full
 `pkg/cypher` suite, golden-corpus gate); this worktree's own proof is the
 focused non-live suite above, unchanged in shape and green on the new pin.
+
+## NornicDB-vs-Neo4j differential on `f2163176`: two runs, second GREEN
+
+Ran the `golden-corpus-differential` registry command (`specs/ci-gates.v1.yaml`
+id `golden-corpus-differential`) against `fix-6915-f2163176` on the isolated
+lane (`ESHU_POSTGRES_PORT=15533 NEO4J_BOLT_PORT=7789 NEO4J_HTTP_PORT=7576
+GATE_API_PORT=18083 GATE_MCP_PORT=18094`, own `ESHU_LIVE_GATE_LOCK_DIR`,
+`NORNICDB_PLATFORM=linux/arm64`, `NORNICDB_IMAGE` pinned to the digest above).
+Checked no other live gate first each time (`pgrep -x ci-gates`,
+`docker compose ls`); tore down cleanly after each run, confirmed via
+`docker compose ls`.
+
+**Run 1: RED, but it's the known #6502 flake, not a NornicDB regression.**
+The NornicDB leg failed the drain gate: `fact_work_items_residual: residual=2
+(dead_letter=2) [container_image_identity/dead_letter/projection_bug=2]
+"read container image identity activation epoch: container image identity
+generation is not active"` after a 10-minute drain timeout — a different
+domain (`container_image_identity`) than the mutualPing regression
+(`code_relationships`), never reached the Neo4j leg or backend-diff. At the
+time, machine load was 45.19/29.06/22.87 (an ~18-core box), with a concurrent
+foreign `ci-gates` process, `par6843-battery`, three `diag7014-*` containers,
+and several other persistent stacks all running simultaneously. Per the
+owner, this is [eshu-hq/eshu#6502](https://github.com/eshu-hq/eshu/issues/6502),
+a known Eshu reducer flake on the golden gate under load, unrelated to
+NornicDB.
+
+**Run 2 (after `make pre-push` for #7007 finished and the machine quieted,
+load ~23): GREEN through both legs.**
+
+- NornicDB leg: `570 pass, 0 required-fail, 2 advisory-warn`,
+  `PASS: B-7 golden corpus gate green (elapsed 268s, budget ceiling 1800s)`.
+- Neo4j leg: `568 pass, 0 required-fail, 4 advisory-warn`,
+  `PASS: B-7 golden corpus gate green (elapsed 366s, budget ceiling 1800s)`.
+
+`-phase=backend-diff` then ran (exit 1, one finding — the stale-entry guard,
+not a new divergence):
+
+```
+[FAIL] nornicdb_vs_neo4j: apply divergence allowlist: divergence allowlist entry 43
+("MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|...
+]->(related:Repository) RETURN ... UNION MATCH (related:Repository)-[rel:...]->
+(r:Repository {id: $repo_id}) RETURN related.id AS repo_id, related.name AS repo_name"):
+matched no divergence in this run (stale)
+```
+
+That entry (`specs/backend-divergence-allowlist.v1.yaml` line 281, tier
+`results`, owner `query`, tracked under
+[#6916](https://github.com/eshu-hq/eshu/issues/6916) — NornicDB's `UNION`
+appending an extra text-named column duplicating `repo_name` for the
+repo-dependency edge family) no longer diverges. **Not related to #6915 or
+#519** — a different NornicDB dialect quirk, on a Repository `DEPENDS_ON`
+family query, not the CALLS/mutualPing shape. No `#6915`-tagged entries
+remain in the allowlist to retire (both were already retired in the earlier
+`fix-500-e022384c` repin). This is the strongest-evidence backend-diff result
+of the drive (a single paired co-run, not stitched captures), so unlike the
+earlier candidate finding it is not a correlation artifact — but retiring it
+is outside what was authorized for this round (only the #6915 entries), so
+**it is reported, not retired**, pending a call from the lead/owner. The
+`-phase=statement-coverage` step never ran (the chain stopped at
+`backend-diff`'s exit 1). `specs/backend-divergence-allowlist.v1.yaml`
+remains unmodified.
+focused non-live suite above, unchanged in shape and green on the new pin.
