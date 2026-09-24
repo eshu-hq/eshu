@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // #5167 code-family batch 2a review round 2, finding 1.
@@ -35,9 +36,9 @@ const languageQueryUnsupportedEntityType = "bogus"
 
 // newLanguageQueryValidationHandler builds a handler whose backends both record
 // every call, so a test can prove a rejected request reached neither.
-func newLanguageQueryValidationHandler() (*LanguageQueryHandler, *languageQueryPlainContentStore, *querytestutil.EvaluatingRepositoryGraph) {
+func newLanguageQueryValidationHandler() (*LanguageQueryHandler, *languageQueryPlainContentStore, *graph.EvaluatingRepositoryGraph) {
 	store := &languageQueryPlainContentStore{}
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	graph := &graph.EvaluatingRepositoryGraph{
 		Seeds:             languageQueryGraphSeeds("Function"),
 		RepositoryAlias:   "r",
 		RepositoryColumns: repositoryProjectedColumns(),

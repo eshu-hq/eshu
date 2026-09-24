@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestBlastRadiusQueriesAreNornicDBSafe guards the #5279 fix: every blast-radius
@@ -129,7 +129,7 @@ func TestFindBlastRadiusRepositoryMergesAffectedAndTiers(t *testing.T) {
 	var affectedCalls, tierCalls int
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, ":DEPENDS_ON*1..5"):
@@ -219,7 +219,7 @@ func TestFindBlastRadiusSqlTableTierErrorDegradesGracefully(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "CALL {"):
@@ -279,7 +279,7 @@ func TestFindBlastRadiusTerraformAnchorsDependentsByID(t *testing.T) {
 	var gotDepParams map[string]any
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "TerraformModule"):
@@ -324,7 +324,7 @@ func TestFindBlastRadiusSqlTableOverFetchesBeforeDedup(t *testing.T) {
 	var gotLimit any
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "CALL {") {
 					gotLimit = params["limit"]

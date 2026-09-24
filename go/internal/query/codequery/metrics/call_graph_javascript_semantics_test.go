@@ -13,14 +13,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleComplexityReturnsGraphBackedJavaScriptSemantics(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -95,7 +95,7 @@ func TestHandleCallChainReturnsGraphBackedJavaScriptSemanticsOnNodes(t *testing.
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "docstring: node.docstring") {
 					t.Fatalf("cypher = %q, want graph semantic projection for call-chain nodes", cypher)

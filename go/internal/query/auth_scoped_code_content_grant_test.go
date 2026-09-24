@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // #5167 code-family batch 1, step 2: two-tenant grant proof for the three
@@ -72,7 +73,7 @@ func codeContentGrantAdmits(rowRepoID, repoID string, allowedRepositoryIDs []str
 }
 
 type hardcodedSecretGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 
@@ -99,7 +100,7 @@ func (s *hardcodedSecretGrantStore) InvestigateHardcodedSecrets(
 }
 
 type symbolSearchGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 
@@ -112,7 +113,7 @@ func (s *symbolSearchGrantStore) SearchSymbols(
 }
 
 type structuralInventoryGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 
@@ -374,7 +375,7 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 // with every tenant's symbol, the same way the all-repository content query
 // does.
 type symbolNameFallbackGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	askedRepoIDs []string
 }
 

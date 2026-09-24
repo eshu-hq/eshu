@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // These route pins live in package repository (not the root
@@ -48,7 +49,7 @@ func TestListRepositoriesByLanguageRendersAdminPage(t *testing.T) {
 
 	family := repositoryLanguageFamily("go")
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			LanguageCounts: map[string]querycontract.RepositoryLanguageAggregate{
 				strings.Join(family, ","): {RepositoryCount: 2, FileCount: 42},
 			},
@@ -88,7 +89,7 @@ func TestGetRepositoryLanguageInventoryRendersAdminRows(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			LanguageInventory: []querycontract.RepositoryLanguageInventoryRow{
 				{Language: "go", RepositoryCount: 2, FileCount: 42},
 			},

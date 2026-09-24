@@ -12,14 +12,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchWorkloadRuntimeTopologyStartsFromWorkloadInstanceTraversal(t *testing.T) {
 	t.Parallel()
 
 	var capturedCypher string
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		capturedCypher = cypher
 		return []map[string]any{}, nil
 	}}
@@ -47,7 +47,7 @@ func TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits(t *testing.
 	t.Parallel()
 
 	runtimeQueryCalls := 0
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		runtimeQueryCalls++
 		if !strings.Contains(cypher, "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)") {
 			t.Fatalf("unexpected graph query for empty runtime topology: %s", cypher)
@@ -83,7 +83,7 @@ func TestFetchWorkloadDeploymentTopologyOmitsUnownedRuntimeForScopedTokens(t *te
 	t.Parallel()
 
 	calls := 0
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		calls++
 		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
 	}}
@@ -113,7 +113,7 @@ func TestFetchWorkloadDeploymentTopologyOmitsUnownedRuntimeForScopedTokens(t *te
 func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "LIMIT $platform_edge_limit") {
 			t.Fatalf("platform query is unbounded: %s", cypher)
 		}
@@ -146,7 +146,7 @@ func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 func TestFetchWorkloadPlatformResultRejectsNonJSONRelationshipProperties(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
 			"instance_id": "workload-instance:orders:prod", "platform_id": "platform:eks:prod",
 			"platform_edges": []map[string]any{{"confidence": math.Inf(-1)}},
@@ -165,7 +165,7 @@ func TestFetchWorkloadPlatformResultRejectsNonJSONRelationshipProperties(t *test
 func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)") {
 			t.Fatalf("runtime topology cypher = %q, want one exact DEFINES/INSTANCE_OF clause", cypher)
 		}
@@ -200,7 +200,7 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 func TestFetchWorkloadRuntimeTopologyRejectsNonJSONRelationshipProperties(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
 			"repo_id": "repository:orders", "workload_id": "workload:orders",
 			"instance_id":  "workload-instance:orders:prod",
@@ -220,7 +220,7 @@ func TestFetchWorkloadRuntimeTopologyRejectsNonJSONRelationshipProperties(t *tes
 func TestFetchWorkloadRuntimeTopologyRejectsNonFiniteInstanceConfidence(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
 			"repo_id": "repository:orders", "workload_id": "workload:orders",
 			"instance_id":                "workload-instance:orders:prod",
@@ -241,7 +241,7 @@ func TestFetchWorkloadRuntimeTopologyOmitsUnownedInstancesForScopedTokens(t *tes
 	t.Parallel()
 
 	calls := 0
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		calls++
 		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
 	}}
@@ -271,7 +271,7 @@ func TestFetchWorkloadRuntimeTopologyOmitsUnownedInstancesForScopedTokens(t *tes
 func TestFetchWorkloadRuntimeTopologyReportsInstanceSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		rows := make([]map[string]any, 0, querycontract.ContextStoryItemLimit+1)
 		for index := range querycontract.ContextStoryItemLimit + 1 {
 			rows = append(rows, map[string]any{

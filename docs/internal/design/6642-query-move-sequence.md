@@ -275,7 +275,7 @@ Updated as each PR lands.
 - [x] PR 1a — envelope spine repoint ([#6977](https://github.com/eshu-hq/eshu/pull/6977), merged `a42ad3788`). 0 files moved.
 - [x] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), merged `a07ee93bf`). 0 files moved. The spine is now clear.
 - [x] PR 2 — `capability/` ([#6985](https://github.com/eshu-hq/eshu/pull/6985), merged `2d68f1cbb`). 2 files moved, `permission_catalog.go` dissolved.
-- [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
+- [x] PR 3 — `querycontract` leaf split (closes #6597's split question). Landed as eight leaf PRs, #6990 through #7031; see [the landing checklist](6642-query-move-checklist.md).
 - [ ] PR 4 — `testutil/` ← `querytestutil`
 - [ ] PR 6 — `auth/`
 - [ ] PR 7–30 — 24 leaf PRs, smallest first

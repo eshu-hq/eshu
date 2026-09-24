@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes pins the graph
@@ -22,7 +22,7 @@ func TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes(t *testing.T) {
 	t.Parallel()
 
 	var captured string
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		captured = cypher
 		return nil, nil
 	}}
@@ -30,8 +30,8 @@ func TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes(t *testing.T) {
 		t.Fatalf("QueryRepoInfrastructureFromGraph() error = %v", err)
 	}
 
-	querytestutil.AssertCypherHasNoIgnoredLabelPredicate(t, captured)
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, captured)
+	graph.AssertCypherHasNoIgnoredLabelPredicate(t, captured)
+	graph.AssertCypherHasNoBrokenAndOr(t, captured)
 
 	withAt := regexp.MustCompile(`\bWITH f, infra\s+WHERE `).FindStringIndex(captured)
 	if withAt == nil {

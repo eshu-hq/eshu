@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
@@ -34,7 +34,7 @@ func TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce(t *testing.T
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
 		graph,
-		querytestutil.FakePortContentStore{},
+		content.FakePortContentStore{},
 		workloadContext,
 		serviceQueryEnrichmentOptions{IncludeRelatedModuleUsage: true},
 	)

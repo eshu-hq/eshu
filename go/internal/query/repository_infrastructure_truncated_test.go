@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -38,7 +39,7 @@ func TestGetRepositoryContextInfrastructureTruncatedAddsReason(t *testing.T) {
 				return map[string]any{"id": "repo-infra-truncated-1", "name": "repo-infra-truncated-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if !strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return nil, nil
 				}
 				limit := IntVal(params, "limit")
@@ -102,7 +103,7 @@ func TestGetRepositoryContextInfrastructureUnderLimitDoesNotAddTruncatedReason(t
 				return map[string]any{"id": "repo-infra-under-1", "name": "repo-infra-under-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if !strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return nil, nil
 				}
 				limit := IntVal(params, "limit")

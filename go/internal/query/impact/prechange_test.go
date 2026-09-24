@@ -11,13 +11,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestPreChangeImpactNormalizesFileListIntoAnswerPacket(t *testing.T) {
 	t.Parallel()
 
-	store := querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{
+	store := content.FakePortContentStore{Entities: []querycontract.EntityContent{
 		{
 			EntityID:     "entity-auth",
 			EntityName:   "resolveGitHubAppAuth",
@@ -108,7 +108,7 @@ func TestPreChangeImpactNormalizesFileListIntoAnswerPacket(t *testing.T) {
 func TestDeveloperChangePlanBuildsReadOnlyActions(t *testing.T) {
 	t.Parallel()
 
-	store := querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{
+	store := content.FakePortContentStore{Entities: []querycontract.EntityContent{
 		{
 			EntityID:     "entity-auth",
 			EntityName:   "resolveGitHubAppAuth",
@@ -193,7 +193,7 @@ func TestDeveloperChangePlanBuildsReadOnlyActions(t *testing.T) {
 func TestPreChangeImpactAllowsEmptyDiff(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{Content: querytestutil.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Content: content.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -227,7 +227,7 @@ func TestPreChangeImpactAllowsEmptyDiff(t *testing.T) {
 func TestPreChangeImpactRejectsRefsWithoutChangedInput(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{Content: querytestutil.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Content: content.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -266,7 +266,7 @@ func TestPreChangeImpactCodeSurfaceBackendUnavailableReturns503(t *testing.T) {
 func TestPreChangeImpactReportsHighFanoutTruncation(t *testing.T) {
 	t.Parallel()
 
-	store := querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{
+	store := content.FakePortContentStore{Entities: []querycontract.EntityContent{
 		{EntityID: "entity-a", EntityName: "a", EntityType: "Function", RepoID: "repo-1", RelativePath: "a.go"},
 		{EntityID: "entity-b", EntityName: "b", EntityType: "Function", RepoID: "repo-1", RelativePath: "b.go"},
 		{EntityID: "entity-c", EntityName: "c", EntityType: "Function", RepoID: "repo-1", RelativePath: "c.go"},
@@ -298,7 +298,7 @@ func TestPreChangeImpactReportsHighFanoutTruncation(t *testing.T) {
 func TestPreChangeImpactRejectsUnsafeChangedPaths(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{Content: querytestutil.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Content: content.FakePortContentStore{}, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -321,7 +321,7 @@ func TestPreChangeImpactRejectsUnsafeChangedPaths(t *testing.T) {
 func TestPreChangeImpactDeduplicatesCanonicalPaths(t *testing.T) {
 	t.Parallel()
 
-	store := querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{{
+	store := content.FakePortContentStore{Entities: []querycontract.EntityContent{{
 		EntityID:     "entity-auth",
 		EntityName:   "resolveGitHubAppAuth",
 		EntityType:   "Function",

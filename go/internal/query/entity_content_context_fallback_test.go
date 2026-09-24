@@ -13,14 +13,15 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "entity-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -60,7 +61,7 @@ func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testin
 func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -111,7 +112,7 @@ func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T
 func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -196,7 +197,7 @@ func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentRustImplBlockContext(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeExcludesPerlRootKindsFromMetadata(t *testing.T) {
@@ -44,7 +44,7 @@ func TestHandleDeadCodeExcludesPerlRootKindsFromMetadata(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			},
@@ -155,7 +155,7 @@ func TestHandleDeadCodeExcludesPerlRootKindsFromContentMetadata(t *testing.T) {
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return nil, nil
 			},

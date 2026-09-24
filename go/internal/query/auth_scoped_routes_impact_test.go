@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // impactCompareTwoTenantRoutes is the #5167 W3 inventory: every impact/* and
@@ -62,8 +63,8 @@ func decodeFlatJSONBody(t *testing.T, rec *httptest.ResponseRecorder) map[string
 
 // --- investigate_contract_impact (mutation-checked) ---
 
-func contractImpactTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
+func contractImpactTestGraph(t *testing.T) graph.FakeGraphReaderWithSingle {
+	return graph.FakeGraphReaderWithSingle{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "EXPOSES_ENDPOINT") {
 				t.Fatalf("unexpected contract-impact query: %s", cypher)
@@ -230,8 +231,8 @@ func TestAuthMiddlewareWithScopedTokensAllowsCompareEnvironments(t *testing.T) {
 
 // --- find_blast_radius (mutation-checked) ---
 
-func blastRadiusTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
+func blastRadiusTestGraph(t *testing.T) graph.FakeGraphReaderWithSingle {
+	return graph.FakeGraphReaderWithSingle{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "DEPENDS_ON"):
@@ -283,7 +284,7 @@ func TestFindBlastRadiusScopedGrantAndDenyMutationCheck(t *testing.T) {
 
 	t.Run("empty grant returns zero affected repos without querying", func(t *testing.T) {
 		t.Parallel()
-		graph := querytestutil.FakeGraphReaderWithSingle{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		graph := graph.FakeGraphReaderWithSingle{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			t.Fatal("blast-radius must not query the graph for an empty grant")
 			return nil, nil
 		}}

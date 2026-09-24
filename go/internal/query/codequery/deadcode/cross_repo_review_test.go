@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T) {
@@ -23,7 +25,7 @@ func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T)
 	content := &crossRepoDeadCodeIncomingContentStore{
 		crossRepoDeadCodeContentStore: &crossRepoDeadCodeContentStore{
 			fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-				FakePortContentStore: querytestutil.FakePortContentStore{
+				FakePortContentStore: content.FakePortContentStore{
 					Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 				},
 				entities: map[string]deadcode.EntityContent{
@@ -57,7 +59,7 @@ func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T)
 			},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -85,7 +87,7 @@ func TestHandleCrossRepoDeadCodeTruncatedEvidenceStaysUnknown(t *testing.T) {
 
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 			},
 			entities: map[string]deadcode.EntityContent{
@@ -107,7 +109,7 @@ func TestHandleCrossRepoDeadCodeTruncatedEvidenceStaysUnknown(t *testing.T) {
 			"producer-missing-evidence": {truncatedCrossRepoDeadCodeEvidence()},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

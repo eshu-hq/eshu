@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeInvestigationReturnsBucketsCoverageAndPaging(t *testing.T) {
@@ -23,7 +25,7 @@ func TestHandleDeadCodeInvestigationReturnsBucketsCoverageAndPaging(t *testing.T
 	indexedAt := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	content := &contentCandidateDeadCodeStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Coverage: deadcode.RepositoryContentCoverage{
 					Available:       true,
 					FileCount:       12,
@@ -83,7 +85,7 @@ func TestHandleDeadCodeInvestigationReturnsBucketsCoverageAndPaging(t *testing.T
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j:   querytestutil.FakeGraphReader{},
+		Neo4j:   graph.FakeGraphReader{},
 		Content: content,
 	}
 	mux := http.NewServeMux()
@@ -146,7 +148,7 @@ func TestHandleDeadCodeInvestigationKeepsTypeScriptCandidatesAmbiguous(t *testin
 
 	content := &contentCandidateDeadCodeStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Coverage:     deadcode.RepositoryContentCoverage{Available: true},
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "web"}},
 			},
@@ -170,7 +172,7 @@ func TestHandleDeadCodeInvestigationKeepsTypeScriptCandidatesAmbiguous(t *testin
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j:   querytestutil.FakeGraphReader{},
+		Neo4j:   graph.FakeGraphReader{},
 		Content: content,
 	}
 	mux := http.NewServeMux()

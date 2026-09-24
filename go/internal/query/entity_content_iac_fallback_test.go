@@ -11,13 +11,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestResolveEntityFallsBackToTerraformBlockContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -75,7 +75,7 @@ func TestResolveEntityFallsBackToTerraformBlockContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -126,7 +126,7 @@ func TestResolveEntityFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -198,7 +198,7 @@ func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) 
 func TestGetEntityContextFallsBackToKubernetesResourceContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

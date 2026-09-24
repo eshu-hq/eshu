@@ -14,10 +14,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 type deploymentConfigInfluenceContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	gitOpsEntities []querycontract.EntityContent
 	k8sEntities    []querycontract.EntityContent
 }
@@ -233,7 +235,7 @@ func TestBuildDeploymentConfigInfluenceResponseUsesServiceStoryDeploymentEvidenc
 
 func makeDeploymentConfigInfluenceHandler() *Handler {
 	return &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (w:Workload) WHERE": {
 					"id":      "svc-1",
@@ -267,7 +269,7 @@ func makeDeploymentConfigInfluenceHandler() *Handler {
 				},
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "test-service"}},
 		},
 	}
@@ -316,7 +318,7 @@ func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *test
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
 		},
@@ -332,7 +334,7 @@ func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *test
 func TestInvestigateDeploymentConfigInfluenceReturnsConflictForDuplicateWorkloadName(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
@@ -368,7 +370,7 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 		t.Run(tt.name, func(t *testing.T) {
 			handler := makeDeploymentConfigInfluenceHandler()
 			handler.Content = deploymentConfigInfluenceContentStore{
-				FakePortContentStore: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "test-service"}}},
+				FakePortContentStore: content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "test-service"}}},
 				gitOpsEntities:       deploymentConfigGitOpsEntities(tt.gitOpsCount),
 				k8sEntities: []querycontract.EntityContent{{
 					EntityID:     "k8s:deployment:test-service",
@@ -379,7 +381,7 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 					Metadata:     map[string]any{"kind": "Deployment", "container_images": []any{"registry.example/direct:latest"}},
 				}},
 			}
-			handler.Neo4j = querytestutil.FakeWorkloadGraphReader{
+			handler.Neo4j = graph.FakeWorkloadGraphReader{
 				RunSingleByMatch: map[string]map[string]any{
 					"MATCH (w:Workload) WHERE":            {"id": "svc-1", "name": "test-service", "kind": "service", "repo_id": "repo-1"},
 					"MATCH (r:Repository {id: $repo_id})": {"repo_name": "test-service"},

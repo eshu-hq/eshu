@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestDeadCodeIncomingEntityIDsCompleteReachabilitySnapshotSkipsLegacyDeadCluster(t *testing.T) {
@@ -143,7 +143,7 @@ func TestDeadCodeIncomingEntityIDsHiddenOnlyEntryStillRunsTheLegacyProbe(t *test
 }
 
 type coverageReachabilityIncomingStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	incomingByRepo    map[string]map[string]deadcode.DeadCodeIncomingEdge
 	coverageByRepo    map[string]deadcode.CodeReachabilityCoverage
 	legacyByRepo      map[string]map[string]deadcode.DeadCodeIncomingEdge

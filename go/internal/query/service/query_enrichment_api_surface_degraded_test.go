@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -26,7 +27,7 @@ func enrichServiceQueryContextAPISurfaceLimitations(t *testing.T, apiSurfaceErr 
 	t.Helper()
 
 	workloadContext := provisioningTruncationWorkload()
-	graph := querytestutil.FakeWorkloadGraphReader{
+	graph := graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "RETURN count(endpoint) AS endpoint_count") {
 				if apiSurfaceErr != nil {
@@ -40,7 +41,7 @@ func enrichServiceQueryContextAPISurfaceLimitations(t *testing.T, apiSurfaceErr 
 	if err := EnrichServiceQueryContextWithOptions(
 		context.Background(),
 		graph,
-		querytestutil.FakePortContentStore{},
+		content.FakePortContentStore{},
 		workloadContext,
 		QueryEnrichmentOptions{
 			IncludeRelatedModuleUsage: true,

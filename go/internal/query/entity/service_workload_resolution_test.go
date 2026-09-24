@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage pins the fact the
@@ -33,7 +33,7 @@ func TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage(t *testing.T) {
 	const selector = "checkout?token=SELECTOR-ECHO-PROBE"
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "w.name = $service_name") {
 					return nil, nil
@@ -88,7 +88,7 @@ func TestCollectServiceWorkloadCandidatesHydratesRepositoryNames(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "w.name = $service_name"):

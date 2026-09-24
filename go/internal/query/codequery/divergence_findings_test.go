@@ -19,14 +19,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // fakeDivergenceStore returns one fixture exact group: the same 210-token
 // body in two files plus a generated third copy the assembly must count
 // but not report.
 type fakeDivergenceStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (fakeDivergenceStore) DivergenceGroupStats(
@@ -192,7 +192,7 @@ func TestCodeHandlerDivergenceFindingsAgreesWithFixture(t *testing.T) {
 // crossKindCollisionStore returns the same fingerprint in both equality
 // families: the P2 case from the #6877 owner review.
 type crossKindCollisionStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (crossKindCollisionStore) DivergenceGroupStats(
@@ -292,7 +292,7 @@ func TestCodeHandlerDivergenceFindingsKeepsCrossKindCollision(t *testing.T) {
 // fp-big (2 good + 1 generated at 100 tokens: stat 300, final 200), and
 // fp-small (2 good at 120 tokens: stat and final 240).
 type suppressionPagingStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (suppressionPagingStore) DivergenceGroupStats(

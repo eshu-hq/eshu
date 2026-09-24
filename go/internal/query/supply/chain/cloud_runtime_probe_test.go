@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -183,7 +183,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 	runningDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	uid := "CloudResource:aws:ecs:task-a"
 	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/aaaaaaaa"
-	graph := &querytestutil.FakeCloudRuntimeGraph{
+	graph := &graph.FakeCloudRuntimeGraph{
 		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
@@ -226,7 +226,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *test
 
 	runningDigest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	staleUID := "CloudResource:aws:ecs:task-gone"
-	graph := &querytestutil.FakeCloudRuntimeGraph{
+	graph := &graph.FakeCloudRuntimeGraph{
 		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(staleUID, runningDigest, "arn:aws:ecs:us-east-1:123456789012:task/demo/gone")},
 		},
@@ -263,7 +263,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testi
 	runningDigest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	uid := "CloudResource:aws:ecs:task-scoped"
 	arn := "arn:aws:ecs:us-east-1:123456789012:task/demo/scoped"
-	graph := &querytestutil.FakeCloudRuntimeGraph{
+	graph := &graph.FakeCloudRuntimeGraph{
 		RowsByDigest: map[string][]map[string]any{runningDigest: {cloudResourceGraphRow(uid, runningDigest, arn)}},
 	}
 	inventory := &stubCloudInventory{
@@ -288,7 +288,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testi
 func TestApplySupplyChainCloudRuntimeEvidenceDoesNotReadGraph(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.FakeCloudRuntimeGraph{Err: errors.New("graph unavailable")}
+	graph := &graph.FakeCloudRuntimeGraph{Err: errors.New("graph unavailable")}
 	digest := "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 	uid := "CloudResource:synthetic:graph-free"
 	inventory := &stubCloudInventory{
@@ -312,7 +312,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T)
 	t.Parallel()
 
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	graph := &querytestutil.FakeCloudRuntimeGraph{RowsByDigest: map[string][]map[string]any{digest: {cloudResourceGraphRow("uid-x", digest, "arn-x")}}}
+	graph := &graph.FakeCloudRuntimeGraph{RowsByDigest: map[string][]map[string]any{digest: {cloudResourceGraphRow("uid-x", digest, "arn-x")}}}
 	inventory := &stubCloudInventory{
 		err:          errors.New("ledger unavailable"),
 		rowsByDigest: graph.RowsByDigest,
@@ -335,7 +335,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceNilStoresAreNoOp(t *testing.T) {
 		t.Fatalf("nil graph error = %v, want nil", err)
 	}
 	// Nil inventory filter (disables the runtime tier rather than surfacing unauthorized evidence).
-	if err := (&Handler{Neo4j: &querytestutil.FakeCloudRuntimeGraph{}}).
+	if err := (&Handler{Neo4j: &graph.FakeCloudRuntimeGraph{}}).
 		applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("nil inventory error = %v, want nil", err)
 	}

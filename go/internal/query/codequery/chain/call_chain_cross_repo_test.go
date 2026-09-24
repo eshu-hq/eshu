@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // TestMain registers the call-chain capability row the moved HTTP tests drive
@@ -61,7 +62,7 @@ func newChainRouteRequest(t *testing.T, body map[string]any, auth *queryauth.Aut
 // map so the reachability disambiguation path can be driven through the route.
 // It embeds the shared port double for the rest of the content port.
 type chainReachabilityContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	byName map[string][]querycontract.EntityContent
 }
 

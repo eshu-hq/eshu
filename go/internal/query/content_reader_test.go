@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
@@ -266,7 +266,7 @@ func TestCodeHandlerSearchEntityContentIncludesMetadata(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: querytestutil.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
+	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: graph.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search",
@@ -321,7 +321,7 @@ func TestCodeHandlerSearchEntityContentIncludesEntityNameMatches(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: querytestutil.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
+	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: graph.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search",

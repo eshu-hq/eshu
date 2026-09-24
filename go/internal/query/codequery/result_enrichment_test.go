@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestEnrichGraphSearchResultsWithContentMetadata(t *testing.T) {
@@ -402,7 +402,7 @@ func TestSearchGraphEntitiesDoesNotDuplicateRepoNameProjection(t *testing.T) {
 // content-reader tests). Twin concern, codequery side: the SQL rows below
 // would live in root, so the entities they scan into are served directly.
 type enrichMetadataFakeStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entities []querycontract.EntityContent
 }
 

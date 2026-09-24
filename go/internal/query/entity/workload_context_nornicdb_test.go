@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
@@ -18,7 +18,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				t.Fatalf("unexpected RunSingle cypher for a name-keyed lookup: %q", cypher)
 				return nil, nil
@@ -200,7 +200,7 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				t.Fatalf("unexpected RunSingle cypher: %q", cypher)
 				return nil, nil
@@ -353,7 +353,7 @@ func TestFetchDeploymentTraceKeepsProvisionedPlatformSeparateWhenInstanceRunsOnM
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 					return map[string]any{"repo_name": "legacy-service"}, nil

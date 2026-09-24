@@ -12,14 +12,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // serviceSelectorReadModelContentStore builds the repository read-model
 // content double the service-catalog handler tests mount. It mirrors the
 // staying repository-selector helper without importing root test files (a
 // symbol declared in a _test.go file cannot cross a package boundary).
-func serviceSelectorReadModelContentStore() querytestutil.FakePortContentStore {
-	return querytestutil.FakePortContentStore{
+func serviceSelectorReadModelContentStore() content.FakePortContentStore {
+	return content.FakePortContentStore{
 		Repositories: []querycontract.RepositoryCatalogEntry{{
 			ID:        "repo://example/api",
 			Name:      "payments-api",

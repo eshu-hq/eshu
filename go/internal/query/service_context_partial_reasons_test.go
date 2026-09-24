@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -36,7 +37,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				// #6786: a name-keyed service lookup reads a bounded candidate set.
 				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
@@ -52,7 +53,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-partial-reasons", "repo_name": "svc-partial-reasons"}}, nil
-				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				default:
 					return nil, nil

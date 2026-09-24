@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // serviceTechFingerprintPartialReasons drives the real mounted GET
@@ -26,7 +27,7 @@ func serviceTechFingerprintPartialReasons(t *testing.T, languagesErr, sourceTool
 	t.Helper()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "collect(DISTINCT dr.id) as defining"):

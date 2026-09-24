@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestResolveWorkloadSelectorScopedNameReadBoundsGrantedRows pins the #6801
@@ -20,9 +20,9 @@ func TestResolveWorkloadSelectorScopedNameReadBoundsGrantedRows(t *testing.T) {
 
 	var scopedCypher, unscopedCypher string
 	var scopedParams map[string]any
-	capture := func(dst *string, params *map[string]any) querytestutil.FakeGraphReader {
-		return querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, p map[string]any) ([]map[string]any, error) {
-			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	capture := func(dst *string, params *map[string]any) graph.FakeGraphReader {
+		return graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, p map[string]any) ([]map[string]any, error) {
+			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 			if strings.Contains(cypher, "w.name = $service_name") {
 				*dst = cypher
 				if params != nil {

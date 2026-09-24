@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestEdgeResourcesFromCloudResourcesFiltersToEdgeTypes(t *testing.T) {
@@ -167,7 +167,7 @@ func TestLoadServiceIngressPostureRunsBoundedQuery(t *testing.T) {
 	}
 
 	var capturedIDs []string
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			ids, _ := params["edge_ids"].([]string)
 			capturedIDs = ids
@@ -210,7 +210,7 @@ func TestLoadServiceIngressPostureUnprovenWhenGraphReturnsNoRow(t *testing.T) {
 	cloudResources := []map[string]any{
 		{"id": "lb-1", "name": "public-alb", "resource_type": "aws_elbv2_load_balancer"},
 	}
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			// Graph returns zero rows: lb-1 is a known edge resource but the
 			// AWS collector slice for it has not yet been collected.
@@ -232,7 +232,7 @@ func TestLoadServiceIngressPostureUnprovenWhenGraphReturnsNoRow(t *testing.T) {
 func TestLoadServiceIngressPostureSkipsQueryWithoutEdges(t *testing.T) {
 	t.Parallel()
 
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			t.Fatal("graph query must not run when there is no edge resource")
 			return nil, nil
@@ -253,7 +253,7 @@ func TestLoadServiceIngressPosturePropagatesGraphError(t *testing.T) {
 	t.Parallel()
 
 	wantErr := errors.New("graph down")
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			return nil, wantErr
 		},

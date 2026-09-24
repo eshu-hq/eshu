@@ -16,6 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleCrossRepoDeadCodeKeepsMaterializedConsumerEvidence(t *testing.T) {
@@ -24,7 +26,7 @@ func TestHandleCrossRepoDeadCodeKeepsMaterializedConsumerEvidence(t *testing.T) 
 	content := &crossRepoDeadCodeMaterializedContentStore{
 		crossRepoDeadCodeContentStore: &crossRepoDeadCodeContentStore{
 			fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-				FakePortContentStore: querytestutil.FakePortContentStore{
+				FakePortContentStore: content.FakePortContentStore{
 					Repositories: []querycontract.RepositoryCatalogEntry{
 						{ID: "repo-producer", Name: "payments-lib"},
 						{ID: "repo-consumer", Name: "checkout-api"},
@@ -72,7 +74,7 @@ func TestHandleCrossRepoDeadCodeKeepsMaterializedConsumerEvidence(t *testing.T) 
 			},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

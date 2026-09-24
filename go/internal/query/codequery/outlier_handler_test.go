@@ -15,14 +15,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // outlierFixtureStore resolves finding members by entity id; group stats
 // stay empty because the outlier track sweeps the graph, never the content
 // store.
 type outlierFixtureStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	membersByID map[string]codedivergence.Member
 }
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 const (
@@ -81,7 +81,7 @@ func TestPreChangeImpactDerivesRepositoryConsumerAnchorFromChangedFiles(t *testi
 	t.Parallel()
 
 	graph := semanticChangeSurfaceGraph()
-	store := querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{{
+	store := content.FakePortContentStore{Entities: []querycontract.EntityContent{{
 		EntityID:     "content-entity:common",
 		EntityName:   "Common",
 		EntityType:   "Function",

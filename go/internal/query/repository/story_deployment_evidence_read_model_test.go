@@ -13,13 +13,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": {
 					"id":         "repo-service",
@@ -36,7 +38,7 @@ func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 				return nil, nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Coverage: querycontract.RepositoryContentCoverage{
 				Available: true,
 				FileCount: 4,

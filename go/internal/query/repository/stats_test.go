@@ -15,6 +15,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t *testing.T) {
@@ -36,7 +38,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 			var runCyphers []string
 			var runSingleCyphers []string
 			handler := &Handler{
-				Neo4j: querytestutil.FakeRepoGraphReader{
+				Neo4j: graph.FakeRepoGraphReader{
 					RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 						runCyphers = append(runCyphers, cypher)
 						return nil, nil
@@ -55,7 +57,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 						return querytestutil.RepositoryStatsGraphRow(), nil
 					},
 				},
-				Content: querytestutil.FakePortContentStore{
+				Content: content.FakePortContentStore{
 					Coverage: querycontract.RepositoryContentCoverage{
 						Available:       true,
 						FileCount:       42,
@@ -124,7 +126,7 @@ func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t 
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "CONTAINS]->(e)") {
 					t.Fatalf("missing-coverage stats path used broad graph aggregation:\n%s", cypher)
@@ -135,7 +137,7 @@ func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t 
 				return querytestutil.RepositoryStatsGraphRow(), nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Coverage: querycontract.RepositoryContentCoverage{
 				Available: true,
 			},
@@ -185,12 +187,12 @@ func TestGetRepositoryStatsLogsMissingCoverageTelemetry(t *testing.T) {
 
 	var logs bytes.Buffer
 	handler := &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 		},
 		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),

@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
@@ -79,7 +80,7 @@ func TestCodeSearchCanonicalRepositoryStartsFromIndexedRepository(t *testing.T) 
 	}
 	handler := &CodeHandler{
 		Neo4j: reader,
-		Content: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{
+		Content: content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{
 			ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments",
 		}}},
 		Profile: ProfileLocalAuthoritative,
@@ -219,7 +220,7 @@ func TestCodeSearchScopedSelectorFiltersDuplicateRepositoryNames(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := ContextWithAuthContext(context.Background(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -241,7 +242,7 @@ func TestCodeSearchScopedSelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := ContextWithAuthContext(context.Background(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -269,7 +270,7 @@ func decodeCodeSearchAuthzBody(t *testing.T, rec *httptest.ResponseRecorder) map
 }
 
 type recordingCodeSearchContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	byRepo             map[string][]EntityContent
 	anyRepo            []EntityContent
 	repoNameCalls      []string

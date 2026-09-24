@@ -6,13 +6,13 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeWorkloadGraphReader adapts querytestutil.FakeWorkloadGraphReader to the
+// fakeWorkloadGraphReader adapts graph.FakeWorkloadGraphReader to the
 // field names this package's tests already use, the same shape
 // fakeRepoGraphReader uses in repository_context_test.go. The dispatch rules
-// live once in querytestutil.FakeWorkloadGraphReader and are not duplicated
+// live once in graph.FakeWorkloadGraphReader and are not duplicated
 // here.
 //
 // FakeWorkloadGraphReader is a distinct type from FakeRepoGraphReader, not an
@@ -30,8 +30,8 @@ type fakeWorkloadGraphReader struct {
 }
 
 // delegate builds the shared fake from this adapter's fields.
-func (f fakeWorkloadGraphReader) delegate() querytestutil.FakeWorkloadGraphReader {
-	return querytestutil.FakeWorkloadGraphReader{
+func (f fakeWorkloadGraphReader) delegate() graph.FakeWorkloadGraphReader {
+	return graph.FakeWorkloadGraphReader{
 		RunSingleByMatch: f.runSingleByMatch,
 		RunByMatch:       f.runByMatch,
 		RunFn:            f.run,

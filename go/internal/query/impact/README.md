@@ -39,10 +39,11 @@ moved here keep an exported boundary for the staying root tests that pin
 them (query text builders, selector predicates, traversal specs, result
 types with exported `Rows`/`Limits` fields or `Rows()`/`Limits()` methods,
 the `entityMapResolverQuery` `Cypher`/`Params` fields). Unexported helpers
-stay unexported; cross-package test pins go through `querytestutil`
-(`FakeGraphReader`, `FakePortContentStore`, `RecordingResourceInvestigationGraph`,
-`SqlBlastRadius*` cleanup probes, `ScopedTestAuthContext`) or `querycontract`
-(row-value decoders, shared bounds, ports).
+stay unexported; cross-package test pins go through `querytestutil/graph`
+(`FakeGraphReader`, `SqlBlastRadius*` cleanup probes), `querytestutil/content`
+(`FakePortContentStore`), and `querytestutil`
+(`RecordingResourceInvestigationGraph`, `ScopedTestAuthContext`), or
+`querycontract` (row-value decoders, shared bounds, ports).
 
 ## Dependencies
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type recordingChangeSurfaceGraph struct {
@@ -369,7 +370,7 @@ func TestInvestigateChangeSurfaceMapsChangedPathSymbolsPastRepoProbeWindow(t *te
 		EndLine:      88,
 	})
 
-	store := &querytestutil.FakePortContentStore{Entities: entities}
+	store := &content.FakePortContentStore{Entities: entities}
 	handler := &Handler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)

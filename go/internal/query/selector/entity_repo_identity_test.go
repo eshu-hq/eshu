@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // fakeRepoIdentityGraphQuery captures the Cypher text and params
@@ -49,7 +49,7 @@ func (f *fakeRepoIdentityGraphQuery) RunSingle(context.Context, string, map[stri
 func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t *testing.T) {
 	t.Parallel()
 
-	graph := &fakeRepoIdentityGraphQuery{
+	reader := &fakeRepoIdentityGraphQuery{
 		rows: []map[string]any{
 			{"entity_id": "workload:1", "repo_id": "repo-1", "repo_name": "repo-one"},
 		},
@@ -63,7 +63,7 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 		"labels": []string{"Workload"},
 	}
 
-	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, reader, nil, []map[string]any{entity}); err != nil {
 		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
 	}
 
@@ -76,27 +76,27 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 		"coalesce(repo.id, repoViaInstance.id) AS repo_id",
 		"coalesce(repo.name, repoViaInstance.name) AS repo_name",
 	} {
-		if !strings.Contains(graph.gotCypher, want) {
-			t.Fatalf("cypher = %q, want it to contain %q", graph.gotCypher, want)
+		if !strings.Contains(reader.gotCypher, want) {
+			t.Fatalf("cypher = %q, want it to contain %q", reader.gotCypher, want)
 		}
 	}
-	if strings.Contains(graph.gotCypher, "direct") {
-		t.Fatalf("cypher = %q, want the retired `direct` variable/comparison gone", graph.gotCypher)
+	if strings.Contains(reader.gotCypher, "direct") {
+		t.Fatalf("cypher = %q, want the retired `direct` variable/comparison gone", reader.gotCypher)
 	}
 
 	wantRepoWhere := "WHERE (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantRepoWhere) {
-		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", graph.gotCypher, wantRepoWhere)
+	if !strings.Contains(reader.gotCypher, wantRepoWhere) {
+		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", reader.gotCypher, wantRepoWhere)
 	}
 	wantViaInstanceWhere := "WHERE (repoViaInstance.id IN $allowed_repository_ids OR repoViaInstance.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantViaInstanceWhere) {
-		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", graph.gotCypher, wantViaInstanceWhere)
+	if !strings.Contains(reader.gotCypher, wantViaInstanceWhere) {
+		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", reader.gotCypher, wantViaInstanceWhere)
 	}
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, graph.gotCypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, reader.gotCypher)
 
-	allowedRepoIDs, ok := graph.gotParams["allowed_repository_ids"].([]string)
+	allowedRepoIDs, ok := reader.gotParams["allowed_repository_ids"].([]string)
 	if !ok || len(allowedRepoIDs) != 1 || allowedRepoIDs[0] != "repo-1" {
-		t.Fatalf("params[allowed_repository_ids] = %#v, want [repo-1]", graph.gotParams["allowed_repository_ids"])
+		t.Fatalf("params[allowed_repository_ids] = %#v, want [repo-1]", reader.gotParams["allowed_repository_ids"])
 	}
 
 	if got, want := entity["repo_id"], "repo-1"; got != want {
@@ -115,7 +115,7 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 func TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo(t *testing.T) {
 	t.Parallel()
 
-	graph := &fakeRepoIdentityGraphQuery{
+	reader := &fakeRepoIdentityGraphQuery{
 		rows: []map[string]any{
 			// The backend's WHERE should have excluded repo-2 (only repo-1
 			// is granted below), but this fake simulates it not doing so.
@@ -131,7 +131,7 @@ func TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo(t *testing.
 		"labels": []string{"Workload"},
 	}
 
-	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, reader, nil, []map[string]any{entity}); err != nil {
 		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
 	}
 
@@ -210,7 +210,7 @@ var _ querycontract.GraphQuery = (*fakeRepoIdentityGraphQuery)(nil)
 func TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission(t *testing.T) {
 	t.Parallel()
 
-	graph := &fakeRepoIdentityGraphQuery{
+	reader := &fakeRepoIdentityGraphQuery{
 		rows: []map[string]any{
 			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
 		},
@@ -229,7 +229,7 @@ func TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission(t *testing
 		"repo_id": "repo-1",
 	}
 
-	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, reader, nil, []map[string]any{entity}); err != nil {
 		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
 	}
 

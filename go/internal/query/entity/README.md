@@ -77,8 +77,8 @@ lookup, and the read model all came back empty.
 Exports exist only for staying callers: the root deployment-trace wrapper,
 the `cmd` wiring alias, and the staying root tests that pin family
 behavior. Unexported helpers stay unexported; cross-package test pins go
-through `querytestutil` (notably `FakePortContentStore` and
-`FakeRepoGraphReader`) or `querycontract`.
+through `querytestutil/content` (notably `FakePortContentStore`) and
+`querytestutil/graph` (`FakeRepoGraphReader`), or `querycontract`.
 
 ## Dependencies
 

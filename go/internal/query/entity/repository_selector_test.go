@@ -12,14 +12,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)") {
 					t.Fatalf("repository-scoped entity resolution is not repository anchored:\n%s", cypher)
@@ -43,7 +44,7 @@ func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 				}}, nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{
 				ID:        "repo-1",
 				Name:      "payments",
@@ -73,13 +74,13 @@ func TestResolveEntityMissingCanonicalContentIDSkipsBroadGraphNameScan(t *testin
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				t.Fatalf("missing canonical content ID reached graph name scan:\n%s", cypher)
 				return nil, nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{},
+		Content: content.FakePortContentStore{},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -30,9 +30,9 @@ func sameNameWorkloadRows() []map[string]any {
 // same-name workloads. RunSingle hands back the ungranted row for any
 // name-keyed Workload read, the way an unordered `LIMIT 1` can on a real
 // backend; Run answers the bounded candidate read with both rows.
-func sameNameWorkloadGraph(t *testing.T, nameRows []map[string]any) querytestutil.FakeGraphReader {
+func sameNameWorkloadGraph(t *testing.T, nameRows []map[string]any) graph.FakeGraphReader {
 	t.Helper()
-	return querytestutil.FakeGraphReader{
+	return graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.name = $service_name") {
 				return nameRows[0], nil
@@ -40,7 +40,7 @@ func sameNameWorkloadGraph(t *testing.T, nameRows []map[string]any) querytestuti
 			return nil, nil
 		},
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 				for _, row := range nameRows {
@@ -129,7 +129,7 @@ func TestFetchServiceWorkloadContextNameDenialThenIDAdmitCountsNoDenial(t *testi
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "w.name = $service_name"):
@@ -174,7 +174,7 @@ func TestFetchServiceWorkloadContextDeniedByAllLookupsCountsOneDenial(t *testing
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "w.name = $service_name"):

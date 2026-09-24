@@ -10,7 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestQueryProvisioningRepositoryCandidatesDisclosesTruncation is the #5720
@@ -39,7 +40,7 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 				"relationship_reason": "",
 			})
 		}
-		reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+		reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 			if got, want := params["limit"], limit+1; got != want {
 				t.Fatalf("params[limit] = %#v, want %#v (must probe one row past the caller limit to detect truncation)", got, want)
 			}
@@ -69,7 +70,7 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 				"relationship_reason": "",
 			})
 		}
-		reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+		reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 			if got, want := params["limit"], limit+1; got != want {
 				t.Fatalf("params[limit] = %#v, want %#v", got, want)
 			}
@@ -371,7 +372,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 			hostnames = append(hostnames, fmt.Sprintf("vanity-%02d.example.test", index))
 		}
 		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
-			context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
+			context.Background(), nil, content.FakePortContentStore{}, "repository:orders", "orders-api",
 			hostnames, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
@@ -423,7 +424,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 
 		// The signal has to survive the call that actually reaches the wire.
 		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
-			context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
+			context.Background(), nil, content.FakePortContentStore{}, "repository:orders", "orders-api",
 			hostnames, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
@@ -451,7 +452,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 				RelativePath: fmt.Sprintf("deploy/values-%02d.yaml", index),
 			})
 		}
-		content := querytestutil.PatternConsumerSearchContentStore{
+		content := content.PatternConsumerSearchContentStore{
 			ExactRows: map[string][]querycontract.FileContent{"orders-api": rows},
 		}
 		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
@@ -473,7 +474,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		t.Parallel()
 
 		const limit = 3
-		content := querytestutil.PatternConsumerSearchContentStore{
+		content := content.PatternConsumerSearchContentStore{
 			ExactRows: map[string][]querycontract.FileContent{
 				"orders-api": {{RepoID: "repository:search-consumer", RelativePath: "deploy/values.yaml"}},
 			},

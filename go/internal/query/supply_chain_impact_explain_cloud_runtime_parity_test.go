@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -35,14 +35,14 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 	uid := "CloudResource:aws:ecs:task-parity"
 	ecsARN := "arn:example:compute:::resource/dddddddd"
 
-	graph := &querytestutil.FakeCloudRuntimeGraph{
+	reader := &graph.FakeCloudRuntimeGraph{
 		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
 	inventory := &stubCloudInventory{
 		currentAuthorized: map[string]struct{}{uid: {}},
-		rowsByDigest:      graph.RowsByDigest,
+		rowsByDigest:      reader.RowsByDigest,
 	}
 
 	finding := impact.FindingRow{
@@ -65,7 +65,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		ImpactFindings:         findingsStore,
 		ImpactExplanations:     explanationStore,
 		Readiness:              readiness,
-		Neo4j:                  graph,
+		Neo4j:                  reader,
 		CloudResourceInventory: inventory,
 	}
 	mux := http.NewServeMux()
@@ -124,7 +124,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	t.Parallel()
 
 	digest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
+	reader := &graph.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-parity", "edge_scope_id": "edge-scope", "edge_generation_id": "edge-generation",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
@@ -141,7 +141,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}},
 		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.ExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
-		Neo4j:                       graph,
+		Neo4j:                       reader,
 		KubernetesWorkloadInventory: inventory,
 	}
 	mux := http.NewServeMux()
@@ -183,7 +183,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	if !reflect.DeepEqual(explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe) {
 		t.Fatalf("explain probe metadata = %#v, want list metadata %#v", explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe)
 	}
-	if got, _ := graph.Snapshot(); got != 2 {
+	if got, _ := reader.Snapshot(); got != 2 {
 		t.Fatalf("graph Run calls = %d, want one per route", got)
 	}
 }
@@ -200,7 +200,7 @@ func TestSupplyChainListAndExplainMapKubernetesGraphUnavailable(t *testing.T) {
 		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}},
 		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.ExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
-		Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Err: ErrGraphUnavailable},
+		Neo4j:                       &graph.FakeKubernetesRuntimeGraph{Err: ErrGraphUnavailable},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
 	}
 	mux := http.NewServeMux()
@@ -276,7 +276,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 		RepositoryID: repositoryID,
 	}
 
-	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+	contextStore := &graph.FakeRuntimeContextFindingStore{
 		Rows: []impact.FindingRow{finding},
 		ByRepo: map[string]impact.RuntimeContext{
 			repositoryID: {
@@ -348,14 +348,14 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 	ecsARN := "arn:example:compute:::resource/eeeeeeee"
 	repositoryID := "repository:r_packet_parity"
 
-	graph := &querytestutil.FakeCloudRuntimeGraph{
+	reader := &graph.FakeCloudRuntimeGraph{
 		RowsByDigest: map[string][]map[string]any{
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
 	inventory := &stubCloudInventory{
 		currentAuthorized: map[string]struct{}{uid: {}},
-		rowsByDigest:      graph.RowsByDigest,
+		rowsByDigest:      reader.RowsByDigest,
 	}
 
 	finding := impact.FindingRow{
@@ -366,7 +366,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		SubjectDigest: runningDigest,
 		RepositoryID:  repositoryID,
 	}
-	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+	contextStore := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			repositoryID: {WorkloadIDs: []string{"workload:example-api"}},
 		},
@@ -380,7 +380,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		ImpactFindings:         contextStore,
 		ImpactExplanations:     explanationStore,
 		Readiness:              readiness,
-		Neo4j:                  graph,
+		Neo4j:                  reader,
 		CloudResourceInventory: inventory,
 		PacketResponder:        NewSupplyChainImpactPacketResponder(),
 	}
@@ -394,8 +394,8 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		t.Fatalf("packet status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	if len(graph.GotDigests) != 0 {
-		t.Fatalf("cloud-runtime probe digests = %#v, want none for a packet shape that omits runtime evidence", graph.GotDigests)
+	if len(reader.GotDigests) != 0 {
+		t.Fatalf("cloud-runtime probe digests = %#v, want none for a packet shape that omits runtime evidence", reader.GotDigests)
 	}
 	if len(inventory.gotCandidates) != 0 {
 		t.Fatalf("cloud-runtime probe candidates = %#v, want none", inventory.gotCandidates)

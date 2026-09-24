@@ -14,14 +14,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveEntityHonorsLimitAndReturnsEnvelope(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want parameterized bounded LIMIT", cypher)
@@ -36,7 +37,7 @@ func TestResolveEntityHonorsLimitAndReturnsEnvelope(t *testing.T) {
 				}, nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_proof", Name: "proof"}}},
+		Content: content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_proof", Name: "proof"}}},
 		Profile: querycontract.ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
@@ -77,7 +78,7 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 
 	resolveQuerySeen := false
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)") {
 					return []map[string]any{}, nil
@@ -135,7 +136,7 @@ func TestResolveEntityWorkloadTypeDoesNotFallbackToContent(t *testing.T) {
 	}
 	handler := &EntityHandler{
 		Content: content,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return []map[string]any{}, nil
 			},
@@ -163,7 +164,7 @@ func TestResolveEntityWorkloadEmptyGrantUsesAuthoritativeGraphTruth(t *testing.T
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		Neo4j: graph.FakeGraphReader{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			t.Fatal("empty scoped access must not query the graph")
 			return nil, nil
 		}},

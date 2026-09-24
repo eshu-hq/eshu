@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // impact_blast_radius_sql_table_bite_live_test.go is the standing bite proof
@@ -68,7 +68,7 @@ func TestSQLTableBlastRadiusReportsUnseededBranchMissingLive(t *testing.T) {
 	reader := sqlBlastRadiusLiveReader(ctx, t)
 
 	branches := sqlBlastRadiusBranchesFor(sqlBlastRadiusBitePrefix)
-	table := querytestutil.SqlBlastRadiusTableFor(sqlBlastRadiusBitePrefix)
+	table := graph.SqlBlastRadiusTableFor(sqlBlastRadiusBitePrefix)
 	cleanup := func() { sqlBlastRadiusCleanup(t, reader, sqlBlastRadiusBitePrefix) }
 	cleanup()
 	t.Cleanup(cleanup)

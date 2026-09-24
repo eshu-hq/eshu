@@ -118,3 +118,54 @@ func TestSomething(t *testing.T) {
 		t.Fatalf("DiscoverQueryCallsites() error = %v, want a _test.go import of the helper package accepted", err)
 	}
 }
+
+// TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf
+// covers the nested leaves #6642 split out of the helper package
+// (querytestutil/content and querytestutil/graph). They are the same test
+// doubles one directory down, so a production import of one is the same
+// defect. A check on the trailing path element alone missed them.
+func TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf(t *testing.T) {
+	for _, leaf := range []string{"content", "graph"} {
+		t.Run(leaf, func(t *testing.T) {
+			dir := t.TempDir()
+			importPath := "github.com/eshu-hq/eshu/go/internal/query/querytestutil/" + leaf
+			consumer := "package query\n\nimport \"" + importPath + "\"\n\nvar _ = " + leaf + ".Anything\n"
+			if err := os.WriteFile(filepath.Join(dir, "handler.go"), []byte(consumer), 0o600); err != nil {
+				t.Fatalf("write consumer fixture: %v", err)
+			}
+
+			_, err := DiscoverQueryCallsites(dir)
+			if err == nil {
+				t.Fatalf("DiscoverQueryCallsites() error = nil, want a rejected production import of %s", importPath)
+			}
+			if !strings.Contains(err.Error(), importPath) {
+				t.Fatalf("DiscoverQueryCallsites() error = %v, want it to name %q", err, importPath)
+			}
+		})
+	}
+}
+
+// TestDiscoverQueryCallsitesAcceptsHelperTreeImportingItsOwnLeaf pins the
+// other side of the widened match. A double under the helper tree may build on
+// another double there; that is test code reaching test code, not production
+// reaching a fake. A package whose last element merely starts with the
+// helper's name is unrelated and must not match either.
+func TestDiscoverQueryCallsitesAcceptsHelperTreeImportingItsOwnLeaf(t *testing.T) {
+	dir := t.TempDir()
+	leafDir := filepath.Join(dir, testOnlyHelperPackage, "graph")
+	if err := os.MkdirAll(leafDir, 0o700); err != nil {
+		t.Fatalf("create helper leaf directory: %v", err)
+	}
+	sibling := "package graph\n\nimport \"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content\"\n\nvar _ = content.Anything\n"
+	if err := os.WriteFile(filepath.Join(leafDir, "store.go"), []byte(sibling), 0o600); err != nil {
+		t.Fatalf("write helper leaf fixture: %v", err)
+	}
+	lookalike := "package query\n\nimport \"example.com/querytestutilities\"\n\nvar _ = querytestutilities.Anything\n"
+	if err := os.WriteFile(filepath.Join(dir, "handler.go"), []byte(lookalike), 0o600); err != nil {
+		t.Fatalf("write lookalike fixture: %v", err)
+	}
+
+	if _, err := DiscoverQueryCallsites(dir); err != nil {
+		t.Fatalf("DiscoverQueryCallsites() error = %v, want the helper tree and a lookalike package accepted", err)
+	}
+}

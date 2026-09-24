@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t *testing.T) {
@@ -22,7 +23,7 @@ func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				call := recordServiceCloudResourceGraphCall(params)
 				graphCalls = append(graphCalls, call)
@@ -101,7 +102,7 @@ func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					materializedCalls++
@@ -175,7 +176,7 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
@@ -239,7 +240,7 @@ func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t 
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
@@ -311,7 +312,7 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					if params["workload_id"] != "workload:orders-api" {
@@ -360,7 +361,7 @@ func TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence(t *test
 	calls := 0
 	got, err := loadConfigDerivedCloudResourceDependencies(
 		t.Context(),
-		querytestutil.FakeGraphReader{
+		graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				calls++
 				return nil, nil

@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeUsesNornicDBCompatibleCandidateQuery(t *testing.T) {
@@ -27,7 +27,7 @@ func TestHandleDeadCodeUsesNornicDBCompatibleCandidateQuery(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNornicDB,
 		Profile:      querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "WHERE NOT ()-[:CALLS|IMPORTS|REFERENCES|INHERITS]->(e)") {
 					t.Fatalf("cypher = %q, want NornicDB dead-code query to avoid inline NOT pattern", cypher)
@@ -131,7 +131,7 @@ func TestHandleDeadCodeExcludesNonCodeEntitiesFromBackendRows(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return []map[string]any{
 					{
@@ -218,7 +218,7 @@ func TestHandleDeadCodeExcludesGoPublicAPIRootsOutsideInternalPackages(t *testin
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
@@ -298,7 +298,7 @@ func TestHandleDeadCodeRespectsLimitAndReportsTruncation(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
@@ -389,7 +389,7 @@ func TestHandleDeadCodeFetchesPolicyBufferBeforeApplyingLimit(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				queryLimit, ok := params["limit"].(int)
 				if !ok {

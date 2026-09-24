@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // consumerSelectorProducerEntity is the single dead-code candidate
@@ -126,7 +127,7 @@ func crossRepoDeadCodeConsumerRowSet(entityID string, noiseRows int) []filtering
 // (below), which cannot move to codequery without recreating ContentReader
 // there. See #6060.
 type deadCodeGrantContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	bound   []string
 	queried bool
 }

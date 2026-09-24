@@ -15,14 +15,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // wrapperFixtureStore nominates one thin wrapper family: five 12-token
 // recordAPICall copies across packages. Twelve tokens sit below the floor
 // on purpose, so the test proves the floor never applies to nomination.
 type wrapperFixtureStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	membersByID map[string]codedivergence.Member
 }
 

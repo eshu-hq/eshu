@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestRepositoryDependencyClustersAssignsConnectedComponents proves that the
@@ -202,7 +202,7 @@ func TestLoadRepositoryDependencyEdgesReportsQueryError(t *testing.T) {
 	t.Parallel()
 
 	wantErr := errors.New("graph unavailable")
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			return nil, wantErr
 		},
@@ -235,7 +235,7 @@ func TestLoadRepositoryDependencyEdgesDetectsTruncation(t *testing.T) {
 			"target_id": fmt.Sprintf("repository:dst-%06d", i),
 		})
 	}
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			return dependencyEdgeRowsForRead(cypher, rows), nil
 		},
@@ -266,7 +266,7 @@ func TestLoadRepositoryDependencyEdgesUntruncatedAtTheBound(t *testing.T) {
 			"target_id": fmt.Sprintf("repository:dst-%06d", i),
 		})
 	}
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			return dependencyEdgeRowsForRead(cypher, rows), nil
 		},
@@ -341,7 +341,7 @@ func TestLogRepositoryDependencyEdgesDegradation(t *testing.T) {
 // scoped edge pre-pass query's "WHERE %s AND %s" join keeps AND on the same
 // line as its left operand (immediately preceded by a space from the format
 // string), never directly after the query's leading "\n\t\tWHERE" newline
-// and tabs. See querytestutil.AssertCypherHasNoBrokenAndOr for the NornicDB v1.3.3
+// and tabs. See graph.AssertCypherHasNoBrokenAndOr for the NornicDB v1.3.3
 // defect this guards (#6786 X4) and its seeded RED/GREEN proof.
 func TestRepositoryDependencyClusterEdgeCypherAndOrPrecededBySpace(t *testing.T) {
 	t.Parallel()
@@ -351,7 +351,7 @@ func TestRepositoryDependencyClusterEdgeCypherAndOrPrecededBySpace(t *testing.T)
 		Allowed:              map[string]struct{}{"repository:a": {}},
 	}
 	cypher := repositoryDependencyClusterEdgeCypher(scoped)
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 }
 
 // TestRepositoryDependencyClusterEdgeCypherScopesBothEndpoints proves the

@@ -11,14 +11,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestListRepositoriesReturnsBoundedEnvelopeFromContentCatalog(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:one", Name: "one"},
 				{ID: "repository:two", Name: "two"},
@@ -69,7 +70,7 @@ func TestListRepositoriesTotalIsIndependentOfPageSize(t *testing.T) {
 
 	// Content store has three repositories; request only one per page.
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:one", Name: "one"},
 				{ID: "repository:two", Name: "two"},
@@ -111,7 +112,7 @@ func TestListRepositoriesTotalFromGraphIsIndependentOfPageSize(t *testing.T) {
 		{"id": "repository:alpha", "name": "alpha", "path": "", "local_path": "", "remote_url": "", "repo_slug": "", "has_remote": false, "is_dependency": false},
 	}
 	// The graph has 42 repositories in total; the page limit is 1.
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if isRepositoryCountCypher(cypher) {
 				return []map[string]any{{"total": int64(42)}}, nil

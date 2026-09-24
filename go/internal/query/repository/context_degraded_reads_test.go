@@ -15,6 +15,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // contextDegradedReadMarkers maps each auxiliary graph read the repository
@@ -43,7 +45,7 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 	t.Parallel()
 
 	readErr := errors.New("graph query exceeded its deadline")
-	reader := querytestutil.FakeGraphReader{
+	reader := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 				return map[string]any{"id": "repository:repo-a", "name": "repo-a"}, nil
@@ -98,7 +100,7 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 func TestRepositoryContextEmptyReadsAreNotDegraded(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{
+	reader := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 				return map[string]any{"id": "repository:repo-a", "name": "repo-a"}, nil
@@ -142,7 +144,7 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 	t.Parallel()
 
 	readErr := errors.New("graph query exceeded its deadline")
-	reader := querytestutil.FakeGraphReader{
+	reader := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 				return map[string]any{"id": "repository:repo-a", "name": "repo-a"}, nil
@@ -165,7 +167,7 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 			return []map[string]any{}, nil
 		},
 	}
-	content := querytestutil.FakePortContentStore{
+	content := content.FakePortContentStore{
 		RelationshipReadModel: querycontract.RepositoryRelationshipReadModel{
 			Available: true,
 			Relationships: []map[string]any{{

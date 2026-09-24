@@ -9,11 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type fluxCrossRepoContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entitiesByRepo map[string][]querycontract.EntityContent
 }
 
@@ -146,7 +146,7 @@ func TestFetchControllerEntitiesReturnsFluxControllersFromDeploymentSources(t *t
 	// (package-query import would cycle through family_impact_shim.go), and
 	// the SQL decoding layer stays covered by the root content_reader tests.
 	// See #6060.
-	handler := &Handler{Content: &querytestutil.FakePortContentStore{
+	handler := &Handler{Content: &content.FakePortContentStore{
 		Entities: []querycontract.EntityContent{
 			{
 				EntityID: "flux-kustomization-1", RepoID: "repo-deploy", RelativePath: "clusters/prod/apps-kustomization.yaml",

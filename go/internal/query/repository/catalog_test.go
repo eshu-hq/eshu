@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // catalogGraphRows routes the catalog handler's bounded graph queries to fake
@@ -27,9 +28,9 @@ type catalogGraphRows struct {
 	evidence     []map[string]any
 }
 
-func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) querytestutil.FakeRepoGraphReader {
+func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) graph.FakeRepoGraphReader {
 	t.Helper()
-	return querytestutil.FakeRepoGraphReader{
+	return graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (r:Repository)"):
@@ -242,7 +243,7 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			WorkloadIdentities: []querycontract.CatalogWorkloadIdentityEntry{
 				{
 					Name:     "svc-catalog",
@@ -251,7 +252,7 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 				},
 			},
 		},
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunByMatch: map[string][]map[string]any{
 				"MATCH (r:Repository)": {},
 				"MATCH (w:Workload)":   {},
@@ -350,7 +351,7 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 		captured[key] = entry
 	}
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"):
@@ -404,7 +405,7 @@ func TestListCatalogSkipsEnrichmentWhenNoWorkloads(t *testing.T) {
 	t.Parallel()
 
 	enrichmentRan := false
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"),

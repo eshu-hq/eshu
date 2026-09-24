@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // fetchWorkloadContextResultKeys is the reviewed key list for
@@ -124,7 +125,7 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (w:Workload) WHERE") {
 					return nil, nil
@@ -141,7 +142,7 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
 				case strings.Contains(cypher, "<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-1", "repo_name": "api"}}, nil

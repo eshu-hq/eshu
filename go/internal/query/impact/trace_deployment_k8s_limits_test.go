@@ -10,17 +10,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type recordingK8sContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows       []querycontract.EntityContent
 	queryLimit int
 }
 
 type recordingDeploymentSourceGitOpsContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows       []querycontract.EntityContent
 	queryLimit int
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // #5167 code-family batch 1, step 1: two-tenant grant proof for
@@ -48,7 +49,7 @@ const (
 )
 
 type codeTopicGrantContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows     []CodeTopicEvidenceRow
 	requests []CodeTopicInvestigationRequest
 	queried  bool

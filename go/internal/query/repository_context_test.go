@@ -15,9 +15,10 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeRepoGraphReader adapts querytestutil.FakeRepoGraphReader to the field
+// fakeRepoGraphReader adapts graph.FakeRepoGraphReader to the field
 // names this package's tests already use. Keeping the lowercase names means
 // none of the tests below needed to change when the dispatch logic moved out
 // to querytestutil for the #6060 family split -- a symbol declared in this
@@ -25,7 +26,7 @@ import (
 // family could not otherwise reach the fake its tests depend on.
 //
 // The dispatch rules, including the single-entry RunSingle fallback, are NOT
-// duplicated here. They live once in querytestutil.FakeRepoGraphReader; a
+// duplicated here. They live once in graph.FakeRepoGraphReader; a
 // second copy would drift from the real port and keep passing while guarding
 // nothing.
 type fakeRepoGraphReader struct {
@@ -38,8 +39,8 @@ type fakeRepoGraphReader struct {
 }
 
 // delegate builds the shared fake from this adapter's fields.
-func (f fakeRepoGraphReader) delegate() querytestutil.FakeRepoGraphReader {
-	return querytestutil.FakeRepoGraphReader{
+func (f fakeRepoGraphReader) delegate() graph.FakeRepoGraphReader {
+	return graph.FakeRepoGraphReader{
 		RunSingleByMatch: f.runSingleByMatch,
 		RunByMatch:       f.runByMatch,
 		RunFn:            f.run,

@@ -13,14 +13,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeReturnsGraphBackedPythonSemantics(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)

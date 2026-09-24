@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestQueryRepoInfrastructureFiltersNonInfrastructureGraphRows(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 				t.Fatalf("cypher = %q, want repository anchored infrastructure query", cypher)
@@ -63,7 +64,7 @@ func TestQueryRepoInfrastructureFromGraphBoundsRowsWithNamedLimit(t *testing.T) 
 
 	var sawLimitClause bool
 	var sawLimitParam any
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			sawLimitClause = strings.Contains(cypher, "LIMIT $limit")
 			sawLimitParam = params["limit"]
@@ -85,7 +86,7 @@ func TestQueryRepoInfrastructureFromGraphBoundsRowsWithNamedLimit(t *testing.T) 
 func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 				t.Fatalf("cypher = %q, want content infrastructure rows before graph fallback", cypher)
@@ -93,7 +94,7 @@ func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 			return nil, nil
 		},
 	}
-	content := querytestutil.FakePortContentStore{
+	content := content.FakePortContentStore{
 		Entities: []querycontract.EntityContent{
 			{
 				EntityType:   "K8sResource",
@@ -134,7 +135,7 @@ func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 // test can assert on the probe itself rather than only on its downstream
 // effect.
 type limitCapturingContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	capturedLimit int
 	entities      []querycontract.EntityContent
 }
@@ -162,7 +163,7 @@ func TestQueryRepoInfrastructureFromContentProbesOneRowPastTheLimit(t *testing.T
 	t.Parallel()
 
 	spy := &limitCapturingContentStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{Entities: []querycontract.EntityContent{
+		FakePortContentStore: content.FakePortContentStore{Entities: []querycontract.EntityContent{
 			{EntityType: "K8sResource", EntityName: "api", RelativePath: "deploy/api.yaml"},
 		}},
 	}
@@ -192,7 +193,7 @@ func TestQueryRepoInfrastructureFromContentProbesOneRowPastTheLimit(t *testing.T
 func TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			t.Fatal("graph read called, want content rows to satisfy the read without a graph fallback")
 			return nil, nil
@@ -206,7 +207,7 @@ func TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit(t *testing.T
 			RelativePath: fmt.Sprintf("deploy/res-%d.yaml", i),
 		}
 	}
-	content := querytestutil.FakePortContentStore{Entities: entities}
+	content := content.FakePortContentStore{Entities: entities}
 
 	got, truncated, err := queryRepoInfrastructureRows(
 		t.Context(),
@@ -240,7 +241,7 @@ func TestQueryRepoInfrastructureFromContentNoTruncationAtLimit(t *testing.T) {
 			RelativePath: fmt.Sprintf("deploy/res-%d.yaml", i),
 		}
 	}
-	content := querytestutil.FakePortContentStore{Entities: entities}
+	content := content.FakePortContentStore{Entities: entities}
 
 	got, truncated := queryRepoInfrastructureFromContent(t.Context(), content, "repo-1")
 	if truncated {
@@ -265,7 +266,7 @@ func TestQueryRepoInfrastructureFromContentNoTruncationAtLimit(t *testing.T) {
 func TestQueryRepoInfrastructureFromGraphSignalsTruncationAtLimit(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 			limit := querycontract.IntVal(params, "limit")
 			rows := make([]map[string]any, limit)
@@ -326,7 +327,7 @@ func TestQueryRepoInfrastructureFromContentIgnoresNonInfrastructureEntityCount(t
 	if len(entities) != repositoryInfrastructureEntityLimit+1 {
 		t.Fatalf("test setup: len(entities) = %d, want %d (limit+1)", len(entities), repositoryInfrastructureEntityLimit+1)
 	}
-	content := querytestutil.FakePortContentStore{Entities: entities}
+	content := content.FakePortContentStore{Entities: entities}
 
 	got, truncated := queryRepoInfrastructureFromContent(t.Context(), content, "repo-1")
 	if truncated {
@@ -350,7 +351,7 @@ func TestQueryRepoInfrastructureFromContentIgnoresNonInfrastructureEntityCount(t
 func TestQueryRepoInfrastructureFromGraphNoTruncationAtLimit(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			rows := make([]map[string]any, repositoryInfrastructureEntityLimit)
 			for i := range rows {

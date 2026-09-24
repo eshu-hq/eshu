@@ -15,10 +15,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeGraphReader adapts querytestutil.FakeGraphReader to the field names this
+// fakeGraphReader adapts graph.FakeGraphReader to the field names this
 // package's tests already use. 155 test files in package query build it with
 // keyed literals, so the field names stay lowercase and those files are
 // untouched.
@@ -36,8 +36,8 @@ type fakeGraphReader struct {
 }
 
 // delegate builds the shared fake from this adapter's fields.
-func (f fakeGraphReader) delegate() querytestutil.FakeGraphReader {
-	return querytestutil.FakeGraphReader{
+func (f fakeGraphReader) delegate() graph.FakeGraphReader {
+	return graph.FakeGraphReader{
 		RunFn:         f.run,
 		RunIncomingFn: f.runIncoming,
 		RunSingleFn:   f.runSingle,

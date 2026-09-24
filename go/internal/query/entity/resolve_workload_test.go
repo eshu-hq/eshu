@@ -15,13 +15,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testing.T) {
 	t.Parallel()
 	propertyQuerySeen := false
 	definingQuerySeen := false
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "[:CONTAINS]") {
 			t.Fatalf("workload resolver must not use content-entity ownership:\n%s", cypher)
 		}
@@ -88,7 +90,7 @@ func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testi
 
 func TestResolveEntityWorkloadFallsBackToDefiningRepository(t *testing.T) {
 	t.Parallel()
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "MATCH (repo:Repository) WHERE repo.id IN $repo_ids"):
 			return []map[string]any{{"repo_id": "repo-legacy", "repo_name": "legacy"}}, nil
@@ -127,7 +129,7 @@ func TestResolveEntityWorkloadFallsBackToDefiningRepository(t *testing.T) {
 
 func TestResolveEntityWorkloadPropertyOnlyHydratesRepositoryFromGraph(t *testing.T) {
 	t.Parallel()
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)"):
 			return []map[string]any{}, nil
@@ -164,7 +166,7 @@ func TestResolveEntityWorkloadDedupesBeforeRepositoryHydration(t *testing.T) {
 	t.Parallel()
 	handler := &Handler{
 		Content: failingListRepositoriesContentStore{},
-		Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		Neo4j: graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)"):
 				if !strings.Contains(cypher, "min(repo.id)") || !strings.Contains(cypher, "LIMIT $limit") {
@@ -207,7 +209,7 @@ func TestResolveEntityWorkloadDedupesBeforeRepositoryHydration(t *testing.T) {
 }
 
 type failingListRepositoriesContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (failingListRepositoriesContentStore) ListRepositories(context.Context) ([]querycontract.RepositoryCatalogEntry, error) {

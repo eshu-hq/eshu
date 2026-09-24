@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // searchEntitiesForGrant (codequery/relationships/story/resolution.go) and
@@ -35,7 +36,7 @@ import (
 // entitySearchDispatchPlainStore below, so the fixture data the three
 // exercise cannot quietly diverge.
 type entitySearchDispatchGrantBoundStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (s *entitySearchDispatchGrantBoundStore) SearchEntitiesByLanguageAndTypeForAccess(
@@ -49,7 +50,7 @@ func (s *entitySearchDispatchGrantBoundStore) SearchEntitiesByLanguageAndTypeFor
 // ContentStore double, mirroring package query's languageQueryPlainContentStore
 // (auth_scoped_language_query_grant_test.go).
 type entitySearchDispatchPlainStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (s *entitySearchDispatchPlainStore) SearchEntitiesByLanguageAndType(

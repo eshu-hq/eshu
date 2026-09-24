@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // The scoped incoming-edge probe answers two questions about one candidate at
@@ -337,7 +338,7 @@ func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 			"edge_count":         1,
 		}}, nil
 	}
-	graph := querytestutil.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
+	graph := graph.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
 	results := []map[string]any{{
 		"entity_id": deadCodeHiddenConsumerEntityID,
 		"repo_id":   codeGrantGrantedRepo,
@@ -449,7 +450,7 @@ func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadcod
 			"edge_count":         1,
 		}}, nil
 	}
-	probeGraph := querytestutil.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
+	probeGraph := graph.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
 	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	ctx := queryauth.ContextWithAuthContext(context.Background(), auth)
 	graph, err := deadCodeTestIncomingEdges(probeGraph)(ctx, []map[string]any{{

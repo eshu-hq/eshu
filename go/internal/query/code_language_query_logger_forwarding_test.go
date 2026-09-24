@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestCodeHandlerMountForwardsLoggerToLanguageQueryHandler is the #5761 P1-1
@@ -38,7 +38,7 @@ func TestCodeHandlerMountForwardsLoggerToLanguageQueryHandler(t *testing.T) {
 	genericErr := errors.New("private driver detail")
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			return nil, genericErr
 		},

@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestDeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel(t *testing.T) {
@@ -42,7 +42,7 @@ func TestHandleDeadCodeReportsSharedTotalAndPerLabelCandidateScanLimits(t *testi
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return nil, nil
 			},
@@ -78,7 +78,7 @@ func TestHandleDeadCodeReportsSharedTotalAndPerLabelCandidateScanLimits(t *testi
 func TestHandleDeadCodeRejectsUnknownCandidateKind(t *testing.T) {
 	t.Parallel()
 
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -99,7 +99,7 @@ func TestDeadCodeScanRestrictsWorkAndMetadataToRequestedCandidateKind(t *testing
 	t.Parallel()
 
 	store := &recordingDeadCodeKindStore{}
-	analyzer := newDeadCodeTestAnalyzer(store, querytestutil.FakeGraphReader{})
+	analyzer := newDeadCodeTestAnalyzer(store, graph.FakeGraphReader{})
 	scan, err := analyzer.ScanDeadCodeCandidates(context.Background(), deadcode.DeadCodeRequest{
 		CandidateKind: "Trait",
 		Limit:         10,
@@ -147,7 +147,7 @@ func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:Function") {
 					return nil, nil

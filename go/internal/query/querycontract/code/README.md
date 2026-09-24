@@ -8,7 +8,7 @@ Dead-code contract types, declared once for every package that helps answer
 No single package owns a dead-code answer. The content readers in
 `internal/query` fetch candidates, `internal/query/codequery/deadcode` scans
 and filters them, `internal/query/impact` walks exposure paths, and
-`internal/query/querytestutil` fakes the store for tests. None of them can
+`internal/query/querytestutil/content` fakes the store for tests. None of them can
 import the others without a cycle, so the shapes they pass between each other
 have to sit below all of them.
 
@@ -29,7 +29,7 @@ OpenAPI contract test names this package directly, so the advertised
 ## Dependencies
 
 Inbound: 30 files across `internal/query`, `codequery`, `codequery/deadcode`,
-`codemodel`, `impact` and `querytestutil`.
+`codemodel`, `impact` and `querytestutil/content`.
 
 Outbound: `strings`, and nothing else. Not the parent `querycontract`, not any
 other Eshu package. That is why the move out of `querycontract` needed no

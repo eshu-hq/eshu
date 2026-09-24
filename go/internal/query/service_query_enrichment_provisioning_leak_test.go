@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // crossTenantProvisioningGraph resolves the orders-api workload anchored on the
@@ -24,8 +25,8 @@ import (
 // ["consumer_repositories"], and ["provisioning_source_chains"] unfiltered
 // (query_enrichment.go, #5167 W3 P0 fifth vector). Every other
 // enrichment query returns no rows.
-func crossTenantProvisioningGraph() querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
+func crossTenantProvisioningGraph() graph.FakeGraphReaderWithSingle {
+	return graph.FakeGraphReaderWithSingle{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):

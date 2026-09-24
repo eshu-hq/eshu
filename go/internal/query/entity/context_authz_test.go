@@ -12,18 +12,19 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetEntityContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{
+	reader := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 			if !strings.Contains(cypher, "allowed_repository_ids") {
 				t.Fatalf("entity context query missing scoped repository predicate:\n%s", cypher)
 			}
-			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 			allowed, ok := params["allowed_repository_ids"].([]string)
 			if !ok || len(allowed) != 1 || allowed[0] != "repo-team-a" {
 				t.Fatalf("allowed_repository_ids = %#v, want repo-team-a", params["allowed_repository_ids"])
@@ -149,7 +150,7 @@ func (r *recordingEntityContextGraphReader) RunSingle(
 }
 
 type recordingEntityContextContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entity                *querycontract.EntityContent
 	getEntityCalls        int
 	listRepoEntitiesCalls int

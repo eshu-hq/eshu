@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // entityContextFakeContentStore backs a single GetEntityContent lookup plus
@@ -18,7 +19,7 @@ import (
 // end-to-end through buildContentRelationshipSet without a real Postgres
 // content store.
 type entityContextFakeContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entity *querycontract.EntityContent
 	rows   []querycontract.EntityContent
 }

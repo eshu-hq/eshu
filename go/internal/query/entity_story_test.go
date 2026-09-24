@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
@@ -194,7 +195,7 @@ func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentEntitiesIncludesStory(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -248,7 +249,7 @@ func TestGetEntityContextUsesGraphJavaScriptMetadataWithoutContent(t *testing.T)
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -322,7 +323,7 @@ func TestGetEntityContextUsesGraphJavaScriptMetadataWithoutContent(t *testing.T)
 func TestGetEntityContextUsesGraphPythonMetadataWithoutContent(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -338,7 +339,7 @@ func TestGetEntityContextUsesGraphPythonMetadataWithoutContent(t *testing.T) {
 	})
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -425,7 +426,7 @@ func TestGetEntityContextUsesGraphPythonTypeAnnotationWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "type-ann-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -491,7 +492,7 @@ func TestGetEntityContextUsesGraphPythonClassDocstringWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-docstring-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -555,7 +556,7 @@ func TestGetEntityContextUsesGraphPythonModuleDocstringWithoutContent(t *testing
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "module-docstring-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -633,7 +634,7 @@ func TestGetEntityContextUsesGraphPythonDecoratedClassWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-decorators-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -712,7 +713,7 @@ func TestGetEntityContextUsesGraphPythonLambdaWithoutContent(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "lambda-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -779,7 +780,7 @@ func TestGetEntityContextUsesGraphPythonLambdaWithoutContent(t *testing.T) {
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -854,7 +855,7 @@ func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t 
 func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -922,7 +923,7 @@ func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedFunction(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -995,7 +996,7 @@ func TestGetEntityContextUsesGraphPythonTypeAnnotationsWithoutContent(t *testing
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-annotations-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)

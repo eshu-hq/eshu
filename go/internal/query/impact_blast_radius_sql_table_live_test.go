@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -91,7 +91,7 @@ func sqlBlastRadiusBranches() []sqlBlastRadiusBranch {
 // asserts the ninth is reported missing, which it can only do against fixtures
 // that do not collide with the shipped set.
 func sqlBlastRadiusBranchesFor(prefix string) []sqlBlastRadiusBranch {
-	table := querytestutil.SqlBlastRadiusTableFor(prefix)
+	table := graph.SqlBlastRadiusTableFor(prefix)
 	repo := func(suffix string) string { return prefix + "-" + suffix }
 	// Each seed hangs its own File off its own Repository, then links the
 	// branch-specific node to the one shared SqlTable.
@@ -227,7 +227,7 @@ func sqlBlastRadiusCleanup(t *testing.T, reader *Neo4jReader, prefix string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	querytestutil.SqlBlastRadiusCleanupWith(ctx, t, reader.Run, prefix)
+	graph.SqlBlastRadiusCleanupWith(ctx, t, reader.Run, prefix)
 }
 
 // sqlBlastRadiusMissingBranches reduces the rows blastRadiusSqlTableQuery
@@ -299,7 +299,7 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 
 	rows, err := reader.Run(ctx,
 		impact.BlastRadiusSqlTableQuery(querycontract.RepositoryAccessFilter{AllScopes: true}),
-		map[string]any{"target_name": querytestutil.SqlBlastRadiusTableFor(sqlBlastRadiusPrefix), "limit": 200})
+		map[string]any{"target_name": graph.SqlBlastRadiusTableFor(sqlBlastRadiusPrefix), "limit": 200})
 	if err != nil {
 		t.Fatalf("run blast radius: %v", err)
 	}

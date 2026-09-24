@@ -151,7 +151,7 @@ func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		if err := rejectTestOnlyHelperImport(path); err != nil {
+		if err := rejectTestOnlyHelperImport(queryDir, path); err != nil {
 			return err
 		}
 		calls, err := discoverFileQueryCallsites(path)

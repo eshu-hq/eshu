@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression proves
@@ -34,7 +35,7 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 	t.Parallel()
 
 	var capturedRepoPageCypher, capturedEdgeCypher string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
@@ -78,7 +79,7 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 	if strings.Contains(capturedEdgeCypher, "allowed_repository_ids") {
 		t.Errorf("catalog's edge pre-pass must stay unscoped:\n%s", capturedEdgeCypher)
 	}
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, capturedEdgeCypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, capturedEdgeCypher)
 
 	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
@@ -119,7 +120,7 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):

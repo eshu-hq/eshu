@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestCallGraphMetricsDataRefusesARepositoryOutsideTheGrant is the regression
@@ -30,7 +31,7 @@ func TestCallGraphMetricsDataRefusesARepositoryOutsideTheGrant(t *testing.T) {
 	// runs the Cypher and hands that row back, so this fake is what makes the
 	// test able to fail -- an empty fake would pass with or without the guard.
 	reached := false
-	handler := &codequery.CodeHandler{Neo4j: &querytestutil.FakeGraphReader{
+	handler := &codequery.CodeHandler{Neo4j: &graph.FakeGraphReader{
 		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			reached = true
 			return []map[string]any{{"name": "leaked", "callers": 3}}, nil

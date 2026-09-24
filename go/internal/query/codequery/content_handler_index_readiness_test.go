@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // The two ContentHandler sections of this file moved with the handler family
@@ -38,7 +38,7 @@ func TestCodeHandlerSearchReturns503UntilSubstringIndexesReady(t *testing.T) {
 }
 
 type contentSubstringIndexNotReadyStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (contentSubstringIndexNotReadyStore) SearchFileContentAnyRepo(context.Context, string, int) ([]FileContent, error) {

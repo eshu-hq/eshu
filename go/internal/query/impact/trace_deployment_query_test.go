@@ -10,13 +10,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchDeploymentSourcesFallsBackToRepositoryDeployEdgesWhenNoCanonicalSourcesExist(t *testing.T) {
 	t.Parallel()
 
-	got, err := FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"min(coalesce(rel.reason, rel.evidence_type, 'repository_deploys_from')) as reason": {
 				{
@@ -57,7 +57,7 @@ func TestFetchDeploymentSourcesFallsBackToRepositoryDeployEdgesWhenNoCanonicalSo
 func TestFetchDeploymentSourcesMergesCanonicalAndRepositorySources(t *testing.T) {
 	t.Parallel()
 
-	got, err := FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {
 				{
@@ -95,7 +95,7 @@ func TestFetchDeploymentSourcesMergesCanonicalAndRepositorySources(t *testing.T)
 func TestFetchDeploymentSourcesPreservesCanonicalAndRepositoryRelationshipOverlap(t *testing.T) {
 	t.Parallel()
 
-	got, err := FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {
 				{
@@ -131,7 +131,7 @@ func TestFetchDeploymentSourceResultReportsFirstHopSaturationWhenTargetExpansion
 	t.Parallel()
 
 	expansionCalled := false
-	result, err := FetchDeploymentSourceResultFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	result, err := FetchDeploymentSourceResultFromGraph(t.Context(), graph.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "DEPLOYMENT_SOURCE"):
 			return nil, nil

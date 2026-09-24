@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -38,7 +39,7 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 				return map[string]any{"id": "repo-infra-degrade-1", "name": "repo-infra-degrade-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				}
 				return nil, nil
@@ -153,7 +154,7 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 				return map[string]any{"id": "repo-story-infra-degrade-1", "name": "repo-story-infra-degrade-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				}
 				return nil, nil

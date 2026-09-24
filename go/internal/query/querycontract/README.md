@@ -315,7 +315,7 @@ No-Regression Evidence: the hot file this change touches is
 for #6060 lane-B B3), which does issue a real Cypher `MATCH`. The query
 text, its parameters and its decode loop are byte-identical; the only edit turns
 `CatalogWorkloadIdentityEntry` from a struct declaration into a type ALIAS onto
-this package, so `querytestutil.FakePortContentStore` can name it from outside
+this package, so `querytestutil/content`'s `FakePortContentStore` can name it from outside
 root. An alias preserves type identity, so no conversion, copy or extra
 allocation appears on the row-decoding path. The same shape applies to the other
 read models promoted here. Root suite on this branch: 8324 `=== RUN`, 0

@@ -15,7 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // provisioningCandidateCypherFragment identifies the one graph read whose
@@ -43,8 +44,8 @@ func provisioningCandidateRows(count int) []map[string]any {
 // provisioningCandidateGraphReader answers the provisioning-candidate read
 // with `rows` and every other read with nothing, so a test controls exactly
 // one bound.
-func provisioningCandidateGraphReader(workload map[string]any, rows []map[string]any) querytestutil.FakeWorkloadGraphReader {
-	return querytestutil.FakeWorkloadGraphReader{
+func provisioningCandidateGraphReader(workload map[string]any, rows []map[string]any) graph.FakeWorkloadGraphReader {
+	return graph.FakeWorkloadGraphReader{
 		RunSingleByMatch: map[string]map[string]any{
 			"w.name = $service_name": workload,
 			"w.id = $workload_id":    workload,
@@ -78,7 +79,7 @@ func provisioningCandidateGraphReader(workload map[string]any, rows []map[string
 // deployment.LoadConsumerRepositoryEnrichmentFromCandidates) while the merged consumer
 // set grows by a single entry and stays far under the final cap.
 type fullPageConsumerSearchContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	pattern string
 	repoID  string
 }
@@ -121,7 +122,7 @@ func runProvisioningTruncationTrace(t *testing.T, candidateRowCount int) map[str
 
 	handler := &impact.Handler{
 		Neo4j:   provisioningCandidateGraphReader(provisioningTruncationWorkload(), provisioningCandidateRows(candidateRowCount)),
-		Content: querytestutil.FakePortContentStore{},
+		Content: content.FakePortContentStore{},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -308,7 +309,7 @@ func enrichWithProvisioningCandidateRows(
 	if err := EnrichServiceQueryContextWithOptions(
 		ctx,
 		graph,
-		querytestutil.FakePortContentStore{},
+		content.FakePortContentStore{},
 		workloadContext,
 		QueryEnrichmentOptions{
 			IncludeRelatedModuleUsage: true,

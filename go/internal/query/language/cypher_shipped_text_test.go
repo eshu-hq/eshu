@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher is the same guard for
@@ -39,7 +40,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 			if !strings.Contains(normalized, want) {
 				t.Fatalf("%s builder missing %q:\n%s", label, want, normalized)
 			}
-			if !slices.Contains(querytestutil.RepositoryGoverningPredicatesForAlias(cypher, "r"), want) {
+			if !slices.Contains(graph.RepositoryGoverningPredicatesForAlias(cypher, "r"), want) {
 				t.Fatalf("%s builder puts the grant outside the Repository binding's own WHERE, so it does not decide row membership:\n%s", label, normalized)
 			}
 			// The governing-predicates assertion above already proves the

@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -23,7 +23,7 @@ type fairKubernetesRuntimeGraph struct {
 	rows        map[string][]map[string]any
 	errorDigest string
 	err         error
-	calls       []querytestutil.KubernetesRuntimeCall
+	calls       []graph.KubernetesRuntimeCall
 	active      atomic.Int32
 	maximum     atomic.Int32
 	barrier     chan struct{}
@@ -38,7 +38,7 @@ func (g *fairKubernetesRuntimeGraph) Run(ctx context.Context, _ string, params m
 	digest := digests[0]
 	limit := querycontract.IntVal(params, "limit")
 	g.mu.Lock()
-	g.calls = append(g.calls, querytestutil.KubernetesRuntimeCall{Digest: digest, Limit: limit})
+	g.calls = append(g.calls, graph.KubernetesRuntimeCall{Digest: digest, Limit: limit})
 	g.mu.Unlock()
 
 	active := g.active.Add(1)
@@ -73,10 +73,10 @@ func (g *fairKubernetesRuntimeGraph) RunSingle(context.Context, string, map[stri
 	return nil, nil
 }
 
-func (g *fairKubernetesRuntimeGraph) snapshotCalls() []querytestutil.KubernetesRuntimeCall {
+func (g *fairKubernetesRuntimeGraph) snapshotCalls() []graph.KubernetesRuntimeCall {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return append([]querytestutil.KubernetesRuntimeCall(nil), g.calls...)
+	return append([]graph.KubernetesRuntimeCall(nil), g.calls...)
 }
 
 func TestKubernetesRuntimeProbeBalancedQuotas(t *testing.T) {

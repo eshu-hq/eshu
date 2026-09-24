@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
@@ -28,7 +28,7 @@ func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 				if strings.Contains(cypher, "EXISTS") {
 					t.Fatalf("initial workload match retained the retired EXISTS grant predicate: %s", cypher)
 				}
-				querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+				graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 				return map[string]any{
 					"id":      "workload:payments",
 					"name":    "payments",
@@ -81,7 +81,7 @@ func TestFetchWorkloadContextOmitsRepositoryUnownedRuntimeForScopedCaller(t *tes
 				if strings.Contains(cypher, "EXISTS") {
 					t.Fatalf("initial workload match retained the retired EXISTS grant predicate: %s", cypher)
 				}
-				querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+				graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 				return map[string]any{
 					"id":      "workload:payments",
 					"name":    "payments",
@@ -275,7 +275,7 @@ func requireScopedWorkloadRepositories(
 	if !strings.Contains(cypher, "allowed_repository_ids") {
 		t.Fatalf("query missing scoped repository predicate:\n%s", cypher)
 	}
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 	allowed, ok := params["allowed_repository_ids"].([]string)
 	if !ok || len(allowed) != len(want) {
 		t.Fatalf("allowed_repository_ids = %#v, want %#v", params["allowed_repository_ids"], want)

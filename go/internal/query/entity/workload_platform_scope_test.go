@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
@@ -19,7 +19,7 @@ func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
 
 	runCalls := 0
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				runCalls++
 				if !strings.Contains(cypher, "MATCH (repo:Repository)-[:DEFINES]->(w:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)") {
@@ -94,7 +94,7 @@ func TestFetchWorkloadPlatformRowsOmitUnownedEvidenceForScopedTokens(t *testing.
 	t.Parallel()
 
 	calls := 0
-	handler := &Handler{Neo4j: querytestutil.FakeWorkloadGraphReader{
+	handler := &Handler{Neo4j: graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			calls++
 			return []map[string]any{{"platform_id": "platform:unowned"}}, nil

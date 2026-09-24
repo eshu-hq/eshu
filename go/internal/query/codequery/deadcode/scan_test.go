@@ -20,7 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func deadCodeScanRow(entityID string, name string) map[string]any {
@@ -44,7 +45,7 @@ func TestHandleDeadCodeFiltersIncomingEdgesWithContentReadModel(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		Profile:      querycontract.ProfileLocalAuthoritative,
 		GraphBackend: querycontract.GraphBackendNornicDB,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:Function") {
 					return nil, nil
@@ -147,7 +148,7 @@ func TestHandleDeadCodePagesCandidatesFromContentReadModel(t *testing.T) {
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				t.Fatalf("dead-code candidate scan should use content read model before graph paging: cypher=%s params=%#v", cypher, params)
 				return nil, nil
@@ -216,7 +217,7 @@ func TestHandleDeadCodeBatchesCandidateContentHydration(t *testing.T) {
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return []map[string]any{
 					deadCodeScanRow("first-helper", "firstHelper"),
@@ -293,7 +294,7 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 	var offsets []int
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:Function") {
 					return nil, nil
@@ -406,7 +407,7 @@ func TestHandleDeadCodeLanguageFilterPushesPredicateIntoCandidateScan(t *testing
 	var languageParams []any
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "toLower(coalesce(e.language, f.language, '')) = $language") {
 					t.Fatalf("candidate cypher missing language predicate:\n%s", cypher)
@@ -452,7 +453,7 @@ func TestHandleDeadCodeContentCandidateScanReceivesLanguagePredicate(t *testing.
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				t.Fatalf("dead-code candidate scan should use content read model: cypher=%s params=%#v", cypher, params)
 				return nil, nil
@@ -569,7 +570,7 @@ func TestFilterDeadCodeResultsBatchesSQLGraphIncomingProbes(t *testing.T) {
 	t.Parallel()
 
 	var incomingCalls int
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunIncomingFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			incomingCalls++
 			if !strings.Contains(cypher, "UNWIND $entity_ids AS entity_id") {
@@ -645,13 +646,13 @@ type contentCandidateDeadCodeStore struct {
 }
 
 type repoGroupedIncomingStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	incomingByRepo map[string]map[string]bool
 	calls          map[string][]string
 }
 
 type materializedReachabilityIncomingStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	incomingByRepo    map[string]map[string]deadcode.DeadCodeIncomingEdge
 	legacyByRepo      map[string]map[string]deadcode.DeadCodeIncomingEdge
 	legacyEntityIDs   []string

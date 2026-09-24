@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
@@ -22,7 +22,7 @@ import (
 func TestFetchProvisionedPlatformsReportsUniqueSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		rows := make([]map[string]any, 0, querycontract.ContextStoryItemLimit+1)
 		for index := range querycontract.ContextStoryItemLimit + 1 {
 			rows = append(rows, map[string]any{
@@ -47,7 +47,7 @@ func TestFetchProvisionedPlatformsReportsUniqueSentinel(t *testing.T) {
 func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "LIMIT $provisioned_platform_limit") {
 			t.Fatalf("provisioned platform query is unbounded: %s", cypher)
 		}
@@ -82,7 +82,7 @@ func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) 
 func TestFetchProvisionedPlatformsRejectsNonJSONRelationshipProperties(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
 			"platform_source_id": "repository:infra", "platform_dependency_target_id": "repository:orders",
 			"platform_id": "platform:eks:prod", "platform_name": "prod",
@@ -100,7 +100,7 @@ func TestFetchProvisionedPlatformsRejectsNonJSONRelationshipProperties(t *testin
 func TestFetchProvisionedPlatformsOrdersSamePlatformByRepositoryEndpoints(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{
 			{
 				"platform_source_id": "repository:z-infra", "platform_dependency_target_id": "repository:orders",
@@ -181,7 +181,7 @@ func TestFetchProvisionedPlatformsTruncationSurvivorSetIsOrderIndependentAboveLi
 
 func buildDeterminismProvisionedPlatforms(t *testing.T, rows []map[string]any) ProvisionedPlatformResult {
 	t.Helper()
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return rows, nil
 	}}
 	result, err := (&Handler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")

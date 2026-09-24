@@ -13,16 +13,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // resolvingContentStore is the ambiguous-name content double: it answers
 // SearchEntitiesByName from a fixture slice, embedding
-// querytestutil.FakePortContentStore for the rest of the content port.
+// content.FakePortContentStore for the rest of the content port.
 // Copy of codequery's entity_resolution_test.go double, which cannot be
 // imported here.
 type resolvingContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	matches []codequery.EntityContent
 }
 

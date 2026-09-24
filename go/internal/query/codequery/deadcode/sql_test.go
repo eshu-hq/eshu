@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeReportsSQLFunctionsAsDerivedCandidates(t *testing.T) {
@@ -25,7 +25,7 @@ func TestHandleDeadCodeReportsSQLFunctionsAsDerivedCandidates(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:SqlFunction") {
 					return nil, nil
@@ -108,7 +108,7 @@ func TestHandleDeadCodeSuppressesSQLFunctionsReachedByGraphExecutesEdge(t *testi
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:SqlFunction") {
 					return nil, nil
@@ -177,7 +177,7 @@ func TestHandleDeadCodeLanguageFilterScansSQLFunctionsWithoutFunctionStarvation(
 	var queriedLabels []string
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "e:Function"):
@@ -292,7 +292,7 @@ func TestHandleDeadCodeSuppressesContentSQLFunctionsReachedByGraphExecutesEdge(t
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				t.Fatalf("dead-code SQL scan should use content candidates before graph scan: cypher=%s params=%#v", cypher, params)
 				return nil, nil

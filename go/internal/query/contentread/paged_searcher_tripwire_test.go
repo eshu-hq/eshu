@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // This file is the contentread half of the #6060 interface-export tripwire
@@ -17,13 +17,13 @@ import (
 // It moved with the ContentHandler family in the lane-B1 move because it
 // drives the handler's unexported searchFilesByScope/searchEntitiesByScope,
 // which cannot be called from another package. The fake embeds
-// querytestutil.FakePortContentStore -- the shared ContentStore double, not
+// content.FakePortContentStore -- the shared ContentStore double, not
 // a redeclared one -- and adds only the two querycontract.PagedContentSearcher
 // methods under test, so `ok` in the production type assertion is exactly as
 // narrow as it would be for a real *ContentReader.
 
 type fakePagedContentTripwireStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	fileCalls   int
 	entityCalls int
 }

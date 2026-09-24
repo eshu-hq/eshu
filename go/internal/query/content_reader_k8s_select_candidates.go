@@ -42,7 +42,7 @@ func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) kubernetes.SelectMat
 
 // The EntityContent -> K8sSelectCandidate projection this file used to declare
 // moved to kubernetes.SelectCandidateFromEntity (#6060). Its only caller
-// is the shared ContentStore double, which now lives in querytestutil and
+// is the shared ContentStore double, which now lives in querytestutil/content and
 // cannot reach an unexported symbol here. It still uses the same comma-ok
 // tri-state and the same namespace normalization as
 // kubernetes.SelectMatchInputFromEntity below.

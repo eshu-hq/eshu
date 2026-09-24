@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // A graph fake that judges CLAUSE ATTACHMENT for the #5167 batch-2b story and
@@ -224,7 +224,7 @@ func storyPredicateAdmits(predicate string, repoByAlias map[string]string, param
 // every repository the candidate lookup asked about, so a test can assert the
 // grant reached the read rather than only that the answer looked right.
 type storyGrantContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entities    map[string]querycontract.EntityContent
 	byName      []querycontract.EntityContent
 	askedRepo   []string

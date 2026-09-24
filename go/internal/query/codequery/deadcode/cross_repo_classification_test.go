@@ -14,6 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // What the two reads' answers mean once they are back: a granted consumer
@@ -57,7 +59,7 @@ func TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer(t *testing
 	}
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 			},
 			entities: map[string]deadcode.EntityContent{
@@ -83,7 +85,7 @@ func TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer(t *testing
 			"producer-weak-plus-hidden",
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -137,7 +139,7 @@ func TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence(t *testing
 
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 			},
 			entities: map[string]deadcode.EntityContent{
@@ -162,7 +164,7 @@ func TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence(t *testing
 			},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // fallbackArtifactOverviewGraph resolves the orders-api workload (repo-a) with
@@ -24,8 +25,8 @@ import (
 // DEPENDS_ON|USES_MODULE|... traversal in QueryRelatedRepositoryArtifactSources:
 // repo-b, a DIFFERENT tenant's repository. Every other enrichment query returns
 // no rows.
-func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
-	return querytestutil.FakeGraphReaderWithSingle{
+func fallbackArtifactOverviewGraph() graph.FakeGraphReaderWithSingle {
+	return graph.FakeGraphReaderWithSingle{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):

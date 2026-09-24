@@ -25,12 +25,16 @@
 // double for those. See AGENTS.md.
 //
 // A fake here must not call Run or RunSingle. That inventory walks this
-// directory like any other, so such a call is an unregistered production query
-// callsite and fails the gate. There is more than one way to satisfy that:
-// FakeGraphReader routes both methods through an unexported helper, while
-// FakeRepoGraphReader and FakeWorkloadGraphReader inline their dispatch in each
-// method. Either is fine. What a new fake must not do is have one of the two
-// methods call the other, or ask for an exemption (#6060, epic #6053).
+// directory and its nested leaves like any other, so such a call is an
+// unregistered production query callsite and fails the gate. The graph-read
+// doubles live in the graph leaf, whose doc.go says how each one satisfies
+// that (#6060, epic #6053).
+//
+// Two leaves nest under this package (#6642). content holds the content-read
+// doubles and the fake database/sql driver; graph holds the graph-read doubles
+// and the NornicDB Cypher-shape guards. The rules in this comment apply to
+// both, and the production-import check covers them by path element, so an
+// import of querytestutil/graph fails it the same as an import of this package.
 //
 // Fakes here may depend on the leaf packages whose types they stand in for --
 // FakeGovernanceAuditAppender on internal/governanceaudit and
@@ -47,11 +51,4 @@
 // today and turns into a cycle the moment it adopts a fake from here. Do not
 // read a green build as permission. AGENTS.md carries the measured three-row
 // table behind this.
-//
-// nornicdb_guards.go holds the two NornicDB v1.3.3 Cypher-shape guards (#6786):
-// AssertCypherHasNoBrokenAndOr (X4, an AND/OR led by a newline or tab) and
-// AssertCypherHasNoIgnoredLabelPredicate (X11, a label predicate in a clause
-// position the backend ignores). Call them on the exact Cypher a test's graph
-// double captured. TestProductionCypherHasNoIgnoredLabelPredicate also scans
-// every production Cypher literal under go/internal and go/cmd for X11.
-package querytestutil //nolint:dirgate // #6642 Part A pushed this package over the 40-file cap by hoisting fixtures that tests in more than one package share (visualizationfixtures.go is the example). Every helper here has exactly one owning file already, so a further split would fragment cohesive fixture groups rather than reduce sprawl. No file count is stated on purpose: this directory is not in scripts/lib/dirgate-grandfather.tsv, so a justified marker disables the cap check outright and a count written here rots without any gate firing -- this marker claimed 41 against an actual 42.
+package querytestutil

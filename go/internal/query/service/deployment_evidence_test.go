@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestQueryServiceDeploymentEvidenceUsesReadModelBeforeGraphFallback(t *testing.T) {
 	t.Parallel()
 
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "EvidenceArtifact") {
 				t.Fatalf("cypher = %q, want service deployment evidence read model before graph fallback", cypher)
@@ -23,7 +24,7 @@ func TestQueryServiceDeploymentEvidenceUsesReadModelBeforeGraphFallback(t *testi
 			return nil, nil
 		},
 	}
-	content := querytestutil.FakePortContentStore{
+	content := content.FakePortContentStore{
 		DeploymentEvidence: querycontract.RepositoryDeploymentEvidenceReadModel{
 			Available: true,
 			Rows: []map[string]any{

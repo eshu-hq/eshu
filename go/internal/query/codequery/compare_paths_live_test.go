@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -67,7 +67,7 @@ func TestLiveNornicDBCompareCodePaths(t *testing.T) {
 	seedLiveCompareDiamondGraph(ctx, t, driver)
 
 	handler := &CodeHandler{
-		Content:      querytestutil.FakePortContentStore{},
+		Content:      content.FakePortContentStore{},
 		Profile:      ProfileLocalAuthoritative,
 		GraphBackend: GraphBackendNornicDB,
 		Neo4j:        newLiveNornicDBReader(driver, "nornic"),

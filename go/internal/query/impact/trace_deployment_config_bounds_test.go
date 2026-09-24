@@ -14,7 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestTraceDeploymentChainDisclosesOmittedConfigAnchorWithNoCandidateRows(t *testing.T) {
@@ -63,7 +64,7 @@ func runConfigCandidateBoundTrace(
 	// Empty in-memory content: the SQL decoding layer stays covered by the root
 	// content_reader tests; impact/ tests cannot import package query. See #6060.
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": workload,
 				"w.id = $workload_id":    workload,
@@ -81,7 +82,7 @@ func runConfigCandidateBoundTrace(
 				}
 			},
 		},
-		Content: &querytestutil.FakePortContentStore{},
+		Content: &content.FakePortContentStore{},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,

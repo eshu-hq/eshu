@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -25,7 +27,7 @@ import (
 func getServiceContextReadModelPartialReasons(t *testing.T, dependenciesErr error) map[string]any {
 	t.Helper()
 
-	content := querytestutil.FakePortContentStore{
+	content := content.FakePortContentStore{
 		Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "order-service"}},
 		Summary: querycontract.RepositoryReadModelSummary{
 			Available:     true,
@@ -37,7 +39,7 @@ func getServiceContextReadModelPartialReasons(t *testing.T, dependenciesErr erro
 	// w.id = $service_name) returns nil, which forces the fallback into
 	// FetchServiceReadModelWorkloadContext in the first place (mirrors
 	// TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated).
-	reader := querytestutil.FakeWorkloadGraphReader{
+	reader := graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "AS target_name,") {
 				if dependenciesErr != nil {

@@ -11,17 +11,17 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // overflowingNameReader answers the workload selector's name lookup with
 // more rows than querycontract.WorkloadSelectorCandidateBound allows.
-func overflowingNameReader() querytestutil.FakeGraphReader {
+func overflowingNameReader() graph.FakeGraphReader {
 	rows := make([]map[string]any, querycontract.WorkloadSelectorCandidateBound+1)
 	for i := range rows {
 		rows[i] = map[string]any{"id": "workload:orders", "name": "orders", "repo_id": "repo-b", "defining": []string{}}
 	}
-	return querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	return graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.name = $service_name") {
 			return rows, nil
 		}

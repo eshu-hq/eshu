@@ -17,14 +17,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleDeadCodeExcludesDecoratedEntities(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
@@ -55,7 +56,7 @@ func TestHandleDeadCodeExcludesDecoratedEntities(t *testing.T) {
 				}, nil
 			},
 		},
-		Content: querytestutil.FakeDeadCodeContentStore{
+		Content: content.FakeDeadCodeContentStore{
 			Entities: map[string]querycontract.EntityContent{
 				"function-1": {
 					EntityID:     "function-1",
@@ -119,7 +120,7 @@ func TestHandleComplexityPreservesPythonGraphMetadataWithoutContent(t *testing.T
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -198,7 +199,7 @@ func TestHandleComplexityBuildsNonConflictingCypher(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := strings.Count(cypher, " as repo_name"), 1; got != want {
 					t.Fatalf("strings.Count(cypher, \" as repo_name\") = %d, want %d; cypher=%q", got, want, cypher)
@@ -266,7 +267,7 @@ func TestHandleComplexityPreservesTypeScriptGraphMetadataWithoutContent(t *testi
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-ts-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
@@ -353,7 +354,7 @@ func TestHandleCallChainReturnsShortestPath(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNeo4j,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "SHORTEST 1 (start)") {
 					t.Fatalf("cypher = %q, want shortest-path query", cypher)
@@ -425,7 +426,7 @@ func TestHandleCallChainUsesNornicDBBFSForNameAnchors(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNornicDB,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") || strings.Contains(cypher, "CALLS*") {
 					t.Fatalf("cypher = %q, must not use NornicDB shortestPath for call-chain", cypher)
@@ -493,7 +494,7 @@ func TestHandleCallChainSupportsEntityIDAndRepoScopedLookup(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("start", "$start_entity_id")) {
 					t.Fatalf("cypher = %q, want bridged start entity-id predicate", cypher)
@@ -554,7 +555,7 @@ func TestHandleCallChainSupportsEntityIDAndRepoScopedLookupForNornicDB(t *testin
 
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNornicDB,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") || strings.Contains(cypher, "CALLS*") {
 					t.Fatalf("cypher = %q, must not use NornicDB shortestPath for call-chain", cypher)
@@ -608,7 +609,7 @@ func TestHandleRelationshipsReturnsTransitiveCallers(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNeo4j,
 		Profile:      querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (e)<-[:CONTAINS]-(f:File)") {
 					return []map[string]any{{
@@ -712,7 +713,7 @@ func TestHandleRelationshipsReturnsTransitiveCallersForNornicDB(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		GraphBackend: querycontract.GraphBackendNornicDB,
 		Profile:      querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (e)<-[:CONTAINS]-(f:File)") {
 					return []map[string]any{{
@@ -783,7 +784,7 @@ func TestHandleCallChainSupportsRustImplContextQualifiedLookup(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "SHORTEST 1 (start)") {
 					t.Fatalf("cypher = %q, want shortest-path query", cypher)

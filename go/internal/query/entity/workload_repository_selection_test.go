@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *testing.T) {
@@ -53,7 +53,7 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			candidateLookupCalled := false
-			reader := querytestutil.FakeWorkloadGraphReader{
+			reader := graph.FakeWorkloadGraphReader{
 				RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 					if strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)") {
 						t.Fatalf("repository candidate lookup used backend ordering instead of bounded exact-workload traversal:\n%s", cypher)
@@ -167,7 +167,7 @@ func TestFetchWorkloadRepositoryForAccessSelectsBoundedCandidates(t *testing.T) 
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := querytestutil.FakeWorkloadGraphReader{
+			reader := graph.FakeWorkloadGraphReader{
 				RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 					assertWorkloadRepositoryCandidateQuery(t, cypher, params, "workload:payments")
 					return test.rows, nil
@@ -197,7 +197,7 @@ func TestFetchWorkloadRepositoryForAccessAppliesScopedAuthorization(t *testing.T
 		AllowedRepositoryIDs: []string{"repo-a"},
 		AllowedScopeIDs:      []string{"scope-a"},
 	})
-	reader := querytestutil.FakeWorkloadGraphReader{
+	reader := graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			assertWorkloadRepositoryCandidateQuery(t, cypher, params, "workload:payments")
 			if !strings.Contains(cypher, "WHERE (r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids)") {
@@ -241,7 +241,7 @@ func TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere(t 
 		Mode:                 queryauth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	})
-	reader := querytestutil.FakeWorkloadGraphReader{
+	reader := graph.FakeWorkloadGraphReader{
 		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			// The backend's WHERE should have excluded repo-b, but this fake
 			// simulates it not doing so.
@@ -266,7 +266,7 @@ func TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere(t 
 func TestGetWorkloadContextUngrantedDefinesRowReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeWorkloadGraphReader{
+	reader := graph.FakeWorkloadGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
 				return map[string]any{
@@ -311,7 +311,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 		for index := range rows {
 			rows[index] = map[string]any{"repo_id": "repo"}
 		}
-		reader := querytestutil.FakeWorkloadGraphReader{
+		reader := graph.FakeWorkloadGraphReader{
 			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			},
@@ -329,7 +329,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 
 	t.Run("graph error", func(t *testing.T) {
 		wantErr := errors.New("graph unavailable")
-		reader := querytestutil.FakeWorkloadGraphReader{
+		reader := graph.FakeWorkloadGraphReader{
 			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return nil, wantErr
 			},
@@ -346,7 +346,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 func TestFetchWorkloadRepositoryForAccessSkipsEmptyWorkloadID(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeWorkloadGraphReader{
+	reader := graph.FakeWorkloadGraphReader{
 		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			t.Fatal("empty workload id queried the graph")
 			return nil, nil

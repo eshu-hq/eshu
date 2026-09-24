@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestQueryRepositoryStoryPlatformTypesDistinctPreventsStarvation guards the
@@ -45,7 +45,7 @@ func TestQueryRepositoryStoryPlatformTypesDistinctPreventsStarvation(t *testing.
 		map[string]any{"platform_type": "gcp"},
 	)
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "RUNS_ON") {
 				return nil, nil
@@ -126,7 +126,7 @@ func TestQueryRepositoryStoryWorkloadNamesDistinctPreventsStarvation(t *testing.
 		map[string]any{"workload_name": "payments"},
 	)
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "DEFINES") {
 				return nil, nil

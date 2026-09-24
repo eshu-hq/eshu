@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // TestScopedTokenReachesFreshnessDeltaPairOnly pins which freshness delta
@@ -431,7 +432,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute(t *testing
 					"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 				},
 			},
-			Content:   querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
+			Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
 			Freshness: reader,
 		}
 		mux := http.NewServeMux()

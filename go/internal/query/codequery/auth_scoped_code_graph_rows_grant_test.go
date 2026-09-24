@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // #5167 code-family batch 1: response-body two-tenant proof for the three
@@ -21,7 +22,7 @@ import (
 // The sibling files assert the grant predicate is present in the emitted
 // statement. That is necessary and not sufficient: a predicate can be present
 // and still filter nothing, which is what an OPTIONAL MATCH-attached WHERE
-// does. These tests seed two tenants into querytestutil.EvaluatingRepositoryGraph, which
+// does. These tests seed two tenants into graph.EvaluatingRepositoryGraph, which
 // applies Cypher's clause semantics to the statement the handler actually
 // emits, and assert on the bytes the caller receives.
 
@@ -34,8 +35,8 @@ const (
 // complexityListSeeds is the two-tenant fixture the complexity list branch
 // scans: one function in the granted repository, one in another tenant's, and
 // one the graph cannot attribute to any repository at all.
-func complexityListSeeds() []querytestutil.GraphGrantSeed {
-	return []querytestutil.GraphGrantSeed{
+func complexityListSeeds() []graph.GrantSeed {
+	return []graph.GrantSeed{
 		{RepoID: codeGrantGrantedRepo, Row: complexityListRow("fn-granted", codeGrantGrantedFunction, codeGrantGrantedRepo, 7)},
 		{RepoID: codeGrantOtherRepo, Row: complexityListRow("fn-other", codeGrantUngrantedFunction, codeGrantOtherRepo, 9)},
 		{RepoID: "", Row: complexityListRow("fn-orphan", codeGrantOrphanFunction, "", 11)},
@@ -57,8 +58,8 @@ func complexityListRow(id, name, repoID string, complexity int) map[string]any {
 	}
 }
 
-func codeQualityInspectSeeds() []querytestutil.GraphGrantSeed {
-	return []querytestutil.GraphGrantSeed{
+func codeQualityInspectSeeds() []graph.GrantSeed {
+	return []graph.GrantSeed{
 		{RepoID: codeGrantGrantedRepo, Row: codeQualityInspectRow("fn-granted", codeGrantGrantedFunction, codeGrantGrantedRepo)},
 		{RepoID: codeGrantOtherRepo, Row: codeQualityInspectRow("fn-other", codeGrantUngrantedFunction, codeGrantOtherRepo)},
 	}
@@ -89,14 +90,14 @@ func repositoryProjectedColumns() []string {
 
 func runGraphGrantRoute(
 	t *testing.T,
-	graph *querytestutil.EvaluatingRepositoryGraph,
+	reader *graph.EvaluatingRepositoryGraph,
 	path string,
 	body map[string]any,
 	auth *AuthContext,
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: graph}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: reader}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -112,21 +113,21 @@ func runGraphGrantRoute(
 func TestComplexityListDoesNotLeakUngrantedFunctions(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
 	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	rec := runGraphGrantRoute(t, graph, "/api/v0/code/complexity", map[string]any{}, &auth)
+	rec := runGraphGrantRoute(t, reader, "/api/v0/code/complexity", map[string]any{}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.Statements) == 0 {
+	if len(reader.Statements) == 0 {
 		t.Fatal("no statement reached the graph")
 	}
-	if querytestutil.RepositoryBindingIsOptional(graph.Statements[0]) {
-		t.Fatalf("a scoped caller's Repository anchor is still optional, so the grant filters nothing:\n%s", graph.Statements[0])
+	if graph.RepositoryBindingIsOptional(reader.Statements[0]) {
+		t.Fatalf("a scoped caller's Repository anchor is still optional, so the grant filters nothing:\n%s", reader.Statements[0])
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, codeGrantGrantedFunction) {
@@ -146,11 +147,11 @@ func TestComplexityListDoesNotLeakUngrantedFunctions(t *testing.T) {
 func TestComplexityListUnscopedAnswerIsUnchanged(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
-	rec := runGraphGrantRoute(t, graph, "/api/v0/code/complexity", map[string]any{}, nil)
+	rec := runGraphGrantRoute(t, reader, "/api/v0/code/complexity", map[string]any{}, nil)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -173,13 +174,13 @@ func TestComplexityListUnscopedAnswerIsUnchanged(t *testing.T) {
 func TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
 	rec := runGraphGrantRoute(
 		t,
-		graph,
+		reader,
 		"/api/v0/code/complexity",
 		map[string]any{"repo_id": codeGrantGrantedRepo},
 		nil,
@@ -188,11 +189,11 @@ func TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository(t *testing.
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.Statements) == 0 {
+	if len(reader.Statements) == 0 {
 		t.Fatal("no statement reached the graph")
 	}
-	if querytestutil.RepositoryBindingIsOptional(graph.Statements[0]) {
-		t.Fatalf("a supplied repo_id sits on an optional Repository binding, so it filters nothing:\n%s", graph.Statements[0])
+	if graph.RepositoryBindingIsOptional(reader.Statements[0]) {
+		t.Fatalf("a supplied repo_id sits on an optional Repository binding, so it filters nothing:\n%s", reader.Statements[0])
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, codeGrantGrantedFunction) {
@@ -211,13 +212,13 @@ func TestComplexityListUnscopedRepoIDSelectorFiltersToThatRepository(t *testing.
 func TestComplexityByNameDoesNotLeakUngrantedFunctions(t *testing.T) {
 	t.Parallel()
 
-	seeds := []querytestutil.GraphGrantSeed{
+	seeds := []graph.GrantSeed{
 		{RepoID: codeGrantGrantedRepo, Row: complexityListRow("fn-granted", "RefreshSession", codeGrantGrantedRepo, 7)},
 		{RepoID: codeGrantOtherRepo, Row: complexityListRow("fn-other", "RefreshSession", codeGrantOtherRepo, 9)},
 	}
-	graph := &querytestutil.EvaluatingRepositoryGraph{Seeds: seeds, RepositoryColumns: repositoryProjectedColumns()}
+	reader := &graph.EvaluatingRepositoryGraph{Seeds: seeds, RepositoryColumns: repositoryProjectedColumns()}
 	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	rec := runGraphGrantRoute(t, graph, "/api/v0/code/complexity", map[string]any{"function_name": "RefreshSession"}, &auth)
+	rec := runGraphGrantRoute(t, reader, "/api/v0/code/complexity", map[string]any{"function_name": "RefreshSession"}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -233,12 +234,12 @@ func TestComplexityByNameDoesNotLeakUngrantedFunctions(t *testing.T) {
 func TestCodeQualityInspectDoesNotLeakUngrantedFunctions(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             codeQualityInspectSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
 	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	rec := runGraphGrantRoute(t, graph, "/api/v0/code/quality/inspect", map[string]any{"check": "complexity"}, &auth)
+	rec := runGraphGrantRoute(t, reader, "/api/v0/code/quality/inspect", map[string]any{"check": "complexity"}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -257,11 +258,11 @@ func TestCodeQualityInspectDoesNotLeakUngrantedFunctions(t *testing.T) {
 func TestCodeQualityInspectUnscopedAnswerIsUnchanged(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             codeQualityInspectSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
-	rec := runGraphGrantRoute(t, graph, "/api/v0/code/quality/inspect", map[string]any{"check": "complexity"}, nil)
+	rec := runGraphGrantRoute(t, reader, "/api/v0/code/quality/inspect", map[string]any{"check": "complexity"}, nil)
 
 	body := rec.Body.String()
 	for _, want := range []string{codeGrantGrantedFunction, codeGrantUngrantedFunction} {
@@ -280,7 +281,7 @@ func TestCodeQualityInspectUnscopedAnswerIsUnchanged(t *testing.T) {
 func TestEvaluatingRepositoryGraphKeepsOptionalMatchRows(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	reader := &graph.EvaluatingRepositoryGraph{
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
@@ -295,7 +296,7 @@ func TestEvaluatingRepositoryGraphKeepsOptionalMatchRows(t *testing.T) {
 		"allowed_repository_ids": []string{codeGrantGrantedRepo},
 		"allowed_scope_ids":      []string{},
 	}
-	rows, err := graph.Run(context.Background(), optional, params)
+	rows, err := reader.Run(context.Background(), optional, params)
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
@@ -405,8 +406,8 @@ func callGraphGrantEdges() []callGraphSeedEdge {
 func TestCallGraphMetricsBodyCarriesOnlyGrantedFunctions(t *testing.T) {
 	t.Parallel()
 
-	graph := &evaluatingCallGraphEdges{edges: callGraphGrantEdges()}
-	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: graph}
+	reader := &evaluatingCallGraphEdges{edges: callGraphGrantEdges()}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: reader}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -437,8 +438,8 @@ func TestCallGraphMetricsBodyCarriesOnlyGrantedFunctions(t *testing.T) {
 func TestUngrantedRepositorySelectorIsRejectedWith400(t *testing.T) {
 	t.Parallel()
 
-	graph := &evaluatingCallGraphEdges{edges: callGraphGrantEdges()}
-	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: graph}
+	reader := &evaluatingCallGraphEdges{edges: callGraphGrantEdges()}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: reader}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -451,8 +452,8 @@ func TestUngrantedRepositorySelectorIsRejectedWith400(t *testing.T) {
 	if got, want := rec.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d for an ungranted repository selector; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.statements) != 0 {
-		t.Fatalf("an ungranted selector reached the edge scan: %v", graph.statements)
+	if len(reader.statements) != 0 {
+		t.Fatalf("an ungranted selector reached the edge scan: %v", reader.statements)
 	}
 	if strings.Contains(rec.Body.String(), codeGrantUngrantedFunction) {
 		t.Fatalf("rejection body leaked the other tenant's rows: %s", rec.Body.String())

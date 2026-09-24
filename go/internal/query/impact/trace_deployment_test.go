@@ -13,13 +13,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestTraceDeploymentChainReturnsConflictForDuplicateWorkloadName(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
@@ -81,7 +82,7 @@ func TestTraceDeploymentChainClampsAbsurdMaxDepthInsteadOfRejecting(t *testing.T
 			var sawProvisioningQuery bool
 			var gotLimit any
 			handler := &Handler{
-				Neo4j: querytestutil.FakeWorkloadGraphReader{
+				Neo4j: graph.FakeWorkloadGraphReader{
 					RunSingleByMatch: map[string]map[string]any{
 						"w.name = $service_name": workload,
 						"w.id = $workload_id":    workload,
@@ -101,7 +102,7 @@ func TestTraceDeploymentChainClampsAbsurdMaxDepthInsteadOfRejecting(t *testing.T
 						return nil, nil
 					},
 				},
-				Content: &querytestutil.FakePortContentStore{},
+				Content: &content.FakePortContentStore{},
 			}
 
 			body := fmt.Sprintf(`{"service_name":"orders-api","max_depth":%d}`, tc.maxDepth)

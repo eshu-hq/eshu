@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // These tests pin the deployment-trace adapter surface: the workload
@@ -32,7 +32,7 @@ func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *te
 
 	var seenCypher string
 	var seenParams map[string]any
-	got, err := loadUncorrelatedCloudResourceCandidates(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := loadUncorrelatedCloudResourceCandidates(t.Context(), graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			seenCypher = cypher
 			seenParams = params
@@ -84,7 +84,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	seenBroadServiceLookup := false
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		querytestutil.FakeWorkloadGraphReader{
+		graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, " OR ") {
 					seenBroadServiceLookup = true
@@ -143,7 +143,7 @@ func TestFetchServiceTraceContextPreservesResolvedWorkloadIDWhenAnotherWorkloadN
 
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		querytestutil.FakeWorkloadGraphReader{
+		graph.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "w.id = $service_name"):
@@ -190,7 +190,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		querytestutil.FakeWorkloadGraphReader{
+		graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:checkout-service",
@@ -290,7 +290,7 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandi
 
 	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
 	handler := &ImpactHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:orders-api",

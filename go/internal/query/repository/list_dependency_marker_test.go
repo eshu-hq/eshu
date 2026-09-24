@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestListRepositoriesPageCypherHasNoDependencyMarkerExpression proves the
@@ -31,7 +32,7 @@ func TestListRepositoriesPageCypherHasNoDependencyMarkerExpression(t *testing.T)
 	t.Parallel()
 
 	var capturedPageCypher string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},
@@ -77,7 +78,7 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 	t.Parallel()
 
 	var capturedEdgeCypher string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(2)}, nil
 		},
@@ -152,7 +153,7 @@ func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.
 	t.Parallel()
 
 	var capturedEdgeCypher string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},
@@ -218,7 +219,7 @@ func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.
 func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},
@@ -294,7 +295,7 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *test
 			"target_id": "repository:lib",
 		})
 	}
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -44,7 +45,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {
 					"id":        "workload:svc-story-infra-trunc",
@@ -68,7 +69,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 					}}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-story-infra-trunc", "repo_name": "svc-story-infra-trunc"}}, nil
-				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment):
 					limit := querycontract.IntVal(params, "limit")
 					rows := make([]map[string]any, limit)
 					for i := range rows {

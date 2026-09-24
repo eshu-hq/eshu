@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -34,7 +34,7 @@ func TestBuildServiceStoryEnvelopeRequiresServiceName(t *testing.T) {
 func TestBuildServiceStoryEnvelopeMissingServiceReturnsNotFound(t *testing.T) {
 	t.Parallel()
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
 		},
@@ -88,7 +88,7 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			handler := &Handler{
-				Neo4j: querytestutil.FakeGraphReader{
+				Neo4j: graph.FakeGraphReader{
 					RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 						return nil, test.err
 					},
