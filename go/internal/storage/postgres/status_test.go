@@ -17,6 +17,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 )
 
 func TestStatusStoreReadRawSnapshot(t *testing.T) {
@@ -346,7 +347,7 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		if isInfraInventoryStatusQuery(query) {
 			return &fakeRows{rows: [][]any{{false, int64(0), float64(0)}}}, nil
 		}
-		if query == vulnerabilitySourceStatusQuery {
+		if query == vulnerabilitystore.VulnerabilitySourceStatusQuery {
 			return &fakeRows{}, nil
 		}
 		if query == collectorFactEvidenceQuery {

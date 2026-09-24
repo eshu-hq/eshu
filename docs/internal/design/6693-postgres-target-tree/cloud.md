@@ -364,7 +364,7 @@ vulnerability_source_state.go -> vulnerability/source_state.go   # N4: collector
 <details><summary>Tests</summary>
 
 ```text
-vulnerability_source_state_test.go -> vulnerability/source_state_test.go   # spans vulnerability=57% root=43%
+vulnerability_source_state_test.go -> vulnerability/source_state_test.go   # spans vulnerability=57% root=43%; external test package (package vulnerabilitystore_test): status.go's read call forces root to import this leaf, so an in-package test importing root for BootstrapDefinitions would cycle; exporting ReadVulnerabilitySourceStates left no private symbol to shim
 ```
 
 </details>
