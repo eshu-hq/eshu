@@ -61,9 +61,15 @@ cd "${repo_root}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
 : "${GATE_SHARED_INTENT_COUNT:=2500000}"
 : "${GATE_ITERATIONS:=20}"
+# GATE_RUNS defaults to 1: identical sweep behavior (one cold pass per route,
+# no warm data) to before -runs existed. #6965 phase 6's cross-backend
+# comparison recipe sets it to 5 or more; see
+# docs/public/reference/local-testing/read-api-latency-gate.md.
+: "${GATE_RUNS:=1}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
+: "${GATE_LATENCY_REPORT:=}"
 
 stack_dir="${GATE_STACK_DIR:-${repo_root}}"
 compose_file="${stack_dir}/docker-compose.yaml"
@@ -245,15 +251,33 @@ if [[ -n "${GATE_API_BIN:-}" ]]; then
 	[[ -x "${GATE_API_BIN}" ]] || die "GATE_API_BIN=${GATE_API_BIN} is not an executable file"
 	cp "${GATE_API_BIN}" "${bin_dir}/eshu-api"
 	log "using pre-built eshu-api from GATE_API_BIN=${GATE_API_BIN} (not building from this worktree)"
-	command -v shasum >/dev/null 2>&1 && shasum -a 256 "${bin_dir}/eshu-api"
 else
 	build_bin api
 fi
 build_bin read-api-latency-gate
 
+# Recorded in the latency report's identity block (-api-binary-sha256 below)
+# so a cross-backend comparison can refuse two legs measured against
+# different eshu-api builds — see scripts/compare-backend-latency.sh. Best
+# effort: an empty string when shasum is unavailable, same as the
+# already-conditional lsof provenance print below.
+gate_api_binary_sha256=""
+if command -v shasum >/dev/null 2>&1; then
+	gate_api_binary_sha256="$(shasum -a 256 "${bin_dir}/eshu-api" | awk '{print $1}')"
+	log "eshu-api binary sha256: ${gate_api_binary_sha256}"
+fi
+# Best effort: the commit this worktree's HEAD resolves to, recorded in the
+# same identity block. Empty when git is unavailable or HEAD is detached with
+# no resolvable ref -- never fatal, the identity block is comparison metadata,
+# not a gate input.
+gate_eshu_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
+
 gate_report_args=()
 if [[ -n "${GATE_WORK_REPORT}" ]]; then
-	gate_report_args=(-work-report "${GATE_WORK_REPORT}")
+	gate_report_args+=(-work-report "${GATE_WORK_REPORT}")
+fi
+if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
+	gate_report_args+=(-latency-report "${GATE_LATENCY_REPORT}")
 fi
 
 # Two phases, like a real deploy: seed first, THEN start eshu-api. eshu-api's
@@ -275,6 +299,9 @@ gate_common_args=(
 	-iac-fact-count "${GATE_IAC_FACT_COUNT}"
 	-shared-intent-count "${GATE_SHARED_INTENT_COUNT}"
 	-iterations "${GATE_ITERATIONS}"
+	-runs "${GATE_RUNS}"
+	-eshu-commit "${gate_eshu_commit}"
+	-api-binary-sha256 "${gate_api_binary_sha256}"
 )
 
 log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts, ${GATE_SHARED_INTENT_COUNT} shared projection intents)"
@@ -304,7 +331,7 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 
-log "sweep (${GATE_ITERATIONS} requests/route)"
+log "sweep (${GATE_ITERATIONS} requests/route x ${GATE_RUNS} run(s))"
 gate_status=0
 "${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -skip-seed \
 	-budgets "${GATE_BUDGETS}" \
