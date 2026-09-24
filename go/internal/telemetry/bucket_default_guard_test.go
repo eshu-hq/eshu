@@ -36,9 +36,10 @@ type histogramRegistration struct {
 	Unresolved string
 }
 
-// scanHistogramRegistrations parses one Go source file and returns every
-// Float64Histogram registration in it. consts maps package-level string
-// constant names to values so a constant instrument name resolves.
+// scanHistogramRegistrations returns every Float64Histogram registration in
+// one parsed file. consts maps the package-level string constants of the
+// file's own package directory to their values; see evalStringExpr for what
+// folds.
 func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[string]string) []histogramRegistration {
 	var out []histogramRegistration
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -52,9 +53,9 @@ func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[
 		}
 		pos := fset.Position(call.Pos())
 		reg := histogramRegistration{File: pos.Filename, Line: pos.Line}
-		reg.Name = evalStringExpr(call.Args[0], consts)
+		reg.Name = evalStringExpr(call.Args[0], file, consts)
 		if reg.Name == "" {
-			reg.Unresolved = "instrument name is not a string literal or package constant"
+			reg.Unresolved = "instrument name is not a string literal or a package-level string constant of the same package (a parameter, local, or imported constant does not fold); register with a literal name"
 		}
 		if call.Ellipsis.IsValid() {
 			reg.Unresolved = "options passed as a spread slice; boundaries not provable"
@@ -64,7 +65,7 @@ func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[
 			if !ok {
 				continue
 			}
-			if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "WithExplicitBucketBoundaries" {
+			if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "WithExplicitBucketBoundaries" && len(c.Args) > 0 {
 				reg.HasBoundaries = true
 			}
 		}
@@ -74,10 +75,16 @@ func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[
 	return out
 }
 
-// evalStringExpr folds a string literal, a named string constant (bare or
-// package-qualified; the last identifier is the key), or a "+" concatenation of
-// those. It returns "" when the expression is anything else.
-func evalStringExpr(expr ast.Expr, consts map[string]string) string {
+// evalStringExpr folds a string literal, a package-level string constant of
+// the same package, or a "+" concatenation of those. It returns "" for
+// anything else, which the caller reports as unresolved and fails closed:
+// a function parameter or local (even one named like a constant elsewhere),
+// a package-qualified constant from another package, or any call. consts holds
+// only the constants of the file's own package directory, and an identifier
+// with a resolved object folds only when that object is a package-level
+// constant of this file; an identifier the parser left unresolved is defined
+// in a sibling file of the package, which consts covers.
+func evalStringExpr(expr ast.Expr, file *ast.File, consts map[string]string) string {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
 		if e.Kind == token.STRING {
@@ -86,16 +93,17 @@ func evalStringExpr(expr ast.Expr, consts map[string]string) string {
 			}
 		}
 	case *ast.Ident:
+		if e.Obj != nil && (e.Obj.Kind != ast.Con || file.Scope.Lookup(e.Name) != e.Obj) {
+			return ""
+		}
 		return consts[e.Name]
-	case *ast.SelectorExpr:
-		return consts[e.Sel.Name]
 	case *ast.ParenExpr:
-		return evalStringExpr(e.X, consts)
+		return evalStringExpr(e.X, file, consts)
 	case *ast.BinaryExpr:
 		if e.Op != token.ADD {
 			return ""
 		}
-		l, r := evalStringExpr(e.X, consts), evalStringExpr(e.Y, consts)
+		l, r := evalStringExpr(e.X, file, consts), evalStringExpr(e.Y, file, consts)
 		if l == "" || r == "" {
 			return ""
 		}
@@ -105,8 +113,7 @@ func evalStringExpr(expr ast.Expr, consts map[string]string) string {
 }
 
 // collectStringConsts adds one file's package-level string constants to
-// consts, keyed by identifier. Constants are resolved by bare name across the
-// whole module, which is enough for the instrument-name constants in use.
+// consts, keyed by identifier. consts is scoped to one package directory.
 func collectStringConsts(file *ast.File, consts map[string]string) {
 	for _, decl := range file.Decls {
 		gd, ok := decl.(*ast.GenDecl)
@@ -119,7 +126,7 @@ func collectStringConsts(file *ast.File, consts map[string]string) {
 				if i >= len(vs.Values) {
 					continue
 				}
-				if v := evalStringExpr(vs.Values[i], consts); v != "" {
+				if v := evalStringExpr(vs.Values[i], file, consts); v != "" {
 					consts[name.Name] = v
 				}
 			}
@@ -183,17 +190,31 @@ func scanModuleHistograms(t *testing.T, root string) []histogramRegistration {
 	if err != nil {
 		t.Fatalf("scan module for histograms: %v", err)
 	}
-	// Repeat the collection so a const defined from another const
-	// (MetricPrefix + "x") resolves regardless of file order.
-	consts := map[string]string{}
-	for pass := 0; pass < 3; pass++ {
-		for _, f := range files {
-			collectStringConsts(f, consts)
-		}
+	return scanParsedFiles(fset, files)
+}
+
+// scanParsedFiles returns every Float64Histogram registration in files.
+// Constants are collected per package directory, so a same-named constant in
+// an unrelated package cannot change how a registration resolves.
+func scanParsedFiles(fset *token.FileSet, files []*ast.File) []histogramRegistration {
+	byDir := map[string][]*ast.File{}
+	for _, f := range files {
+		dir := filepath.Dir(fset.Position(f.Pos()).Filename)
+		byDir[dir] = append(byDir[dir], f)
 	}
 	var regs []histogramRegistration
-	for _, f := range files {
-		regs = append(regs, scanHistogramRegistrations(fset, f, consts)...)
+	for _, dirFiles := range byDir {
+		consts := map[string]string{}
+		// Repeat the collection so a const defined from another const
+		// (MetricPrefix + "x") resolves regardless of file order.
+		for pass := 0; pass < 3; pass++ {
+			for _, f := range dirFiles {
+				collectStringConsts(f, consts)
+			}
+		}
+		for _, f := range dirFiles {
+			regs = append(regs, scanHistogramRegistrations(fset, f, consts)...)
+		}
 	}
 	return regs
 }
@@ -237,9 +258,7 @@ func register(meter metric.Meter) {
 	if err != nil {
 		t.Fatalf("parse seeded source: %v", err)
 	}
-	consts := map[string]string{}
-	collectStringConsts(file, consts)
-	regs := scanHistogramRegistrations(fset, file, consts)
+	regs := scanParsedFiles(fset, []*ast.File{file})
 	allow := map[string]string{"eshu_dp_seeded_allowed_seconds": "values genuinely span hours"}
 	got := strings.Join(defaultBucketSecondsViolations(regs, allow), "\n")
 
@@ -264,5 +283,99 @@ func TestBucketAuditRowRejectsDefaultSecondsHistogram(t *testing.T) {
 	}
 	if got := auditEntry(bucketAuditEntry{MetricName: "eshu_dp_seeded_batch_size"}).Verdict; got != "default" {
 		t.Errorf("nil-bucket count row verdict = %q, want default", got)
+	}
+}
+
+// TestSecondsHistogramGuardShadowedNames proves an instrument name that is a
+// function parameter, or a constant that lives in another package, never
+// folds to a value: the registration stays unresolved and the guard fails
+// closed. Before the guard resolved names per package, a same-named constant
+// in an unrelated package made a wrapper registration pass.
+func TestSecondsHistogramGuardShadowedNames(t *testing.T) {
+	sources := map[string]string{
+		"pkg/wrapper/wrapper.go": `package wrapper
+
+import "go.opentelemetry.io/otel/metric"
+
+func newDuration(meter metric.Meter, name string) {
+	meter.Float64Histogram(name, metric.WithUnit("s"))
+}
+`,
+		"pkg/other/other.go": `package other
+
+const name = "unrelated_total"
+const crossPackage = "eshu_dp_cross_package_seconds"
+`,
+		"pkg/user/user.go": `package user
+
+import (
+	"go.opentelemetry.io/otel/metric"
+	"example.com/pkg/other"
+)
+
+func register(meter metric.Meter) {
+	meter.Float64Histogram(crossPackage)
+	meter.Float64Histogram(other.crossPackage)
+}
+`,
+		"pkg/samedir/a.go": `package samedir
+
+import "go.opentelemetry.io/otel/metric"
+
+func register(meter metric.Meter) {
+	meter.Float64Histogram(sameDirConst)
+	meter.Float64Histogram(sameDirPrefix + "suffix_seconds")
+}
+`,
+		"pkg/samedir/b.go": `package samedir
+
+const sameDirPrefix = "eshu_dp_samedir_"
+const sameDirConst = "eshu_dp_samedir_const_seconds"
+`,
+		"pkg/local/local.go": `package local
+
+import "go.opentelemetry.io/otel/metric"
+
+const metricName = "eshu_dp_package_level_seconds"
+
+func register(meter metric.Meter, metricName string) {
+	meter.Float64Histogram(metricName)
+}
+`,
+		"pkg/emptyopt/emptyopt.go": `package emptyopt
+
+import "go.opentelemetry.io/otel/metric"
+
+func register(meter metric.Meter) {
+	meter.Float64Histogram("eshu_dp_empty_boundaries_seconds", metric.WithExplicitBucketBoundaries())
+}
+`,
+	}
+	fset := token.NewFileSet()
+	var files []*ast.File
+	for path, src := range sources {
+		f, err := parser.ParseFile(fset, path, src, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		files = append(files, f)
+	}
+	got := defaultBucketSecondsViolations(scanParsedFiles(fset, files), nil)
+	joined := strings.Join(got, "\n")
+
+	wantUnresolved := []string{"pkg/wrapper/wrapper.go:6", "pkg/user/user.go:9", "pkg/user/user.go:10", "pkg/local/local.go:8"}
+	for _, loc := range wantUnresolved {
+		if !strings.Contains(joined, loc+": cannot audit histogram registration") {
+			t.Errorf("%s should be unresolved (fail closed); violations:\n%s", loc, joined)
+		}
+	}
+	for _, want := range []string{
+		"pkg/samedir/a.go:6: eshu_dp_samedir_const_seconds is a _seconds histogram",
+		"pkg/samedir/a.go:7: eshu_dp_samedir_suffix_seconds is a _seconds histogram",
+		"pkg/emptyopt/emptyopt.go:6: eshu_dp_empty_boundaries_seconds is a _seconds histogram",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing violation %q; violations:\n%s", want, joined)
+		}
 	}
 }

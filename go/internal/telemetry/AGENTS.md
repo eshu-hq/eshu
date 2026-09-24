@@ -66,7 +66,12 @@
    histograms).
 2. Register the instrument inside `NewInstruments` using the meter, with a name
    starting with `eshu_dp_`, a description, and explicit bucket boundaries if the
-   default OTEL buckets are not appropriate for the measurement range.
+   default OTEL buckets are not appropriate for the measurement range. A
+   `_seconds` histogram MUST pass `metric.WithExplicitBucketBoundaries` with a
+   second-scale set (the OTEL default set is millisecond-scaled and cannot
+   resolve sub-5-second work); `TestSecondsHistogramsHaveExplicitBuckets`
+   scans the module source and fails otherwise, and registers the name as a
+   string literal or a package-level constant so the scan can read it.
 3. If the metric needs a new dimension key, add the constant to the
    `MetricDimensionScopeID`-style group in `contract.go` and add it to
    `metricDimensionKeys` so `MetricDimensionKeys()` stays current. Add a
