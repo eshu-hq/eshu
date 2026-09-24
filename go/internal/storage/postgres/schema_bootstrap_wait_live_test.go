@@ -228,22 +228,31 @@ func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, databas
 	return pid
 }
 
-// TestBootstrapRetriesStatementLockTimeoutLive pins #6956 cause 2: a
-// migration statement hits lock_timeout (SQLSTATE 55P03) because another
-// session holds a conflicting table lock, as an anti-wraparound autovacuum
-// does. The statement is CREATE INDEX CONCURRENTLY, the production shape
-// (migration 118) and the one non-transactional one. Before the fix the
-// migrator failed outright and recorded nothing; it must retry the
-// statement until the lock clears, log each retry and the recovery, and
-// record the receipt once.
-func TestBootstrapRetriesStatementLockTimeoutLive(t *testing.T) {
+// TestBootstrapConcurrentIndexBuildWaitsOutLockHolderLive pins #7004,
+// superseding this test's pre-#7004 shape: a CREATE INDEX CONCURRENTLY
+// migration statement blocked by another session's conflicting
+// ShareUpdateExclusiveLock, as an anti-wraparound autovacuum holds (the
+// production shape, migration 118, and the one non-transactional
+// statement kind), must wait for that lock to release rather than hit
+// lock_timeout and retry from scratch. coordination.ConcurrentIndexBuildPlan
+// exempts a bare CREATE/DROP INDEX CONCURRENTLY statement from the
+// per-statement lock_timeout entirely, so this wait is bounded only by the
+// run's context, never by lock_timeout -- on a steadily busy database
+// #6956's retry-with-backoff behavior for this exact statement shape could
+// never converge (every retry restarts the build from a full table scan,
+// and the shared lock retry budget still runs out), which is #7004's root
+// cause. Before the #7004 fix, this test asserted the #6956 retry
+// (lock_wait/lock_recovered events); now the statement must instead wait
+// silently past the old 3x lock_timeout hold and succeed, logging
+// bootstrap.postgres.migration.concurrent_index_build.starting/finished.
+func TestBootstrapConcurrentIndexBuildWaitsOutLockHolderLive(t *testing.T) {
 	database := openBootstrapWaitTestDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	table := "eshu_6956_locked_" + suffix
+	table := "eshu_7004_locked_" + suffix
 	index := table + "_idx"
-	path := "test/6956_locked_" + suffix + ".sql"
+	path := "test/7004_locked_" + suffix + ".sql"
 	cleanupBootstrapWaitObjects(t, database, table, path)
 	if _, err := database.ExecContext(ctx, "CREATE TABLE "+table+" (id INT)"); err != nil {
 		t.Fatalf("create locked table: %v", err)
@@ -263,22 +272,26 @@ func TestBootstrapRetriesStatementLockTimeoutLive(t *testing.T) {
 		t.Fatalf("holder: %v", herr)
 	}
 	if err != nil {
-		if isPostgresLockNotAvailable(err) {
-			t.Fatalf("migration gave up on lock_timeout after %s instead of retrying behind a %s table lock: %v\n%s", waited.Round(time.Millisecond), hold, err, logs.String())
-		}
-		t.Fatalf("migration failed after %s: %v\n%s", waited.Round(time.Millisecond), err, logs.String())
+		t.Fatalf("concurrent index build behind a %s conflicting lock failed after %s instead of waiting it out: %v\n%s", hold, waited.Round(time.Millisecond), err, logs.String())
+	}
+	if waited < hold-time.Second {
+		t.Fatalf("build finished after %s, before the blocking lock released at %s; it did not wait out the holder", waited.Round(time.Millisecond), hold)
 	}
 	text := logs.String()
-	if !strings.Contains(text, "bootstrap.postgres.migration.lock_wait") || !strings.Contains(text, "bootstrap.postgres.migration.lock_recovered") {
-		t.Fatalf("the statement was not retried (no lock_wait and lock_recovered events); a rerun against a recorded receipt proves nothing:\n%s", text)
+	if !strings.Contains(text, "bootstrap.postgres.migration.concurrent_index_build.starting") ||
+		!strings.Contains(text, "bootstrap.postgres.migration.concurrent_index_build.finished") {
+		t.Fatalf("want concurrent-index-build starting/finished events for operator visibility, got:\n%s", text)
+	}
+	if strings.Contains(text, "bootstrap.postgres.migration.lock_wait") {
+		t.Fatalf("build retried via lock_timeout instead of waiting it out (lock_wait logged); #7004 exempts CIC/DIC from lock_timeout:\n%s", text)
 	}
 	var receipts int
 	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM eshu_schema_migrations WHERE path = $1", path).Scan(&receipts); err != nil || receipts != 1 {
-		t.Fatalf("receipts for the retried migration = %d (err %v), want exactly 1", receipts, err)
+		t.Fatalf("receipts for the migration = %d (err %v), want exactly 1", receipts, err)
 	}
 	var valid bool
 	if err := database.QueryRowContext(ctx, `SELECT i.indisvalid FROM pg_index i
 JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = $1`, index).Scan(&valid); err != nil || !valid {
-		t.Fatalf("retried concurrent index invalid or absent: valid=%t err=%v", valid, err)
+		t.Fatalf("concurrent index invalid or absent: valid=%t err=%v", valid, err)
 	}
 }

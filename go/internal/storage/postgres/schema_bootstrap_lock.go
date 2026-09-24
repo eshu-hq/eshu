@@ -26,6 +26,9 @@ const (
 type schemaConnectionExecutor struct {
 	database SQLDB
 	conn     *sql.Conn
+	// logger reports #7004 concurrent-index-build start/finish events; never
+	// nil, since withSchemaBootstrapLock defaults it before construction.
+	logger *slog.Logger
 }
 
 type schemaMigrationTracker interface {
@@ -413,6 +416,12 @@ func (executor schemaConnectionExecutor) ExecContext(
 	return executor.conn.ExecContext(ctx, query, args...)
 }
 
+// execContextWithLockTimeout applies lockTimeout, then query, on the shared
+// bootstrap connection. #7004: a bare CREATE/DROP INDEX CONCURRENTLY
+// statement runs with lock_timeout disabled instead of the caller's bound
+// (coordination.ConcurrentIndexBuildPlan's doc comment explains why that
+// never blocks writers); coordination.RunWithConcurrentIndexBuildLogging
+// reports that statement's start/finish for operator visibility.
 func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	ctx context.Context,
 	query string,
@@ -421,22 +430,25 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	if lockTimeout <= 0 {
 		return executor.ExecContext(ctx, query)
 	}
-	if _, err := executor.conn.ExecContext(
-		ctx,
-		"SELECT set_config('lock_timeout', $1, false)",
-		lockTimeout.String(),
-	); err != nil {
-		return nil, fmt.Errorf("set schema lock timeout: %w", err)
-	}
-	if err := executor.database.dropInvalidConcurrentIndexes(
-		ctx,
-		executor.conn,
-		concurrentIndexNamesForInvalidCleanup(query),
-	); err != nil {
-		return nil, errors.Join(err, resetSchemaLockTimeout(executor.conn))
-	}
-	result, execErr := executor.conn.ExecContext(ctx, query)
-	return result, errors.Join(execErr, resetSchemaLockTimeout(executor.conn))
+	effectiveTimeout, concurrentIndexBuild := coordination.ConcurrentIndexBuildPlan(query, lockTimeout)
+	return coordination.RunWithConcurrentIndexBuildLogging(ctx, executor.logger, concurrentIndexBuild, func() (sql.Result, error) {
+		if _, err := executor.conn.ExecContext(
+			ctx,
+			"SELECT set_config('lock_timeout', $1, false)",
+			coordination.LockTimeoutSetting(effectiveTimeout),
+		); err != nil {
+			return nil, fmt.Errorf("set schema lock timeout: %w", err)
+		}
+		if err := executor.database.dropInvalidConcurrentIndexes(
+			ctx,
+			executor.conn,
+			concurrentIndexNamesForInvalidCleanup(query),
+		); err != nil {
+			return nil, errors.Join(err, resetSchemaLockTimeout(executor.conn))
+		}
+		result, execErr := executor.conn.ExecContext(ctx, query)
+		return result, errors.Join(execErr, resetSchemaLockTimeout(executor.conn))
+	})
 }
 
 // withSchemaBootstrapLock runs apply on one session that owns the schema
@@ -471,7 +483,7 @@ func (database SQLDB) withSchemaBootstrapLock(
 		return err
 	}
 
-	applyErr := apply(schemaConnectionExecutor{database: database, conn: conn})
+	applyErr := apply(schemaConnectionExecutor{database: database, conn: conn, logger: logger})
 	unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer unlockCancel()
 	_, unlockErr := conn.ExecContext(
