@@ -6,8 +6,10 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -35,6 +37,10 @@ type InstrumentedExecutor struct {
 // On error, sets span status to error if tracing is enabled, then returns
 // the error unchanged.
 func (i *InstrumentedExecutor) Execute(ctx context.Context, statement Statement) error {
+	statement, skip := GuardStatementIndexKeys(ctx, statement, i.Instruments)
+	if skip {
+		return nil
+	}
 	start := time.Now()
 
 	// Start span if tracer is available
@@ -77,6 +83,10 @@ func (i *InstrumentedExecutor) ExecuteGroup(ctx context.Context, stmts []Stateme
 	ge, ok := i.Inner.(GroupExecutor)
 	if !ok {
 		return fmt.Errorf("inner executor does not support ExecuteGroup")
+	}
+	stmts = GuardStatementsIndexKeys(ctx, stmts, i.Instruments)
+	if len(stmts) == 0 {
+		return nil
 	}
 
 	start := time.Now()
@@ -202,4 +212,81 @@ func statementBatchMetricAttributes(statement Statement) []attribute.KeyValue {
 		attrs = append(attrs, telemetry.AttrNodeType(label))
 	}
 	return attrs
+}
+
+// GuardStatementIndexKeys applies graph.GuardIndexKeyWrites to one write
+// statement: rows that would put more than graph.MaxIndexKeyBytes into a
+// schema index key are removed before the backend sees them, so one
+// oversized source value skips one node (and the edges its row carries)
+// instead of failing the atomic write it rides in (#7058). Each removed row
+// logs one WARN and adds one eshu_dp_graph_oversized_index_keys_skipped_total
+// increment. It returns skip=true when the indexed value came from a scalar
+// parameter; the caller must then not execute the statement.
+//
+// Every production graph write passes through InstrumentedExecutor, which
+// calls this, so the guard is backend-neutral and covers every writer. It sits
+// above the transient-retry executor, so a driver retry does not count again;
+// a work-item retry that rebuilds the write does.
+func GuardStatementIndexKeys(ctx context.Context, statement Statement, instruments *telemetry.Instruments) (Statement, bool) {
+	statement, _, skip := guardStatementIndexKeys(ctx, statement, instruments)
+	return statement, skip
+}
+
+// guardStatementIndexKeys is GuardStatementIndexKeys that also returns how
+// many rows it removed.
+func guardStatementIndexKeys(ctx context.Context, statement Statement, instruments *telemetry.Instruments) (Statement, int, bool) {
+	params, dropped, skip := graph.GuardIndexKeyWrites(statement.Cypher, statement.Parameters)
+	for _, d := range dropped {
+		slog.WarnContext(
+			ctx, "graph write skipped: indexed value exceeds key size limit",
+			"operation", string(statement.Operation),
+			"node_label", d.Label,
+			"property", d.Property,
+			"key_bytes", d.KeyBytes,
+			"limit_bytes", graph.MaxIndexKeyBytes,
+			"param", d.Param,
+			"scope_id", d.ScopeID,
+			"repo_id", d.RepoID,
+			"generation_id", d.GenerationID,
+			"entity_id", d.EntityID,
+			"file_path", d.FilePath,
+			"value_prefix", d.ValuePrefix,
+			"statement_skipped", skip,
+		)
+		if instruments != nil && instruments.GraphOversizedIndexKeysSkipped != nil {
+			instruments.GraphOversizedIndexKeysSkipped.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrNodeLabel(d.Label),
+				telemetry.AttrProperty(d.Property),
+			))
+		}
+	}
+	if len(dropped) > 0 {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("oversized_index_keys_skipped", len(dropped)))
+	}
+	statement.Parameters = params
+	return statement, len(dropped), skip
+}
+
+// guardStatementsIndexKeys applies GuardStatementIndexKeys to every statement
+// of a group, removing statements it reports as skipped. The input slice is
+// returned unchanged when nothing is dropped.
+func GuardStatementsIndexKeys(ctx context.Context, stmts []Statement, instruments *telemetry.Instruments) []Statement {
+	var out []Statement
+	for idx, stmt := range stmts {
+		guarded, dropped, skip := guardStatementIndexKeys(ctx, stmt, instruments)
+		if out == nil && dropped == 0 {
+			continue
+		}
+		if out == nil {
+			out = make([]Statement, idx, len(stmts))
+			copy(out, stmts[:idx])
+		}
+		if !skip {
+			out = append(out, guarded)
+		}
+	}
+	if out == nil {
+		return stmts
+	}
+	return out
 }

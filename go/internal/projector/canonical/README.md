@@ -29,7 +29,10 @@ calls and never the reverse.
   building statements; it removes Module, entity, and Parameter rows whose
   indexed key is over 8000 UTF-8 bytes, plus the edge rows that reference them,
   and returns one `OversizedIndexKey` record per skipped node for the caller's
-  metric and log.
+  metric and log. `MaxIndexedKeyBytes` is `graph.MaxIndexKeyBytes`. Every other
+  label and indexed property (Terraform state, `kind` slots, entity metadata,
+  semantic entities) is covered by the schema-derived statement guard that
+  `storage/cypher.InstrumentedExecutor` runs on every graph write.
 - `EntityMetadataFromPayload` — derives an entity's metadata map, preferring an
   explicit `entity_metadata` object and otherwise carrying through every
   non-structural payload key.

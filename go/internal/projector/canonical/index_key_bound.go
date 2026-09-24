@@ -3,22 +3,18 @@
 
 package canonical
 
+import "github.com/eshu-hq/eshu/go/internal/graph"
+
 // MaxIndexedKeyBytes is the largest UTF-8 byte length the canonical write
-// admits for the string part of one graph index key.
+// admits for the string part of one graph index key. It is
+// graph.MaxIndexKeyBytes, whose doc carries the measured Neo4j limits (#7058).
 //
-// Neo4j RANGE indexes (range-1.0) reject a key above a fixed size with
-// "Property value is too large to index", and because the canonical write is
-// one atomic transaction per repository, a single such value fails the whole
-// repository (#7058). Measured on neo4j:2026-community (2026.08.1): a single
-// string key is accepted up to 8164 bytes and a (string, string, int) node-key
-// constraint such as Function (name, path, line_number) up to 8151 string
-// bytes in total. The source cap is DynamicSizeUtil's 8175-byte key-value cap
-// minus per-slot overhead. 8000 sits below both and leaves room for a third
-// short string slot (K8sResource and CrossplaneClaim also key on kind).
-//
-// The same bound applies on every backend so graph truth does not depend on
-// which backend is configured; NornicDB accepts larger values silently.
-const MaxIndexedKeyBytes = 8000
+// DropOversizedIndexKeys applies it to the canonical materialization so a
+// dropped node takes its name-keyed dependent rows (IMPORTS, HAS_PARAMETER,
+// class and nested CONTAINS) with it. The schema-derived statement guard in
+// storage/cypher (GuardStatementIndexKeys, run by InstrumentedExecutor on
+// every graph write) covers every other label and indexed property.
+const MaxIndexedKeyBytes = graph.MaxIndexKeyBytes
 
 // oversizedValuePrefixBytes bounds the value excerpt carried in an
 // OversizedIndexKey so a skip log line stays small.

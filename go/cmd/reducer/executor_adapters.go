@@ -131,12 +131,19 @@ func newProbedWorkloadMaterializer(exec reducer.CypherExecutor, logger *slog.Log
 	return m
 }
 
+// ExecuteCypher runs one materializer statement. This chain has no
+// sourcecypher.InstrumentedExecutor, so it applies the schema-derived
+// oversized-index-key guard itself (#7058) before the retry seam.
 func (e reducerCypherExecutor) ExecuteCypher(ctx context.Context, cypher string, params map[string]any) error {
-	return e.retry.Execute(ctx, sourcecypher.Statement{
+	stmt, skip := sourcecypher.GuardStatementIndexKeys(ctx, sourcecypher.Statement{
 		Operation:  sourcecypher.OperationCanonicalUpsert,
 		Cypher:     cypher,
 		Parameters: params,
-	})
+	}, e.retry.Instruments)
+	if skip {
+		return nil
+	}
+	return e.retry.Execute(ctx, stmt)
 }
 
 // ProbeGraphExists forwards the deployment-source target probe (#6184) to
@@ -164,6 +171,10 @@ func (e reducerCypherExecutor) ExecuteCypherGroup(
 			Cypher:     statement.Cypher,
 			Parameters: statement.Parameters,
 		})
+	}
+	group = sourcecypher.GuardStatementsIndexKeys(ctx, group, e.retry.Instruments)
+	if len(group) == 0 {
+		return nil
 	}
 	return e.retry.ExecuteGroup(ctx, group)
 }

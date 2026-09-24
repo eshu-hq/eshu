@@ -111,7 +111,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
 | `CanonicalAtomicWrites` | `eshu_dp_canonical_atomic_writes_total` |
 | `CanonicalAtomicFallbacks` | `eshu_dp_canonical_atomic_fallbacks_total` |
-| `CanonicalOversizedIndexKeysSkipped` | `eshu_dp_canonical_oversized_index_keys_skipped_total` |
+| `GraphOversizedIndexKeysSkipped` | `eshu_dp_graph_oversized_index_keys_skipped_total` |
 | `SharedProjectionCycles` | `eshu_dp_shared_projection_cycles_total` |
 | `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
 | `SharedProjectionPartitionHeartbeatMissed` | `eshu_dp_shared_projection_partition_heartbeat_missed_total` |

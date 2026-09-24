@@ -407,7 +407,7 @@ func (w *CanonicalNodeWriter) recordAtomicFallback(ctx context.Context) {
 
 // dropOversizedIndexKeys removes rows whose indexed key exceeds
 // canonical.MaxIndexedKeyBytes, and reports each skipped node with one WARN
-// line and one eshu_dp_canonical_oversized_index_keys_skipped_total increment.
+// line and one eshu_dp_graph_oversized_index_keys_skipped_total increment.
 // It returns the reduced materialization and the number of skipped nodes.
 func (w *CanonicalNodeWriter) dropOversizedIndexKeys(
 	ctx context.Context,
@@ -428,8 +428,8 @@ func (w *CanonicalNodeWriter) dropOversizedIndexKeys(
 			"file_path", d.FilePath,
 			"value_prefix", d.ValuePrefix,
 		)
-		if w.instruments != nil && w.instruments.CanonicalOversizedIndexKeysSkipped != nil {
-			w.instruments.CanonicalOversizedIndexKeysSkipped.Add(ctx, 1, metric.WithAttributes(
+		if w.instruments != nil && w.instruments.GraphOversizedIndexKeysSkipped != nil {
+			w.instruments.GraphOversizedIndexKeysSkipped.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrNodeLabel(d.Label),
 				telemetry.AttrProperty(d.Property),
 			))

@@ -1527,12 +1527,15 @@ type Instruments struct {
 	// Canonical atomic write metrics
 	CanonicalAtomicWrites    metric.Int64Counter
 	CanonicalAtomicFallbacks metric.Int64Counter
-	// CanonicalOversizedIndexKeysSkipped counts canonical node rows dropped
-	// before the graph write because an indexed key exceeded the backend
-	// index key-size bound (#7058). Labels: node_label (closed canonical label
-	// set) and property (name or path). The value and repository stay in the
-	// paired WARN log line, never in a label.
-	CanonicalOversizedIndexKeysSkipped metric.Int64Counter
+	// GraphOversizedIndexKeysSkipped counts graph node writes dropped before
+	// they reach the backend because a schema index key exceeded
+	// graph.MaxIndexKeyBytes (#7058). It is emitted by the canonical
+	// materialization guard and by the statement guard every graph write
+	// passes through (cypher.InstrumentedExecutor), once per write attempt.
+	// Labels: node_label and property, both from the Go-owned graph schema,
+	// so both sets are closed. The value and repository stay in the paired
+	// WARN log line, never in a label.
+	GraphOversizedIndexKeysSkipped metric.Int64Counter
 
 	// Neo4j transient error retry metrics
 	Neo4jDeadlockRetries metric.Int64Counter
@@ -4737,12 +4740,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CanonicalAtomicFallbacks counter: %w", err)
 	}
 
-	inst.CanonicalOversizedIndexKeysSkipped, err = meter.Int64Counter(
-		"eshu_dp_canonical_oversized_index_keys_skipped_total",
-		metric.WithDescription("Total canonical node rows skipped before the graph write because an indexed key exceeded the index key-size bound, by node_label and property"),
+	inst.GraphOversizedIndexKeysSkipped, err = meter.Int64Counter(
+		"eshu_dp_graph_oversized_index_keys_skipped_total",
+		metric.WithDescription("Total graph node writes skipped before the backend write because a schema index key exceeded the index key-size bound, by node_label and property"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register CanonicalOversizedIndexKeysSkipped counter: %w", err)
+		return nil, fmt.Errorf("register GraphOversizedIndexKeysSkipped counter: %w", err)
 	}
 
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(

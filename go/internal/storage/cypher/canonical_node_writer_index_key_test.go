@@ -90,7 +90,7 @@ func TestCanonicalNodeWriterSkipsOversizedIndexKeys(t *testing.T) {
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	const name = "eshu_dp_canonical_oversized_index_keys_skipped_total"
+	const name = "eshu_dp_graph_oversized_index_keys_skipped_total"
 	if got := metricCounterValue(t, rm, name, telemetry.MetricDimensionNodeLabel, "Module"); got != 1 {
 		t.Fatalf("%s{node_label=Module} = %d, want 1", name, got)
 	}

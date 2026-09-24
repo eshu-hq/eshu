@@ -26,4 +26,11 @@
 // non-fatal for permissive callers, while the strict schema helper returns an
 // error after any non-context statement failure so deployment bootstrap does not
 // mark a partial graph schema as applied.
+//
+// The schema is also the source of the write-side key-size guard (#7058):
+// SchemaIndexKeys derives every label's indexed property keys from the same
+// DDL, and GuardIndexKeyWrites uses them to drop any statement row that would
+// put more than MaxIndexKeyBytes into one index key, so a single oversized
+// source value skips one node instead of failing the atomic write it rides
+// in. A new index is covered without touching any writer.
 package graph

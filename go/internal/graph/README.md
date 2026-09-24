@@ -37,7 +37,28 @@ graph/
   schema_execution.go — schema DDL progress logging and context-budget handling
   schema_statements.go — ordered schema statement inspection helpers
   schema_labels.go — schema label naming helpers
+  schema_index_keys.go — MaxIndexKeyBytes, IndexKey, SchemaIndexKeys:
+                   the label -> indexed-properties map derived from the DDL
+  index_key_guard.go, index_key_guard_parse.go — GuardIndexKeyWrites: the
+                   schema-derived oversized-index-key guard for one statement
 ```
+
+## Oversized index-key guard (#7058)
+
+Neo4j range indexes reject a key over 8164 bytes (one string) or 8151 bytes
+(`(name, path, line_number)`), and the rejection fails the whole atomic
+transaction. `GuardIndexKeyWrites(cypher, params)` reads which variables a
+statement MERGEs, CREATEs, or SETs, which labels they carry, and which row
+fields or parameters feed each property (`{p: row.x}` maps, `SET n.p = expr`,
+`SET n += row.map`). For every schema index key of those labels
+(`SchemaIndexKeysByLabel`) it sums the string bytes of the row's values and
+drops the row when the total exceeds `MaxIndexKeyBytes` (8000). A statement
+whose value comes from a scalar parameter is reported as skipped. MATCH and
+WHERE values are lookups and never count. Plans are cached per Cypher text
+(bounded at 4096 entries); the steady-state cost is about 72 µs for a
+500-row semantic Function batch and 113 µs for a 500-row canonical entity batch,
+with 0 allocations. `storage/cypher.InstrumentedExecutor` calls it on every
+graph write, so it applies to every writer on both backends.
 
 ## Ownership boundary
 
