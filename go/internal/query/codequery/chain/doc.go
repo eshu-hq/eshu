@@ -11,10 +11,10 @@
 // repo.
 //
 // The split keeps the *CodeHandler methods in codequery/callers.go --
-// three carry queryplan source_sha256 pins (handleCallChain in
-// query-source-coverage.yaml; nornicDBCallChainOneHopRows and
-// callChainCandidateOneHopRows in grandfathered_non_hot.go, which are
-// never re-frozen) and call this leaf through qualification. Response
+// three carry typed non_hot source_sha256 pins in
+// query-source-coverage.yaml (handleCallChain, nornicDBCallChainOneHopRows,
+// and callChainCandidateOneHopRows) and call this leaf through
+// qualification. Response
 // shaping and the frozen-named grant helper stay in codequery for the
 // same reason.
 //

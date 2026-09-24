@@ -79,7 +79,10 @@ func TestBuildOutlierCalleeEdgesCypherBatches(t *testing.T) {
 		t.Errorf("NornicDB callee-edges anchor misses the uid node pattern:\n%s", nornic)
 	}
 	neo4j, _ := BuildOutlierCalleeEdgesCypher([]string{"h-1"}, "repo-a", querycontract.GraphBackendNeo4j, unscopedOutlierAccess())
-	if !strings.Contains(neo4j, "member.id = mid OR member.uid = mid") {
-		t.Errorf("Neo4j callee-edges anchor misses the id/uid predicate:\n%s", neo4j)
+	if !strings.Contains(neo4j, "(member:Function {uid: mid})") {
+		t.Errorf("Neo4j callee-edges anchor misses the indexed uid node pattern:\n%s", neo4j)
+	}
+	if strings.Contains(neo4j, "member.id = mid OR member.uid = mid") || strings.Contains(neo4j, "member.id = mid") {
+		t.Errorf("Neo4j callee-edges anchor must not use the unindexed id-OR-uid scan:\n%s", neo4j)
 	}
 }

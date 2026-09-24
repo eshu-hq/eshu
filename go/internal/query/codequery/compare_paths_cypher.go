@@ -6,7 +6,6 @@ package codequery
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -88,14 +87,11 @@ func BuildComparePathsHopCypher(
 		return cypher.String(), params
 	}
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (source:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (source)-[rel:CALLS]->(callee)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "$source_entity_id"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\n\t\tMATCH (source:" + wrapperBypassAnchorLabels + " {uid: $source_entity_id})\n")
+	cypher.WriteString("\t\tMATCH (source)-[rel:CALLS]->(callee)")
+	sourcePredicates := wrapperTargetRepoPredicates("source", repoID, predicates)
+	if len(sourcePredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(sourcePredicates, " AND "))
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params

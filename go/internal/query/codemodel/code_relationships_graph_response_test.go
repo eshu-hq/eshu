@@ -101,3 +101,33 @@ func TestRelationshipGraphRowCypherAnchoredUsesCallerMatchClause(t *testing.T) {
 		t.Fatalf("anchored cypher is missing the shared file/repo enrichment OPTIONAL MATCH:\n%s", cypher)
 	}
 }
+
+// TestBuildTransitiveRelationshipRowsCypherNeo4jSeeksUID pins the Neo4j
+// anchor of the transitive CALLS walk to the uid uniqueness constraints of
+// the code-call endpoint labels (issue #7057). The old unlabeled
+// MATCH (e) WHERE (e.id = x OR e.uid = x) planned as an AllNodesScan on every
+// request. Only those six labels carry CALLS edges, so a node outside them
+// could never produce a row. The NornicDB branch keeps its own shape: a
+// label disjunction matches zero rows on the pinned NornicDB build.
+func TestBuildTransitiveRelationshipRowsCypherNeo4jSeeksUID(t *testing.T) {
+	t.Parallel()
+
+	const anchor = "MATCH (e:Function|Class|Struct|Interface|TypeAlias|File {uid: $entity_id})"
+	for _, direction := range []string{"outgoing", "incoming"} {
+		cypher, params := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNeo4j)
+		if !strings.Contains(cypher, anchor) {
+			t.Errorf("%s: Neo4j anchor missing %q:\n%s", direction, anchor, cypher)
+		}
+		if strings.Contains(cypher, ".id =") || strings.Contains(cypher, "MATCH (e)\n") {
+			t.Errorf("%s: Neo4j anchor still scans on the unindexed id predicate:\n%s", direction, cypher)
+		}
+		if params["entity_id"] != "entity-1" {
+			t.Errorf("%s: params[entity_id] = %#v, want entity-1", direction, params["entity_id"])
+		}
+
+		nornic, _ := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNornicDB)
+		if strings.Contains(nornic, anchor) || !strings.Contains(nornic, GraphEntityIDPredicate("e", "$entity_id")) {
+			t.Errorf("%s: NornicDB branch must keep its unlabeled anchor:\n%s", direction, nornic)
+		}
+	}
+}

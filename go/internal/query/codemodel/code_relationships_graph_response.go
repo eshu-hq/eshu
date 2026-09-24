@@ -156,10 +156,13 @@ func BuildTransitiveRelationshipRowsCypher(
 		return cypher.String(), params
 	}
 
-	cypher.WriteString("\n\t\tMATCH (e)\n")
-	cypher.WriteString("\t\tWHERE ")
-	cypher.WriteString(GraphEntityIDPredicate("e", "$entity_id"))
-	cypher.WriteString("\n")
+	// Neo4j anchors on the uid uniqueness constraint of every label a CALLS
+	// edge can touch (issue #7057). The unlabeled id-OR-uid predicate the
+	// NornicDB branch keeps planned as an AllNodesScan here. Every CALLS writer
+	// MATCHes both endpoints by uid on these labels, and the canonical entity
+	// writer sets id to the same EntityID as uid, so a node outside the set or
+	// matched only by id cannot start a CALLS walk and never produced a row.
+	cypher.WriteString("\n\t\tMATCH (e:" + CallGraphEndpointLabels + " {uid: $entity_id})\n")
 	if direction == "incoming" {
 		cypher.WriteString("\t\tMATCH path = (source)-[:CALLS*1..")
 		fmt.Fprint(&cypher, maxDepth)
@@ -184,6 +187,14 @@ func BuildTransitiveRelationshipRowsCypher(
 	cypher.WriteString("\t\tORDER BY depth, target_id\n\t")
 	return cypher.String(), params
 }
+
+// CallGraphEndpointLabels is the Neo4j label disjunction of every node a CALLS
+// edge can start or end on. It matches the endpoint labels the canonical
+// code-call edge writers MATCH by uid (storage/cypher/edge/writer
+// codeCallEndpointLabels and CodeCallRetractSourceLabels), and each label
+// carries a uid uniqueness constraint. A MATCH (n:<labels> {uid: $id}) on it
+// plans as one NodeUniqueIndexSeek per label.
+const CallGraphEndpointLabels = "Function|Class|Struct|Interface|TypeAlias|File"
 
 // GraphEntityIDPredicate returns the entity-identity MATCH predicate for one alias.
 func GraphEntityIDPredicate(alias string, param string) string {

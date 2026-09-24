@@ -328,18 +328,24 @@ func (h *CodeHandler) callChainCandidateOneHopRows(
 		return h.nornicDBCallChainOneHopRows(ctx, sourceID, sourceLabel, callChainAllowedTraversalRepoIDs(req))
 	}
 	params := map[string]any{"source_id": sourceID}
-	repoPredicate := ""
+	var targetPredicates []string
 	if repoIDs := callChainAllowedTraversalRepoIDs(req); len(repoIDs) > 0 {
 		params["traversal_repo_ids"] = repoIDs
-		repoPredicate = " AND coalesce(target.repo_id, '') IN $traversal_repo_ids"
+		targetPredicates = append(targetPredicates, "coalesce(target.repo_id, '') IN $traversal_repo_ids")
 	}
 	if access := codeGrantAccessFilter(ctx); access.Scoped() {
 		params = access.GraphParams(params)
-		repoPredicate += " AND " + access.GraphConditionOnProperty("target", "repo_id")
+		targetPredicates = append(targetPredicates, access.GraphConditionOnProperty("target", "repo_id"))
 	}
+	where := ""
+	if len(targetPredicates) > 0 {
+		where = "\n\t\tWHERE " + strings.Join(targetPredicates, " AND ")
+	}
+	// The source anchors on uid over the CALLS endpoint labels so each hop is
+	// a uid index seek, not a scan of every CALLS relationship filtered by
+	// (source.id = x OR source.uid = x) (issue #7057).
 	return h.Neo4j.Run(ctx, `
-		MATCH (source)-[:CALLS]->(target)
-		WHERE `+graphEntityIDPredicate("source", "$source_id")+repoPredicate+`
+		MATCH (source:`+chain.AnchorLabelDisjunction+` {uid: $source_id})-[:CALLS]->(target)`+where+`
 		RETURN coalesce(target.id, target.uid) as id,
 		       target.name as name,
 		       labels(target) as labels
