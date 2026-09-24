@@ -231,9 +231,9 @@ operational lessons that future storage changes still need to respect.
   preserves merged pull-request number, URL, and title provenance for bounded
   read-model enrichment, but the Git collector must still fetch the repository
   before freshness becomes true.
-- `AWSFreshnessStore` treats AWS Config and EventBridge events as trigger
-  evidence only. The AWS collector must still scan the affected service tuple
-  before cloud inventory becomes fresh.
+- `awsfreshnessstore.AWSFreshnessStore` treats AWS Config and EventBridge
+  events as trigger evidence only. The AWS collector must still scan the
+  affected service tuple before cloud inventory becomes fresh.
 - `IncidentFreshnessStore` treats PagerDuty and Jira webhooks as source-scoped
   trigger evidence only. It coalesces repeated delivery events by
   `freshness_key`, claims queued rows with `FOR UPDATE SKIP LOCKED`, and records

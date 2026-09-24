@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package awsfreshnessstore_test
 
 import (
 	"context"
@@ -16,6 +16,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 )
 
 // ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN gates this suite against a real
@@ -38,7 +40,7 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewAWSFreshnessStore(SQLDB{DB: db})
+	store := awsfreshnessstore.NewAWSFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
@@ -136,7 +138,7 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewAWSFreshnessStore(SQLDB{DB: db})
+	store := awsfreshnessstore.NewAWSFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
@@ -217,7 +219,7 @@ func TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewAWSFreshnessStore(SQLDB{DB: db})
+	store := awsfreshnessstore.NewAWSFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}

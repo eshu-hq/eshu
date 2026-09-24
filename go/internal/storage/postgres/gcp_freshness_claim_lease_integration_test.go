@@ -18,6 +18,48 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 )
 
+// freshnessClaimLeaseProofDSNEnv gates this suite (and
+// freshness_claim_lease_migration_backfill_integration_test.go) against a
+// real Postgres instance. It is skipped otherwise so the normal unit gate is
+// unaffected, mirroring the sibling generation-liveness/reducer-queue
+// integration proofs in this package. #6693 moved the AWS freshness store's
+// own copy of this helper to
+// go/internal/storage/postgres/freshness/aws/claim_lease_integration_test.go;
+// this copy stays in root for the GCP and cross-family migration-backfill
+// proofs that have not moved yet.
+const freshnessClaimLeaseProofDSNEnv = "ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN"
+
+// freshnessLeaseProofDB opens an isolated-schema connection against dsn so
+// this suite's rows never collide with another integration test's fixtures
+// sharing the same database. The pool is capped at one connection: SET
+// search_path is session-scoped, and the freshness claim-lease suites
+// deliberately issue overlapping ReapExpiredTriggerClaims calls that must
+// still land in the proof schema rather than a fresh, unconfigured pooled
+// connection (mirroring provisionLivenessSchema's sweepDB.SetMaxOpenConns(1)
+// pattern in generation_liveness_write_time_race_test.go).
+func freshnessLeaseProofDB(t *testing.T, dsn string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open proof connection: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	db.SetMaxOpenConns(1)
+
+	ctx := context.Background()
+	schemaName := fmt.Sprintf("freshness_claim_lease_proof_%d", time.Now().UnixNano())
+	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		t.Fatalf("create proof schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+	})
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	return db
+}
+
 // TestGCPFreshnessStoreReapExpiredTriggerClaimsIntegration mirrors
 // TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration for the GCP store;
 // see that test's doc comment for the #4576 rationale.

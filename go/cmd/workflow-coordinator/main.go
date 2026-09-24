@@ -41,6 +41,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
@@ -146,7 +147,7 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "aws_freshness_triggers",
 	}
-	awsFreshnessStore := postgres.NewAWSFreshnessStore(awsFreshnessDB)
+	awsFreshnessStore := awsfreshnessstore.NewAWSFreshnessStore(awsFreshnessDB)
 	if err := awsFreshnessStore.EnsureSchema(parent); err != nil {
 		return err
 	}

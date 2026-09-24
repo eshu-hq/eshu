@@ -629,7 +629,7 @@ failing instance's trigger is marked `failed` rather than left `claimed`),
 runs before handoff each tick and records the reclaimed count as the
 stuck-claimed telemetry signal, and (c) `TestRunReapExpiredAWSFreshnessClaimsRecordsErrorOutcome`
 proving a reap failure is recorded with the error outcome rather than dropped.
-`go test ./internal/storage/postgres -run 'Freshness' -race -count=1`
+`go test ./internal/storage/postgres/... -run 'Freshness' -race -count=1`
 against a real disposable Postgres 18 instance
 (`ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN`) additionally proves, against the
 database rather than SQL text alone: a claim with an already-expired lease is

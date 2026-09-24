@@ -13,6 +13,7 @@ import (
 
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 )
 
 // preClaimLeaseAWSFreshnessTriggersSQL is migration 020's table shape,
@@ -171,7 +172,7 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 		t.Fatalf("apply migration 041: %v", err)
 	}
 
-	awsStore := NewAWSFreshnessStore(SQLDB{DB: db})
+	awsStore := awsfreshnessstore.NewAWSFreshnessStore(SQLDB{DB: db})
 	reclaimedAWS, err := awsStore.ReapExpiredTriggerClaims(ctx, now, 50)
 	if err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims(aws) error = %v", err)
