@@ -3,7 +3,7 @@
 **Status:** PR1 (reducer correlation domain + durable fact writer), PR2
 (query/MCP read surface), and PR3 (readiness-gated RUNS_IMAGE graph edge)
 **LANDED** on `main` (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation.go`,
-`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go`, `go/internal/query/kubernetes.go`,
+`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go`, `go/internal/query/kubernetes/handler.go`,
 `go/internal/mcp/dispatch_kubernetes.go`,
 `go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go`; moved
 into that subpackage in issue #6061).
@@ -54,7 +54,7 @@ Implementation status (stated so reviewers see what landed vs what remains):
   (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation_writer.go`), and the
   six-outcome classifier.
 - **PR2 — LANDED** on `main`: the query/MCP read surface
-  (`GET /api/v0/kubernetes/correlations` in `go/internal/query/kubernetes.go`,
+  (`GET /api/v0/kubernetes/correlations` in `go/internal/query/kubernetes/handler.go`,
   `list_kubernetes_correlations` selected in
   `go/internal/mcp/kubernetes/routes.go` behind the
   `go/internal/mcp/dispatch_kubernetes.go` adapter)
