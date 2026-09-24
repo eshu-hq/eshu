@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // FakeScopedTokenResolver is a scoped-token resolver double for middleware
@@ -33,7 +33,7 @@ import (
 // which is what a test wiring the resolver purely to satisfy the port wants.
 type FakeScopedTokenResolver struct {
 	// Context is the auth context ResolveScopedToken hands back.
-	Context queryauth.AuthContext
+	Context auth.AuthContext
 	// OK is the recognized-credential verdict ResolveScopedToken hands back.
 	OK bool
 	// Err is the failure ResolveScopedToken hands back. Middleware treats a
@@ -56,7 +56,7 @@ type FakeScopedTokenResolver struct {
 func (f *FakeScopedTokenResolver) ResolveScopedToken(
 	ctx context.Context,
 	token string,
-) (queryauth.AuthContext, bool, error) {
+) (auth.AuthContext, bool, error) {
 	return f.ResolveAnswering(ctx, token, f.Context, f.OK, f.Err)
 }
 
@@ -75,10 +75,10 @@ func (f *FakeScopedTokenResolver) ResolveScopedToken(
 func (f *FakeScopedTokenResolver) ResolveAnswering(
 	_ context.Context,
 	token string,
-	authContext queryauth.AuthContext,
+	authContext auth.AuthContext,
 	ok bool,
 	err error,
-) (queryauth.AuthContext, bool, error) {
+) (auth.AuthContext, bool, error) {
 	f.mu.Lock()
 	f.called = true
 	f.token = token

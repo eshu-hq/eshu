@@ -38,7 +38,7 @@
 //
 // Fakes here may depend on the leaf packages whose types they stand in for --
 // FakeGovernanceAuditAppender on internal/governanceaudit and
-// FakeScopedTokenResolver on queryauth. Root internal/query is off limits: its
+// FakeScopedTokenResolver on auth. Root internal/query is off limits: its
 // own in-package tests import this package, so importing root from here is an
 // import cycle in root's test binary.
 //

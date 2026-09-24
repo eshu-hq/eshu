@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -26,8 +26,8 @@ func TestSemanticSearchHandlerGeneratedTokenRequiresAskSearchFeature(t *testing.
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                         queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                         auth.AuthModeScoped,
 		TenantID:                     "tenant-a",
 		WorkspaceID:                  "workspace-a",
 		PermissionCatalogEnforced:    true,
@@ -66,8 +66,8 @@ func TestSemanticSearchHandlerGeneratedTokenRequiresAskSearchDataClasses(t *test
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                         queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                         auth.AuthModeScoped,
 		TenantID:                     "tenant-a",
 		WorkspaceID:                  "workspace-a",
 		PermissionCatalogEnforced:    true,

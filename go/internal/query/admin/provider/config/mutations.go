@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -128,25 +128,25 @@ func (h *MutationHandler) adminScope(
 	r *http.Request,
 	eventType governanceaudit.EventType,
 ) (tenantID string, ok bool) {
-	auth, found := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_scope_required", "")
 		querycontract.WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_tenant_required", "")
 		querycontract.WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", false
 	}
-	return auth.TenantID, true
+	return authCtx.TenantID, true
 }
 
 func (h *MutationHandler) requirePermission(
 	w http.ResponseWriter, r *http.Request, eventType governanceaudit.EventType, capability string,
 ) bool {
-	if queryauth.AllowsPermissionFeature(r.Context(), queryauth.PermissionFeatureIdentityAdmin) {
+	if auth.AllowsPermissionFeature(r.Context(), auth.PermissionFeatureIdentityAdmin) {
 		return true
 	}
 	h.audit(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -78,9 +78,9 @@ func iacGrantTestFindings() []ManagementFindingRow {
 	}
 }
 
-func iacGrantScopedAuthContext(allowedScopeIDs []string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:            queryauth.AuthModeScoped,
+func iacGrantScopedAuthContext(allowedScopeIDs []string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:            auth.AuthModeScoped,
 		TenantID:        "tenant-a",
 		WorkspaceID:     "workspace-a",
 		AllowedScopeIDs: allowedScopeIDs,
@@ -159,7 +159,7 @@ func iacManagementFamilyTotalFindingsCount(t *testing.T, body []byte) int {
 	return int(count)
 }
 
-func newIaCManagementRouteRequest(t *testing.T, path string, body map[string]any, auth *queryauth.AuthContext) *http.Request {
+func newIaCManagementRouteRequest(t *testing.T, path string, body map[string]any, authCtx *auth.AuthContext) *http.Request {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -167,8 +167,8 @@ func newIaCManagementRouteRequest(t *testing.T, path string, body map[string]any
 	}
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	if auth != nil {
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
+	if authCtx != nil {
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 	}
 	return req
 }
@@ -347,7 +347,7 @@ func TestIaCManagementStatusRoutesEnforceScopeGrant(t *testing.T) {
 }
 
 // TestIaCManagementFamilyRoutesUnscopedCallerUnaffected proves an all-scopes
-// caller (no queryauth.AuthContext, matching a shared-key/admin token) sees every
+// caller (no auth.AuthContext, matching a shared-key/admin token) sees every
 // finding regardless of AWS scope -- the #5167 W4 change must not narrow
 // existing shared-key behavior.
 func TestIaCManagementFamilyRoutesUnscopedCallerUnaffected(t *testing.T) {

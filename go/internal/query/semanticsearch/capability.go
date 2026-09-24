@@ -29,7 +29,7 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // `*semanticsearch.Support.ProductionMax = ...` from anywhere would move the
 // registered ceiling at runtime, long after the gate that validated it ran.
 // RegisterCapabilities copies the struct by value, which copies the pointers,
-// not what they point at. queryauth makes the same call one package over for
+// not what they point at. auth makes the same call one package over for
 // the same reason, keeping its data-class slice unexported behind a function so
 // no caller can append to the shared backing array. No writer exists today; the
 // point is that this file is the template every later family move in #6053

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
@@ -33,7 +33,7 @@ const Capability = "semantic_search.curated_retrieval"
 // at init rather than per request. PermissionDataClassesAskSearch returns a
 // fresh slice on every call, so calling it inside the handler would allocate on
 // the request path for a value that never changes.
-var askSearchDataClasses = queryauth.PermissionDataClassesAskSearch()
+var askSearchDataClasses = auth.PermissionDataClassesAskSearch()
 
 // SemanticSearchHandler exposes bounded curated search-document retrieval.
 type SemanticSearchHandler struct {
@@ -228,7 +228,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	if !queryauth.AllowsPermissionFeature(r.Context(), queryauth.PermissionFeatureAskSearch) {
+	if !auth.AllowsPermissionFeature(r.Context(), auth.PermissionFeatureAskSearch) {
 		writeSemanticSearchError(
 			w,
 			r,
@@ -238,7 +238,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	if !queryauth.AllowsPermissionDataClasses(r.Context(), askSearchDataClasses...) {
+	if !auth.AllowsPermissionDataClasses(r.Context(), askSearchDataClasses...) {
 		writeSemanticSearchError(
 			w,
 			r,

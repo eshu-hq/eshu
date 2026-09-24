@@ -8,8 +8,8 @@ package identity
 // These tests cover:
 // 1. A tenant admin (AllScopes + TenantID) can read their OWN tenant's audit.
 // 2. A tenant admin never sees another tenant's events (isolation).
-// 3. The shared-operator (queryauth.AuthModeShared, no tenant) sees everything.
-// 4. The handler passes TenantID from the queryauth.AuthContext to the audit reader query.
+// 3. The shared-operator (auth.AuthModeShared, no tenant) sees everything.
+// 4. The handler passes TenantID from the auth.AuthContext to the audit reader query.
 // 5. The handler passes TenantID to the summary reader.
 //
 // All tests FAIL before the handler gating is updated (currently sharedOperatorScope
@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -122,8 +122,8 @@ func TestAuditEventsHandlerTenantAdminSeesOwnTenant(t *testing.T) {
 	handler.Mount(mux)
 
 	// Tenant admin auth: AllScopes=true + TenantID set (not shared-operator).
-	tenantAuth := queryauth.AuthContext{
-		Mode:        queryauth.AuthModeBrowserSession,
+	tenantAuth := auth.AuthContext{
+		Mode:        auth.AuthModeBrowserSession,
 		TenantID:    "tenant_a",
 		WorkspaceID: "workspace_a",
 		AllScopes:   true,
@@ -187,8 +187,8 @@ func TestAuditEventsHandlerTenantAdminCrossIsolation(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	tenantAuth := queryauth.AuthContext{
-		Mode:        queryauth.AuthModeBrowserSession,
+	tenantAuth := auth.AuthContext{
+		Mode:        auth.AuthModeBrowserSession,
 		TenantID:    "tenant_a",
 		WorkspaceID: "workspace_a",
 		AllScopes:   true,
@@ -255,7 +255,7 @@ func TestAuditEventsHandlerSharedOperatorSeesAllTenants(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	sharedAuth := queryauth.AuthContext{Mode: queryauth.AuthModeShared}
+	sharedAuth := auth.AuthContext{Mode: auth.AuthModeShared}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, "/api/v0/auth/admin/audit/events", sharedAuth))
 
@@ -292,8 +292,8 @@ func TestAuditSummaryHandlerTenantAdminSeesOwnSummary(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	tenantAuth := queryauth.AuthContext{
-		Mode:        queryauth.AuthModeBrowserSession,
+	tenantAuth := auth.AuthContext{
+		Mode:        auth.AuthModeBrowserSession,
 		TenantID:    "tenant_a",
 		WorkspaceID: "workspace_a",
 		AllScopes:   true,
@@ -359,8 +359,8 @@ func TestAuditHandlersRejectNonAdminScoped(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	nonAdminAuth := queryauth.AuthContext{
-		Mode:      queryauth.AuthModeScoped,
+	nonAdminAuth := auth.AuthContext{
+		Mode:      auth.AuthModeScoped,
 		TenantID:  "tenant_a",
 		AllScopes: false,
 	}
@@ -416,9 +416,9 @@ func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
 	// A bare shared-operator with no TenantID must produce a global/NULL event.
 	sharedAudit := &querytestutil.FakeGovernanceAuditAppender{}
 	sharedMux := newMutationMux(store, sharedAudit)
-	// queryauth.AuthModeShared + no TenantID → rejected by adminScope (admin_tenant_required),
+	// auth.AuthModeShared + no TenantID → rejected by adminScope (admin_tenant_required),
 	// but a denial event is still emitted — and it must carry empty TenantID.
-	sharedAuth := queryauth.AuthContext{Mode: queryauth.AuthModeShared, AllScopes: true, TenantID: ""}
+	sharedAuth := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true, TenantID: ""}
 	sharedRec := httptest.NewRecorder()
 	sharedMux.ServeHTTP(sharedRec, mutationRequest(
 		http.MethodPost, "/api/v0/auth/admin/role-assignments",

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -26,8 +26,8 @@ func languageInventoryAdminRequest(t *testing.T, target string) *http.Request {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodGet, target, nil)
-	return req.WithContext(queryauth.ContextWithAuthContext(
-		req.Context(), queryauth.AuthContext{AllScopes: true},
+	return req.WithContext(auth.ContextWithAuthContext(
+		req.Context(), auth.AuthContext{AllScopes: true},
 	))
 }
 

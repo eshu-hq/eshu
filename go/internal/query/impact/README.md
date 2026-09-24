@@ -49,7 +49,7 @@ stay unexported; cross-package test pins go through `querytestutil/graph`
 
 The package imports the Go standard library, `querycontract` (types, ports,
 capability registry, shared bounds), `querytestutil` in tests only,
-`deployment`, `queryauth` (tests), and `tracing`/`internal/telemetry`
+`deployment`, `auth` (tests), and `tracing`/`internal/telemetry`
 for handler spans. It must not import the query root or graph drivers.
 
 ## Telemetry

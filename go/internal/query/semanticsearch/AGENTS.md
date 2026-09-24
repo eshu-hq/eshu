@@ -8,7 +8,7 @@ Read `doc.go` and `README.md` first.
   already imports this package for its compatibility aliases, so the reverse
   import cycles. If a change needs something only root exposes, either a leaf
   equivalent already exists under `internal/query` (`querycontract`,
-  `queryauth`, `tracing`) or it does not belong in this family; ask before
+  `auth`, `tracing`) or it does not belong in this family; ask before
   adding one.
 - `startQueryHandlerSpan` MUST forward through the package-local
   `semanticSearchTracer` var (`handler_tracing.go`), never call
@@ -41,7 +41,7 @@ Read `doc.go` and `README.md` first.
   included — write access to the same ints, and `RegisterCapabilities` copies
   the struct, not what its pointers point at. The three ceilings also need
   separate variables: three pointers to one local stay aliased inside the
-  returned struct. `queryauth` keeps its data-class slice unexported behind a
+  returned struct. `auth` keeps its data-class slice unexported behind a
   function for the same reason. This file is the template later #6053 family
   moves copy, so the shape matters more here than the absent writer does.
 - `Capability` (`semantic_search.go`) is the single declaration of the

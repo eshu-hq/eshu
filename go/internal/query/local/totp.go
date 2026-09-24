@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/totp"
 )
@@ -26,7 +26,7 @@ const localIdentityTOTPIssuer = "Eshu"
 // localIdentityTOTPBeginRequest carries an optional client-supplied account
 // label for the authenticator app entry. The server never has the caller's
 // original login identifier (sessions carry only subject_id_hash, a
-// one-way hash — see queryauth.AuthContext), so the console supplies a human label it
+// one-way hash — see auth.AuthContext), so the console supplies a human label it
 // already knows from its own session state; a missing label falls back to
 // a generic default. This label is cosmetic only, never used for lookup or
 // authorization.
@@ -70,9 +70,9 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 	if !h.ready(w) {
 		return
 	}
-	auth, ok := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !ok || auth.SubjectIDHash == "" {
+	authCtx, ok := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !ok || authCtx.SubjectIDHash == "" {
 		querycontract.WriteUnauthorized(w, r)
 		return
 	}
@@ -81,7 +81,7 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 		querycontract.WriteError(w, http.StatusBadRequest, "invalid totp enrollment request")
 		return
 	}
-	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
+	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
 		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
@@ -118,11 +118,11 @@ func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *ht
 		SecretPlaintext: secret,
 		CreatedAt:       h.now(),
 	}); err != nil {
-		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_begin_failed", auth.SubjectIDHash)
+		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_begin_failed", authCtx.SubjectIDHash)
 		querycontract.WriteError(w, http.StatusBadRequest, "failed to begin totp enrollment")
 		return
 	}
-	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_begin", auth.SubjectIDHash)
+	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_begin", authCtx.SubjectIDHash)
 	querycontract.WriteJSON(w, http.StatusCreated, localIdentityTOTPBeginResponse{
 		FactorID:      factorID,
 		OTPAuthURI:    uri,
@@ -137,9 +137,9 @@ func (h *IdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *
 	if !h.ready(w) {
 		return
 	}
-	auth, ok := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !ok || auth.SubjectIDHash == "" {
+	authCtx, ok := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !ok || authCtx.SubjectIDHash == "" {
 		querycontract.WriteUnauthorized(w, r)
 		return
 	}
@@ -148,7 +148,7 @@ func (h *IdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *
 		querycontract.WriteError(w, http.StatusBadRequest, "invalid totp confirm request")
 		return
 	}
-	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
+	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), authCtx.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
 		querycontract.WriteError(w, http.StatusInternalServerError, "failed to confirm totp enrollment")
@@ -164,11 +164,11 @@ func (h *IdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *
 		Code:     req.Code,
 		Now:      h.now(),
 	}); err != nil {
-		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_confirm_failed", auth.SubjectIDHash)
+		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_confirm_failed", authCtx.SubjectIDHash)
 		querycontract.WriteError(w, http.StatusBadRequest, "failed to confirm totp enrollment")
 		return
 	}
-	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_confirmed", auth.SubjectIDHash)
+	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_confirmed", authCtx.SubjectIDHash)
 	w.WriteHeader(http.StatusNoContent)
 }
 

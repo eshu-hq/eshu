@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -54,8 +54,8 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 			{"entity_id": "workload:1", "repo_id": "repo-1", "repo_name": "repo-one"},
 		},
 	}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-1"},
 	})
 	entity := map[string]any{
@@ -122,8 +122,8 @@ func TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo(t *testing.
 			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
 		},
 	}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-1"},
 	})
 	entity := map[string]any{
@@ -215,8 +215,8 @@ func TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission(t *testing
 			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
 		},
 	}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-1"},
 	})
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)

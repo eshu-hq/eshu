@@ -239,7 +239,7 @@ func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 	for _, path := range matches {
 		// Compare the slash-normalized path SUFFIX, not the bare basename: a
 		// bare "totp.go" basename match would also exempt any future
-		// queryauth/totp.go or admin/.../totp.go carrying a json:"secret"
+		// auth/totp.go or admin/.../totp.go carrying a json:"secret"
 		// field, letting it leak silently instead of failing this guard.
 		if strings.HasSuffix(filepath.ToSlash(path), "/query/local/totp.go") {
 			continue

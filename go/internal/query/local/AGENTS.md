@@ -17,7 +17,7 @@ for the full file layout and Move evidence.
 
 - MUST NOT import root package `query` -- root would import this package
   back for the compatibility aliases in `local_identity_alias.go`, cycling.
-  Reach root-only helpers through `queryauth` (auth context, browser-session
+  Reach root-only helpers through `auth` (auth context, browser-session
   types, sign-in-policy read port) or `querycontract` (envelope writers,
   `ReadJSON`/`WriteJSON`/`WriteError`/`PathParam`,
   `RequirePermissionFeature`/`WritePermissionDenied`/`WriteUnauthorized`); if
@@ -40,7 +40,7 @@ for the full file layout and Move evidence.
     `requirePermissionFeature`): invitation creation and the per-user
     `password`, `mfa-reset` and `disable` administration routes;
   - subject-authenticated self-service routes that act only on the caller's
-    own identity (`queryauth.AuthContextFromContext` with a non-empty
+    own identity (`auth.AuthContextFromContext` with a non-empty
     `SubjectIDHash`): TOTP enrolment (`mfa/totp/begin`, `mfa/totp/confirm`)
     and `GET api-tokens`;
   - dual-mode token mutations (`POST api-tokens`,
@@ -102,7 +102,7 @@ for the full file layout and Move evidence.
   side effect to smuggle in.
 - `requirePermissionFeature` (this package's own method, distinct from
   `querycontract.RequirePermissionFeature`) calls
-  `queryauth.AllowsPermissionFeature` and `querycontract.WritePermissionDenied`
+  `auth.AllowsPermissionFeature` and `querycontract.WritePermissionDenied`
   directly, then additionally emits a `permission_catalog_denied` governance
   audit event on denial through `auditLocalIdentity`. Do not replace it with
   a bare call to `querycontract.RequirePermissionFeature`: that function

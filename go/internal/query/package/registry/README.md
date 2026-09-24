@@ -13,7 +13,7 @@ This package owns everything under `GET /api/v0/package-registry/*`: the
 handler struct, its Cypher builders, its Postgres correlation store, its
 graph aggregate store, and its response models. It does not own auth, the
 graph/content port definitions, or the response-envelope/capability contract
--- those live in `querycontract`, `queryauth`, and the other leaf packages
+-- those live in `querycontract`, `auth`, and the other leaf packages
 under `internal/query` (see Dependencies).
 
 Root package `query` keeps compatibility aliases and forwarders
@@ -113,7 +113,7 @@ file-path field changed. `DependenciesCypher`'s digest was re-derived the
 same way. No
 Cypher text, response shape, pagination bound, or capability behavior
 changed. No production-file rename this move required touched the
-`querycontract`/`queryauth`/`decode`/`selector`/`tracing` leaf
+`querycontract`/`auth`/`decode`/`selector`/`tracing` leaf
 packages it depends on.
 
 ## No-Regression Evidence
@@ -157,7 +157,7 @@ The Go standard library, `database/sql`, `go/internal/storage/postgres/array`,
   (`*decode.Error`) this package's correlation decode wrappers return.
 - `selector` -- `ResolveForRequestWithAccess`, the repository-selector
   resolution this package's correlation and dependency-chains handlers use.
-- `queryauth` -- `AuthContext`, `AuthContextFromContext`,
+- `auth` -- `AuthContext`, `AuthContextFromContext`,
   `RepositoryAccessFilterFromContext` (via `querycontract`), the scoped-token
   authorization bounds every scoped-access test drives.
 - `tracing` -- the per-route HTTP span (see Gotchas below).

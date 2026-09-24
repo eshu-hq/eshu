@@ -48,11 +48,11 @@
   non-empty metadata URL. This is a security-critical decision table
   (issue #5163); do not widen or narrow which call sites can carry the
   challenge without re-reading `unauthorized.go`'s doc comments.
-- (#6642) This package MAY import `queryauth` (already does, for
-  `RepositoryAccessFilterFromContext`); `queryauth` MUST NOT import this
+- (#6642) This package MAY import `auth` (already does, for
+  `RepositoryAccessFilterFromContext`); `auth` MUST NOT import this
   package back, or the two leaves cycle. That is the reason
   `WriteUnauthorized`/`WritePermissionDenied`/`RequirePermissionFeature` live
-  here instead of in the more auth-shaped `queryauth`.
+  here instead of in the more auth-shaped `auth`.
 
 ## Verification
 

@@ -12,12 +12,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // audit emits one governance audit event for a mutation decision, deriving
-// the actor class and actor id hash from the request's queryauth.AuthContext. It is a
+// the actor class and actor id hash from the request's auth.AuthContext. It is a
 // no-op when no appender is wired.
 func (h *MutationHandler) audit(
 	r *http.Request,
@@ -29,11 +29,11 @@ func (h *MutationHandler) audit(
 	if h == nil || h.Audit == nil {
 		return
 	}
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	actorClass := audit.ActorClassForAuth(auth)
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	actorClass := audit.ActorClassForAuth(authCtx)
 	if actorIDHash == "" {
-		actorIDHash = auth.SubjectIDHash
+		actorIDHash = authCtx.SubjectIDHash
 	}
 	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
 		actorIDHash = audit.SharedActorIDHash
@@ -46,10 +46,10 @@ func (h *MutationHandler) audit(
 		Decision:           decision,
 		ReasonCode:         strings.TrimSpace(reasonCode),
 		CorrelationID:      audit.SafeCorrelationID(audit.CorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
 		slog.ErrorContext(

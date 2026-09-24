@@ -22,7 +22,7 @@
 // backend, so every capability is exact at every profile.
 //
 // This package imports querycontract (profiles, envelopes, capability
-// registration, HTTP helpers, RepositoryAccessFilterFromContext), queryauth
+// registration, HTTP helpers, RepositoryAccessFilterFromContext), auth
 // (AuthContext, only in tests), tracing (the shared handler-span seam),
 // service (CatalogCorrelationStore/Filter/Row, the service-catalog
 // correlation read model the service-changed-since route's grant binds

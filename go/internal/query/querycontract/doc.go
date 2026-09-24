@@ -76,10 +76,10 @@
 // (moved from root's unauthorizedResponse), WritePermissionDenied (moved from
 // root's writePermissionDeniedEnvelope), and RequirePermissionFeature (moved
 // from root's requirePermissionFeature). They live here rather than in
-// queryauth -- the more auth-shaped leaf -- because they need this package's
+// auth -- the more auth-shaped leaf -- because they need this package's
 // own WriteJSON/ResponseEnvelope/ErrorEnvelope/ErrorCode primitives, and
-// queryauth cannot import querycontract: querycontract already imports
-// queryauth (RepositoryAccessFilterFromContext reads AuthContext), so the
+// auth cannot import querycontract: querycontract already imports
+// auth (RepositoryAccessFilterFromContext reads AuthContext), so the
 // reverse edge would cycle. WriteUnauthorized's WWW-Authenticate header
 // needed a types-only hoist alongside it -- OAuthChallengePolicy (the
 // interface only; root's PostureOAuthChallengePolicy, DeriveAuthPosture, and

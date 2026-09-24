@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -21,11 +21,11 @@ import (
 // rule documented on FakeScopedTokenResolver (scopedtoken.go): the moved
 // impact/ investigation tests build scoped contexts from outside package
 // query, so the constructor must be importable. query.AuthContext is an alias
-// of queryauth.AuthContext, so this builds exactly the value the root helper
+// of auth.AuthContext, so this builds exactly the value the root helper
 // built.
-func ScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func ScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             tenant,
 		WorkspaceID:          tenant,
 		SubjectClass:         "team",
@@ -43,11 +43,11 @@ func ScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) queryau
 // documented on ScopedTestAuthContext above: as internal/query splits into
 // handler-family subpackages (#6060), each family's tests need the same
 // helpers, and they cannot reach root's _test.go declarations at all.
-// query.AuthContext is an alias of queryauth.AuthContext, so this builds
+// query.AuthContext is an alias of auth.AuthContext, so this builds
 // exactly the value the root helper built.
-func CodeGrantScopedAuthContext(allowedRepositoryIDs []string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func CodeGrantScopedAuthContext(allowedRepositoryIDs []string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: allowedRepositoryIDs,

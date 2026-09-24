@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/facet"
 	"github.com/eshu-hq/eshu/go/internal/ask/render"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -200,11 +200,11 @@ func (h *AskHandler) Mount(mux *http.ServeMux) {
 }
 
 func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
-	if !queryauth.AllowsPermissionFeature(r.Context(), queryauth.PermissionFeatureAskSearch) {
+	if !auth.AllowsPermissionFeature(r.Context(), auth.PermissionFeatureAskSearch) {
 		querycontract.WritePermissionDenied(w, "ask_search.ask")
 		return
 	}
-	if !queryauth.AllowsPermissionDataClasses(r.Context(), queryauth.PermissionDataClassesAskSearch()...) {
+	if !auth.AllowsPermissionDataClasses(r.Context(), auth.PermissionDataClassesAskSearch()...) {
 		querycontract.WritePermissionDenied(w, "ask_search.ask")
 		return
 	}

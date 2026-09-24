@@ -17,7 +17,7 @@ export disciplines.
   re-declare those -- call them through `Dependencies` func fields.
 - `codemodel` owns read-model builders and response shapers;
   `querycontract` owns envelopes, capabilities, and the access
-  filter; `queryauth` owns request auth bounds. Qualify to them.
+  filter; `auth` owns request auth bounds. Qualify to them.
 
 ## Import discipline (cardinal)
 

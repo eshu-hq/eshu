@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -152,7 +152,7 @@ func runScopedPackagesByName(
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem="+ecosystem+"&name="+name+"&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec.Body.String(), rec.Code
@@ -170,7 +170,7 @@ func runScopedDependenciesByVersion(
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/dependencies?version_id="+versionID+"&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec.Body.String(), rec.Code

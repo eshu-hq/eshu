@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -47,7 +47,7 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	}
 	req.normalize()
 
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	auth, _ := auth.AuthContextFromContext(r.Context())
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 
 	if !req.hasSelector() {
@@ -150,7 +150,7 @@ func (h *Handler) respondDuplicateReplay(
 	req replayRequest,
 	claim ReplayIdempotencyClaim,
 	fingerprint string,
-	auth queryauth.AuthContext,
+	auth auth.AuthContext,
 	correlationID string,
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
@@ -181,7 +181,7 @@ func (h *Handler) recordRecoveryAction(
 	ctx context.Context,
 	decision governanceaudit.Decision,
 	reasonCode string,
-	auth queryauth.AuthContext,
+	auth auth.AuthContext,
 	correlationID string,
 ) {
 	if h.Audit == nil {

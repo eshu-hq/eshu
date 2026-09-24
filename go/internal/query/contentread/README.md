@@ -58,7 +58,7 @@ The Go standard library, `database/sql` via the store port, and these
 - `codemodel` -- `EntityIDFromDocument`, the document-ID recovery the
   entity re-rank passes as its rank function (a direct leaf call; root's
   same-named shim in lane-A code stays untouched).
-- `queryauth`, `querytestutil/content` -- test-only: scoped auth contexts and the
+- `auth`, `querytestutil/content` -- test-only: scoped auth contexts and the
   shared `FakePortContentStore` double the tripwire fake embeds.
 
 It does **not** import root package `query`: that import would cycle, since

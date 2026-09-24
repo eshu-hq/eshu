@@ -14,7 +14,7 @@ This package owns the semantic-search route: the handler struct, its request
 normalization and parameter bounds, its Postgres index and snapshot stores, its
 scope resolver, its reranker, its response models, and its degraded-search
 telemetry. It does not own auth, the response-envelope and capability contract,
-or the HTTP span helper — those live in `queryauth`, `querycontract`, and
+or the HTTP span helper — those live in `auth`, `querycontract`, and
 `tracing` (see Dependencies).
 
 Root package `query` keeps compatibility aliases and forwarders
@@ -64,7 +64,7 @@ Internal packages, all of them leaves that never import root package `query`:
 
 - `internal/query/querycontract` — response and truth envelopes, error codes,
   capability gate, query profiles, `RepositoryAccessFilter`.
-- `internal/query/queryauth` — the request-scoped `AuthContext` and the
+- `internal/query/auth` — the request-scoped `AuthContext` and the
   permission-catalog predicates `AllowsPermissionFeature` and
   `AllowsPermissionDataClasses`.
 - `internal/query/tracing` — `HandlerTracer`/`StartHandlerSpanWith`, wrapped

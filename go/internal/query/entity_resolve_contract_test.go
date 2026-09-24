@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
@@ -176,8 +176,8 @@ func TestResolveEntityWorkloadEmptyGrantUsesAuthoritativeGraphTruth(t *testing.T
 		bytes.NewBufferString(`{"name":"restricted-service","type":"workload","limit":10}`),
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
 	}))
 	rec := httptest.NewRecorder()
 

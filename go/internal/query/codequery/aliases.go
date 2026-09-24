@@ -9,9 +9,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/contentread"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -59,7 +59,7 @@ type EntityContent = querycontract.EntityContent
 type FileContent = contentread.FileContent
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
-type AuthContext = queryauth.AuthContext
+type AuthContext = auth.AuthContext
 
 // repositoryAccessFilter carries a caller's resolved repository authorization
 // bounds for a graph or content read.
@@ -77,7 +77,7 @@ type crossRepoDeadCodeHiddenConsumers = code.CrossRepoDeadCodeHiddenConsumers
 const ProfileLocalAuthoritative = querycontract.ProfileLocalAuthoritative
 
 // AuthModeScoped identifies a scoped-token AuthContext.
-const AuthModeScoped = queryauth.AuthModeScoped
+const AuthModeScoped = auth.AuthModeScoped
 
 // TruthBasis names the evidence source used to produce an answer.
 type TruthBasis = querycontract.TruthBasis
@@ -218,8 +218,8 @@ func StringSliceVal(row map[string]any, key string) []string {
 }
 
 // ContextWithAuthContext attaches auth to ctx for downstream AuthContext reads.
-func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Context {
-	return queryauth.ContextWithAuthContext(ctx, auth)
+func ContextWithAuthContext(ctx context.Context, authCtx AuthContext) context.Context {
+	return auth.ContextWithAuthContext(ctx, authCtx)
 }
 
 // resolveExactGraphEntityCandidates lists exact-name entity candidates.

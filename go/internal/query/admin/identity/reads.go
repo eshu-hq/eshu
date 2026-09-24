@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -64,17 +64,17 @@ func (h *ReadHandler) Mount(mux *http.ServeMux) {
 // without a concrete tenant, so a blank tenant is rejected rather than allowed
 // to list across tenants.
 func (h *ReadHandler) adminScope(w http.ResponseWriter, r *http.Request) (tenantID, workspaceID string, ok bool) {
-	auth, found := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		querycontract.WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		querycontract.WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", "", false
 	}
-	return auth.TenantID, auth.WorkspaceID, true
+	return authCtx.TenantID, authCtx.WorkspaceID, true
 }
 
 // auditScope resolves the audit caller's authorization and tenant scope.
@@ -88,19 +88,19 @@ func (h *ReadHandler) adminScope(w http.ResponseWriter, r *http.Request) (tenant
 // Any other caller (unauthenticated, scoped without AllScopes, tenant session
 // without TenantID) gets 403 and ok=false.
 func (h *ReadHandler) auditScope(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	auth, found := queryauth.AuthContextFromContext(r.Context())
+	authCtx, found := auth.AuthContextFromContext(r.Context())
 	if !found {
 		querycontract.WriteError(w, http.StatusForbidden, "authentication is required for audit access")
 		return "", false
 	}
-	auth = queryauth.NormalizeAuthContext(auth)
+	authCtx = auth.NormalizeAuthContext(authCtx)
 	// Shared operator: global view, no tenant filter.
-	if auth.Mode == queryauth.AuthModeShared {
+	if authCtx.Mode == auth.AuthModeShared {
 		return "", true
 	}
 	// Tenant admin: must have AllScopes and a concrete tenant.
-	if auth.AllScopes && auth.TenantID != "" {
-		return auth.TenantID, true
+	if authCtx.AllScopes && authCtx.TenantID != "" {
+		return authCtx.TenantID, true
 	}
 	querycontract.WriteError(w, http.StatusForbidden, "shared operator or all-scope tenant admin authentication is required for audit access")
 	return "", false
@@ -119,7 +119,7 @@ func (h *ReadHandler) handleListInvitations(w http.ResponseWriter, r *http.Reque
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "identity_admin.invitations", queryauth.PermissionFeatureIdentityAdmin) {
+	if !audit.RequirePermissionFeature(w, r, "identity_admin.invitations", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
@@ -158,7 +158,7 @@ func (h *ReadHandler) handleListRoleAssignments(w http.ResponseWriter, r *http.R
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "roles_grants.assignments", queryauth.PermissionFeatureRolesGrants) {
+	if !audit.RequirePermissionFeature(w, r, "roles_grants.assignments", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
@@ -196,7 +196,7 @@ func (h *ReadHandler) handleListRoles(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "roles_grants.roles", queryauth.PermissionFeatureRolesGrants) {
+	if !audit.RequirePermissionFeature(w, r, "roles_grants.roles", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, _, ok := h.adminScope(w, r)
@@ -241,7 +241,7 @@ func (h *ReadHandler) handleListIdPProviders(w http.ResponseWriter, r *http.Requ
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "identity_admin.idp_providers", queryauth.PermissionFeatureIdentityAdmin) {
+	if !audit.RequirePermissionFeature(w, r, "identity_admin.idp_providers", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, _, ok := h.adminScope(w, r)
@@ -272,7 +272,7 @@ func (h *ReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "roles_grants.idp_group_mappings", queryauth.PermissionFeatureRolesGrants) {
+	if !audit.RequirePermissionFeature(w, r, "roles_grants.idp_group_mappings", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
@@ -318,7 +318,7 @@ func (h *ReadHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "tokens.admin_list", queryauth.PermissionFeatureTokens) {
+	if !audit.RequirePermissionFeature(w, r, "tokens.admin_list", auth.PermissionFeatureTokens) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)

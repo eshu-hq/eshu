@@ -8,7 +8,7 @@ Read `doc.go` and `README.md` first.
   `family_codeowners_shim.go` already imports this package for its
   compatibility alias, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `queryauth`, `tracing`) or it does not belong in
+  (`querycontract`, `auth`, `tracing`) or it does not belong in
   this family; ask before adding one.
 - Capabilities are registered in `query/contract`
   (`capability_matrix_ext.go`), not here -- `capability/lookup.go`

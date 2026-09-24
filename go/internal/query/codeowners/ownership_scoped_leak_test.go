@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -41,13 +41,13 @@ func codeownersCrossTenantCorrelations() *fakeCodeownersCorrelationStore {
 	}
 }
 
-// codeownersScopedTestAuthContext builds a scoped queryauth.AuthContext
+// codeownersScopedTestAuthContext builds a scoped auth.AuthContext
 // granted allowedRepositoryIDs. It is this package's own double for root's
 // scopedTestAuthContext (which this package cannot import without an import
 // cycle): same mode and grant fields, nothing more.
-func codeownersScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func codeownersScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             tenant,
 		WorkspaceID:          tenant,
 		SubjectClass:         "team",
@@ -70,11 +70,11 @@ func codeownersScopedTestAuthContext(tenant string, allowedRepositoryIDs []strin
 func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing.T) {
 	t.Parallel()
 
-	newReq := func(auth *queryauth.AuthContext) (*httptest.ResponseRecorder, string) {
+	newReq := func(authCtx *auth.AuthContext) (*httptest.ResponseRecorder, string) {
 		mux := newCodeownersOwnershipMux(codeownersCrossTenantGraph(), codeownersCrossTenantCorrelations())
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/codeowners/ownership?repository_id="+codeownersCrossTenantRepo, nil)
-		if auth != nil {
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
+		if authCtx != nil {
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 		}
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -77,7 +77,7 @@ func (h *Handler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request)
 		w,
 		r,
 		http.StatusOK,
-		repositoryFreshnessToMap(repoRef, snapshot, verdict, asOf, queryauth.ScopedAuthContext(r.Context())),
+		repositoryFreshnessToMap(repoRef, snapshot, verdict, asOf, auth.ScopedAuthContext(r.Context())),
 		repositoryFreshnessTruth(h.profile(), verdict, asOf),
 	)
 }

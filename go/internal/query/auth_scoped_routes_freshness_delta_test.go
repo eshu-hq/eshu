@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -438,8 +438,8 @@ func TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute(t *testing
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		resolver := &querytestutil.FakeScopedTokenResolver{
-			Context: queryauth.AuthContext{
-				Mode:                 queryauth.AuthModeScoped,
+			Context: auth.AuthContext{
+				Mode:                 auth.AuthModeScoped,
 				TenantID:             "tenant-a",
 				WorkspaceID:          "workspace-a",
 				SubjectClass:         "team",

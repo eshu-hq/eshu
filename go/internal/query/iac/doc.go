@@ -47,7 +47,7 @@
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, RepositoryAccessFilterFromContext,
 // DriftedAttributeView), selector (repository selector resolution),
-// tracing (the shared handler-span seam), queryauth (AuthContext, only in
+// tracing (the shared handler-span seam), auth (AuthContext, only in
 // tests), and storage/postgres (the concrete Postgres adapters and their row
 // types); it MUST NOT import the query root, or root would cycle back through
 // its own compatibility aliases in iac_alias.go, which import this package

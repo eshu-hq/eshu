@@ -9,9 +9,9 @@
 // rotate, and self-service TOTP enrollment.
 //
 // Every mutating route that needs an authenticated admin caller checks
-// AllScopes through queryauth.AuthContextFromContext before touching the
+// AllScopes through auth.AuthContextFromContext before touching the
 // store, and every route that gates on a permission-catalog feature calls
-// queryauth.AllowsPermissionFeature (through this package's own
+// auth.AllowsPermissionFeature (through this package's own
 // requirePermissionFeature, which also emits the governance-audit denial)
 // before proceeding. Every route reads and writes only through
 // IdentityProfileLister (this package's storage port); no handler in this
@@ -20,7 +20,7 @@
 // IssueSessionCookies, the one place a server-managed browser session is
 // created and its cookies written.
 //
-// This package imports queryauth (AuthContext, browser-session types,
+// This package imports auth (AuthContext, browser-session types,
 // sign-in-policy read port, the shared handler-tracing-free HTTP auth
 // primitives) and querycontract (envelope writers, ReadJSON/WriteJSON/
 // WriteError, PathParam, WriteUnauthorized, WritePermissionDenied,

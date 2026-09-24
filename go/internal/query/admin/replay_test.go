@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -20,7 +20,7 @@ var errReplayFailed = errors.New("replay store failure")
 
 // postReplay serves a replay request, optionally under a scoped auth context,
 // and returns the recorder.
-func postReplay(t *testing.T, h *Handler, body map[string]any, auth *queryauth.AuthContext) *httptest.ResponseRecorder {
+func postReplay(t *testing.T, h *Handler, body map[string]any, authCtx *auth.AuthContext) *httptest.ResponseRecorder {
 	t.Helper()
 	encoded, err := json.Marshal(body)
 	if err != nil {
@@ -29,8 +29,8 @@ func postReplay(t *testing.T, h *Handler, body map[string]any, auth *queryauth.A
 	mux := newAdminMux(h)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/admin/replay", bytes.NewReader(encoded))
 	req.Header.Set("Content-Type", "application/json")
-	if auth != nil {
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
+	if authCtx != nil {
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -86,7 +86,7 @@ func TestReplayRefusesUnauthorizedScopedToken(t *testing.T) {
 	audit := &querytestutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
 	h := &Handler{Store: store, Audit: audit}
-	scoped := queryauth.AuthContext{Mode: queryauth.AuthModeScoped, SubjectIDHash: "sha256:deadbeef", AllScopes: false}
+	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, SubjectIDHash: "sha256:deadbeef", AllScopes: false}
 	rec := postReplay(t, h, map[string]any{
 		"scope_id":        "scope-1",
 		"reason":          "operator requested",

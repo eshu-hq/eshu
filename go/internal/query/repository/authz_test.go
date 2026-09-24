@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -50,8 +50,8 @@ func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 	}
 	handler := &Handler{Neo4j: reader}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=1", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		SubjectClass:         "team",
@@ -177,8 +177,8 @@ func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=2", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		SubjectClass:         "team",
@@ -220,8 +220,8 @@ func TestResolveRepositorySelectorAppliesScopedAuthBeforeAmbiguity(t *testing.T)
 	handler := &Handler{
 		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		SubjectClass:         "team",
@@ -245,8 +245,8 @@ func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	handler := &Handler{
 		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		SubjectClass:         "team",
@@ -272,8 +272,8 @@ func TestRepositoryListSharedAuthKeepsExistingScope(t *testing.T) {
 		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:      queryauth.AuthModeShared,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:      auth.AuthModeShared,
 		AllScopes: true,
 	}))
 	rec := httptest.NewRecorder()
@@ -297,8 +297,8 @@ func TestRepositoryListAllScopeAdminKeepsExistingScope(t *testing.T) {
 		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-admin",
 		WorkspaceID: "workspace-admin",
 		AllScopes:   true,

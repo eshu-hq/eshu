@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -17,9 +17,9 @@ import (
 // Test-local mirror of the query root's catalogEnforcedAdminAuth helper,
 // which this package cannot import: the bodies are identical on purpose so
 // the permission-gating proof below runs against the same auth values.
-func enforcedAdminAuth(features ...string) queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                         queryauth.AuthModeBrowserSession,
+func enforcedAdminAuth(features ...string) auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                         auth.AuthModeBrowserSession,
 		TenantID:                     "tenant_a",
 		WorkspaceID:                  "workspace_a",
 		SubjectIDHash:                "subject-redacted",
@@ -35,7 +35,7 @@ func enforcedAdminAuth(features ...string) queryauth.AuthContext {
 // permission family. The denial must happen before the tenant-scoped store read.
 //
 // Moved from the query root's browser-session permission proof (#6060, lane B
-// S1) with only the package repoints (ReadHandler, queryauth, enforcedAdminAuth);
+// S1) with only the package repoints (ReadHandler, auth, enforcedAdminAuth);
 // the cases and assertions are unchanged.
 func TestBrowserSessionHandleListInvitationsHandleListRoleAssignmentsHandleListRolesHandleListIdPProvidersHandleListIdPGroupMappingsHandleListAPITokensRequireCatalogFeature(t *testing.T) {
 	t.Parallel()

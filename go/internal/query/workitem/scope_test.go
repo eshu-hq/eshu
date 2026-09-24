@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -48,8 +48,8 @@ func TestWorkItemEvidenceScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -77,8 +77,8 @@ func TestWorkItemEvidenceScopedHandlerPassesGrantSet(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	authCtx := auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo://example/api"},
@@ -89,7 +89,7 @@ func TestWorkItemEvidenceScopedHandlerPassesGrantSet(t *testing.T) {
 	wantGrants := []string{"git-repository-scope:example/api", "repo://example/api"}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -114,8 +114,8 @@ func TestWorkItemEvidenceScopedSharedTokenUnchanged(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:      queryauth.AuthModeShared,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:      auth.AuthModeShared,
 		TenantID:  "tenant-a",
 		AllScopes: true,
 	}))

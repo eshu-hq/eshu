@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -18,7 +18,7 @@ import (
 // /api/v0/freshness/changed-since request against
 // querytestutil.ChangedSinceTwoTenantPriorGeneration, carrying auth in its
 // context.
-func changedSinceTwoTenantRequest(repository string, auth queryauth.AuthContext) *http.Request {
+func changedSinceTwoTenantRequest(repository string, authCtx auth.AuthContext) *http.Request {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v0/freshness/changed-since?repository="+repository+
@@ -26,7 +26,7 @@ func changedSinceTwoTenantRequest(repository string, auth queryauth.AuthContext)
 		nil,
 	)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	return req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
 func serveChangedSinceTwoTenant(t *testing.T, req *http.Request) *httptest.ResponseRecorder {
@@ -142,7 +142,7 @@ func TestChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 		// resolves nothing rather than everything.
 		rec, reader := serveChangedSinceTwoTenantWithReader(t, changedSinceTwoTenantRequest(
 			"repo-a",
-			queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+			auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
 		))
 
 		if rec.Code != http.StatusNotFound {
@@ -193,7 +193,7 @@ func TestChangedSinceTwoTenantGrantBoundary(t *testing.T) {
 				t.Parallel()
 
 				rec := serveChangedSinceTwoTenant(t, changedSinceTwoTenantRequest(
-					tc.repository, queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+					tc.repository, auth.AuthContext{Mode: auth.AuthModeShared},
 				))
 
 				// Mutation-sensitive: bind the grant unconditionally -- set

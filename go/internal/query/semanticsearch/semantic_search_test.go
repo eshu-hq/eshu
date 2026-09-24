@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
@@ -156,8 +156,8 @@ func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -193,8 +193,8 @@ func TestSemanticSearchHandlerScopedGrantRejectsOutOfGrantRepositoryBeforeRead(t
 		"limit":      5,
 		"timeout_ms": 250,
 	})
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-infra"},

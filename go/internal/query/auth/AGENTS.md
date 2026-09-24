@@ -1,4 +1,4 @@
-# Agent instructions: queryauth
+# Agent instructions: auth
 
 This is an authorization surface. Read `doc.go` and `README.md` before editing,
 and treat every change here as a security change.
@@ -70,7 +70,7 @@ consumers: root's ask handler and the semantic-search family. Confirm the auth s
 matching zero.
 
 For the #6642 browser-session/timeout/sign-in-policy/audit-actor surface,
-also run `go test ./internal/query/auth/session ./internal/query/queryauth ./internal/query/querycontract -list '.*'`
+also run `go test ./internal/query/auth/session ./internal/query/auth ./internal/query/querycontract -list '.*'`
 and confirm the printed test names union with root package `query`'s own
 list to the pre-move set -- no test should be dropped, duplicated, or
 silently renamed by a future move that touches these files.

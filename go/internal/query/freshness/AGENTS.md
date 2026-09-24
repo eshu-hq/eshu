@@ -20,7 +20,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   back for the compatibility aliases in `freshness_alias.go`, cycling. Reach
   root-only helpers through `querycontract` (profiles, envelopes,
   capability registration, HTTP helpers, `RepositoryAccessFilterFromContext`),
-  `queryauth` (`AuthContext`, tests only), `service`
+  `auth` (`AuthContext`, tests only), `service`
   (`CatalogCorrelationStore`/`Filter`/`Row`), `querytestutil` (shared
   two-tenant test fixtures), or `tracing` (the shared handler-span seam);
   if none of those has what you need, it does not belong here -- ask before

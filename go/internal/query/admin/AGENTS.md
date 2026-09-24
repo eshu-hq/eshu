@@ -19,7 +19,7 @@ provider-config surfaces in their nested leaves.
 
 ## Import Direction
 
-- These packages import `queryauth`, `querycontract`, `governanceaudit`,
+- These packages import `auth`, `querycontract`, `governanceaudit`,
   `recovery`, `telemetry`, and `storage/postgres`. They MUST NOT import the
   query root (cycle through `handler.go` / `admin_alias.go`).
 - Children (`identity`, `provider/config`, `store`) may import the parent

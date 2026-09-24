@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -99,9 +99,9 @@ func (s *fatalOnCallPackageRegistryCorrelationStore) ListPackageRegistryCorrelat
 	return CorrelationPage{}, nil
 }
 
-func tenantAScopedAuthContext() queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func tenantAScopedAuthContext() auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},
@@ -109,9 +109,9 @@ func tenantAScopedAuthContext() queryauth.AuthContext {
 	}
 }
 
-func tenantBScopedAuthContext() queryauth.AuthContext {
-	return queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+func tenantBScopedAuthContext() auth.AuthContext {
+	return auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-b",
 		WorkspaceID:          "workspace-b",
 		AllowedRepositoryIDs: []string{"repo-b"},
@@ -151,7 +151,7 @@ func TestPackageRegistryPackagesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?package_id=pkg:npm:public-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -181,7 +181,7 @@ func TestPackageRegistryPackagesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?package_id=pkg:npm:private-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -212,12 +212,12 @@ func TestPackageRegistryPackagesScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		grantedReq := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?package_id=pkg:npm:private-lib&limit=10", nil)
-		grantedReq = grantedReq.WithContext(queryauth.ContextWithAuthContext(grantedReq.Context(), tenantBScopedAuthContext()))
+		grantedReq = grantedReq.WithContext(auth.ContextWithAuthContext(grantedReq.Context(), tenantBScopedAuthContext()))
 		grantedRec := httptest.NewRecorder()
 		mux.ServeHTTP(grantedRec, grantedReq)
 
 		nonexistentReq := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?package_id=pkg:npm:does-not-exist&limit=10", nil)
-		nonexistentReq = nonexistentReq.WithContext(queryauth.ContextWithAuthContext(nonexistentReq.Context(), tenantBScopedAuthContext()))
+		nonexistentReq = nonexistentReq.WithContext(auth.ContextWithAuthContext(nonexistentReq.Context(), tenantBScopedAuthContext()))
 		nonexistentRec := httptest.NewRecorder()
 		mux.ServeHTTP(nonexistentRec, nonexistentReq)
 
@@ -254,7 +254,7 @@ func TestPackageRegistryPackagesEmptyGrantReturnsEmptyWithoutAnyStoreRead(t *tes
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?package_id=pkg:npm:anything&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -288,7 +288,7 @@ func TestPackageRegistryVersionsScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/versions?package_id=pkg:npm:private-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -313,7 +313,7 @@ func TestPackageRegistryVersionsScopedVisibilityAndGrant(t *testing.T) {
 		handler.Mount(mux)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/versions?package_id=pkg:npm:private-lib&limit=10", nil)
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantBScopedAuthContext()))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
@@ -337,7 +337,7 @@ func TestPackageRegistryVersionsEmptyGrantReturnsEmptyWithoutAnyStoreRead(t *tes
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/versions?package_id=pkg:npm:anything&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -367,7 +367,7 @@ func TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCyphe
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem=npm&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

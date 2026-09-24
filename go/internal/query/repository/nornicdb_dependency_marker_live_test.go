@@ -60,7 +60,7 @@ import (
 	"time"
 
 	eshugraph "github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -192,8 +192,8 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 	})
 
 	t.Run("scoped", func(t *testing.T) {
-		authCtx := queryauth.AuthContext{
-			Mode:                 queryauth.AuthModeScoped,
+		authCtx := auth.AuthContext{
+			Mode:                 auth.AuthModeScoped,
 			TenantID:             "tenant-6786",
 			WorkspaceID:          "workspace-6786",
 			SubjectClass:         "team",
@@ -260,12 +260,12 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 // listRepositoriesDependencyEvidence drives GET /api/v0/repositories and
 // returns, for this test's repositories, the is_dependency marker and the
 // group_key of every row grouped as a dependency cluster.
-func listRepositoriesDependencyEvidence(t *testing.T, handler *Handler, authCtx *queryauth.AuthContext) (map[string]bool, map[string]string) {
+func listRepositoriesDependencyEvidence(t *testing.T, handler *Handler, authCtx *auth.AuthContext) (map[string]bool, map[string]string) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=100", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	if authCtx != nil {
-		req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *authCtx))
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), *authCtx))
 	}
 	rec := httptest.NewRecorder()
 	handler.listRepositories(rec, req)

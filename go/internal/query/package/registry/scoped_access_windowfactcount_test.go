@@ -18,7 +18,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -86,7 +86,7 @@ func TestPackageRegistryGateForVisibilityGrantsWhenOnlyCorrelationFactFailsDecod
 			},
 		},
 	}
-	access := querycontract.RepositoryAccessFilterFromContext(queryauth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
 	span := trace.SpanFromContext(context.Background())
 
 	gate, err := packageRegistryGateForVisibility(context.Background(), span, correlations, packageID, "private", access)
@@ -149,7 +149,7 @@ func TestPackageRegistryGateForVisibilityBatchReverifiesCandidateWhoseOnlyFactFa
 		{PackageID: pkgGranted, Visibility: "private"},
 		{PackageID: pkgVictim, Visibility: "private"},
 	}
-	access := querycontract.RepositoryAccessFilterFromContext(queryauth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
 	span := trace.SpanFromContext(context.Background())
 
 	gates, err := packageRegistryGateForVisibilityBatch(context.Background(), span, correlations, candidates, access)
@@ -220,7 +220,7 @@ func TestPackageRegistryGateForVisibilityBatchAtCapWithDecodeDropStillReverifies
 		{PackageID: pkgCrowder, Visibility: "private"},
 		{PackageID: pkgVictim, Visibility: "private"},
 	}
-	access := querycontract.RepositoryAccessFilterFromContext(queryauth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), tenantAScopedAuthContext()))
 	span := trace.SpanFromContext(context.Background())
 
 	gates, err := packageRegistryGateForVisibilityBatch(context.Background(), span, correlations, candidates, access)

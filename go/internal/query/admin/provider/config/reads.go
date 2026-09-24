@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -42,24 +42,24 @@ func (h *ReadHandler) storeReady(w http.ResponseWriter) bool {
 }
 
 func (h *ReadHandler) adminScope(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	auth, found := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		querycontract.WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		querycontract.WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", false
 	}
-	return auth.TenantID, true
+	return authCtx.TenantID, true
 }
 
 func (h *ReadHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", queryauth.PermissionFeatureIdentityAdmin) {
+	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, ok := h.adminScope(w, r)
@@ -86,7 +86,7 @@ func (h *ReadHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", queryauth.PermissionFeatureIdentityAdmin) {
+	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, ok := h.adminScope(w, r)
@@ -115,7 +115,7 @@ func (h *ReadHandler) handleListRevisions(w http.ResponseWriter, r *http.Request
 	if !h.storeReady(w) {
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", queryauth.PermissionFeatureIdentityAdmin) {
+	if !audit.RequirePermissionFeature(w, r, "identity_admin.provider_configs", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, ok := h.adminScope(w, r)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
@@ -70,7 +70,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 	}
 	req.normalize()
 
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	auth, _ := auth.AuthContextFromContext(r.Context())
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 
 	if req.AllScopes && len(req.ScopeIDs) > 0 {
@@ -154,7 +154,7 @@ func (h *Handler) respondDuplicateRecoverGenerations(
 	req recoverGenerationsRequest,
 	claim ReplayIdempotencyClaim,
 	fingerprint string,
-	auth queryauth.AuthContext,
+	auth auth.AuthContext,
 	correlationID string,
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {

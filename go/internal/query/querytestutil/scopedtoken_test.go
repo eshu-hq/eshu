@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -21,7 +21,7 @@ func TestFakeScopedTokenResolverAnswersFromItsFields(t *testing.T) {
 
 	sentinel := errors.New("resolver unavailable")
 	resolver := querytestutil.FakeScopedTokenResolver{
-		Context: queryauth.AuthContext{TenantID: "tenant-1"},
+		Context: auth.AuthContext{TenantID: "tenant-1"},
 		OK:      true,
 		Err:     sentinel,
 	}
@@ -73,14 +73,14 @@ func TestFakeScopedTokenResolverAnsweringOverridesTheFields(t *testing.T) {
 	t.Parallel()
 
 	resolver := querytestutil.FakeScopedTokenResolver{
-		Context: queryauth.AuthContext{TenantID: "unused"},
+		Context: auth.AuthContext{TenantID: "unused"},
 		OK:      false,
 	}
 
 	authCtx, ok, err := resolver.ResolveAnswering(
 		context.Background(),
 		"adapter-token",
-		queryauth.AuthContext{TenantID: "supplied"},
+		auth.AuthContext{TenantID: "supplied"},
 		true,
 		nil,
 	)

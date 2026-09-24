@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
@@ -196,8 +196,8 @@ INSERT INTO reducer_input_invalid_facts (
 	// Grant ONLY the repository identifier — never the raw scope_id — the
 	// exact shape of a repository-scoped token reading its own repo's
 	// quarantine rows.
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-4630-live",
 		WorkspaceID:          "workspace-4630-live",
 		AllowedRepositoryIDs: []string{repoID},

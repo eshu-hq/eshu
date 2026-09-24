@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -20,7 +20,7 @@ import (
 // group->role mapping create/delete.
 //
 // Every route requires all-scope admin authentication and writes strictly within
-// the caller's own tenant/workspace, derived from queryauth.AuthContext (never from a
+// the caller's own tenant/workspace, derived from auth.AuthContext (never from a
 // request body). Every allowed and denied mutation emits a governance audit
 // event. No route accepts or returns a secret, invite code, credential handle,
 // or raw external group name. Writes are idempotent under retry via active-row
@@ -59,19 +59,19 @@ func (h *MutationHandler) adminScope(
 	r *http.Request,
 	eventType governanceaudit.EventType,
 ) (tenantID, workspaceID string, ok bool) {
-	auth, found := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !found || !auth.AllScopes {
+	authCtx, found := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !found || !authCtx.AllScopes {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_scope_required", "")
 		querycontract.WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return "", "", false
 	}
-	if auth.TenantID == "" {
+	if authCtx.TenantID == "" {
 		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_tenant_required", "")
 		querycontract.WriteError(w, http.StatusForbidden, "admin tenant scope is required")
 		return "", "", false
 	}
-	return auth.TenantID, auth.WorkspaceID, true
+	return authCtx.TenantID, authCtx.WorkspaceID, true
 }
 
 func (h *MutationHandler) requirePermissionFeature(
@@ -81,7 +81,7 @@ func (h *MutationHandler) requirePermissionFeature(
 	capability string,
 	feature string,
 ) bool {
-	if queryauth.AllowsPermissionFeature(r.Context(), feature) {
+	if auth.AllowsPermissionFeature(r.Context(), feature) {
 		return true
 	}
 	h.audit(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
@@ -89,8 +89,8 @@ func (h *MutationHandler) requirePermissionFeature(
 	return false
 }
 
-// resolveWorkspace narrows the caller's queryauth.AuthContext workspace by an optional
-// request workspace_id. A blank request workspace keeps the queryauth.AuthContext
+// resolveWorkspace narrows the caller's auth.AuthContext workspace by an optional
+// request workspace_id. A blank request workspace keeps the auth.AuthContext
 // workspace; a non-blank request workspace must match it, so a tenant admin can
 // never mutate another workspace by passing a different id. Returns ok=false on
 // mismatch.
@@ -112,7 +112,7 @@ func (h *MutationHandler) handleRevokeInvitation(w http.ResponseWriter, r *http.
 	// EventTypeRoleGrantChange covers invitation revocation: no
 	// invitation-specific event type exists in the governance audit catalog.
 	const eventType = governanceaudit.EventTypeRoleGrantChange
-	if !h.requirePermissionFeature(w, r, eventType, "identity_admin.invitation_revoke", queryauth.PermissionFeatureIdentityAdmin) {
+	if !h.requirePermissionFeature(w, r, eventType, "identity_admin.invitation_revoke", auth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r, eventType)
@@ -162,7 +162,7 @@ func (h *MutationHandler) handleGrantRoleAssignment(w http.ResponseWriter, r *ht
 		return
 	}
 	const eventType = governanceaudit.EventTypeRoleGrantChange
-	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_grant", queryauth.PermissionFeatureRolesGrants) {
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_grant", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
@@ -229,7 +229,7 @@ func (h *MutationHandler) handleRevokeRoleAssignment(w http.ResponseWriter, r *h
 		return
 	}
 	const eventType = governanceaudit.EventTypeRoleGrantChange
-	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_revoke", queryauth.PermissionFeatureRolesGrants) {
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_revoke", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
@@ -286,7 +286,7 @@ func (h *MutationHandler) handleCreateIdPGroupMapping(w http.ResponseWriter, r *
 		return
 	}
 	const eventType = governanceaudit.EventTypeIDPConfigChange
-	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_create", queryauth.PermissionFeatureRolesGrants) {
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_create", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
@@ -365,7 +365,7 @@ func (h *MutationHandler) handleDeleteIdPGroupMapping(w http.ResponseWriter, r *
 		return
 	}
 	const eventType = governanceaudit.EventTypeIDPConfigChange
-	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_delete", queryauth.PermissionFeatureRolesGrants) {
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_delete", auth.PermissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r, eventType)
@@ -409,7 +409,7 @@ func (h *MutationHandler) handleDeleteIdPGroupMapping(w http.ResponseWriter, r *
 }
 
 // audit emits one governance audit event for a mutation decision, deriving the
-// actor class and actor id hash from the request's queryauth.AuthContext. It is a no-op
+// actor class and actor id hash from the request's auth.AuthContext. It is a no-op
 // when no appender is wired.
 //
 // For shared bearer-token callers (AuthModeShared) that carry no per-subject
@@ -426,11 +426,11 @@ func (h *MutationHandler) audit(
 	if h == nil || h.Audit == nil {
 		return
 	}
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	actorClass := audit.ActorClassForAuth(auth)
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	actorClass := audit.ActorClassForAuth(authCtx)
 	if actorIDHash == "" {
-		actorIDHash = auth.SubjectIDHash
+		actorIDHash = authCtx.SubjectIDHash
 	}
 	// A shared bearer token carries no per-subject hash. NormalizeEvent rejects
 	// an event with ActorClass=shared_token and empty ActorIDHash (and no
@@ -448,13 +448,13 @@ func (h *MutationHandler) audit(
 		Decision:           decision,
 		ReasonCode:         strings.TrimSpace(reasonCode),
 		CorrelationID:      audit.SafeCorrelationID(audit.CorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
 		// TenantID and WorkspaceID are populated from the normalized auth context so
 		// tenant-admin callers see their own mutation events in tenant-scoped audit
 		// reads. AuthModeShared callers have empty fields → NULL (correct global event).
-		TenantID:    auth.TenantID,
-		WorkspaceID: auth.WorkspaceID,
+		TenantID:    authCtx.TenantID,
+		WorkspaceID: authCtx.WorkspaceID,
 	}
 	// Do not fail the request on audit write failure: governance audit is
 	// best-effort for the caller path. Log the error so an operator sees the gap.

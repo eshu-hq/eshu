@@ -14,7 +14,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
@@ -66,8 +66,8 @@ func TestGetServiceContextGrantCapEmitsInlineCappedTelemetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			instruments, reader := newTestInstruments(t)
 			handler := &Handler{Neo4j: graph.FakeGraphReader{}, Instruments: instruments}
-			ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-				Mode: queryauth.AuthModeScoped, AllowedRepositoryIDs: tc.grants,
+			ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+				Mode: auth.AuthModeScoped, AllowedRepositoryIDs: tc.grants,
 			})
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/services/api/context", nil).WithContext(ctx)
 			req.SetPathValue("service_name", "api")

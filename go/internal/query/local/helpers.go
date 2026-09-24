@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -145,7 +145,7 @@ func IssueSessionCookies(
 	idleTimeout time.Duration,
 	absoluteTimeout time.Duration,
 	cookieSecure session.CookieSecureMode,
-	auth IdentityAuthContext,
+	authCtx IdentityAuthContext,
 ) (SessionIssued, bool) {
 	if sessions == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "browser session store is unavailable")
@@ -163,32 +163,32 @@ func IssueSessionCookies(
 	}
 	idleExpiresAt := now.Add(idleTimeout)
 	absoluteExpiresAt := now.Add(absoluteTimeout)
-	sessionAuth := queryauth.AuthContext{
-		Mode:                         queryauth.AuthModeBrowserSession,
-		TenantID:                     auth.TenantID,
-		WorkspaceID:                  auth.WorkspaceID,
-		SubjectClass:                 auth.SubjectClass,
-		SubjectIDHash:                auth.SubjectIDHash,
-		PolicyRevisionHash:           auth.PolicyRevisionHash,
-		AllScopes:                    auth.AllScopes,
-		RoleIDs:                      append([]string(nil), auth.RoleIDs...),
-		PermissionCatalogEnforced:    auth.PermissionCatalogEnforced,
-		AllowedPermissionFeatures:    append([]string(nil), auth.AllowedPermissionFeatures...),
-		AllowedPermissionDataClasses: append([]string(nil), auth.AllowedPermissionDataClasses...),
+	sessionAuth := auth.AuthContext{
+		Mode:                         auth.AuthModeBrowserSession,
+		TenantID:                     authCtx.TenantID,
+		WorkspaceID:                  authCtx.WorkspaceID,
+		SubjectClass:                 authCtx.SubjectClass,
+		SubjectIDHash:                authCtx.SubjectIDHash,
+		PolicyRevisionHash:           authCtx.PolicyRevisionHash,
+		AllScopes:                    authCtx.AllScopes,
+		RoleIDs:                      append([]string(nil), authCtx.RoleIDs...),
+		PermissionCatalogEnforced:    authCtx.PermissionCatalogEnforced,
+		AllowedPermissionFeatures:    append([]string(nil), authCtx.AllowedPermissionFeatures...),
+		AllowedPermissionDataClasses: append([]string(nil), authCtx.AllowedPermissionDataClasses...),
 	}
 	if err := sessions.CreateBrowserSession(r.Context(), session.BrowserSessionCreateRecord{
 		SessionHash:                  session.BrowserSessionSecretHash(sessionSecret),
 		CSRFTokenHash:                session.BrowserSessionSecretHash(csrfSecret),
-		TenantID:                     auth.TenantID,
-		WorkspaceID:                  auth.WorkspaceID,
-		SubjectIDHash:                auth.SubjectIDHash,
-		SubjectClass:                 auth.SubjectClass,
-		PolicyRevisionHash:           auth.PolicyRevisionHash,
-		AllScopes:                    auth.AllScopes,
-		RoleIDs:                      append([]string(nil), auth.RoleIDs...),
-		PermissionCatalogEnforced:    auth.PermissionCatalogEnforced,
-		AllowedPermissionFeatures:    append([]string(nil), auth.AllowedPermissionFeatures...),
-		AllowedPermissionDataClasses: append([]string(nil), auth.AllowedPermissionDataClasses...),
+		TenantID:                     authCtx.TenantID,
+		WorkspaceID:                  authCtx.WorkspaceID,
+		SubjectIDHash:                authCtx.SubjectIDHash,
+		SubjectClass:                 authCtx.SubjectClass,
+		PolicyRevisionHash:           authCtx.PolicyRevisionHash,
+		AllScopes:                    authCtx.AllScopes,
+		RoleIDs:                      append([]string(nil), authCtx.RoleIDs...),
+		PermissionCatalogEnforced:    authCtx.PermissionCatalogEnforced,
+		AllowedPermissionFeatures:    append([]string(nil), authCtx.AllowedPermissionFeatures...),
+		AllowedPermissionDataClasses: append([]string(nil), authCtx.AllowedPermissionDataClasses...),
 		IssuedAt:                     now,
 		LastSeenAt:                   now,
 		IdleExpiresAt:                idleExpiresAt,
@@ -245,8 +245,8 @@ func (h *IdentityHandler) ready(w http.ResponseWriter) bool {
 }
 
 func (h *IdentityHandler) requireSharedOperator(w http.ResponseWriter, r *http.Request) bool {
-	auth, ok := queryauth.AuthContextFromContext(r.Context())
-	if !ok || queryauth.NormalizeAuthContext(auth).Mode != queryauth.AuthModeShared {
+	authCtx, ok := auth.AuthContextFromContext(r.Context())
+	if !ok || auth.NormalizeAuthContext(authCtx).Mode != auth.AuthModeShared {
 		querycontract.WriteError(w, http.StatusForbidden, "shared operator authentication is required")
 		return false
 	}
@@ -254,9 +254,9 @@ func (h *IdentityHandler) requireSharedOperator(w http.ResponseWriter, r *http.R
 }
 
 func (h *IdentityHandler) requireAllScopeAuth(w http.ResponseWriter, r *http.Request) bool {
-	auth, ok := queryauth.AuthContextFromContext(r.Context())
-	auth = queryauth.NormalizeAuthContext(auth)
-	if !ok || !auth.AllScopes {
+	authCtx, ok := auth.AuthContextFromContext(r.Context())
+	authCtx = auth.NormalizeAuthContext(authCtx)
+	if !ok || !authCtx.AllScopes {
 		querycontract.WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
 		return false
 	}
@@ -334,16 +334,16 @@ func (h *IdentityHandler) auditLocalIdentity(
 	if h.Audit == nil {
 		return
 	}
-	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	authCtx, _ := auth.AuthContextFromContext(r.Context())
 	if actorIDHash == "" {
-		actorIDHash = auth.SubjectIDHash
+		actorIDHash = authCtx.SubjectIDHash
 	}
 	if actorIDHash == "" {
-		actorIDHash = IdentityHash(string(auth.Mode))
+		actorIDHash = IdentityHash(string(authCtx.Mode))
 	}
 	event := governanceaudit.Event{
 		Type:        eventType,
-		ActorClass:  queryauth.ActorClassForAuth(auth),
+		ActorClass:  auth.ActorClassForAuth(authCtx),
 		ActorIDHash: actorIDHash,
 		ScopeClass:  governanceaudit.ScopeClassAdmin,
 		Decision:    decision,
@@ -360,7 +360,7 @@ func (h *IdentityHandler) requirePermissionFeature(
 	capability string,
 	feature string,
 ) bool {
-	if queryauth.AllowsPermissionFeature(r.Context(), feature) {
+	if auth.AllowsPermissionFeature(r.Context(), feature) {
 		return true
 	}
 	h.auditLocalIdentity(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")

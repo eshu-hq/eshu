@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -22,7 +22,7 @@ func (h *ReadHandler) handleListAuditEvents(w http.ResponseWriter, r *http.Reque
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "audit_export.events", queryauth.PermissionFeatureAuditExport) {
+	if !audit.RequirePermissionFeature(w, r, "audit_export.events", auth.PermissionFeatureAuditExport) {
 		return
 	}
 	tenantID, ok := h.auditScope(w, r)
@@ -74,7 +74,7 @@ func (h *ReadHandler) handleAuditSummary(w http.ResponseWriter, r *http.Request)
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	if !audit.RequirePermissionFeature(w, r, "audit_export.summary", queryauth.PermissionFeatureAuditExport) {
+	if !audit.RequirePermissionFeature(w, r, "audit_export.summary", auth.PermissionFeatureAuditExport) {
 		return
 	}
 	tenantID, ok := h.auditScope(w, r)

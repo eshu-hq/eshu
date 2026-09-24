@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -105,7 +105,7 @@ func TestPackageRegistryPackagesByNamePreservesEveryGrantedCandidate(t *testing.
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem=npm&name=collide&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -204,7 +204,7 @@ func TestPackageRegistryPackagesByNameRedactsIdentityIssueMetadata(t *testing.T)
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem=npm&name=collide&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -346,7 +346,7 @@ func TestPackageRegistryPackagesByNameBatchAmbiguityFallsBackToIndividualVerific
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem=npm&name=collide2&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

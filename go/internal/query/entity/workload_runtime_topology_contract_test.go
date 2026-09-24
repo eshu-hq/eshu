@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -87,8 +87,8 @@ func TestFetchWorkloadDeploymentTopologyOmitsUnownedRuntimeForScopedTokens(t *te
 		calls++
 		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
 	}}
-	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
 
@@ -245,8 +245,8 @@ func TestFetchWorkloadRuntimeTopologyOmitsUnownedInstancesForScopedTokens(t *tes
 		calls++
 		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
 	}}
-	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
 

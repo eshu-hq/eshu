@@ -12,7 +12,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
@@ -31,8 +31,8 @@ func TestContentHandlerScopedSearchFilesUsesAllowedReposWithoutAnyRepoFallback(t
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -66,8 +66,8 @@ func TestContentHandlerScopedSearchEntitiesEmptyGrantReturnsEmptyWithoutBroadSca
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -102,8 +102,8 @@ func TestContentHandlerAllScopeContentSearchKeepsAnyRepoFallback(t *testing.T) {
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-admin",
 		WorkspaceID: "workspace-admin",
 		AllScopes:   true,
@@ -130,8 +130,8 @@ func TestContentHandlerScopedSearchFilesWithStaleGrantReturnsEmpty(t *testing.T)
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-missing"},
@@ -175,8 +175,8 @@ func TestContentHandlerScopedSearchFilesFiltersDuplicateRepositoryNames(t *testi
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","repo_id":"payments","limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -210,8 +210,8 @@ func TestContentHandlerScopedSearchEntitiesDeniesOutOfScopeRepositoryList(t *tes
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"pattern":"handler","repo_ids":["acme/orders"],"limit":5}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -245,8 +245,8 @@ func TestContentHandlerScopedReadFileDeniesOutOfScopeSelector(t *testing.T) {
 		"/api/v0/content/files/read",
 		bytes.NewBufferString(`{"repo_id":"acme/orders","relative_path":"src/app.go"}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -277,8 +277,8 @@ func TestContentHandlerScopedReadEntityHidesOutOfScopeEntity(t *testing.T) {
 		"/api/v0/content/entities/read",
 		bytes.NewBufferString(`{"entity_id":"entity-b"}`),
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},

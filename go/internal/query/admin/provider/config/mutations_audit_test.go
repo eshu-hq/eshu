@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -18,17 +18,17 @@ import (
 // must stamp, and the hash rule is the same one adminRecoveryActor applies.
 func actorModeCases() []struct {
 	name string
-	mode queryauth.AuthMode
+	mode auth.AuthMode
 	want governanceaudit.ActorClass
 } {
 	return []struct {
 		name string
-		mode queryauth.AuthMode
+		mode auth.AuthMode
 		want governanceaudit.ActorClass
 	}{
-		{"browser session", queryauth.AuthModeBrowserSession, governanceaudit.ActorClassBrowserSession},
-		{"scoped token", queryauth.AuthModeScoped, governanceaudit.ActorClassScopedToken},
-		{"shared token", queryauth.AuthModeShared, governanceaudit.ActorClassSharedToken},
+		{"browser session", auth.AuthModeBrowserSession, governanceaudit.ActorClassBrowserSession},
+		{"scoped token", auth.AuthModeScoped, governanceaudit.ActorClassScopedToken},
+		{"shared token", auth.AuthModeShared, governanceaudit.ActorClassSharedToken},
 	}
 }
 
@@ -47,9 +47,9 @@ func TestMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 			t.Parallel()
 
 			recorder := &querytestutil.FakeGovernanceAuditAppender{}
-			auth := queryauth.AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", nil)
-			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+			authCtx := auth.AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/admin/provider-configs", nil)
+			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 			h := &MutationHandler{Audit: recorder}
 			h.audit(req, governanceaudit.EventTypeIDPConfigChange, governanceaudit.DecisionAllowed, "provider_config_changed", "")
@@ -79,9 +79,9 @@ func TestMutationAuditsWithNoSubjectHash(t *testing.T) {
 	t.Parallel()
 
 	recorder := &querytestutil.FakeGovernanceAuditAppender{}
-	auth := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, AllScopes: true}
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, AllScopes: true}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/authCtx/admin/provider-configs", nil)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 
 	h := &MutationHandler{Audit: recorder}
 	h.audit(req, governanceaudit.EventTypeIDPConfigChange, governanceaudit.DecisionAllowed, "provider_config_changed", "")

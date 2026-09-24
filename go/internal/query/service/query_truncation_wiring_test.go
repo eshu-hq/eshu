@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
@@ -374,8 +374,8 @@ func TestEnrichServiceQueryContextDisclosesTruncationToScopedCallers(t *testing.
 	t.Parallel()
 
 	scopedContext := func(allowedRepoIDs ...string) context.Context {
-		return queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-			Mode:                 queryauth.AuthModeScoped,
+		return auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+			Mode:                 auth.AuthModeScoped,
 			TenantID:             "tenant_a",
 			WorkspaceID:          "workspace_a",
 			AllowedRepositoryIDs: allowedRepoIDs,

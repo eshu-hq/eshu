@@ -15,7 +15,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -132,8 +132,8 @@ func TestFetchWorkloadContextForOperationGrantDeniedEmitsTelemetry(t *testing.T)
 		},
 	}
 	handler := &Handler{Neo4j: graph, Instruments: instruments}
-	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	})
 
@@ -214,8 +214,8 @@ func TestGetEntityContextGrantDeniedEmitsTelemetry(t *testing.T) {
 	handler := &Handler{Neo4j: graph, Instruments: instruments, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/entity-a/context", nil)
 	req.SetPathValue("entity_id", "entity-a")
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	}))
 	rec := httptest.NewRecorder()
@@ -284,8 +284,8 @@ func TestQueryScopedGrantDeniedOperationValues(t *testing.T) {
 				},
 			}
 			handler := &Handler{Neo4j: graph, Instruments: instruments}
-			ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-				Mode:                 queryauth.AuthModeScoped,
+			ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+				Mode:                 auth.AuthModeScoped,
 				AllowedRepositoryIDs: []string{"repo-a"},
 			})
 

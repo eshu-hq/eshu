@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // This file proves the two self-service TOTP enrollment routes end to end
@@ -17,8 +17,8 @@ import (
 // file comment for why these tests are new rather than moved verbatim).
 
 func ownerSubjectContext(r *http.Request) *http.Request {
-	auth := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, SubjectIDHash: "sha256:owner"}
-	return r.WithContext(queryauth.ContextWithAuthContext(r.Context(), auth))
+	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, SubjectIDHash: "sha256:owner"}
+	return r.WithContext(auth.ContextWithAuthContext(r.Context(), authCtx))
 }
 
 func TestBeginTOTPEnrollment(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 // terminal handler -- neither calls PackageRegistryHandler or Mount, so they
 // are a root auth-middleware concern (proving these package-registry paths
 // clear the allowlist) rather than family behavior, and
-// AuthMiddlewareWithScopedTokens has no querycontract/queryauth-style leaf a
+// AuthMiddlewareWithScopedTokens has no querycontract/auth-style leaf a
 // family package could import without an import cycle back through root.
 
 func TestAuthMiddlewareWithScopedTokensAllowsPackageRegistryCorrelationRoute(t *testing.T) {

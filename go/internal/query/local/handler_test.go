@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 )
 
 // This file proves each of Handler's core session-lifecycle routes end to
@@ -25,13 +25,13 @@ import (
 // identity_handler_test.go et al., unaffected by this move.
 
 func sharedOperatorContext(r *http.Request) *http.Request {
-	auth := queryauth.AuthContext{Mode: queryauth.AuthModeShared}
-	return r.WithContext(queryauth.ContextWithAuthContext(r.Context(), auth))
+	authCtx := auth.AuthContext{Mode: auth.AuthModeShared}
+	return r.WithContext(auth.ContextWithAuthContext(r.Context(), authCtx))
 }
 
 func allScopeContext(r *http.Request) *http.Request {
-	auth := queryauth.AuthContext{Mode: queryauth.AuthModeBrowserSession, AllScopes: true, SubjectIDHash: "sha256:admin"}
-	return r.WithContext(queryauth.ContextWithAuthContext(r.Context(), auth))
+	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, AllScopes: true, SubjectIDHash: "sha256:admin"}
+	return r.WithContext(auth.ContextWithAuthContext(r.Context(), authCtx))
 }
 
 func TestBootstrap(t *testing.T) {

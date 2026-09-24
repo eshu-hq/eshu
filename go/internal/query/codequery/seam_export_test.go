@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
@@ -153,7 +153,7 @@ func TestCodeSeamExportsForward(t *testing.T) {
 		t.Fatalf("LanguageQueryGrantFor(unscoped) grant.AllowedRepositoryIDs = %v, want nil", grant.AllowedRepositoryIDs)
 	}
 	// A scoped caller with no grants at all is blocked before any read.
-	scopedEmptyCtx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped})
+	scopedEmptyCtx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{Mode: auth.AuthModeScoped})
 	if _, blocked := LanguageQueryGrantFor(scopedEmptyCtx, ""); !blocked {
 		t.Fatal("LanguageQueryGrantFor(scoped, no grants) reported not blocked, want true")
 	}

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -23,7 +23,7 @@ const localIdentitySecretBytes = 32
 type IdentityHandler struct {
 	Store           IdentityProfileLister
 	Sessions        session.BrowserSessionStore
-	Audit           queryauth.GovernanceAuditAppender
+	Audit           auth.GovernanceAuditAppender
 	NewSecret       func() (string, error)
 	Now             func() time.Time
 	PasswordCost    int
@@ -40,7 +40,7 @@ type IdentityHandler struct {
 	// policy store is wired: every gate fails open to today's unrestricted
 	// behavior, matching this package's existing store-unavailable-fails-
 	// open convention for optional reads.
-	SignInPolicy queryauth.SignInPolicyReadStore
+	SignInPolicy auth.SignInPolicyReadStore
 	// Instruments records the require_sso login-gate decision
 	// (eshu_dp_auth_require_sso_login_gate_total). Optional: nil-safe.
 	Instruments *telemetry.Instruments
@@ -193,7 +193,7 @@ func (h *IdentityHandler) handleCreateInvitation(w http.ResponseWriter, r *http.
 		r,
 		governanceaudit.EventTypeRoleGrantChange,
 		"identity_admin.invitation_create",
-		queryauth.PermissionFeatureIdentityAdmin,
+		auth.PermissionFeatureIdentityAdmin,
 	) {
 		return
 	}
@@ -293,7 +293,7 @@ func (h *IdentityHandler) handleResetPassword(w http.ResponseWriter, r *http.Req
 		r,
 		governanceaudit.EventTypeIdentityAuthentication,
 		"identity_admin.password_reset",
-		queryauth.PermissionFeatureIdentityAdmin,
+		auth.PermissionFeatureIdentityAdmin,
 	) {
 		return
 	}
@@ -394,7 +394,7 @@ func (h *IdentityHandler) handleResetMFA(w http.ResponseWriter, r *http.Request)
 		r,
 		governanceaudit.EventTypeMFALifecycle,
 		"identity_admin.mfa_reset",
-		queryauth.PermissionFeatureIdentityAdmin,
+		auth.PermissionFeatureIdentityAdmin,
 	) {
 		return
 	}
@@ -428,7 +428,7 @@ func (h *IdentityHandler) handleDisableUser(w http.ResponseWriter, r *http.Reque
 		r,
 		governanceaudit.EventTypeIdentityAuthentication,
 		"identity_admin.user_disable",
-		queryauth.PermissionFeatureIdentityAdmin,
+		auth.PermissionFeatureIdentityAdmin,
 	) {
 		return
 	}

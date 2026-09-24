@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -60,8 +60,8 @@ func sameNameWorkloadGraph(t *testing.T, nameRows []map[string]any) graph.FakeGr
 }
 
 func scopedRepoAContext() context.Context {
-	return queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	return auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	})
 }

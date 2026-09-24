@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -49,7 +49,7 @@ func TestPackageRegistryAggregateCountScopedForcesPublicVisibility(t *testing.T)
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/count", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -80,7 +80,7 @@ func TestPackageRegistryAggregateCountScopedPrivateFilterReturnsEmptyWithoutStor
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/count?visibility=private", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -102,7 +102,7 @@ func TestPackageRegistryAggregateInventoryScopedForcesPublicVisibilityAndDegener
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?group_by=visibility&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -125,7 +125,7 @@ func TestPackageRegistryAggregateInventoryScopedPrivateFilterReturnsEmptyWithout
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?visibility=unknown&limit=10", nil)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), tenantAScopedAuthContext()))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -149,8 +149,8 @@ func TestPackageRegistryAggregateSharedKeyCallerUnaffected(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/count?visibility=private", nil)
-	// No queryauth.AuthContext set: querycontract.RepositoryAccessFilterFromContext treats this as
-	// allScopes (the same as queryauth.AuthModeShared).
+	// No auth.AuthContext set: querycontract.RepositoryAccessFilterFromContext treats this as
+	// allScopes (the same as auth.AuthModeShared).
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

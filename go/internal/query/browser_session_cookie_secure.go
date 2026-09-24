@@ -13,7 +13,7 @@ import (
 // CookieSecureMode selects how the browser session and CSRF cookies decide
 // the Secure attribute across the BrowserSessionHandler, LocalIdentityHandler,
 // and SAMLHandler login paths. It lives in session (#6642, moved from
-// queryauth by #6818) so a handler-family subpackage can name it without
+// auth by #6818) so a handler-family subpackage can name it without
 // importing this package. See CookieSecureModeEnv for the operator switch
 // and session's unexported browserSessionCookieSecure for the per-request
 // decision (#4964).

@@ -19,7 +19,7 @@ import (
 // This file stayed in root rather than moving into the registry family with the rest
 // of the package-registry handler family (#6060): it drives NewNeo4jReader,
 // which wraps this package's read-retry policy (neo4j_read_policy.go) and has
-// no querycontract/queryauth-style leaf a family package could import without
+// no querycontract/auth-style leaf a family package could import without
 // an import cycle back through root (root's package_registry_alias.go already
 // imports the registry family for the compatibility aliases cmd/api and cmd/mcp-server
 // need). Extracting Neo4jReader into its own leaf, the way GraphQuery's other

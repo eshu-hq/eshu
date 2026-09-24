@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
@@ -26,8 +26,8 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 	}{
 		{
 			name: "scoped authorized stored repository is stale",
-			ctx: queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-				Mode:                 queryauth.AuthModeScoped,
+			ctx: auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+				Mode:                 auth.AuthModeScoped,
 				AllowedRepositoryIDs: []string{"repo-team-a", "repo-team-b", "repo-team-stale"},
 			}),
 			storedRepoID: "repo-team-stale",
@@ -192,8 +192,8 @@ func TestFetchWorkloadRepositoryForAccessSelectsBoundedCandidates(t *testing.T) 
 func TestFetchWorkloadRepositoryForAccessAppliesScopedAuthorization(t *testing.T) {
 	t.Parallel()
 
-	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 		AllowedScopeIDs:      []string{"scope-a"},
 	})
@@ -237,8 +237,8 @@ func TestFetchWorkloadRepositoryForAccessAppliesScopedAuthorization(t *testing.T
 func TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere(t *testing.T) {
 	t.Parallel()
 
-	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	ctx := auth.ContextWithAuthContext(t.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	})
 	reader := graph.FakeWorkloadGraphReader{
@@ -290,8 +290,8 @@ func TestGetWorkloadContextUngrantedDefinesRowReturnsNotFound(t *testing.T) {
 	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/workload:payments/context", nil)
 	req.SetPathValue("workload_id", "workload:payments")
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	}))
 	rec := httptest.NewRecorder()

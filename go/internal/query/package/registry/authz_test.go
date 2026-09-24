@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -33,8 +33,8 @@ func TestPackageRegistryScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.
 		"/api/v0/package-registry/correlations?package_id=pkg:npm://registry.example/team-api&limit=10",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:        queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:        auth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -78,8 +78,8 @@ func TestPackageRegistryScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead
 		"/api/v0/package-registry/correlations?repository_id=payments-api&limit=10",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo://example/other"},
@@ -124,8 +124,8 @@ func TestPackageRegistryHandlerPassesScopedGrants(t *testing.T) {
 		"/api/v0/package-registry/correlations?repository_id=payments-api&relationship_kind=publication&limit=10",
 		nil,
 	)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo://example/api"},

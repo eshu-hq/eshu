@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package queryauth owns the request-scoped authorization bounds a query
+// Package auth owns the request-scoped authorization bounds a query
 // handler reads, and the context slot they travel in.
 //
 // AuthContext carries the caller's mode, tenant, and allow-lists.
@@ -46,4 +46,4 @@
 // already imports this package for RepositoryAccessFilterFromContext, and
 // the reverse edge would cycle) -- see querycontract.WriteUnauthorized and
 // querycontract.WritePermissionDenied instead.
-package queryauth
+package auth
