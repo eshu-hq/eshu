@@ -259,3 +259,37 @@ TestLiveCanonicalWriteSkipsOversizedIndexKeys -count=1 -v` passed in 8.28 s. The
 byte Module, the 9,029 and 8,100 byte Functions, the 9,029 byte Annotation, and
 the 9,024 and 9,041 byte Terraform state resource and module for both
 generations, and the normal nodes and edges landed.
+
+## Follow-up: rationale query and the indexed-write sweep
+
+The combined main tree after #7067 and #7082 failed
+`TestProductionCypherLiteralsAreGuarded`: the sweep read the trailing Go raw
+string after `strings.Join(RationaleExplainsTargetLabels, "|")` as a complete
+query. That fragment has `row.rationale_uid` but no preceding `UNWIND`, so the
+analyzer correctly reported `Rationale/unresolved_value` for the fragment.
+The complete production query has the `UNWIND` and was already guarded. The
+label disjunction is now a constant; the exported label list is derived from
+it. This lets the sweep fold and inspect the complete statement without an
+allowlist exception.
+
+No-Regression Evidence (2026-09-24): baseline `c2610332` and this follow-up
+build the identical 613-byte Cypher statement, SHA-256
+`e72da000ef28e1205d3f9cdd49d07121bbce7035ccacd74e9ca67126712510a2`.
+On each build, the backend-independent Go guard received two UNWIND rows:
+one short `Rationale.uid` and one longer than `MaxIndexKeyBytes`. Both runs
+retained one row, dropped one, returned `skip=false`, and reported zero
+unanalyzed writes. The target-label list stayed
+`Function, Class, Struct, Interface, TypeAlias, Enum, File`. The original sweep
+failed before the change and passed afterward with 97 indexed-write
+candidates; the three affected packages passed under `go test -race`.
+The backend and version for the preceding live guard proof remain
+`neo4j:2026-community@sha256:eabfbb04…` above. This follow-up did not run a
+new backend benchmark: the submitted Cypher bytes, guard code, transaction
+shape, and rows passed to the driver are unchanged, so it makes no new
+backend latency claim.
+
+No-Observability-Change: the guard and `InstrumentedExecutor` still emit the
+skip counter/WARN and unanalyzed counter/WARN described above. The direct
+two-row probe exercises the guard without the executor and therefore emits no
+telemetry itself; its terminal row counts and zero unanalyzed reports are the
+local evidence for this static-discovery correction.
