@@ -172,21 +172,21 @@ rows:
     capability: observability.coverage.correlations.list
     api_routes: ["GET /api/v0/observability/coverage/correlations"]
     mcp_tools: ["list_observability_coverage_correlations"]
-    source_fact: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
+    source_fact: {ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
     continuity:
-      projection: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore|TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
-      api: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit|TestOpenAPISpecIncludesObservabilityCoverageCorrelations)$' -count=1"}
+      projection: {ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore|TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+      api: {ref: "go test ./internal/query ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit|TestOpenAPISpecIncludesObservabilityCoverageCorrelations)$' -count=1"}
       mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery|TestObservabilityCoverageToolIsRegistered)$' -count=1"}
     empty_states:
-      no_provider: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
-      no_collector: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore)$' -count=1"}
-      empty: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+      no_provider: {ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore)$' -count=1"}
+      empty: {ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
     negative_cases:
-      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
-      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
-      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
+      - {case: empty_evidence, ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
       - {case: truncated_evidence, ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery)$' -count=1"}
-      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query/observability/coverage -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
     properties: *required_properties
 
   - id: documentation-evidence-packet

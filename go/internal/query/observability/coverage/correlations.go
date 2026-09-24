@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package coverage
 
 import (
 	"context"
@@ -9,24 +9,26 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const observabilityCoverageCorrelationFactKind = "reducer_observability_coverage_correlation"
 
-// ObservabilityCoverageCorrelationStore reads reducer-owned observability
+// ObservabilityCorrelationStore reads reducer-owned observability
 // coverage correlations: which monitored cloud resources or services have
 // observability coverage (alarms, dashboards, log groups, traces) versus which
 // are gaps.
-type ObservabilityCoverageCorrelationStore interface {
-	ListObservabilityCoverageCorrelations(context.Context, ObservabilityCoverageCorrelationFilter) ([]ObservabilityCoverageCorrelationRow, error)
+type ObservabilityCorrelationStore interface {
+	ListObservabilityCoverageCorrelations(context.Context, CorrelationFilter) ([]CorrelationRow, error)
 }
 
-// ObservabilityCoverageCorrelationFilter bounds coverage reads to a concrete
+// CorrelationFilter bounds coverage reads to a concrete
 // scope, provider, coverage signal class, observability object, monitored
 // target resource, or target service. At least one anchor is required so reads
 // never fan out across the whole fact store.
-type ObservabilityCoverageCorrelationFilter struct {
+type CorrelationFilter struct {
 	ScopeID                string
 	Provider               string
 	CoverageSignal         string
@@ -54,11 +56,11 @@ type ObservabilityCoverageCorrelationFilter struct {
 	AllowedScopeIDs      []string
 }
 
-// ObservabilityCoverageCorrelationRow is one durable observability coverage
+// CorrelationRow is one durable observability coverage
 // correlation fact. It carries IDs, classifications, and the six-outcome
 // decision only; no metric values or dashboard body JSON are surfaced, so the
 // "no health assertions from telemetry values" contract holds structurally.
-type ObservabilityCoverageCorrelationRow struct {
+type CorrelationRow struct {
 	CorrelationID          string
 	Provider               string
 	CoverageSignal         string
@@ -83,30 +85,32 @@ type ObservabilityCoverageCorrelationRow struct {
 	EvidenceFactIDs        []string
 }
 
-type observabilityCoverageCorrelationQueryer interface {
+// CorrelationQueryer is the database/sql surface PostgresCorrelationStore
+// reads through; *sql.DB satisfies it.
+type CorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresObservabilityCoverageCorrelationStore reads active observability
+// PostgresCorrelationStore reads active observability
 // coverage correlation facts from Postgres using bounded payload predicates.
-type PostgresObservabilityCoverageCorrelationStore struct {
-	DB observabilityCoverageCorrelationQueryer
+type PostgresCorrelationStore struct {
+	DB CorrelationQueryer
 }
 
-// NewPostgresObservabilityCoverageCorrelationStore creates the Postgres-backed
+// NewPostgresCorrelationStore creates the Postgres-backed
 // observability coverage correlation read model.
-func NewPostgresObservabilityCoverageCorrelationStore(
-	db observabilityCoverageCorrelationQueryer,
-) PostgresObservabilityCoverageCorrelationStore {
-	return PostgresObservabilityCoverageCorrelationStore{DB: db}
+func NewPostgresCorrelationStore(
+	db CorrelationQueryer,
+) PostgresCorrelationStore {
+	return PostgresCorrelationStore{DB: db}
 }
 
 // ListObservabilityCoverageCorrelations returns one bounded page of active
 // reducer observability coverage correlation facts.
-func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverageCorrelations(
+func (s PostgresCorrelationStore) ListObservabilityCoverageCorrelations(
 	ctx context.Context,
-	filter ObservabilityCoverageCorrelationFilter,
-) ([]ObservabilityCoverageCorrelationRow, error) {
+	filter CorrelationFilter,
+) ([]CorrelationRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("observability coverage correlation database is required")
 	}
@@ -150,7 +154,7 @@ func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverage
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]ObservabilityCoverageCorrelationRow, 0, filter.Limit)
+	out := make([]CorrelationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -200,7 +204,7 @@ LIMIT $13
 // listObservabilityCoverageCorrelationsQuery with an additional #5167
 // access-scoping predicate: rows are restricted to the scoped caller's
 // granted repositories/ingestion scopes. Bound only when filter.AllScopes is
-// false (see ObservabilityCoverageCorrelationFilter's doc comment).
+// false (see CorrelationFilter's doc comment).
 const listObservabilityCoverageCorrelationsScopedQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -229,7 +233,7 @@ ORDER BY fact.fact_id ASC
 LIMIT $13
 `
 
-func (f ObservabilityCoverageCorrelationFilter) hasScope() bool {
+func (f CorrelationFilter) hasScope() bool {
 	return f.ScopeID != "" ||
 		f.Provider != "" ||
 		f.CoverageSignal != "" ||
@@ -241,33 +245,33 @@ func (f ObservabilityCoverageCorrelationFilter) hasScope() bool {
 func decodeObservabilityCoverageCorrelationRow(
 	factID string,
 	payloadBytes []byte,
-) (ObservabilityCoverageCorrelationRow, error) {
+) (CorrelationRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return ObservabilityCoverageCorrelationRow{}, fmt.Errorf("decode observability coverage correlation: %w", err)
+		return CorrelationRow{}, fmt.Errorf("decode observability coverage correlation: %w", err)
 	}
-	return ObservabilityCoverageCorrelationRow{
+	return CorrelationRow{
 		CorrelationID:          factID,
-		Provider:               StringVal(payload, "provider"),
-		CoverageSignal:         StringVal(payload, "coverage_signal"),
-		ObservabilityObjectRef: StringVal(payload, "observability_object_ref"),
-		ObservabilityUID:       StringVal(payload, "observability_resource_uid"),
-		TargetUID:              StringVal(payload, "target_uid"),
-		TargetServiceRef:       StringVal(payload, "target_service_ref"),
-		Outcome:                StringVal(payload, "outcome"),
-		Reason:                 StringVal(payload, "reason"),
-		CoverageStatus:         StringVal(payload, "coverage_status"),
-		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
-		ResolutionMode:         StringVal(payload, "resolution_mode"),
-		SourceClass:            StringVal(payload, "source_class"),
-		SourceClasses:          StringSliceVal(payload, "source_classes"),
-		SourceKind:             StringVal(payload, "source_kind"),
-		SourceKinds:            StringSliceVal(payload, "source_kinds"),
-		SourceOutcome:          StringVal(payload, "source_outcome"),
-		SourceOutcomes:         StringSliceVal(payload, "source_outcomes"),
-		ResourceClass:          StringVal(payload, "resource_class"),
-		FreshnessState:         StringVal(payload, "freshness_state"),
-		CandidateTargetUIDs:    StringSliceVal(payload, "candidate_target_uids"),
-		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
+		Provider:               querycontract.StringVal(payload, "provider"),
+		CoverageSignal:         querycontract.StringVal(payload, "coverage_signal"),
+		ObservabilityObjectRef: querycontract.StringVal(payload, "observability_object_ref"),
+		ObservabilityUID:       querycontract.StringVal(payload, "observability_resource_uid"),
+		TargetUID:              querycontract.StringVal(payload, "target_uid"),
+		TargetServiceRef:       querycontract.StringVal(payload, "target_service_ref"),
+		Outcome:                querycontract.StringVal(payload, "outcome"),
+		Reason:                 querycontract.StringVal(payload, "reason"),
+		CoverageStatus:         querycontract.StringVal(payload, "coverage_status"),
+		ProvenanceOnly:         querycontract.BoolVal(payload, "provenance_only"),
+		ResolutionMode:         querycontract.StringVal(payload, "resolution_mode"),
+		SourceClass:            querycontract.StringVal(payload, "source_class"),
+		SourceClasses:          querycontract.StringSliceVal(payload, "source_classes"),
+		SourceKind:             querycontract.StringVal(payload, "source_kind"),
+		SourceKinds:            querycontract.StringSliceVal(payload, "source_kinds"),
+		SourceOutcome:          querycontract.StringVal(payload, "source_outcome"),
+		SourceOutcomes:         querycontract.StringSliceVal(payload, "source_outcomes"),
+		ResourceClass:          querycontract.StringVal(payload, "resource_class"),
+		FreshnessState:         querycontract.StringVal(payload, "freshness_state"),
+		CandidateTargetUIDs:    querycontract.StringSliceVal(payload, "candidate_target_uids"),
+		EvidenceFactIDs:        querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

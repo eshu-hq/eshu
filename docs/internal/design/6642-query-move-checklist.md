@@ -42,7 +42,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | destination | root files out | PR | state | root after |
 | --- | ---: | --- | --- | ---: |
 | `decode/factschema_shared.go` | 1 | [#7044](https://github.com/eshu-hq/eshu/pull/7044) | **merged** `42020445c` | 270 |
-| `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | this PR | open | 269 |
+| `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | [#7051](https://github.com/eshu-hq/eshu/pull/7051) | **merged** `31ce0cb56` | 269 |
+| `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | this PR | open | 268 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -331,3 +332,17 @@ for `cmd/api` in `dependency_alias.go`.
 
 No-Observability-Change: the span name, tracer, metrics and attributes are the
 ones root emitted.
+
+## Performance and observability evidence for the `observability/coverage` leaf
+
+No-Regression Evidence: `observability_coverage.go` and
+`observability_coverage_correlations.go` move to `observability/coverage/`.
+Both SQL queries, the 200-row cap and the decode path are unchanged; the
+handler's root forwarders were pass-throughs to `querycontract` and the test's
+auth helpers pass-throughs to `queryauth`. The capability row moves into
+`coverage.Support()` with identical values. Root's `openScopeQueryerTestDB`
+becomes `querytestutil.OpenScopeQueryerTestDB` with copy-returning accessors.
+The `internal/mcp` route-serves-data registry points at the new files and the
+distinct `ObservabilityCorrelationStore` type name; its mutation tests pass.
+
+No-Observability-Change: same span name and tracer; no metric or log change.

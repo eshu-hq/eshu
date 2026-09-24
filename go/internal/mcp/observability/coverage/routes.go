@@ -22,8 +22,8 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 
 // correlationsRequest maps list_observability_coverage_correlations to the
 // bounded read-only route GET /api/v0/observability/coverage/correlations,
-// which query.ObservabilityCoverageHandler serves; the handler owns the
-// 1-200 limit bound and the anchor requirement.
+// which coverage.Handler (internal/query/observability/coverage) serves; the
+// handler owns the 1-200 limit bound and the anchor requirement.
 //
 // Twelve keys travel together here, more than any other route the repository
 // router answers. Each is a filter the handler reads by name -- there is no

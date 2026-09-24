@@ -3,12 +3,8 @@
 
 package contract
 
+import "github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
+
 func init() {
-	register(observabilityCoverageCorrelationsCapability, capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
+	register(observabilityCoverageCorrelationsCapability, coverage.Support())
 }

@@ -308,25 +308,26 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		}},
 	},
 
-	// ObservabilityCoverageHandler.listCorrelations -> h.Correlations:
+	// coverage.Handler.listCorrelations -> h.Correlations:
 	// fact_kind = $1 bound to "reducer_observability_coverage_correlation"
-	// (go/internal/query/observability_coverage_correlations.go:15,172).
+	// (go/internal/query/observability/coverage/correlations.go, the
+	// observabilityCoverageCorrelationFactKind constant and both list queries).
 	"GET /api/v0/observability/coverage/correlations": {
-		RegistrationFile: "go/internal/query/observability_coverage.go",
-		HandlerStruct:    "ObservabilityCoverageHandler",
-		StructFile:       "go/internal/query/observability_coverage.go",
+		RegistrationFile: "go/internal/query/observability/coverage/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/observability/coverage/handler.go",
 		Method:           "listCorrelations",
-		MethodFile:       "go/internal/query/observability_coverage.go",
+		MethodFile:       "go/internal/query/observability/coverage/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/observability_coverage.go",
-			"go/internal/query/observability_coverage_correlations.go",
+			"go/internal/query/observability/coverage/handler.go",
+			"go/internal/query/observability/coverage/correlations.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "observability_coverage_correlation",
 			StoreField: "Correlations",
-			StoreType:  "ObservabilityCoverageCorrelationStore",
+			StoreType:  "ObservabilityCorrelationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/observability_coverage_correlations.go", Marker: "reducer_observability_coverage_correlation"},
+				{File: "go/internal/query/observability/coverage/correlations.go", Marker: "reducer_observability_coverage_correlation"},
 			},
 		}},
 	},

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package querytestutil
 
 import (
 	"context"
@@ -14,28 +14,27 @@ import (
 	"testing"
 )
 
-// This file provides a minimal generic fake database/sql driver for #5167
-// store-level access-scoping tests whose store interfaces (e.g.
-// kubernetesCorrelationQueryer, observabilityCoverageCorrelationQueryer)
-// demand a concrete *sql.Rows return, which cannot be constructed without a
-// real database/sql round trip. It mirrors the narrower
-// content.OpenReaderTestDB/recordingContentReaderConn pattern
-// (internal/query/querytestutil/content, content_reader_cross_repo_test.go) but is
-// not tied to ContentReader, so it is reusable across any QueryContext-based
-// store in this package.
+// This file is a minimal generic fake database/sql driver for #5167
+// store-level access-scoping tests whose store interfaces demand a concrete
+// *sql.Rows, which only a database/sql round trip can build. It is not tied
+// to any one read model, so root query tests and handler-family tests share
+// it. It moved here from root's scope_query_test_helpers_test.go when the
+// observability-coverage family left root (#6642): a helper in a _test.go
+// file cannot be imported by another package's tests.
 
-// scopeQueryerRecorder captures every query issued through
-// openScopeQueryerTestDB, so a test can assert both the dispatched SQL text
+// ScopeQueryerRecorder captures every query issued through
+// OpenScopeQueryerTestDB, so a test can assert both the dispatched SQL text
 // (the access-scoping predicate) and the bound argument values (the granted
 // repository/scope id arrays), matching the #5137 ReadLiveActivity test
-// precedent (internal/storage/postgres/status_operations_test.go).
-type scopeQueryerRecorder struct {
+// precedent (internal/storage/postgres/status_operations_test.go). It is safe
+// for concurrent use.
+type ScopeQueryerRecorder struct {
 	mu      sync.Mutex
 	queries []string
 	args    [][]driver.Value
 }
 
-func (r *scopeQueryerRecorder) record(query string, args []driver.NamedValue) {
+func (r *ScopeQueryerRecorder) record(query string, args []driver.NamedValue) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.queries = append(r.queries, query)
@@ -46,24 +45,44 @@ func (r *scopeQueryerRecorder) record(query string, args []driver.NamedValue) {
 	r.args = append(r.args, recorded)
 }
 
-func (r *scopeQueryerRecorder) calls() int {
+// Calls returns how many queries have been dispatched so far.
+func (r *ScopeQueryerRecorder) Calls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.queries)
 }
 
+// Queries returns a copy of the dispatched SQL text, in dispatch order.
+func (r *ScopeQueryerRecorder) Queries() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.queries...)
+}
+
+// Args returns a copy of each dispatched query's bound argument values, in
+// dispatch order.
+func (r *ScopeQueryerRecorder) Args() [][]driver.Value {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([][]driver.Value, len(r.args))
+	for i, args := range r.args {
+		out[i] = append([]driver.Value(nil), args...)
+	}
+	return out
+}
+
 var scopeQueryerDriverSeq uint64
 
-// openScopeQueryerTestDB opens a *sql.DB backed by a fake driver that records
+// OpenScopeQueryerTestDB opens a *sql.DB backed by a fake driver that records
 // every dispatched query/args pair and always returns the given columns/rows
-// (canned, not real SQL evaluation -- matching every other fake driver in
-// this package's test suite; live WHERE-clause execution correctness is a
-// live/integration-test concern, not a unit-test one).
-func openScopeQueryerTestDB(t *testing.T, columns []string, rows [][]driver.Value) (*sql.DB, *scopeQueryerRecorder) {
+// (canned, not real SQL evaluation; live WHERE-clause correctness is a
+// live/integration-test concern, not a unit-test one). The DB closes when the
+// test ends.
+func OpenScopeQueryerTestDB(t *testing.T, columns []string, rows [][]driver.Value) (*sql.DB, *ScopeQueryerRecorder) {
 	t.Helper()
 
 	name := fmt.Sprintf("scope-queryer-test-%d", atomic.AddUint64(&scopeQueryerDriverSeq, 1))
-	recorder := &scopeQueryerRecorder{}
+	recorder := &ScopeQueryerRecorder{}
 	sql.Register(name, &scopeQueryerDriver{recorder: recorder, columns: columns, rows: rows})
 
 	db, err := sql.Open(name, "")
@@ -75,7 +94,7 @@ func openScopeQueryerTestDB(t *testing.T, columns []string, rows [][]driver.Valu
 }
 
 type scopeQueryerDriver struct {
-	recorder *scopeQueryerRecorder
+	recorder *ScopeQueryerRecorder
 	columns  []string
 	rows     [][]driver.Value
 }
@@ -85,7 +104,7 @@ func (d *scopeQueryerDriver) Open(string) (driver.Conn, error) {
 }
 
 type scopeQueryerConn struct {
-	recorder *scopeQueryerRecorder
+	recorder *ScopeQueryerRecorder
 	columns  []string
 	rows     [][]driver.Value
 }

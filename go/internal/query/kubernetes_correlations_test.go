@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingKubernetesCorrelationStore struct {
@@ -190,7 +192,7 @@ func kubernetesCorrelationScopedFixtureRow(t *testing.T) []driver.Value {
 func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
 	handler := &KubernetesHandler{Correlations: NewPostgresKubernetesCorrelationStore(db)}
@@ -210,14 +212,14 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	dispatched := recorder.queries[0]
+	dispatched := recorder.Queries()[0]
 	if !strings.Contains(dispatched, "fact.scope_id = ANY($12) OR fact.scope_id = ANY($13)") {
 		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", dispatched)
 	}
-	args := recorder.args[0]
+	args := recorder.Args()[0]
 	if len(args) < 13 {
 		t.Fatalf("len(args) = %d, want at least 13", len(args))
 	}
@@ -253,7 +255,7 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 func TestKubernetesListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
 	handler := &KubernetesHandler{Correlations: NewPostgresKubernetesCorrelationStore(db)}
@@ -267,11 +269,11 @@ func TestKubernetesListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	if strings.Contains(recorder.queries[0], "allowed_repository_ids") || strings.Contains(recorder.queries[0], "= ANY($12)") {
-		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", recorder.queries[0])
+	if strings.Contains(recorder.Queries()[0], "allowed_repository_ids") || strings.Contains(recorder.Queries()[0], "= ANY($12)") {
+		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", recorder.Queries()[0])
 	}
 }
 

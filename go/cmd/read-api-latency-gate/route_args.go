@@ -44,7 +44,7 @@ var RouteQueryArgs = map[string]string{
 	"GET /api/v0/documentation/facts": "scope_id=" + RepresentativeScopeID,
 	// go/internal/query/kubernetes.go
 	"GET /api/v0/kubernetes/correlations": "scope_id=" + RepresentativeScopeID,
-	// go/internal/query/observability_coverage.go
+	// go/internal/query/observability/coverage/handler.go
 	"GET /api/v0/observability/coverage/correlations": "scope_id=" + RepresentativeScopeID,
 	// go/internal/query/semantic_evidence.go
 	"GET /api/v0/semantic/code-hints":                 "scope_id=" + RepresentativeScopeID,

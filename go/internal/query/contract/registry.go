@@ -4,6 +4,7 @@
 package contract
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/secrets"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
@@ -81,7 +82,7 @@ const (
 	hostedGovernanceStatusCapability             = "hosted_governance.status"
 	kubernetesCorrelationsCapability             = "kubernetes.correlations.list"
 	metricsTimeSeriesCapability                  = "platform_metrics.timeseries"
-	observabilityCoverageCorrelationsCapability  = "observability.coverage.correlations.list"
+	observabilityCoverageCorrelationsCapability  = coverage.Capability
 	operationsStatusCapability                   = "operations.status"
 	replatformingOwnershipCapability             = "replatforming.ownership.candidates"
 	replatformingRollupsCapability               = "replatforming.rollups.readiness"
