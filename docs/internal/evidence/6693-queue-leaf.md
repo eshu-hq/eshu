@@ -71,8 +71,7 @@ perf6785_wait" ./internal/storage/postgres/...` exit=0; `go test
 `queue` package and the four readiness tests that now call
 `queuestore.DefaultRetryMaxDelayFallback`); `go test ./internal/telemetry/...
 ./internal/runtime/... ./internal/reducer/... -count=1` exit=0 (covers the
-three stray-comment files). Root's non-test file count dropped from 357 to
-355 (`bash scripts/verify-dirgate.sh --digest internal/storage/postgres`);
+three stray-comment files). Root's non-test file count dropped by 2 (`bash scripts/verify-dirgate.sh --digest internal/storage/postgres`);
 the `dirgate-grandfather.tsv` row and generated `grandfather.go` were
 refreshed to that count and digest. `bash scripts/verify-dirgate.sh --all`,
 `bash scripts/verify-moved-file-refs.sh`, and `bash scripts/verify-doc-citations.sh`
