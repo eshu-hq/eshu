@@ -281,8 +281,8 @@ zero-relationship graph nodes in the closed orphan-sweep label set. The only
 metric label is `node_label`; repository ids, resource names, generation ids,
 and graph node ids stay out of metrics.
 
-The callback runs bounded count queries through the graph read port and caps
-each label by `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanup
+A background refresher runs the bounded count queries through the graph read port ([snapshots](graph-gauge-snapshots.md)); the callback serves the last one. Each label is capped by
+`ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanup
 pressure signal. Use reducer sweep logs for cycle duration, mark/delete counts,
 and `failure_class=graph_orphan_sweep_error` when the count is not draining.
 
@@ -397,8 +397,8 @@ parsers Eshu ships. Empty language values are skipped. A language series
 dropping to zero is the signal that the corresponding parser stopped indexing
 files.
 
-Both callbacks read through the graph read port (`ProvenanceCountStore`) and
-return **exact** counts, so the drift signal is sound — a series dropping to
+Both gauges serve a background snapshot ([snapshots](graph-gauge-snapshots.md)) of reads through the graph read port (`ProvenanceCountStore`), never a scrape-time query. The
+counts are **exact**, so the drift signal is sound — a series dropping to
 zero is a real "stopped emitting" event, never a sampling artifact. The edge
 gauge runs one aggregate per Tier-2 relationship type that carries
 `source_tool` (`DEPENDS_ON`, `DEPLOYS_FROM`, `USES_MODULE`,

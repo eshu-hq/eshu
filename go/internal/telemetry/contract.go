@@ -839,4 +839,12 @@ const (
 	// constant per reader in postgres.StatusStore.ReadStatusSnapshotFiltered
 	// (scope_counts, active_work_summary, coordinator, and so on).
 	MetricDimensionRead = "read"
+
+	// MetricDimensionGauge labels the eshu_dp_gauge_snapshot_* metrics with the
+	// observable gauge (or gauge family) whose graph-backed values a background
+	// snapshot refresher serves to /metrics scrapes (#7062). The value set is
+	// closed: one constant per registered refresher source in
+	// go/cmd/reducer (edges_by_source_tool, files_by_language,
+	// graph_orphan_nodes).
+	MetricDimensionGauge = "gauge"
 )

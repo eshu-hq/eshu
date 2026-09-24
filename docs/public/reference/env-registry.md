@@ -363,6 +363,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | duration | `5m` | TTL for the value-flow stale cleanup partition lease. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | duration | `1h` | Delay between value-flow stale cleanup passes. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | int | `100` | Active repository scopes scanned per value-flow stale cleanup pass. |
+| `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` | duration | `5m` | Delay between background refreshes of the graph-backed observable gauges (eshu_dp_edges_by_source_tool, eshu_dp_files_by_language, eshu_dp_graph_orphan_nodes). /metrics serves the last snapshot, so those gauges lag the graph by up to this interval plus one read. |
+| `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` | duration | `30s` | Deadline for each background graph read that refreshes a graph-backed observable gauge. A read that exceeds it is cancelled and counted as a timeout in eshu_dp_gauge_snapshot_refreshes_total; the previous snapshot keeps being served. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT` | int | `100` | Maximum graph orphan nodes deleted per label in one sweep pass. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | int | `10000` | Maximum graph orphan nodes counted per label for telemetry in one sweep pass. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED` | bool | `true` | Enable the reducer side runner that marks and sweeps stale generation-owned graph orphans. |

@@ -133,13 +133,15 @@ func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraph
 // (eshu_dp_worker_pool_active, backed by activeWorkers), and the
 // shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
 // and acceptance observers read cheap, bounded queries; the worker observer
-// reads an in-memory atomic counter. The graph orphan observer runs static-label
-// capped counts. The provenance observers (eshu_dp_edges_by_source_tool,
-// eshu_dp_files_by_language) run bounded LIMIT-capped aggregation queries
-// through the graph read port. None add unbounded scan cost per metrics scrape.
+// reads an in-memory atomic counter. The graph-backed gauges
+// (eshu_dp_graph_orphan_nodes, eshu_dp_edges_by_source_tool,
+// eshu_dp_files_by_language) never read the graph on a scrape: a background
+// refresher runs their bounded reads on its own goroutines and the gauge
+// callbacks serve the last snapshot (#7062; see registerGraphBackedGauges).
 // It lives here rather than in main.go to keep that file within the file-size
 // budget.
 func registerReducerObservableGauges(
+	ctx context.Context,
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	database *sql.DB,
@@ -147,6 +149,7 @@ func registerReducerObservableGauges(
 	graphOrphanObserver telemetry.GraphOrphanObserver,
 	graphReader query.GraphQuery,
 	getenv func(string) string,
+	logger *slog.Logger,
 ) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: database})
 	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
@@ -159,10 +162,6 @@ func registerReducerObservableGauges(
 	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
 		return fmt.Errorf("register acceptance observable gauge: %w", err)
 	}
-	if err := telemetry.RegisterGraphOrphanObservableGauge(instruments, meter, graphOrphanObserver); err != nil {
-		return fmt.Errorf("register graph orphan observable gauge: %w", err)
-	}
-
 	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
 		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
@@ -181,10 +180,7 @@ func registerReducerObservableGauges(
 		return fmt.Errorf("register poison liveness observable gauges: %w", err)
 	}
 
-	if err := registerProvenanceCoverageGauges(instruments, meter, graphReader, getenv); err != nil {
-		return err
-	}
-	return nil
+	return registerGraphBackedGauges(ctx, instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
 }
 
 func graphOrphanObserver(service reducer.Service) telemetry.GraphOrphanObserver {

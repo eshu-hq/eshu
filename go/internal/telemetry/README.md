@@ -89,7 +89,9 @@ See `doc.go` for the godoc contract. Key groups:
 Observable gauges require a separate `RegisterObservableGauges` call once the queue and worker observers are wired.
 `RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows` gauge when a shared-acceptance observer is available.
 `RegisterGraphOrphanObservableGauge` adds the `eshu_dp_graph_orphan_nodes` gauge
-when the reducer has a graph orphan observer.
+when the reducer has a graph orphan observer. Graph-backed gauge callbacks must
+not read the graph on the collection goroutine: the reducer feeds them from
+`telemetry/snapshot`, whose refresher reads off the scrape path (#7062).
 
 #### Counters (Int64)
 

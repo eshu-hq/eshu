@@ -18,6 +18,13 @@ operator-facing signals, scaling guidance, and runtime invariants for the
 - Generation retention: bounded cleanup cycles emit generation, row, skip-reason,
   duration, batch-size, oldest-eligible-age, and failure metrics without raw
   scope or generation identifiers.
+- Graph-backed gauges (`eshu_dp_graph_orphan_nodes`,
+  `eshu_dp_edges_by_source_tool`, `eshu_dp_files_by_language`) are served from a
+  background snapshot, never read from the graph during a `/metrics` scrape
+  (#7062). `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` (default `5m`) and
+  `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` (default `30s`) tune it;
+  `eshu_dp_gauge_snapshot_refreshes_total{gauge,outcome}` and
+  `eshu_dp_gauge_snapshot_age_seconds{gauge}` show whether the values are fresh.
 - Graph orphan sweep: `eshu_dp_graph_orphan_nodes` reports bounded
   zero-relationship node counts by closed `node_label`; cycle logs include
   lease acquisition, counts, marks, deletes, duration, and failure class.
