@@ -416,12 +416,16 @@ package/import/selector swap (proven per file by normalized diff);
 the tests additionally carry the `defaults.go` filename constant the
 coverage self-check reads. 20 root test files repoint the import and
 the `content.(Reader|OpenReader)` selectors; store-fake users keep the
-content import. 5b (`d93f8d614`) is the pure rename of the 56-file
-helper tree (parent + `content` and `graph` leaves) to
-`query/testutil`, clause `testutil`: 2752+/2752- symmetric, 426 touched
-files differing only by the identifier swap plus `gofumpt` import
-resort, 20 files additionally carrying the peel selector swap, 2
-`naming-glue-gate` files carrying the exemption feature below.
+content import. The peel also carries the `naming-glue-gate`
+exemption feature below. 5b (`d93f8d614`) is the pure rename of the
+56-file helper tree (parent + `content` and `graph` leaves) to
+`query/testutil`, clause `testutil`: 2752+/2752- symmetric, 432
+modified `.go` files in which every changed line is the identifier
+swap — 394 with the swap in place, 38 with the renamed import
+additionally resorted within its block by `gofumpt` (import-block
+comparison; an independent recount classified 43 as resorted under a
+stricter same-line rule — both agree zero files carry any other
+change).
 
 Byte-identity proof (all commands run against base `4e1e534b4`, exit
 0): every 5b rename pair diffs empty after normalizing

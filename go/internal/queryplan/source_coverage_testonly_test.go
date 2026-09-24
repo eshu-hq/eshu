@@ -125,11 +125,15 @@ func TestSomething(t *testing.T) {
 // doubles one directory down, so a production import of one is the same
 // defect. A check on the trailing path element alone missed them.
 func TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf(t *testing.T) {
-	for _, leaf := range []string{"content", "graph"} {
-		t.Run(leaf, func(t *testing.T) {
+	for _, leaf := range []struct{ name, importPath, qualifier string }{
+		{"content", "github.com/eshu-hq/eshu/go/internal/query/testutil/content", "content"},
+		{"graph", "github.com/eshu-hq/eshu/go/internal/query/testutil/graph", "graph"},
+		{"contentreader", "github.com/eshu-hq/eshu/go/internal/testutil/contentreader", "contentreader"},
+	} {
+		t.Run(leaf.name, func(t *testing.T) {
 			dir := t.TempDir()
-			importPath := "github.com/eshu-hq/eshu/go/internal/query/testutil/" + leaf
-			consumer := "package query\n\nimport \"" + importPath + "\"\n\nvar _ = " + leaf + ".Anything\n"
+			importPath := leaf.importPath
+			consumer := "package query\n\nimport \"" + importPath + "\"\n\nvar _ = " + leaf.qualifier + ".Anything\n"
 			if err := os.WriteFile(filepath.Join(dir, "handler.go"), []byte(consumer), 0o600); err != nil {
 				t.Fatalf("write consumer fixture: %v", err)
 			}

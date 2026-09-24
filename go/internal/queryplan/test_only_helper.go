@@ -17,7 +17,7 @@ import (
 // tree reaches the test-double package.
 //
 // This is a boundary rule, not an inventory one: the callsite walk covers
-// querytestutil like every other directory, so nothing here is about keeping a
+// testutil like every other directory, so nothing here is about keeping a
 // subtree out of the gate. Production code must not depend on test doubles at
 // all. A fake answers from funcs a test installs, so a production caller
 // reaching one gets whatever the zero value returns -- no rows -- which is a
