@@ -64,7 +64,7 @@ using `fakeExecQueryer`/`queueFakeRows`/`fakeResult`/`fakeExecCall`/
 
 ## Plan correction (root-kept test)
 
-Per the executor brief's "must stay in root" guidance:
+A mapped test that cannot leave root stays there, and the plan is updated to match:
 
 - Removed `governance_audit_store_test.go -> governance/audit/store_test.go`
   from `docs/internal/design/6693-postgres-target-tree/identity.md`'s
@@ -165,13 +165,13 @@ mapped to later checklist steps (already excused there) and exits 0.
 - `go build ./...`: exit 0.
 - `go vet ./...`: exit 0.
 - `go vet -tags "integration perf5854_ack perf5740_completion perf6785_wait" ./internal/storage/postgres/...`: exit 0.
-- `go test ./internal/storage/postgres/... -race -count=1`: exit 0, all 18
-  tested packages pass (`ok`) including the new
+- `go test ./internal/storage/postgres/... -race -count=1`: exit 0, every
+  tested package passes (`ok`) including the new
   `.../postgres/governance/audit` (1.310s) and root (34.835s); zero `FAIL`,
   panic, or DATA RACE lines.
 - `go test ./internal/governanceauditasync/... ./internal/cli/admin/...
   ./internal/query/... ./cmd/api/... ./cmd/mcp-server/...
-  ./cmd/workflow-coordinator/... -count=1`: 60 `ok` package results, zero
+  ./cmd/workflow-coordinator/... -count=1`: every package `ok`, zero
   `FAIL` lines.
 - `go test -list '.*' ./internal/storage/postgres/governance/audit/`: lists
   all 18 moved test names plus `BenchmarkGovernanceAuditStoreAppendSingleEvent`.

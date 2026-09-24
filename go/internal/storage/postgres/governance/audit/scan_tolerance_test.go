@@ -44,9 +44,9 @@ func listGovernanceAuditRows(t *testing.T, rows ...[]any) ([]governanceaudit.Eve
 	})
 }
 
-// governanceAuditStoreTestTime mirrors store_test.go's copy of the same name
-// (that file stays in the parent postgres package: #9b in the executor brief,
-// it asserts root's BootstrapDefinitions()/orderedBootstrapDefinitionNames).
+// governanceAuditStoreTestTime mirrors the copy of the same name in root's
+// governance_audit_store_test.go, which stays in the parent postgres package
+// because it asserts root's BootstrapDefinitions()/orderedBootstrapDefinitionNames.
 // Both copies return the identical fixed instant; this package's tests do not
 // share state with root's, so duplicating this 3-line pure helper is the
 // smallest fix for the cross-package split rather than a real logic change.

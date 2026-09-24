@@ -6,7 +6,8 @@ This package owns the private `governance_audit_events` sink: the durable,
 retry-idempotent record of authorization decisions (allow/deny/unavailable)
 the API, MCP server, workflow coordinator, and admin CLI make, plus the
 bounded reads and aggregate summaries built on top of it. It is not a login
-flow or session store — see `identity/` for those.
+flow or session store; those stay in the parent `postgres` package until the
+identity steps of #6693.
 
 ## Ownership boundary
 

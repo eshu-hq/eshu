@@ -255,7 +255,8 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   metadata targets
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
 - `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;
-  `NewGovernanceAuditStore`; Postgres-backed store implementations
+  Postgres-backed store implementations
+- `internal/storage/postgres/governance/audit` — `NewGovernanceAuditStore`
 - `internal/app` — `NewHostedWithStatusServer`; hosts the service with the
   shared admin surface
 - `internal/runtime` — `OpenPostgres`, `WithPrometheusHandler`; Postgres
