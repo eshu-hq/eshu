@@ -28,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/incident"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -133,10 +134,11 @@ func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraph
 // (eshu_dp_worker_pool_active, backed by activeWorkers), and the
 // shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
 // and acceptance observers read cheap, bounded queries; the worker observer
-// reads an in-memory atomic counter. The graph orphan observer runs static-label
-// capped counts. The provenance observers (eshu_dp_edges_by_source_tool,
-// eshu_dp_files_by_language) run bounded LIMIT-capped aggregation queries
-// through the graph read port. None add unbounded scan cost per metrics scrape.
+// reads an in-memory atomic counter. The graph-backed gauges
+// (eshu_dp_graph_orphan_nodes, eshu_dp_edges_by_source_tool,
+// eshu_dp_files_by_language) never read the graph on a scrape: a background
+// refresher runs their bounded reads on its own goroutines and the gauge
+// callbacks serve the last snapshot (#7062; see registerGraphBackedGauges).
 // It lives here rather than in main.go to keep that file within the file-size
 // budget.
 func registerReducerObservableGauges(
@@ -147,30 +149,27 @@ func registerReducerObservableGauges(
 	graphOrphanObserver telemetry.GraphOrphanObserver,
 	graphReader query.GraphQuery,
 	getenv func(string) string,
-) error {
+	logger *slog.Logger,
+) (*snapshot.Refresher, error) {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: database})
 	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
-		return fmt.Errorf("register observable gauges: %w", err)
+		return nil, fmt.Errorf("register observable gauges: %w", err)
 	}
 
 	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
-		return fmt.Errorf("register acceptance observable gauge: %w", err)
+		return nil, fmt.Errorf("register acceptance observable gauge: %w", err)
 	}
-	if err := telemetry.RegisterGraphOrphanObservableGauge(instruments, meter, graphOrphanObserver); err != nil {
-		return fmt.Errorf("register graph orphan observable gauge: %w", err)
-	}
-
 	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
-		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
+		return nil, fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
 	}
 
 	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: database}, loadGenerationLivenessConfig(getenv))
 	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
-		return fmt.Errorf("register active generation age observable gauge: %w", err)
+		return nil, fmt.Errorf("register active generation age observable gauge: %w", err)
 	}
 
 	// The poison stuck-gauge is wired unconditionally (unlike the recovery
@@ -178,13 +177,10 @@ func registerReducerObservableGauges(
 	// regardless of whether bounded auto-retry is enabled (#4740).
 	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterPoisonLivenessObservableGauges(instruments, meter, poisonObserver); err != nil {
-		return fmt.Errorf("register poison liveness observable gauges: %w", err)
+		return nil, fmt.Errorf("register poison liveness observable gauges: %w", err)
 	}
 
-	if err := registerProvenanceCoverageGauges(instruments, meter, graphReader, getenv); err != nil {
-		return err
-	}
-	return nil
+	return registerGraphBackedGauges(instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
 }
 
 func graphOrphanObserver(service reducer.Service) telemetry.GraphOrphanObserver {

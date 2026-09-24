@@ -167,6 +167,15 @@ configuration.
   only after an operator has reviewed the wedge, and tune the poll/attempt/batch
   budget via the `ESHU_POISON_LIVENESS_*` knobs documented in
   `go/cmd/reducer/README.md` "Poison dead-letter liveness".
+- The reducer's graph-backed gauges (`eshu_dp_edges_by_source_tool`,
+  `eshu_dp_files_by_language`, `eshu_dp_graph_orphan_nodes`) are served from a
+  background snapshot, so a slow graph read can never stall `/metrics` (#7062).
+  `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` (default `5m`) sets how often the
+  snapshot is rebuilt and `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` (default `30s`)
+  bounds each graph read. While refreshes succeed the gauges lag the graph by up
+  to one interval plus one read; if they keep failing, the gauges stop
+  reporting once the snapshot is three intervals old. Watch `eshu_dp_gauge_snapshot_age_seconds` and
+  `eshu_dp_gauge_snapshot_refreshes_total{outcome}` for staleness.
 
 ## Route Map
 

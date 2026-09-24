@@ -103,11 +103,35 @@ groups:
           summary: "Graph orphan node count is high"
           description: "There are {{ $value }} zero-relationship graph nodes for label {{ $labels.node_label }} after multiple scrape windows."
           runbook: |
+            0. Check whether `EshuGraphGaugeSnapshotStale` is firing or `eshu_dp_gauge_snapshot_age_seconds{gauge="graph_orphan_nodes"}` is climbing; if so, the count is the last good snapshot, not a live value
             1. Check reducer logs for `graph orphan sweep cycle failed` and `failure_class=graph_orphan_sweep_error`
             2. Verify `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`, `ESHU_GRAPH_ORPHAN_SWEEP_TTL`, and `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT`
             3. Compare `eshu_dp_neo4j_query_duration_seconds` for graph write pressure during sweep cycles
             4. Check whether relationship retraction is still producing progress before changing sweep limits
             5. If counts keep rising for one label, inspect the corresponding writer for disconnected node creation
+
+      - alert: EshuGraphGaugeSnapshotStale
+        expr: |
+          (max by (gauge) (eshu_dp_gauge_snapshot_age_seconds) > 900)
+          or
+          (
+            sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{outcome!="success"}[30m])) > 0
+            unless
+            sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{outcome="success"}[30m])) > 0
+          )
+        for: 5m
+        labels:
+          severity: warning
+          service: eshu-reducer
+          component: pipeline
+        annotations:
+          summary: "Graph-backed gauge {{ $labels.gauge }} is serving a stale snapshot or has none"
+          description: "The background refresh for graph gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The graph read is slow, failing, or timing out."
+          runbook: |
+            1. Check `eshu_dp_gauge_snapshot_refreshes_total{gauge="{{ $labels.gauge }}"}` by `outcome` (`error` vs `timeout`)
+            2. Check reducer logs for `gauge snapshot refresh failed` and `failure_class=gauge_snapshot_refresh_timeout` or `gauge_snapshot_refresh_error`
+            3. Compare `eshu_dp_neo4j_query_duration_seconds` and graph backend health for slow reads
+            4. Tune `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` only after the graph read itself is understood; the snapshot expires after three `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` periods (default 15m) and the 900s threshold here assumes the default interval
 
       - alert: EshuCollectorStalled
         expr: rate(eshu_dp_facts_emitted_total[15m]) == 0

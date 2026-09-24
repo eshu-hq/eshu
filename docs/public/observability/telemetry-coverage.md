@@ -357,8 +357,8 @@ The reducer drains queue work items through the worker pool, projects shared edg
 | reducer run duration | go/internal/reducer/service.go:358 | `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_reducer_executions_total` | reducer runtime |
 | reducer lease heartbeat | go/internal/reducer/service_heartbeat.go:114 | `eshu_dp_reducer_heartbeat_missed_total` | reducer runtime |
 | graph orphan sweep | go/internal/telemetry/instruments.go:3690 | `eshu_dp_graph_orphan_nodes` | reducer graph |
-| extraction provenance — edges by source tool | go/internal/telemetry/instruments.go (RegisterEdgesBySourceToolObservableGauge) | `eshu_dp_edges_by_source_tool` | reducer graph |
-| extraction provenance — files by language | go/internal/telemetry/instruments.go (RegisterFilesByLanguageObservableGauge) | `eshu_dp_files_by_language` | reducer graph |
+| extraction provenance — edges by source tool and files by language (graph reads run in the #7062 snapshot refresher) | go/internal/telemetry/instruments.go | `eshu_dp_edges_by_source_tool`, `eshu_dp_files_by_language` | reducer graph |
+| graph-backed gauge snapshot refresh (#7062) | go/internal/telemetry/snapshot/refresher.go | `eshu_dp_gauge_snapshot_refreshes_total`, `eshu_dp_gauge_snapshot_refresh_duration_seconds`, `eshu_dp_gauge_snapshot_age_seconds` | reducer graph |
 | search decay scoring | go/internal/searchdecaytelemetry/observer.go:31 | `eshu_dp_search_decay_policy_applications_total` | reducer search |
 | shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds` | reducer shared acceptance |
 | typed-payload decode quarantine | go/internal/reducer/factdecode/quarantine_record.go:64 | `eshu_dp_reducer_input_invalid_facts_total`, `eshu_dp_reducer_input_invalid_fact_write_batch_size`, `eshu_dp_reducer_input_invalid_facts_committed_total`, `eshu_dp_reducer_input_invalid_fact_write_errors_total` | reducer typed decode |

@@ -75,7 +75,7 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = neo4jCloser.Close() }()
 
-	serviceRunner, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
+	serviceRunner, gaugeRefresher, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,16 @@ func run(parent context.Context) error {
 	}
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	// Start the graph-gauge refresher under the shutdown context and stop it
+	// before the deferred graph-driver close runs, so a shutdown never fails an
+	// in-flight refresh read against a closed driver (#7062). stop runs first so
+	// the wait cannot block on a still-live context when service.Run returns an
+	// error.
+	waitGaugeRefresher := startGraphGaugeRefresher(ctx, gaugeRefresher)
+	defer func() {
+		stop()
+		waitGaugeRefresher()
+	}()
 
 	startSearchDocumentSweeper(ctx, db, logger)
 	startConfigStateDriftCatchUpSweeper(ctx, db, instruments, logger)

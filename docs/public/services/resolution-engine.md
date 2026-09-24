@@ -221,6 +221,9 @@ Start with:
   `eshu_dp_infra_inventory_reconcile_duration_seconds`, span
   `reducer.infra_inventory_reconcile`
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
+- graph-backed gauge snapshot health: `eshu_dp_gauge_snapshot_refreshes_total`,
+  `eshu_dp_gauge_snapshot_refresh_duration_seconds`,
+  `eshu_dp_gauge_snapshot_age_seconds`
 - logs: reducer execution result logs and shared projection cycle logs with
   domain, worker, route, row count, and failure class
 - repo-dependency quarantine logs: `lease_quarantined=true`,

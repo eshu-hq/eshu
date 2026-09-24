@@ -308,6 +308,12 @@ read_exemptions:
       MATCH (s:WorkloadInstance)-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL RETURN type(r) AS verb, r.source_tool AS source_tool, count(r) AS count ORDER BY verb, source_tool
     reason: every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction
   - statement: |-
+      MATCH ()-[r:READS_CONFIG_FROM]->() WHERE r.source_tool IS NOT NULL RETURN r.source_tool AS source_tool, count(r) AS cnt ORDER BY cnt DESC LIMIT $limit
+    reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; B-7 captures contain zero READS_CONFIG_FROM writes (no write statement names the verb and no execution reports a READS_CONFIG_FROM relationship created)
+  - statement: |-
+      MATCH ()-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL RETURN r.source_tool AS source_tool, count(r) AS cnt ORDER BY cnt DESC LIMIT $limit
+    reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction (same cause as the WorkloadInstance RUNS_ON read above)
+  - statement: |-
       MATCH (s:Workload)-[r:DEPENDS_ON]->(t) RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id, coalesce(s.name, s.path, s.id, s.uid) AS source_name, coalesce(t.id, t.uid, t.name, t.path) AS target_id, coalesce(t.name, t.path, t.id, t.uid) AS target_name, r.rationale AS evidence, r.source_tool AS source_tool ORDER BY s.id, coalesce(t.id, t.uid) LIMIT $limit
     reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload DEPENDS_ON edges exist at all
   - statement: |-

@@ -85,7 +85,10 @@ and the bounded failure reason lives in reducer logs.
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_graph_orphan_nodes` | observable gauge | Current zero-relationship node count by closed `node_label`. |
+| `eshu_dp_graph_orphan_nodes` | observable gauge | Current zero-relationship node count by closed `node_label`, served from a background snapshot (up to `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` old). |
+| `eshu_dp_gauge_snapshot_refreshes_total` | counter | Background graph-gauge snapshot refreshes by `gauge` and `outcome` (`success`, `error`, `timeout`). |
+| `eshu_dp_gauge_snapshot_refresh_duration_seconds` | histogram | Duration of each background snapshot refresh by `gauge` and `outcome`. |
+| `eshu_dp_gauge_snapshot_age_seconds` | observable gauge | Age of the snapshot each graph-backed gauge is serving; absent until the first successful refresh. |
 
 The graph orphan sweep counts only the closed label set used by the reducer
 cleanup path: `Repository`, `Platform`, and `EvidenceArtifact`. Counts are
