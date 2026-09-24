@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"golang.org/x/crypto/bcrypt"
@@ -99,7 +100,7 @@ func (h *IdentityHandler) issueLocalIdentitySession(
 	// only production/break-glass login honors a tenant's configured
 	// idle/absolute override, falling back to h.idleTimeout()/
 	// h.absoluteTimeout() when unset or on a policy-read error.
-	idleTimeout, absoluteTimeout := queryauth.ResolveSessionTimeouts(
+	idleTimeout, absoluteTimeout := session.ResolveSessionTimeouts(
 		r.Context(), h.SignInPolicy, auth.TenantID, h.idleTimeout(), h.absoluteTimeout(),
 	)
 	issued, ok := IssueSessionCookies(
@@ -122,7 +123,7 @@ func (h *IdentityHandler) issueLocalIdentitySession(
 // response needs after IssueSessionCookies creates the server-side
 // session row and sets the session/CSRF cookies.
 type SessionIssued struct {
-	Auth              queryauth.BrowserSessionAuthResponse
+	Auth              session.BrowserSessionAuthResponse
 	CSRFToken         string
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
@@ -138,12 +139,12 @@ type SessionIssued struct {
 func IssueSessionCookies(
 	w http.ResponseWriter,
 	r *http.Request,
-	sessions queryauth.BrowserSessionStore,
+	sessions session.BrowserSessionStore,
 	newSecret func() (string, error),
 	now time.Time,
 	idleTimeout time.Duration,
 	absoluteTimeout time.Duration,
-	cookieSecure queryauth.CookieSecureMode,
+	cookieSecure session.CookieSecureMode,
 	auth IdentityAuthContext,
 ) (SessionIssued, bool) {
 	if sessions == nil {
@@ -175,9 +176,9 @@ func IssueSessionCookies(
 		AllowedPermissionFeatures:    append([]string(nil), auth.AllowedPermissionFeatures...),
 		AllowedPermissionDataClasses: append([]string(nil), auth.AllowedPermissionDataClasses...),
 	}
-	if err := sessions.CreateBrowserSession(r.Context(), queryauth.BrowserSessionCreateRecord{
-		SessionHash:                  queryauth.BrowserSessionSecretHash(sessionSecret),
-		CSRFTokenHash:                queryauth.BrowserSessionSecretHash(csrfSecret),
+	if err := sessions.CreateBrowserSession(r.Context(), session.BrowserSessionCreateRecord{
+		SessionHash:                  session.BrowserSessionSecretHash(sessionSecret),
+		CSRFTokenHash:                session.BrowserSessionSecretHash(csrfSecret),
 		TenantID:                     auth.TenantID,
 		WorkspaceID:                  auth.WorkspaceID,
 		SubjectIDHash:                auth.SubjectIDHash,
@@ -197,9 +198,9 @@ func IssueSessionCookies(
 		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
 		return SessionIssued{}, false
 	}
-	queryauth.WriteBrowserSessionCookies(w, r, cookieSecure, sessionSecret, csrfSecret, absoluteExpiresAt, int(absoluteTimeout.Seconds()))
+	session.WriteBrowserSessionCookies(w, r, cookieSecure, sessionSecret, csrfSecret, absoluteExpiresAt, int(absoluteTimeout.Seconds()))
 	return SessionIssued{
-		Auth:              queryauth.BrowserSessionAuthResponseFor(sessionAuth),
+		Auth:              session.BrowserSessionAuthResponseFor(sessionAuth),
 		CSRFToken:         csrfSecret,
 		IdleExpiresAt:     idleExpiresAt,
 		AbsoluteExpiresAt: absoluteExpiresAt,
@@ -273,19 +274,19 @@ func (h *IdentityHandler) idleTimeout() time.Duration {
 	if h.IdleTimeout > 0 {
 		return h.IdleTimeout
 	}
-	return queryauth.DefaultBrowserSessionIdleTimeout
+	return session.DefaultBrowserSessionIdleTimeout
 }
 
 func (h *IdentityHandler) absoluteTimeout() time.Duration {
 	if h.AbsoluteTimeout > 0 {
 		return h.AbsoluteTimeout
 	}
-	return queryauth.DefaultBrowserSessionAbsoluteTimeout
+	return session.DefaultBrowserSessionAbsoluteTimeout
 }
 
 // cookieSecureMode normalizes h.CookieSecure, defaulting to CookieSecureAuto.
-func (h *IdentityHandler) cookieSecureMode() queryauth.CookieSecureMode {
-	return queryauth.ParseCookieSecureMode(string(h.CookieSecure))
+func (h *IdentityHandler) cookieSecureMode() session.CookieSecureMode {
+	return session.ParseCookieSecureMode(string(h.CookieSecure))
 }
 
 func (h *IdentityHandler) hashPassword(password string) (string, error) {

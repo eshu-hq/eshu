@@ -7,10 +7,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 )
 
-// resolveSessionTimeouts forwards to queryauth.ResolveSessionTimeouts. The
+// resolveSessionTimeouts forwards to session.ResolveSessionTimeouts. The
 // implementation moved there for #6642 so a handler-family subpackage can
 // resolve session timeouts without importing this package; every existing
 // caller keeps its exact behavior through this wrapper.
@@ -21,5 +21,5 @@ func resolveSessionTimeouts(
 	defaultIdle time.Duration,
 	defaultAbsolute time.Duration,
 ) (idle time.Duration, absolute time.Duration) {
-	return queryauth.ResolveSessionTimeouts(ctx, signInPolicy, tenantID, defaultIdle, defaultAbsolute)
+	return session.ResolveSessionTimeouts(ctx, signInPolicy, tenantID, defaultIdle, defaultAbsolute)
 }

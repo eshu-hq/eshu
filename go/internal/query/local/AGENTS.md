@@ -129,7 +129,7 @@ hoisting any of them for this move alone would mean rewriting those other
 families' root tests too -- outside this move's scope. This package
 therefore declares its own `fakeStore` (`handler_fakes_test.go`, an
 `IdentityProfileLister` double) and `fakeSessions`
-(`queryauth.BrowserSessionStore` double) rather than reaching for root's
+(`session.BrowserSessionStore` double) rather than reaching for root's
 private fakes it structurally cannot reach anyway. Do not try to import
 `querytestutil.FakeGovernanceAuditAppender` here as a `GovernanceAuditAppender`
 double AND keep duplicating `fakeStore`/`fakeSessions` locally -- the

@@ -7,36 +7,38 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 )
 
 // CookieSecureMode selects how the browser session and CSRF cookies decide
 // the Secure attribute across the BrowserSessionHandler, LocalIdentityHandler,
-// and SAMLHandler login paths. It lives in queryauth (#6642) so a
-// handler-family subpackage can name it without importing this package. See
-// CookieSecureModeEnv for the operator switch and queryauth's unexported
-// browserSessionCookieSecure for the per-request decision (#4964).
-type CookieSecureMode = queryauth.CookieSecureMode
+// and SAMLHandler login paths. It lives in session (#6642, moved from
+// queryauth by #6818) so a handler-family subpackage can name it without
+// importing this package. See CookieSecureModeEnv for the operator switch
+// and session's unexported browserSessionCookieSecure for the per-request
+// decision (#4964).
+type CookieSecureMode = session.CookieSecureMode
 
 // Compatibility constants preserve this package's public contract. They
-// moved to queryauth (#6642); see queryauth for the doc comments.
+// live in session (#6642, moved from queryauth by #6818); see session for
+// the doc comments.
 const (
-	CookieSecureAuto    = queryauth.CookieSecureAuto
-	CookieSecureAlways  = queryauth.CookieSecureAlways
-	CookieSecureModeEnv = queryauth.CookieSecureModeEnv
+	CookieSecureAuto    = session.CookieSecureAuto
+	CookieSecureAlways  = session.CookieSecureAlways
+	CookieSecureModeEnv = session.CookieSecureModeEnv
 )
 
-// ParseCookieSecureMode forwards to queryauth.ParseCookieSecureMode. The
+// ParseCookieSecureMode forwards to session.ParseCookieSecureMode. The
 // implementation moved there for #6642 so a handler-family subpackage can
 // normalize a CookieSecureMode field without importing this package.
 func ParseCookieSecureMode(value string) CookieSecureMode {
-	return queryauth.ParseCookieSecureMode(value)
+	return session.ParseCookieSecureMode(value)
 }
 
-// ValidateCookieSecureMode forwards to queryauth.ValidateCookieSecureMode.
+// ValidateCookieSecureMode forwards to session.ValidateCookieSecureMode.
 // The implementation moved there for #6642.
 func ValidateCookieSecureMode(value string) (CookieSecureMode, error) {
-	return queryauth.ValidateCookieSecureMode(value)
+	return session.ValidateCookieSecureMode(value)
 }
 
 // browserSessionCookieValue returns the raw dashboard session cookie value

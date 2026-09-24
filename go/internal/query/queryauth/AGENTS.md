@@ -40,10 +40,10 @@ and treat every change here as a security change.
   spec never grants, which is a 403 for every catalog-enforced caller with no
   gate to catch it.
 
-- (#6642) `WriteBrowserSessionCookies` and its helpers (`browserSessionCookieSecure`,
+- (#6642, #6818 move 4a) `WriteBrowserSessionCookies` and its helpers (`browserSessionCookieSecure`,
   `browserSessionCookieNames`, `clearBrowserSessionCookies`) MUST keep the
   __Host- vs bare cookie-name pairing exactly as documented in
-  `session_cookies.go`: a __Host--prefixed cookie sent with `Secure=false` is
+  `auth/session/cookies.go`: a __Host--prefixed cookie sent with `Secure=false` is
   invalid per RFC 6265bis and browsers reject it outright (#4964).
 - (#6642) This package MUST NOT import `querycontract`. `querycontract`
   already imports this package (`RepositoryAccessFilterFromContext` reads
@@ -70,7 +70,7 @@ consumers: root's ask handler and the semantic-search family. Confirm the auth s
 matching zero.
 
 For the #6642 browser-session/timeout/sign-in-policy/audit-actor surface,
-also run `go test ./internal/query/queryauth ./internal/query/querycontract -list '.*'`
+also run `go test ./internal/query/auth/session ./internal/query/queryauth ./internal/query/querycontract -list '.*'`
 and confirm the printed test names union with root package `query`'s own
 list to the pre-move set -- no test should be dropped, duplicated, or
 silently renamed by a future move that touches these files.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
@@ -174,16 +175,16 @@ func (s *fakeStore) ConfirmLocalIdentityTOTPEnrollment(_ context.Context, confir
 	return s.totpConfirmError
 }
 
-// fakeSessions is a minimal queryauth.BrowserSessionStore double: it records
+// fakeSessions is a minimal session.BrowserSessionStore double: it records
 // the one CreateBrowserSession call a login/break-glass/rotation route makes
 // and reports success. RevokeBrowserSession and SwitchBrowserSessionWorkspace
 // are not exercised by this family's routes.
 type fakeSessions struct {
-	created   queryauth.BrowserSessionCreateRecord
+	created   session.BrowserSessionCreateRecord
 	createErr error
 }
 
-func (f *fakeSessions) CreateBrowserSession(_ context.Context, record queryauth.BrowserSessionCreateRecord) error {
+func (f *fakeSessions) CreateBrowserSession(_ context.Context, record session.BrowserSessionCreateRecord) error {
 	f.created = record
 	return f.createErr
 }

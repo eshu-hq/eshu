@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -21,7 +22,7 @@ const localIdentitySecretBytes = 32
 // invitation, disablement, break-glass, and profile read routes.
 type IdentityHandler struct {
 	Store           IdentityProfileLister
-	Sessions        queryauth.BrowserSessionStore
+	Sessions        session.BrowserSessionStore
 	Audit           queryauth.GovernanceAuditAppender
 	NewSecret       func() (string, error)
 	Now             func() time.Time
@@ -30,7 +31,7 @@ type IdentityHandler struct {
 	AbsoluteTimeout time.Duration
 	// CookieSecure selects the Secure-attribute policy for issued session
 	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
-	CookieSecure queryauth.CookieSecureMode
+	CookieSecure session.CookieSecureMode
 	// SignInPolicy reads the tenant sign-in policy (issue #4968, epic #4962)
 	// enforced by handleLogin (require_sso: local login denied for a
 	// non-admin identity; break-glass local admin sign-in is unaffected — see

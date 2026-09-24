@@ -108,7 +108,7 @@ type LocalIdentityPasswordRotation = local.IdentityPasswordRotation
 // after the setup wizard's final step. Its home is local/
 // (IdentitySessionResponse); setup_types.go's SetupCompleteResponse.Auth
 // field type keeps this spelling indirectly through
-// queryauth.BrowserSessionAuthResponse (unaffected by this move).
+// session.BrowserSessionAuthResponse (unaffected by this move).
 type LocalIdentitySessionResponse = local.IdentitySessionResponse
 
 // LocalIdentityAPITokenCreate stores one hash-only generated API token. Its
