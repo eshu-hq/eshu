@@ -193,11 +193,11 @@ the concrete adapters stay here.
   not report stalled while a reducer lease is actively moving that domain.
   `status_registry.go` derives OCI and package-registry aggregate counts from
   workflow tables without reading private registry object names. The same store
-  also runs the bounded
-  `terraformStateLastSerialQuery` and `terraformStateRecentWarningsQuery` from
-  `tfstate_status.go` so the admin status response carries one row per
-  Terraform-state safe locator hash or Git backend-source handle plus up to
-  `MaxTerraformStateRecentWarnings` recent warning facts grouped by
+  also runs the bounded Terraform-state admin queries via
+  `statestore.ReadTerraformStateAdminEvidence`
+  (`terraform/state/status.go`) so the admin status response carries one row
+  per Terraform-state safe locator hash or Git backend-source handle plus up
+  to `MaxTerraformStateRecentWarnings` recent warning facts grouped by
   `warning_kind`. Git-scope unresolved-backend warnings use repo id plus
   repo-relative source path as the safe handle and do not invent a state
   locator.
