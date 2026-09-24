@@ -270,8 +270,6 @@ the concrete adapters stay here.
 
 - `StatusStore` / `NewStatusStore` — scope counts, generation counts, stage
   counts, queue depth
-- `StatusRequestStore` / `NewStatusRequestStore` — async status request
-  persistence
 - `GovernanceAuditStore` / `NewGovernanceAuditStore` — validation-safe hosted
   governance audit persistence with retry-idempotent `Append`, private
   operator-authorized bounded `List`, aggregate-only `Summary`, and
