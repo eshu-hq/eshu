@@ -148,7 +148,7 @@ catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
 `limit`, and it keeps catalog declarations provenance-only until reducer
 evidence corroborates repository, service, workload, ownership, or drift truth.
-`KubernetesHandler` (`kubernetes.go:16`) reads reducer-owned Kubernetes workload
+`kubernetes.Handler` (`kubernetes/handler.go`) reads reducer-owned Kubernetes workload
 correlation facts (`reducer_kubernetes_correlation`, produced by issue #388 PR1)
 from Postgres. It requires an explicit scope, cluster, workload object,
 namespace, image reference, or source digest anchor plus `limit`, exposes the

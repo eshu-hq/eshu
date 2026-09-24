@@ -53,7 +53,7 @@ import "fmt"
 // at one of the commits named above is the one search that stays on git grep,
 // because rg cannot read a commit -- see AGENTS.md in this directory.
 // FloatVal is the exception: package query has no exported wrapper for it and
-// reaches it through two unexported ones instead, floatVal in compare.go and
+// reaches it through two unexported ones instead, floatVal in compare/handler.go and
 // relationshipFloatVal in repository_compat.go, named by 11 call sites across
 // 3 root files.
 

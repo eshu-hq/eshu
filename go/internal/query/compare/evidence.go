@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/service"
+
 	envcontract "github.com/eshu-hq/eshu/go/internal/environment"
 )
 
-func inferredEnvironmentProvenance(environment string, evidence ServiceQueryEvidence) []map[string]any {
+func inferredEnvironmentProvenance(environment string, evidence service.QueryEvidence) []map[string]any {
 	canonical := canonicalEnvironmentName(environment)
 	if canonical == "" {
 		canonical = strings.ToLower(strings.TrimSpace(environment))

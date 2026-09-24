@@ -80,7 +80,7 @@ func FilterNullRelationships(v any) []map[string]any {
 // rowvalue/AGENTS.md; a literal copy here would count itself. Package
 // query's own forwarders in neo4j.go cover four of the five and continue to
 // work through these; it has no exported FloatVal and reaches this one through
-// two unexported wrappers instead, floatVal in compare.go and
+// two unexported wrappers instead, floatVal in compare/handler.go and
 // relationshipFloatVal in repository_compat.go.
 //
 // Each wrapper below is a pass-through with no behavior of its own, so the

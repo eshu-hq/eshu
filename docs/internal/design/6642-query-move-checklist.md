@@ -46,7 +46,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | [#7053](https://github.com/eshu-hq/eshu/pull/7053) | **merged** `8d5949f90` | 268 |
 | `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | [#7055](https://github.com/eshu-hq/eshu/pull/7055) | **merged** `63613f158` | 267 |
 | `kubernetes/` (`handler.go`, `correlations.go`, `runtime_workload_store.go`) | 3, +1 alias | [#7072](https://github.com/eshu-hq/eshu/pull/7072) | **merged** `052054294` | 265 |
-| `metrics/` (`handler.go`, `prometheus.go`, `request.go`) | 3, +1 alias | this PR | open | 263 |
+| `metrics/` (`handler.go`, `prometheus.go`, `request.go`) | 3, +1 alias | [#7075](https://github.com/eshu-hq/eshu/pull/7075) | **merged** `152d58562` | 263 |
+| `compare/` (`handler.go`, `evidence.go`, `story.go`) | 3, +1 alias | this PR | open | 261 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -401,3 +402,16 @@ drives root's `AskHandler`. Root keeps seven names in `metrics_alias.go` for
 
 No-Observability-Change: same metric names, labels and meter; no span or log
 change.
+
+## Performance and observability evidence for the `compare` leaf
+
+No-Regression Evidence: `compare.go`, `compare_evidence.go` and
+`compare_story.go` move to `compare/`; `context_story_limits.go` stays in root
+because it only forwards to `querycontract` and no compare file calls it. Both
+Cypher reads, their parameters, the list bounds, the grant handling and the
+response shape are unchanged. The two reads were grandfathered `non_hot_reason`
+entries; the receiver rename changes their source digest, so they convert to
+typed `keyed_support` (`single_key`; `max_results` 201 and 1) and leave
+`grandfatheredNonHotSourceDigests`, as `internal/queryplan`'s rules require.
+
+No-Observability-Change: no span, metric or log change.

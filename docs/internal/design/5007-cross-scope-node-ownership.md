@@ -155,7 +155,7 @@ hazard, see option c) or structurally per-scope-keyed.
 Query-truth blast radius of the node's provenance properties is small:
 the query surfaces that return `source_fact_id`/`stable_fact_key` to users
 read them from relationship properties, not from the CloudResource node
-(`go/internal/query/compare.go:207-216` reads `r.*` off the `USES` edge;
+(`go/internal/query/compare/handler.go` `environmentSnapshot` reads `r.*` off the `USES` edge;
 `go/internal/query/impact/trace_deployment_resources.go` and
 `go/internal/query/cloud_resource_dependencies.go:43-44` read `rel.*`).
 The node's scope-derived properties are canonical graph truth (operator

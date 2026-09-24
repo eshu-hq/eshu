@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
@@ -223,7 +225,7 @@ func environmentCompareCoverage(
 	return map[string]any{
 		"query_shape":      "workload_environment_cloud_resource_story",
 		"comparison_basis": basis,
-		"freshness_state":  string(FreshnessFresh),
+		"freshness_state":  string(querycontract.FreshnessFresh),
 		"left_status":      leftStatus,
 		"right_status":     rightStatus,
 		"left_truncated":   leftTruncated,

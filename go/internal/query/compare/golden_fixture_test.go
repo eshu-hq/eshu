@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 func TestCompareEnvironmentsReturnsGoldenMaterializedStageAndProd(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {

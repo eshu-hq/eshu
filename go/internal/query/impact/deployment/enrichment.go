@@ -333,7 +333,7 @@ func LoadProvisioningSourceChainsFromCandidates(
 //     gap in what a caller can tell about an entry rather than about the list.
 //   - ContentReader.ListFrameworkRoutes -- frameworkRouteEvidenceLimit (50), a
 //     SQL LIMIT with no truncation channel, also on a different set. Its rows
-//     land only on ServiceQueryEvidence.FrameworkRoutes, which
+//     land only on service.QueryEvidence.FrameworkRoutes, which
 //     service/query_enrichment_rows.go reads to build api_surface
 //     endpoints; no hostname, candidate, or consumer search touches it.
 //     Recorded so the next round does not re-derive that it cannot reach

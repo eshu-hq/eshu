@@ -200,7 +200,7 @@ func presentBothCompareReader() query.GraphQuery {
 }
 
 // parityCompareReader is a deterministic compare-environments fixture. It mirrors
-// the present/present fixture used by query.compare_test.go but lives in the mcp
+// the present/present fixture used by internal/query/compare/handler_test.go but lives in the mcp
 // package so both surfaces can be driven from one handler instance.
 type parityCompareReader struct{}
 

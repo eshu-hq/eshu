@@ -17,8 +17,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerHandlerLabel":         "09b8ea96446aeae203f178584e3bf1bb3cbab358b0c6166474457c79e8f19f14",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerHandlerRows":          "c5a3e0d2819fb89fcf5971b34e48b9efe05163fb4a53ff3b01c3bb52411fa266",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerImpactRows":           "adda1007a5bc60c6351566a8baa4a9c1b290c807e58d39ade93e2afbfc355d50",
-	"compare.go:(*CompareHandler).environmentSnapshot":                             "246b5d64e58917ba4eb82213bf8374817c14398380f593dc9b2892e82dab033a",
-	"compare.go:(*CompareHandler).fetchWorkload":                                   "cb8c6cefd899b3c46a8778cc13fb218c18564157d1e40882819c3c4b9a6684a9",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts": "22168d083366531f6a88eeee694dc46f6fbc46bfa2d0e4815b32bbce42cee411",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap":   "f1fbee8ad896a2c3047c9eb0a317a009e1cd61222dd1facf39a33926c52b0875",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoLanguages":      "40d0f7cbec027134499cc8398fbb75bda6819812002e675c5b11de57644b8e88",

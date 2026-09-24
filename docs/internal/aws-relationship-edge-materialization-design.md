@@ -398,7 +398,7 @@ so a future agent does not silently re-open them.
 1. **Resolved — resource→resource edges only; `USES` deferred.** Label choice
    `CloudResource` is **settled by the existing read contract**: the query layer
    already depends on `CloudResource` nodes that no writer produced —
-   `internal/query/compare.go` runs
+   `internal/query/compare/handler.go` runs
    `MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)`,
    `internal/query/impact/resource_investigation.go` traverses `n:CloudResource`,
    and `internal/query/entity_map_traversal.go` resolves the label. PR #1 makes

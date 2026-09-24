@@ -193,7 +193,7 @@ three, because two are named just by root test files. This is another entry for
 | `compare.go` | `compare/handler.go` | `compare_golden_fixture_test.go` +1 more |
 | `compare_evidence.go` | `compare/evidence.go` | — |
 | `compare_story.go` | `compare/story.go` | `compare_story_test.go` |
-| `context_story_limits.go` | `compare/context_story_limits.go` | `context_story_limits_test.go` |
+| `context_story_limits.go` | stays in root: only `querycontract` forwarders no compare file calls; leaves with the alias sweep | `context_story_limits_test.go` |
 
 #### `query/content/read/` — 40 non-test, 30 test files
 

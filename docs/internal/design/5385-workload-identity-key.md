@@ -665,7 +665,7 @@ One representative per anchor kind, because the kinds break differently:
 | Anchor kind | Representative | How a re-key breaks it |
 | --- | --- | --- |
 | Node-pattern property | `go/internal/query/entity/workload_handlers.go` | Matches nothing; the endpoint 404s. |
-| Denormalized `i.workload_id` | `go/internal/query/compare.go:189`, `go/internal/query/workload_runtime_topology.go:91` | Covered by migration item 4; the second is under a query-plan pin. |
+| Denormalized `i.workload_id` | `go/internal/query/compare/handler.go` (`environmentSnapshot`), `go/internal/query/entity/workload_runtime_topology.go` | Covered by migration item 4; the second is under a query-plan pin. |
 | Id/name conflated in one clause | `go/internal/query/entity/handler.go` | The same parameter is tested against `w.name` **and** `w.id`, so after a re-key the name half still matches and the id half does not — the selector half-works, which is the worst shape to debug. |
 | Inequality exclusion | `go/internal/query/impact/change_surface_legacy.go` | `impacted.id <> $target_id` stops excluding the start node, so it **appears in its own impact set** — a wrong answer with no error. |
 | List membership | `go/internal/query/catalog_workload_environments.go:60,68,86` | Silent empty result. |
@@ -1183,7 +1183,7 @@ retracted and rebuilt rather than rewritten in place.
    least five** read paths filter on it directly:
    `go/internal/query/workload_runtime_topology.go:90-97`
    (`i.workload_id = $workload_id`), `go/internal/query/service_workload_resolution.go:249,284`
-   (`w.id = i.workload_id`), `go/internal/query/compare.go:187-194`,
+   (`w.id = i.workload_id`), `go/internal/query/compare/handler.go` (`environmentSnapshot`),
    `go/internal/query/impact/entity_map_resolver.go` (the `workload_instance` case emits three
    resolvers; the rank-0 `id` and rank-1 `workload_id` ones both anchor on values
    the re-key moves, via `MATCH (n:WorkloadInstance {workload_id: $from})` at
@@ -1305,7 +1305,7 @@ differently.**
 `/api/v0/workloads/{workload_id}/context` and `/story`
 (`openapi/paths/search/entities.go`; handler matches `w.id` exactly at
 `entity/workload_handlers.go`, 404 on miss). It is a required body field on
-`POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
+`POST /api/v0/compare/environments` (`go/internal/query/compare/handler.go`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
 containing `:` (`isShareSafeLabel` at `go/internal/cli/opdigest/digest.go:244`,
 reached via `normalizeScope` at `:200`, whose guard at `:223` is the call site;

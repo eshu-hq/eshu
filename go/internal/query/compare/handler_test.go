@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package compare
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type fakeCompareGraphReader struct {
@@ -35,7 +37,7 @@ func (f fakeCompareGraphReader) Run(ctx context.Context, cypher string, params m
 func TestCompareEnvironmentsReturnsPresentSnapshotsFromMaterializedInstances(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {
@@ -134,7 +136,7 @@ func TestCompareEnvironmentsReturnsPresentSnapshotsFromMaterializedInstances(t *
 func TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {
@@ -200,7 +202,7 @@ func TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation(t *testing.T
 func TestCompareEnvironmentsReturnsInferredSnapshotsFromServiceEvidence(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				switch {
@@ -218,7 +220,7 @@ func TestCompareEnvironmentsReturnsInferredSnapshotsFromServiceEvidence(t *testi
 			},
 		},
 		Content: &stubCompareEvidenceReader{
-			files: []FileContent{
+			files: []querycontract.FileContent{
 				{RepoID: "repo-service-edge-api", RelativePath: "deploy/qa/service-edge-api.yaml"},
 				{RepoID: "repo-service-edge-api", RelativePath: "deploy/prod/service-edge-api.yaml"},
 			},
@@ -268,7 +270,7 @@ func TestCompareEnvironmentsReturnsInferredSnapshotsFromServiceEvidence(t *testi
 func TestCompareEnvironmentsKeepsMixedPresentAndInferredStatesHonest(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {
@@ -311,7 +313,7 @@ func TestCompareEnvironmentsKeepsMixedPresentAndInferredStatesHonest(t *testing.
 			},
 		},
 		Content: &stubCompareEvidenceReader{
-			files: []FileContent{
+			files: []querycontract.FileContent{
 				{RepoID: "repo-service-edge-api", RelativePath: "deploy/prod/service-edge-api.yaml"},
 			},
 			fileContent: map[string]string{
@@ -344,7 +346,7 @@ func TestCompareEnvironmentsKeepsMixedPresentAndInferredStatesHonest(t *testing.
 func TestCompareEnvironmentsReturnsExplicitUnsupportedWhenEvidenceIsTrulyAbsent(t *testing.T) {
 	t.Parallel()
 
-	handler := &CompareHandler{
+	handler := &Handler{
 		Neo4j: fakeCompareGraphReader{
 			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				switch {
@@ -384,7 +386,7 @@ func TestCompareEnvironmentsReturnsExplicitUnsupportedWhenEvidenceIsTrulyAbsent(
 	}
 }
 
-func executeCompareEnvironmentsRequest(t *testing.T, handler *CompareHandler, body string) map[string]any {
+func executeCompareEnvironmentsRequest(t *testing.T, handler *Handler, body string) map[string]any {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -427,20 +429,20 @@ func requireMapSlice(t *testing.T, parent map[string]any, key string) []map[stri
 }
 
 type stubCompareEvidenceReader struct {
-	files       []FileContent
+	files       []querycontract.FileContent
 	fileContent map[string]string
 }
 
-func (s *stubCompareEvidenceReader) ListRepoFiles(context.Context, string, int) ([]FileContent, error) {
-	return append([]FileContent(nil), s.files...), nil
+func (s *stubCompareEvidenceReader) ListRepoFiles(context.Context, string, int) ([]querycontract.FileContent, error) {
+	return append([]querycontract.FileContent(nil), s.files...), nil
 }
 
-func (s *stubCompareEvidenceReader) GetFileContent(_ context.Context, repoID, relativePath string) (*FileContent, error) {
+func (s *stubCompareEvidenceReader) GetFileContent(_ context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
 	content, ok := s.fileContent[relativePath]
 	if !ok {
 		return nil, nil
 	}
-	return &FileContent{
+	return &querycontract.FileContent{
 		RepoID:       repoID,
 		RelativePath: relativePath,
 		Content:      content,

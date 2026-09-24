@@ -32,7 +32,7 @@ rather than a fabricated empty diff.
 ## Committed reproducible evidence
 
 **Handler contract, honesty of present-vs-inferred state, and bounds** —
-`go/internal/query/compare_test.go`:
+`go/internal/query/compare/handler_test.go`:
 `TestCompareEnvironmentsReturnsPresentSnapshotsFromMaterializedInstances`,
 `TestCompareEnvironmentsReturnsInferredSnapshotsFromServiceEvidence`,
 `TestCompareEnvironmentsKeepsMixedPresentAndInferredStatesHonest`,
@@ -41,7 +41,7 @@ and `TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation`.
 Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestCompareEnvironments -count=1
+cd go && go test ./internal/query/compare -run TestCompareEnvironments -count=1
 ```
 
 ## Notes

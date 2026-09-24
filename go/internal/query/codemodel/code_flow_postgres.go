@@ -42,7 +42,7 @@ func normalizeCodeFlowLanguage(language string) string {
 	}
 }
 
-// floatVal is a family-local copy of root's compare.go helper of the same
+// floatVal is a family-local copy of compare/handler.go's helper of the same
 // name. The flow row decoder reads confidence payloads through it, and the
 // staying comparators that share it cannot cross the package boundary, so
 // the leaf carries this byte-identical copy instead of importing root.

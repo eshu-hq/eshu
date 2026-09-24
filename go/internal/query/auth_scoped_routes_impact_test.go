@@ -152,8 +152,8 @@ func TestAuthMiddlewareWithScopedTokensAllowsContractImpact(t *testing.T) {
 
 // --- compare_environments (mutation-checked) ---
 
-func compareEnvironmentsTestGraph() fakeCompareGraphReader {
-	return fakeCompareGraphReader{
+func compareEnvironmentsTestGraph() fakeGraphReader {
+	return fakeGraphReader{
 		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (w:Workload)") {
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -165,7 +165,7 @@ func compareEnvironmentsTestGraph() fakeCompareGraphReader {
 
 // TestCompareEnvironmentsScopedGrantAndDenyMutationCheck is a #5167 W3
 // mutation-check route: removing the workload repo_id grant check in
-// compare.go's compareEnvironments makes a denied caller see status "present"
+// compare/handler.go's compareEnvironments makes a denied caller see status "present"
 // (or any status other than "not found") instead of the missing-workload
 // response.
 func TestCompareEnvironmentsScopedGrantAndDenyMutationCheck(t *testing.T) {
@@ -403,4 +403,17 @@ func TestAuthMiddlewareWithScopedTokensAllowsInvestigateResource(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d (middleware must not 403 a granted scoped caller); body = %s", got, want, w.Body.String())
 	}
+}
+
+// requireMap fails the test unless parent[key] is a JSON object and returns
+// it. The compare tests that used to declare it moved to
+// internal/query/compare (#6642); these root route tests still need it.
+func requireMap(t *testing.T, parent map[string]any, key string) map[string]any {
+	t.Helper()
+
+	value, ok := parent[key].(map[string]any)
+	if !ok {
+		t.Fatalf("%s type = %T, want map[string]any", key, parent[key])
+	}
+	return value
 }
