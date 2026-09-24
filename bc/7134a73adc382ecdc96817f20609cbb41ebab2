@@ -1,0 +1,92 @@
+go/cmd/naming-glue-gate/doc.go
+  h_78a442cba0b3e6 68-80
+go/cmd/naming-glue-gate/exempt.go
+  h_78a442cba0b3e6 1-60
+go/cmd/naming-glue-gate/exempt_test.go
+  h_78a442cba0b3e6 1-150
+go/cmd/naming-glue-gate/main.go
+  h_78a442cba0b3e6 14,64,80-90
+go/internal/query/content_reader_driver_test.go
+  h_78a442cba0b3e6 11,19,40-41,62,66,73,79,85,91,97
+go/internal/query/entity_annotation_fallback_test.go
+  h_78a442cba0b3e6 14,20,85,148,225,302,373
+go/internal/query/entity_content_argocd_fallback_test.go
+  h_78a442cba0b3e6 14,20,71
+go/internal/query/entity_content_c_fallback_test.go
+  h_78a442cba0b3e6 14,20,79
+go/internal/query/entity_content_cloudformation_fallback_test.go
+  h_78a442cba0b3e6 13,19,85,149
+go/internal/query/entity_content_context_fallback_test.go
+  h_78a442cba0b3e6 17,64,115,200
+go/internal/query/entity_content_elixir_fallback_test.go
+  h_78a442cba0b3e6 15,36,94,162,278,328,382
+go/internal/query/entity_content_fallback_test.go
+  h_78a442cba0b3e6 18,24,85
+go/internal/query/entity_content_github_actions_fallback_test.go
+  h_78a442cba0b3e6 13,19,92
+go/internal/query/entity_content_iac_fallback_test.go
+  h_78a442cba0b3e6 14,20,78,129,201
+go/internal/query/entity_content_kustomize_deploy_fallback_test.go
+  h_78a442cba0b3e6 13,19
+go/internal/query/entity_content_python_resolve_test.go
+  h_78a442cba0b3e6 18,112,187,255
+go/internal/query/entity_content_sql_core_fallback_test.go
+  h_78a442cba0b3e6 14,20,78
+go/internal/query/entity_content_sql_fallback_test.go
+  h_78a442cba0b3e6 14,20,71
+go/internal/query/entity_metadata_flux_test.go
+  h_78a442cba0b3e6 11,25,76,130,182
+go/internal/query/entity_metadata_test.go
+  h_78a442cba0b3e6 11,17,95,165,209
+go/internal/query/entity_metadata_tsx_semantics_test.go
+  h_78a442cba0b3e6 11,17,68,119
+go/internal/query/entity_metadata_typescript_semantics_test.go
+  h_78a442cba0b3e6 12,93,147,201,252
+go/internal/query/entity_story_test.go
+  h_78a442cba0b3e6 17,198,326,783,858,926
+go/internal/query/querytestutil/README.md
+  h_78a442cba0b3e6 24-26
+go/internal/query/querytestutil/content/AGENTS.md
+  h_78a442cba0b3e6 40-44
+go/internal/query/querytestutil/content/README.md
+  h_78a442cba0b3e6 6-10,20-22
+go/internal/query/querytestutil/content/doc.go
+  h_78a442cba0b3e6 14,24-27
+go/internal/query/scope_query_test_helpers_test.go
+  h_78a442cba0b3e6 22
+go/internal/testutil/contentreader/AGENTS.md
+  h_78a442cba0b3e6 1-30
+go/internal/testutil/contentreader/README.md
+  h_78a442cba0b3e6 1-49
+go/internal/testutil/contentreader/args.go
+  h_78a442cba0b3e6 4
+go/internal/testutil/contentreader/columns.go
+  h_78a442cba0b3e6 4
+go/internal/testutil/contentreader/defaults.go
+  h_78a442cba0b3e6 4
+go/internal/testutil/contentreader/doc.go
+  h_78a442cba0b3e6 1-25
+go/internal/testutil/contentreader/driver.go
+  h_78a442cba0b3e6 4
+go/internal/testutil/contentreader/reader_coverage_test.go
+  h_78a442cba0b3e6 4,43
+go/internal/testutil/contentreader/reader_defaults_test.go
+  h_78a442cba0b3e6 4,12,44,66,107,112,118,125,133
+go/internal/testutil/contentreader/reader_disjoint_test.go
+  h_78a442cba0b3e6 4
+go/internal/testutil/contentreader/reader_driver_test.go
+  h_78a442cba0b3e6 4,14,53,72,92,119,125,146,150,168,171,185,193,205,226,242
+scripts/lib/naming-glue-exempt.tsv
+  h_78a442cba0b3e6 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc7134a73adc382ecdc96817f20609cbb41ebab2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
