@@ -244,6 +244,16 @@ func foldStringLiteral(n ast.Node, resolve func(string) (string, bool)) (string,
 		return resolve(x.Name)
 	case *ast.ParenExpr:
 		return foldStringLiteral(x.X, resolve)
+	case *ast.CallExpr:
+		// strings.Join(labels, "|") splices a label list into a statement
+		// (the Rationale EXPLAINS writer). Read it as a %s slot, the same
+		// placeholder the sweep already fills with a schema label, so the
+		// statement is analyzed whole instead of as detached fragments.
+		if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Join" {
+			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "strings" {
+				return "%s", true
+			}
+		}
 	case *ast.BinaryExpr:
 		if x.Op != token.ADD {
 			return "", false
@@ -313,5 +323,40 @@ func TestSweepFlagsSeededViolations(t *testing.T) {
 		if got[name] {
 			t.Errorf("%s flagged, want clean; findings = %v", name, findings)
 		}
+	}
+}
+
+// TestSweepReadsJoinedLabelTemplateWhole proves the sweep reads a statement
+// assembled with strings.Join over a label list (the shape of the Rationale
+// EXPLAINS writer) as one statement, the way the executor sees it. Read
+// fragment-wise, the tail literal loses the UNWIND that binds row and a
+// correctly guarded writer is reported as unresolved; a genuinely unreadable
+// shape in the same construction must still be flagged.
+func TestSweepReadsJoinedLabelTemplateWhole(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, decl string) {
+		t.Helper()
+		path := filepath.Join(root, "internal", "storage", name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		src := "package storage\n\nimport \"strings\"\n\nvar labels = []string{\"Function\", \"Class\"}\n\n" + decl + "\n"
+		if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("joined_ok.go", "var q = `UNWIND $rows AS row\nMATCH (t:` + strings.Join(labels, \"|\") + ` {uid: row.target})\nMERGE (m:Module {name: row.name})\nMERGE (m)-[:EXPLAINS]->(t)`")
+	write("joined_bad.go", "var q = `UNWIND $rows AS row\nUNWIND row.params AS p\nMATCH (t:` + strings.Join(labels, \"|\") + ` {uid: row.target})\nMERGE (x:Parameter {name: p.name, path: row.file_path, function_line_number: 1})`")
+
+	findings, _, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
+	got := map[string]bool{}
+	for _, f := range findings {
+		got[filepath.Base(strings.SplitN(f.file, ":", 2)[0])] = true
+	}
+	if got["joined_ok.go"] {
+		t.Errorf("joined_ok.go flagged, want clean; findings = %v", findings)
+	}
+	if !got["joined_bad.go"] {
+		t.Errorf("joined_bad.go not flagged; findings = %v", findings)
 	}
 }
