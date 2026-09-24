@@ -22,7 +22,7 @@ Read `doc.go` and `README.md` first.
   (= the finding limit), `serviceCatalogCorrelationFactKind`,
   `cicdRunCorrelationFactKind`, `compactStrings`,
   `firstNonEmptyString`, `appendUniqueString`, `stringMapVal`,
-  `derefString`, `supplyChainFactDecodeInput`,
+  `supplyChainFactDecodeInput`,
   `supplyChainSchemaEnvelope` and the six source-fact wrappers plus the
   component-evidence seam are family-local copies of trivial root values.
   They MUST stay behavior-identical to their root sources (named in each

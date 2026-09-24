@@ -21,10 +21,9 @@ import (
 // read model (incident_context_*.go) reads, plus
 // service_catalog.operational_link, which the same read model's runtime-
 // evidence store reads. Each wraps the contracts-module Decode* seam and, on a
-// classified *factschema.DecodeError, returns a *queryDecodeError so the
+// classified *factschema.DecodeError, returns a *decode.Error so the
 // caller drops the row (an input_invalid read-model outcome) instead of
-// silently defaulting every field to "" — see factschema_decode_shared.go
-// for the template this mirrors.
+// silently defaulting every field to "".
 //
 // incident.lifecycle_event and change.record have no reducer decode call (see
 // go/internal/payloadusage/schema.go), so this is their ONLY typed decode
@@ -73,7 +72,7 @@ func decodeIncidentRecord(in incidentContextDecodeInput) (incidentv1.IncidentRec
 		}
 		err = retryErr
 	}
-	return incidentv1.IncidentRecord{}, newQueryDecodeError(factschema.FactKindIncidentRecord, in.FactID, err)
+	return incidentv1.IncidentRecord{}, decode.New(factschema.FactKindIncidentRecord, in.FactID, err)
 }
 
 // decodeIncidentLifecycleEvent decodes one incident.lifecycle_event fact row
@@ -93,7 +92,7 @@ func decodeIncidentLifecycleEvent(in incidentContextDecodeInput) (incidentv1.Lif
 		}
 		err = retryErr
 	}
-	return incidentv1.LifecycleEvent{}, newQueryDecodeError(factschema.FactKindIncidentLifecycleEvent, in.FactID, err)
+	return incidentv1.LifecycleEvent{}, decode.New(factschema.FactKindIncidentLifecycleEvent, in.FactID, err)
 }
 
 // decodeChangeRecord decodes one change.record fact row into the typed
@@ -113,17 +112,17 @@ func decodeChangeRecord(in incidentContextDecodeInput) (incidentv1.ChangeRecord,
 		}
 		err = retryErr
 	}
-	return incidentv1.ChangeRecord{}, newQueryDecodeError(factschema.FactKindChangeRecord, in.FactID, err)
+	return incidentv1.ChangeRecord{}, decode.New(factschema.FactKindChangeRecord, in.FactID, err)
 }
 
 // decodeIncidentRoutingAppliedPagerDutyResource decodes one
 // incident_routing.applied_pagerduty_resource fact row into the typed struct.
 // A missing required field (see incidentv1.AppliedPagerDutyResource) yields a
-// self-classifying *queryDecodeError.
+// self-classifying *decode.Error.
 func decodeIncidentRoutingAppliedPagerDutyResource(in incidentContextDecodeInput) (incidentv1.AppliedPagerDutyResource, error) {
 	resource, err := factschema.DecodeIncidentRoutingAppliedPagerDutyResource(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return incidentv1.AppliedPagerDutyResource{}, newQueryDecodeError(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.FactID, err)
+		return incidentv1.AppliedPagerDutyResource{}, decode.New(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.FactID, err)
 	}
 	return resource, nil
 }
@@ -131,11 +130,11 @@ func decodeIncidentRoutingAppliedPagerDutyResource(in incidentContextDecodeInput
 // decodeIncidentRoutingObservedPagerDutyService decodes one
 // incident_routing.observed_pagerduty_service fact row into the typed struct.
 // A missing required field (see incidentv1.ObservedPagerDutyService) yields a
-// self-classifying *queryDecodeError.
+// self-classifying *decode.Error.
 func decodeIncidentRoutingObservedPagerDutyService(in incidentContextDecodeInput) (incidentv1.ObservedPagerDutyService, error) {
 	service, err := factschema.DecodeIncidentRoutingObservedPagerDutyService(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return incidentv1.ObservedPagerDutyService{}, newQueryDecodeError(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.FactID, err)
+		return incidentv1.ObservedPagerDutyService{}, decode.New(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.FactID, err)
 	}
 	return service, nil
 }
@@ -143,11 +142,11 @@ func decodeIncidentRoutingObservedPagerDutyService(in incidentContextDecodeInput
 // decodeIncidentRoutingCoverageWarning decodes one
 // incident_routing.coverage_warning fact row into the typed struct. A missing
 // required field (see incidentv1.CoverageWarning) yields a self-classifying
-// *queryDecodeError.
+// *decode.Error.
 func decodeIncidentRoutingCoverageWarning(in incidentContextDecodeInput) (incidentv1.CoverageWarning, error) {
 	warning, err := factschema.DecodeIncidentRoutingCoverageWarning(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingCoverageWarning, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return incidentv1.CoverageWarning{}, newQueryDecodeError(factschema.FactKindIncidentRoutingCoverageWarning, in.FactID, err)
+		return incidentv1.CoverageWarning{}, decode.New(factschema.FactKindIncidentRoutingCoverageWarning, in.FactID, err)
 	}
 	return warning, nil
 }
@@ -156,11 +155,11 @@ func decodeIncidentRoutingCoverageWarning(in incidentContextDecodeInput) (incide
 // service_catalog.operational_link fact row into the typed struct. Every
 // field of servicecatalogv1.OperationalLink is optional (see its doc comment),
 // so this never dead-letters on a missing field; an unsupported schema major
-// still returns a classified *queryDecodeError.
+// still returns a classified *decode.Error.
 func decodeServiceCatalogOperationalLink(in incidentContextDecodeInput) (servicecatalogv1.OperationalLink, error) {
 	link, err := factschema.DecodeServiceCatalogOperationalLink(workItemSchemaEnvelope(factschema.FactKindServiceCatalogOperationalLink, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return servicecatalogv1.OperationalLink{}, newQueryDecodeError(factschema.FactKindServiceCatalogOperationalLink, in.FactID, err)
+		return servicecatalogv1.OperationalLink{}, decode.New(factschema.FactKindServiceCatalogOperationalLink, in.FactID, err)
 	}
 	return link, nil
 }

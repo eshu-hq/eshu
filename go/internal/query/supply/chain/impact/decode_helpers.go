@@ -45,11 +45,9 @@ func boolPointerVal(payload map[string]any, key string) *bool {
 //
 // Each wrapper wraps the matching sdk/go/factschema Decode* seam and, on a
 // classified *factschema.DecodeError (a missing/null required identity
-// field), returns a *decode.Error via decode.New -- the leaf
-// constructor root's newQueryDecodeError forwards to (root's queryDecodeError
-// is an alias for decode.Error), so the returned values are identical
-// to what the root seam produced. Callers drop the fact's contribution
-// instead of fabricating a zero-valued row.
+// field), returns a *decode.Error via decode.New, the same classified
+// failure root's own supply-chain decoders return. Callers drop the fact's
+// contribution instead of fabricating a zero-valued row.
 
 // supplyChainFactDecodeInput carries one scanned evidence-fact row into a
 // decode wrapper. Copied from root package query's

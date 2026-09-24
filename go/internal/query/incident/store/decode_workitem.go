@@ -15,15 +15,15 @@ import (
 // This file forks the small work-item decode substrate the incident review
 // evidence reads need (decodeWorkItemRecord, decodeWorkItemProjectMetadata,
 // decodeWorkItemStatusMetadata, workItemDecodeInput, workItemSchemaEnvelope,
-// newQueryDecodeError, workItemDerefString, workItemDerefBool, and
-// logWorkItemEvidenceDecodeDrop) from the query root's
-// factschema_decode_shared.go, internal/query/workitem/factschema_decode.go, and
+// workItemDerefBool, and logWorkItemEvidenceDecodeDrop) from
+// internal/query/workitem/factschema_decode.go and
 // internal/query/workitem/evidence.go, verbatim apart from the package
-// clause. The substrate cannot be imported: the work-item decoders live in
+// clause. The work-item decoders cannot be imported: they live in
 // internal/query/workitem, which this package must not import (this fork
-// predates that #6642 move and was never updated to depend on it), and the
-// error/version substrate stays in package query, which this package must
-// not import back without a cycle through the root compatibility aliases.
+// predates that #6642 move and was never updated to depend on it). The
+// error, default-version and *string deref substrate is shared through
+// internal/query/decode instead (decode.New, decode.DefaultSchemaMajorVersion,
+// decode.DerefString).
 // It cannot move either: the work-item evidence family and the supply-chain
 // and package-registry readers share it, and their lanes own that
 // relocation. Each fork cites its source above its declaration; when the
@@ -51,7 +51,7 @@ type workItemDecodeInput struct {
 func decodeWorkItemRecord(in workItemDecodeInput) (workitemv1.WorkItemRecord, error) {
 	record, err := factschema.DecodeWorkItemRecord(workItemSchemaEnvelope(factschema.FactKindWorkItemRecord, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemRecord{}, newQueryDecodeError(factschema.FactKindWorkItemRecord, in.FactID, err)
+		return workitemv1.WorkItemRecord{}, decode.New(factschema.FactKindWorkItemRecord, in.FactID, err)
 	}
 	return record, nil
 }
@@ -63,7 +63,7 @@ func decodeWorkItemRecord(in workItemDecodeInput) (workitemv1.WorkItemRecord, er
 func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemProjectMetadata, error) {
 	metadata, err := factschema.DecodeWorkItemProjectMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemProjectMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemProjectMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemProjectMetadata, in.FactID, err)
+		return workitemv1.WorkItemProjectMetadata{}, decode.New(factschema.FactKindWorkItemProjectMetadata, in.FactID, err)
 	}
 	return metadata, nil
 }
@@ -75,16 +75,9 @@ func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemP
 func decodeWorkItemStatusMetadata(in workItemDecodeInput) (workitemv1.WorkItemStatusMetadata, error) {
 	metadata, err := factschema.DecodeWorkItemStatusMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemStatusMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemStatusMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemStatusMetadata, in.FactID, err)
+		return workitemv1.WorkItemStatusMetadata{}, decode.New(factschema.FactKindWorkItemStatusMetadata, in.FactID, err)
 	}
 	return metadata, nil
-}
-
-// newQueryDecodeError wraps a decode error returned by a factschema Decode*
-// function into the query layer's classified decode failure. Forked from
-// newQueryDecodeError (internal/query/factschema_decode_shared.go).
-func newQueryDecodeError(factKind, factID string, err error) *decode.Error {
-	return decode.New(factKind, factID, err)
 }
 
 // workItemSchemaEnvelope adapts one scanned work-item fact row into the

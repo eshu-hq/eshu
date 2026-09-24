@@ -41,7 +41,7 @@ envelope helpers (`querycontract`), or the classified decode-error type
   shaping.
 - `factschema_decode.go` -- the nine `work_item.*` typed decode wrappers
   (`decodeWorkItemRecord`, `decodeWorkItemTransition`, ...), `workItemDecodeInput`,
-  `workItemSchemaEnvelope`, and this package's own `derefString`/`derefBool`.
+  `workItemSchemaEnvelope`, and this package's own `derefBool`.
 - `capability.go` -- `EvidenceSupport`, this family's capability contract.
 - Test files -- this package's own tests, moved in verbatim from root (see
   Move evidence).
