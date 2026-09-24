@@ -138,11 +138,76 @@ Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 (15537), `GATE_NEO4J_BOLT_PORT` (7797), `GATE_NEO4J_HTTP_PORT` (7585),
 `GATE_API_PORT` (18097), `GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
 (150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts), `GATE_ITERATIONS`
-(counted requests per route, 20), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
-`GATE_WORK_REPORT` (write the per-route measured work as JSON). `GATE_API_BIN=<path>`
+(counted requests per route, 20), `GATE_RUNS` (independent counted sweeps per
+route, default 1 — run 1 is always the cold pass; runs 2.. are warm passes
+with no additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
+`GATE_WORK_REPORT` (write the per-route measured work as JSON),
+`GATE_LATENCY_REPORT` (write the full per-route latency distribution — cold
+and warm samples, warm n/p50/p95/min/max/stddev, the per-run p95 spread, and
+an identity block — as JSON, before budget evaluation runs). `GATE_API_BIN=<path>`
 swaps in a pre-built `eshu-api` binary (built from a different commit, e.g.
 main with a candidate fix) instead of building one from this worktree, for a
-RED/GREEN comparison without rebasing.
+RED/GREEN comparison without rebasing. At default settings (`GATE_RUNS=1`,
+no `GATE_LATENCY_REPORT`), the gate's stdout and exit behavior are
+byte-for-byte identical to before either flag existed.
+
+## Cross-backend comparison (remote)
+
+Comparing NornicDB against Neo4j needs distributions over repeated runs, not
+a single sample — this gate's `-runs`/`-latency-report` and
+`scripts/compare-backend-latency.sh` exist for exactly that (issue #6965
+phase 6). Run it on the dedicated remote validation host
+([Local Testing](../local-testing.md): "OS-, credential-, service-, or
+artifact-dependent checks" run there), not a laptop: it is the only place
+both backends run sequentially on a fixed-port stack without contending for
+CPU with anything else. The recipe below assumes you are already connected
+to that host with this worktree checked out.
+
+Both legs share one corpus definition (the default `GATE_TOTAL_SCOPES`/
+`GATE_NODES_PER_LABEL`/`GATE_IAC_FACT_COUNT`/`GATE_SHARED_INTENT_COUNT`) and
+the same `eshu-api` build, so `scripts/compare-backend-latency.sh`'s identity
+check (everything except `backend` itself) passes. Run the legs
+**sequentially, never concurrently** — they share the live-gate lock and
+fixed host ports.
+
+```bash
+# Leg A: NornicDB, 5 runs (1 cold + 4 warm).
+ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=5 \
+  GATE_LATENCY_REPORT=/tmp/nornicdb.json \
+  bash scripts/verify-read-api-latency-gate.sh || true  # a budget breach is not a reason to stop; the report still landed
+
+# Leg B: Neo4j, 5 runs, same corpus and binary.
+ESHU_GRAPH_BACKEND=neo4j GATE_RUNS=5 \
+  GATE_LATENCY_REPORT=/tmp/neo4j.json \
+  bash scripts/verify-read-api-latency-gate.sh || true
+
+# Drift sentinel: a second, one-run NornicDB leg. If its per-route latency
+# falls outside leg A's own per-run p95 band (LatencyReportWarmStats'
+# run_p95_min_ms/run_p95_max_ms in nornicdb.json), the host moved under the
+# comparison and the A/B pair below is unreliable regardless of backend.
+ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=1 \
+  GATE_LATENCY_REPORT=/tmp/nornicdb-sentinel.json \
+  bash scripts/verify-read-api-latency-gate.sh || true
+
+bash scripts/compare-backend-latency.sh /tmp/nornicdb.json /tmp/neo4j.json
+```
+
+`compare-backend-latency.sh` refuses (exit 2, naming the field) to compare
+two reports whose seed sizing, iteration/warmup count, eshu commit, or
+`eshu-api` binary sha256 differ, and refuses either leg with fewer than 3
+runs. A route whose HTTP status or per-request Postgres work
+(calls/blks/rows) differs between the two legs is listed `NON-COMPARABLE`
+instead of having its latency compared — that route did different work on
+the two backends, and a latency ratio between two different queries proves
+nothing about the backends. Any per-route gap over 10% between backends is a
+finding to name in the PR, not evidence the harness is broken.
+
+Record the rendered table, both backend image digests, the commit, the
+`eshu-api` binary sha256, seed options, `GATE_RUNS`/`GATE_ITERATIONS`/
+warmup counts, `machine_profile`, and the exact commands in a committed
+`docs/internal/evidence/*.md` file — the raw JSON reports are operator-local
+run artifacts (they may carry corpus-sized sample arrays) and are never
+committed.
 
 ## Budgets
 

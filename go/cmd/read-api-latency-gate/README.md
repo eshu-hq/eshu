@@ -45,7 +45,20 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   counted-sample 5xx body (capped) as `HardFailedBody` so an operator can see
   the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its
-  real query instead of 400ing
+  real query instead of 400ing. `SweepOptions.Runs` (`-runs`, default 1) adds
+  independent repeat passes per route: run 1 is the cold pass
+  (`RouteLatency.Samples`), runs 2..Runs are warm passes with no additional
+  warmup (`RouteLatency.WarmSamples`/`WarmRunP95s`) — see
+  `docs/public/reference/local-testing/read-api-latency-gate.md`'s
+  cross-backend comparison recipe for why
+- `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
+  report (schema version 1): an identity block (backend, best-effort eshu
+  commit/api binary sha256, seed sizing, runs/iterations/warmups) plus every
+  route's cold/warm samples and warm distribution stats (n/p50/p95/min/max/
+  stddev, and the per-run p95 min..max). Written before budget evaluation, so
+  a breaching leg still yields a report. `scripts/compare-backend-latency.sh`
+  is the reader: it renders a per-route markdown comparison table between two
+  reports and refuses to compare legs whose identity disagrees
 - `WorkMeter`, `NewPgxWorkMeter`, `EnsureWorkMeterExtension`,
   `MeasureBackgroundCallRate`, `CheckMeterQuiet` — the `pg_stat_statements`
   meter (calls, rows, buffer blocks per request), its idle-noise guard, and the
@@ -118,4 +131,8 @@ and its process exit code, not through the runtime telemetry surface.
 ## Related docs
 
 - `docs/public/reference/local-testing.md` (Compose live-gate pattern)
-- `docs/public/reference/ci-gates.md` (`read-api-latency-gate` registry entry)
+- `docs/public/reference/ci-gates.md` (`read-api-latency-gate`,
+  `read-api-work-budget-mirror`, `backend-latency-compare-mirror` registry
+  entries)
+- `docs/public/reference/local-testing/read-api-latency-gate.md` (cross-backend
+  comparison recipe)
