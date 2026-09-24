@@ -21,9 +21,9 @@
    collector aggregates
 7. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
    `ApplyDefinitions`; DDL ordering and idempotency rules
-8. `go/internal/storage/postgres/aws_pagination_checkpoint.go` — AWS
+8. `go/internal/storage/postgres/cloud/aws/pagination_checkpoint.go` — AWS
    checkpoint fencing and stale-generation expiry
-9. `go/internal/storage/postgres/aws_scan_status.go` and
+9. `go/internal/storage/postgres/cloud/aws/scan_status.go` and
    `status_aws_cloud.go` — AWS scanner status persistence and admin status
    projection
 
@@ -98,12 +98,12 @@
 - **Schema ordering** — tables with foreign key constraints must appear after
   their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
   `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.
-- **AWS checkpoint fencing** — `AWSPaginationCheckpointStore.Save` must keep the
-  `fencing_token <= EXCLUDED.fencing_token` conflict guard. A stale AWS worker
-  must not overwrite page state from a newer claim.
-- **AWS scan-status fencing** — `AWSScanStatusStore` mutations must keep their
-  fencing guards. A stale AWS worker must not overwrite per-tuple status from a
-  newer claim.
+- **AWS checkpoint fencing** — `awsstore.AWSPaginationCheckpointStore.Save`
+  must keep the `fencing_token <= EXCLUDED.fencing_token` conflict guard. A
+  stale AWS worker must not overwrite page state from a newer claim.
+- **AWS scan-status fencing** — `awsstore.AWSScanStatusStore` mutations must
+  keep their fencing guards. A stale AWS worker must not overwrite per-tuple
+  status from a newer claim.
 - **AWS runtime drift joins stay bounded** —
   `PostgresAWSCloudRuntimeDriftEvidenceLoader` must load AWS rows from one
   `(scope_id, generation_id)` and must join Terraform state through the current
@@ -325,10 +325,10 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   wrap with `InstrumentedDB` in `cmd/` wiring for observability.
 
 - **Change AWS checkpoint persistence** → edit
-  `aws_pagination_checkpoint.go`; keep the primary key scoped to collector
-  instance, account, region, service, resource parent, and operation; keep
-  generation as invalidation state; and keep resource parents and page tokens
-  out of telemetry labels.
+  `cloud/aws/pagination_checkpoint.go`; keep the primary key scoped to
+  collector instance, account, region, service, resource parent, and
+  operation; keep generation as invalidation state; and keep resource
+  parents and page tokens out of telemetry labels.
 
 - **`config_state_drift` enqueue triggers (when drift gets evaluated, not how)**
   → bootstrap's one-shot Phase 3.5 sweep is `drift_enqueue.go`
