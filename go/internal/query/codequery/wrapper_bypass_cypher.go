@@ -6,7 +6,6 @@ package codequery
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -42,17 +41,28 @@ func BuildWrapperCallersCypher(
 		return buildNornicDBWrapperCallers(params, predicates), params
 	}
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "$target_entity_id"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\n\t\tMATCH (target:" + wrapperBypassAnchorLabels + " {uid: $target_entity_id})\n")
+	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)")
+	targetPredicates := wrapperTargetRepoPredicates("target", repoID, predicates)
+	if len(targetPredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(targetPredicates, " AND "))
 	}
 	cypher.WriteString("\n" + wrapperCallerReturns("caller", "rel"))
 	return cypher.String(), params
+}
+
+// wrapperTargetRepoPredicates prepends the target repo-scope predicate (when
+// a repo is bound) to the caller/callee grant predicates, so every Neo4j
+// wrapper-bypass builder joins its WHERE the same way once the id-OR-uid
+// anchor (issue #7057) moves into the MATCH pattern.
+func wrapperTargetRepoPredicates(alias, repoID string, predicates []string) []string {
+	if strings.TrimSpace(repoID) == "" {
+		return predicates
+	}
+	out := make([]string, 0, len(predicates)+1)
+	out = append(out, "coalesce("+alias+".repo_id, '') = $repo_id")
+	out = append(out, predicates...)
+	return out
 }
 
 // buildNornicDBWrapperCallers renders the NornicDB dialect: the anchor sits
@@ -108,14 +118,11 @@ func BuildWrapperFanInCypher(
 		return cypher.String(), params
 	}
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "$entity_id"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\n\t\tMATCH (target:" + wrapperBypassAnchorLabels + " {uid: $entity_id})\n")
+	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)")
+	targetPredicates := wrapperTargetRepoPredicates("target", repoID, predicates)
+	if len(targetPredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(targetPredicates, " AND "))
 	}
 	cypher.WriteString("\n\t\tRETURN count(caller) as fan_in\n")
 	return cypher.String(), params
@@ -150,14 +157,11 @@ func BuildWrapperCalleesCypher(
 		return cypher.String(), params
 	}
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (source:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "$entity_id"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\n\t\tMATCH (source:" + wrapperBypassAnchorLabels + " {uid: $entity_id})\n")
+	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)")
+	sourcePredicates := wrapperTargetRepoPredicates("source", repoID, predicates)
+	if len(sourcePredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(sourcePredicates, " AND "))
 	}
 	cypher.WriteString("\n\t\tRETURN coalesce(callee.id, callee.uid) as id\n")
 	return cypher.String(), params
@@ -207,14 +211,11 @@ func BuildWrapperFamilyCallersCypher(
 	}
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tUNWIND $target_ids AS tid\n")
-	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "tid"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + " {uid: tid})\n")
+	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)")
+	targetPredicates := wrapperTargetRepoPredicates("target", repoID, predicates)
+	if len(targetPredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(targetPredicates, " AND "))
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params
@@ -253,14 +254,11 @@ func BuildWrapperFamilyFanInCypher(
 	}
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tUNWIND $entity_ids AS eid\n")
-	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "eid"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + " {uid: eid})\n")
+	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)")
+	targetPredicates := wrapperTargetRepoPredicates("target", repoID, predicates)
+	if len(targetPredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(targetPredicates, " AND "))
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params
@@ -320,14 +318,11 @@ func BuildWrapperFamilyCalleesCypher(
 	}
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tUNWIND $source_ids AS sid\n")
-	cypher.WriteString("\t\tMATCH (source:" + wrapperBypassAnchorLabels + ")\n")
-	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "sid"))
-	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
-	}
-	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\t  AND " + predicate)
+	cypher.WriteString("\t\tMATCH (source:" + wrapperBypassAnchorLabels + " {uid: sid})\n")
+	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)")
+	sourcePredicates := wrapperTargetRepoPredicates("source", repoID, predicates)
+	if len(sourcePredicates) > 0 {
+		cypher.WriteString("\n\t\tWHERE " + strings.Join(sourcePredicates, " AND "))
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
-	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -132,12 +131,19 @@ func BuildOutlierCalleeEdgesCypher(
 		cypher.WriteString(returns)
 		return cypher.String(), params
 	}
+	// The Neo4j anchor MATCHes member:Function{uid: mid} directly instead of
+	// WHERE (member.id = mid OR member.uid = mid): uid carries the
+	// function_uid_unique constraint (a NodeUniqueIndexSeek), id carries no
+	// index on either backend, and the canonical writer always sets both
+	// properties from the same EntityID (canonicalEntityProperties +
+	// canonicalNodeEntityUpsertTemplate), so the two branches are always
+	// equal by construction -- the id branch only ever adds an unindexed
+	// NodeByLabelScan over every Function per id (issue #7057).
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tUNWIND $member_ids AS mid\n")
-	cypher.WriteString("\t\tMATCH (member:Function)\n")
-	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("member", "mid"))
+	cypher.WriteString("\t\tMATCH (member:Function {uid: mid})")
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\t  AND coalesce(member.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\tWHERE coalesce(member.repo_id, '') = $repo_id")
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params
