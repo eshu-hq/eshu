@@ -47,4 +47,17 @@ cd go && go test ./internal/query -run 'TestContentReaderInvestigateCodeTopicUse
 
 No private data: cited tests exercise fixture repository content only.
 
-Related: #5552 (burn-down).
+**Latency caveat (#7008/#7033):** this artifact's `p95_latency_ms: 1500`
+claim is backed only by the functional B-12 assertion above, which never
+measured latency and never exercised an unscoped (no `repo_id`) search --
+the actual worst case for this capability. A live read-only measurement
+against a production-scale corpus during #7008's fan-out fix found an
+unscoped search takes 16.1s at 9 search terms and 33.1s at 16 terms (this
+tool's own term ceiling), both far over the committed 1500ms budget.
+#7008 fixed the underlying timeout (the tool no longer fails to return at
+all), but did not close this latency gap; #7033 tracks bringing it under
+budget. The functional claim above (ranked, deterministic, truncation-aware
+results) still holds -- only the latency number is unproven at scale.
+
+Related: #5552 (burn-down), #7008 (dispatch-deadline fix), #7033 (latency
+budget follow-up).

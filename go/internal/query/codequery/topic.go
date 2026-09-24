@@ -61,6 +61,14 @@ type CodeTopicEvidenceRow struct {
 	EndLine      int
 	MatchedTerms []string
 	Score        int
+	// PoolTruncated reports whether the bounded per-term candidate pool
+	// (#7008: CROSS JOIN LATERAL ... LIMIT in ContentReader.InvestigateCodeTopic)
+	// reached its cap for at least one search term, so this repo/corpus may
+	// have additional, lower-ranked matches that never entered scoring. The
+	// SQL layer computes one value per query and repeats it on every row; a
+	// backend that cannot detect this (search fakes, other stores) leaves it
+	// false, which is correct for an unbounded read.
+	PoolTruncated bool
 }
 
 type CodeTopicContentInvestigator interface {
@@ -182,6 +190,7 @@ func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEviden
 	matchedFiles := make([]map[string]any, 0, len(rows))
 	matchedSymbols := make([]map[string]any, 0, len(rows))
 	callGraphHandles := make([]map[string]any, 0, len(rows))
+	poolTruncated := codeTopicPoolTruncated(rows)
 	for index, row := range rows {
 		group := CodeTopicEvidenceGroup(row, index+1)
 		groups = append(groups, group)
@@ -193,32 +202,47 @@ func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEviden
 		}
 	}
 	data := map[string]any{
-		"topic":                  req.Topic,
-		"intent":                 strings.TrimSpace(req.Intent),
-		"scope":                  codeTopicScope(req),
-		"searched_terms":         req.Terms,
-		"matched_files":          matchedFiles,
-		"matched_symbols":        matchedSymbols,
-		"evidence_groups":        groups,
-		"call_graph_handles":     callGraphHandles,
-		"recommended_next_calls": codeTopicRecommendedNextCalls(req, rows),
-		"count":                  len(rows),
-		"limit":                  req.Limit,
-		"offset":                 req.Offset,
-		"truncated":              truncated,
-		"source_backend":         "postgres_content_store",
+		"topic":                    req.Topic,
+		"intent":                   strings.TrimSpace(req.Intent),
+		"scope":                    codeTopicScope(req),
+		"searched_terms":           req.Terms,
+		"matched_files":            matchedFiles,
+		"matched_symbols":          matchedSymbols,
+		"evidence_groups":          groups,
+		"call_graph_handles":       callGraphHandles,
+		"recommended_next_calls":   codeTopicRecommendedNextCalls(req, rows),
+		"count":                    len(rows),
+		"limit":                    req.Limit,
+		"offset":                   req.Offset,
+		"truncated":                truncated,
+		"candidate_pool_truncated": poolTruncated,
+		"source_backend":           "postgres_content_store",
 		"coverage": map[string]any{
-			"query_shape":         "content_topic_investigation",
-			"searched_terms":      req.Terms,
-			"searched_term_count": len(req.Terms),
-			"returned_count":      len(rows),
-			"limit":               req.Limit,
-			"offset":              req.Offset,
-			"truncated":           truncated,
-			"empty":               len(rows) == 0,
+			"query_shape":              "content_topic_investigation",
+			"searched_terms":           req.Terms,
+			"searched_term_count":      len(req.Terms),
+			"returned_count":           len(rows),
+			"limit":                    req.Limit,
+			"offset":                   req.Offset,
+			"truncated":                truncated,
+			"candidate_pool_truncated": poolTruncated,
+			"empty":                    len(rows) == 0,
 		},
 	}
 	return answer.AttachAnswerMetadata(data)
+}
+
+// codeTopicPoolTruncated reports whether the bounded per-term candidate pool
+// (#7008) was exhausted for at least one search term. ContentReader repeats
+// the same computed value on every row, so the first row is authoritative;
+// an empty result set (no backend signal at all) is correctly false.
+func codeTopicPoolTruncated(rows []CodeTopicEvidenceRow) bool {
+	for _, row := range rows {
+		if row.PoolTruncated {
+			return true
+		}
+	}
+	return false
 }
 
 func CodeTopicEvidenceGroup(row CodeTopicEvidenceRow, rank int) map[string]any {
