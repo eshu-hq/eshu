@@ -376,7 +376,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 38. [ ] `queue/reducer/` (13 files; after `code/flow/`, `facts/payload/`, `queue/`)
 39. [ ] `facts/` (36 files; after `facts/payload/`, `generation/`, `queue/projector/`; removes the `incident_routing_evidence_loader.go` dirgate marker)
 40. [ ] `graph/` (1 file; after `facts/`)
-41. [ ] `supply/chain/impact/` (2 files; after `facts/`, `queue/projector/`)
+41. [ ] `supply/chain/impact/` (2 files; after `facts/`, `queue/projector/`; removes the `vulnerability_suppression_store.go` dirgate marker)
 42. [ ] `code/divergence/` (3 files; after `facts/`)
 43. [ ] `service/` (4 files; after `facts/`)
 44. [ ] `terraform/state/backend/` (5 files; after `facts/`)
