@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
@@ -104,7 +106,7 @@ func TestKubernetesPodTemplateFilterScopedEmptyGrantReturnsNoMatchWithoutQuery(t
 func TestKubernetesPodTemplateHasLiveIdentityMatchScopedGrantHitsRealStore(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -119,11 +121,11 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchScopedGrantHitsRealStore(t *te
 	if !matched {
 		t.Fatal("HasLiveIdentityMatch() = false, want true (fake driver returned one row)")
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	if !strings.Contains(recorder.queries[0], "fact.scope_id = ANY($6) OR fact.scope_id = ANY($7)") {
-		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", recorder.queries[0])
+	if !strings.Contains(recorder.Queries()[0], "fact.scope_id = ANY($6) OR fact.scope_id = ANY($7)") {
+		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", recorder.Queries()[0])
 	}
 }
 
@@ -133,7 +135,7 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchScopedGrantHitsRealStore(t *te
 func TestKubernetesPodTemplateHasLiveIdentityMatchNoMatch(t *testing.T) {
 	t.Parallel()
 
-	db, _ := openScopeQueryerTestDB(t, []string{"?column?"}, nil)
+	db, _ := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -263,7 +265,7 @@ func TestListLiveIdentityMatchesScopedEmptyGrantReturnsEmptyWithoutQuery(t *test
 func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
 	})
@@ -289,7 +291,7 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	if matches[1].ReadyReplicas != nil {
 		t.Fatalf("matches[1].ReadyReplicas = %v, want nil (absent, not a fabricated zero)", *matches[1].ReadyReplicas)
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
 }
@@ -301,7 +303,7 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 func TestListLiveIdentityMatchesReadyZeroIsPresentNotOmitted(t *testing.T) {
 	t.Parallel()
 
-	db, _ := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, _ := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)

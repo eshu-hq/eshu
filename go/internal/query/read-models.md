@@ -158,7 +158,7 @@ provenance-only unless its image digest or owner edge resolved exactly. The
 handler writes nothing and projects no graph edge: the gated canonical edge is a
 later PR. Reads are wrapped by the `query.kubernetes_correlations` span and the
 `kubernetes.correlations.list` capability.
-`ObservabilityCoverageHandler` (`observability_coverage.go:16`) reads
+`coverage.Handler` (`observability/coverage/handler.go`) reads
 reducer-owned observability coverage correlation facts from Postgres
 (`reducer_observability_coverage_correlation`, produced by the issue #391 PR1
 reducer, expanded by #1118 for Grafana-stack evidence classes). It answers
@@ -556,8 +556,8 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
-The observability coverage read surface (`observability_coverage.go`,
-`observability_coverage_correlations.go`) mirrors this same bounded Postgres
+The observability coverage read surface (`observability/coverage/handler.go`,
+`observability/coverage/correlations.go`) mirrors this same bounded Postgres
 read model for the issue #391 `reducer_observability_coverage_correlation`
 facts: anchor-or-400, `limit`-required, deterministic `ORDER BY fact.fact_id
 ASC` keyset paging on `fact_id`, and the active-generation join filtered to

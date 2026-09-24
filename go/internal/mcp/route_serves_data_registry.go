@@ -114,7 +114,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"incident_routing_materialization": {Markers: []string{"incident_routing.applied_pagerduty_resource", "incident_routing.observed_pagerduty_service"}},
 
 	"kubernetes_correlation":             {Markers: []string{"reducer_kubernetes_correlation"}, StoreTypes: []string{"KubernetesCorrelationStore"}},
-	"observability_coverage_correlation": {Markers: []string{"reducer_observability_coverage_correlation"}, StoreTypes: []string{"ObservabilityCoverageCorrelationStore"}},
+	"observability_coverage_correlation": {Markers: []string{"reducer_observability_coverage_correlation"}, StoreTypes: []string{"ObservabilityCorrelationStore"}},
 	"container_image_identity":           {Markers: []string{":ContainerImage", "reducer_container_image_identity"}},
 	"package_source_correlation":         {Markers: []string{":Package"}, StoreTypes: []string{"registry.CorrelationStore"}},
 

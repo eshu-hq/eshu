@@ -103,11 +103,10 @@ func scopedKubernetesCorrelationsRoute(r *http.Request) bool {
 
 // scopedObservabilityCoverageCorrelationsRoute reports whether the request
 // targets the reducer-owned observability coverage correlation reads.
-// listCorrelations (observability_coverage.go) binds fact.scope_id to
-// AllowedRepositoryIDs/AllowedScopeIDs when scoped
-// (PostgresObservabilityCoverageCorrelationStore,
-// observability_coverage_correlations.go) and returns an empty page without a
-// query for an empty-grant scoped caller.
+// coverage.Handler.listCorrelations (observability/coverage/handler.go) binds
+// fact.scope_id to AllowedRepositoryIDs/AllowedScopeIDs when scoped
+// (coverage.PostgresCorrelationStore, observability/coverage/correlations.go)
+// and returns an empty page without a query for an empty-grant scoped caller.
 func scopedObservabilityCoverageCorrelationsRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/observability/coverage/correlations"
 }

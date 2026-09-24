@@ -30,7 +30,7 @@ optional `source_class`/`resource_class` filters narrow the anchored page.
 ## Committed reproducible evidence
 
 **Handler bounds, scoped-grant filtering, class filters** —
-`go/internal/query/observability_coverage_correlations_test.go`:
+`go/internal/query/observability/coverage/correlations_test.go`:
 `TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit`,
 `TestObservabilityCoverageListCorrelationsUsesBoundedStore`,
 `TestObservabilityCoverageListCorrelationsScopedEmptyGrantReturnsEmptyWithoutStoreRead`,
@@ -41,7 +41,7 @@ optional `source_class`/`resource_class` filters narrow the anchored page.
 Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestObservabilityCoverage -count=1
+cd go && go test ./internal/query/observability/coverage -run TestObservabilityCoverage -count=1
 ```
 
 **Scoped-token grant filtering and performance/observability evidence** —

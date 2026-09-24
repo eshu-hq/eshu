@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package coverage
 
 import (
 	"context"
@@ -12,25 +12,28 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingObservabilityCoverageCorrelationStore struct {
-	rows       []ObservabilityCoverageCorrelationRow
-	lastFilter ObservabilityCoverageCorrelationFilter
+	rows       []CorrelationRow
+	lastFilter CorrelationFilter
 }
 
 func (s *recordingObservabilityCoverageCorrelationStore) ListObservabilityCoverageCorrelations(
 	_ context.Context,
-	filter ObservabilityCoverageCorrelationFilter,
-) ([]ObservabilityCoverageCorrelationRow, error) {
+	filter CorrelationFilter,
+) ([]CorrelationRow, error) {
 	s.lastFilter = filter
-	return append([]ObservabilityCoverageCorrelationRow(nil), s.rows...), nil
+	return append([]CorrelationRow(nil), s.rows...), nil
 }
 
 func TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &ObservabilityCoverageHandler{Correlations: &recordingObservabilityCoverageCorrelationStore{}}
+	handler := &Handler{Correlations: &recordingObservabilityCoverageCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -57,7 +60,7 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingObservabilityCoverageCorrelationStore{
-		rows: []ObservabilityCoverageCorrelationRow{
+		rows: []CorrelationRow{
 			{
 				CorrelationID:          "observability-coverage-1",
 				Provider:               "aws",
@@ -82,7 +85,7 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 			{CorrelationID: "observability-coverage-2", CoverageSignal: "alarm", TargetUID: "arn:aws:ec2:us-east-1:111122223333:instance/i-def", Outcome: "unresolved", CoverageStatus: "gap", ProvenanceOnly: true},
 		},
 	}
-	handler := &ObservabilityCoverageHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -108,11 +111,11 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Correlations []ObservabilityCoverageCorrelationResult `json:"correlations"`
-		Count        int                                      `json:"count"`
-		Limit        int                                      `json:"limit"`
-		Truncated    bool                                     `json:"truncated"`
-		NextCursor   map[string]string                        `json:"next_cursor"`
+		Correlations []CorrelationResult `json:"correlations"`
+		Count        int                 `json:"count"`
+		Limit        int                 `json:"limit"`
+		Truncated    bool                `json:"truncated"`
+		NextCursor   map[string]string   `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -150,10 +153,10 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 func TestObservabilityCoverageListCorrelationsScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingObservabilityCoverageCorrelationStore{rows: []ObservabilityCoverageCorrelationRow{
+	store := &recordingObservabilityCoverageCorrelationStore{rows: []CorrelationRow{
 		{CorrelationID: "observability-coverage-1", TargetUID: "arn:aws:ec2:us-east-1:111122223333:instance/i-abc"},
 	}}
-	handler := &ObservabilityCoverageHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -162,7 +165,7 @@ func TestObservabilityCoverageListCorrelationsScopedEmptyGrantReturnsEmptyWithou
 		"/api/v0/observability/coverage/correlations?target_uid=arn:aws:ec2:us-east-1:111122223333:instance/i-abc&limit=10",
 		nil,
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a"}))
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a"}))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -198,7 +201,7 @@ func observabilityCoverageScopedFixtureRow(t *testing.T) []driver.Value {
 
 // TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData
 // proves the #5167 fix against the ACTUAL production backend
-// (PostgresObservabilityCoverageCorrelationStore over a real *sql.DB, the same
+// (PostgresCorrelationStore over a real *sql.DB, the same
 // type cmd/api/wiring_handlers.go and cmd/mcp-server/wiring.go construct): a
 // scoped caller with a matching grant reaches the store, the dispatched SQL
 // carries the access-scoping predicate with the caller's granted ids bound as
@@ -206,10 +209,10 @@ func observabilityCoverageScopedFixtureRow(t *testing.T) []driver.Value {
 func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		observabilityCoverageScopedFixtureRow(t),
 	})
-	handler := &ObservabilityCoverageHandler{Correlations: NewPostgresObservabilityCoverageCorrelationStore(db)}
+	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -218,8 +221,8 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 		"/api/v0/observability/coverage/correlations?target_uid=arn:aws:ec2:us-east-1:111122223333:instance/i-tenant-a&limit=10",
 		nil,
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		AllowedScopeIDs:      []string{"aws-scope:tenant-a"},
 		AllowedRepositoryIDs: []string{"repo-tenant-a"},
@@ -230,14 +233,14 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	dispatched := recorder.queries[0]
+	dispatched := recorder.Queries()[0]
 	if !strings.Contains(dispatched, "fact.scope_id = ANY($14) OR fact.scope_id = ANY($15)") {
 		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", dispatched)
 	}
-	args := recorder.args[0]
+	args := recorder.Args()[0]
 	if len(args) < 15 {
 		t.Fatalf("len(args) = %d, want at least 15", len(args))
 	}
@@ -249,7 +252,7 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 	}
 
 	var resp struct {
-		Correlations []ObservabilityCoverageCorrelationResult `json:"correlations"`
+		Correlations []CorrelationResult `json:"correlations"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -266,16 +269,16 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 }
 
 // TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered is the
-// no-regression counterpart: a shared/admin caller (no AuthContext) must
+// no-regression counterpart: a shared/admin caller (no queryauth.AuthContext) must
 // still issue the byte-identical unscoped query with no access-scoping
 // predicate.
 func TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		observabilityCoverageScopedFixtureRow(t),
 	})
-	handler := &ObservabilityCoverageHandler{Correlations: NewPostgresObservabilityCoverageCorrelationStore(db)}
+	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -290,11 +293,11 @@ func TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered(t *te
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	if strings.Contains(recorder.queries[0], "allowed_repository_ids") || strings.Contains(recorder.queries[0], "= ANY($14)") {
-		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", recorder.queries[0])
+	if strings.Contains(recorder.Queries()[0], "allowed_repository_ids") || strings.Contains(recorder.Queries()[0], "= ANY($14)") {
+		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", recorder.Queries()[0])
 	}
 }
 
@@ -326,7 +329,7 @@ func TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass(t *t
 	t.Parallel()
 
 	store := &recordingObservabilityCoverageCorrelationStore{}
-	handler := &ObservabilityCoverageHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

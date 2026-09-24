@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
@@ -193,7 +195,7 @@ func TestKubernetesPodTemplateDeclaredObjectScopedEmptyGrantReturnsNoMatchWithou
 func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsRealStore(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -212,14 +214,14 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsR
 	if !matched {
 		t.Fatal("HasLiveIdentityMatch() = false, want true (fake driver returned one row)")
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
-	if !strings.Contains(recorder.queries[0], "fact.payload->>'group_version_resource' = $2") {
-		t.Fatalf("dispatched query missing declared-object predicate:\n%s", recorder.queries[0])
+	if !strings.Contains(recorder.Queries()[0], "fact.payload->>'group_version_resource' = $2") {
+		t.Fatalf("dispatched query missing declared-object predicate:\n%s", recorder.Queries()[0])
 	}
-	if !strings.Contains(recorder.queries[0], "fact.scope_id = ANY($7) OR fact.scope_id = ANY($8)") {
-		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", recorder.queries[0])
+	if !strings.Contains(recorder.Queries()[0], "fact.scope_id = ANY($7) OR fact.scope_id = ANY($8)") {
+		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", recorder.Queries()[0])
 	}
 }
 
@@ -228,7 +230,7 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsR
 func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectNoMatch(t *testing.T) {
 	t.Parallel()
 
-	db, _ := openScopeQueryerTestDB(t, []string{"?column?"}, nil)
+	db, _ := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -269,7 +271,7 @@ func TestListLiveIdentityMatchesDeclaredObjectRejectsUnboundedScope(t *testing.T
 func TestListLiveIdentityMatchesDeclaredObjectReturnsRows(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:production:deployable-source", "apps/v1/deployments", int64(3)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
@@ -291,7 +293,7 @@ func TestListLiveIdentityMatchesDeclaredObjectReturnsRows(t *testing.T) {
 	if matches[0].ReadyReplicas == nil || *matches[0].ReadyReplicas != 3 {
 		t.Fatalf("matches[0].ReadyReplicas = %v, want *3", matches[0].ReadyReplicas)
 	}
-	if got, want := recorder.calls(), 1; got != want {
+	if got, want := recorder.Calls(), 1; got != want {
 		t.Fatalf("queryer received %d queries, want exactly %d", got, want)
 	}
 }
@@ -311,7 +313,7 @@ func (q declaredObjectQueryerSpy) QueryContext(ctx context.Context, query string
 	if strings.Contains(query, "annotations") {
 		q.t.Fatalf("declared-object filter dispatched the ArgoCD annotation query instead:\n%s", query)
 	}
-	db, _ := openScopeQueryerTestDB(q.t, q.columns, q.rows)
+	db, _ := querytestutil.OpenScopeQueryerTestDB(q.t, q.columns, q.rows)
 	return db.QueryContext(ctx, query, args...)
 }
 
