@@ -27,8 +27,7 @@ precedent:
 `listTerraformStateLastSerials` and `listTerraformStateRecentWarnings` stay
 unexported; both are only called from the moved reader in the same package.
 
-Callers repointed: `internal/storage/postgres/status.go` (root `StatusStore.
-Snapshot`) now imports `github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state`
+Callers repointed: `internal/storage/postgres/status.go` (root `StatusStore.ReadStatusSnapshotFiltered`) now imports `github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state`
 without an alias and calls `statestore.ReadTerraformStateAdminEvidence`,
 matching how the same function already calls `semanticstore.
 ReadSemanticExtractionObservability` a few lines below it. No caller outside
