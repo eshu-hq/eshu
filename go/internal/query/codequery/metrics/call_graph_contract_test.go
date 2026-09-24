@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
@@ -496,11 +495,11 @@ func TestHandleCallChainSupportsEntityIDAndRepoScopedLookup(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("start", "$start_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged start entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(start:Function|Class|Struct|Interface|TypeAlias|File {uid: $start_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored start entity (issue #7057)", cypher)
 				}
-				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("end", "$end_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged end entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(end:Function|Class|Struct|Interface|TypeAlias|File {uid: $end_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored end entity (issue #7057)", cypher)
 				}
 				if !strings.Contains(cypher, "start.repo_id = $repo_id") ||
 					!strings.Contains(cypher, "end.repo_id = $repo_id") {
@@ -624,11 +623,11 @@ func TestHandleRelationshipsReturnsTransitiveCallers(t *testing.T) {
 						"end_line":   int64(42),
 					}}, nil
 				}
-				if !strings.Contains(cypher, "MATCH (e)") {
-					t.Fatalf("cypher = %q, want explicit entity match", cypher)
+				if !strings.Contains(cypher, "MATCH (e:Function|Class|Struct|Interface|TypeAlias|File {uid: $entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored entity match (issue #7057)", cypher)
 				}
-				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("e", "$entity_id")) {
-					t.Fatalf("cypher = %q, want bridged entity-id predicate", cypher)
+				if strings.Contains(cypher, ".id =") {
+					t.Fatalf("cypher = %q, must not use the unindexed id predicate", cypher)
 				}
 				if !strings.Contains(cypher, "MATCH path = (source)-[:CALLS*1..7]->(e)") {
 					t.Fatalf("cypher = %q, want directed transitive incoming CALLS traversal", cypher)
@@ -795,11 +794,11 @@ func TestHandleCallChainSupportsRustImplContextQualifiedLookup(t *testing.T) {
 				if !strings.Contains(cypher, "){1,3}(end)") {
 					t.Fatalf("cypher = %q, want bounded CALLS traversal", cypher)
 				}
-				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("start", "$start_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged start entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(start:Function|Class|Struct|Interface|TypeAlias|File {uid: $start_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored start entity (issue #7057)", cypher)
 				}
-				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("end", "$end_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged end entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(end:Function|Class|Struct|Interface|TypeAlias|File {uid: $end_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored end entity (issue #7057)", cypher)
 				}
 				if got, want := params["start_entity_id"], "fn-new"; got != want {
 					t.Fatalf("params[start_entity_id] = %#v, want %#v", got, want)

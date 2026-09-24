@@ -202,11 +202,11 @@ func TestHandleCallChainResolvesRepoScopedNamesToNonTestEntityIDs(t *testing.T) 
 	handler := &CodeHandler{
 		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, graphEntityIDPredicate("start", "$start_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged start entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(start:Function|Class|Struct|Interface|TypeAlias|File {uid: $start_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored start entity (issue #7057)", cypher)
 				}
-				if !strings.Contains(cypher, graphEntityIDPredicate("end", "$end_entity_id")) {
-					t.Fatalf("cypher = %q, want bridged end entity-id predicate", cypher)
+				if !strings.Contains(cypher, "(end:Function|Class|Struct|Interface|TypeAlias|File {uid: $end_entity_id})") {
+					t.Fatalf("cypher = %q, want uid-anchored end entity (issue #7057)", cypher)
 				}
 				if got, want := params["start_entity_id"], "content-entity:start-impl"; got != want {
 					t.Fatalf("params[start_entity_id] = %#v, want %#v", got, want)

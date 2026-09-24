@@ -20,7 +20,9 @@ import (
 // `MATCH (start)` / `MATCH (end)` gave the Neo4j planner no label to anchor on,
 // so the id/name predicate forced a full-graph scan (issue #3567). NornicDB has
 // its own builder (BuildNornicDBCallChainCypher) and is intentionally untouched.
-const AnchorLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|File"
+// An endpoint named by entity id adds {uid: ...} to the pattern so it seeks each
+// label's uid uniqueness constraint (issue #7057).
+const AnchorLabelDisjunction = codemodel.CallGraphEndpointLabels
 
 // BuildCallChainCypher renders the Neo4j-compat shortestPath call-chain
 // read for req, binding the request's own repository scope and the
@@ -42,17 +44,25 @@ func BuildCallChainCypher(
 		return BuildNornicDBCallChainCypher(req, access)
 	}
 
+	// An entity-id endpoint anchors in the node pattern on uid, not in WHERE as
+	// (start.id = x OR start.uid = x): the OR cannot use the uid uniqueness
+	// constraints and planned as a label scan over every anchor label per
+	// request (issue #7057). The canonical entity writer sets id and uid from
+	// the same EntityID and File carries no id, so uid alone matches the same
+	// nodes.
+	startPattern := "(start:" + AnchorLabelDisjunction + ")"
 	if strings.TrimSpace(req.StartEntityID) != "" {
 		params["start_entity_id"] = strings.TrimSpace(req.StartEntityID)
-		predicates = append(predicates, codemodel.GraphEntityIDPredicate("start", "$start_entity_id"))
+		startPattern = "(start:" + AnchorLabelDisjunction + " {uid: $start_entity_id})"
 	} else {
 		params["start"] = strings.TrimSpace(req.Start)
 		predicates = append(predicates, "start.name = $start")
 	}
 
+	endPattern := "(end:" + AnchorLabelDisjunction + ")"
 	if strings.TrimSpace(req.EndEntityID) != "" {
 		params["end_entity_id"] = strings.TrimSpace(req.EndEntityID)
-		predicates = append(predicates, codemodel.GraphEntityIDPredicate("end", "$end_entity_id"))
+		endPattern = "(end:" + AnchorLabelDisjunction + " {uid: $end_entity_id})"
 	} else {
 		params["end"] = strings.TrimSpace(req.End)
 		predicates = append(predicates, "end.name = $end")
@@ -77,8 +87,8 @@ func BuildCallChainCypher(
 
 	hops := PathHopPredicates(req, access)
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (start:" + AnchorLabelDisjunction + ")\n")
-	cypher.WriteString("\t\tMATCH (end:" + AnchorLabelDisjunction + ")")
+	cypher.WriteString("\n\t\tMATCH " + startPattern + "\n")
+	cypher.WriteString("\t\tMATCH " + endPattern)
 	if len(predicates) > 0 {
 		cypher.WriteString("\n\t\tWHERE ")
 		cypher.WriteString(strings.Join(predicates, " AND "))
