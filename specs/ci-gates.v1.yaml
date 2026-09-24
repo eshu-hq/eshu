@@ -300,7 +300,9 @@ gates:
       - "go/**"
       - ".agents/**"
       - ".claude/skills/**"
+      - ".claude/agents/**"
       - ".codex/skills/**"
+      - ".codex/agents/**"
       # verify-agent-canon.sh reads .claude/hooks/skill-nudge.sh to prove every
       # skill is reachable from a routing arm. Without this trigger a hook-only
       # edit would not select the gate that validates it, which is the same
@@ -320,6 +322,8 @@ gates:
       - "AGENTS.md"
       - "CLAUDE.md"
       - "scripts/verify-agent-canon.sh"
+      - "scripts/agent-roles.py"
+      - "scripts/test-agent-roles.py"
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
@@ -354,7 +358,9 @@ gates:
     self_test_triggers:
       - ".agents/**"
       - ".claude/skills/**"
+      - ".claude/agents/**"
       - ".codex/skills/**"
+      - ".codex/agents/**"
       - ".claude/hooks/**"
       - ".claude/settings.json"
       - ".muse/hooks/**"
@@ -364,6 +370,8 @@ gates:
       - "AGENTS.md"
       - "CLAUDE.md"
       - "scripts/verify-agent-canon.sh"
+      - "scripts/agent-roles.py"
+      - "scripts/test-agent-roles.py"
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
@@ -385,7 +393,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"

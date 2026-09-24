@@ -42,6 +42,14 @@ fi
 
 printf 'verify-agent-canon: AGENTS.md and CLAUDE.md are byte-identical.\n'
 
+if [ -z "${ESHU_AGENT_CANON_REPO_ROOT:-}" ]; then
+  if [ ! -f "$repo_root/.agents/roles.json" ] || [ ! -f "$repo_root/scripts/agent-roles.py" ]; then
+    printf 'verify-agent-canon: missing role manifest or generator\n' >&2
+    exit 1
+  fi
+  python3 "$repo_root/scripts/agent-roles.py" check
+fi
+
 skills_root="$repo_root/.agents/skills"
 if [ -d "$skills_root" ]; then
   for skill_file in "$skills_root"/*/SKILL.md; do

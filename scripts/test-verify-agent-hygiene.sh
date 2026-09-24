@@ -28,6 +28,30 @@ else
   no "agent-canon should pass when identical"
 fi
 
+# Exercise the real-root branch, which fixture overrides skip. A stub role
+# generator fails with a unique marker; the canon gate must reach it.
+mkdir -p "$tmp/role-gate/scripts" "$tmp/role-gate/.agents"
+cp "$canon" "$tmp/role-gate/scripts/verify-agent-canon.sh"
+printf 'shared canon\n' >"$tmp/role-gate/AGENTS.md"
+printf 'shared canon\n' >"$tmp/role-gate/CLAUDE.md"
+printf '{}\n' >"$tmp/role-gate/.agents/roles.json"
+cat >"$tmp/role-gate/scripts/agent-roles.py" <<'ROLE_GENERATOR'
+import sys
+
+if sys.argv[1:] != ["check"]:
+    print("role generator fixture received wrong command")
+    sys.exit(38)
+print("role generator fixture invoked in check mode")
+sys.exit(37)
+ROLE_GENERATOR
+if output="$("$tmp/role-gate/scripts/verify-agent-canon.sh" 2>&1)"; then
+  no "agent-canon should check role bindings in its real-root branch"
+elif printf '%s' "$output" | rg -Fq 'role generator fixture invoked in check mode'; then
+  ok "agent-canon checks role bindings in its real-root branch"
+else
+  no "agent-canon failed before checking role bindings"
+fi
+
 mkdir -p "$tmp/bad"
 printf 'one\n' >"$tmp/bad/AGENTS.md"
 printf 'two\n' >"$tmp/bad/CLAUDE.md"
@@ -279,8 +303,11 @@ else
 fi
 
 if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'scripts/verify-agent-canon\.sh' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'scripts/test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml"; then
+  && rg -Fq '\.claude/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq '\.codex/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'agent-roles\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'verify-agent-canon\.sh' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml"; then
   ok "agent-canon pre-commit hook watches its skill and verifier inputs"
 else
   no "agent-canon pre-commit hook must watch its skill and verifier inputs"

@@ -169,6 +169,11 @@ jobs:
         run: scripts/test-security-scan-tee-status.sh
 
       - name: Verify hot-path evidence
+        env:
+          # Pin the base used to build this PR merge commit. A newer main tip
+          # fetched at depth 1 can have no visible merge base and make the
+          # verifier's two-dot fallback attribute main's changes to the PR.
+          ESHU_PERFORMANCE_EVIDENCE_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh

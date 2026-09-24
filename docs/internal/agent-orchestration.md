@@ -34,30 +34,41 @@ the codebase.
 | Layer | Artifact | Property |
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
-| **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/` | One canon. Each harness points at it; rules are never re-stated per harness. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
+| **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude reads `CLAUDE.md`; Codex and opencode read `AGENTS.md` (plus opencode's
 `instructions` array); per-directory `AGENTS.md` files scope rules for Codex.
-Skills are symlinked into `.claude/skills/` and `.codex/skills/` and pointed at
-by opencode's `skills.paths`.
+Skills are symlinked into `.claude/skills/` and `.codex/skills/`, pointed at
+by opencode's `skills.paths`, and discovered directly by Muse from `.agents/skills/`.
 
 ## Roles, models, and tools
 
-An agent earns its existence when its **tools or permissions** differ — not when
-only its prose flavor or model preference differs. Knowledge differences belong
-in skills. Model and provider selection is a user/runtime concern: use opencode's
+An agent earns its existence when it has a distinct **job or tool boundary**.
+Knowledge differences belong in skills. The `-deep` variants are explicit
+escalation points for the same job and skill body, so the coordinator can choose
+a stronger model without copying the method. OpenCode model and provider
+selection remains a user/runtime concern: use opencode's
 active model, `opencode run --model`, `/models`, `OPENCODE_CONFIG_CONTENT`, or a
 personal config directory to override the model without changing tracked role
 files. Under that test, the opencode roster is:
 
 | Role | Runtime model binding | Tools | Responsibility |
 | --- | --- | --- | --- |
-| **Executor** (`develop-eshu`) | user's selected implementation model | full write, **one surface at a time** | Implement one scoped task, TDD-first, run and paste the gates. |
-| **Debugger** (`debug-eshu`) | user's selected diagnostic model | **read + run, no write** | Diagnose to root cause. The no-write boxing physically prevents the "fix before you understand" failure mode. |
-| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read + run + measure, no write** | Prove bottlenecks and candidate fixes through `eshu-performance-rigor`; routes proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
-| **Reviewer** (`review-eshu`) | user's selected review model | **read + run, no write** | Run `eshu-code-review` against final diffs, PR updates, and merge-readiness claims. Keeps judgment separate from authorship. |
+| **Scanner** (`scan-eshu`) | user's selected fast model | read-only | Gather bounded evidence and return a cited handoff. |
+| **Executor** (`develop-eshu`) | user's selected implementation model | full write, **one surface at a time** | Implement one scoped task and run focused proof; the coordinator owns promotion and publication. |
+| **Debugger** (`debug-eshu`) | user's selected diagnostic model | **read, no write** | Diagnose to root cause from available observations; request command results from the coordinator when the harness blocks shell execution. |
+| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read, no write** | Analyze measurements through `eshu-performance-rigor`; route proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
+| **Reviewer** (`review-eshu`) | user's selected review model | **read, no write** | Run `eshu-code-review` against final diffs and PR evidence. Keeps judgment separate from authorship. |
+
+`debug-eshu-deep` and `perf-eshu-deep` inherit their base role's method and
+access but use the deep tier. The manifest is the only place to change their
+model choices or shared role instructions.
+
+Concurrency is a conditional method, not a separate job: the debugger,
+performance agent, developer, or reviewer loads `concurrency-deadlock-rigor`
+when the surface involves races, leases, queues, or shared-state ordering.
 
 `ask-eshu` (read-only Q&A) is intentionally **deferred**: it overlaps
 opencode's built-in `explore`/`plan` agents and its name collides with Eshu's
@@ -79,21 +90,20 @@ OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"anthropic/<opus-4.8-id>
 OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"deepseek/<deepseek-pro-id>","variant":"high"}}}' opencode
 ```
 
-The same override shape works for `develop-eshu`, `debug-eshu`, and
-`review-eshu`; change the agent key, not the tracked role file.
+The same override shape works for any tracked OpenCode role; change the agent
+key, not the tracked role file.
 
 ### Default model bindings by tier
 
-Model choice stays a runtime override (above), but the orchestrator should not
-re-derive it every session. Match model capability to task difficulty using
-these defaults, at high reasoning effort, picking the column for the harness in
-play:
+The tracked choices live in `.agents/roles.json`; the table below describes
+the routing rule. Match model capability to task difficulty, then pick the
+role for the harness in play:
 
-| Tier | Reach for it when | Claude | Codex |
-| --- | --- | --- | --- |
-| **Deep** | root-cause, executor/runtime internals, architecture, hard debugging | Fable 5 / Opus 4.8 | Sol (high) |
-| **Workhorse** | default implementation, review, most subagent work | Sonnet 5 (high) | Terra (high) |
-| **Fast** | mechanical or parallel scans, cheap lookups | Haiku 4.5 | Luna (high) |
+| Tier | Reach for it when | Role examples |
+| --- | --- | --- |
+| **Deep** | difficult cross-system root cause, architecture, intermittent performance | `debug-eshu-deep`, `perf-eshu-deep` |
+| **Workhorse** | default implementation, diagnosis, performance, review | `develop-eshu`, `debug-eshu`, `perf-eshu`, `review-eshu` |
+| **Fast** | bounded evidence scans and lookups | `scan-eshu` |
 
 **Kimi K3** sits outside the ladder — it has no cheaper variant to downshift to,
 so run it **always at high effort**, reached for deliberately as a strong
@@ -101,31 +111,53 @@ cross-family workhorse or as an independent verifier in adversarial-verification
 passes (a different model lineage catches what a single family rationalizes
 away).
 
-These are defaults, not pins: the runtime overrides above still win per task or
-session. The orchestrator selects the tier when it dispatches; a subagent never
-downgrades its own model.
+The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus, Codex
+Luna/Terra/Sol, and Muse Spark at low/high/xhigh effort. A caller's explicit
+model override can still win per task or session. The coordinator selects the
+tier when it dispatches; a leaf agent does not downgrade its own model.
+Muse currently uses one model across the tiers, so its savings come from
+reasoning effort and bounded scopes rather than selecting a cheaper model.
 
 ### Where the model binds
 
 A tier is repo policy; the binding is per-harness and lives on the **role**, not
-on the skill. Only Claude Code binds a model to a *skill* (`model:` in `SKILL.md`
-frontmatter; Codex parses only `name`, `description`, and
-`metadata.short-description`, so the key is inert there, and the shared skill is
-one byte-identical file behind the `.claude/skills` and `.codex/skills` symlinks
-anyway). All three harnesses bind a model to a *role*, so the role is the
-portable seam: a skill states its tier and names no model.
+on the skill. The canonical skill body stays one byte-identical file behind
+the Claude and Codex discovery links. `scripts/agent-roles.py generate` renders
+the native role shims from `.agents/roles.json`, including OpenCode's permission
+frontmatter. OpenCode read roles have shell execution denied, so a coordinator
+supplies any command output their proof needs.
+`scripts/agent-roles.py check` is part of `verify-agent-canon.sh`, so a stale
+binding fails locally and in CI.
 
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
-| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write: deny` plus per-command bash denies |
-| Codex | `.codex/agents/*.toml` | `model` and `model_reasoning_effort` in the role file | `sandbox_mode = "read-only"` (also gates network, so the role sets `approval_policy = "on-request"`) |
+| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
+| Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
+| Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
 
-The reviewer is the role bound on all three:
+Muse's launcher runs one role as a headless session, rather than registering a
+native subagent. Its read-only profile may prevent a diagnostic or performance
+role from running a proof that writes local artifacts. OpenCode's read roles
+cannot run shell commands. In either case, the coordinator should run blocked
+proof separately and pass the result back.
+
+Codex custom role files bind models only when the active spawn tool can select
+the named role. The tested Codex 0.156.1 CLI/app schema exposes a task
+name and optional model override, but no custom-role selector. A child merely
+named `debug_eshu_deep` inherits its parent's model; that name does not load
+`debug-eshu-deep.toml`. Use `scripts/agent-roles.py codex-exec ROLE TASK` in
+that environment. It starts a separate headless Codex session with the model,
+effort, role instructions, and sandbox read from `.agents/roles.json`; it is
+not a spawned child of the coordinator. Check the CLI startup banner for the
+resolved model and effort. Do not report task-name dispatch as role routing.
+
+The reviewer uses the same skill in all four:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
 [`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md), and
 [`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml) —
-tracked twins running the same `eshu-code-review` skill.
+tracked bindings running the same `eshu-code-review` skill. Muse loads that
+skill through workspace discovery when the launcher passes `--trust-workspace`.
 
 Codex discovers a role file from each config layer's `<config_folder>/agents/`
 directory. The repo's own layer is the `.codex/` folder at the checkout root
@@ -145,8 +177,8 @@ untrusted**: add the worktree path under `[projects."<path>"] trust_level =
 "trusted"` in `~/.codex/config.toml`, and note that trust is keyed by absolute
 path, so a second checkout of the same repo needs its own entry. A
 `[profiles.<name>]` in `~/.codex/config.toml` remains the way to run a whole
-Codex *session* at a chosen tier; the role file is what binds a spawned
-reviewer.
+Codex *session* at a chosen tier; the role file binds a spawned reviewer only
+when the spawn tool offers a custom-role selector.
 
 Codex's `read-only` preset gates internet access behind approval as well as
 writes, and a reviewer needs the network for the live GitHub truth the skill
@@ -198,7 +230,7 @@ run as `mode: all` (both directly selectable and dispatchable) and their own
 `task` permission is denied, so they cannot dispatch further. Aggregation and
 sequencing stay with the user or primary agent.
 
-Routing: implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
+Routing: bounded lookup → `scan-eshu`; implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
 (returns a root cause, then `develop-eshu` implements the fix); bottleneck /
 regression / tuning → `perf-eshu` (returns measurements, then any code change
 routes to `develop-eshu`); final diff / PR readiness → `review-eshu`. One
@@ -212,10 +244,9 @@ CI review are good splits. Do not delegate implementation until the cheap proof
 has proven the theory and the handoff packet names the exact surface, failing
 test, gate commands, required project skills, and out-of-scope boundary.
 
-Judgment-heavy performance and debugging work MUST escalate to the strongest
-available diagnostic/performance model. For current Eshu planning, use 5.6 Sol
-when available; if it is unavailable, use the nearest high-reasoning
-performance/debug model and record the substitution in the handoff. Long waits,
+Judgment-heavy performance and debugging work MUST escalate to
+`perf-eshu-deep` or `debug-eshu-deep`. If its mapped model is unavailable, use
+the nearest high-reasoning model and record the substitution in the handoff. Long waits,
 build polling, and GitHub bookkeeping remain coordinator or script work, not
 frontier-model work.
 
@@ -324,8 +355,11 @@ brain and the same gate floor:
   `skills.paths` → `.agents/skills`) + `.opencode/agent/*.md` role/permission
   shims. Tracked shims do not pin personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
-  `.codex/hooks.json`.
-- **Claude Code** — `CLAUDE.md`, `.claude/skills/`.
+  `.codex/agents/*.toml`, `.codex/hooks.json`.
+- **Claude Code** — `CLAUDE.md`, `.claude/skills/`, `.claude/agents/*.md`.
+- **Muse Code** — `AGENTS.md`, project skills in `.agents/skills/`, and
+  `python3 scripts/agent-roles.py muse-exec ROLE 'task'` for model and permission
+  routing. `--dry-run` prints the resolved invocation without starting a model.
 - **pi / future** — same: an instructions pointer at `AGENTS.md`, a skills
   pointer at `.agents/skills/`, and reliance on the CI floor.
 

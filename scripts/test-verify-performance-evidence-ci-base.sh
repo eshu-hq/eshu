@@ -29,6 +29,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 
+# The behavioral fixture below passes an event base explicitly. Also guard
+# the workflow binding: without it, the real CI step takes the failing path.
+if ! rg -U -q '      - name: Verify hot-path evidence\n        env:\n(?:          #[^\n]*\n)*          ESHU_PERFORMANCE_EVIDENCE_BASE: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n        run: \|' \
+  "${repo_root}/.github/workflows/test.yml"; then
+  printf 'Verify hot-path evidence must pass the PR event base SHA to the verifier\n' >&2
+  exit 1
+fi
+
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
@@ -154,6 +162,58 @@ if ! git -C "${pr_dir}" merge-base origin/main HEAD >/dev/null 2>&1; then
     # exercises the two-dot fallback and must be revisited.
 else
   printf 'expected origin/main and the PR HEAD to have no merge base (fixture no longer disconnected)\n' >&2
+  exit 1
+fi
+
+# A PR checkout contains the merge commit's original base, while main may
+# advance before this job fetches it. With depth=1, the newer origin/main tip
+# has no visible merge base and the two-dot fallback sees main's hot change as
+# a PR change. The event base SHA must keep this docs-only PR green.
+race_origin="${tmp_root}/race-origin"
+git init -q -b main "${race_origin}"
+git -C "${race_origin}" config user.email "test@example.invalid"
+git -C "${race_origin}" config user.name "Eshu Test"
+mkdir -p "${race_origin}/docs" "${race_origin}/go/internal/storage/cypher"
+printf 'baseline\n' >"${race_origin}/docs/note.md"
+printf 'package cypher\n' >"${race_origin}/go/internal/storage/cypher/writer.go"
+git -C "${race_origin}" add .
+git -C "${race_origin}" commit -q -m baseline
+event_base="$(git -C "${race_origin}" rev-parse HEAD)"
+git -C "${race_origin}" checkout -q -b feature
+printf 'branch docs edit\n' >"${race_origin}/docs/note.md"
+git -C "${race_origin}" add .
+git -C "${race_origin}" commit -q -m 'PR docs edit'
+git -C "${race_origin}" checkout -q main
+printf 'package cypher\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${race_origin}/go/internal/storage/cypher/writer.go"
+git -C "${race_origin}" add .
+git -C "${race_origin}" commit -q -m 'main hot change after PR event'
+git -C "${race_origin}" checkout -q -b pr-merge "${event_base}"
+git -C "${race_origin}" merge -q --no-ff feature -m 'PR merge commit'
+
+race_checkout="${tmp_root}/race-checkout"
+git clone -q --depth=2 --branch pr-merge "file://${race_origin}" "${race_checkout}"
+git -C "${race_checkout}" fetch -q --no-tags --depth=1 origin \
+  main:refs/remotes/origin/main
+if git -C "${race_checkout}" merge-base origin/main HEAD >/dev/null 2>&1; then
+  printf 'expected advanced main to have no visible merge base in shallow checkout\n' >&2
+  exit 1
+fi
+if env -u ESHU_PERFORMANCE_EVIDENCE_BASE \
+  ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${race_checkout}" GITHUB_BASE_REF=main \
+  "${verifier}" >/tmp/eshu-perf-gate-race.out 2>/tmp/eshu-perf-gate-race.err; then
+  printf 'expected unpinned shallow checkout to misattribute main hot change\n' >&2
+  exit 1
+fi
+if ! rg -q 'writer.go' /tmp/eshu-perf-gate-race.err; then
+  printf 'expected unpinned failure to name the main-only hot file\n' >&2
+  exit 1
+fi
+if ! ESHU_PERFORMANCE_EVIDENCE_BASE="${event_base}" \
+  ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${race_checkout}" GITHUB_BASE_REF=main \
+  "${verifier}" >/tmp/eshu-perf-gate-race.out 2>/tmp/eshu-perf-gate-race.err; then
+  printf 'expected event-base-pinned docs PR to pass after main advances\n' >&2
+  sed -n '1,80p' /tmp/eshu-perf-gate-race.err >&2
   exit 1
 fi
 
