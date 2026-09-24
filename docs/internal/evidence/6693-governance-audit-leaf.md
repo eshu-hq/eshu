@@ -1,8 +1,6 @@
 # #6693 checklist step 13: `governance/audit/` (2 files)
 
-Baseline: `origin/main` `58d230c93` (rebased onto it after the concurrently
-merged `#6693` `maintenance/` leaf, PR #7038, and other unrelated PRs landed
-during this task). Change: move `governance_audit_store.go`
+Baseline: rebased onto the step-12 `code/taint/` head. Change: move `governance_audit_store.go`
 and `governance_audit_store_helpers.go` (plus 4 of their 5 mapped tests) to the
 new non-root package `go/internal/storage/postgres/governance/audit` (package
 clause `auditstore`); no existing package of that name (`rg -n '^package
@@ -73,24 +71,19 @@ Per the executor brief's "must stay in root" guidance:
   `governance/audit/` section; its test count there dropped from 5 to 4.
 - Added `governance_audit_store_test.go -> governance_audit_store_test.go`
   (alphabetically, with a `# asserts root BootstrapDefinitions()...` reason
-  comment) to `root.md`'s tests list; its header test count rose from 111 to
-  112.
+  comment) to `root.md`'s tests list; its header test count rose by 1.
 - Updated `docs/internal/design/6693-postgres-target-tree.md`'s
-  "Per-directory counts" table: `storage/postgres` (root) row 111 -> 112,
+  "Per-directory counts" table: `storage/postgres` (root) row up by 1 test,
   `governance/audit/` row 5 -> 4.
-- Updated the "Test placement" tally: "in-package test" 376 -> 375, "stays in
-  root" 72 -> 73 (an unannotated mapping line moved from the in-package-test
+- Updated the "Test placement" tally: "in-package test" minus 1, "stays in
+  root" plus 1 (an unannotated mapping line moved from the in-package-test
   bucket to the stays-in-root bucket).
 - Ticked `13. [x] governance/audit/ (2 files)` in the checklist.
-- Rebasing onto origin/main surfaced a silent counter collision on the
-  "in-package test" line: the concurrently merged `maintenance/` leaf had
-  independently moved a different test from in-package to its
-  `export_test.go`-shim bucket, decrementing the same 376 baseline to 375.
-  Git's auto-merge kept 375 because both sides produced identical text, which
-  would have silently dropped this leaf's own -1. Verified against
-  origin/main's actual pre-rebase value (`git show 58d230c93:...`: 375, with
-  `export_test.go` shim already at 88) and corrected the merged doc to 374
-  (376 - 1 maintenance - 1 this leaf) by hand.
+- Rebases onto sibling moves can merge two identical count edits as one
+  change without a conflict (the same line, changed the same way by both
+  sides). After each rebase the counts were re-derived from the listed
+  mapping lines: section headers match their lines, the counts table matches
+  the headers, and the placement tallies sum to the 713-test census.
 
 ## Callers repointed
 
@@ -159,15 +152,9 @@ parent postgres package" invariant. `AGENTS.md` also notes the
 
 `internal/storage/postgres`'s row in `scripts/lib/dirgate-grandfather.tsv`
 was re-pinned (two non-test files leave root) to what
-`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` printed
-against this branch's own tree (count 355, down from 357), and
-`tools/golangci-lint-dirgate/grandfather.go` was regenerated. Rebasing onto
-origin/main after the concurrently merged `#6693` `maintenance/` leaf (which
-independently re-pinned the same row to 356, one file) made this a genuine
-two-sided count conflict, not a same-value coincidence: re-running
-`--digest` against the fully rebased tree printed count 354 (357 - 1
-maintenance - 2 this leaf) with a fresh digest, which is what the committed
-row and regenerated `grandfather.go` carry. `bash scripts/verify-dirgate.sh
+`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for
+the rebased tree, and `tools/golangci-lint-dirgate/grandfather.go` was
+regenerated. Each rebase onto a sibling move re-derives the row the same way. `bash scripts/verify-dirgate.sh
 --all` prints the pre-existing, unrelated `naming_violation` lines for files
 mapped to later checklist steps (already excused there) and exits 0.
 
