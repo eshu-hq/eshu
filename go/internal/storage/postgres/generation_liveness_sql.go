@@ -180,9 +180,17 @@ WITH wedged AS (
                 )
             )
       )
+      -- Budget gate. fact_work_items has no unique index over (stage, domain,
+      -- scope_id, generation_id): the rebuild-from-facts refinalize prelude
+      -- inserts a refinalize_<scope>_<gen> projector/source_local row next to the
+      -- canonical projector_<scope>_<gen> row, so a bare scalar subquery here
+      -- raised SQLSTATE 21000 and failed the whole sweep. The counter is only
+      -- ever written on the canonical row (the upsert below), so the aggregate
+      -- reads that value while staying safe for any number of siblings, and
+      -- treats the budget as spent if any sibling row reports it spent.
       AND COALESCE(
           (
-              SELECT (existing.payload ->> 'liveness_recovery_attempts')::int
+              SELECT MAX((existing.payload ->> 'liveness_recovery_attempts')::int)
               FROM fact_work_items AS existing
               WHERE existing.stage = 'projector'
                 AND existing.domain = 'source_local'
