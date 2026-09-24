@@ -1,5 +1,5 @@
 ---
-description: "Measure an Eshu bottleneck or regression and hand off a proved change without editing."
+description: "Investigate a difficult Eshu performance cause or architecture decision with deeper reasoning."
 mode: all
 permission:
   edit: deny

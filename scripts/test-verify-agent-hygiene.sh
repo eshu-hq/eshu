@@ -279,8 +279,11 @@ else
 fi
 
 if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'scripts/verify-agent-canon\.sh' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'scripts/test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml"; then
+  && rg -Fq '\.claude/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq '\.codex/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'agent-roles\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'verify-agent-canon\.sh' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml"; then
   ok "agent-canon pre-commit hook watches its skill and verifier inputs"
 else
   no "agent-canon pre-commit hook must watch its skill and verifier inputs"

@@ -36,6 +36,9 @@ jobs:
       - name: Run test mirror
         run: scripts/test-verify-agent-hygiene.sh
 
+      - name: Run agent role binding test
+        run: python3 scripts/test-agent-roles.py
+
       - name: Run diff-fragment gate test mirror
         run: scripts/test-verify-no-diff-fragments.sh
 

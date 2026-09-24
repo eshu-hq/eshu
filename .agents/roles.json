@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "models": {
+    "codex": {
+      "fast": {"model": "gpt-6-luna", "effort": "high"},
+      "workhorse": {"model": "gpt-5.6-terra", "effort": "high"},
+      "deep": {"model": "gpt-6-sol", "effort": "high"}
+    },
+    "claude": {
+      "fast": {"model": "haiku", "effort": "high"},
+      "workhorse": {"model": "sonnet", "effort": "high"},
+      "deep": {"model": "opus", "effort": "high"}
+    },
+    "muse": {
+      "fast": {"model": "muse-spark-1.3", "effort": "low"},
+      "workhorse": {"model": "muse-spark-1.3", "effort": "high"},
+      "deep": {"model": "muse-spark-1.3", "effort": "xhigh"}
+    }
+  },
+  "roles": {
+    "scan-eshu": {
+      "description": "Bounded read-only Eshu evidence scan; returns cited facts, not a verdict or fix.",
+      "tier": "fast",
+      "access": "read",
+      "instructions": "Gather only the requested evidence with file and line references. Return a compact handoff. Do not edit, run promotion gates, or decide merge readiness."
+    },
+    "develop-eshu": {
+      "description": "Implement one scoped Eshu handoff with focused proof; leave promotion and publication to the coordinator.",
+      "tier": "workhorse",
+      "access": "write",
+      "instructions": "Implement only the supplied bounded handoff, starting from its failing acceptance test. Load the project skills matching the touched surfaces. Run focused verification and report the exact commands and results. Leave make pre-push, make pre-pr, push, and PR updates to the coordinator."
+    },
+    "debug-eshu": {
+      "description": "Diagnose an unknown Eshu failure to evidence-backed root cause without editing.",
+      "tier": "workhorse",
+      "access": "read",
+      "skill": "eshu-diagnostic-rigor",
+      "instructions": "Establish the cause from a reproduction and observations. Return the cause, rejected hypotheses, remaining uncertainty, and an implementation handoff. Add concurrency-deadlock-rigor only for races, leases, queues, or shared-state ordering."
+    },
+    "debug-eshu-deep": {
+      "base": "debug-eshu",
+      "description": "Investigate a difficult cross-system or intermittent Eshu failure with deeper reasoning.",
+      "tier": "deep"
+    },
+    "perf-eshu": {
+      "description": "Measure an Eshu bottleneck or regression and hand off a proved change without editing.",
+      "tier": "workhorse",
+      "access": "read",
+      "skill": "eshu-performance-rigor",
+      "instructions": "Read docs/internal/performance-map.md. Measure comparable baseline and candidate evidence, then return the bottleneck, proof limits, and implementation handoff. Load eshu-diagnostic-rigor when the cause is unknown and concurrency-deadlock-rigor for contention. Do not edit or run promotion gates."
+    },
+    "perf-eshu-deep": {
+      "base": "perf-eshu",
+      "description": "Investigate a difficult Eshu performance cause or architecture decision with deeper reasoning.",
+      "tier": "deep"
+    },
+    "review-eshu": {
+      "description": "Review the final Eshu diff or PR readiness independently using eshu-code-review; read-only.",
+      "tier": "workhorse",
+      "access": "read",
+      "skill": "eshu-code-review",
+      "instructions": "Judge the final diff and current evidence independently. Load only the additional project skills matching the changed contracts. Deliver the eshu-code-review verdict without editing or running promotion gates."
+    }
+  }
+}
