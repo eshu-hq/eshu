@@ -316,7 +316,7 @@ func buildReducerService(
 		// instance is enough. This is the same projectedSourceEdgeStore
 		// instance the ProjectedSourceEdgeBackfiller above seeded at startup,
 		// mirroring the code-interproc ledger wiring
-		// (postgres.NewCodeInterprocProjectedEdgeStore) constructed earlier.
+		// (taintstore.NewCodeInterprocProjectedEdgeStore) constructed earlier.
 		ProjectedSourceLedger:              projectedSourceEdgeStore,
 		IAMCanAssumeEdgeWriter:             graphWriters.iamCanAssumeEdge,
 		S3LogsToEdgeWriter:                 graphWriters.s3LogsToEdge,

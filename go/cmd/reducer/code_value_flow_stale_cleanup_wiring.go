@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -22,8 +23,8 @@ func codeValueFlowStaleCleanupRunnerFor(
 	if !cfg.Enabled {
 		return nil
 	}
-	interprocLedger := postgres.NewCodeInterprocProjectedEdgeStore(database)
-	taintLedger := postgres.NewCodeTaintEvidenceProjectedNodeStore(database)
+	interprocLedger := taintstore.NewCodeInterprocProjectedEdgeStore(database)
+	taintLedger := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 	return &reducer.CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: postgres.NewCodeValueFlowCurrentGenerationStore(database),
 		TaintEvidence:      taintEvidence,

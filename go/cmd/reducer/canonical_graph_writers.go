@@ -17,6 +17,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -185,7 +186,7 @@ func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader quer
 	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
 	backfiller := taint.InterprocProjectedEdgeBackfiller{
 		Reader:      taint.InterprocProjectedEdgeBackfillReader{Graph: graphReader},
-		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
+		Ledger:      taintstore.NewCodeInterprocProjectedEdgeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
 			taint.InterprocEvidenceSource(),
@@ -197,7 +198,7 @@ func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader quer
 	}
 	taintNodeBackfiller := taint.ProjectedNodeBackfiller{
 		Reader:      taint.ProjectedNodeBackfillReader{Graph: graphReader},
-		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		Ledger:      taintstore.NewCodeTaintEvidenceProjectedNodeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
 			taint.EvidenceSource(),
