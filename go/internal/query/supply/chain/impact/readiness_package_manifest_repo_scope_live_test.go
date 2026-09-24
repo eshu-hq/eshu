@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,6 +87,20 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 		t.Fatalf("expected package_manifest_active to plan through fact_records_content_entity_dependency_variable_repo_idx, plan=%s", raw)
 	}
 
+	// #7007: package_dependency_gap_active has no repo_id-leading index (the
+	// gap kinds are rare, so none was added), so it must be bounded to the
+	// requested repository's own scope through ingestion_scopes.source_key,
+	// which the git collector mirrors to the repository id
+	// (TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID). Unbounded it
+	// probes fact_records once per active scope (~810 on ops-qa, 8s of the
+	// 8.1s readiness read). The local corpus is too small for the planner to
+	// pick the per-scope nested loop, so the proof is the plan-shape anchor,
+	// not a loop count: a regression that drops the predicate removes every
+	// source_key reference from the plan.
+	if !strings.Contains(string(raw), "source_key = '"+targetRepoID+"'") {
+		t.Fatalf("expected the dependency-gap read to anchor ingestion_scopes.source_key to %q, plan=%s", targetRepoID, raw)
+	}
+
 	// Correctness: the readiness snapshot's package.consumption family must
 	// count only the target repository's manifest-dependency facts, never
 	// leaking noise from the other seeded repositories.
@@ -95,6 +110,7 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 	}
 	defer func() { _ = rows.Close() }()
 	families := map[string]int{}
+	var unsupportedTargetsJSON sql.NullString
 	for rows.Next() {
 		var family string
 		var factCount int
@@ -106,12 +122,31 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 			t.Fatalf("scan: %v", err)
 		}
 		families[family] = factCount
+		if family == unsupportedTargetFamilyMarker {
+			unsupportedTargetsJSON = c
+		}
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("rows: %v", err)
 	}
 	if got := families["package.consumption"]; got != targetCount {
 		t.Fatalf("families[package.consumption] = %d, want %d (target repository's manifest-dependency facts only, no noise leakage)", got, targetCount)
+	}
+	// #7007: the dependency-gap read (package_dependency_gap_active) must
+	// report only the target repository's provenance-only dependency rows.
+	targets, err := decodeUnsupportedTargets(unsupportedTargetsJSON)
+	if err != nil {
+		t.Fatalf("decode unsupported targets: %v", err)
+	}
+	gapReasons := map[string]int{}
+	for _, target := range targets {
+		if target.TargetKind == "dependency_source" {
+			gapReasons[target.Reason] += target.Count
+		}
+	}
+	wantGaps := map[string]int{"vcs_dependency_unsupported": 1, "path_dependency_unsupported": 1}
+	if !reflect.DeepEqual(gapReasons, wantGaps) {
+		t.Fatalf("dependency_source unsupported targets = %v, want %v (target repository only, no noise leakage)", gapReasons, wantGaps)
 	}
 }
 
@@ -131,7 +166,7 @@ func seedPackageManifestRepoScopeCorpus(t *testing.T, ctx context.Context, db *s
 
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload)
-SELECT 'manifest-noise-scope-' || n, 'repository', 'git', 'manifest-noise-' || n, 'git', 'manifest-noise-' || n, clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb
+SELECT 'manifest-noise-scope-' || n, 'repository', 'git', 'repository:repo-manifest-scope-noise-' || n, 'git', 'repository:repo-manifest-scope-noise-' || n, clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb
 FROM generate_series(1, `+strconv.Itoa(seededNoiseRepos)+`) AS n;
 INSERT INTO scope_generations (scope_id, generation_id, trigger_kind, observed_at, ingested_at, status)
 SELECT 'manifest-noise-scope-' || n, 'manifest-noise-gen-' || n, 'sync', clock_timestamp(), clock_timestamp(), 'active'
@@ -150,13 +185,24 @@ SELECT 'manifest-noise-var-' || n || '-' || p,
          'entity_metadata', jsonb_build_object('config_kind', 'dependency')
        )
 FROM generate_series(1, `+strconv.Itoa(seededNoiseRepos)+`) AS n, generate_series(1, `+strconv.Itoa(factsPerNoiseRepo)+`) AS p;
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'manifest-noise-gap-' || n, 'manifest-noise-scope-' || n, 'manifest-noise-gen-' || n,
+       'content_entity', 'manifest-noise-gap-key-' || n, 'git', 'manifest-noise-gap-' || n,
+       clock_timestamp(), clock_timestamp(), FALSE,
+       jsonb_build_object(
+         'repo_id', 'repository:repo-manifest-scope-noise-' || n,
+         'entity_type', 'Variable',
+         'entity_name', 'GAP_NOISE',
+         'entity_metadata', jsonb_build_object('config_kind', 'vcs_dependency', 'package_manager', 'npm')
+       )
+FROM generate_series(1, `+strconv.Itoa(seededNoiseRepos)+`) AS n;
 `); err != nil {
 		t.Fatalf("seed noise manifest repositories: %v", err)
 	}
 
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload)
-VALUES ('manifest-target-scope', 'repository', 'git', 'manifest-target', 'git', 'manifest-target', clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb);
+VALUES ('manifest-target-scope', 'repository', 'git', '`+targetRepositoryIDLiteral+`', 'git', '`+targetRepositoryIDLiteral+`', clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb);
 INSERT INTO scope_generations (scope_id, generation_id, trigger_kind, observed_at, ingested_at, status)
 VALUES ('manifest-target-scope', 'manifest-target-gen', 'sync', clock_timestamp(), clock_timestamp(), 'active');
 UPDATE ingestion_scopes SET active_generation_id = 'manifest-target-gen' WHERE scope_id = 'manifest-target-scope';
@@ -177,6 +223,21 @@ SELECT 'manifest-target-var-' || p, 'manifest-target-scope', 'manifest-target-ge
 FROM generate_series(1, `+strconv.Itoa(targetManifestFactCount)+`) AS p;
 `, targetRepositoryIDLiteral); err != nil {
 		t.Fatalf("seed target manifest facts: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT 'manifest-target-gap-' || kind, 'manifest-target-scope', 'manifest-target-gen',
+       'content_entity', 'manifest-target-gap-key-' || kind, 'git', 'manifest-target-gap-' || kind,
+       clock_timestamp(), clock_timestamp(), FALSE,
+       jsonb_build_object(
+         'repo_id', $1::text,
+         'entity_type', 'Variable',
+         'entity_name', 'GAP_TARGET_' || kind,
+         'entity_metadata', jsonb_build_object('config_kind', kind, 'package_manager', 'npm')
+       )
+FROM unnest(ARRAY['vcs_dependency', 'path_dependency']) AS kind;
+`, targetRepositoryIDLiteral); err != nil {
+		t.Fatalf("seed target dependency-gap facts: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `
 ANALYZE fact_records;
