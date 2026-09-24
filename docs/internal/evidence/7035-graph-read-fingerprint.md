@@ -7,8 +7,15 @@ read, and adds it plus a bounded statement head to the
 `query.graph_read.warning` log for slow/deadline/unavailable outcomes. The
 slow threshold also became configurable
 (`ESHU_GRAPH_READ_SLOW_THRESHOLD`, registered in
-`go/internal/envregistry/entries.go`), which is what puts this change on the
-performance-evidence gate's hot-path scan (it flags `ESHU_GRAPH_*` names).
+`go/internal/envregistry/entries.go`).
+
+This change reaches the performance-evidence gate's content scan by file
+granularity, not because it alters a hot path: the scan matches whole changed
+`.go` files, and `entries.go` (an unrelated existing "Heartbeat" description),
+`neo4j_read_policy_fingerprint_test.go` and `neo4j_read_policy_telemetry_test.go`
+(Cypher strings in test fixtures) each contain a pattern the scan looks for.
+The evidence below is therefore the honest measurement for a read-path
+change, recorded so the gate has its markers.
 
 ## No-Regression Evidence
 
@@ -19,11 +26,12 @@ of row count, backend, or network round trip, computed once per `runRead`
 call regardless of outcome. It never touches parameters, never re-runs the
 statement, and adds no retry, lock, or backend round trip.
 
-Measured on an Apple M5 Max (`darwin/arm64`), comparing this branch's commit
-`8d699a67a6` (first fingerprint commit) against its parent `0d1647f4c1`
-(`origin/main` at the time of the PR) via a detached `git worktree add` of the
-parent commit, so both sides build from the identical `neo4j_read_policy_bench_test.go`
-harness:
+Measured on an Apple M5 Max (`darwin/arm64`), comparing this branch's code
+against `origin/main` (`0d1647f4c1` for the first two runs, `6ef17e7a47` for the
+re-run below) via a detached `git worktree add` of that commit. The benchmark harness differs by one line: this branch's
+`benchmarkUnboundedReaderRead` also calls `graphStatementFingerprint`, so the
+control shape does the same per-read work as the production path; the parent
+runs its own unchanged harness:
 
 ```
 go test ./internal/query -run '^$' -bench 'BenchmarkNeo4jReaderHealthyPolicyOverhead' \
@@ -42,9 +50,10 @@ backend):
 
 The ns/op deltas are not a reliable signal here: whichever side runs first in
 a process is consistently ~300-650ns slower than the same side run second
-(warm-up/JIT/allocator-arena effects), which swamps a sub-100ns fingerprint
-cost on this microbenchmark's ~1-2us scale -- the "before" shape is slower
-than "after" in the first-mover order and faster in the second-mover order.
+(warm-up and allocator effects were not isolated), so the ns/op medians do
+not resolve the fingerprint's cost on this microbenchmark's ~1-2us scale --
+the "before" shape is slower than "after" in the first-mover order and faster
+in the second-mover order.
 The allocation counts are the reliable signal instead: they are exactly
 reproduced across all four independent runs (both orders) with zero variance,
 and isolate precisely the fingerprint's fixed cost: **+280 B/op and +4
@@ -62,6 +71,11 @@ benchmark's mocked session has no real backend round trip). No worker count,
 lease, batch size, or concurrency knob changed; this is a pure per-read
 constant-cost addition on the existing single-read path, not a new
 serialization point.
+
+Re-run on the branch rebased onto `6ef17e7a47` (both orders, three samples per
+shape per side): allocations are unchanged (+280 B/op, +4 allocs/op for both
+shapes) and the before/after ns/op ranges overlap (unbounded 829-1196 vs
+746-1059; bounded 1080-1368 vs 993-1272).
 
 Focused proof: `cd go && env -u GOROOT go test ./internal/query -count=1` (all
 `neo4j_read_policy*` tests, including the new fingerprint/threshold suite)
