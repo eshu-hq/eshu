@@ -218,7 +218,7 @@ func authMiddlewareWithRoutePolicy(
 		}
 
 		if resolver != nil {
-			auth, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
+			authCtx, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
 			if err != nil {
 				// Rows 5/6/7/11: augment ONLY when the resolver signals the
 				// credential was never a recognized issued token
@@ -237,7 +237,7 @@ func authMiddlewareWithRoutePolicy(
 				return
 			}
 			if ok {
-				auth = normalizeAuthContext(auth)
+				authCtx = normalizeAuthContext(authCtx)
 				// #6450 residual item 1: allowlist membership used to be the
 				// whole bearer gate, so a bearer carrying AllScopes entered
 				// every grant-bound route with its grant predicate inert and
@@ -245,9 +245,9 @@ func authMiddlewareWithRoutePolicy(
 				// holds it to the same route policy the cookie session branch
 				// below applies, and says which of the two refusals it is so
 				// the audit row is actionable.
-				if auth.Mode == AuthModeScoped {
-					if reason := scopedBearerRouteDenialReason(r, auth, policy); reason != "" {
-						recordScopedRouteAuthorizationDeniedWithReason(r, audit, auth, reason)
+				if authCtx.Mode == AuthModeScoped {
+					if reason := scopedBearerRouteDenialReason(r, authCtx, policy); reason != "" {
+						recordScopedRouteAuthorizationDeniedWithReason(r, audit, authCtx, reason)
 						scopedRouteDeniedResponse(w, r)
 						return
 					}
@@ -258,8 +258,8 @@ func authMiddlewareWithRoutePolicy(
 				// allowedAudit is nil (every caller except the mcp-server
 				// transport middleware), so this is byte-identical to today for
 				// every other constructor.
-				recordScopedReadAuthorized(r, allowedAudit, auth)
-				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
+				recordScopedReadAuthorized(r, allowedAudit, authCtx)
+				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), authCtx)))
 				return
 			}
 		}

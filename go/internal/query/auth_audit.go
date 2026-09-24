@@ -287,7 +287,7 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 // middleware (see cmd/mcp-server/wiring.go), so this is a no-op — byte
 // identical to today — everywhere else, including cmd/api and the
 // /api/v0/* authedHandler mcp-server also builds.
-func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditAppender, auth AuthContext) {
+func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditAppender, authCtx AuthContext) {
 	if allowedAudit == nil {
 		return
 	}
@@ -300,22 +300,22 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	// event would take its whole flush batch of well-formed allowed-read
 	// events down with it in the async appender's drain. Downgrading to
 	// anonymous keeps the event valid.
-	actorClass := actorClassForAuth(auth)
-	if auth.SubjectIDHash == "" {
+	actorClass := actorClassForAuth(authCtx)
+	if authCtx.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         actorClass,
-		ActorIDHash:        auth.SubjectIDHash,
+		ActorIDHash:        authCtx.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionAllowed,
 		ReasonCode:         "scoped_read_allowed",
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
+		PolicyRevisionHash: authCtx.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
+		TenantID:           authCtx.TenantID,
+		WorkspaceID:        authCtx.WorkspaceID,
 	}
 	_ = allowedAudit.Append(r.Context(), []governanceaudit.Event{event})
 }
