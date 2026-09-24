@@ -113,7 +113,7 @@ No-Regression Evidence: classifying a bare `CREATE`/`DROP INDEX CONCURRENTLY` st
 from `lock_timeout`/`RetryOnLockTimeout` entirely instead of changing that
 loop's behavior; every other statement shape is untouched (same
 `lock_timeout`, same retry policy, proven by
-`TestConcurrentIndexBuildLockTimeout`'s non-CIC case returning the caller's
+`TestConcurrentIndexBuildPlan`'s non-CIC case returning the caller's
 unmodified bound, and by the unchanged
 `TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive` /
 coordination package tests, all still green). No SQL query shape, index
