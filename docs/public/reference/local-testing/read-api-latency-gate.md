@@ -170,22 +170,41 @@ check (everything except `backend` itself) passes. Run the legs
 **sequentially, never concurrently** — they share the live-gate lock and
 fixed host ports.
 
+Remove each leg's report before running it: `|| true` below lets a leg
+continue past a budget breach so its report still lands, but a leg that
+fails BEFORE it gets to writing the report (a seed failure, `eshu-api` never
+coming up) writes nothing at all, and a stale report left over from an
+earlier run at that same path would then be silently compared as if it were
+this run's data. Removing it first turns that failure mode into a loud one:
+`compare-backend-latency.sh` (or the sentinel check below) fails on a missing
+or malformed file instead of quietly comparing against old numbers.
+
 ```bash
 # Leg A: NornicDB, 5 runs (1 cold + 4 warm).
+rm -f /tmp/nornicdb.json
 ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/nornicdb.json \
   bash scripts/verify-read-api-latency-gate.sh || true  # a budget breach is not a reason to stop; the report still landed
 
 # Leg B: Neo4j, 5 runs, same corpus and binary.
+rm -f /tmp/neo4j.json
 ESHU_GRAPH_BACKEND=neo4j GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/neo4j.json \
   bash scripts/verify-read-api-latency-gate.sh || true
 
-# Drift sentinel: a second, one-run NornicDB leg. If its per-route latency
-# falls outside leg A's own per-run p95 band (LatencyReportWarmStats'
-# run_p95_min_ms/run_p95_max_ms in nornicdb.json), the host moved under the
-# comparison and the A/B pair below is unreliable regardless of backend.
-ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=1 \
+# Drift sentinel: a second NornicDB leg with GATE_RUNS=2 -- one cold run plus
+# ONE warm run, just enough for the report to carry a warm p95
+# (LatencyReportWarmStats.p95_ms). Compare that single value by hand against
+# leg A's own per-run p95 BAND (run_p95_min_ms..run_p95_max_ms in
+# nornicdb.json, the spread across A's 4 warm runs): if the sentinel's p95
+# falls outside that band, the host moved under the comparison and the A/B
+# pair below is unreliable regardless of backend. This is a manual check
+# against the two JSON files, not something compare-backend-latency.sh runs
+# for you -- it refuses any report with runs < 3 (see below), and the
+# sentinel deliberately stays under that floor so it costs one extra run
+# instead of another full 5-run leg.
+rm -f /tmp/nornicdb-sentinel.json
+ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=2 \
   GATE_LATENCY_REPORT=/tmp/nornicdb-sentinel.json \
   bash scripts/verify-read-api-latency-gate.sh || true
 
@@ -194,13 +213,14 @@ bash scripts/compare-backend-latency.sh /tmp/nornicdb.json /tmp/neo4j.json
 
 `compare-backend-latency.sh` refuses (exit 2, naming the field) to compare
 two reports whose seed sizing, iteration/warmup count, eshu commit, or
-`eshu-api` binary sha256 differ, and refuses either leg with fewer than 3
-runs. A route whose HTTP status or per-request Postgres work
-(calls/blks/rows) differs between the two legs is listed `NON-COMPARABLE`
-instead of having its latency compared — that route did different work on
-the two backends, and a latency ratio between two different queries proves
-nothing about the backends. Any per-route gap over 10% between backends is a
-finding to name in the PR, not evidence the harness is broken.
+`eshu-api` binary sha256 differ, and refuses either leg (A or B; not the
+sentinel, which is never passed to it) with fewer than 3 runs. A route whose
+HTTP status or per-request Postgres work (calls/blks/rows) differs between
+the two legs is listed `NON-COMPARABLE` instead of having its latency
+compared — that route did different work on the two backends, and a latency
+ratio between two different queries proves nothing about the backends. Any
+per-route gap over 10% between backends is a finding to name in the PR, not
+evidence the harness is broken.
 
 Record the rendered table, both backend image digests, the commit, the
 `eshu-api` binary sha256, seed options, `GATE_RUNS`/`GATE_ITERATIONS`/
