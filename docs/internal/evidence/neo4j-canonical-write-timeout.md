@@ -172,8 +172,11 @@ RED before the change, GREEN after:
   it returned a retryable `graph_write_timeout` after 2.00s, on a freshly
   started server (the seed and cleanup writes go through an unbounded
   executor, so a cold server cannot time them out). With `boundNeo4jWrites`
-  mutated to a passthrough, the same test failed on a terminal
-  `LockClientStopped` after 2.67s.
+  mutated to a passthrough, the test fails after about 2.25s because the error
+  is a retryable `LockClientStopped` rather than a `GraphWriteTimeoutError`:
+  the test tells the two apart by error type, not by queue outcome. (On the
+  earlier revision, before `LockClientStopped` requeued, the same mutant failed
+  on a terminal `LockClientStopped`.)
 - `TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite`, run against
   `neo4j:2026-community` with `ESHU_CANONICAL_WRITE_TIMEOUT=2s` through the
   production `newReducerNeo4jExecutor` seam:
