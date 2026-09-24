@@ -33,17 +33,17 @@ import (
 // The tests below need no Postgres. Both exported functions take a
 // db.ExecQueryer, so fakeCredentialDB stands in for the connection and
 // records every statement they drive, including the INSERT the real
-// pgstorage.GovernanceAuditStore issues. Asserting on that INSERT rather than
+// auditstore.GovernanceAuditStore issues. Asserting on that INSERT rather than
 // on a stubbed appender keeps governanceaudit.NormalizeEvent in the path: an
 // event it rejects never reaches ExecContext, and Append's error is discarded
 // by the fire-and-forget call site, so a rejected event looks exactly like a
 // missing one here — which is the same way it looks in production.
 
 // Column positions in insertGovernanceAuditEventsPrefix's 15-column list
-// (governance_audit_store.go). Reading the recorded args positionally couples
-// this file to that column order on purpose: a reordering that silently
-// changed which value lands in reason_code should break a test, and
-// wantExactlyOneAuditEvent asserts the column count too.
+// (storage/postgres/governance/audit/store.go). Reading the recorded args
+// positionally couples this file to that column order on purpose: a
+// reordering that silently changed which value lands in reason_code should
+// break a test, and wantExactlyOneAuditEvent asserts the column count too.
 const (
 	governanceAuditColumnCount         = 15
 	governanceAuditDecisionColumnIndex = 7

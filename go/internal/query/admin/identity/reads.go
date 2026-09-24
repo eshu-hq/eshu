@@ -20,8 +20,8 @@ const maxAuditEventLimit = 500
 
 // defaultAuditEventLimit is the effective page size when the caller omits
 // limit. It mirrors defaultGovernanceAuditLimit in
-// internal/storage/postgres/governance_audit_store.go so the handler can report
-// truncation against the limit the store actually applies.
+// internal/storage/postgres/governance/audit/store.go so the handler can
+// report truncation against the limit the store actually applies.
 const defaultAuditEventLimit = 100
 
 // identityListLimit is the LIMIT applied by every tenant-scoped admin

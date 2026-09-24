@@ -45,7 +45,7 @@
   audits in its exported wrapper, once, on every return of the unexported
   worker. Deleting either audit call makes those six tests fail by name. Do not weaken them into
   assertions on a stubbed appender — going through the real
-  `pgstorage.GovernanceAuditStore` is what keeps
+  `auditstore.GovernanceAuditStore` is what keeps
   `governanceaudit.NormalizeEvent` in the path, and a rejected event is
   indistinguishable from a missing one because `Append`'s error is
   discarded.

@@ -35,7 +35,7 @@ func (w *discardResponseWriter) WriteHeader(int) {}
 // AsyncAppender's enqueue-side cost only (the design addendum's "AuditOnAsync
 // (null/in-memory sink)"), never a real Postgres round trip — that
 // synchronous cost is Bench B, in
-// go/internal/storage/postgres/governance_audit_append_bench_test.go.
+// go/internal/storage/postgres/governance/audit/append_bench_test.go.
 type benchAllowedReadNullSink struct{}
 
 func (benchAllowedReadNullSink) Append(context.Context, []governanceaudit.Event) error {

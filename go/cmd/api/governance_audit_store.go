@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -38,5 +39,5 @@ func newGovernanceAuditStore(
 			StoreName:   "governance_audit",
 		}
 	}
-	return pgstatus.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger)
+	return auditstore.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger)
 }

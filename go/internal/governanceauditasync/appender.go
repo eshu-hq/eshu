@@ -43,9 +43,9 @@ const (
 var ErrShutdownFlushIncomplete = errors.New("governanceauditasync: shutdown flush did not complete before timeout")
 
 // Appender is the durable sink AsyncAppender flushes batches to. The
-// production sink is storage/postgres.GovernanceAuditStore. This interface is
-// structurally identical to query.GovernanceAuditAppender so this package
-// does not need to import query.
+// production sink is storage/postgres/governance/audit.GovernanceAuditStore.
+// This interface is structurally identical to query.GovernanceAuditAppender
+// so this package does not need to import query.
 type Appender interface {
 	Append(ctx context.Context, events []governanceaudit.Event) error
 }

@@ -301,10 +301,10 @@ its name says. Then Go's package rules decide the form:
 | form | tests | when |
 | --- | ---: | --- |
 | in-package test | 373 | it only needs its own package and packages below it |
-| external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
+| external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 88 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 40 | it reads private symbols of two or more future packages |
-| stays in root | 73 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root | 74 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -348,7 +348,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 10. [x] `vulnerability/` (1 file)
 11. [x] `cloud/aws/` (2 files)
 12. [x] `code/taint/` (2 files)
-13. [ ] `governance/audit/` (2 files)
+13. [x] `governance/audit/` (2 files)
 14. [ ] `graph/owner/` (2 files)
 15. [ ] `queue/` (2 files)
 16. [ ] `admission/` (3 files)
@@ -419,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 113 | ok |
+| `storage/postgres` (root) | 4 | 114 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 1 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -444,7 +444,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `freshness/gcp/` | 3 | 2 | ok |
 | `freshness/incident/` | 3 | 1 | ok |
 | `generation/` | 11 | 21 | ok |
-| `governance/audit/` | 2 | 5 | ok |
+| `governance/audit/` | 2 | 4 | ok |
 | `graph/` | 1 | 1 | ok |
 | `graph/owner/` | 2 | 3 | ok |
 | `iac/` | 1 | 1 | ok |

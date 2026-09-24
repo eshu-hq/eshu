@@ -264,7 +264,7 @@ require_workflow_path "collector extraction readiness catalog (#5538)" "go/inter
 # query/status_governance.go imports governanceaudit directly and calls
 # GovernanceAudit.Summary() to fill get_hosted_governance_status.audit.
 # cmd/api/wiring_router.go and cmd/mcp-server/wiring_router.go both wire a
-# real store (newGovernanceAuditStore / pgstatus.NewGovernanceAuditStore)
+# real store (newGovernanceAuditStore / auditstore.NewGovernanceAuditStore)
 # unconditionally -- no opt-in flag gates it, unlike governanceauditasync
 # (excluded below: that async sink only fires behind a scoped-token/OIDC-bearer
 # read this gate's static ESHU_API_KEY auth never resolves).

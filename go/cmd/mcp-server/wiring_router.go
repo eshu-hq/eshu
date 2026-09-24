@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -83,7 +84,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
 	}
 	if governanceAudit == nil && db != nil {
-		governanceAudit = pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
+		governanceAudit = auditstore.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore

@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package auditstore
 
 import (
 	"context"
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 // governanceAuditScanRow builds one stored governance_audit_events row in the
@@ -35,11 +37,21 @@ func governanceAuditScanRow(eventType, actorClass, scopeClass, decision string) 
 
 func listGovernanceAuditRows(t *testing.T, rows ...[]any) ([]governanceaudit.Event, error) {
 	t.Helper()
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: rows}}}
-	return NewGovernanceAuditStore(db).List(context.Background(), GovernanceAuditQuery{
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: rows}}}
+	return NewGovernanceAuditStore(database).List(context.Background(), GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		Limit:              25,
 	})
+}
+
+// governanceAuditStoreTestTime mirrors the copy of the same name in root's
+// governance_audit_store_test.go, which stays in the parent postgres package
+// because it asserts root's BootstrapDefinitions()/orderedBootstrapDefinitionNames.
+// Both copies return the identical fixed instant; this package's tests do not
+// share state with root's, so duplicating this 3-line pure helper is the
+// smallest fix for the cross-package split rather than a real logic change.
+func governanceAuditStoreTestTime() time.Time {
+	return time.Date(2026, time.June, 9, 17, 0, 0, 0, time.UTC)
 }
 
 // TestGovernanceAuditStoreListKeepsUnknownEnumValuesVerbatim is the #6574
@@ -146,8 +158,8 @@ func TestGovernanceAuditStoreListStillRejectsUnsafeStoredRows(t *testing.T) {
 func TestGovernanceAuditStoreAppendRejectsUnknownActorClass(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{}
-	err := NewGovernanceAuditStore(db).Append(context.Background(), []governanceaudit.Event{{
+	database := &fake.ExecQueryer{}
+	err := NewGovernanceAuditStore(database).Append(context.Background(), []governanceaudit.Event{{
 		Type:        governanceaudit.EventTypeReadAuthorization,
 		ActorClass:  "future_class",
 		ActorIDHash: "sha256:aaaaaaaaaaaaaaaa",
@@ -159,7 +171,7 @@ func TestGovernanceAuditStoreAppendRejectsUnknownActorClass(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "actor_class") {
 		t.Fatalf("Append error = %v, want actor_class rejection", err)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("Append executed %d statements, want 0", len(db.execs))
+	if len(database.Execs) != 0 {
+		t.Fatalf("Append executed %d statements, want 0", len(database.Execs))
 	}
 }

@@ -17,6 +17,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 )
 
 func TestSeedInitialAdminNegativeLeakage(t *testing.T) {
@@ -94,7 +95,7 @@ func fakeSeedExecsContain(execs []string, substr string) bool {
 // persist. Every other audit test in this file uses fakeAuditAppender,
 // which only captures whatever Append receives directly — it never runs
 // governanceaudit.NormalizeEvent, so it cannot catch an event the real
-// pgstorage.GovernanceAuditStore would silently reject and drop (Append's
+// auditstore.GovernanceAuditStore would silently reject and drop (Append's
 // error is always discarded via `_ = appender.Append(...)`, matching
 // query.LocalIdentityHandler's established fire-and-forget convention).
 // NormalizeEvent requires a non-zero OccurredAt; skipped unless a DSN is
@@ -126,7 +127,7 @@ func TestSeedInitialAdminAuditEventsPersistToRealGovernanceAuditStore(t *testing
 	}
 
 	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" // base64 of 32 raw bytes
-	store := pgstorage.NewGovernanceAuditStore(pgstorage.SQLDB{DB: db})
+	store := auditstore.NewGovernanceAuditStore(pgstorage.SQLDB{DB: db})
 	identityDB := pgstorage.SQLDB{DB: db}
 	err = seedInitialAdmin(ctx, identityDB, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
@@ -140,7 +141,7 @@ func TestSeedInitialAdminAuditEventsPersistToRealGovernanceAuditStore(t *testing
 		t.Fatal("banner not written")
 	}
 
-	modeEvents, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	modeEvents, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapAuditReasonModeGenerated,
 	})
@@ -154,7 +155,7 @@ func TestSeedInitialAdminAuditEventsPersistToRealGovernanceAuditStore(t *testing
 		t.Fatal("persisted mode-choice event OccurredAt is zero")
 	}
 
-	generatedEvents, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	generatedEvents, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapAuditReasonGenerated,
 	})

@@ -33,8 +33,8 @@ What that boundary means concretely, verified against the non-test source:
   directly and hands `os.Getenv` to `secretcrypto.KeyringFromEnv`, which is
   what reaches the encryption-key variables. The same holds transitively for the call paths this
   package reaches — `query.IdentityHash`, `secretcrypto`'s `Seal`/`Open`/
-  `EnvelopeKeyID`, `governanceaudit`, and the `pgstorage`
-  `IdentitySubjectStore`/`GovernanceAuditStore` methods used here contain no
+  `EnvelopeKeyID`, `governanceaudit`, `pgstorage.IdentitySubjectStore` and
+  `auditstore.GovernanceAuditStore` methods used here contain no
   environment read either.
 - **Binaries executed: none.** No `os/exec` import, so `PATH` is never
   consulted.
@@ -116,9 +116,9 @@ See `doc.go` for the godoc-rendered contract.
 
 ## Dependencies
 
-- `internal/storage/postgres` — `ExecQueryer`, `IdentitySubjectStore`,
-  `GovernanceAuditStore`, the bootstrap tenant/workspace constants, and
-  `ErrBootstrapCredentialNotFound`
+- `internal/storage/postgres` — `ExecQueryer`, `IdentitySubjectStore`, the
+  bootstrap tenant/workspace constants, and `ErrBootstrapCredentialNotFound`
+- `internal/storage/postgres/governance/audit` — `GovernanceAuditStore`
 - `internal/secretcrypto` — `Keyring.Seal`/`Open`, `EnvelopeKeyID`,
   `ErrDecrypt`
 - `internal/query` — `IdentityHash` and the `GovernanceAuditAppender`

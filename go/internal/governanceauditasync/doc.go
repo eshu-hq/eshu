@@ -7,9 +7,9 @@
 //
 // AsyncAppender buffers governanceaudit.Event values in a bounded channel and
 // flushes them to a durable Appender (the production sink is
-// storage/postgres.GovernanceAuditStore) from a single background worker.
-// Enqueue never blocks: a full buffer drops the event and increments a
-// counter instead of applying backpressure to the caller. See the F-9
+// storage/postgres/governance/audit.GovernanceAuditStore) from a single
+// background worker. Enqueue never blocks: a full buffer drops the event and
+// increments a counter instead of applying backpressure to the caller. See the F-9
 // (#5170) design addendum for the load-bearing latency measurements that
 // justify this design over a synchronous append.
 package governanceauditasync

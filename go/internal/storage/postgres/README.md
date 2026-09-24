@@ -43,7 +43,7 @@ flowchart TB
   C --> J["decisionsstore.DecisionStore + AdmissionDecisionStore\nprojection and admission decisions"]
   C --> K["RecoveryStore\nreplay/count dead_letter / failed\nwork items + collector generation DLQ/status"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
-  C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
+  C --> M["auditstore.GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
   C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
   C --> P["CodeReachabilityStore\ncode_reachability_rows\nactive-generation lookup"]
   E --> O["Beginner.Begin\natomic ack transaction:\nlocal lock_timeout → update scope → mark owned work succeeded → supersede obsolete terminal → supersede active → activate"]
@@ -139,7 +139,7 @@ High-signal invariants for this package:
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
   conflict keys so stale workers or replayed deliveries cannot overwrite newer
   durable truth.
-- `GovernanceAuditStore` validates writes with `governanceaudit.NormalizeEvent`
+- `auditstore.GovernanceAuditStore` validates writes with `governanceaudit.NormalizeEvent`
   and reads with `NormalizeStoredEvent` (unknown value kept, warned once per
   field per `List`, #6574), derives the event id from the safe fields, dedupes
   retries with `ON CONFLICT DO NOTHING`, and stores no raw principal, source
