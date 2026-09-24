@@ -6,9 +6,10 @@ The request-scoped authorization bounds a query handler enforces: which mode
 authenticated the caller, which tenant and workspace they belong to, and which
 scope and repository ids they may read. Plus the context slot those bounds
 travel in, the permission-catalog predicates a handler asks before serving,
-and (#6642) the browser-session cookie/type shapes, session-timeout
-resolution, read-only sign-in policy, and audit-actor classification the
-local-identity and setup family moves need.
+and (#6642) the read-only sign-in policy and audit-actor classification
+the local-identity and setup family moves need. The browser-session
+cookie/type shapes and session-timeout resolution moved to package
+`session` (`internal/query/auth/session`, #6818 move 4a).
 
 ## Ownership boundary
 
@@ -21,9 +22,9 @@ already authenticated, plus the wire shapes those handlers exchange.
 
 | Subject | File here | What root keeps |
 | --- | --- | --- |
-| Browser session cookies | `session_cookies.go` | exported const/type aliases and function forwarders |
-| Browser session wire types | `browser_session_types.go` | exported type aliases and function forwarders |
-| Session timeout resolution | `session_timeouts.go` | function forwarder |
+| Browser session cookies | `auth/session/cookies.go` (#6818 move 4a) | exported const/type aliases and function forwarders |
+| Browser session wire types | `auth/session/browser_types.go` (#6818 move 4a) | exported type aliases and function forwarders |
+| Session timeout resolution | `auth/session/timeouts.go` (#6818 move 4a) | function forwarder |
 | Read-only sign-in policy | `sign_in_policy.go` | exported type aliases; root keeps the write-side `SignInPolicyUpdateRequest`/`SignInPolicyMutationStore`/sentinel errors, which no hoisted symbol needs |
 | Audit actor classification | `audit_actor.go` | exported type alias and function forwarder |
 
@@ -37,14 +38,16 @@ here -- see [doc.go](doc.go) for why, and `querycontract.WriteUnauthorized` /
 `ContextWithAuthContext`, and `CleanedStrings`. The permission-catalog
 surface: `AllowsPermissionFeature`, `AllowsPermissionDataClasses`,
 `PermissionFeatureAskSearch`, and `PermissionDataClassesAskSearch`. The
-#6642 surface: `CookieSecureMode` and its constants/validators,
-`BrowserSessionCookieName` and its siblings, `DefaultBrowserSessionIdleTimeout`,
-`DefaultBrowserSessionAbsoluteTimeout`, `BrowserSessionSecretHash`,
-`WriteBrowserSessionCookies`, `BrowserSessionStore`,
-`BrowserSessionCreateRecord`, `BrowserSessionResponse`,
-`BrowserSessionAuthResponse`, `NormalizeBrowserSessionAuthContext`,
-`BrowserSessionAuthResponseFor`, `ResolveSessionTimeouts`, `SignInPolicy`,
-`SignInPolicyReadStore`, `GovernanceAuditAppender`, and `ActorClassForAuth`.
+#6642 surface: `SignInPolicy`, `SignInPolicyReadStore`,
+`GovernanceAuditAppender`, and `ActorClassForAuth`. The #6642 session
+surface (`CookieSecureMode` and its constants/validators,
+`BrowserSessionCookieName` and its siblings,
+`DefaultBrowserSessionIdleTimeout`, `DefaultBrowserSessionAbsoluteTimeout`,
+`BrowserSessionSecretHash`, `WriteBrowserSessionCookies`,
+`BrowserSessionStore`, `BrowserSessionCreateRecord`,
+`BrowserSessionResponse`, `BrowserSessionAuthResponse`,
+`NormalizeBrowserSessionAuthContext`, `BrowserSessionAuthResponseFor`,
+`ResolveSessionTimeouts`) moved to package `session` (#6818 move 4a).
 See [doc.go](doc.go).
 
 ## Dependencies

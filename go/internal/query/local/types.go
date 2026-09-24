@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 )
 
 // IdentityStore is the query-layer port for hash-only local identity
@@ -211,10 +211,10 @@ type IdentityBreakGlassAttempt struct {
 
 // IdentitySessionResponse is returned after successful local login.
 type IdentitySessionResponse struct {
-	Status            string                               `json:"status"`
-	Auth              queryauth.BrowserSessionAuthResponse `json:"auth,omitempty"`
-	CSRFToken         string                               `json:"csrf_token,omitempty"`
-	IdleExpiresAt     time.Time                            `json:"idle_expires_at,omitempty"`
-	AbsoluteExpiresAt time.Time                            `json:"absolute_expires_at,omitempty"`
-	LockedUntil       time.Time                            `json:"locked_until,omitempty"`
+	Status            string                             `json:"status"`
+	Auth              session.BrowserSessionAuthResponse `json:"auth,omitempty"`
+	CSRFToken         string                             `json:"csrf_token,omitempty"`
+	IdleExpiresAt     time.Time                          `json:"idle_expires_at,omitempty"`
+	AbsoluteExpiresAt time.Time                          `json:"absolute_expires_at,omitempty"`
+	LockedUntil       time.Time                          `json:"locked_until,omitempty"`
 }

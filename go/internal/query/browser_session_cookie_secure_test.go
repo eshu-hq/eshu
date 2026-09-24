@@ -85,10 +85,11 @@ func TestValidateCookieSecureMode(t *testing.T) {
 }
 
 // TestBrowserSessionCookieSecure moved to
-// internal/query/queryauth/session_cookies_test.go under the same name
-// (#6642): browserSessionCookieSecure, the unexported function it tests,
-// moved to queryauth alongside CookieSecureMode and
-// WriteBrowserSessionCookies and has no root forwarder.
+// internal/query/auth/session/cookies_test.go under the same name
+// (#6642, moved from queryauth by #6818): browserSessionCookieSecure, the
+// unexported function it tests, moved to session alongside
+// CookieSecureMode and WriteBrowserSessionCookies and has no root
+// forwarder.
 
 // TestBrowserSessionHandlerCreateRelaxesSecureOnPlainHTTPLoopback proves the
 // end-to-end #4964 regression through the real handler path (not a

@@ -264,3 +264,64 @@ No-Observability-Change: no span name, attribute, registered metric, or
 log line changes; the one meter rename is test-only instrumentation.
 `TestResolveWorkloadSelectorOperationLabel` still passes: the emitted
 `deployment_trace_selector` operation literal is untouched.
+
+## Performance and observability evidence for the `session` leaf (move 4a)
+
+No-Regression Evidence: 4 files move from `query/queryauth/` to
+`query/auth/session/` (new intermediate dir), package clause `queryauth`
+to `session`: `browser_session_types.go` → `browser_types.go`,
+`session_cookies.go` → `cookies.go` (+ test), `session_timeouts.go` →
+`timeouts.go` (the `session_` prefix strip the filename-stutter gate
+requires inside a `session/` leaf; `browser_session_types.go` drops the
+middle `session` word for the same rule). `queryauth` keeps `AuthContext`,
+`AuthMode`, the context key, and the sign-in policy shape; the moved
+files name them `queryauth.`-qualified (6 identifiers:
+`AuthContext`, `AuthMode`, `AuthModeScoped`, `AuthModeBrowserSession`,
+`NormalizeAuthContext`, `SignInPolicyReadStore`), so `session` imports
+`queryauth` and no cycle exists (proven: no staying file references a
+moved symbol). 8 external files repoint `queryauth.Session*` qualifiers
+to `session.` (a ninth, `local_identity_alias.go`, needed only a
+comment-qualifier touch); root `query` keeps its aliases/forwarders
+spelling `session.` names. No call site, argument, or behavior change.
+
+Moved-file blob pairs (before → after):
+
+- `browser_session_types.go` `f0507f7a` → `browser_types.go`
+  `3712c8fb` (package clause, queryauth import add, 10 qualifier
+  occurrences on 9 lines incl. 2 in doc comments, plus one gofumpt
+  import resort)
+- `session_cookies.go` `3e8abb9f` → `cookies.go` `01e540aa`
+  (package clause only)
+- `session_cookies_test.go` `931c80dd` → `cookies_test.go`
+  `3f9c12ab` (package clause only)
+- `session_timeouts.go` `50d7cf05` → `timeouts.go` `59bab1eb`
+  (package clause, queryauth import add, 1 qualification site)
+
+Stale home prose (`lives in queryauth`) repointed to `session` in the
+touched alias/forwarder files only where the named symbol moved;
+`AuthContext`, `GovernanceAuditAppender`, and `SignInPolicyReadStore`
+comments correctly still name `queryauth`. New `doc.go`/`README.md`/
+`AGENTS.md` trio for `session` carries the cookie-pairing (#4964),
+timeout (#4968), single-key, and no-querycontract-cycle invariants;
+`queryauth/doc.go` records the relocation.
+
+`scripts/verify-performance-evidence.sh` passes (exit 0): no
+Cypher/concurrency/runtime change, so no benchmark applies — the moved
+bodies are identical up to the qualifier, and the call graph is
+unchanged. No `query-source-coverage.yaml`, `hot-cypher.yaml`,
+live-tests spec, parity-ledger, telemetry-coverage, golden-snapshot, or
+public-doc row names a moved path (swept: zero hits), and no dated
+evidence/design doc does either, so no pin refresh and no allowlist row.
+`go build ./...` and `go vet ./...` exit 0;
+`go test ./internal/query/... ./internal/oidcbearer ./internal/scopedtoken -count=1`
+passes with no failures (19 run-lines in `session`, real case counts);
+`go test ./internal/queryplan/ -count=1` passes with no pin drift;
+`go test -list '.*' ./internal/query/auth/session/` discovers the moved
+cookie test. `scripts/verify-moved-file-refs.sh` reports 4 vacated Go
+paths against base `aaa5273a` with no dangling references (no dated doc
+names a moved path, so no allowlist row);
+`scripts/verify-package-docs.sh` reports the new `session` doc trio
+present; `scripts/verify-performance-evidence.sh` passes (exit 0).
+
+No-Observability-Change: no span name, attribute, registered metric, or
+log line changes; the move touches no telemetry emission point.

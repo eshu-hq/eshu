@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -64,14 +65,14 @@ const (
 )
 
 // Compatibility constants preserve this package's public contract. The
-// cookie names moved to queryauth (#6642) so a handler-family subpackage can
-// name them without importing this package; see queryauth for the doc
-// comments.
+// cookie names live in session (#6642, moved from queryauth by #6818) so a
+// handler-family subpackage can name them without importing this package;
+// see session for the doc comments.
 const (
-	BrowserSessionCookieName             = queryauth.BrowserSessionCookieName
-	BrowserSessionCSRFCookieName         = queryauth.BrowserSessionCSRFCookieName
-	BrowserSessionCookieNameInsecure     = queryauth.BrowserSessionCookieNameInsecure
-	BrowserSessionCSRFCookieNameInsecure = queryauth.BrowserSessionCSRFCookieNameInsecure
+	BrowserSessionCookieName             = session.BrowserSessionCookieName
+	BrowserSessionCSRFCookieName         = session.BrowserSessionCSRFCookieName
+	BrowserSessionCookieNameInsecure     = session.BrowserSessionCookieNameInsecure
+	BrowserSessionCSRFCookieNameInsecure = session.BrowserSessionCSRFCookieNameInsecure
 	// BrowserSessionCSRFHeaderName is required on unsafe dashboard session
 	// requests. Not part of the #6642 hoist: only this package's own
 	// tryBrowserSessionAuth reads it.
@@ -338,18 +339,18 @@ func browserSessionRequiresCSRF(method string) bool {
 }
 
 // BrowserSessionSecretHash returns the durable hash for a session or CSRF
-// secret. It lives in queryauth (#6642); this forwarder keeps every existing
-// call site unchanged.
+// secret. It lives in session (#6642, moved from queryauth by #6818); this
+// forwarder keeps every existing call site unchanged.
 func BrowserSessionSecretHash(secret string) string {
-	return queryauth.BrowserSessionSecretHash(secret)
+	return session.BrowserSessionSecretHash(secret)
 }
 
 // normalizeBrowserSessionAuthContext forwards to
-// queryauth.NormalizeBrowserSessionAuthContext. The implementation moved
+// session.NormalizeBrowserSessionAuthContext. The implementation moved
 // there for #6642 so a handler-family subpackage can normalize a browser
 // session's auth context without importing this package.
 func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {
-	return queryauth.NormalizeBrowserSessionAuthContext(auth)
+	return session.NormalizeBrowserSessionAuthContext(auth)
 }
 
 func sharedAuthContext() AuthContext {

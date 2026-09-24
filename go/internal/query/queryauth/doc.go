@@ -24,17 +24,20 @@
 // unaffected.
 //
 // #6642 extended the seam so the local-identity and setup family moves can
-// read the root symbols their census demanded, in five subjects: browser
-// session cookies (CookieSecureMode and its validators, the cookie-name
-// constants, the idle/absolute timeout defaults, BrowserSessionSecretHash,
-// and WriteBrowserSessionCookies); the browser session wire types
-// (BrowserSessionStore, BrowserSessionCreateRecord, BrowserSessionResponse,
-// BrowserSessionAuthResponse, NormalizeBrowserSessionAuthContext, and
-// BrowserSessionAuthResponseFor -- capitalizing root's unexported
-// browserSessionAuthResponse to plain BrowserSessionAuthResponse would have
-// collided with the type of that name, so it kept the "For" suffix); session
-// timeout resolution (ResolveSessionTimeouts); and the read-only sign-in
-// policy shape (SignInPolicy, SignInPolicyReadStore). GovernanceAuditAppender
+// read the root symbols their census demanded, in five subjects. #6818 move
+// 4a relocated the three session subjects to package session
+// (internal/query/auth/session), leaving the sign-in policy shape and the
+// audit appender here: browser session cookies (CookieSecureMode and its
+// validators, the cookie-name constants, the idle/absolute timeout defaults,
+// BrowserSessionSecretHash, and WriteBrowserSessionCookies); the browser
+// session wire types (BrowserSessionStore, BrowserSessionCreateRecord,
+// BrowserSessionResponse, BrowserSessionAuthResponse,
+// NormalizeBrowserSessionAuthContext, and BrowserSessionAuthResponseFor --
+// capitalizing root's unexported browserSessionAuthResponse to plain
+// BrowserSessionAuthResponse would have collided with the type of that name,
+// so it kept the "For" suffix); session timeout resolution
+// (ResolveSessionTimeouts); and the read-only sign-in policy shape
+// (SignInPolicy, SignInPolicyReadStore). GovernanceAuditAppender
 // and ActorClassForAuth moved too, so a handler-family subpackage can accept
 // an audit appender and classify an AuthContext for its own audit rows.
 // unauthorizedResponse and writePermissionDeniedEnvelope did NOT move here:

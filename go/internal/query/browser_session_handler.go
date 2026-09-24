@@ -10,27 +10,28 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/auth/session"
 )
 
-// The two timeout defaults are compatibility aliases: they moved to
-// queryauth (#6642) so a handler-family subpackage can name them without
-// importing this package; see queryauth for the doc comments.
+// The two timeout defaults are compatibility aliases: they live in
+// session (#6642, moved from queryauth by #6818) so a handler-family
+// subpackage can name them without importing this package; see session
+// for the doc comments.
 // browserSessionSecretBytes stays here, unexported and unmoved.
 const (
-	DefaultBrowserSessionIdleTimeout     = queryauth.DefaultBrowserSessionIdleTimeout
-	DefaultBrowserSessionAbsoluteTimeout = queryauth.DefaultBrowserSessionAbsoluteTimeout
+	DefaultBrowserSessionIdleTimeout     = session.DefaultBrowserSessionIdleTimeout
+	DefaultBrowserSessionAbsoluteTimeout = session.DefaultBrowserSessionAbsoluteTimeout
 	browserSessionSecretBytes            = 32
 )
 
 // BrowserSessionStore is the write surface for server-managed dashboard
-// sessions. It lives in queryauth (#6642) so a handler-family subpackage can
-// name it without importing this package.
-type BrowserSessionStore = queryauth.BrowserSessionStore
+// sessions. It lives in session (#6642, moved from queryauth by #6818) so a
+// handler-family subpackage can name it without importing this package.
+type BrowserSessionStore = session.BrowserSessionStore
 
 // BrowserSessionCreateRecord is the hash-only session row requested by the
-// HTTP handler. It lives in queryauth (#6642).
-type BrowserSessionCreateRecord = queryauth.BrowserSessionCreateRecord
+// HTTP handler. It lives in session (#6642, moved from queryauth by #6818).
+type BrowserSessionCreateRecord = session.BrowserSessionCreateRecord
 
 // BrowserSessionExternalAuthProof carries hash-only external IdP proof metadata
 // for sessions that must reauthenticate after a bounded staleness window.
@@ -63,13 +64,13 @@ type BrowserSessionHandler struct {
 }
 
 // BrowserSessionResponse is returned by browser session routes. It lives in
-// queryauth (#6642) so a handler-family subpackage can name it without
-// importing this package.
-type BrowserSessionResponse = queryauth.BrowserSessionResponse
+// session (#6642, moved from queryauth by #6818) so a handler-family
+// subpackage can name it without importing this package.
+type BrowserSessionResponse = session.BrowserSessionResponse
 
 // BrowserSessionAuthResponse is the public JSON view of a request auth
-// context. It lives in queryauth (#6642).
-type BrowserSessionAuthResponse = queryauth.BrowserSessionAuthResponse
+// context. It lives in session (#6642, moved from queryauth by #6818).
+type BrowserSessionAuthResponse = session.BrowserSessionAuthResponse
 
 // Mount registers browser session routes.
 func (h *BrowserSessionHandler) Mount(mux *http.ServeMux) {
@@ -343,7 +344,7 @@ func requestUsesBrowserSession(r *http.Request) bool {
 	return auth.Mode == AuthModeBrowserSession
 }
 
-// writeBrowserSessionCookies forwards to queryauth.WriteBrowserSessionCookies.
+// writeBrowserSessionCookies forwards to session.WriteBrowserSessionCookies.
 // The implementation, and its unexported helpers (clearBrowserSessionCookies,
 // browserSessionCookieSecure, browserSessionCookieNames), moved there for
 // #6642 so a handler-family subpackage can issue and clear browser session
@@ -357,12 +358,12 @@ func writeBrowserSessionCookies(
 	expiresAt time.Time,
 	maxAge int,
 ) {
-	queryauth.WriteBrowserSessionCookies(w, r, mode, sessionSecret, csrfSecret, expiresAt, maxAge)
+	session.WriteBrowserSessionCookies(w, r, mode, sessionSecret, csrfSecret, expiresAt, maxAge)
 }
 
-// browserSessionAuthResponse forwards to queryauth.BrowserSessionAuthResponseFor.
+// browserSessionAuthResponse forwards to session.BrowserSessionAuthResponseFor.
 // The implementation moved there for #6642, renamed to avoid colliding with
-// the BrowserSessionAuthResponse type queryauth also exports.
+// the BrowserSessionAuthResponse type session also exports.
 func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {
-	return queryauth.BrowserSessionAuthResponseFor(auth)
+	return session.BrowserSessionAuthResponseFor(auth)
 }

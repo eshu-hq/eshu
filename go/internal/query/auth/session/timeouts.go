@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package queryauth
+package session
 
 import (
 	"context"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 // ResolveSessionTimeouts resolves the idle/absolute session timeout for one
@@ -28,7 +30,7 @@ import (
 // session timeouts without importing root.
 func ResolveSessionTimeouts(
 	ctx context.Context,
-	signInPolicy SignInPolicyReadStore,
+	signInPolicy queryauth.SignInPolicyReadStore,
 	tenantID string,
 	defaultIdle time.Duration,
 	defaultAbsolute time.Duration,
