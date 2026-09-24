@@ -188,12 +188,19 @@ graph-read sentinel still reports `503`/`504` for that sentinel.
 Use `eshu_dp_neo4j_query_duration_seconds{operation="read"}` with its closed
 `outcome` label: `success`, `slow`, `recovered`, `deadline`, `unavailable`,
 `caller_deadline`, `canceled`, or `error`. `deadline` means the graph policy or
-backend transaction deadline expired while the caller was still live.
-`caller_deadline` means the enclosing request deadline expired first; it is not
-counted as a graph-policy deadline.
+backend transaction deadline expired while the caller was still live. This
+includes a *shared* per-label-loop budget (see "Shared bounded-read loops"
+below), which IS the graph-read policy's own deadline even though the code
+that created it lives in a handler, not `Neo4jReader` itself.
+`caller_deadline` means an enclosing deadline that is NOT the graph-read
+policy's own budget expired first (e.g. an MCP dispatch timeout, or any other
+caller-imposed `context.WithTimeout` the handler did not derive from
+`querycontract.WithBoundedGraphReadDeadline`); it is not counted as a
+graph-policy deadline.
 
 The `neo4j.query` span records the same outcome plus
-`eshu.graph_read.attempts`, `eshu.graph_read.configured_deadline_ms`, and
+`eshu.graph_read.attempts`, `eshu.graph_read.configured_deadline_ms`,
+`eshu.graph_read.query_name`, and
 `eshu.graph_read.statement_fingerprint` -- the first 12 hex characters of the
 sha256 of the statement's redacted shape (see below), computed on every bounded
 read regardless of outcome (issue #7035). Statements that differ only in
@@ -201,10 +208,19 @@ literal values share one fingerprint. Bound parameters never enter the
 fingerprint or any other graph-read signal, and inline literals are redacted
 before they are hashed or logged. Slow, deadline, and unavailable reads also
 emit `query.graph_read.warning` with `pipeline_phase="query"`, a bounded
-`failure_class`, `duration_seconds`, and two fields that name the exact
-statement shape: `graph_read.statement_fingerprint` (the same value as the span
-attribute) and `graph_read.statement_head` (the same redacted shape, truncated
-to 300 characters with an `...[truncated]` marker when it exceeds that bound).
+`failure_class`, `duration_seconds`, `graph_query_name`, and two fields that
+name the exact statement shape: `graph_read.statement_fingerprint` (the same
+value as the span attribute) and `graph_read.statement_head` (the same redacted
+shape, truncated to 300 characters with an `...[truncated]` marker when it
+exceeds that bound).
+
+`eshu.graph_read.query_name` (and the `graph_query_name` log field) is a
+bounded, low-cardinality caller-supplied name for the route/handler that issued
+the read (e.g. `code_quality.complexity_list`, `entity.context`,
+`platform_impact.deployment_chain`), set via `querycontract.WithGraphQueryName`
+and defaulting to `unnamed` when a caller sets none, so the attribute is never
+silently absent. It makes a bounded-read timeout or slow read attributable to a
+specific route without reading Cypher text (issue #7006's telemetry gap).
 
 The redacted shape is what makes the head safe for ad-hoc Cypher. Bound
 `$parameters` are never part of the statement text, but the read-only Cypher
@@ -293,6 +309,33 @@ sees, so hashing NornicDB's `query` field will not reproduce it.
   profile; use the capture's wall-clock window plus the statement head/shape
   already identified from the Eshu warning and the NornicDB slow-query log to
   find the matching stack.
+
+### Shared bounded-read loops
+
+A route that resolves an id through several sequential label-anchored reads --
+`GET /api/v0/entities/{entity_id}/context` and
+`POST /api/v0/infra/relationships`, both trying one label per candidate in a
+loop until a match or exhaustion -- derives ONE shared deadline once, before
+the loop, via `querycontract.WithBoundedGraphReadDeadline`, and reuses it for
+every candidate read. This bounds the whole loop by the same 10-second budget
+a single statement gets, instead of paying that budget once per candidate
+label. When the shared budget expires mid-loop, `Neo4jReader` classifies the
+outcome as `deadline` (not `caller_deadline`) and emits the same
+`query.graph_read.warning` with `graph_query_name` any other deadline does --
+the shared ctx carries an internal marker `graphReadResult` checks specifically
+so this case is never misclassified as ordinary caller cancellation.
+
+`POST /api/v0/infra/relationships`'s request span additionally records
+`eshu.entity_anchor_labels_tried`, an integer count of how many candidate
+labels the loop tried before matching or exhausting the set --
+`len(impactRelationshipAnchorLabels)` on a full miss, or the 1-based index of
+the label that matched. `GET /api/v0/entities/{entity_id}/context` logs the
+same count as `labels_tried`/`labels_total` structured fields (plus a
+`failure_class` of `deadline` or `graph_read_error`) on its own separate
+handler-level warning when the loop ends in an error before resolving --
+distinct from `Neo4jReader`'s `query.graph_read.warning`, since a handler-level
+anchor-loop warning has no single Cypher statement to attribute to the reader's
+own per-read span.
 
 Session-close failures emit `query.graph_read.session_close_failed` with
 `pipeline_phase="query"` and `failure_class="session_close_error"`. Because

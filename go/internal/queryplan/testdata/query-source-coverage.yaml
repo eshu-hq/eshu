@@ -55,6 +55,15 @@ source_coverage:
         non_hot:
           class: label_inventory
           source_sha256: 596ecdf9250f7d74fd276be27dbd77bde6bb70862959fe8b5683b7a587297c4c
+          # #7006 review F6: label is the worst-case (unscoped, no repo_id)
+          # shape complexityListAnchor renders -- a bare MATCH (e:Function)
+          # full-corpus inventory scan. When scoped or repo_id is set, the
+          # SAME symbol instead anchors on Repository first
+          # (MATCH (repo:Repository) WHERE ... MATCH (repo)-[:REPO_CONTAINS]->
+          # (f:File)-[:CONTAINS]->(e:Function)), a materially cheaper,
+          # keyed-not-inventory shape this single non_hot entry does not have
+          # a separate slot for; Function stays the admitted label because it
+          # bounds the widest case, not because it is the only one.
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
@@ -190,7 +199,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 6e696ae682c6f040cf4e1ed6896dcce25f49dffcc525dec599e9cf9a513db3f7
+          source_sha256: 89df661d9a617df9e176730515a84bd09e63103befec7b05059142095f9932c3
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go
@@ -433,7 +442,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 57ae19284ca886fd6d981bdec5d16c316fdbe7d7905ff90ddca2ef12a1b75b4c
+          source_sha256: f268ceb8c887ad14cfbdc0121b2f7ab5e1e90ac8c83f850e23701712b20a29ba
           key_bound: single_key
           max_results: 1
   - file: infra_resource_aggregates.go

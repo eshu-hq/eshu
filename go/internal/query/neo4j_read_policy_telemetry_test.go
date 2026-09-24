@@ -278,6 +278,70 @@ func TestNeo4jReaderRecordsCallerSuppliedQueryName(t *testing.T) {
 	}
 }
 
+// TestNeo4jReaderSharedBoundedDeadlineClassifiesAsPolicyDeadline pins the
+// #7006 review's F1 fix: a shared per-label-loop budget from
+// querycontract.WithBoundedGraphReadDeadline expires a few microseconds
+// before the readCtx that runRead derives from it with the SAME duration
+// (production: both 10s; here both reader.policy.readTimeout, so the test is
+// fast and deterministic), so graphReadResult's parentCtx.Err() branch always
+// fires first. Before the fix that branch unconditionally returned
+// graphReadOutcomeCallerDeadline: no query.graph_read.warning log, no
+// graph_query_name, and the caller got a raw context.DeadlineExceeded
+// instead of the wrapped ErrGraphReadDeadline sentinel -- silently dropping
+// the deadline outcome for every GET /entities/{id}/context and
+// POST /infra/relationships timeout (both share this exact budget via their
+// per-label anchor loop). Proven through the REAL Neo4jReader (not a fake
+// GraphQuery), since only the real graphReadResult/recordGraphReadTelemetry
+// path can misclassify this.
+func TestNeo4jReaderSharedBoundedDeadlineClassifiesAsPolicyDeadline(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	var logs bytes.Buffer
+	reader := newPolicyTestNeo4jReader(blockingPolicySession)
+	reader.tracer = provider.Tracer("neo4j-read-policy-test")
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	reader.policy.readTimeout = 30 * time.Millisecond
+
+	ctx, cancel := querycontract.WithBoundedGraphReadDeadlineFor(
+		querycontract.WithGraphQueryName(context.Background(), "infra_relationships_test"),
+		reader.policy.readTimeout,
+	)
+	defer cancel()
+
+	_, err := reader.Run(ctx, "RETURN 1", nil)
+	if !errors.Is(err, ErrGraphReadDeadline) {
+		t.Fatalf("Run() error = %v, want ErrGraphReadDeadline (a shared bounded-read budget is the graph-read policy's own deadline, not caller cancellation)", err)
+	}
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	if got := graphReadSpanString(spans[0].Attributes(), telemetry.SpanAttrGraphReadOutcome); got != string(graphReadOutcomeDeadline) {
+		t.Fatalf("graph read outcome = %q, want %q", got, graphReadOutcomeDeadline)
+	}
+
+	got := logs.String()
+	if !strings.Contains(got, `"event_name":"query.graph_read.warning"`) {
+		t.Fatalf("warning log = %s, want the bounded-read warning event", got)
+	}
+	if !strings.Contains(got, `"failure_class":"deadline"`) {
+		t.Fatalf("warning log = %s, want failure_class=deadline", got)
+	}
+	if !strings.Contains(got, `"graph_query_name":"infra_relationships_test"`) {
+		t.Fatalf("warning log = %s, want the shared budget's graph_query_name", got)
+	}
+}
+
+// TestNeo4jReaderParentDeadlineDoesNotRecordPolicyDeadlineOutcome (above)
+// pins the control case this fix must not regress: an ORDINARY caller
+// deadline that never went through WithBoundedGraphReadDeadline(For) --
+// e.g. an MCP dispatch timeout, or a test's own context.WithTimeout -- must
+// keep classifying as graphReadOutcomeCallerDeadline, not deadline. Only a
+// context carrying the WithBoundedGraphReadDeadline(For) marker is the
+// graph-read policy's own budget.
+
 func graphReadMetricOutcome(metrics metricdata.ResourceMetrics) string {
 	for _, scope := range metrics.ScopeMetrics {
 		for _, record := range scope.Metrics {

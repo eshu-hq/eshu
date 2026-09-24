@@ -161,13 +161,16 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 	span.SetAttributes(attribute.Int("eshu.entity_anchor_labels_tried", labelsAttempted))
 	if err != nil {
-		// A spent shared budget surfaces as the raw context.DeadlineExceeded
-		// (Neo4jReader.runRead's parentCtx.Err() branch, when the shared
-		// deadline expired between loop iterations) rather than the wrapped
-		// querycontract.ErrGraphReadDeadline a single timed-out statement
-		// returns. Translate it so this never falls through to a generic
-		// 500, or -- worse -- gets treated as a silent not-found: the caller
-		// must see the same bounded-read deadline shape (504) either way.
+		// #7006 review F1: Neo4jReader.runRead's graphReadResult now
+		// classifies a spent WithBoundedGraphReadDeadline budget as the
+		// graph-read policy's own deadline and returns the wrapped
+		// querycontract.ErrGraphReadDeadline sentinel directly, so this
+		// translation is normally a no-op against the real reader. It stays
+		// as a defensive fallback: fakeRepoGraphReader (this package's unit
+		// tests) and any other GraphQuery implementation that bypasses
+		// Neo4jReader can still return a raw context.DeadlineExceeded, and
+		// that must never fall through to a generic 500 or -- worse -- be
+		// treated as a silent not-found.
 		if errors.Is(err, context.DeadlineExceeded) {
 			err = querycontract.ErrGraphReadDeadline
 		}

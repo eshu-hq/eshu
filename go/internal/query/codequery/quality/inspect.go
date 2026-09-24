@@ -45,9 +45,14 @@ func Inspect(
 // on every repo-scoped or scoped-grant call regardless of how small the
 // target repository was: proven live on ops-qa (issue #7006), the
 // Function-first shape timed out past the 10s bounded-read deadline on a
-// repository with zero matching rows, while the Repository-first shape
-// anchored on the same repository returned in under 3s. See
-// docs/public/reference/cypher-performance.md.
+// repository with zero matching rows. The Repository-first shape here is
+// byte-identical in anchor structure to codequery/complexity_queries.go's
+// complexityListAnchor, which WAS separately measured at 2.74s for a
+// same-shaped 0-row repository (docs/internal/evidence/
+// 7006-code-quality-context-anchor-fix.md) -- this statement's own timing was
+// not independently measured (#7006 review round 3, F3), so treat that
+// figure as an analogous upper bound from the sibling query, not a proven
+// number for this exact statement. See docs/public/reference/cypher-performance.md.
 func BuildCypher(
 	req Request,
 	access querycontract.RepositoryAccessFilter,

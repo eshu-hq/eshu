@@ -33,8 +33,11 @@ func TestGetEntityContextAnchorsOneLabelPerMatch(t *testing.T) {
 		RunSingleFn: func(ctx context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			// #7006 telemetry fix: the graph read must carry a bounded query
 			// name so query.graph_read.warning can name which query hit the
-			// deadline.
-			if got, want := querycontract.GraphQueryNameFromContext(ctx), "code_search.fuzzy_symbol"; got != want {
+			// deadline. #7006 review F6: "entity.context", not the reused
+			// "code_search.fuzzy_symbol" capability string, so an
+			// entity-context deadline is distinguishable from a fuzzy-symbol
+			// search one in telemetry.
+			if got, want := querycontract.GraphQueryNameFromContext(ctx), "entity.context"; got != want {
 				t.Fatalf("graph query name = %q, want %q", got, want)
 			}
 			if strings.Contains(cypher, "|") {

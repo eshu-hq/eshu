@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // GetEntityContext retrieves the context for a specific entity. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
@@ -123,8 +124,16 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		// the single-read budget (~140s for 14 labels at 10s each) instead
 		// of the one bounded-read budget the pre-fix single-statement
 		// handler had.
+		// #7006 review (F6): the telemetry query_name is "entity.context",
+		// distinct from the "code_search.fuzzy_symbol" capability string
+		// WriteGraphReadError/CapabilityUnsupported use below -- that
+		// string is a registered capability (specs/capability-matrix.v1.yaml)
+		// this route happens to share with fuzzy symbol search, not a
+		// telemetry name, and changing it would break capability-matrix
+		// matching. Reusing it for query_name made an entity-context
+		// deadline warning indistinguishable from a fuzzy-symbol-search one.
 		ctx, cancel := querycontract.WithBoundedGraphReadDeadline(
-			querycontract.WithGraphQueryName(r.Context(), "code_search.fuzzy_symbol"),
+			querycontract.WithGraphQueryName(r.Context(), "entity.context"),
 		)
 		defer cancel()
 		labelsAttempted := 0
@@ -136,14 +145,17 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err != nil {
-			// A spent shared budget surfaces as the raw context.DeadlineExceeded
-			// (Neo4jReader.runRead's parentCtx.Err() branch, when the shared
-			// deadline expired between loop iterations) rather than the
-			// wrapped querycontract.ErrGraphReadDeadline a single timed-out
-			// statement returns. Translate it so this never falls through to
-			// a generic 500, or -- worse -- gets treated as a silent
-			// not-found: the caller must see the same bounded-read deadline
-			// shape (504) either way.
+			// #7006 review F1: Neo4jReader.runRead's graphReadResult now
+			// classifies a spent WithBoundedGraphReadDeadline budget as the
+			// graph-read policy's own deadline and returns the wrapped
+			// querycontract.ErrGraphReadDeadline sentinel directly, so this
+			// translation is normally a no-op against the real reader. It
+			// stays as a defensive fallback: querytestutil.FakeGraphReader
+			// (used by this package's unit tests) and any other GraphQuery
+			// implementation that bypasses Neo4jReader can still return a
+			// raw context.DeadlineExceeded, and that must never fall through
+			// to a generic 500 or -- worse -- be treated as a silent
+			// not-found.
 			if errors.Is(err, context.DeadlineExceeded) {
 				err = querycontract.ErrGraphReadDeadline
 			}
@@ -156,7 +168,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 					"entity context anchor loop ended with an error before resolving",
 					"labels_tried", labelsAttempted,
 					"labels_total", len(EntityContextAnchorLabels),
-					"failure_class", failureClass,
+					telemetry.LogKeyFailureClass, failureClass,
 				)
 			}
 			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {

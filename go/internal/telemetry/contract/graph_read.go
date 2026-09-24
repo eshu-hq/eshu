@@ -39,4 +39,8 @@ const (
 	// always present rather than sometimes absent (issue #7006). It names the
 	// route/handler, never raw Cypher text or entity identifiers.
 	SpanAttrGraphReadQueryName = "eshu.graph_read.query_name"
+	// LogKeyGraphReadQueryName is the query.graph_read.warning structured log
+	// field carrying the same bounded query name as SpanAttrGraphReadQueryName,
+	// for a slow/deadline/unavailable read (issue #7006 review F2).
+	LogKeyGraphReadQueryName = "graph_query_name"
 )

@@ -56,6 +56,30 @@ func GraphQueryNameFromContext(ctx context.Context) string {
 // (issue #7006 review finding).
 const DefaultGraphReadTimeout = 10 * time.Second
 
+// boundedGraphReadDeadlineContextKey marks a context whose deadline came from
+// WithBoundedGraphReadDeadline(For), so Neo4jReader.runRead's graphReadResult
+// (go/internal/query/neo4j_read_policy.go) can tell that deadline apart from
+// an ordinary caller-imposed deadline (e.g. an MCP dispatch timeout, or a
+// test's own context.WithTimeout). Both look identical from graphReadResult's
+// side -- the parent context expired -- but only this one IS the graph-read
+// policy budget, just created a few microseconds earlier than the per-read
+// context.WithTimeout(ctx, readTimeout) call inside runRead that would
+// otherwise have been the one to expire and classify the outcome (#7006
+// review F1: without this marker, every timeout on a shared-budget loop
+// route misclassified as graphReadOutcomeCallerDeadline -- no
+// query.graph_read.warning log, no graph_query_name, and a raw
+// context.DeadlineExceeded instead of the wrapped ErrGraphReadDeadline
+// sentinel).
+type boundedGraphReadDeadlineContextKey struct{}
+
+// IsBoundedGraphReadDeadline reports whether ctx's deadline (or an ancestor
+// context's) came from WithBoundedGraphReadDeadline(For). See
+// boundedGraphReadDeadlineContextKey.
+func IsBoundedGraphReadDeadline(ctx context.Context) bool {
+	marked, _ := ctx.Value(boundedGraphReadDeadlineContextKey{}).(bool)
+	return marked
+}
+
 // WithBoundedGraphReadDeadline returns ctx wrapped with a deadline of
 // DefaultGraphReadTimeout, and the cancel func the caller must defer. Because
 // context.WithTimeout resolves to the EARLIER of the parent's and the new
@@ -67,5 +91,16 @@ const DefaultGraphReadTimeout = 10 * time.Second
 // total cost across every iteration is bounded by the same single budget a
 // lone graph statement gets.
 func WithBoundedGraphReadDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, DefaultGraphReadTimeout)
+	return WithBoundedGraphReadDeadlineFor(ctx, DefaultGraphReadTimeout)
+}
+
+// WithBoundedGraphReadDeadlineFor is WithBoundedGraphReadDeadline with an
+// explicit budget instead of the fixed DefaultGraphReadTimeout. Production
+// code should call WithBoundedGraphReadDeadline; this variant exists so a
+// test can reproduce the same parent-deadline-created-microseconds-before-
+// readCtx-deadline race deterministically and fast, without waiting out the
+// real 10s budget twice.
+func WithBoundedGraphReadDeadlineFor(ctx context.Context, budget time.Duration) (context.Context, context.CancelFunc) {
+	ctx = context.WithValue(ctx, boundedGraphReadDeadlineContextKey{}, true)
+	return context.WithTimeout(ctx, budget)
 }

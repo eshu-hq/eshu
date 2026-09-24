@@ -383,6 +383,22 @@ func graphReadResult(
 ) (graphReadOutcome, error) {
 	if parentErr := parentCtx.Err(); parentErr != nil {
 		if errors.Is(parentErr, context.DeadlineExceeded) {
+			// A parent context carrying the WithBoundedGraphReadDeadline(For)
+			// marker (querycontract package) IS the graph-read policy's own
+			// budget -- e.g. the shared deadline a per-label anchor loop
+			// derives once and reuses for every candidate -- not an ordinary
+			// caller-imposed deadline. It is created a few microseconds
+			// before readCtx (this function's own per-read
+			// context.WithTimeout below), so it always expires first and
+			// this branch always fires for it; without this check every
+			// timeout on a shared-budget loop route (GetEntityContext,
+			// getRelationships) misclassified as caller_deadline -- no
+			// query.graph_read.warning log, no graph_query_name, and a raw
+			// context.DeadlineExceeded instead of the wrapped
+			// ErrGraphReadDeadline sentinel (#7006 review F1).
+			if querycontract.IsBoundedGraphReadDeadline(parentCtx) {
+				return graphReadOutcomeDeadline, &graphReadError{public: ErrGraphReadDeadline, cause: parentErr}
+			}
 			return graphReadOutcomeCallerDeadline, parentErr
 		}
 		return graphReadOutcomeCanceled, parentErr
@@ -475,6 +491,6 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		slog.Float64("duration_seconds", duration.Seconds()),
 		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
 		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
-		slog.String("graph_query_name", queryName),
+		slog.String(telemetry.LogKeyGraphReadQueryName, queryName),
 	)
 }
