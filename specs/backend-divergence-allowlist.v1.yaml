@@ -278,11 +278,6 @@ entries:
   reason: "Order-dependent cross-repo correlation write attempts: repo sets (32/32) and scope sets (31/31) are identical across legs, and post-normalization element sets are identical modulo run-scoped lineage cells (proven by analysis). Final correlation truth verifies through paired correlation reads with agreeing result sets."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
-- statement: "MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(related:Repository) RETURN related.id AS repo_id, related.name AS repo_name UNION MATCH (related:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id}) RETURN related.id AS repo_id, related.name AS repo_name"
-  tier: results
-  reason: "NornicDB UNION appends an extra text-named column duplicating repo_name; row values agree and name-based readers are unaffected (B-7 query shapes green on both legs). Tracked in #6916."
-  upstream: https://github.com/eshu-hq/eshu/issues/6916
-  owner: query
 - statement: "MATCH path = (start:CloudResource {id: $start_id})-[*1..4]->(repo:Repository) RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels ORDER BY depth, repo_name, repo_id LIMIT $limit"
   tier: results
   reason: "Full graph objects embed run-scoped bare-hex generation ids that cannot be blinded safely (hex collides with content SHAs); all other cells agree. #6782 disposition."

@@ -405,10 +405,36 @@ family query, not the CALLS/mutualPing shape. No `#6915`-tagged entries
 remain in the allowlist to retire (both were already retired in the earlier
 `fix-500-e022384c` repin). This is the strongest-evidence backend-diff result
 of the drive (a single paired co-run, not stitched captures), so unlike the
-earlier candidate finding it is not a correlation artifact — but retiring it
-is outside what was authorized for this round (only the #6915 entries), so
-**it is reported, not retired**, pending a call from the lead/owner. The
+earlier candidate finding it is not a correlation artifact. The
 `-phase=statement-coverage` step never ran (the chain stopped at
-`backend-diff`'s exit 1). `specs/backend-divergence-allowlist.v1.yaml`
-remains unmodified.
-focused non-live suite above, unchanged in shape and green on the new pin.
+`backend-diff`'s exit 1). The lead's retirement call for this entry is
+recorded in the next section.
+
+## Allowlist entry 43 (#6916) retired
+
+The lead's call: retire it. Per the #6991/#6984 repin precedent, a stale
+allowlist entry — one that matched no divergence in a green run — is
+removed, not kept as a permanent exemption; the file's own `design:` header
+states the same rule (`Excuse` fails a stale entry even on a green run).
+Removed the 5-line entry (`statement`/`tier`/`reason`/`upstream`/`owner`) for
+the Repository-dependency `UNION` statement from
+`specs/backend-divergence-allowlist.v1.yaml`; `rg -n "6916"
+specs/backend-divergence-allowlist.v1.yaml` now returns nothing.
+
+Validated with the gate's own static/hermetic mirror (the `golden-corpus-differential`
+registry entry's `test_command`, no Docker needed since it only parses the
+allowlist and exercises the diff/coverage Go code paths):
+
+- `ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575 GATE_API_PORT=18081 GATE_MCP_PORT=18092 bash scripts/test-verify-golden-corpus-gate.sh` (ports relocated only to satisfy the repo's live-gate guard hook's name-pattern match; this mirror does not itself bind them) — `test-verify-golden-corpus-gate: pass`.
+- `cd go && env -u GOROOT go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff|TestStatementCoverage|TestRunStatementCoverage' -count=1` — PASS.
+- `cd go && env -u GOROOT go test ./internal/backendconformance -run 'TestComputeStatementCoverage' -count=1` — PASS.
+- `cd go && env -u GOROOT go test ./internal/queryplan -run 'TestDiscoverStatementBuilders|TestValidateBuilderManifest|TestStatementBuildersManifestMatchesProduction' -count=1` — PASS.
+
+The retirement is proven by the live differential run cited above (this
+worktree, isolated lane, `COMPOSE_PROJECT_NAME=gate7014f2163176diff2`,
+`differential-f2163176-run2.log`): NornicDB `570 pass, 0 required-fail`, Neo4j
+`568 pass, 0 required-fail`, both green, and `-phase=backend-diff` flagged
+this entry alone as stale in that single paired co-run — not re-run after
+the edit, since the parser-level mirrors above are what a text-only YAML
+removal needs, and the live differential is the expensive proof that already
+ran. `specs/backend-divergence-allowlist.v1.yaml` is modified in this change.
