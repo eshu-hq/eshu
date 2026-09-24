@@ -15,14 +15,14 @@ builders:
           operation: sourcecypher.OperationCanonicalUpsert
           variants:
             - {}
-          source_sha256: 63fefb1e9bdb28be7c398fde5ae481198e13094091da1b58affebf12f793d9a6
+          source_sha256: f42d1979d9a60c48cbace6b9653372df70c64083a2b8a03715e0e63396c7ff9a
           exempt: forwards the caller cypher param; text originates at inventoried edge-writer builders
         - symbol: (reducerCypherExecutor).ExecuteCypherGroup
           count: 1
           operation: sourcecypher.OperationCanonicalUpsert
           variants:
             - {}
-          source_sha256: 8466d3c3242fda3e42f3ef6e74f028d3c39b3d8fa6e82fa166eb9b2f6cbe5226
+          source_sha256: e8916bf28c968510735fc430f52f2c2cfd614a07c287a37b1af933d3404c155f
           exempt: forwards the caller statements; text originates at inventoried edge-writer builders
         - symbol: (reducerCypherExecutor).ProbeGraphExists
           count: 1

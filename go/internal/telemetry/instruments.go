@@ -1528,6 +1528,24 @@ type Instruments struct {
 	// Canonical atomic write metrics
 	CanonicalAtomicWrites    metric.Int64Counter
 	CanonicalAtomicFallbacks metric.Int64Counter
+	// GraphOversizedIndexKeysSkipped counts graph node writes dropped before
+	// they reach the backend because a schema index key exceeded
+	// graph.MaxIndexKeyBytes (#7058). It is emitted by the canonical
+	// materialization guard and by the statement guard every graph write
+	// passes through (cypher.InstrumentedExecutor), once per write attempt.
+	// Labels: node_label and property, both from the Go-owned graph schema,
+	// so both sets are closed. The value and repository stay in the paired
+	// WARN log line, never in a label.
+	GraphOversizedIndexKeysSkipped metric.Int64Counter
+	// GraphIndexKeyGuardUnanalyzed counts graph write statement attempts that
+	// write a schema-indexed label in a shape the index-key analyzer cannot
+	// read, so an oversized value written that way is neither dropped nor
+	// counted (#7058). The rows still reach the backend. It is emitted by
+	// cypher.InstrumentedExecutor, once per attempt per (label, reason).
+	// Labels: node_label (a schema-indexed label) and reason
+	// (unbound_label, unresolved_value, or unparsed_write), both closed sets.
+	// The statement text stays in the once-per-statement WARN, never in a label.
+	GraphIndexKeyGuardUnanalyzed metric.Int64Counter
 
 	// Neo4j transient error retry metrics
 	Neo4jDeadlockRetries metric.Int64Counter
@@ -4732,6 +4750,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CanonicalAtomicFallbacks counter: %w", err)
 	}
 
+	inst.GraphOversizedIndexKeysSkipped, err = meter.Int64Counter(
+		"eshu_dp_graph_oversized_index_keys_skipped_total",
+		metric.WithDescription("Total graph node writes skipped before the backend write because a schema index key exceeded the index key-size bound, by node_label and property"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GraphOversizedIndexKeysSkipped counter: %w", err)
+	}
+
+	inst.GraphIndexKeyGuardUnanalyzed, err = meter.Int64Counter(
+		"eshu_dp_graph_index_key_guard_unanalyzed_total",
+		metric.WithDescription("Total graph write attempts to a schema-indexed label in a shape the oversized-index-key analyzer cannot read, by node_label and reason; the rows are written unguarded"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GraphIndexKeyGuardUnanalyzed counter: %w", err)
+	}
+
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(
 		"eshu_dp_neo4j_deadlock_retries_total",
 		metric.WithDescription("Total graph-write retries by write phase and bounded retry reason"),
@@ -5765,6 +5799,16 @@ func AttrOutcome(v string) attribute.KeyValue {
 // AttrRead returns a read attribute naming the status snapshot reader.
 func AttrRead(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionRead, v)
+}
+
+// AttrNodeLabel returns a node_label attribute naming a closed-set graph label.
+func AttrNodeLabel(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionNodeLabel, v)
+}
+
+// AttrProperty returns a property attribute naming a closed-set graph property.
+func AttrProperty(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionProperty, v)
 }
 
 // AttrGuardrail returns a guardrail attribute for metric recording.

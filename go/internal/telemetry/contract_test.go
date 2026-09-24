@@ -87,6 +87,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"cloudformation_section",
 		"read",
 		"gauge",
+		"property",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",

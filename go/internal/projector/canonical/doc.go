@@ -19,4 +19,9 @@
 // transaction concern; the projector runtime owns those and owns the order the
 // extractors run in. It writes nothing itself — every row it produces is a
 // value the caller hands to a writer.
+//
+// [DropOversizedIndexKeys] is the one pure filter the graph writer applies
+// before building Cypher: a row whose indexed key exceeds [MaxIndexedKeyBytes]
+// UTF-8 bytes is removed, not truncated, because Neo4j rejects such a key and
+// the rejection would fail the whole repository's atomic write.
 package canonical

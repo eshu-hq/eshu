@@ -32,6 +32,13 @@
   `entityTypeLabelMap` out of `materialization.go` **by file path** and fails
   at run time, not compile time, if the declaration moves.
 
+- `MaxIndexedKeyBytes` is measured, not guessed: it must stay under the
+  pinned Neo4j range-index key limit for every key shape the schema declares
+  (8164 bytes for one string, 8151 for `(name, path, line_number)` on
+  2026.08.1). Re-measure before raising it, and never truncate or hash a value
+  to fit — `DropOversizedIndexKeys` skips the row so the graph holds no
+  corrupted identity.
+
 ## Verification
 
 ```bash

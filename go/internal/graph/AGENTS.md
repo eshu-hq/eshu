@@ -20,6 +20,23 @@
 
 ## Invariants this package enforces
 
+- **Index keys come from the DDL** — `SchemaIndexKeys` parses every non-fulltext
+  statement the schema can create on either backend and returns an error for a
+  shape it cannot read; `TestSchemaIndexKeysCoverEveryIndexStatement` and
+  `TestGuardIndexKeyWritesCoversEverySchemaKey` fail when a new index is not
+  guarded. When you add a relationship index or a new DDL form, extend the
+  parser and the guard in the same change; do not relax the tests.
+- **A write shape the analyzer cannot read must be loud** —
+  `UnanalyzedIndexWrites` reports schema-indexed labels written in an unread
+  shape, and `TestProductionCypherLiteralsAreGuarded` fails when a production
+  writer takes one. When you add a writer shape, extend the analyzer with a
+  RED test first; add a `sweepAllow` entry only for a literal that writes no
+  measurable value, with the reason. Do not claim the guard covers every
+  possible Cypher shape.
+- **Never truncate or hash an indexed value to fit** — `GuardIndexKeyWrites`
+  drops the row so the graph holds no corrupted identity. `MaxIndexKeyBytes`
+  is measured against the pinned Neo4j; re-measure before raising it.
+
 - **Cypher-safe labels and property keys** — `ValidateCypherLabel` at
   `entity.go:38` accepts `[a-zA-Z_][a-zA-Z0-9_]*`. `ValidateCypherLabel` and
   `ValidateCypherPropertyKeys` must be called on any dynamic input; the
