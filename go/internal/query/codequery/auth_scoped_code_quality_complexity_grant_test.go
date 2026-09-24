@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 1, step 5: POST /api/v0/code/quality/inspect and
@@ -136,7 +136,7 @@ func TestCodeQualityAndComplexityBuildersBindTheGrant(t *testing.T) {
 		t.Run(builder.name, func(t *testing.T) {
 			t.Parallel()
 
-			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			captured, status := captureCodeQualityCypher(t, builder.path, builder.body, &auth)
 			if status >= http.StatusInternalServerError {
 				t.Fatalf("status = %d, want a non-server-error response", status)
@@ -185,7 +185,7 @@ func TestCodeQualityAndComplexityEmptyGrantSkipTheGraphRead(t *testing.T) {
 		t.Run(builder.name, func(t *testing.T) {
 			t.Parallel()
 
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			captured, _ := captureCodeQualityCypher(t, builder.path, builder.body, &auth)
 			if len(captured.statements) != 0 {
 				t.Fatalf("an empty scoped grant reached the graph; want no read at all:\n%s", strings.Join(captured.statements, "\n---\n"))

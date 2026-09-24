@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // This file is a family-owned white-box test file (#6642): every test here
@@ -47,12 +47,12 @@ func TestBuildLanguageCypher_Function(t *testing.T) {
 		t.Fatal("expected non-empty cypher")
 	}
 	// Must contain the Function label.
-	if !querytestutil.SearchString(cypher, "Function") {
+	if !testutil.SearchString(cypher, "Function") {
 		t.Error("cypher should contain Function label")
 	}
 	// The canonical language leads the bound spelling list; no bare
 	// $language parameter is bound because no builder references one.
-	if got := querytestutil.BoundCanonicalLanguage(t, params); got != "python" {
+	if got := testutil.BoundCanonicalLanguage(t, params); got != "python" {
 		t.Errorf("bound canonical language = %v, want python", got)
 	}
 	if _, ok := params["language"]; ok {
@@ -68,21 +68,21 @@ func TestBuildLanguageCypher_Function(t *testing.T) {
 		t.Errorf("limit param = %v, want 10", params["limit"])
 	}
 	// Must filter by language.
-	if !querytestutil.SearchString(cypher, "$language") {
+	if !testutil.SearchString(cypher, "$language") {
 		t.Error("cypher should reference $language parameter")
 	}
 	// Must filter by repo.
-	if !querytestutil.SearchString(cypher, "$repo_id") {
+	if !testutil.SearchString(cypher, "$repo_id") {
 		t.Error("cypher should reference $repo_id parameter")
 	}
 	// Must filter by name.
-	if !querytestutil.SearchString(cypher, "$query") {
+	if !testutil.SearchString(cypher, "$query") {
 		t.Error("cypher should reference $query parameter")
 	}
-	if !querytestutil.SearchString(cypher, "e.type_annotation_count as type_annotation_count") {
+	if !testutil.SearchString(cypher, "e.type_annotation_count as type_annotation_count") {
 		t.Error("cypher should project type_annotation_count")
 	}
-	if !querytestutil.SearchString(cypher, "e.type_annotation_kinds as type_annotation_kinds") {
+	if !testutil.SearchString(cypher, "e.type_annotation_kinds as type_annotation_kinds") {
 		t.Error("cypher should project type_annotation_kinds")
 	}
 }
@@ -90,15 +90,15 @@ func TestBuildLanguageCypher_Function(t *testing.T) {
 func TestBuildLanguageCypher_Repository(t *testing.T) {
 	cypher, params := buildLanguageCypher("go", "Repository", "", "", 25)
 
-	if !querytestutil.SearchString(cypher, "Repository") {
+	if !testutil.SearchString(cypher, "Repository") {
 		t.Error("cypher should contain Repository label")
 	}
 	// The Repository builder binds the same spelling list as the other three,
 	// so a csharp or typescript query reaches c_sharp and tsx rows (#6546).
-	if !querytestutil.SearchString(cypher, "f.language IN $languages") {
+	if !testutil.SearchString(cypher, "f.language IN $languages") {
 		t.Error("cypher should filter on f.language IN $languages")
 	}
-	if querytestutil.SearchString(cypher, "$language_title") {
+	if testutil.SearchString(cypher, "$language_title") {
 		t.Error("cypher must not carry the retired $language_title equality")
 	}
 	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "go") {
@@ -134,7 +134,7 @@ func TestBuildLanguageCypher_AllEntityTypes(t *testing.T) {
 		if cypher == "" {
 			t.Errorf("entity type %q produced empty cypher", typeName)
 		}
-		if got := querytestutil.BoundCanonicalLanguage(t, params); got != "python" {
+		if got := testutil.BoundCanonicalLanguage(t, params); got != "python" {
 			t.Errorf("entity type %q: bound canonical language = %v", typeName, got)
 		}
 	}
@@ -165,10 +165,10 @@ func TestSortStrings(t *testing.T) {
 func TestBuildLanguageCypher_JSXBindsJavaScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("jsx", "File", "Button", "", 5)
 
-	if got, want := querytestutil.BoundCanonicalLanguage(t, params), "javascript"; got != want {
+	if got, want := testutil.BoundCanonicalLanguage(t, params), "javascript"; got != want {
 		t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 	}
-	if !querytestutil.SearchString(cypher, "f.language IN $languages") {
+	if !testutil.SearchString(cypher, "f.language IN $languages") {
 		t.Fatalf("buildLanguageCypher(\"jsx\") missing the spelling-list predicate in %q", cypher)
 	}
 	assertLanguageSpellingsBound(t, params, "javascript", "jsx")
@@ -177,10 +177,10 @@ func TestBuildLanguageCypher_JSXBindsJavaScriptSpellings(t *testing.T) {
 func TestBuildLanguageCypher_TSXBindsTypeScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("tsx", "File", "Component", "", 5)
 
-	if got, want := querytestutil.BoundCanonicalLanguage(t, params), "typescript"; got != want {
+	if got, want := testutil.BoundCanonicalLanguage(t, params), "typescript"; got != want {
 		t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 	}
-	if !querytestutil.SearchString(cypher, "f.language IN $languages") {
+	if !testutil.SearchString(cypher, "f.language IN $languages") {
 		t.Fatalf("buildLanguageCypher(\"tsx\") missing the spelling-list predicate in %q", cypher)
 	}
 	assertLanguageSpellingsBound(t, params, "typescript", "tsx")
@@ -193,15 +193,15 @@ func TestBuildLanguageCypher_TSXBindsTypeScriptSpellings(t *testing.T) {
 func TestBuildLanguageCypher_File(t *testing.T) {
 	cypher, params := buildLanguageCypher("rust", "File", "main", "", 10)
 
-	if !querytestutil.SearchString(cypher, "File") {
+	if !testutil.SearchString(cypher, "File") {
 		t.Error("cypher should contain File label")
 	}
 	// The language filter is the property predicate alone; no extension
 	// fallback is spliced into the WHERE (#6546).
-	if !querytestutil.SearchString(cypher, "f.language IN $languages") {
+	if !testutil.SearchString(cypher, "f.language IN $languages") {
 		t.Error("cypher should filter on f.language IN $languages")
 	}
-	if querytestutil.SearchString(cypher, "ENDS WITH") {
+	if testutil.SearchString(cypher, "ENDS WITH") {
 		t.Error("cypher must not carry an ENDS WITH extension fallback")
 	}
 	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "rust") {
@@ -215,13 +215,13 @@ func TestBuildLanguageCypher_File(t *testing.T) {
 func TestBuildLanguageCypher_Directory(t *testing.T) {
 	cypher, _ := buildLanguageCypher("java", "Directory", "", "repo:x", 5)
 
-	if !querytestutil.SearchString(cypher, "Directory") {
+	if !testutil.SearchString(cypher, "Directory") {
 		t.Error("cypher should contain Directory label")
 	}
-	if !querytestutil.SearchString(cypher, "f.language IN $languages") {
+	if !testutil.SearchString(cypher, "f.language IN $languages") {
 		t.Error("cypher should filter on f.language IN $languages")
 	}
-	if querytestutil.SearchString(cypher, "ENDS WITH") {
+	if testutil.SearchString(cypher, "ENDS WITH") {
 		t.Error("cypher must not carry an ENDS WITH extension fallback")
 	}
 }

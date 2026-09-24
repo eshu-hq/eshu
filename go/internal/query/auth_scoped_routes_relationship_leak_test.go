@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // crossTenantDependencyGraph resolves the orders-api workload anchored on the
@@ -102,7 +102,7 @@ func TestServiceAndWorkloadContextScopedFiltersCrossTenantDependency(t *testing.
 				t.Fatalf("all-scope caller: expected cross-tenant dependency present in unfiltered response, got: %s", allScope)
 			}
 
-			scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+			scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 			scopedBody := get(&scoped)
 			if strings.Contains(scopedBody, crossTenantDependencyRepo) || strings.Contains(scopedBody, "other-tenant-infra") {
 				t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b in dependencies[]: %s", scopedBody)

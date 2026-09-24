@@ -10,17 +10,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestVisualizationDeriveRouteBuildsServiceStoryPacket(t *testing.T) {
 	t.Parallel()
 
 	handler := mountVisualizationHandler()
-	truth := querytestutil.FreshTruth()
+	truth := testutil.FreshTruth()
 	env := visualizationHTTPEnvelope(t, handler, map[string]any{
 		"view":            string(VisualizationViewServiceStory),
-		"source_response": querytestutil.StoryResponseWithUpstream([]string{"r2", "r1"}),
+		"source_response": testutil.StoryResponseWithUpstream([]string{"r2", "r1"}),
 		"source_truth":    truth,
 	})
 	packet := visualizationEnvelopePacket(t, env)
@@ -71,12 +71,12 @@ func TestVisualizationDeriveRouteSupportsEvidenceCitationAndIncidentContext(t *t
 		{
 			name:   "evidence citation",
 			view:   VisualizationViewEvidenceCitation,
-			source: querytestutil.CitationResponse([]string{"entity-2", "entity-1"}),
+			source: testutil.CitationResponse([]string{"entity-2", "entity-1"}),
 		},
 		{
 			name:   "incident context",
 			view:   VisualizationViewIncidentContext,
-			source: querytestutil.IncidentResponse([]IncidentEvidenceSlot{IncidentSlotIncident, IncidentSlotService}),
+			source: testutil.IncidentResponse([]IncidentEvidenceSlot{IncidentSlotIncident, IncidentSlotService}),
 		},
 	}
 	for _, tc := range testCases {
@@ -84,7 +84,7 @@ func TestVisualizationDeriveRouteSupportsEvidenceCitationAndIncidentContext(t *t
 			env := visualizationHTTPEnvelope(t, handler, map[string]any{
 				"view":            string(tc.view),
 				"source_response": tc.source,
-				"source_truth":    querytestutil.FreshTruth(),
+				"source_truth":    testutil.FreshTruth(),
 			})
 			packet := visualizationEnvelopePacket(t, env)
 			if packet.View != tc.view {
@@ -106,7 +106,7 @@ func TestVisualizationDeriveRouteReturnsUnsupportedPacketForEmptyKnownView(t *te
 	env := visualizationHTTPEnvelope(t, mountVisualizationHandler(), map[string]any{
 		"view":            string(VisualizationViewServiceStory),
 		"source_response": map[string]any{},
-		"source_truth":    querytestutil.FreshTruth(),
+		"source_truth":    testutil.FreshTruth(),
 	})
 	packet := visualizationEnvelopePacket(t, env)
 
@@ -152,28 +152,28 @@ func TestOpenAPISpecIncludesVisualizationDeriveRoute(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/visualizations/derive")
-	post := querytestutil.MustMapField(t, path, "post")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/visualizations/derive")
+	post := testutil.MustMapField(t, path, "post")
 	if got, want := post["operationId"], "deriveVisualizationPacket"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	requestBody := querytestutil.MustMapField(t, post, "requestBody")
-	content := querytestutil.MustMapField(t, requestBody, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	requestBody := testutil.MustMapField(t, post, "requestBody")
+	content := testutil.MustMapField(t, requestBody, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{"view", "source_response", "source_truth"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("request schema missing %s", field)
 		}
 	}
-	responses := querytestutil.MustMapField(t, post, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	okContent := querytestutil.MustMapField(t, okResponse, "content")
-	okJSON := querytestutil.MustMapField(t, okContent, "application/json")
-	okSchema := querytestutil.MustMapField(t, okJSON, "schema")
-	okProperties := querytestutil.MustMapField(t, okSchema, "properties")
+	responses := testutil.MustMapField(t, post, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	okContent := testutil.MustMapField(t, okResponse, "content")
+	okJSON := testutil.MustMapField(t, okContent, "application/json")
+	okSchema := testutil.MustMapField(t, okJSON, "schema")
+	okProperties := testutil.MustMapField(t, okSchema, "properties")
 	if _, ok := okProperties["visualization_packet"]; !ok {
 		t.Fatalf("response schema missing visualization_packet")
 	}

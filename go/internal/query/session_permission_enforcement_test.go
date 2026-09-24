@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
@@ -52,7 +52,7 @@ func askSearchEntitledSemanticIndex() *stubSemanticSearchIndex {
 			IndexedDocumentCount: 1,
 			Candidates: []searchretrieval.Candidate{
 				{
-					Document: querytestutil.SemanticSearchDocumentFixture(
+					Document: testutil.SemanticSearchDocumentFixture(
 						"searchdoc:payments",
 						"repo-payments",
 						"Payments runbook",
@@ -70,7 +70,7 @@ func askSearchEntitledSemanticIndex() *stubSemanticSearchIndex {
 // repository.
 func askSearchRequest(t *testing.T) *http.Request {
 	t.Helper()
-	return querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	return testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",

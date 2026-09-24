@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func requestRepositoryBranches(t *testing.T, handler *Handler, target string) *httptest.ResponseRecorder {
@@ -32,7 +32,7 @@ func TestGetRepositoryBranchesReturnsSingleIndexedRef(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    []querycontract.FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},
 			Coverage:     querycontract.RepositoryContentCoverage{Available: true, FileCount: 1, FileIndexedAt: indexedAt},
 		},
@@ -71,7 +71,7 @@ func TestGetRepositoryBranchesReturnsSourceBackedRefs(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
 				{
 					Name:       "main",
@@ -140,7 +140,7 @@ func TestGetRepositoryBranchesReturnsTagsSeparately(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
 				{
 					Name:       "main",
@@ -229,7 +229,7 @@ func TestGetRepositoryBranchesTagSameNameAsBranch(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
 				{
 					Name:       "main",
@@ -309,7 +309,7 @@ func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
 	}
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
 		},
 	}
@@ -360,7 +360,7 @@ func TestGetRepositoryBranchesTagsWithinCapNotTruncated(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
 				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 				{Name: "v1.0.0", Kind: "tag", HeadSHA: "abc123", ObservedAt: observedAt, IndexedAt: indexedAt},
@@ -391,7 +391,7 @@ func TestGetRepositoryBranchesEmptyWhenNoCommitIndexed(t *testing.T) {
 
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 	}
 	w := requestRepositoryBranches(t, handler, "/api/v0/repositories/repo-1/branches")
@@ -413,7 +413,7 @@ func TestGetRepositoryBranches_LocalLightweightReturnsBranches(t *testing.T) {
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalLightweight,
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    []querycontract.FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},
 			Coverage:     querycontract.RepositoryContentCoverage{Available: true, FileCount: 1, FileIndexedAt: indexedAt},
 		},

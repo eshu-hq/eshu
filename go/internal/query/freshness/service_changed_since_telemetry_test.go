@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -41,7 +41,7 @@ func (fakeServiceChangedSinceLineageReader) ComputeServiceChangedSinceDelta(
 // fakeServiceOwnershipProbeResult answers serviceChangedSinceGrantAdmits'
 // two-probe ownership check with a fixed pair of row counts, one for the
 // admission probe and one for the exclusivity (OutsideGrant) probe. It is
-// deliberately simpler than querytestutil's two-tenant correlation mirror:
+// deliberately simpler than testutil's two-tenant correlation mirror:
 // this proof only needs to land on each of the four closed refusal reasons
 // plus the two non-refused paths, not re-prove the SQL-mirroring grant
 // intersection the service_changed_since_grant_test.go sibling already
@@ -151,7 +151,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 		{
 			name:       "ungranted service records not_granted",
 			serviceID:  "svc-b",
-			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			auth:       testutil.ScopedChangedSinceTenantA(),
 			ownership:  fakeServiceOwnershipProbeResult{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalNotGranted,
 		},
@@ -161,7 +161,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			// and served tenant B's lineage.
 			name:       "shared service id records shared_ownership",
 			serviceID:  "svc-shared",
-			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			auth:       testutil.ScopedChangedSinceTenantA(),
 			ownership:  fakeServiceOwnershipProbeResult{granted: oneGrantedCorrelationRow, contested: oneContestedCorrelationRow},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalSharedOwnership,
 		},
@@ -175,14 +175,14 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 		{
 			name:       "unwired ownership records ownership_unwired",
 			serviceID:  "svc-a",
-			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			auth:       testutil.ScopedChangedSinceTenantA(),
 			ownership:  nil,
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired,
 		},
 		{
 			name:      "granted service carries no refusal attribute",
 			serviceID: "svc-a",
-			auth:      querytestutil.ScopedChangedSinceTenantA(),
+			auth:      testutil.ScopedChangedSinceTenantA(),
 			ownership: fakeServiceOwnershipProbeResult{granted: oneGrantedCorrelationRow},
 		},
 		{

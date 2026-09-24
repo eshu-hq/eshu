@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 2a: what POST /api/v0/code/language-query answers
@@ -30,7 +30,7 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			t.Parallel()
 
 			handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			data := decodeEnvelopeData(t, rec.Body.Bytes())
@@ -165,7 +165,7 @@ func TestLanguageQueryEmptyGrantWithRepoIDIsRejectedNotAnsweredEmpty(t *testing.
 				t.Parallel()
 
 				handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-				auth := querytestutil.CodeGrantScopedAuthContext(nil)
+				auth := testutil.CodeGrantScopedAuthContext(nil)
 				body := languageQueryGrantBody(branch.entityType)
 				body["repo_id"] = repoID
 				rec := runLanguageQueryGrantRequest(t, handler, body, &auth)

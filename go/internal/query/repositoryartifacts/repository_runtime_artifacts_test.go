@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildRepositoryRuntimeArtifactsSurfacesDockerComposeRuntimeSignals(t *testing.T) {
@@ -64,16 +64,16 @@ func TestBuildRepositoryRuntimeArtifactsSurfacesDockerComposeRuntimeSignals(t *t
 	if got, want := api["service_name"], "api"; got != want {
 		t.Fatalf("api.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := api["signals"], []string{"healthcheck", "ports", "environment", "volumes"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["signals"], []string{"healthcheck", "ports", "environment", "volumes"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.signals = %#v, want %#v", got, want)
 	}
-	if got, want := api["ports"], []string{"8080:8080", "8443:8443"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["ports"], []string{"8080:8080", "8443:8443"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.ports = %#v, want %#v", got, want)
 	}
-	if got, want := api["environment"], []string{"LOG_LEVEL", "PORT"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["environment"], []string{"LOG_LEVEL", "PORT"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.environment = %#v, want %#v", got, want)
 	}
-	if got, want := api["volumes"], []string{"./data:/var/lib/app"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["volumes"], []string{"./data:/var/lib/app"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.volumes = %#v, want %#v", got, want)
 	}
 
@@ -81,10 +81,10 @@ func TestBuildRepositoryRuntimeArtifactsSurfacesDockerComposeRuntimeSignals(t *t
 	if got, want := worker["service_name"], "worker"; got != want {
 		t.Fatalf("worker.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := worker["signals"], []string{"ports"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := worker["signals"], []string{"ports"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("worker.signals = %#v, want %#v", got, want)
 	}
-	if got, want := worker["ports"], []string{"9000:9000"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := worker["ports"], []string{"9000:9000"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("worker.ports = %#v, want %#v", got, want)
 	}
 	if _, ok := worker["environment"]; ok {
@@ -157,7 +157,7 @@ HEALTHCHECK CMD /app --healthz
 	if got, want := builder["platform"], "$BUILDPLATFORM"; got != want {
 		t.Fatalf("builder.platform = %#v, want %#v", got, want)
 	}
-	if got, want := builder["signals"], []string{"base_image", "platform", "environment"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := builder["signals"], []string{"base_image", "platform", "environment"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("builder.signals = %#v, want %#v", got, want)
 	}
 
@@ -168,16 +168,16 @@ HEALTHCHECK CMD /app --healthz
 	if got, want := runtime["base_image"], "alpine"; got != want {
 		t.Fatalf("runtime.base_image = %#v, want %#v", got, want)
 	}
-	if got, want := runtime["copy_from"], []string{"builder"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := runtime["copy_from"], []string{"builder"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("runtime.copy_from = %#v, want %#v", got, want)
 	}
-	if got, want := runtime["ports"], []string{"8080/tcp"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := runtime["ports"], []string{"8080/tcp"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("runtime.ports = %#v, want %#v", got, want)
 	}
 	if got, want := runtime["cmd"], `["/app", "--serve"]`; got != want {
 		t.Fatalf("runtime.cmd = %#v, want %#v", got, want)
 	}
-	if got, want := runtime["signals"], []string{"base_image", "copy_from", "entrypoint", "cmd", "healthcheck", "ports"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := runtime["signals"], []string{"base_image", "copy_from", "entrypoint", "cmd", "healthcheck", "ports"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("runtime.signals = %#v, want %#v", got, want)
 	}
 }
@@ -214,7 +214,7 @@ func TestBuildRepositoryRuntimeArtifactsSurfacesDockerComposeBuildContext(t *tes
 	if got, want := api["build_context"], "../payments-service"; got != want {
 		t.Fatalf("api.build_context = %#v, want %#v", got, want)
 	}
-	if got, want := api["signals"], []string{"build"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["signals"], []string{"build"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.signals = %#v, want %#v", got, want)
 	}
 }
@@ -255,10 +255,10 @@ func TestBuildRepositoryRuntimeArtifactsCapturesDockerComposeCommandAndEntrypoin
 	if got, want := api["service_name"], "api"; got != want {
 		t.Fatalf("api.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := api["command"], []string{"bundle", "exec", "puma"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["command"], []string{"bundle", "exec", "puma"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.command = %#v, want %#v", got, want)
 	}
-	if got, want := api["entrypoint"], []string{"/usr/local/bin/docker-entrypoint.sh"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["entrypoint"], []string{"/usr/local/bin/docker-entrypoint.sh"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.entrypoint = %#v, want %#v", got, want)
 	}
 }
@@ -302,16 +302,16 @@ func TestBuildRepositoryRuntimeArtifactsCapturesDockerComposeEnvFilesConfigsAndS
 	if got, want := api["service_name"], "api"; got != want {
 		t.Fatalf("api.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := api["signals"], []string{"env_files", "configs", "secrets"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["signals"], []string{"env_files", "configs", "secrets"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.signals = %#v, want %#v", got, want)
 	}
-	if got, want := api["env_files"], []string{".env", "deploy/api.env"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["env_files"], []string{".env", "deploy/api.env"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.env_files = %#v, want %#v", got, want)
 	}
-	if got, want := api["configs"], []string{"app-config", "api-runtime"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["configs"], []string{"app-config", "api-runtime"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.configs = %#v, want %#v", got, want)
 	}
-	if got, want := api["secrets"], []string{"db-password", "api-token"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := api["secrets"], []string{"db-password", "api-token"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.secrets = %#v, want %#v", got, want)
 	}
 }

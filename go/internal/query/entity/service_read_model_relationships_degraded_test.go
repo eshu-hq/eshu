@@ -13,10 +13,10 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // getServiceContextReadModelPartialReasons drives the real mounted GET
@@ -84,8 +84,8 @@ func TestGetServiceContextReadModelFallbackReportsRelationshipsReadDegraded(t *t
 	t.Parallel()
 
 	body := getServiceContextReadModelPartialReasons(t, errors.New("graph query exceeded its deadline"))
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
-	if !querytestutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
+	if !testutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want %q", reasons, repository.RelationshipsReadDegradedReason)
 	}
 }
@@ -97,8 +97,8 @@ func TestGetServiceContextReadModelFallbackHealthyDependenciesReadAddsNoReason(t
 	t.Parallel()
 
 	body := getServiceContextReadModelPartialReasons(t, nil)
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
-	if querytestutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
+	if testutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", reasons, repository.RelationshipsReadDegradedReason)
 	}
 }

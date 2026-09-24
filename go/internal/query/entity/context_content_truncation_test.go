@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // entityContextFakeContentStore backs a single GetEntityContent lookup plus
@@ -69,7 +69,7 @@ func (f scriptedContentRelationshipBuilder) BuildContentRelationships(_ context.
 func TestGetEntityContextFromContentDisclosesK8sSelectTruncation(t *testing.T) {
 	t.Parallel()
 
-	candidates := querytestutil.K8sResourceFillerEntities(querycontract.RepositorySemanticEntityLimit)
+	candidates := testutil.K8sResourceFillerEntities(querycontract.RepositorySemanticEntityLimit)
 	candidates = append(candidates, querycontract.EntityContent{
 		EntityID:     "deployment-overflow",
 		RepoID:       "repo-1",

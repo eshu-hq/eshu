@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestScopedProviderConfigReadRoute verifies the matcher recognizes exactly
@@ -254,7 +254,7 @@ func TestAuthMiddlewareWithBrowserSessionsAllowsProviderConfigAdminRoutes(t *tes
 				Tester: &fakeProviderConfigConnectionTester{
 					result: AdminProviderConfigConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_1"},
 				},
-				Audit: &querytestutil.FakeGovernanceAuditAppender{},
+				Audit: &testutil.FakeGovernanceAuditAppender{},
 			}
 
 			mux := http.NewServeMux()

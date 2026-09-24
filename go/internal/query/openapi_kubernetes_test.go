@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecIncludesKubernetesCorrelations(t *testing.T) {
@@ -16,24 +16,24 @@ func TestOpenAPISpecIncludesKubernetesCorrelations(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/kubernetes/correlations")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/kubernetes/correlations")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listKubernetesCorrelations"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	schema := querytestutil.MustMapField(t, content, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	correlations := querytestutil.MustMapField(t, properties, "correlations")
-	items := querytestutil.MustMapField(t, correlations, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
-	if got, want := querytestutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := testutil.MustMapField(t, content, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	correlations := testutil.MustMapField(t, properties, "correlations")
+	items := testutil.MustMapField(t, correlations, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
+	if got, want := testutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
-	if got, want := querytestutil.MustMapField(t, itemProperties, "outcome")["type"], "string"; got != want {
+	if got, want := testutil.MustMapField(t, itemProperties, "outcome")["type"], "string"; got != want {
 		t.Fatalf("outcome type = %#v, want %#v", got, want)
 	}
 }

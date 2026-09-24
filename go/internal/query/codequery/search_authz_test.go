@@ -14,9 +14,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestCodeSearchGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
@@ -220,7 +220,7 @@ func TestCodeSearchScopedSelectorFiltersDuplicateRepositoryNames(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	ctx := ContextWithAuthContext(context.Background(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -242,7 +242,7 @@ func TestCodeSearchScopedSelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	ctx := ContextWithAuthContext(context.Background(), AuthContext{
 		Mode:                 AuthModeScoped,

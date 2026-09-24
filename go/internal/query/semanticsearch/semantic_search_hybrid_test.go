@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
@@ -23,8 +23,8 @@ func TestSemanticSearchHandlerConfiguredSemanticModeUsesLocalVectorRetrieval(t *
 	index := &fakeSemanticSearchIndexStore{}
 	documents := &fakeSemanticSearchDocumentStore{
 		rows: []semanticSearchDocumentRow{
-			{Document: querytestutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")},
-			{Document: querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "checkout payment refund")},
+			{Document: testutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")},
+			{Document: testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "checkout payment refund")},
 		},
 	}
 	handler := &SemanticSearchHandler{
@@ -32,7 +32,7 @@ func TestSemanticSearchHandlerConfiguredSemanticModeUsesLocalVectorRetrieval(t *
 		LocalHybrid: NewLocalSemanticSearchHybrid(documents),
 		Profile:     querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "refund",
 		"mode":       "semantic",
@@ -72,8 +72,8 @@ func TestSemanticSearchHandlerConfiguredHybridReportsHybridParticipation(t *test
 	index := &fakeSemanticSearchIndexStore{}
 	documents := &fakeSemanticSearchDocumentStore{
 		rows: []semanticSearchDocumentRow{
-			{Document: querytestutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")},
-			{Document: querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "payment refund payment")},
+			{Document: testutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")},
+			{Document: testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "payment refund payment")},
 		},
 	}
 	handler := &SemanticSearchHandler{
@@ -81,7 +81,7 @@ func TestSemanticSearchHandlerConfiguredHybridReportsHybridParticipation(t *test
 		LocalHybrid: NewLocalSemanticSearchHybrid(documents),
 		Profile:     querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment refund",
 		"mode":       "hybrid",
@@ -116,14 +116,14 @@ func TestSemanticSearchHandlerHybridWithoutLocalEmbedderReportsDegradedKeywordSt
 		result: SemanticSearchIndexResult{
 			IndexedDocumentCount: 1,
 			Candidates: []searchretrieval.Candidate{{
-				Document: querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "payment refund"),
+				Document: testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "payment refund"),
 				Score:    2,
 				Metadata: map[string]string{"search_method": "bm25"},
 			}},
 		},
 	}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment refund",
 		"mode":       "hybrid",
@@ -152,7 +152,7 @@ func TestSemanticSearchHandlerConfiguredHybridPreservesRepoScopeAndSourceKinds(t
 		LocalHybrid: NewLocalSemanticSearchHybrid(documents),
 		Profile:     querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":      "repo-payments",
 		"service_id":   "svc-payments",
 		"query":        "payment",

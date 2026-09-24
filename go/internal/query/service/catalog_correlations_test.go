@@ -11,13 +11,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestServiceCatalogListCorrelationsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &CatalogHandler{Correlations: &querytestutil.RecordingServiceCatalogCorrelationStore{}}
+	handler := &CatalogHandler{Correlations: &testutil.RecordingServiceCatalogCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -43,7 +43,7 @@ func TestServiceCatalogListCorrelationsRequiresScopeAndLimit(t *testing.T) {
 func TestServiceCatalogListCorrelationsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{
 			{
 				CorrelationID:  "catalog-correlation-1",
@@ -144,7 +144,7 @@ func TestServiceCatalogCorrelationsDecodeRequiredAnchorKeys(t *testing.T) {
 func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{}
+	store := &testutil.RecordingServiceCatalogCorrelationStore{}
 	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
@@ -192,7 +192,7 @@ func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(
 func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		DescriptorRows: []CatalogLocalDescriptorEvidenceRow{{
 			FactID:    "catalog-fact-1",
 			FactKind:  "service_catalog.entity",
@@ -260,7 +260,7 @@ func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *tes
 			SourceURI: "file://repo/catalog-info.yaml",
 		})
 	}
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{DescriptorRows: descriptorRows}
+	store := &testutil.RecordingServiceCatalogCorrelationStore{DescriptorRows: descriptorRows}
 	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -296,7 +296,7 @@ func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *tes
 func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{{
 			CorrelationID: "catalog-correlation-1",
 			RepositoryID:  "repo-checkout",
@@ -349,7 +349,7 @@ func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T
 func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{{
 			CorrelationID: "catalog-correlation-1",
 			RepositoryID:  "repo-checkout",
@@ -401,7 +401,7 @@ func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testi
 func TestServiceCatalogListCorrelationsExplainsNoEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{}
+	store := &testutil.RecordingServiceCatalogCorrelationStore{}
 	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestAllScopeBearerTwoTenantBoundary is the data-plane half of #6450's
@@ -29,8 +29,8 @@ import (
 // there is no cross-tenant read to leak, whatever the response says.
 //
 // It runs the two promoted routes against the same two-tenant fixtures their
-// own grant-boundary proofs use (querytestutil.GrantMirroringChangedSince and
-// querytestutil.GrantMirroringGenerations, which apply the shipped SQL
+// own grant-boundary proofs use (testutil.GrantMirroringChangedSince and
+// testutil.GrantMirroringGenerations, which apply the shipped SQL
 // predicate rather than merely recording the filter, and are promoted there
 // per the #6608 rule because package freshness's own grant-boundary proofs
 // use them too), so "the read is gone" is measured against the same corpus
@@ -97,7 +97,7 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 			if reader.LastFilter.Scoped {
 				t.Fatal("filter.Scoped = true for an all-scope bearer; the grant predicate is inert for it, which is exactly why hosted_multi_tenant refuses it")
 			}
-			data, _ := querytestutil.DecodeChangedSinceEnvelope(t, rec)
+			data, _ := testutil.DecodeChangedSinceEnvelope(t, rec)
 			if got, want := data["scope_id"], "scope-b"; got != want {
 				t.Fatalf("data[scope_id] = %v, want %q; the unbounded read resolves the other tenant's scope, which is the posture local_no_policy accepts", got, want)
 			}
@@ -115,7 +115,7 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 					t.Parallel()
 
 					rec, reader := serveChangedSinceThroughBearerMiddleware(
-						t, querytestutil.ScopedChangedSinceTenantA(), ScopedRoutePolicyForGovernanceMode(GovernanceStatusConfig{Mode: mode}), "repo-a",
+						t, testutil.ScopedChangedSinceTenantA(), ScopedRoutePolicyForGovernanceMode(GovernanceStatusConfig{Mode: mode}), "repo-a",
 					)
 
 					if rec.Code != http.StatusOK {
@@ -124,7 +124,7 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 					if !reader.LastFilter.Scoped {
 						t.Fatal("filter.Scoped = false for a restricted bearer; its grant must still bind")
 					}
-					data, _ := querytestutil.DecodeChangedSinceEnvelope(t, rec)
+					data, _ := testutil.DecodeChangedSinceEnvelope(t, rec)
 					if got, want := data["scope_id"], "scope-a"; got != want {
 						t.Fatalf("data[scope_id] = %v, want %q", got, want)
 					}
@@ -192,17 +192,17 @@ func serveChangedSinceThroughBearerMiddleware(
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
 	repository string,
-) (*httptest.ResponseRecorder, *querytestutil.GrantMirroringChangedSince) {
+) (*httptest.ResponseRecorder, *testutil.GrantMirroringChangedSince) {
 	t.Helper()
 
-	reader := &querytestutil.GrantMirroringChangedSince{Scopes: querytestutil.TwoTenantChangedSinceScopes()}
+	reader := &testutil.GrantMirroringChangedSince{Scopes: testutil.TwoTenantChangedSinceScopes()}
 	mux := http.NewServeMux()
 	(&FreshnessHandler{ChangedSince: reader, Profile: ProfileLocalAuthoritative}).Mount(mux)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v0/freshness/changed-since?repository="+repository+
-			"&since_generation_id="+querytestutil.ChangedSinceTwoTenantPriorGeneration,
+			"&since_generation_id="+testutil.ChangedSinceTwoTenantPriorGeneration,
 		nil,
 	)
 	return serveThroughBearerMiddleware(t, req, auth, policy, mux), reader
@@ -216,10 +216,10 @@ func serveGenerationsThroughBearerMiddleware(
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
 	generationID string,
-) (*httptest.ResponseRecorder, *querytestutil.GrantMirroringGenerations) {
+) (*httptest.ResponseRecorder, *testutil.GrantMirroringGenerations) {
 	t.Helper()
 
-	reader := &querytestutil.GrantMirroringGenerations{Rows: querytestutil.TwoTenantGenerationRows()}
+	reader := &testutil.GrantMirroringGenerations{Rows: testutil.TwoTenantGenerationRows()}
 	mux := http.NewServeMux()
 	(&FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}).Mount(mux)
 

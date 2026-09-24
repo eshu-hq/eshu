@@ -13,8 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // The scoped incoming-edge probe answers two questions about one candidate at
@@ -115,7 +115,7 @@ func runDeadCodeIncomingProbe(
 	}
 	ctx := auth.ContextWithAuthContext(
 		context.Background(),
-		querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}),
+		testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}),
 	)
 	incoming, err := deadCodeTestIncomingEdges(graph)(ctx, []map[string]any{{
 		"entity_id": deadCodeIncomingProbeEntity,
@@ -346,7 +346,7 @@ func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
 		"name":      "unusedHelper",
 		"labels":    []any{"Function"},
 	}}
-	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	authCtx := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	ctx := auth.ContextWithAuthContext(context.Background(), authCtx)
 	incoming, err := deadCodeTestIncomingEdges(graph)(ctx, results, "Function")
 	if err != nil {
@@ -451,7 +451,7 @@ func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadcod
 		}}, nil
 	}
 	probeGraph := graph.FakeGraphReader{RunFn: probe, RunIncomingFn: probe}
-	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	authCtx := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	ctx := auth.ContextWithAuthContext(context.Background(), authCtx)
 	graph, err := deadCodeTestIncomingEdges(probeGraph)(ctx, []map[string]any{{
 		"entity_id": deadCodeHiddenConsumerEntityID,

@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestCallChainOneHopBindsTheGrantInTheAnchoringMatch moved here from
@@ -36,7 +36,7 @@ func TestCallChainOneHopBindsTheGrantInTheAnchoringMatch(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, newChainRouteRequest(t, map[string]any{
 		"start_entity_id": callChainGrantedStart,

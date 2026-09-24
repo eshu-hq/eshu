@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestResolveEntityGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
@@ -179,7 +179,7 @@ func TestResolveEntityScopedSelectorFiltersDuplicateRepositoryNames(t *testing.T
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Content: fakePortContentStore{repositories: querytestutil.TenantAuthzRepositories()},
+		Content: fakePortContentStore{repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -205,7 +205,7 @@ func TestResolveEntityScopedSelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Content: fakePortContentStore{repositories: querytestutil.TenantAuthzRepositories()},
+		Content: fakePortContentStore{repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -231,7 +231,7 @@ func TestResolveEntityEmptyGrantDeniesExplicitRepositorySelector(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Content: fakePortContentStore{repositories: querytestutil.TenantAuthzRepositories()},
+		Content: fakePortContentStore{repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,

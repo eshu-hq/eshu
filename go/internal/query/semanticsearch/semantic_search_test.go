@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -27,7 +27,7 @@ func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 			IndexedDocumentCount: 2,
 			Candidates: []searchretrieval.Candidate{
 				{
-					Document: querytestutil.SemanticSearchDocumentFixture(
+					Document: testutil.SemanticSearchDocumentFixture(
 						"searchdoc:payments",
 						"repo-payments",
 						"Payments runbook",
@@ -39,7 +39,7 @@ func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 					},
 				},
 				{
-					Document: querytestutil.SemanticSearchDocumentFixture(
+					Document: testutil.SemanticSearchDocumentFixture(
 						"searchdoc:billing",
 						"repo-payments",
 						"Billing checklist",
@@ -57,7 +57,7 @@ func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -139,7 +139,7 @@ func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing
 
 	index := &fakeSemanticSearchIndexStore{
 		result: SemanticSearchIndexResult{Candidates: []searchretrieval.Candidate{{
-			Document: querytestutil.SemanticSearchDocumentFixture(
+			Document: testutil.SemanticSearchDocumentFixture(
 				"searchdoc:out-of-scope",
 				"repo-payments",
 				"Payments",
@@ -149,7 +149,7 @@ func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing
 		}}},
 	}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -186,7 +186,7 @@ func TestSemanticSearchHandlerScopedGrantRejectsOutOfGrantRepositoryBeforeRead(t
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -223,7 +223,7 @@ func TestSemanticSearchHandlerPassesSmallestAnchorAndSourceKindsToIndex(t *testi
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":      "repo-payments",
 		"service_id":   "svc-payments",
 		"query":        "payment",
@@ -258,7 +258,7 @@ func TestSemanticSearchHandlerIndexErrorReturnsInternalError(t *testing.T) {
 
 	index := &fakeSemanticSearchIndexStore{err: errors.New("database down")}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment",
 		"mode":       "keyword",
@@ -286,7 +286,7 @@ func TestSemanticSearchHandlerSemanticModeRequiresEmbedder(t *testing.T) {
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment",
 		"mode":       "semantic",
@@ -361,7 +361,7 @@ func TestSemanticSearchHandlerRejectsUnboundedRequestsBeforeRead(t *testing.T) {
 			handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
 			rec := httptest.NewRecorder()
 
-			handler.search(rec, querytestutil.SemanticSearchHTTPRequest(t, tc.body))
+			handler.search(rec, testutil.SemanticSearchHTTPRequest(t, tc.body))
 
 			if got, want := rec.Code, http.StatusBadRequest; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

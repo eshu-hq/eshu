@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // stubKubernetesPodTemplateListStore is a test fake implementing
@@ -66,8 +66,8 @@ func (s *stubKubernetesPodTemplateListStore) ListLiveIdentityMatches(
 func singleTrackingIDFixture(appName, kind, name, namespace, apiVersion string) (
 	[]map[string]any, []map[string]any, string,
 ) {
-	controllers := []map[string]any{querytestutil.ArgoCDControllerFixture(appName)}
-	resources := []map[string]any{querytestutil.K8sResourceFixture(kind, name, namespace, apiVersion)}
+	controllers := []map[string]any{testutil.ArgoCDControllerFixture(appName)}
+	resources := []map[string]any{testutil.K8sResourceFixture(kind, name, namespace, apiVersion)}
 	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 1 {
 		panic(fmt.Sprintf("test fixture bug: want exactly 1 tracking id, got %d", len(trackingIDs)))
@@ -106,7 +106,7 @@ func TestFetchWorkloadLiveInstanceSummaryNoAnchorOfAnyKindNeverQueriesStore(t *t
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(),
 		nil, // no controllers at all
-		[]map[string]any{querytestutil.K8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
+		[]map[string]any{testutil.K8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
 		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
@@ -260,10 +260,10 @@ func TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters(t *testi
 func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	t.Parallel()
 
-	controllers := []map[string]any{querytestutil.ArgoCDControllerFixture("app-a")}
+	controllers := []map[string]any{testutil.ArgoCDControllerFixture("app-a")}
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
-		querytestutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
 	}
 	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 2 {
@@ -358,7 +358,7 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t *testing.T) {
 	t.Parallel()
 
-	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
+	resources := []map[string]any{testutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
 	anchors := deployment.DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 {
 		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))

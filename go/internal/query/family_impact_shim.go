@@ -57,7 +57,7 @@ func uniqueStrings(values []string) []string {
 var NewPostgresKubernetesPodTemplateStore = deployment.NewPostgresKubernetesPodTemplateStore
 
 // containsAllSubstrings reports whether value contains every part. Its home
-// is querytestutil; this forwarder keeps lane-A and content-reader staying
+// is testutil; this forwarder keeps lane-A and content-reader staying
 // tests (which must not be touched for #6060) calling the package-local
 // name.
 func containsAllSubstrings(value string, parts ...string) bool {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -82,7 +82,7 @@ func TestSemanticSearchHandlerRerankPromotesServiceAnchoredResult(t *testing.T) 
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -203,7 +203,7 @@ func TestSemanticSearchHandlerRerankOmittedByDefault(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",

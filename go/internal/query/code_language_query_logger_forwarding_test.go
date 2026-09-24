@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestCodeHandlerMountForwardsLoggerToLanguageQueryHandler is the #5761 P1-1

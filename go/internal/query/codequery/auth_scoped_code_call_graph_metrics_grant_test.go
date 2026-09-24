@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 1, step 4: POST /api/v0/code/call-graph/metrics.
@@ -65,7 +65,7 @@ func callGraphMetricsGrantBody() map[string]any {
 func TestCallGraphMetricsCypherIsTheSameForEveryCaller(t *testing.T) {
 	t.Parallel()
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	scoped, scopedParams, scopedStatus := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
 	shared, sharedParams, sharedStatus := captureCallGraphMetricsCypher(t, nil, callGraphMetricsGrantBody())
 
@@ -96,7 +96,7 @@ func TestCallGraphMetricsCypherIsTheSameForEveryCaller(t *testing.T) {
 func TestCallGraphMetricsRejectsAnUngrantedRepository(t *testing.T) {
 	t.Parallel()
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	captured, _, status := captureCallGraphMetricsCypher(t, &auth, map[string]any{
 		"repo_id":     codeGrantOtherRepo,
 		"metric_type": "hub_functions",
@@ -121,7 +121,7 @@ func TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan(t *testing.T) {
 
 	t.Run("route", func(t *testing.T) {
 		t.Parallel()
-		auth := querytestutil.CodeGrantScopedAuthContext(nil)
+		auth := testutil.CodeGrantScopedAuthContext(nil)
 		captured, _, _ := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
 		if captured != "" {
 			t.Fatalf("an empty scoped grant reached the edge scan; want no graph read at all:\n%s", captured)
@@ -140,7 +140,7 @@ func TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan(t *testing.T) {
 				},
 			},
 		}
-		ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext(nil))
+		ctx := ContextWithAuthContext(context.Background(), testutil.CodeGrantScopedAuthContext(nil))
 		data, err := handler.CallGraphMetricsData(ctx, codemodel.CallGraphMetricsRequest{
 			RepoID:     codeGrantGrantedRepo,
 			MetricType: "hub_functions",

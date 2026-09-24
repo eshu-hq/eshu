@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated is a
@@ -107,7 +107,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 		t.Fatalf("body[answer_metadata] missing or wrong type: %#v", body["answer_metadata"])
 	}
 	partialReasons, ok := answerMetadata["partial_reasons"].([]any)
-	if !ok || !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
+	if !ok || !testutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("answer_metadata[partial_reasons] = %#v, want to contain %q", answerMetadata["partial_reasons"], repository.InfrastructureTruncatedReason)
 	}
 

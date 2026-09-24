@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestServiceCatalogScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.T) {
@@ -108,7 +108,7 @@ func TestServiceCatalogScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead(
 func TestServiceCatalogHandlerPassesScopedGrants(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{{
 			CorrelationID: "catalog-correlation-1",
 			RepositoryID:  "repo://example/api",

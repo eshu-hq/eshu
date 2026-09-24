@@ -4,7 +4,7 @@
 
 - `doc.go` — what lives here.
 - `driver.go` — the queue, the two-tier answer, and the default branches.
-- `querytestutil/content`'s AGENTS.md — the adapter pattern for wide fakes,
+- `query/testutil/content`'s AGENTS.md — the adapter pattern for wide fakes,
   which applies if this driver's surface ever needs one.
 
 ## Invariants

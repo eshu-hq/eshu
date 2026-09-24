@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fallbackArtifactOverviewGraph resolves the orders-api workload (repo-a) with
@@ -100,7 +100,7 @@ func TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo(t *t
 		t.Fatalf("all-scope caller: expected cross-tenant repo-b artifact source present in unfiltered fallback overview, got: %s", allScope)
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b via the deployment-artifact-overview fallback: %s", scopedBody)

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecIncludesObservabilityCoverageCorrelations(t *testing.T) {
@@ -16,9 +16,9 @@ func TestOpenAPISpecIncludesObservabilityCoverageCorrelations(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/observability/coverage/correlations")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/observability/coverage/correlations")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listObservabilityCoverageCorrelations"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -43,7 +43,7 @@ func TestOpenAPISpecIncludesObservabilityCoverageCorrelations(t *testing.T) {
 			t.Fatalf("parameters missing %q", want)
 		}
 	}
-	sourceClassSchema := querytestutil.MustMapField(t, parametersByName["source_class"], "schema")
+	sourceClassSchema := testutil.MustMapField(t, parametersByName["source_class"], "schema")
 	sourceClassEnum, ok := sourceClassSchema["enum"].([]any)
 	if !ok {
 		t.Fatalf("source_class enum = %T, want []any", sourceClassSchema["enum"])
@@ -51,7 +51,7 @@ func TestOpenAPISpecIncludesObservabilityCoverageCorrelations(t *testing.T) {
 	if !containsValue(sourceClassEnum, "declared") || !containsValue(sourceClassEnum, "mixed") {
 		t.Fatalf("source_class enum = %#v, want declared and mixed", sourceClassEnum)
 	}
-	outcomeSchema := querytestutil.MustMapField(t, parametersByName["outcome"], "schema")
+	outcomeSchema := testutil.MustMapField(t, parametersByName["outcome"], "schema")
 	outcomeEnum, ok := outcomeSchema["enum"].([]any)
 	if !ok {
 		t.Fatalf("outcome enum = %T, want []any", outcomeSchema["enum"])
@@ -59,18 +59,18 @@ func TestOpenAPISpecIncludesObservabilityCoverageCorrelations(t *testing.T) {
 	if !containsValue(outcomeEnum, "drifted") || !containsValue(outcomeEnum, "permission_hidden") {
 		t.Fatalf("outcome enum = %#v, want drifted and permission_hidden", outcomeEnum)
 	}
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	schema := querytestutil.MustMapField(t, content, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	correlations := querytestutil.MustMapField(t, properties, "correlations")
-	items := querytestutil.MustMapField(t, correlations, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
-	if got, want := querytestutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := testutil.MustMapField(t, content, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	correlations := testutil.MustMapField(t, properties, "correlations")
+	items := testutil.MustMapField(t, correlations, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
+	if got, want := testutil.MustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
-	if got, want := querytestutil.MustMapField(t, itemProperties, "coverage_status")["type"], "string"; got != want {
+	if got, want := testutil.MustMapField(t, itemProperties, "coverage_status")["type"], "string"; got != want {
 		t.Fatalf("coverage_status type = %#v, want %#v", got, want)
 	}
 	for _, want := range []string{"source_class", "source_classes", "resource_class", "freshness_state"} {

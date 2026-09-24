@@ -6,12 +6,12 @@ package codequery
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fakeGraphReader adapts graph.FakeGraphReader to the field names the
 // codequery tests already use. Neither read is reimplemented here: both live
-// in querytestutil/graph, the single home for the dispatch rules, so this adapter
+// in testutil/graph, the single home for the dispatch rules, so this adapter
 // cannot drift from the fake the moved leaf families use. A symbol declared
 // in a _test.go file cannot be imported across a package boundary, which is
 // why the relationships leaf keeps its own twin of this adapter rather than

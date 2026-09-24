@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -54,7 +54,7 @@ func TestLiveNornicDBComplexityListFiltersUngrantedFunctions(t *testing.T) {
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedLiveComplexityGrantGraph(ctx, t, driver)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLiveComplexityListRequest(t, driver, &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

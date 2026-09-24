@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestOpenAPIEntityContextDocumentsIncompleteRelationshipReasons keeps the
@@ -22,16 +22,16 @@ func TestOpenAPIEntityContextDocumentsIncompleteRelationshipReasons(t *testing.T
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/entities/{entity_id}/context")
-	get := querytestutil.MustMapField(t, path, "get")
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, okResponse, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	reason := querytestutil.MustMapField(t, properties, "relationships_truncation_reason")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/entities/{entity_id}/context")
+	get := testutil.MustMapField(t, path, "get")
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, okResponse, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	reason := testutil.MustMapField(t, properties, "relationships_truncation_reason")
 
 	allowed := mustStringSliceField(t, reason, "enum")
 	for _, want := range []string{

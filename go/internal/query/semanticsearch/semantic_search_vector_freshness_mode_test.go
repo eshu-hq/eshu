@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // fakeSearchVectorReadyReader reports a fixed SearchVectorReadyFreshness for
@@ -43,7 +43,7 @@ func TestSemanticSearchHandlerKeywordModeIgnoresPendingSearchVector(t *testing.T
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -78,7 +78,7 @@ func TestSemanticSearchHandlerHybridModeAppliesPendingSearchVector(t *testing.T)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "hybrid",

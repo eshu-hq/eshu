@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // actorModeCases mirrors the root audit actor-class proof's per-mode table:
@@ -46,7 +46,7 @@ func TestMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
 
-			recorder := &querytestutil.FakeGovernanceAuditAppender{}
+			recorder := &testutil.FakeGovernanceAuditAppender{}
 			authCtx := auth.AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", nil)
 			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
@@ -78,7 +78,7 @@ func TestMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 func TestMutationAuditsWithNoSubjectHash(t *testing.T) {
 	t.Parallel()
 
-	recorder := &querytestutil.FakeGovernanceAuditAppender{}
+	recorder := &testutil.FakeGovernanceAuditAppender{}
 	authCtx := auth.AuthContext{Mode: auth.AuthModeBrowserSession, AllScopes: true}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))

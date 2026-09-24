@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -136,7 +136,7 @@ func TestSemanticSearchKeywordReturnsResultsForDirectScopeGrant(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    scopeID,
 		"query":      "refund",
 		"mode":       "keyword",
@@ -179,7 +179,7 @@ func TestSemanticSearchKeywordReturnsResultsForAllScopesScopeID(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    scopeID,
 		"query":      "refund",
 		"mode":       "keyword",
@@ -218,7 +218,7 @@ func TestSemanticSearchKeywordCanonicalRepoIDStillMatches(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    canonicalRepoID,
 		"query":      "refund",
 		"mode":       "keyword",
@@ -263,7 +263,7 @@ func TestSemanticSearchKeywordScopeIDWithBothGrantsReturnsCanonicalIDs(t *testin
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    scopeID,
 		"query":      "refund",
 		"mode":       "keyword",
@@ -315,7 +315,7 @@ func TestSemanticSearchScopeIDWithServiceKeepsServiceAnchor(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    scopeID,
 		"service_id": serviceID,
 		"query":      "refund",

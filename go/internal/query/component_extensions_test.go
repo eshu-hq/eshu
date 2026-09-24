@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestComponentExtensionsHandlerReturnsUnavailableWhenComponentHomeUnset(t *testing.T) {
@@ -303,7 +303,7 @@ func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
+	paths := testutil.MustMapField(t, spec, "paths")
 	for _, path := range []string{
 		"/api/v0/component-extensions",
 		"/api/v0/component-extensions/{component_id}/diagnostics",
@@ -312,17 +312,17 @@ func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 			t.Fatalf("OpenAPI paths missing %s", path)
 		}
 	}
-	inventory := querytestutil.MustMapField(t, paths, "/api/v0/component-extensions")
-	get := querytestutil.MustMapField(t, inventory, "get")
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, okResponse, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	components := querytestutil.MustMapField(t, properties, "components")
-	items := querytestutil.MustMapField(t, components, "items")
-	componentProperties := querytestutil.MustMapField(t, items, "properties")
+	inventory := testutil.MustMapField(t, paths, "/api/v0/component-extensions")
+	get := testutil.MustMapField(t, inventory, "get")
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, okResponse, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	components := testutil.MustMapField(t, properties, "components")
+	items := testutil.MustMapField(t, components, "items")
+	componentProperties := testutil.MustMapField(t, items, "properties")
 	for _, field := range []string{
 		"trust_decision",
 		"policy_gate",

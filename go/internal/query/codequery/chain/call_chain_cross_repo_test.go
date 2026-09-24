@@ -18,8 +18,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // TestMain registers the call-chain capability row the moved HTTP tests drive
@@ -234,7 +234,7 @@ func TestCallChainCandidateOneHopRowsRepoScopedFiltersTargetRepository(t *testin
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	authCtx := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	authCtx := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, newChainRouteRequest(t, map[string]any{
 		"start": "AmbigStart", "end": "TargetEnd",

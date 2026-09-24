@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetServiceContextAddsPartialReasons is a round-11 review follow-up to
@@ -81,7 +81,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 	// The degraded infrastructure read must still be visible under
 	// "limitations" (the raw field this handler already wrote).
 	limitations, ok := body["limitations"].([]any)
-	if !ok || !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+	if !ok || !testutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("body[limitations] = %#v, want to contain %q", body["limitations"], repository.InfrastructureReadDegradedReason)
 	}
 
@@ -91,7 +91,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 }

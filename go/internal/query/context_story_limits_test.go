@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -303,10 +303,10 @@ func (s infrastructureOverflowContentStore) ListRepoEntitiesByTypes(_ context.Co
 }
 
 // overflowingInfrastructureEntities returns `n` K8sResource rows for the
-// infrastructure-truncation tests. The implementation moved to querytestutil
+// infrastructure-truncation tests. The implementation moved to testutil
 // for #6060; this wrapper keeps root callers unchanged.
 func overflowingInfrastructureEntities(n int) []EntityContent {
-	entities := querytestutil.OverflowingInfrastructureEntities(n)
+	entities := testutil.OverflowingInfrastructureEntities(n)
 	out := make([]EntityContent, 0, len(entities))
 	for _, entity := range entities {
 		entity := entity

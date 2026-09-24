@@ -14,8 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestListRepositoriesPageCypherHasNoDependencyMarkerExpression proves the
@@ -257,11 +257,11 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *
 	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
 		t.Errorf("truncated = %v, want %v -- a degraded dependency pre-pass must NOT claim more pages exist (this is a complete 1-of-1 page)", got, want)
 	}
-	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
-	if querytestutil.AnySliceContains(reasons, "repository_inventory_truncated") {
+	reasons := testutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if testutil.AnySliceContains(reasons, "repository_inventory_truncated") {
 		t.Errorf("partial_reasons = %v, want it NOT to contain repository_inventory_truncated (no page truncation occurred)", reasons)
 	}
-	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
+	if !testutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
 		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
 	}
 	resultLimits, ok := data["result_limits"].(map[string]any)
@@ -333,11 +333,11 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *test
 	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
 		t.Errorf("truncated = %v, want %v -- an edge-pre-pass truncation must NOT claim more pages exist (this is a complete 1-of-1 page)", got, want)
 	}
-	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
-	if querytestutil.AnySliceContains(reasons, "repository_inventory_truncated") {
+	reasons := testutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if testutil.AnySliceContains(reasons, "repository_inventory_truncated") {
 		t.Errorf("partial_reasons = %v, want it NOT to contain repository_inventory_truncated (no page truncation occurred)", reasons)
 	}
-	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
+	if !testutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
 		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
 	}
 	resultLimits, ok := data["result_limits"].(map[string]any)

@@ -10,8 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // #5167 code-family batch 2a review round 2, finding 2.
@@ -31,14 +31,14 @@ import (
 // metadata.
 
 // languageMetadataSharedPath, languageMetadataSharedName, and
-// languageMetadataSharedStart forward to querytestutil. The values moved
+// languageMetadataSharedStart forward to testutil. The values moved
 // there for #6642 so package language's repository_match_key_test.go can
 // share the identical collision fixture; these consts keep this file's
 // callers unchanged.
 const (
-	languageMetadataSharedPath  = querytestutil.LanguageMetadataSharedPath
-	languageMetadataSharedName  = querytestutil.LanguageMetadataSharedName
-	languageMetadataSharedStart = querytestutil.LanguageMetadataSharedStart
+	languageMetadataSharedPath  = testutil.LanguageMetadataSharedPath
+	languageMetadataSharedName  = testutil.LanguageMetadataSharedName
+	languageMetadataSharedStart = testutil.LanguageMetadataSharedStart
 )
 
 // languageMetadataCollisionStore returns one content row per repository, both
@@ -117,7 +117,7 @@ func runLanguageMetadataCollisionQuery(t *testing.T, omitRepoID bool) []any {
 		Content: &languageMetadataCollisionStore{omitRepoID: omitRepoID},
 		Profile: ProfileLocalAuthoritative,
 	}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantOtherRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantOtherRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

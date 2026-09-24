@@ -13,9 +13,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // What the two reads' answers mean once they are back: a granted consumer
@@ -101,7 +101,7 @@ func TestCrossRepoDeadCodeStrongGrantedEvidenceOutranksHiddenConsumer(t *testing
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	buckets := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
+	buckets := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
 
 	// Strong granted evidence beside a hidden consumer: live, and still counted.
 	live := assertCrossRepoDeadCodeBucketEntity(t, buckets, "live_by_consumer", "producer-strong-plus-hidden")
@@ -180,7 +180,7 @@ func TestHandleCrossRepoDeadCodeTruncatedSignalOutranksStrongEvidence(t *testing
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	buckets := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
+	buckets := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())["candidate_buckets"].(map[string]any)
 	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-late")
 	assertCrossRepoDeadCodeReason(t, unknown, "consumer_evidence_truncated")
 	assertCrossRepoDeadCodeBucketMissing(t, buckets, "live_by_consumer", "producer-late")

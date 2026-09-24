@@ -26,7 +26,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // ---------------------------------------------------------------------------
@@ -384,7 +384,7 @@ func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
 			RoleValid: true, UserValid: true, Changed: true, Status: "active",
 		},
 	}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	tenantAdminAuth := allScopeAdminAuth("tenant_a", "workspace_a")
@@ -414,7 +414,7 @@ func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
 	}
 
 	// A bare shared-operator with no TenantID must produce a global/NULL event.
-	sharedAudit := &querytestutil.FakeGovernanceAuditAppender{}
+	sharedAudit := &testutil.FakeGovernanceAuditAppender{}
 	sharedMux := newMutationMux(store, sharedAudit)
 	// auth.AuthModeShared + no TenantID → rejected by adminScope (admin_tenant_required),
 	// but a denial event is still emitted — and it must carry empty TenantID.

@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // atLimitMatches builds querycontract.ServiceStoryItemLimit distinct deployment.LiveIdentityMatch rows
@@ -99,10 +99,10 @@ func TestFetchWorkloadLiveInstanceSummaryUnderLimitNotTruncated(t *testing.T) {
 func TestFetchWorkloadLiveInstanceSummaryAnyAnchorAtLimitTruncatesWholeSummary(t *testing.T) {
 	t.Parallel()
 
-	controllers := []map[string]any{querytestutil.ArgoCDControllerFixture("app-a")}
+	controllers := []map[string]any{testutil.ArgoCDControllerFixture("app-a")}
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
-		querytestutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
 	}
 	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 2 {

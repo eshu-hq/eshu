@@ -14,9 +14,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testing.T) {
@@ -74,7 +74,7 @@ func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testi
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	body := querytestutil.DecodeResponseBody(t, rec)
+	body := testutil.DecodeResponseBody(t, rec)
 	entities, ok := body["entities"].([]any)
 	if !ok || len(entities) != 1 {
 		t.Fatalf("entities = %#v, want one workload", body["entities"])
@@ -116,7 +116,7 @@ func TestResolveEntityWorkloadFallsBackToDefiningRepository(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	body := querytestutil.DecodeResponseBody(t, rec)
+	body := testutil.DecodeResponseBody(t, rec)
 	entities := body["entities"].([]any)
 	if got, want := len(entities), 1; got != want {
 		t.Fatalf("len(entities) = %d, want %d", got, want)
@@ -155,7 +155,7 @@ func TestResolveEntityWorkloadPropertyOnlyHydratesRepositoryFromGraph(t *testing
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	body := querytestutil.DecodeResponseBody(t, rec)
+	body := testutil.DecodeResponseBody(t, rec)
 	entity := body["entities"].([]any)[0].(map[string]any)
 	if got, want := entity["repo_name"], "property"; got != want {
 		t.Fatalf("repo_name = %#v, want %#v", got, want)
@@ -197,7 +197,7 @@ func TestResolveEntityWorkloadDedupesBeforeRepositoryHydration(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	body := querytestutil.DecodeResponseBody(t, rec)
+	body := testutil.DecodeResponseBody(t, rec)
 	entities := body["entities"].([]any)
 	if got, want := len(entities), 1; got != want {
 		t.Fatalf("len(entities) = %d, want %d", got, want)

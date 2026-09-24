@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildServiceStoryResponseIncludesInvestigationPacket(t *testing.T) {
 	t.Parallel()
 
-	got := BuildServiceStoryResponse("sample-service-api", querytestutil.SampleServiceDossierContext())
+	got := BuildServiceStoryResponse("sample-service-api", testutil.SampleServiceDossierContext())
 
 	investigation := querycontract.MapValue(got, "investigation")
 	if len(investigation) == 0 {

@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // TestScopedTokenReachesFreshnessDeltaPairOnly pins which freshness delta
@@ -422,22 +422,22 @@ func TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute(t *testing
 	t.Parallel()
 
 	newMiddlewareWrappedHandler := func(allowedRepositoryIDs []string) http.Handler {
-		reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+		reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 		// Mirrors repositoryFreshnessTestHandler in internal/query/repository:
 		// that helper is unexported to its package, so this root middleware
 		// test inlines the same handler shape with root's fakeRepoGraphReader.
 		handler := &RepositoryHandler{
 			Neo4j: fakeRepoGraphReader{
 				runSingleByMatch: map[string]map[string]any{
-					"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+					"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 				},
 			},
-			Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
+			Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()}},
 			Freshness: reader,
 		}
 		mux := http.NewServeMux()
 		handler.Mount(mux)
-		resolver := &querytestutil.FakeScopedTokenResolver{
+		resolver := &testutil.FakeScopedTokenResolver{
 			Context: auth.AuthContext{
 				Mode:                 auth.AuthModeScoped,
 				TenantID:             "tenant-a",
@@ -464,7 +464,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute(t *testing
 		if got, want := w.Code, http.StatusOK; got != want {
 			t.Fatalf("status = %d, want %d (middleware must not 403 a granted scoped caller); body = %s", got, want, w.Body.String())
 		}
-		resp := querytestutil.DecodeResponseBody(t, w)
+		resp := testutil.DecodeResponseBody(t, w)
 		if got, want := resp["scoped"], true; got != want {
 			t.Fatalf("scoped = %#v, want %#v", got, want)
 		}

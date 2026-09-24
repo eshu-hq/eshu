@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestHandleEnableAdminProviderConfigRejectsMissingRedirectURL proves issue
@@ -48,7 +48,7 @@ func TestHandleEnableAdminProviderConfigRejectsMissingRedirectURL(t *testing.T) 
 			readStore := &fakeAdminProviderConfigReadStore{details: map[string]Detail{
 				"pc_1": {ProviderConfigID: "pc_1", ProviderKind: tc.providerKind, Status: "draft", Configuration: tc.configJSON},
 			}}
-			audit := &querytestutil.FakeGovernanceAuditAppender{}
+			audit := &testutil.FakeGovernanceAuditAppender{}
 			mux := newProviderConfigMutationMux(store, tester, audit, readStore)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
@@ -108,7 +108,7 @@ func TestHandleEnableAdminProviderConfigRejectsMissingSAMLLoginFields(t *testing
 			readStore := &fakeAdminProviderConfigReadStore{details: map[string]Detail{
 				"pc_1": {ProviderConfigID: "pc_1", ProviderKind: "external_saml", Status: "draft", Configuration: tc.configJSON},
 			}}
-			audit := &querytestutil.FakeGovernanceAuditAppender{}
+			audit := &testutil.FakeGovernanceAuditAppender{}
 			mux := newProviderConfigMutationMux(store, tester, audit, readStore)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
@@ -145,7 +145,7 @@ func TestHandleEnableAdminProviderConfigSucceedsWithRedirectURLPresent(t *testin
 			},
 		},
 	}}
-	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{}, readStore)
+	mux := newProviderConfigMutationMux(store, tester, &testutil.FakeGovernanceAuditAppender{}, readStore)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -172,7 +172,7 @@ func TestHandleEnableAdminProviderConfigUnknownKindUnaffected(t *testing.T) {
 	readStore := &fakeAdminProviderConfigReadStore{details: map[string]Detail{
 		"pc_1": {ProviderConfigID: "pc_1", ProviderKind: "external_bearer_token", Status: "draft", Configuration: map[string]any{}},
 	}}
-	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{}, readStore)
+	mux := newProviderConfigMutationMux(store, tester, &testutil.FakeGovernanceAuditAppender{}, readStore)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -209,7 +209,7 @@ func TestHandleEnableAdminProviderConfigReadinessGapFailsOpen(t *testing.T) {
 			t.Parallel()
 			store := &fakeAdminProviderConfigMutationStore{result: WriteResult{Found: true, Changed: true, Status: "active"}}
 			tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_tested_1"}}
-			handler := &MutationHandler{Store: store, Tester: tester, Audit: &querytestutil.FakeGovernanceAuditAppender{}, ReadStore: tc.readStore}
+			handler := &MutationHandler{Store: store, Tester: tester, Audit: &testutil.FakeGovernanceAuditAppender{}, ReadStore: tc.readStore}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 

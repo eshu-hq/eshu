@@ -13,8 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
@@ -51,7 +51,7 @@ func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.explainDependencyPath(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	if v, ok := data["path"]; ok && v != nil {
 		t.Fatalf("path = %#v, want absent/null for a null shortestPath record", v)
 	}
@@ -91,7 +91,7 @@ func TestTraceResourceToCodeAnchorsResolvedLabel(t *testing.T) {
 
 	handler.traceResourceToCode(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	assertNoImpactLabelDisjunction(t, resolveCypher)
 	assertNoImpactLabelDisjunction(t, traversalCypher)
 	if !strings.Contains(traversalCypher, "(start:CloudResource {id: $start_id})") {
@@ -141,7 +141,7 @@ func TestTraceResourceToCodeReturnsStartWithoutPaths(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.traceResourceToCode(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	start, _ := data["start"].(map[string]any)
 	if start["id"] != "resource:queue" || start["name"] != "queue" {
 		t.Fatalf("start must be hydrated from the resolver even with no paths: %#v", data["start"])
@@ -183,7 +183,7 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 
 	handler.explainDependencyPath(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	if len(resolveCyphers) != 2 {
 		t.Fatalf("want two per-label resolve queries (source, target), got %d", len(resolveCyphers))
 	}

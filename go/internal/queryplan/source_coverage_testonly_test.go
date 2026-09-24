@@ -13,7 +13,7 @@ import (
 // TestDiscoverQueryCallsitesCoversTestOnlyHelperPackage is the test that
 // replaced the exclusion.
 //
-// internal/query/querytestutil holds test doubles in ordinary .go files,
+// internal/query/testutil holds test doubles in ordinary .go files,
 // because a symbol declared in a _test.go file cannot be imported across a
 // package boundary (#6060, epic #6053). The walk used to skip the directory: a
 // graph fake whose RunSingle answers by calling Run is indistinguishable here
@@ -33,7 +33,7 @@ func TestDiscoverQueryCallsitesCoversTestOnlyHelperPackage(t *testing.T) {
 	}
 	// The exact shape the old exclusion whitelisted: a Run method reaching Run
 	// on its own receiver. It passed the inventory silently before this change.
-	fake := `package querytestutil
+	fake := `package testutil
 
 type PlantReader struct{}
 
@@ -71,9 +71,9 @@ func TestDiscoverQueryCallsitesRejectsProductionImportOfTestOnlyHelperPackage(t 
 
 	consumer := `package query
 
-import "github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+import "github.com/eshu-hq/eshu/go/internal/query/testutil"
 
-var _ = querytestutil.FakeGraphReader{}
+var _ = testutil.FakeGraphReader{}
 `
 	if err := os.WriteFile(filepath.Join(dir, "handler.go"), []byte(consumer), 0o600); err != nil {
 		t.Fatalf("write consumer fixture: %v", err)
@@ -83,7 +83,7 @@ var _ = querytestutil.FakeGraphReader{}
 	if err == nil {
 		t.Fatal("DiscoverQueryCallsites() error = nil, want a rejected production import of the helper package")
 	}
-	for _, want := range []string{"handler.go", "github.com/eshu-hq/eshu/go/internal/query/querytestutil", "querycontract", "_test.go"} {
+	for _, want := range []string{"handler.go", "github.com/eshu-hq/eshu/go/internal/query/testutil", "querycontract", "_test.go"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("DiscoverQueryCallsites() error = %v, want it to name %q", err, want)
 		}
@@ -103,11 +103,11 @@ func TestDiscoverQueryCallsitesIgnoresTestFileImportOfTestOnlyHelperPackage(t *t
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestSomething(t *testing.T) {
-	_ = querytestutil.FakeGraphReader{}
+	_ = testutil.FakeGraphReader{}
 }
 `
 	if err := os.WriteFile(filepath.Join(dir, "handler_test.go"), []byte(consumer), 0o600); err != nil {
@@ -121,14 +121,14 @@ func TestSomething(t *testing.T) {
 
 // TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf
 // covers the nested leaves #6642 split out of the helper package
-// (querytestutil/content and querytestutil/graph). They are the same test
+// (testutil/content and testutil/graph). They are the same test
 // doubles one directory down, so a production import of one is the same
 // defect. A check on the trailing path element alone missed them.
 func TestDiscoverQueryCallsitesRejectsProductionImportOfNestedTestOnlyHelperLeaf(t *testing.T) {
 	for _, leaf := range []string{"content", "graph"} {
 		t.Run(leaf, func(t *testing.T) {
 			dir := t.TempDir()
-			importPath := "github.com/eshu-hq/eshu/go/internal/query/querytestutil/" + leaf
+			importPath := "github.com/eshu-hq/eshu/go/internal/query/testutil/" + leaf
 			consumer := "package query\n\nimport \"" + importPath + "\"\n\nvar _ = " + leaf + ".Anything\n"
 			if err := os.WriteFile(filepath.Join(dir, "handler.go"), []byte(consumer), 0o600); err != nil {
 				t.Fatalf("write consumer fixture: %v", err)
@@ -156,7 +156,7 @@ func TestDiscoverQueryCallsitesAcceptsHelperTreeImportingItsOwnLeaf(t *testing.T
 	if err := os.MkdirAll(leafDir, 0o700); err != nil {
 		t.Fatalf("create helper leaf directory: %v", err)
 	}
-	sibling := "package graph\n\nimport \"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content\"\n\nvar _ = content.Anything\n"
+	sibling := "package graph\n\nimport \"github.com/eshu-hq/eshu/go/internal/query/testutil/content\"\n\nvar _ = content.Anything\n"
 	if err := os.WriteFile(filepath.Join(leafDir, "store.go"), []byte(sibling), 0o600); err != nil {
 		t.Fatalf("write helper leaf fixture: %v", err)
 	}

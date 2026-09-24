@@ -6,7 +6,7 @@ package language
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestLanguageResultRepositoryMatchKeySeparatesRepositories is the unit-level
@@ -22,13 +22,13 @@ import (
 func TestLanguageResultRepositoryMatchKeySeparatesRepositories(t *testing.T) {
 	t.Parallel()
 
-	left := languageResultRepositoryMatchKey(querytestutil.CodeGrantGrantedRepo, querytestutil.LanguageMetadataSharedPath, "Function", querytestutil.LanguageMetadataSharedName, querytestutil.LanguageMetadataSharedStart)
-	right := languageResultRepositoryMatchKey(querytestutil.CodeGrantOtherRepo, querytestutil.LanguageMetadataSharedPath, "Function", querytestutil.LanguageMetadataSharedName, querytestutil.LanguageMetadataSharedStart)
+	left := languageResultRepositoryMatchKey(testutil.CodeGrantGrantedRepo, testutil.LanguageMetadataSharedPath, "Function", testutil.LanguageMetadataSharedName, testutil.LanguageMetadataSharedStart)
+	right := languageResultRepositoryMatchKey(testutil.CodeGrantOtherRepo, testutil.LanguageMetadataSharedPath, "Function", testutil.LanguageMetadataSharedName, testutil.LanguageMetadataSharedStart)
 	if left == right {
 		t.Fatalf("two repositories sharing path/label/name/start line produced the same key %q", left)
 	}
-	unattributedLeft := languageResultRepositoryMatchKey("", querytestutil.LanguageMetadataSharedPath, "Function", querytestutil.LanguageMetadataSharedName, querytestutil.LanguageMetadataSharedStart)
-	unattributedRight := languageResultRepositoryMatchKey("", querytestutil.LanguageMetadataSharedPath, "Function", querytestutil.LanguageMetadataSharedName, querytestutil.LanguageMetadataSharedStart)
+	unattributedLeft := languageResultRepositoryMatchKey("", testutil.LanguageMetadataSharedPath, "Function", testutil.LanguageMetadataSharedName, testutil.LanguageMetadataSharedStart)
+	unattributedRight := languageResultRepositoryMatchKey("", testutil.LanguageMetadataSharedPath, "Function", testutil.LanguageMetadataSharedName, testutil.LanguageMetadataSharedStart)
 	if unattributedLeft != unattributedRight {
 		t.Fatal("two rows that both carry no repository must share a key")
 	}

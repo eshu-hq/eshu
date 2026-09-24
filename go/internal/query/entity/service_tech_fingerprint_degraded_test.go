@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // serviceTechFingerprintPartialReasons drives the real mounted GET
@@ -73,7 +73,7 @@ func serviceTechFingerprintPartialReasons(t *testing.T, languagesErr, sourceTool
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	return querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	return testutil.RequireStringAnySlice(t, body, "partial_reasons")
 }
 
 // TestGetServiceContextReportsLanguagesReadDegraded is the #6810 regression
@@ -85,10 +85,10 @@ func TestGetServiceContextReportsLanguagesReadDegraded(t *testing.T) {
 	t.Parallel()
 
 	reasons := serviceTechFingerprintPartialReasons(t, errors.New("graph query exceeded its deadline"), nil)
-	if !querytestutil.AnySliceContains(reasons, "languages_read_degraded") {
+	if !testutil.AnySliceContains(reasons, "languages_read_degraded") {
 		t.Fatalf("partial_reasons = %#v, want %q", reasons, "languages_read_degraded")
 	}
-	if querytestutil.AnySliceContains(reasons, "source_tool_breakdown_read_degraded") {
+	if testutil.AnySliceContains(reasons, "source_tool_breakdown_read_degraded") {
 		t.Fatalf("partial_reasons = %#v, want no source_tool_breakdown_read_degraded (that read succeeded)", reasons)
 	}
 }
@@ -101,10 +101,10 @@ func TestGetServiceContextReportsSourceToolBreakdownReadDegraded(t *testing.T) {
 	t.Parallel()
 
 	reasons := serviceTechFingerprintPartialReasons(t, nil, errors.New("graph query exceeded its deadline"))
-	if !querytestutil.AnySliceContains(reasons, "source_tool_breakdown_read_degraded") {
+	if !testutil.AnySliceContains(reasons, "source_tool_breakdown_read_degraded") {
 		t.Fatalf("partial_reasons = %#v, want %q", reasons, "source_tool_breakdown_read_degraded")
 	}
-	if querytestutil.AnySliceContains(reasons, "languages_read_degraded") {
+	if testutil.AnySliceContains(reasons, "languages_read_degraded") {
 		t.Fatalf("partial_reasons = %#v, want no languages_read_degraded (that read succeeded)", reasons)
 	}
 }
@@ -117,7 +117,7 @@ func TestGetServiceContextHealthyTechFingerprintReadsAddNoReason(t *testing.T) {
 
 	reasons := serviceTechFingerprintPartialReasons(t, nil, nil)
 	for _, reason := range []string{"languages_read_degraded", "source_tool_breakdown_read_degraded"} {
-		if querytestutil.AnySliceContains(reasons, reason) {
+		if testutil.AnySliceContains(reasons, reason) {
 			t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", reasons, reason)
 		}
 	}

@@ -26,7 +26,7 @@ import (
 // The two legal exits are in the error text: move the helper to
 // internal/query/querycontract if production genuinely needs it, or keep the
 // import in a _test.go file, which this check does not read. A file inside the
-// helper tree itself (queryDir/querytestutil and its content and graph leaves)
+// helper tree itself (queryDir/testutil and its content and graph leaves)
 // is exempt: a double built on another double is test code reaching test code.
 func rejectTestOnlyHelperImport(queryDir, path string) error {
 	if insideTestOnlyHelperTree(queryDir, path) {
@@ -52,10 +52,10 @@ func rejectTestOnlyHelperImport(queryDir, path string) error {
 //
 // The match is on a whole path element, not only the last one: #6642 nested
 // the content and graph doubles under the helper package, and an import of
-// querytestutil/graph is the same defect as an import of querytestutil. An
-// unrelated package with a querytestutil element anywhere in its path can only
+// testutil/graph is the same defect as an import of testutil. An
+// unrelated package with a testutil element anywhere in its path can only
 // over-report, failing the inventory rather than passing it. An element that
-// merely starts with the name (querytestutilities) does not match.
+// merely starts with the name (testutilities) does not match.
 func testOnlyHelperImport(file *ast.File) string {
 	for _, imported := range file.Imports {
 		importPath, err := strconv.Unquote(imported.Path.Value)

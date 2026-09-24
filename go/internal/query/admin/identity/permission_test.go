@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // enforcedAdminAuth builds an all-scope browser-session auth context with an
@@ -114,7 +114,7 @@ func TestBrowserSessionAdminMutationsRequireCatalogFeature(t *testing.T) {
 				mappingCreateResult: IdPGroupMappingCreateResult{ProviderValid: true, RoleValid: true, MappingRef: "ref_1", Status: "active", Created: true},
 				mappingDeleteResult: IdPGroupMappingDeleteResult{Found: true, Deleted: true},
 			}
-			mux := newMutationMux(store, &querytestutil.FakeGovernanceAuditAppender{})
+			mux := newMutationMux(store, &testutil.FakeGovernanceAuditAppender{})
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, mutationRequest(tc.method, tc.target, tc.body, enforcedAdminAuth("ask_search")))

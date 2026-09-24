@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 type recordingChangeSurfaceGraph struct {
@@ -455,5 +455,5 @@ func TestAnswerMetadataAttachedToChangeSurfaceResponse(t *testing.T) {
 		}},
 		false,
 	)
-	querytestutil.AssertAnswerMetadata(t, "change surface", changeSurface)
+	testutil.AssertAnswerMetadata(t, "change surface", changeSurface)
 }

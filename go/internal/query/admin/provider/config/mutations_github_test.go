@@ -10,14 +10,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // GitHub admin CRUD create proofs (issue #5166, F-5), split from
 // mutations_test.go to keep both files under the
 // repo's 500-line cap. Reuses that file's fakeAdminProviderConfigMutationStore,
-// newProviderConfigMutationMux, querytestutil.FakeGovernanceAuditAppender, and
+// newProviderConfigMutationMux, testutil.FakeGovernanceAuditAppender, and
 // providerConfigAdminAuth helpers (same package).
 
 const validGitHubCreateBody = `{"provider_kind":"github","client_id":"gh-client-1","client_secret":"gh-s3cr3t-value","allowed_orgs":["Eshu-HQ"]}`
@@ -32,7 +32,7 @@ func TestHandleCreateAdminProviderConfigGitHub(t *testing.T) {
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{
 		ProviderConfigID: "pc_gh_1", RevisionID: "rev_1", Status: "draft", Found: true, Changed: true,
 	}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validGitHubCreateBody))
@@ -72,7 +72,7 @@ func TestHandleCreateAdminProviderConfigGitHub(t *testing.T) {
 func TestHandleCreateAdminProviderConfigGitHubRejectsEmptyAllowedOrgs(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	body := `{"provider_kind":"github","client_id":"gh-client-1","client_secret":"gh-s3cr3t-value"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(body))

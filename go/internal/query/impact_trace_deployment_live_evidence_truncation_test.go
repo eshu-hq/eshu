@@ -5,7 +5,7 @@
 // live_instance_count_truncated, split out of
 // impact/trace_deployment_live_evidence_test.go to stay under the repo's
 // 500-line-per-file cap. Uses the shared
-// querytestutil.SampleServiceDossierContext fixture (querytestutil/dossier.go).
+// testutil.SampleServiceDossierContext fixture (testutil/dossier.go).
 
 package query
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestBuildDeploymentFactSummaryLiveInstanceCountTruncatedTrue is the #5663
@@ -24,7 +24,7 @@ import (
 func TestBuildDeploymentFactSummaryLiveInstanceCountTruncatedTrue(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["_live_instance_count"] = 50
 	ctx["_live_instance_count_truncated"] = true
 	instances, _ := ctx["instances"].([]map[string]any)

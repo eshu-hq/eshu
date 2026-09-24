@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // unscopedLanguageQueryGrant is the grant an unscoped shared-key, admin, or
@@ -19,7 +19,7 @@ import (
 //
 // Moved from package query's auth_scoped_language_query_grant_test.go
 // (#6642): this file is its only caller, and codequery.LanguageQueryGrant
-// names a handler-family type querytestutil must never import, so the
+// names a handler-family type testutil must never import, so the
 // fixture cannot be hoisted there -- it moves with its one caller instead.
 func unscopedLanguageQueryGrant() codequery.LanguageQueryGrant {
 	return codequery.LanguageQueryGrant{Access: querycontract.RepositoryAccessFilter{AllScopes: true}}
@@ -125,7 +125,7 @@ func TestHandleLanguageQuery_TypeScriptClassFamilyUsesGraphMetadataWithoutConten
 			t.Parallel()
 
 			handler := &Handler{
-				Neo4j: &querytestutil.MockLanguageQueryGraphReader{Rows: []map[string]any{tt.row}},
+				Neo4j: &testutil.MockLanguageQueryGraphReader{Rows: []map[string]any{tt.row}},
 			}
 
 			results, _, err := handler.queryByLanguageWithSemanticFilter(

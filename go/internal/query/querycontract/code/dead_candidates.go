@@ -72,7 +72,7 @@ func DeadCodeRootKindsFromMetadata(metadata map[string]any) []string {
 //
 // It lives here rather than in root because it appears in the signature of a
 // ContentStore read that a shared test double must satisfy (#6060). A double
-// promoted to querytestutil cannot name an unexported root type, so the type
+// promoted to testutil cannot name an unexported root type, so the type
 // has to be reachable from outside package query before the double can move.
 // codequery/deadcode re-exports it as an alias and codequery/aliases.go keeps
 // an unexported one, so the handlers there name it without this import.

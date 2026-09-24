@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
@@ -96,14 +96,14 @@ func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 
-	if querytestutil.AnySliceContains(resp["limitations"].([]any), "deployment_surface_unknown") {
+	if testutil.AnySliceContains(resp["limitations"].([]any), "deployment_surface_unknown") {
 		t.Fatalf("limitations = %#v, must not claim deployment surface unknown when read-model deployment evidence exists", resp["limitations"])
 	}
 	deploymentOverview := resp["deployment_overview"].(map[string]any)
 	if got, want := deploymentOverview["deployment_evidence_artifact_count"], float64(1); got != want {
 		t.Fatalf("deployment_overview.deployment_evidence_artifact_count = %#v, want %#v", got, want)
 	}
-	if !querytestutil.AnySliceContains(deploymentOverview["deployment_tool_families"].([]any), "terraform") {
+	if !testutil.AnySliceContains(deploymentOverview["deployment_tool_families"].([]any), "terraform") {
 		t.Fatalf("deployment_overview.deployment_tool_families = %#v, want terraform", deploymentOverview["deployment_tool_families"])
 	}
 	if len(deploymentOverview["delivery_paths"].([]any)) == 0 {

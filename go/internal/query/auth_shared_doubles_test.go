@@ -7,20 +7,20 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // This file holds the root adapters for the shared doubles that #6060 promoted
-// into querytestutil. They live apart from auth_test.go because that file was
+// into testutil. They live apart from auth_test.go because that file was
 // already at the repository's 500-line cap; the file-length linter skips
 // _test.go, so nothing would have reported the overflow.
 
-// fakeGovernanceAuditAppender adapts querytestutil.FakeGovernanceAuditAppender
+// fakeGovernanceAuditAppender adapts testutil.FakeGovernanceAuditAppender
 // to the field name this package's tests already use. 19 root files in package
 // query build it with keyed literals and read back audit.events, so the field
 // stays lowercase and none of them changed.
 //
-// The recording rule itself is NOT duplicated here. It lives in querytestutil,
+// The recording rule itself is NOT duplicated here. It lives in testutil,
 // which is where a handler family's tests reach it once the family moves out of
 // this package for #6060 -- a symbol declared in a _test.go file cannot be
 // imported across a package boundary, so a moved family could not otherwise use
@@ -37,7 +37,7 @@ type fakeGovernanceAuditAppender struct {
 // gets recorded. Nothing here decides which events land or whether the write
 // succeeds.
 func (f *fakeGovernanceAuditAppender) Append(ctx context.Context, events []governanceaudit.Event) error {
-	delegate := querytestutil.FakeGovernanceAuditAppender{Events: f.events}
+	delegate := testutil.FakeGovernanceAuditAppender{Events: f.events}
 	if err := delegate.Append(ctx, events); err != nil {
 		return err
 	}
@@ -45,12 +45,12 @@ func (f *fakeGovernanceAuditAppender) Append(ctx context.Context, events []gover
 	return nil
 }
 
-// fakeScopedTokenResolver adapts querytestutil.FakeScopedTokenResolver to the
+// fakeScopedTokenResolver adapts testutil.FakeScopedTokenResolver to the
 // field names this package's tests already use. 52 root files in package query
 // build it with keyed literals over context/ok/err, so those field names stay
 // lowercase and none of those literals changed.
 //
-// The recorded call is NOT tracked here. It lives in querytestutil, along with
+// The recorded call is NOT tracked here. It lives in testutil, along with
 // the lock guarding it, which is where a handler family's tests reach it once
 // the family moves out of this package for #6060 -- a symbol declared in a
 // _test.go file cannot be imported across a package boundary, so a moved family
@@ -66,7 +66,7 @@ type fakeScopedTokenResolver struct {
 	ok      bool
 	err     error
 
-	delegate querytestutil.FakeScopedTokenResolver
+	delegate testutil.FakeScopedTokenResolver
 }
 
 func (f *fakeScopedTokenResolver) ResolveScopedToken(

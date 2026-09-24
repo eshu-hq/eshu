@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestCorrelationDSLFixtureComposeRepoSurfacesRuntimeArtifacts(t *testing.T) {
@@ -43,26 +43,26 @@ func TestCorrelationDSLFixtureComposeRepoSurfacesRuntimeArtifacts(t *testing.T) 
 	if got, want := api["service_name"], "api"; got != want {
 		t.Fatalf("api.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "signals"), []string{"build", "ports", "environment"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "signals"), []string{"build", "ports", "environment"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.signals = %#v, want %#v", got, want)
 	}
 	if got, want := api["build_context"], "."; got != want {
 		t.Fatalf("api.build_context = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "ports"), []string{"8080:8080"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "ports"), []string{"8080:8080"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.ports = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "environment"), []string{"APP_ENV", "PORT"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "environment"), []string{"APP_ENV", "PORT"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.environment = %#v, want %#v", got, want)
 	}
 	database := artifacts[1]
 	if got, want := database["service_name"], "database"; got != want {
 		t.Fatalf("database.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(database, "signals"), []string{"ports"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(database, "signals"), []string{"ports"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("database.signals = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(database, "ports"), []string{"5432:5432"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(database, "ports"), []string{"5432:5432"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("database.ports = %#v, want %#v", got, want)
 	}
 }
@@ -98,16 +98,16 @@ func TestCorrelationDSLFixtureJenkinsAnsibleRepoSurfacesControllerAndAnsibleSign
 	if got, want := row["path"], "Jenkinsfile"; got != want {
 		t.Fatalf("controller_artifacts[0].path = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "pipeline_calls"), []string{"pipelineDeploy"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "pipeline_calls"), []string{"pipelineDeploy"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].pipeline_calls = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_inventories"), []string{"inventory/prod.ini"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_inventories"), []string{"inventory/prod.ini"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_inventories = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_var_files"), []string{"group_vars/all.yml", "host_vars/web-prod.yml"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_var_files"), []string{"group_vars/all.yml", "host_vars/web-prod.yml"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_var_files = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_task_entrypoints"), []string{"roles/service_deploy/tasks/main.yml"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_task_entrypoints"), []string{"roles/service_deploy/tasks/main.yml"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_task_entrypoints = %#v, want %#v", got, want)
 	}
 

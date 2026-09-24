@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -20,7 +20,7 @@ import (
 
 // stubKubernetesWorkloadInventory is a twin of the root parity suite's copy,
 // kept behavior-identical: its signatures name hub family types, which
-// querytestutil cannot import without the cycle its doc forbids, so unlike
+// testutil cannot import without the cycle its doc forbids, so unlike
 // FakeKubernetesRuntimeGraph it cannot live in the shared file.
 type stubKubernetesWorkloadInventory struct {
 	rows         []KubernetesRuntimeWorkloadMatch

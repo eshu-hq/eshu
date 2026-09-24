@@ -12,8 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // searchEntitiesForGrant (codequery/relationships/story/resolution.go) and
@@ -32,7 +32,7 @@ import (
 // double: it takes the grant into its own statement, mirroring package
 // query's languageQueryGrantContentStore
 // (auth_scoped_language_query_shipped_text_test.go). It shares
-// querytestutil.LanguageQueryGrantEntities with that root double and with
+// testutil.LanguageQueryGrantEntities with that root double and with
 // entitySearchDispatchPlainStore below, so the fixture data the three
 // exercise cannot quietly diverge.
 type entitySearchDispatchGrantBoundStore struct {
@@ -43,7 +43,7 @@ func (s *entitySearchDispatchGrantBoundStore) SearchEntitiesByLanguageAndTypeFor
 	_ context.Context,
 	search taxonomy.LanguageEntitySearch,
 ) ([]querycontract.EntityContent, error) {
-	return querytestutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
+	return testutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
 }
 
 // entitySearchDispatchPlainStore is a minimal per-repository-only
@@ -58,7 +58,7 @@ func (s *entitySearchDispatchPlainStore) SearchEntitiesByLanguageAndType(
 	repoID, _, entityType, _ string,
 	_ int,
 ) ([]querycontract.EntityContent, error) {
-	return querytestutil.LanguageQueryGrantEntities(repoID, nil, entityType), nil
+	return testutil.LanguageQueryGrantEntities(repoID, nil, entityType), nil
 }
 
 // TestSearchEntitiesForGrantMatchesTheLanguageQueryRead covers both store
@@ -75,15 +75,15 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 		{
 			name: "repo_id_named",
 			search: taxonomy.LanguageEntitySearch{
-				RepoID: querytestutil.CodeGrantGrantedRepo, Language: "go", EntityType: "Variable", Limit: 10,
-				AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo},
+				RepoID: testutil.CodeGrantGrantedRepo, Language: "go", EntityType: "Variable", Limit: 10,
+				AllowedRepositoryIDs: []string{testutil.CodeGrantGrantedRepo},
 			},
 		},
 		{
 			name: "corpus_wide_with_grant",
 			search: taxonomy.LanguageEntitySearch{
 				Language: "go", EntityType: "Variable", Limit: 10,
-				AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo},
+				AllowedRepositoryIDs: []string{testutil.CodeGrantGrantedRepo},
 			},
 		},
 		{

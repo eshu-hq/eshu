@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestDeleteIdPGroupMappingRejectsLegacyMD5Ref(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{mappingDeleteResult: IdPGroupMappingDeleteResult{Found: true, Deleted: true}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 	legacyRef := strings.Repeat("a", 32)
 	rec := httptest.NewRecorder()
@@ -40,7 +40,7 @@ func TestDeleteIdPGroupMappingAcceptsSHA256Ref(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{mappingDeleteResult: IdPGroupMappingDeleteResult{Found: true, Deleted: true}}
-	mux := newMutationMux(store, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newMutationMux(store, &testutil.FakeGovernanceAuditAppender{})
 	newRef := strings.Repeat("b", 64)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, mutationRequest(http.MethodDelete,

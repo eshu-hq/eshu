@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIRelationshipStoryRestrictsTargetlessOverrides(t *testing.T) {
@@ -18,19 +18,19 @@ func TestOpenAPIRelationshipStoryRestrictsTargetlessOverrides(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStoryRequestSchema := querytestutil.MustMapField(t, relationshipStoryJSON, "schema")
+	paths := testutil.MustMapField(t, spec, "paths")
+	relationshipStoryPath := testutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := testutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := testutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryRequestSchema := testutil.MustMapField(t, relationshipStoryJSON, "schema")
 	anyOf, ok := relationshipStoryRequestSchema["anyOf"].([]any)
 	if !ok || len(anyOf) != 3 {
 		t.Fatalf("code/relationships/story anyOf = %#v, want three request branches", relationshipStoryRequestSchema["anyOf"])
 	}
 	overrideBranch := anyOf[2].(map[string]any)
-	overrideProperties := querytestutil.MustMapField(t, overrideBranch, "properties")
-	overrideQueryType := querytestutil.MustMapField(t, overrideProperties, "query_type")
+	overrideProperties := testutil.MustMapField(t, overrideBranch, "properties")
+	overrideQueryType := testutil.MustMapField(t, overrideProperties, "query_type")
 	if !containsValue(overrideQueryType["enum"].([]any), "overrides") {
 		t.Fatalf("targetless query_type+repo_id branch enum = %#v, want overrides only", overrideQueryType["enum"])
 	}
@@ -44,13 +44,13 @@ func TestOpenAPIRelationshipStoryDocumentsMinConfidence(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStoryProperties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
-	minConfidenceSchema := querytestutil.MustMapField(t, relationshipStoryProperties, "min_confidence")
+	paths := testutil.MustMapField(t, spec, "paths")
+	relationshipStoryPath := testutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := testutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := testutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryProperties := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	minConfidenceSchema := testutil.MustMapField(t, relationshipStoryProperties, "min_confidence")
 	if got, want := minConfidenceSchema["type"], "number"; got != want {
 		t.Fatalf("min_confidence type = %#v, want %#v", got, want)
 	}
@@ -70,12 +70,12 @@ func TestOpenAPIRelationshipSchemaDocumentsProvenanceBlock(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	relationship := querytestutil.MustMapField(t, schemas, "Relationship")
-	properties := querytestutil.MustMapField(t, relationship, "properties")
-	provenance := querytestutil.MustMapField(t, properties, "provenance")
-	provenanceProperties := querytestutil.MustMapField(t, provenance, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	relationship := testutil.MustMapField(t, schemas, "Relationship")
+	properties := testutil.MustMapField(t, relationship, "properties")
+	provenance := testutil.MustMapField(t, properties, "provenance")
+	provenanceProperties := testutil.MustMapField(t, provenance, "properties")
 	for _, field := range []string{
 		"confidence",
 		"confidence_state",

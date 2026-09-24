@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -40,7 +40,7 @@ func TestHandleLanguageQueryEmitsLanguageQuerySpan(t *testing.T) {
 	t.Cleanup(func() { languageHandlerTracer = previousTracer })
 
 	handler := &Handler{
-		Neo4j: &querytestutil.MockLanguageQueryGraphReader{Rows: []map[string]any{
+		Neo4j: &testutil.MockLanguageQueryGraphReader{Rows: []map[string]any{
 			{"entity_id": "e1", "name": "Foo"},
 		}},
 	}

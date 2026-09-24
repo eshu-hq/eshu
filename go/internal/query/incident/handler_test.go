@@ -17,7 +17,7 @@ import (
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 type recordingIncidentContextStore struct {
@@ -118,11 +118,11 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	packet := querytestutil.RequireAnswerPacketCompanion(t, data, "incident.context")
+	packet := testutil.RequireAnswerPacketCompanion(t, data, "incident.context")
 	if got, want := packet["primary_tool"], "get_incident_context"; got != want {
 		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
 	}
-	querytestutil.AssertIncidentEdge(t, body.EvidencePath, model.IncidentSlotWorkItem, model.IncidentTruthMissing)
+	testutil.AssertIncidentEdge(t, body.EvidencePath, model.IncidentSlotWorkItem, model.IncidentTruthMissing)
 }
 
 func TestIncidentContextHandlerRequiresIncidentIDAndLimit(t *testing.T) {

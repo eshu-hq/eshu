@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestHandleLanguageQuery_TypeScriptFunctionUsesGraphMetadataWithoutContent(t *testing.T) {
@@ -20,7 +20,7 @@ func TestHandleLanguageQuery_TypeScriptFunctionUsesGraphMetadataWithoutContent(t
 	handler := &LanguageQueryHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if got, want := querytestutil.BoundCanonicalLanguage(t, params), "typescript"; got != want {
+				if got, want := testutil.BoundCanonicalLanguage(t, params), "typescript"; got != want {
 					t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 				}
 				for _, fragment := range []string{

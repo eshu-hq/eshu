@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestAuditLocalIdentityStampsActorClassByAuthMode moved from root's
@@ -39,7 +39,7 @@ func TestAuditLocalIdentityStampsActorClassByAuthMode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			audit := &querytestutil.FakeGovernanceAuditAppender{}
+			audit := &testutil.FakeGovernanceAuditAppender{}
 			authCtx := auth.AuthContext{Mode: tc.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/anything", nil)
 			req = req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))

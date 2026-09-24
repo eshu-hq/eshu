@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 type recordingAdvisoryCatalogStore struct {
@@ -276,9 +276,9 @@ func TestOpenAPISpecIncludesAdvisoryCatalog(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/advisories")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/advisories")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listAdvisoryCatalog"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -299,15 +299,15 @@ func TestOpenAPISpecIncludesAdvisoryCatalog(t *testing.T) {
 			t.Fatalf("catalog parameters missing %q", want)
 		}
 	}
-	responses := querytestutil.MustMapField(t, get, "responses")
-	twoHundred := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, twoHundred, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	advisories := querytestutil.MustMapField(t, properties, "advisories")
-	items := querytestutil.MustMapField(t, advisories, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	twoHundred := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, twoHundred, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	advisories := testutil.MustMapField(t, properties, "advisories")
+	items := testutil.MustMapField(t, advisories, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
 	for _, want := range []string{"advisory_key", "canonical_id", "severity_label", "cvss_score", "kev", "ecosystems", "package_ids"} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("catalog advisory schema missing %q", want)

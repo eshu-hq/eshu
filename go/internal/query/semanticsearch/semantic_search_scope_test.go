@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 type fakeSemanticSearchScopeResolver struct {
@@ -30,7 +30,7 @@ type fakeSemanticSearchScopeResolver struct {
 }
 
 type recordingSemanticSearchScopeQueryer struct {
-	rows  *querytestutil.ScriptedRows
+	rows  *testutil.ScriptedRows
 	query string
 	args  []any
 }
@@ -73,7 +73,7 @@ func TestSemanticSearchHandlerResolvesAuthorizedRepositoryToDistinctScope(t *tes
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repository:r_payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -115,7 +115,7 @@ func TestSemanticSearchHandlerUsesDirectGrantedScopeAndCanonicalRepository(t *te
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "git-repository-scope:repo-payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -160,7 +160,7 @@ func TestSemanticSearchHandlerAllScopesUsesDirectActiveScope(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "git-repository-scope:repo-payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -204,7 +204,7 @@ func TestSemanticSearchHandlerAllScopesCanonicalRepositorySkipsDirectScopeLookup
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repository:r_payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -245,7 +245,7 @@ func TestSemanticSearchHandlerDoesNotReadIndexForStaleDirectScope(t *testing.T) 
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "git-repository-scope:repo-stale",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -281,7 +281,7 @@ func TestSemanticSearchHandlerRejectsOutOfGrantBeforeScopeResolution(t *testing.
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repository:r_payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -317,7 +317,7 @@ func TestSemanticSearchHandlerRejectsAmbiguousRepositoryScope(t *testing.T) {
 		ScopeResolver: resolver,
 		Profile:       querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repository:r_payments",
 		"query":      "refund",
 		"mode":       "keyword",
@@ -350,7 +350,7 @@ func TestSemanticSearchHandlerRejectsAmbiguousRepositoryScope(t *testing.T) {
 func TestPostgresSemanticSearchScopeResolverUsesExactCanonicalRepositoryID(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
+	database := &recordingSemanticSearchScopeQueryer{rows: &testutil.ScriptedRows{
 		Data: [][]any{{"git-repository-scope:repo-payments"}},
 	}}
 	resolver := PostgresSemanticSearchScopeResolver{database: database}
@@ -383,7 +383,7 @@ func TestPostgresSemanticSearchScopeResolverUsesExactCanonicalRepositoryID(t *te
 func TestPostgresSemanticSearchScopeResolverValidatesDirectActiveScope(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
+	database := &recordingSemanticSearchScopeQueryer{rows: &testutil.ScriptedRows{
 		Data: [][]any{{"repository:r_payments"}},
 	}}
 	resolver := PostgresSemanticSearchScopeResolver{database: database}
@@ -417,7 +417,7 @@ func TestPostgresSemanticSearchScopeResolverRejectsBlankDirectScopeMetadata(t *t
 	t.Parallel()
 
 	resolver := PostgresSemanticSearchScopeResolver{database: &recordingSemanticSearchScopeQueryer{
-		rows: &querytestutil.ScriptedRows{Data: [][]any{{""}}},
+		rows: &testutil.ScriptedRows{Data: [][]any{{""}}},
 	}}
 
 	_, err := resolver.ResolveSemanticSearchRepositoryForScope(
@@ -433,7 +433,7 @@ func TestPostgresSemanticSearchScopeResolverRejectsMultipleActiveScopes(t *testi
 	t.Parallel()
 
 	resolver := PostgresSemanticSearchScopeResolver{database: &recordingSemanticSearchScopeQueryer{
-		rows: &querytestutil.ScriptedRows{Data: [][]any{
+		rows: &testutil.ScriptedRows{Data: [][]any{
 			{"git-repository-scope:repo-payments-a"},
 			{"git-repository-scope:repo-payments-b"},
 		}},

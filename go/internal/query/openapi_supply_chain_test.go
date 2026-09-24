@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
@@ -19,9 +19,9 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/sbom-attestations/attachments")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/sbom-attestations/attachments")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listSBOMAttestationAttachments"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -49,15 +49,15 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 			t.Fatalf("repository_id description = %q, want %q", description, want)
 		}
 	}
-	responses := querytestutil.MustMapField(t, get, "responses")
-	twoHundred := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, twoHundred, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	attachments := querytestutil.MustMapField(t, properties, "attachments")
-	items := querytestutil.MustMapField(t, attachments, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	twoHundred := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, twoHundred, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	attachments := testutil.MustMapField(t, properties, "attachments")
+	items := testutil.MustMapField(t, attachments, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
 	for _, want := range []string{
 		"attachment_scope",
 		"missing_evidence",
@@ -82,9 +82,9 @@ func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/advisories/evidence")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/advisories/evidence")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listAdvisoryEvidence"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -111,12 +111,12 @@ func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
 		t.Fatalf("repository_id description = %q, want selector semantics", got)
 	}
 
-	responses := querytestutil.MustMapField(t, get, "responses")
-	twoHundred := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, twoHundred, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	twoHundred := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, twoHundred, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
 	if _, ok := properties["scope"]; !ok {
 		t.Fatal("advisory evidence response schema missing scope")
 	}
@@ -134,9 +134,9 @@ func TestOpenAPISpecIncludesContainerImageSourceRepositoryBridge(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/container-images/identities")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/container-images/identities")
+	get := testutil.MustMapField(t, path, "get")
 	parameters, ok := get["parameters"].([]any)
 	if !ok {
 		t.Fatalf("parameters = %T, want []any", get["parameters"])
@@ -158,18 +158,18 @@ func TestOpenAPISpecIncludesContainerImageSourceRepositoryBridge(t *testing.T) {
 		t.Fatalf("repository_id description = %q, want OCI-only warning", repositoryDescription)
 	}
 
-	responses := querytestutil.MustMapField(t, get, "responses")
-	twoHundred := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, twoHundred, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	twoHundred := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, twoHundred, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
 	if _, ok := properties["source_bridge"]; !ok {
 		t.Fatal("container identity response missing source_bridge")
 	}
-	identities := querytestutil.MustMapField(t, properties, "identities")
-	items := querytestutil.MustMapField(t, identities, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	identities := testutil.MustMapField(t, properties, "identities")
+	items := testutil.MustMapField(t, identities, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
 	if _, ok := itemProperties["source_repository_ids"]; !ok {
 		t.Fatal("container identity item missing source_repository_ids")
 	}
@@ -186,9 +186,9 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listSupplyChainImpactFindings"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -210,15 +210,15 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("parameters missing %q", want)
 		}
 	}
-	responses := querytestutil.MustMapField(t, get, "responses")
-	twoHundred := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, twoHundred, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	findings := querytestutil.MustMapField(t, properties, "findings")
-	items := querytestutil.MustMapField(t, findings, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	twoHundred := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, twoHundred, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	findings := testutil.MustMapField(t, properties, "findings")
+	items := testutil.MustMapField(t, findings, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
 	for _, want := range []string{"priority_score", "priority_bucket", "priority_reason_codes", "priority_contributions", "vulnerable_range"} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("finding schema missing %q", want)
@@ -228,7 +228,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	if !ok {
 		t.Fatalf("properties[readiness] = %T, want map describing readiness envelope", properties["readiness"])
 	}
-	readinessProps := querytestutil.MustMapField(t, readiness, "properties")
+	readinessProps := testutil.MustMapField(t, readiness, "properties")
 	for _, key := range []string{
 		"readiness_state",
 		"target_scope",
@@ -245,16 +245,16 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("readiness.properties missing %q field", key)
 		}
 	}
-	readinessState := querytestutil.MustMapField(t, readinessProps, "readiness_state")
+	readinessState := testutil.MustMapField(t, readinessProps, "readiness_state")
 	stateEnum := mustStringSliceField(t, readinessState, "enum")
 	for _, want := range []string{"ambiguous_scope", "unsupported"} {
 		if !containsOpenAPIEnumString(stateEnum, want) {
 			t.Fatalf("readiness_state enum = %#v, want %q surfaced", stateEnum, want)
 		}
 	}
-	unsupportedTargets := querytestutil.MustMapField(t, readinessProps, "unsupported_targets")
-	unsupportedTargetsItems := querytestutil.MustMapField(t, unsupportedTargets, "items")
-	unsupportedTargetsItemProps := querytestutil.MustMapField(t, unsupportedTargetsItems, "properties")
+	unsupportedTargets := testutil.MustMapField(t, readinessProps, "unsupported_targets")
+	unsupportedTargetsItems := testutil.MustMapField(t, unsupportedTargets, "items")
+	unsupportedTargetsItemProps := testutil.MustMapField(t, unsupportedTargetsItems, "properties")
 	for _, key := range []string{"target_kind", "reason", "count"} {
 		if _, ok := unsupportedTargetsItemProps[key]; !ok {
 			t.Fatalf("unsupported_targets items.properties missing %q", key)
@@ -266,22 +266,22 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("unsupported_targets items.required = %#v, want %q (envelope normalization drops blank-reason rows)", unsupportedTargetsRequired, key)
 		}
 	}
-	targetKindSchema := querytestutil.MustMapField(t, unsupportedTargetsItemProps, "target_kind")
+	targetKindSchema := testutil.MustMapField(t, unsupportedTargetsItemProps, "target_kind")
 	targetKindEnum := mustStringSliceField(t, targetKindSchema, "enum")
 	for _, want := range []string{"ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"} {
 		if !containsOpenAPIEnumString(targetKindEnum, want) {
 			t.Fatalf("unsupported_targets.target_kind enum = %#v, want %q", targetKindEnum, want)
 		}
 	}
-	missingEvidence := querytestutil.MustMapField(t, readinessProps, "missing_evidence")
-	missingEvidenceItems := querytestutil.MustMapField(t, missingEvidence, "items")
+	missingEvidence := testutil.MustMapField(t, readinessProps, "missing_evidence")
+	missingEvidenceItems := testutil.MustMapField(t, missingEvidence, "items")
 	missingEvidenceEnum := mustStringSliceField(t, missingEvidenceItems, "enum")
 	for _, want := range []string{"ambiguous_scope", "unsupported_targets"} {
 		if !containsOpenAPIEnumString(missingEvidenceEnum, want) {
 			t.Fatalf("missing_evidence enum = %#v, want %q stable identifier", missingEvidenceEnum, want)
 		}
 	}
-	freshness := querytestutil.MustMapField(t, readinessProps, "freshness")
+	freshness := testutil.MustMapField(t, readinessProps, "freshness")
 	enum := mustStringSliceField(t, freshness, "enum")
 	for _, want := range []string{"fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"} {
 		if !containsOpenAPIEnumString(enum, want) {
@@ -298,13 +298,13 @@ func TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters(t *testing.
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
+	paths := testutil.MustMapField(t, spec, "paths")
 	for _, pathName := range []string{
 		"/api/v0/supply-chain/impact/findings/count",
 		"/api/v0/supply-chain/impact/inventory",
 	} {
-		path := querytestutil.MustMapField(t, paths, pathName)
-		get := querytestutil.MustMapField(t, path, "get")
+		path := testutil.MustMapField(t, paths, pathName)
+		get := testutil.MustMapField(t, path, "get")
 		parameters, ok := get["parameters"].([]any)
 		if !ok {
 			t.Fatalf("%s parameters = %T, want []any", pathName, get["parameters"])
@@ -330,12 +330,12 @@ func TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters(t *testing.
 			}
 		}
 
-		responses := querytestutil.MustMapField(t, get, "responses")
-		twoHundred := querytestutil.MustMapField(t, responses, "200")
-		content := querytestutil.MustMapField(t, twoHundred, "content")
-		appJSON := querytestutil.MustMapField(t, content, "application/json")
-		schema := querytestutil.MustMapField(t, appJSON, "schema")
-		properties := querytestutil.MustMapField(t, schema, "properties")
+		responses := testutil.MustMapField(t, get, "responses")
+		twoHundred := testutil.MustMapField(t, responses, "200")
+		content := testutil.MustMapField(t, twoHundred, "content")
+		appJSON := testutil.MustMapField(t, content, "application/json")
+		schema := testutil.MustMapField(t, appJSON, "schema")
+		properties := testutil.MustMapField(t, schema, "properties")
 		if _, ok := properties["detection_profile"]; !ok {
 			t.Fatalf("%s 200 schema missing detection_profile", pathName)
 		}
@@ -350,20 +350,20 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	findingsPath := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
-	findingsGet := querytestutil.MustMapField(t, findingsPath, "get")
-	findingsResponses := querytestutil.MustMapField(t, findingsGet, "responses")
-	findingsTwoHundred := querytestutil.MustMapField(t, findingsResponses, "200")
-	findingsContent := querytestutil.MustMapField(t, findingsTwoHundred, "content")
-	findingsAppJSON := querytestutil.MustMapField(t, findingsContent, "application/json")
-	findingsSchema := querytestutil.MustMapField(t, findingsAppJSON, "schema")
-	findingsProps := querytestutil.MustMapField(t, findingsSchema, "properties")
-	findings := querytestutil.MustMapField(t, findingsProps, "findings")
-	findingsItems := querytestutil.MustMapField(t, findings, "items")
-	findingsItemProps := querytestutil.MustMapField(t, findingsItems, "properties")
-	remediation := querytestutil.MustMapField(t, findingsItemProps, "remediation")
-	remediationProps := querytestutil.MustMapField(t, remediation, "properties")
+	paths := testutil.MustMapField(t, spec, "paths")
+	findingsPath := testutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
+	findingsGet := testutil.MustMapField(t, findingsPath, "get")
+	findingsResponses := testutil.MustMapField(t, findingsGet, "responses")
+	findingsTwoHundred := testutil.MustMapField(t, findingsResponses, "200")
+	findingsContent := testutil.MustMapField(t, findingsTwoHundred, "content")
+	findingsAppJSON := testutil.MustMapField(t, findingsContent, "application/json")
+	findingsSchema := testutil.MustMapField(t, findingsAppJSON, "schema")
+	findingsProps := testutil.MustMapField(t, findingsSchema, "properties")
+	findings := testutil.MustMapField(t, findingsProps, "findings")
+	findingsItems := testutil.MustMapField(t, findings, "items")
+	findingsItemProps := testutil.MustMapField(t, findingsItems, "properties")
+	remediation := testutil.MustMapField(t, findingsItemProps, "remediation")
+	remediationProps := testutil.MustMapField(t, remediation, "properties")
 	for _, key := range []string{
 		"ecosystem",
 		"current_version",
@@ -384,7 +384,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 			t.Fatalf("findings remediation.properties missing %q", key)
 		}
 	}
-	reasonEnum := mustStringSliceField(t, querytestutil.MustMapField(t, remediationProps, "reason"), "enum")
+	reasonEnum := mustStringSliceField(t, testutil.MustMapField(t, remediationProps, "reason"), "enum")
 	for _, want := range []string{
 		"direct_upgrade_allowed",
 		"direct_range_blocked",
@@ -399,16 +399,16 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		}
 	}
 
-	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
-	explainGet := querytestutil.MustMapField(t, explainPath, "get")
-	explainResponses := querytestutil.MustMapField(t, explainGet, "responses")
-	explainTwoHundred := querytestutil.MustMapField(t, explainResponses, "200")
-	explainContent := querytestutil.MustMapField(t, explainTwoHundred, "content")
-	explainAppJSON := querytestutil.MustMapField(t, explainContent, "application/json")
-	explainSchema := querytestutil.MustMapField(t, explainAppJSON, "schema")
-	explainProps := querytestutil.MustMapField(t, explainSchema, "properties")
-	explainRemediation := querytestutil.MustMapField(t, explainProps, "remediation")
-	explainRemediationProps := querytestutil.MustMapField(t, explainRemediation, "properties")
+	explainPath := testutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := testutil.MustMapField(t, explainPath, "get")
+	explainResponses := testutil.MustMapField(t, explainGet, "responses")
+	explainTwoHundred := testutil.MustMapField(t, explainResponses, "200")
+	explainContent := testutil.MustMapField(t, explainTwoHundred, "content")
+	explainAppJSON := testutil.MustMapField(t, explainContent, "application/json")
+	explainSchema := testutil.MustMapField(t, explainAppJSON, "schema")
+	explainProps := testutil.MustMapField(t, explainSchema, "properties")
+	explainRemediation := testutil.MustMapField(t, explainProps, "remediation")
+	explainRemediationProps := testutil.MustMapField(t, explainRemediation, "properties")
 	for _, key := range []string{
 		"confidence",
 		"reason",
@@ -431,9 +431,9 @@ func TestOpenAPISpecIncludesSupplyChainImpactExplain(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "explainSupplyChainImpact"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}

@@ -18,9 +18,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestHandleCrossRepoDeadCodeClassifiesConsumerEvidence(t *testing.T) {
@@ -173,7 +173,7 @@ func TestHandleCrossRepoDeadCodeClassifiesConsumerEvidence(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	if got, want := data["repo_id"], "repo-producer"; got != want {
 		t.Fatalf("repo_id = %#v, want %#v", got, want)
 	}
@@ -270,7 +270,7 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := data["candidate_buckets"].(map[string]any)
 	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-boundary")
 	assertCrossRepoDeadCodeReason(t, unknown, "package_module_repo_needs_symbol_evidence")
@@ -341,7 +341,7 @@ func TestHandleCrossRepoDeadCodeScopedConsumerEvidenceBecomesUnknown(t *testing.
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := data["candidate_buckets"].(map[string]any)
 	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-live")
 	assertCrossRepoDeadCodeReason(t, unknown, "permission_hidden_consumer")

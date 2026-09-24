@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t *testing.T) {
@@ -54,7 +54,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 						if got, want := params["repo_id"], "repo-1"; got != want {
 							t.Fatalf("repo_id param = %#v, want %#v", got, want)
 						}
-						return querytestutil.RepositoryStatsGraphRow(), nil
+						return testutil.RepositoryStatsGraphRow(), nil
 					},
 				},
 				Content: content.FakePortContentStore{
@@ -73,7 +73,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 							{EntityType: "TerraformResource", Count: 2},
 						},
 					},
-					Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+					Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 				},
 			}
 
@@ -94,17 +94,17 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 				t.Fatalf("RunSingle calls = %d, want 1", len(runSingleCyphers))
 			}
 
-			resp := querytestutil.DecodeResponseBody(t, w)
+			resp := testutil.DecodeResponseBody(t, w)
 			if got, want := resp["file_count"], float64(42); got != want {
 				t.Fatalf("file_count = %#v, want %#v", got, want)
 			}
 			if got, want := resp["entity_count"], float64(7); got != want {
 				t.Fatalf("entity_count = %#v, want %#v", got, want)
 			}
-			querytestutil.RequireStringSlice(t, resp, "languages", []string{"go", "yaml"})
-			querytestutil.RequireStringSlice(t, resp, "entity_types", []string{"Function", "TerraformResource"})
+			testutil.RequireStringSlice(t, resp, "languages", []string{"go", "yaml"})
+			testutil.RequireStringSlice(t, resp, "entity_types", []string{"Function", "TerraformResource"})
 
-			coverage := querytestutil.MustMapField(t, resp, "coverage")
+			coverage := testutil.MustMapField(t, resp, "coverage")
 			if got, want := coverage["source_backend"], "content_store"; got != want {
 				t.Fatalf("coverage.source_backend = %#v, want %#v", got, want)
 			}
@@ -117,7 +117,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 			if got, want := coverage["whole_graph_traversal"], false; got != want {
 				t.Fatalf("coverage.whole_graph_traversal = %#v, want %#v", got, want)
 			}
-			querytestutil.RequireStringSlice(t, coverage, "missing_evidence", nil)
+			testutil.RequireStringSlice(t, coverage, "missing_evidence", nil)
 		})
 	}
 }
@@ -134,14 +134,14 @@ func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t 
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("repo_id param = %#v, want %#v", got, want)
 				}
-				return querytestutil.RepositoryStatsGraphRow(), nil
+				return testutil.RepositoryStatsGraphRow(), nil
 			},
 		},
 		Content: content.FakePortContentStore{
 			Coverage: querycontract.RepositoryContentCoverage{
 				Available: true,
 			},
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 	}
 
@@ -156,17 +156,17 @@ func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t 
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	if got := resp["file_count"]; got != nil {
 		t.Fatalf("file_count = %#v, want nil when content coverage is unavailable", got)
 	}
 	if got := resp["entity_count"]; got != nil {
 		t.Fatalf("entity_count = %#v, want nil when content coverage is unavailable", got)
 	}
-	querytestutil.RequireStringSlice(t, resp, "languages", nil)
-	querytestutil.RequireStringSlice(t, resp, "entity_types", nil)
+	testutil.RequireStringSlice(t, resp, "languages", nil)
+	testutil.RequireStringSlice(t, resp, "entity_types", nil)
 
-	coverage := querytestutil.MustMapField(t, resp, "coverage")
+	coverage := testutil.MustMapField(t, resp, "coverage")
 	if got, want := coverage["source_backend"], "unavailable"; got != want {
 		t.Fatalf("coverage.source_backend = %#v, want %#v", got, want)
 	}
@@ -179,7 +179,7 @@ func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t 
 	if got, want := coverage["whole_graph_traversal"], false; got != want {
 		t.Fatalf("coverage.whole_graph_traversal = %#v, want %#v", got, want)
 	}
-	querytestutil.RequireStringSlice(t, coverage, "missing_evidence", []string{"content_store_coverage"})
+	testutil.RequireStringSlice(t, coverage, "missing_evidence", []string{"content_store_coverage"})
 }
 
 func TestGetRepositoryStatsLogsMissingCoverageTelemetry(t *testing.T) {
@@ -189,11 +189,11 @@ func TestGetRepositoryStatsLogsMissingCoverageTelemetry(t *testing.T) {
 	handler := &Handler{
 		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
 	}

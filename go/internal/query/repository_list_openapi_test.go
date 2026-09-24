@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestOpenAPIRepositoryListDocumentsBoundedGraphReadFailures lives in root
@@ -20,10 +20,10 @@ func TestOpenAPIRepositoryListDocumentsBoundedGraphReadFailures(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/repositories")
-	get := querytestutil.MustMapField(t, path, "get")
-	responses := querytestutil.MustMapField(t, get, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/repositories")
+	get := testutil.MustMapField(t, path, "get")
+	responses := testutil.MustMapField(t, get, "responses")
 	for _, status := range []string{"503", "504"} {
 		if _, ok := responses[status]; !ok {
 			t.Errorf("repository-list OpenAPI responses missing %s bounded graph-read response", status)

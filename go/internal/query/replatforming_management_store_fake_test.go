@@ -16,7 +16,7 @@ import "context"
 // (TestHandleUnmanagedCloudResources*, TestHandleIaCManagementStatus*,
 // TestHandleIaCManagementExplanation*) and a root test cannot reach an
 // unexported type declared in a different package. Keep both copies in sync
-// by hand until a shared querytestutil double exists for this contract.
+// by hand until a shared testutil double exists for this contract.
 type fakeIaCManagementStore struct {
 	rows           []IaCManagementFindingRow
 	observedFilter *IaCManagementFilter

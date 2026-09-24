@@ -18,9 +18,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // provenanceDeadCodeContentStore is a content store whose incoming-edge probe
@@ -335,7 +335,7 @@ func TestDeadCodeInvestigationSurfacesWeakIncomingAmbiguityReason(t *testing.T) 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := requireDeadCodeInvestigationMap(t, data, "candidate_buckets")
 	ambiguous := requireDeadCodeInvestigationSlice(t, buckets, "ambiguous")
 	if got, want := len(ambiguous), 1; got != want {

@@ -14,9 +14,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // contextDegradedReadMarkers maps each auxiliary graph read the repository
@@ -79,9 +79,9 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 	body := decodeRepositoryAuthzBody(t, rec)
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
 	for _, read := range contextDegradedReadMarkers {
-		if !querytestutil.AnySliceContains(reasons, read.reason) {
+		if !testutil.AnySliceContains(reasons, read.reason) {
 			t.Errorf("%s read failed but partial_reasons = %#v lacks %q", read.name, reasons, read.reason)
 		}
 		if !strings.Contains(logs.String(), `"failure_class":"`+read.reason+`"`) {
@@ -124,9 +124,9 @@ func TestRepositoryContextEmptyReadsAreNotDegraded(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 	body := decodeRepositoryAuthzBody(t, rec)
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
 	for _, read := range contextDegradedReadMarkers {
-		if querytestutil.AnySliceContains(reasons, read.reason) {
+		if testutil.AnySliceContains(reasons, read.reason) {
 			t.Errorf("healthy empty %s read reported %q in partial_reasons = %#v", read.name, read.reason, reasons)
 		}
 	}
@@ -188,9 +188,9 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 	body := decodeRepositoryAuthzBody(t, rec)
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
 	for _, reason := range []string{deployableUnitRelationshipsReadDegradedReason, apiSurfaceReadDegradedReason} {
-		if !querytestutil.AnySliceContains(reasons, reason) {
+		if !testutil.AnySliceContains(reasons, reason) {
 			t.Fatalf("partial_reasons = %#v, want %q", reasons, reason)
 		}
 		if !strings.Contains(logs.String(), `"failure_class":"`+reason+`"`) {
@@ -201,7 +201,7 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 		t.Fatalf("logs missing the deployable_unit_relationships stage; logs = %s", logs.String())
 	}
 	for _, reason := range []string{relationshipsReadDegradedReason, relationshipOverviewReadDegradedReason, consumersReadDegradedReason} {
-		if querytestutil.AnySliceContains(reasons, reason) {
+		if testutil.AnySliceContains(reasons, reason) {
 			t.Errorf("read-model-served panel reported %q; partial_reasons = %#v", reason, reasons)
 		}
 	}

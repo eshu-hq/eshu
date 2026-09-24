@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // crossTenantRelationshipReadModel is the read-model (Postgres resolved_relationships)
@@ -133,7 +133,7 @@ func TestRepositoryContextReadModelScopedFiltersCrossTenantRelationships(t *test
 		}
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	for _, needle := range leaked {
 		if strings.Contains(scopedBody, needle) {

@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
@@ -72,7 +72,7 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 	if truncated {
 		t.Fatal("changeSurfaceTraversalRows() truncated = true, want false after grant pushdown")
 	}
-	if got, want := querytestutil.RowIDs(rows), []string{"repository:consumer", "workload:granted"}; !reflect.DeepEqual(got, want) {
+	if got, want := testutil.RowIDs(rows), []string{"repository:consumer", "workload:granted"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("row ids = %#v, want %#v", got, want)
 	}
 	if got, want := calls, 2; got != want {

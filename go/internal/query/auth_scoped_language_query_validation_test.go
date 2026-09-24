@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // #5167 code-family batch 2a review round 2, finding 1.
@@ -60,8 +60,8 @@ func TestLanguageQueryRejectsUnsupportedEntityTypeForEveryCaller(t *testing.T) {
 		name string
 		auth *AuthContext
 	}{
-		{name: "scoped caller with no repository grants", auth: authContextPointer(querytestutil.CodeGrantScopedAuthContext(nil))},
-		{name: "scoped caller with a repository grant", auth: authContextPointer(querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))},
+		{name: "scoped caller with no repository grants", auth: authContextPointer(testutil.CodeGrantScopedAuthContext(nil))},
+		{name: "scoped caller with a repository grant", auth: authContextPointer(testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))},
 		{name: "unscoped caller", auth: nil},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestLanguageQueryEmptyGrantStillAnswersASupportedEntityType(t *testing.T) {
 	t.Parallel()
 
 	handler, store, graph := newLanguageQueryValidationHandler()
-	auth := querytestutil.CodeGrantScopedAuthContext(nil)
+	auth := testutil.CodeGrantScopedAuthContext(nil)
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {

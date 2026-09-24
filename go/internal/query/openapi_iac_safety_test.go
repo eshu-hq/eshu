@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIIaCManagementSafetyGateFields(t *testing.T) {
@@ -17,43 +17,43 @@ func TestOpenAPIIaCManagementSafetyGateFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
+	paths := testutil.MustMapField(t, spec, "paths")
 
-	unmanagedPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
-	unmanagedPost := querytestutil.MustMapField(t, unmanagedPath, "post")
-	unmanagedOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedPost, "responses"), "200")
-	unmanagedProps := querytestutil.MustMapField(
+	unmanagedPath := testutil.MustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
+	unmanagedPost := testutil.MustMapField(t, unmanagedPath, "post")
+	unmanagedOK := testutil.MustMapField(t, testutil.MustMapField(t, unmanagedPost, "responses"), "200")
+	unmanagedProps := testutil.MustMapField(
 		t,
-		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedOK, "content"), "application/json"), "schema"),
+		testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, unmanagedOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := unmanagedProps["safety_summary"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing safety_summary")
 	}
-	findings := querytestutil.MustMapField(t, unmanagedProps, "findings")
-	findingProps := querytestutil.MustMapField(t, querytestutil.MustMapField(t, findings, "items"), "properties")
+	findings := testutil.MustMapField(t, unmanagedProps, "findings")
+	findingProps := testutil.MustMapField(t, testutil.MustMapField(t, findings, "items"), "properties")
 	if _, ok := findingProps["safety_gate"]; !ok {
 		t.Fatal("iac/unmanaged-resources finding schema missing safety_gate")
 	}
 
-	statusPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status")
-	statusPost := querytestutil.MustMapField(t, statusPath, "post")
-	statusOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusPost, "responses"), "200")
-	statusProps := querytestutil.MustMapField(
+	statusPath := testutil.MustMapField(t, paths, "/api/v0/iac/management-status")
+	statusPost := testutil.MustMapField(t, statusPath, "post")
+	statusOK := testutil.MustMapField(t, testutil.MustMapField(t, statusPost, "responses"), "200")
+	statusProps := testutil.MustMapField(
 		t,
-		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusOK, "content"), "application/json"), "schema"),
+		testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, statusOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := statusProps["safety_gate"]; !ok {
 		t.Fatal("iac/management-status response schema missing safety_gate")
 	}
 
-	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status/explain")
-	explainPost := querytestutil.MustMapField(t, explainPath, "post")
-	explainOK := querytestutil.MustMapField(t, querytestutil.MustMapField(t, explainPost, "responses"), "200")
-	explainProps := querytestutil.MustMapField(
+	explainPath := testutil.MustMapField(t, paths, "/api/v0/iac/management-status/explain")
+	explainPost := testutil.MustMapField(t, explainPath, "post")
+	explainOK := testutil.MustMapField(t, testutil.MustMapField(t, explainPost, "responses"), "200")
+	explainProps := testutil.MustMapField(
 		t,
-		querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, explainOK, "content"), "application/json"), "schema"),
+		testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, explainOK, "content"), "application/json"), "schema"),
 		"properties",
 	)
 	if _, ok := explainProps["safety_gate"]; !ok {

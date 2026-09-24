@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-// fakeStatusReader is an unexported adapter over querytestutil.FakeStatusReader
+// fakeStatusReader is an unexported adapter over testutil.FakeStatusReader
 // that keeps the original lowercase field names 19 test files across this
 // package already build with keyed literals. It holds no dispatch logic of its
-// own -- both methods delegate to querytestutil.FakeStatusReader, which is the
-// only place that logic lives. See querytestutil's AGENTS.md for why the
+// own -- both methods delegate to testutil.FakeStatusReader, which is the
+// only place that logic lives. See testutil's AGENTS.md for why the
 // promoted fake is shaped this way and how its delegation is proven.
 type fakeStatusReader struct {
 	snapshot statuspkg.RawSnapshot
@@ -27,7 +27,7 @@ type fakeStatusReader struct {
 }
 
 func (f fakeStatusReader) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
-	return querytestutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshot(ctx, asOf)
+	return testutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshot(ctx, asOf)
 }
 
 func (f fakeStatusReader) ReadStatusSnapshotFiltered(
@@ -35,7 +35,7 @@ func (f fakeStatusReader) ReadStatusSnapshotFiltered(
 	asOf time.Time,
 	sel statuspkg.SnapshotSelection,
 ) (statuspkg.RawSnapshot, error) {
-	return querytestutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshotFiltered(ctx, asOf, sel)
+	return testutil.FakeStatusReader{Snapshot: f.snapshot, Err: f.err}.ReadStatusSnapshotFiltered(ctx, asOf, sel)
 }
 
 func TestStatusHandlerLegacyIndexStatusAlias(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -28,7 +28,7 @@ const cloudRuntimeProbeTestCICDFactKind = "reducer_ci_cd_run_correlation"
 // owner-ledger current-inventory + authorization gate. It records the candidate
 // uids and whether the caller was unscoped. Twin of the root parity suite's
 // copy, kept behavior-identical: its signatures name hub family types, which
-// querytestutil cannot import without the cycle its doc forbids, so unlike
+// testutil cannot import without the cycle its doc forbids, so unlike
 // FakeCloudRuntimeGraph it cannot live in the shared file.
 type stubCloudInventory struct {
 	currentAuthorized map[string]struct{}

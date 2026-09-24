@@ -12,7 +12,7 @@
 // the paged-searcher seam, readiness errors), selector
 // (repository-selector resolution), codemodel (document-ID recovery for
 // re-rank), and the search* leaf packages for the hybrid ranker. Tests
-// additionally use auth (scoped auth contexts) and querytestutil (the
+// additionally use auth (scoped auth contexts) and testutil (the
 // shared ContentStore double). Nothing here imports root package query
 // itself, which would create an import cycle: root's
 // content_read_alias.go imports contentread for the ContentHandler,

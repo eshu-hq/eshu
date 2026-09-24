@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCounts(t *testing.T) {
@@ -33,7 +33,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("repo_id param = %#v, want %#v", got, want)
 				}
-				return querytestutil.RepositoryStatsGraphRow(), nil
+				return testutil.RepositoryStatsGraphRow(), nil
 			},
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "count(DISTINCT e) as entity_count") {
@@ -70,7 +70,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 					{EntityType: "TerraformResource", Count: 2},
 				},
 			},
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 	stats := serveRepositoryJSON(t, mux, "/api/v0/repositories/order-service/stats")
 	coverage := serveRepositoryJSON(t, mux, "/api/v0/repositories/order-service/coverage")
 
-	coverageSummary := querytestutil.MustMapField(t, story, "coverage_summary")
+	coverageSummary := testutil.MustMapField(t, story, "coverage_summary")
 	if got, want := coverageSummary["status"], "available"; got != want {
 		t.Fatalf("coverage_summary.status = %#v, want %#v", got, want)
 	}
@@ -106,7 +106,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 	if got, want := coverageSummary["entity_count"], coverage["entity_count"]; got != want {
 		t.Fatalf("coverage_summary.entity_count = %#v, want coverage.entity_count %#v", got, want)
 	}
-	querytestutil.RequireStringSlice(t, coverageSummary, "missing_evidence", nil)
+	testutil.RequireStringSlice(t, coverageSummary, "missing_evidence", nil)
 	assertRepositoryStoryLacksLimitation(t, story, "coverage_not_computed")
 }
 
@@ -116,7 +116,7 @@ func TestGetRepositoryStoryReportsMissingContentCoverageReason(t *testing.T) {
 	handler := &Handler{
 		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 			},
 			RunFn: graph.StoryEnvelopeGraphRows(t, "repo-1"),
 		},
@@ -126,14 +126,14 @@ func TestGetRepositoryStoryReportsMissingContentCoverageReason(t *testing.T) {
 	handler.Mount(mux)
 
 	story := serveRepositoryJSON(t, mux, "/api/v0/repositories/repo-1/story")
-	coverageSummary := querytestutil.MustMapField(t, story, "coverage_summary")
+	coverageSummary := testutil.MustMapField(t, story, "coverage_summary")
 	if got, want := coverageSummary["status"], "unavailable"; got != want {
 		t.Fatalf("coverage_summary.status = %#v, want %#v", got, want)
 	}
 	if got, want := coverageSummary["query_shape"], repositoryStatsIdentityOnlyShape; got != want {
 		t.Fatalf("coverage_summary.query_shape = %#v, want %#v", got, want)
 	}
-	querytestutil.RequireStringSlice(t, coverageSummary, "missing_evidence", []string{"content_store_coverage"})
+	testutil.RequireStringSlice(t, coverageSummary, "missing_evidence", []string{"content_store_coverage"})
 	assertRepositoryStoryHasLimitation(t, story, "content_store_coverage")
 	assertRepositoryStoryLacksLimitation(t, story, "coverage_not_computed")
 }
@@ -147,7 +147,7 @@ func serveRepositoryJSON(t *testing.T, mux *http.ServeMux, path string) map[stri
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("%s status = %d, want %d; body = %s", path, got, want, w.Body.String())
 	}
-	return querytestutil.DecodeResponseBody(t, w)
+	return testutil.DecodeResponseBody(t, w)
 }
 
 func assertRepositoryStoryHasLimitation(t *testing.T, story map[string]any, want string) {

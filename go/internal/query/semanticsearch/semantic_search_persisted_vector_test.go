@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -21,8 +21,8 @@ import (
 func TestSemanticSearchHandlerPersistedVectorsServeReadySemanticPath(t *testing.T) {
 	t.Parallel()
 
-	payments := querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
-	billing := querytestutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")
+	payments := testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
+	billing := testutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")
 	documents := &fakeSemanticSearchDocumentStore{
 		rows: []semanticSearchDocumentRow{{Document: payments}, {Document: billing}},
 	}
@@ -53,7 +53,7 @@ func TestSemanticSearchHandlerPersistedVectorsServeReadySemanticPath(t *testing.
 		),
 		Profile: querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "refund",
 		"mode":       "semantic",
@@ -122,8 +122,8 @@ func TestSemanticSearchHandlerPersistedVectorsServeReadySemanticPath(t *testing.
 func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *testing.T) {
 	t.Parallel()
 
-	cross := querytestutil.SemanticSearchDocumentFixture("searchdoc:cross", "repo-payments", "cross-best", "cross-best body")
-	weaker := querytestutil.SemanticSearchDocumentFixture("searchdoc:weaker", "repo-payments", "axis", "axis body")
+	cross := testutil.SemanticSearchDocumentFixture("searchdoc:cross", "repo-payments", "cross-best", "cross-best body")
+	weaker := testutil.SemanticSearchDocumentFixture("searchdoc:weaker", "repo-payments", "axis", "axis body")
 	documents := &fakeSemanticSearchDocumentStore{
 		rows: []semanticSearchDocumentRow{{Document: cross}, {Document: weaker}},
 	}
@@ -156,7 +156,7 @@ func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *test
 		),
 		Profile: querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "tilted-query",
 		"mode":       "semantic",
@@ -200,8 +200,8 @@ func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesAutoVectorRetrieval(
 func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(t *testing.T) {
 	t.Parallel()
 
-	payments := querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
-	billing := querytestutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")
+	payments := testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
+	billing := testutil.SemanticSearchDocumentFixture("searchdoc:billing", "repo-payments", "Billing", "invoice ledger")
 	documents := &fakeSemanticSearchDocumentStore{
 		rows: []semanticSearchDocumentRow{{Document: payments}, {Document: billing}},
 	}
@@ -222,7 +222,7 @@ func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(
 		),
 		Profile: querycontract.ProfileProduction,
 	}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "refund",
 		"mode":       "hybrid",
@@ -257,7 +257,7 @@ func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(
 func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForInvalidStates(t *testing.T) {
 	t.Parallel()
 
-	payments := querytestutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
+	payments := testutil.SemanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "refund checkout")
 	baseMetadata := readySemanticSearchVectorMetadata(payments, 2)
 	baseValue := semanticSearchVectorValue(payments, []float64{1, 0})
 	tests := []struct {
@@ -325,7 +325,7 @@ func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForInvalidStates
 				),
 				Profile: querycontract.ProfileProduction,
 			}
-			req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+			req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 				"repo_id":    "repo-payments",
 				"query":      "refund",
 				"mode":       "hybrid",

@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -270,7 +270,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	if scopedTruncated {
 		t.Fatal("scoped investigate truncated = true, want false")
 	}
-	if got, want := querytestutil.RowIDs(scopedInvestigate), []string{consumerID, workloadID, crID}; !reflect.DeepEqual(got, want) {
+	if got, want := testutil.RowIDs(scopedInvestigate), []string{consumerID, workloadID, crID}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scoped investigate ids = %#v, want %#v", got, want)
 	}
 

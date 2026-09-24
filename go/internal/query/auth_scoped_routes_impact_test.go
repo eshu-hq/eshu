@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // impactCompareTwoTenantRoutes is the #5167 W3 inventory: every impact/* and
@@ -99,7 +99,7 @@ func TestInvestigateContractImpactScopedGrantAndDenyMutationCheck(t *testing.T) 
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/contracts", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -116,7 +116,7 @@ func TestInvestigateContractImpactScopedGrantAndDenyMutationCheck(t *testing.T) 
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/contracts", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -137,7 +137,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsContractImpact(t *testing.T) {
 	handler := &ImpactHandler{Neo4j: contractImpactTestGraph(t), Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+	resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 	middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/contracts", bytes.NewBufferString(`{"family":"http","provider_repo_id":"repo-a"}`))
@@ -175,7 +175,7 @@ func TestCompareEnvironmentsScopedGrantAndDenyMutationCheck(t *testing.T) {
 
 	t.Run("granted workload repo returns the workload", func(t *testing.T) {
 		t.Parallel()
-		resp := executeCompareEnvironmentsRequestWithAuth(t, &CompareHandler{Neo4j: compareEnvironmentsTestGraph(), Profile: ProfileLocalAuthoritative}, body, querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}))
+		resp := executeCompareEnvironmentsRequestWithAuth(t, &CompareHandler{Neo4j: compareEnvironmentsTestGraph(), Profile: ProfileLocalAuthoritative}, body, testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}))
 		workload := requireMap(t, resp, "workload")
 		if got, want := workload["id"], "workload:orders-api"; got != want {
 			t.Fatalf("workload.id = %#v, want %#v", got, want)
@@ -184,7 +184,7 @@ func TestCompareEnvironmentsScopedGrantAndDenyMutationCheck(t *testing.T) {
 
 	t.Run("denied workload repo renders not found", func(t *testing.T) {
 		t.Parallel()
-		resp := executeCompareEnvironmentsRequestWithAuth(t, &CompareHandler{Neo4j: compareEnvironmentsTestGraph(), Profile: ProfileLocalAuthoritative}, body, querytestutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"}))
+		resp := executeCompareEnvironmentsRequestWithAuth(t, &CompareHandler{Neo4j: compareEnvironmentsTestGraph(), Profile: ProfileLocalAuthoritative}, body, testutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"}))
 		if workload := resp["workload"]; workload != nil {
 			t.Fatalf("workload = %#v, want nil (denied grant must render like a nonexistent workload)", workload)
 		}
@@ -216,7 +216,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCompareEnvironments(t *testing.T) {
 	handler := &CompareHandler{Neo4j: compareEnvironmentsTestGraph(), Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+	resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 	middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/compare/environments", bytes.NewBufferString(`{"workload_id":"workload:orders-api","left":"qa","right":"prod"}`))
@@ -267,7 +267,7 @@ func TestFindBlastRadiusScopedGrantAndDenyMutationCheck(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a-dependent"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a-dependent"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -292,7 +292,7 @@ func TestFindBlastRadiusScopedGrantAndDenyMutationCheck(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-empty", nil)))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-empty", nil)))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -312,7 +312,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsFindBlastRadius(t *testing.T) {
 	handler := &ImpactHandler{Neo4j: blastRadiusTestGraph(t), Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a-dependent"}), ok: true}
+	resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a-dependent"}), ok: true}
 	middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius", bytes.NewBufferString(`{"target":"payments","target_type":"repository"}`))
@@ -333,8 +333,8 @@ func TestAuthMiddlewareWithScopedTokensAllowsFindBlastRadius(t *testing.T) {
 func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 	t.Parallel()
 
-	newGraph := func() *querytestutil.RecordingResourceInvestigationGraph {
-		return &querytestutil.RecordingResourceInvestigationGraph{
+	newGraph := func() *testutil.RecordingResourceInvestigationGraph {
+		return &testutil.RecordingResourceInvestigationGraph{
 			RunRows: [][]map[string]any{{
 				{
 					"id": "cloud:rds:orders", "name": "orders-db", "labels": []any{"CloudResource"},
@@ -352,7 +352,7 @@ func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/resource-investigation", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -369,7 +369,7 @@ func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/resource-investigation", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -386,13 +386,13 @@ func TestInvestigateResourceScopedGrantAndDeny(t *testing.T) {
 func TestAuthMiddlewareWithScopedTokensAllowsInvestigateResource(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.RecordingResourceInvestigationGraph{RunRows: [][]map[string]any{{
+	graph := &testutil.RecordingResourceInvestigationGraph{RunRows: [][]map[string]any{{
 		{"id": "cloud:rds:orders", "name": "orders-db", "labels": []any{"CloudResource"}, "repo_id": "repo-a"},
 	}}}
 	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+	resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 	middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/resource-investigation", bytes.NewBufferString(`{"resource_id":"cloud:rds:orders"}`))

@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestEvidenceHandlerReturnsRelationshipEvidenceByResolvedID(t *testing.T) {
@@ -87,7 +87,7 @@ func TestEvidenceHandlerReturnsRelationshipEvidenceByResolvedID(t *testing.T) {
 	if got, want := target["repo_name"], "checkout-service"; got != want {
 		t.Fatalf("target.repo_name = %#v, want %#v", got, want)
 	}
-	if !querytestutil.AnySliceContains(resp["evidence_kinds"].([]any), "HELM_VALUES_REFERENCE") {
+	if !testutil.AnySliceContains(resp["evidence_kinds"].([]any), "HELM_VALUES_REFERENCE") {
 		t.Fatalf("evidence_kinds = %#v, want HELM_VALUES_REFERENCE", resp["evidence_kinds"])
 	}
 }

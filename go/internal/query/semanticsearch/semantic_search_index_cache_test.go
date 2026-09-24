@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -247,7 +247,7 @@ func newSemanticSearchCacheTestHybrid(
 	*sequenceSemanticSearchSnapshotStore,
 ) {
 	t.Helper()
-	document := querytestutil.SemanticSearchDocumentFixture(
+	document := testutil.SemanticSearchDocumentFixture(
 		"searchdoc:payments",
 		"repo-payments",
 		"Payments",

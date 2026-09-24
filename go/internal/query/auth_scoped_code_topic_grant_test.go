@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // Code-topic SQL-builder proof that lives in package query: it calls the
@@ -26,7 +26,7 @@ func TestCodeTopicFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 	if !slices.Contains(filters, "repo_id = ANY($1)") {
 		t.Fatalf("codeTopicFilters() = %#v, want a repo_id = ANY($1) grant predicate; without it a scoped caller's grant is resolved but never applied", filters)
 	}
-	querytestutil.AssertBoundRepositoryGrantArray(t, args, []string{codeGrantGrantedRepo})
+	testutil.AssertBoundRepositoryGrantArray(t, args, []string{codeGrantGrantedRepo})
 
 	unscoped, _, _ := codeTopicFilters(CodeTopicInvestigationRequest{})
 	for _, filter := range unscoped {

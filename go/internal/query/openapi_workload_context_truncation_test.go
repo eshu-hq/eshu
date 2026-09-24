@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestOpenAPIWorkloadContextSchemaDeclaresTruncationFlags is a PR #5933
@@ -28,10 +28,10 @@ func TestOpenAPIWorkloadContextSchemaDeclaresTruncationFlags(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	workloadContextSchema := querytestutil.MustMapField(t, schemas, "WorkloadContext")
-	workloadContextProperties := querytestutil.MustMapField(t, workloadContextSchema, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	workloadContextSchema := testutil.MustMapField(t, schemas, "WorkloadContext")
+	workloadContextProperties := testutil.MustMapField(t, workloadContextSchema, "properties")
 
 	for _, field := range []string{
 		"dependents_truncated",

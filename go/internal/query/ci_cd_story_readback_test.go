@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T) {
@@ -42,7 +42,7 @@ func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T
 	if got, want := store.lastFilter.Limit, artifacts.CICDStoryRunCorrelationLimit+1; got != want {
 		t.Fatalf("Limit = %d, want %d", got, want)
 	}
-	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
+	live := testutil.MustMapField(t, summary, "live_run_correlations")
 	if got, want := live["count"], artifacts.CICDStoryRunCorrelationLimit; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want %#v", got, want)
 	}
@@ -79,7 +79,7 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 	if err != nil {
 		t.Fatalf("artifacts.LoadRepositoryScopedCICDEvidence(canonical) error = %v, want nil", err)
 	}
-	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
+	live := testutil.MustMapField(t, summary, "live_run_correlations")
 	if got, want := live["count"], 1; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want 1 (canonical repo id must resolve)", got)
 	}
@@ -95,7 +95,7 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 	if err != nil {
 		t.Fatalf("artifacts.LoadRepositoryScopedCICDEvidence(raw) error = %v, want nil", err)
 	}
-	liveRaw := querytestutil.MustMapField(t, summaryRaw, "live_run_correlations")
+	liveRaw := testutil.MustMapField(t, summaryRaw, "live_run_correlations")
 	if got, want := liveRaw["count"], 0; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want 0 (raw provider id must not cross-join into canonical namespace)", got)
 	}

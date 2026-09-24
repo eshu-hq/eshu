@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func generationsRequest(t *testing.T, generationID string, authCtx auth.AuthContext) *http.Request {
@@ -56,14 +56,14 @@ func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 		{
 			name:         "in grant returns the row",
 			generationID: "gen-a",
-			auth:         querytestutil.ScopedChangedSinceTenantA(),
+			auth:         testutil.ScopedChangedSinceTenantA(),
 			wantStatus:   http.StatusOK,
 			wantScoped:   true,
 		},
 		{
 			name:         "out of grant is not found",
 			generationID: "gen-b",
-			auth:         querytestutil.ScopedChangedSinceTenantA(),
+			auth:         testutil.ScopedChangedSinceTenantA(),
 			wantStatus:   http.StatusNotFound,
 			wantScoped:   true,
 		},
@@ -96,7 +96,7 @@ func TestGenerationLifecycleTwoTenantGrantBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			reader := &querytestutil.GrantMirroringGenerations{Rows: querytestutil.TwoTenantGenerationRows()}
+			reader := &testutil.GrantMirroringGenerations{Rows: testutil.TwoTenantGenerationRows()}
 			handler := &Handler{
 				Generations: reader,
 				Profile:     querycontract.ProfileLocalAuthoritative,

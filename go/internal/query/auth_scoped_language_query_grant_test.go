@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -35,13 +35,13 @@ import (
 // grant through one implementation.
 
 // languageGrantGrantedEntity and languageGrantUngrantedEntity forward to
-// querytestutil. The values, and the languageQueryGrantEntities generator
+// testutil. The values, and the languageQueryGrantEntities generator
 // that names them, moved there for #6642 so package language's own
 // entity-search-dispatch tests can share the identical fixture; these consts
 // keep this file's callers unchanged.
 const (
-	languageGrantGrantedEntity   = querytestutil.LanguageGrantGrantedEntity
-	languageGrantUngrantedEntity = querytestutil.LanguageGrantUngrantedEntity
+	languageGrantGrantedEntity   = testutil.LanguageGrantGrantedEntity
+	languageGrantUngrantedEntity = testutil.LanguageGrantUngrantedEntity
 )
 
 // languageQueryPlainContentStore satisfies only the ContentStore port method,
@@ -59,7 +59,7 @@ func (s *languageQueryPlainContentStore) SearchEntitiesByLanguageAndType(
 	_ int,
 ) ([]EntityContent, error) {
 	s.askedRepoIDs = append(s.askedRepoIDs, repoID)
-	return querytestutil.LanguageQueryGrantEntities(repoID, nil, entityType), nil
+	return testutil.LanguageQueryGrantEntities(repoID, nil, entityType), nil
 }
 
 // languageQueryGraphSeeds is the two-tenant graph fixture every graph-backed
@@ -145,7 +145,7 @@ func TestLanguageQueryFiltersByRepositoryGrant(t *testing.T) {
 			t.Parallel()
 
 			handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -173,7 +173,7 @@ func TestLanguageQueryEmptyGrantReachesNoBackend(t *testing.T) {
 
 			store := &languageQueryPlainContentStore{}
 			handler, graph := newLanguageQueryGrantHandler(branch, store)
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -252,7 +252,7 @@ func TestLanguageQueryGraphlessProfileBindsTheContentFallback(t *testing.T) {
 
 	store := &languageQueryPlainContentStore{}
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -279,7 +279,7 @@ func TestLanguageQueryMetadataEnrichmentCannotWidenTheAnswer(t *testing.T) {
 		languageQueryGrantBranch{name: "graph_backed", entityType: "function", graphLabel: "Function"},
 		store,
 	)
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -311,7 +311,7 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 		languageQueryGrantBranch{name: "graph_backed", entityType: "function", graphLabel: "Function"},
 		store,
 	)
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	body := languageQueryGrantBody("function")
 	body["repo_id"] = codeGrantOtherRepo
 	rec := runLanguageQueryGrantRequest(t, handler, body, &auth)

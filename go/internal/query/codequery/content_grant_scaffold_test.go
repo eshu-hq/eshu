@@ -6,7 +6,7 @@ package codequery
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // Two-tenant grant scaffold for the code-family auth-scoped route proofs in

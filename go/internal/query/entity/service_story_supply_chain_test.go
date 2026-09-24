@@ -16,9 +16,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 const (
@@ -183,7 +183,7 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 		t.Fatalf("envelope data type = %T, want object", envelope.Data)
 	}
 	trace := querycontract.MapValue(data, "code_to_runtime_trace")
-	segment := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "image_package")
+	segment := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "image_package")
 	if got, want := querycontract.StringVal(segment, "status"), "exact"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}

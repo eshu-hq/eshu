@@ -8,15 +8,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 	t.Parallel()
 
-	serviceStory := buildServiceStoryResponse("workload:sample-service-api", querytestutil.SampleServiceDossierContext())
-	querytestutil.AssertAnswerMetadata(t, "service story", serviceStory)
+	serviceStory := buildServiceStoryResponse("workload:sample-service-api", testutil.SampleServiceDossierContext())
+	testutil.AssertAnswerMetadata(t, "service story", serviceStory)
 
 	repositoryStory := repository.BuildRepositoryStoryResponseWithCoverage(
 		RepoRef{ID: "repo-payments", Name: "payments", HasRemote: true},
@@ -35,7 +35,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		nil,
 		false,
 	)
-	querytestutil.AssertAnswerMetadata(t, "repository story", repositoryStory)
+	testutil.AssertAnswerMetadata(t, "repository story", repositoryStory)
 
 	codeTopic := codequery.CodeTopicResponse(codequery.CodeTopicInvestigationRequest{
 		Topic:  "repo sync authentication",
@@ -52,7 +52,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		StartLine:    10,
 		EndLine:      44,
 	}}, true)
-	querytestutil.AssertAnswerMetadata(t, "code topic", codeTopic)
+	testutil.AssertAnswerMetadata(t, "code topic", codeTopic)
 
 	incident := BuildIncidentContextResponse(IncidentContextSnapshot{
 		Query: IncidentContextQuery{ProviderIncidentID: "INC-1", Limit: 1},

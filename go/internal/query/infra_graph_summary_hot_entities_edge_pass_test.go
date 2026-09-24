@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestGraphSummaryHotEntitiesEdgePassIsUnchanged moved out of
@@ -46,7 +46,7 @@ func TestGraphSummaryHotEntitiesEdgePassIsUnchanged(t *testing.T) {
 		return edgePass, rec.Code
 	}
 
-	scopedAuth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	scopedAuth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	scoped, scopedStatus := captureEdgePass(t, &scopedAuth, codeGrantGrantedRepo)
 	shared, sharedStatus := captureEdgePass(t, nil, codeGrantGrantedRepo)
 

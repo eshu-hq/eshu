@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // fakeLanguageListerContentStore embeds the base fake and additionally implements
@@ -47,7 +47,7 @@ func (f *fakeLanguageListerContentStore) RepoFilePathContext(
 func languageListerTreeStore() *fakeLanguageListerContentStore {
 	return &fakeLanguageListerContentStore{
 		FakePortContentStore: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 		pathExists: true,
 		indexedRef: "abc123",

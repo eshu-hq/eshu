@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher is the same guard for
@@ -28,7 +28,7 @@ import (
 func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 	t.Parallel()
 
-	scoped := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo}}
+	scoped := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{testutil.CodeGrantGrantedRepo}}
 	want := "(r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids)"
 
 	for _, label := range []string{"Repository", "File", "Function"} {
@@ -52,7 +52,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 					t.Fatalf("%s builder emits the grant after %q, so the page is taken before the grant applies:\n%s", label, strings.TrimSpace(clause), normalized)
 				}
 			}
-			if got, ok := params["allowed_repository_ids"].([]string); !ok || !slices.Equal(got, []string{querytestutil.CodeGrantGrantedRepo}) {
+			if got, ok := params["allowed_repository_ids"].([]string); !ok || !slices.Equal(got, []string{testutil.CodeGrantGrantedRepo}) {
 				t.Fatalf("params[allowed_repository_ids] = %#v, want the caller's granted ids; an unbound parameter fails at execution", params["allowed_repository_ids"])
 			}
 

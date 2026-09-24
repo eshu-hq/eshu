@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -78,7 +78,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "order-service"}},
 		},
-		infrastructureEntities: querytestutil.OverflowingInfrastructureEntities(repository.InfrastructureEntityLimit + 1),
+		infrastructureEntities: testutil.OverflowingInfrastructureEntities(repository.InfrastructureEntityLimit + 1),
 		workloadNames:          []string{"order-service"},
 	}
 	// No runSingleByMatch/runByMatch entries at all: every graph lookup

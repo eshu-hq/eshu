@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -37,7 +37,7 @@ func TestSemanticSearchHandlerLanguageFilterNarrowsResults(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -61,8 +61,8 @@ func TestSemanticSearchHandlerLanguageFilterNarrowsResults(t *testing.T) {
 	data := semanticSearchEnvelopeData(t, rec)
 
 	// Facets must be present and contain the go language count.
-	facets := querytestutil.MustMapField(t, data, "facets")
-	langs := querytestutil.MustMapField(t, facets, "languages")
+	facets := testutil.MustMapField(t, data, "facets")
+	langs := testutil.MustMapField(t, facets, "languages")
 	if got, ok := langs["go"]; !ok || got != float64(1) {
 		t.Fatalf("facets.languages[go] = %v (ok=%v), want 1", got, ok)
 	}
@@ -84,7 +84,7 @@ func TestSemanticSearchHandlerUnknownLanguageReturnsEmptyResult(t *testing.T) {
 		},
 	}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -151,7 +151,7 @@ func TestSemanticSearchHandlerFacetsAlwaysPresentEvenWithoutFilter(t *testing.T)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -193,7 +193,7 @@ func TestSemanticSearchHandlerLanguagesNormalisedLowercase(t *testing.T) {
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -220,7 +220,7 @@ func TestSemanticSearchHandlerEmptyLanguagesSliceIsNoOp(t *testing.T) {
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -246,7 +246,7 @@ func TestSemanticSearchHandlerPassesLanguagesToIndex(t *testing.T) {
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":      "repo-1",
 		"query":        "service",
 		"mode":         "keyword",

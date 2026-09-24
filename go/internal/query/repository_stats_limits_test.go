@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestGetRepositoryStatsExposesResultLimitsAndPartialReasons proves the
@@ -23,7 +23,7 @@ func TestGetRepositoryStatsExposesResultLimitsAndPartialReasons(t *testing.T) {
 	handler := &RepositoryHandler{
 		Neo4j: fakeRepoGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: fakePortContentStore{
@@ -39,14 +39,14 @@ func TestGetRepositoryStatsExposesResultLimitsAndPartialReasons(t *testing.T) {
 					{EntityType: "Function", Count: 5},
 				},
 			},
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 		Profile: ProfileProduction,
 	}
 
 	resp := serveRepositoryStats(t, handler, "/api/v0/repositories/repo-1/stats")
 
-	limits := querytestutil.MustMapField(t, resp, "result_limits")
+	limits := testutil.MustMapField(t, resp, "result_limits")
 	if got, want := limits["limit"], float64(repository.StatsItemLimit); got != want {
 		t.Fatalf("result_limits.limit = %#v, want %#v", got, want)
 	}
@@ -78,7 +78,7 @@ func TestGetRepositoryStatsExposesResultLimitsAndPartialReasons(t *testing.T) {
 	}
 
 	// Coverage fields remain intact (additive guarantee).
-	coverage := querytestutil.MustMapField(t, resp, "coverage")
+	coverage := testutil.MustMapField(t, resp, "coverage")
 	if got, want := coverage["partial_results"], false; got != want {
 		t.Fatalf("coverage.partial_results = %#v, want %#v", got, want)
 	}
@@ -99,12 +99,12 @@ func TestGetRepositoryStatsPartialReasonsPopulatedOnTimeout(t *testing.T) {
 	handler := &RepositoryHandler{
 		Neo4j: fakeRepoGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: repositoryStatsDeadlineContentStore{
 			fakePortContentStore: fakePortContentStore{
-				repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+				repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			},
 			err: context.DeadlineExceeded,
 		},
@@ -114,11 +114,11 @@ func TestGetRepositoryStatsPartialReasonsPopulatedOnTimeout(t *testing.T) {
 	resp := serveRepositoryStats(t, handler, "/api/v0/repositories/repo-1/stats")
 
 	reasons := requireStringAnySlice(t, resp, "partial_reasons")
-	if !querytestutil.AnySliceContains(reasons, "content_store_coverage_timeout") {
+	if !testutil.AnySliceContains(reasons, "content_store_coverage_timeout") {
 		t.Fatalf("partial_reasons = %#v, want content_store_coverage_timeout", reasons)
 	}
 
-	coverage := querytestutil.MustMapField(t, resp, "coverage")
+	coverage := testutil.MustMapField(t, resp, "coverage")
 	if got, want := coverage["timeout"], true; got != want {
 		t.Fatalf("coverage.timeout = %#v, want %#v", got, want)
 	}
@@ -148,7 +148,7 @@ func TestListRepositoriesInventoryExposesResultLimitsAndPartialReasons(t *testin
 	if got, want := resp["truncated"], true; got != want {
 		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
-	limits := querytestutil.MustMapField(t, resp, "result_limits")
+	limits := testutil.MustMapField(t, resp, "result_limits")
 	if got, want := limits["limit"], float64(2); got != want {
 		t.Fatalf("result_limits.limit = %#v, want %#v", got, want)
 	}
@@ -166,7 +166,7 @@ func TestListRepositoriesInventoryExposesResultLimitsAndPartialReasons(t *testin
 	}
 
 	reasons := requireStringAnySlice(t, resp, "partial_reasons")
-	if !querytestutil.AnySliceContains(reasons, "repository_inventory_truncated") {
+	if !testutil.AnySliceContains(reasons, "repository_inventory_truncated") {
 		t.Fatalf("partial_reasons = %#v, want repository_inventory_truncated", reasons)
 	}
 }
@@ -182,7 +182,7 @@ func serveRepositoryStats(t *testing.T, handler *RepositoryHandler, target strin
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	return querytestutil.DecodeResponseBody(t, w)
+	return testutil.DecodeResponseBody(t, w)
 }
 
 func requireStringAnySlice(t *testing.T, parent map[string]any, key string) []any {
