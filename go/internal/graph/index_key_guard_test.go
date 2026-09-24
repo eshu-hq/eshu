@@ -200,14 +200,17 @@ func TestGuardIndexKeyWritesCoversEverySchemaKey(t *testing.T) {
 }
 
 // BenchmarkGuardIndexKeyWrites measures the guard's per-statement cost on the
-// two hot shapes: a 500-row semantic Function batch (explicit SET fields) and
-// a 500-row canonical entity batch (SET n += row.props), with nothing
-// oversized, which is the steady state.
+// hot shapes: a 500-row semantic Function batch (explicit SET fields), the same
+// batch as []map[string]string rows, and a 500-row canonical entity batch
+// (SET n += row.props), with nothing oversized, which is the steady state. All
+// three report 0 allocs/op.
 func BenchmarkGuardIndexKeyWrites(b *testing.B) {
 	semanticRows := make([]map[string]any, 500)
+	stringRows := make([]map[string]string, 500)
 	canonicalRows := make([]map[string]any, 500)
 	for i := range semanticRows {
 		semanticRows[i] = functionRow(fmt.Sprintf("content-entity:e_%012d", i), fmt.Sprintf("handler%d", i), "/repo/src/service/handlers.go")
+		stringRows[i] = stringFunctionRow(fmt.Sprintf("content-entity:e_%012d", i), fmt.Sprintf("handler%d", i), "/repo/src/service/handlers.go")
 		canonicalRows[i] = map[string]any{
 			"entity_id": fmt.Sprintf("content-entity:e_%012d", i),
 			"props": map[string]any{
@@ -220,9 +223,10 @@ func BenchmarkGuardIndexKeyWrites(b *testing.B) {
 	for _, bc := range []struct {
 		name   string
 		cypher string
-		rows   []map[string]any
+		rows   any
 	}{
 		{"semantic_function_500", semanticFunctionShape, semanticRows},
+		{"semantic_function_string_rows_500", semanticFunctionShape, stringRows},
 		{"canonical_entity_props_500", canonicalShape, canonicalRows},
 	} {
 		b.Run(bc.name, func(b *testing.B) {

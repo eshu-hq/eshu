@@ -36,7 +36,9 @@ type OversizedIndexWrite struct {
 }
 
 const (
-	oversizedValuePrefixBytes = 64
+	// IndexValuePrefixBytes bounds the value excerpt carried in an oversized
+	// index-key record so a skip log line stays small.
+	IndexValuePrefixBytes = 64
 	// indexWritePlanCacheLimit bounds the per-process plan cache. Eshu writers
 	// use a fixed set of statement templates; past the limit a statement is
 	// analyzed on every call instead of growing the cache without bound.
@@ -85,7 +87,7 @@ func GuardIndexKeyWrites(cypher string, params map[string]any) (out map[string]a
 		if v.rowVar() != "" {
 			continue
 		}
-		if rec, over := v.oversized(nil, params); over {
+		if rec, over := v.oversized(indexRow{}, params); over {
 			return params, []OversizedIndexWrite{rec}, true
 		}
 	}
@@ -138,7 +140,7 @@ func filterIndexWriteRows(plan *indexWritePlan, rowVar, param string, params map
 	if len(vars) == 0 {
 		return nil, nil
 	}
-	check := func(row map[string]any) []OversizedIndexWrite {
+	check := func(row indexRow) []OversizedIndexWrite {
 		var recs []OversizedIndexWrite
 		for _, v := range vars {
 			if rec, over := v.oversized(row, params); over {
@@ -151,29 +153,25 @@ func filterIndexWriteRows(plan *indexWritePlan, rowVar, param string, params map
 
 	switch rows := params[param].(type) {
 	case []map[string]any:
-		return filterRowsOf(rows, func(r map[string]any) map[string]any { return r }, check)
+		return filterRowsOf(rows, func(r map[string]any) indexRow { return indexRow{any: r} }, check)
 	case []any:
-		return filterRowsOf(rows, func(r any) map[string]any { m, _ := r.(map[string]any); return m }, check)
+		return filterRowsOf(rows, func(r any) indexRow { m, _ := r.(map[string]any); return indexRow{any: m} }, check)
 	case []map[string]string:
-		return filterRowsOf(rows, func(r map[string]string) map[string]any {
-			m := make(map[string]any, len(r))
-			for k, v := range r {
-				m[k] = v
-			}
-			return m
-		}, check)
+		// Sizes are read straight off the string map: converting each row to
+		// map[string]any would allocate per row on every guarded write.
+		return filterRowsOf(rows, func(r map[string]string) indexRow { return indexRow{str: r} }, check)
 	}
 	return nil, nil
 }
 
-func filterRowsOf[T any](rows []T, asMap func(T) map[string]any, check func(map[string]any) []OversizedIndexWrite) (any, []OversizedIndexWrite) {
+func filterRowsOf[T any](rows []T, asRow func(T) indexRow, check func(indexRow) []OversizedIndexWrite) (any, []OversizedIndexWrite) {
 	var recs []OversizedIndexWrite
 	var kept []T
 	for i, row := range rows {
-		m := asMap(row)
+		r := asRow(row)
 		var rowRecs []OversizedIndexWrite
-		if m != nil {
-			rowRecs = check(m)
+		if r.present() {
+			rowRecs = check(r)
 		}
 		if len(rowRecs) == 0 {
 			if kept != nil {
@@ -193,6 +191,42 @@ func filterRowsOf[T any](rows []T, asMap func(T) map[string]any, check func(map[
 	return kept, recs
 }
 
+// indexRow is one UNWIND row as the guard reads it: a map[string]any row or a
+// map[string]string row, never both. Reading each shape in place keeps the
+// guard allocation-free for every row type Eshu writers pass as a top-level
+// rows parameter. The zero value is the absent row of a scalar-only statement.
+type indexRow struct {
+	any map[string]any
+	str map[string]string
+}
+
+// present reports whether the row exists, as opposed to the absent row of a
+// scalar-only statement or a []any element that is not a map.
+func (r indexRow) present() bool { return r.any != nil || r.str != nil }
+
+// field returns the string byte size of the row's value for f and the value
+// itself. A missing field measures zero.
+func (r indexRow) field(f string) (int, string) {
+	if r.any != nil {
+		return valueSize(r.any[f])
+	}
+	s := r.str[f]
+	return len(s), s
+}
+
+// asMap returns the row as a map[string]any. It copies a string row, so only
+// the rare triage path calls it, after a row is already known to be oversized.
+func (r indexRow) asMap() map[string]any {
+	if r.any != nil || r.str == nil {
+		return r.any
+	}
+	m := make(map[string]any, len(r.str))
+	for k, v := range r.str {
+		m[k] = v
+	}
+	return m
+}
+
 // rowVar returns the UNWIND variable the var's writes read from, or "".
 func (v *indexWriteVar) rowVar() string {
 	for _, e := range v.assigns {
@@ -210,7 +244,7 @@ func (v *indexWriteVar) rowVar() string {
 
 // oversized reports whether any schema key of v exceeds MaxIndexKeyBytes for
 // this row (nil for scalar-only statements), naming the worst key.
-func (v *indexWriteVar) oversized(row, params map[string]any) (OversizedIndexWrite, bool) {
+func (v *indexWriteVar) oversized(row indexRow, params map[string]any) (OversizedIndexWrite, bool) {
 	var worst OversizedIndexWrite
 	for _, key := range v.keys {
 		total, maxSize := 0, -1
@@ -227,7 +261,7 @@ func (v *indexWriteVar) oversized(row, params map[string]any) (OversizedIndexWri
 				Label:       key.label,
 				Property:    maxProp,
 				KeyBytes:    total,
-				ValuePrefix: indexValuePrefix(maxValue),
+				ValuePrefix: IndexValuePrefix(maxValue),
 			}
 		}
 	}
@@ -236,7 +270,7 @@ func (v *indexWriteVar) oversized(row, params map[string]any) (OversizedIndexWri
 	}
 	// Triage context lives on the row or, for SET n += row.props writers,
 	// inside the merged property map.
-	sources := []map[string]any{row}
+	sources := []map[string]any{row.asMap()}
 	for _, e := range v.merges {
 		sources = append(sources, e.maps(row, params)...)
 	}
@@ -250,7 +284,7 @@ func (v *indexWriteVar) oversized(row, params map[string]any) (OversizedIndexWri
 
 // propSize returns the string byte size the write assigns to prop and the
 // largest single value, for the value prefix.
-func (v *indexWriteVar) propSize(prop string, row, params map[string]any) (int, string) {
+func (v *indexWriteVar) propSize(prop string, row indexRow, params map[string]any) (int, string) {
 	if e, ok := v.assigns[prop]; ok {
 		return e.size(row, params)
 	}
@@ -265,12 +299,16 @@ func (v *indexWriteVar) propSize(prop string, row, params map[string]any) (int, 
 	// Look the merged maps up in place rather than through maps(): this runs
 	// per row and property on the canonical hot path and must not allocate.
 	for _, e := range v.merges {
-		if row != nil {
+		if row.present() {
+			// A string row holds no nested property maps, so only a
+			// map[string]any row has anything to consider here.
 			for _, f := range e.fields {
-				consider(row[f])
+				consider(row.any[f])
 			}
 			if e.wholeRow {
-				consider(row)
+				if size, value := row.field(prop); size > best {
+					best, bestValue = size, value
+				}
 			}
 		}
 		for _, p := range e.params {
@@ -280,22 +318,21 @@ func (v *indexWriteVar) propSize(prop string, row, params map[string]any) (int, 
 	return best, bestValue
 }
 
-func (e indexWriteExpr) size(row, params map[string]any) (int, string) {
+func (e indexWriteExpr) size(row indexRow, params map[string]any) (int, string) {
 	total, best, bestValue := 0, 0, ""
-	add := func(val any) {
-		size, value := valueSize(val)
+	add := func(size int, value string) {
 		total += size
 		if size > best {
 			best, bestValue = size, value
 		}
 	}
-	if row != nil {
+	if row.present() {
 		for _, f := range e.fields {
-			add(row[f])
+			add(row.field(f))
 		}
 	}
 	for _, p := range e.params {
-		add(params[p])
+		add(valueSize(params[p]))
 	}
 	if e.sum {
 		return total + e.constBytes, bestValue
@@ -303,16 +340,16 @@ func (e indexWriteExpr) size(row, params map[string]any) (int, string) {
 	return best, bestValue
 }
 
-func (e indexWriteExpr) maps(row, params map[string]any) []map[string]any {
+func (e indexWriteExpr) maps(row indexRow, params map[string]any) []map[string]any {
 	var out []map[string]any
-	if row != nil {
+	if row.present() {
 		for _, f := range e.fields {
-			if m, ok := row[f].(map[string]any); ok {
+			if m, ok := row.any[f].(map[string]any); ok {
 				out = append(out, m)
 			}
 		}
 		if e.wholeRow {
-			out = append(out, row)
+			out = append(out, row.asMap())
 		}
 	}
 	for _, p := range e.params {
@@ -360,22 +397,25 @@ func firstString(sources []map[string]any, keys ...string) string {
 	for _, k := range keys {
 		for _, src := range sources {
 			if s, ok := src[k].(string); ok && s != "" {
-				return indexValuePrefix(s)
+				return IndexValuePrefix(s)
 			}
 		}
 	}
 	return ""
 }
 
-// indexValuePrefix returns at most oversizedValuePrefixBytes of s without
-// splitting a UTF-8 sequence.
-func indexValuePrefix(s string) string {
-	if len(s) <= oversizedValuePrefixBytes {
+// IndexValuePrefix returns at most IndexValuePrefixBytes of s without
+// splitting a UTF-8 sequence, so an oversized index-key value can be logged as
+// a bounded, valid-UTF-8 excerpt. The statement guard and the canonical
+// projector's node-row bound both use it, so the bound and the cut rule stay
+// in one place.
+func IndexValuePrefix(s string) string {
+	if len(s) <= IndexValuePrefixBytes {
 		return s
 	}
 	end := 0
 	for i := range s {
-		if i > oversizedValuePrefixBytes {
+		if i > IndexValuePrefixBytes {
 			break
 		}
 		end = i

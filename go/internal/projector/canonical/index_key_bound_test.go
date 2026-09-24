@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/eshu-hq/eshu/go/internal/graph"
 )
 
 func TestDropOversizedIndexKeysModuleNameBoundary(t *testing.T) {
@@ -205,8 +207,8 @@ func TestDropOversizedIndexKeysValuePrefixIsBoundedValidUTF8(t *testing.T) {
 		t.Fatalf("dropped len = %d, want 1", len(dropped))
 	}
 	prefix := dropped[0].ValuePrefix
-	if len(prefix) == 0 || len(prefix) > oversizedValuePrefixBytes {
-		t.Fatalf("ValuePrefix len = %d, want 1..%d", len(prefix), oversizedValuePrefixBytes)
+	if len(prefix) == 0 || len(prefix) > graph.IndexValuePrefixBytes {
+		t.Fatalf("ValuePrefix len = %d, want 1..%d", len(prefix), graph.IndexValuePrefixBytes)
 	}
 	if !utf8.ValidString(prefix) {
 		t.Fatalf("ValuePrefix %q is not valid UTF-8", prefix)

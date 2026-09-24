@@ -148,6 +148,22 @@ allocs, at the same load, against round 1's 365 µs on a quieter host. No
 Cypher text, batching, transaction shape or statement order changes; rows are
 filtered in place and the caller's parameters are never mutated.
 
+No-Regression Evidence (round 4, review threads on the `[]map[string]string`
+arm, Apple M5 Max, load average 7–10): the guard read every
+`[]map[string]string` row through a fresh `map[string]any` copy, 8 allocations
+per row and 4,000 per 500-row write
+(`TestGuardIndexKeyWritesStringRowsDoNotAllocateWhenNothingDropped` failed with
+`allocs per guarded []map[string]string write = 4000, want 0`). Rows are now
+read in place, and the benchmark covers the arm:
+`go test ./internal/graph -bench GuardIndexKeyWrites -benchmem -count=5`
+measured 90.1 µs (89.5–91.2) for the 500-row semantic Function batch, 87.6 µs
+(85.6–87.8) for the same batch as `[]map[string]string` rows, and 124.9 µs
+(122.8–127.2) for the canonical entity batch, all 0 allocs/op.
+`BenchmarkDropOversizedIndexKeysNoneDropped` (3 runs) measured 365.6–367.4 µs,
+0 allocs. The semantic and canonical figures sit inside round 2's
+87–134 µs and 131–144 µs ranges; they were not re-measured against a
+pre-change build, so no speedup is claimed for them.
+
 Observability Evidence (round 2): the counter is now
 `eshu_dp_graph_oversized_index_keys_skipped_total` (renamed from the unreleased
 `canonical_` name) with `node_label` and `property` taken from the schema

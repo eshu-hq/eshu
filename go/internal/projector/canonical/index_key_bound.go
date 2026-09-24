@@ -16,10 +16,6 @@ import "github.com/eshu-hq/eshu/go/internal/graph"
 // every graph write) covers every other label and indexed property.
 const MaxIndexedKeyBytes = graph.MaxIndexKeyBytes
 
-// oversizedValuePrefixBytes bounds the value excerpt carried in an
-// OversizedIndexKey so a skip log line stays small.
-const oversizedValuePrefixBytes = 64
-
 // OversizedIndexKey records one node row DropOversizedIndexKeys removed
 // because its indexed key exceeded MaxIndexedKeyBytes.
 type OversizedIndexKey struct {
@@ -34,8 +30,9 @@ type OversizedIndexKey struct {
 	EntityID string
 	// FilePath is the source file of the row, empty for Module.
 	FilePath string
-	// ValuePrefix is at most oversizedValuePrefixBytes of the oversized
-	// property's value, cut on a rune boundary, for operator triage.
+	// ValuePrefix is at most graph.IndexValuePrefixBytes of the oversized
+	// property's value, cut on a rune boundary (graph.IndexValuePrefix), for
+	// operator triage.
 	ValuePrefix string
 }
 
@@ -60,7 +57,7 @@ func DropOversizedIndexKeys(mat CanonicalMaterialization) (CanonicalMaterializat
 			return true
 		}
 		dropped = append(dropped, OversizedIndexKey{
-			Label: "Module", Property: "name", KeyBytes: len(m.Name), ValuePrefix: valuePrefix(m.Name),
+			Label: "Module", Property: "name", KeyBytes: len(m.Name), ValuePrefix: graph.IndexValuePrefix(m.Name),
 		})
 		return false
 	})
@@ -124,22 +121,6 @@ func nameAndPathRecord(label, name, path, entityID string) OversizedIndexKey {
 		KeyBytes:    len(name) + len(path),
 		EntityID:    entityID,
 		FilePath:    path,
-		ValuePrefix: valuePrefix(value),
+		ValuePrefix: graph.IndexValuePrefix(value),
 	}
-}
-
-// valuePrefix returns at most oversizedValuePrefixBytes of s without splitting
-// a UTF-8 sequence.
-func valuePrefix(s string) string {
-	if len(s) <= oversizedValuePrefixBytes {
-		return s
-	}
-	end := 0
-	for i := range s {
-		if i > oversizedValuePrefixBytes {
-			break
-		}
-		end = i
-	}
-	return s[:end]
 }
