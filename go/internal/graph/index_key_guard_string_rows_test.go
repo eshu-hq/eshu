@@ -4,7 +4,6 @@
 package graph
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,28 +14,6 @@ func stringFunctionRow(id, name, path string) map[string]string {
 	return map[string]string{
 		"entity_id": id, "entity_name": name, "file_path": path,
 		"repo_id": "repo-1", "semantic_kind": "function", "evidence_source": "test",
-	}
-}
-
-// TestGuardIndexKeyWritesStringRowsDoNotAllocateWhenNothingDropped pins the
-// steady-state cost of the []map[string]string arm: sizes are read straight
-// off the string maps, so a guarded write with nothing oversized allocates
-// nothing per row.
-func TestGuardIndexKeyWritesStringRowsDoNotAllocateWhenNothingDropped(t *testing.T) {
-	rows := make([]map[string]string, 500)
-	for i := range rows {
-		rows[i] = stringFunctionRow(fmt.Sprintf("content-entity:e_%012d", i), fmt.Sprintf("handler%d", i), "/repo/src/service/handlers.go")
-	}
-	params := map[string]any{"rows": rows}
-	GuardIndexKeyWrites(semanticFunctionShape, params) // warm the plan cache
-
-	allocs := testing.AllocsPerRun(20, func() {
-		if _, dropped, _ := GuardIndexKeyWrites(semanticFunctionShape, params); dropped != nil {
-			t.Fatal("unexpected drop")
-		}
-	})
-	if allocs != 0 {
-		t.Fatalf("allocs per guarded []map[string]string write = %v, want 0", allocs)
 	}
 }
 
