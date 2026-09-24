@@ -39,6 +39,8 @@ on:
       - 'scripts/verify-read-api-latency-gate.sh'
       - 'scripts/refresh-read-api-work-budgets.sh'
       - 'scripts/test-refresh-read-api-work-budgets.sh'
+      - 'scripts/compare-backend-latency.sh'
+      - 'scripts/test-compare-backend-latency.sh'
       - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/lib/golden-corpus-host-helpers.sh'
       - 'scripts/lib/compose_verification_runtime_common.sh'
@@ -88,6 +90,26 @@ jobs:
 
       - name: Test the work budget refresh script
         run: bash scripts/test-refresh-read-api-work-budgets.sh
+
+  # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
+  # JSON legs and never runs the live gate itself, so its formulas and
+  # identity-mismatch/non-comparable refusals get the same hermetic
+  # static-mirror treatment as the work-budget-refresh job above, in a
+  # separate job so specs/ci-gates.v1.yaml's registry row for it (
+  # backend-latency-compare-mirror) can name its own job.
+  static-mirror-backend-latency-compare:
+    name: static-mirror (backend latency comparator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep and jq
+        run: scripts/ci/install-apt-packages.sh ripgrep jq
+
+      - name: Test the backend latency comparator script
+        run: bash scripts/test-compare-backend-latency.sh
 
   latency-gate:
     name: latency-gate (nornicdb)

@@ -2441,6 +2441,8 @@ gates:
       - "scripts/verify-read-api-latency-gate.sh"
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-host-helpers.sh"
       - "scripts/lib/compose_verification_runtime_common.sh"
@@ -2477,6 +2479,26 @@ gates:
     ci:
       workflow: "read-api-latency-gate.yml"
       job: "static-mirror (work budget refresh)"
+    requirements: []
+  # #6965 phase 6: the cross-backend comparator (scripts/compare-backend-latency.sh)
+  # reads -latency-report JSON but never runs the live gate itself, so its
+  # formulas and identity-mismatch/non-comparable refusals get the same
+  # hermetic static-mirror treatment as read-api-work-budget-mirror above.
+  - id: backend-latency-compare-mirror
+    name: Cross-backend latency comparator mirror (static)
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
+    local:
+      command: "bash scripts/test-compare-backend-latency.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (backend latency comparator)"
     requirements: []
   # #6782 slice 1: the same B-7 golden corpus run on the Neo4j compatibility
   # backend, as the second cell of golden-corpus-gate.yml's corpus-gate matrix.
