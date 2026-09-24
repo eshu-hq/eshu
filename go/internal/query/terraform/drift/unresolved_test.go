@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package drift
 
 import (
 	"bytes"
@@ -10,25 +10,27 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDrift
 // is the positive/negative proof pair for issue #5594's follow-up: a scope
 // whose backend ownership could not be resolved at all
 // (tfstatebackend.ErrNoConfigRepoOwnsBackend, durably written by
-// TerraformConfigStateDriftHandler.writeUnresolvedOwner in the reducer) must
-// be reported differently from a scope that resolved cleanly and simply has
-// no drift. Before this fix both cases returned an identical empty page
-// (findings_count=0); a caller had no way to tell "nothing wrong" from
-// "never checked."
+// tfconfigstate.TerraformConfigStateDriftHandler.writeUnresolvedOwner in the
+// reducer) must be reported differently from a scope that resolved cleanly
+// and simply has no drift. Before this fix both cases returned an identical
+// empty page (findings_count=0); a caller had no way to tell "nothing wrong"
+// from "never checked."
 func TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDrift(t *testing.T) {
 	t.Parallel()
 
 	// Negative/positive control: resolution succeeded and found no drift.
 	// The store returns zero rows -- this is the genuinely clean case, and
 	// must stay a plain empty page, not gain a synthetic finding.
-	noDriftHandler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	noDriftHandler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store:   fakeTerraformConfigStateDriftStore{rows: nil},
 	}
 	noDriftPayload := postTerraformConfigStateDriftFindings(t, noDriftHandler, `{
@@ -47,10 +49,10 @@ func TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDri
 
 	// The case under test: ownership never resolved, durably recorded as one
 	// "unresolved" finding.
-	unresolvedHandler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	unresolvedHandler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{
+			rows: []FindingRow{
 				{
 					FactID: "fact:tf-unresolved-1", ScopeID: "state_snapshot:local:hash-unresolved",
 					GenerationID: "generation:tf-1", SourceSystem: "collector/terraform-state",
@@ -124,9 +126,9 @@ func TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDri
 func TestHandleTerraformConfigStateDriftFindingsAcceptsUnresolvedOutcomeFilter(t *testing.T) {
 	t.Parallel()
 
-	var observed TerraformConfigStateDriftFindingFilter
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	var observed FindingFilter
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
 			observedFilter: &observed,
 		},
@@ -150,9 +152,9 @@ func TestHandleTerraformConfigStateDriftFindingsAcceptsUnresolvedOutcomeFilter(t
 func TestHandleTerraformConfigStateDriftFindingsAcceptsDerivedOutcomeFilter(t *testing.T) {
 	t.Parallel()
 
-	var observed TerraformConfigStateDriftFindingFilter
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	var observed FindingFilter
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
 			observedFilter: &observed,
 		},
@@ -176,8 +178,8 @@ func TestHandleTerraformConfigStateDriftFindingsAcceptsDerivedOutcomeFilter(t *t
 func TestHandleTerraformConfigStateDriftFindingsRejectsUnknownOutcome(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store:   fakeTerraformConfigStateDriftStore{},
 	}
 	mux := http.NewServeMux()
@@ -187,7 +189,7 @@ func TestHandleTerraformConfigStateDriftFindingsRejectsUnknownOutcome(t *testing
 		"scope_id": "state_snapshot:s3:hash-1",
 		"outcome": "bogus"
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -201,7 +203,7 @@ func TestHandleTerraformConfigStateDriftFindingsRejectsUnknownOutcome(t *testing
 // truth-envelope "data" map.
 func postTerraformConfigStateDriftFindings(
 	t *testing.T,
-	handler *TerraformConfigStateDriftHandler,
+	handler *Handler,
 	body string,
 ) map[string]any {
 	t.Helper()
@@ -209,7 +211,7 @@ func postTerraformConfigStateDriftFindings(
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/terraform/config-state-drift/findings", bytes.NewBufferString(body))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

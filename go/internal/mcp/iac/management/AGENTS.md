@@ -20,17 +20,17 @@
    clamps and required-field checks this package's defaults must stay
    compatible with. The handler filenames do not mirror the tool names, so
    they are paired here rather than guessed. Each entry was confirmed with
-   `rg --files internal/query -g '<file>'` before being written here:
+   `test -f internal/query/<path>` before being written here:
 
    | Tool | Handler |
    | --- | --- |
-   | `find_dead_iac` | `iac.go` |
-   | `find_unmanaged_resources` | `iac_management.go` |
-   | `get_iac_management_status` | `iac_management_surface.go` |
-   | `explain_iac_management_status` | `iac_management_surface.go` |
-   | `propose_terraform_import_plan` | `iac_import_plan.go` |
-   | `list_terraform_config_state_drift_findings` | `terraform_config_state_drift.go` |
-   | `find_unmanaged_resource_owners` | `replatforming_ownership_handler.go` |
+   | `find_dead_iac` | `iac/handler.go` |
+   | `find_unmanaged_resources` | `iac/management.go` |
+   | `get_iac_management_status` | `iac/management_surface.go` |
+   | `explain_iac_management_status` | `iac/management_surface.go` |
+   | `propose_terraform_import_plan` | `iac/import_plan.go` |
+   | `list_terraform_config_state_drift_findings` | `terraform/drift/handler.go` |
+   | `find_unmanaged_resource_owners` | `iac/replatforming_ownership_handler.go` |
 
 ## Invariants
 

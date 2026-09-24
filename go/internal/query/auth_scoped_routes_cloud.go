@@ -84,7 +84,7 @@ func scopedAWSRuntimeDriftFindingsRoute(r *http.Request) bool {
 
 // scopedTerraformConfigStateDriftFindingsRoute reports whether the request
 // targets the Terraform config-vs-state drift readback (issue #5442).
-// handleFindings (terraform_config_state_drift.go) requires a scoped caller
+// handleFindings (terraform/drift/handler.go) requires a scoped caller
 // to supply an exact granted scope_id -- this domain has no account-wide
 // fallback to fan out over, unlike AWS's account_id-only filter -- and never
 // calls the store for a scoped caller without that grant.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package drift
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 
+	"github.com/eshu-hq/eshu/go/internal/query/iac"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -23,29 +24,28 @@ import (
 // violation, but the next change here should split a cohesive chunk (the
 // access-filtering helpers, or the request/response shaping helpers) into a
 // sibling file before adding more, rather than pushing past the cap. See
-// terraform_config_state_drift_evidence_access.go and
+// config_state_evidence_access.go and
 // terraform_config_state_drift_writer_integration_test.go (reducer package)
 // for the precedent this package already follows elsewhere.
-const terraformConfigStateDriftFindingsCapability = "terraform_config_state_drift.findings.list"
 
 const (
 	terraformConfigStateDriftDefaultLimit = 100
 	terraformConfigStateDriftMaxLimit     = 500
 )
 
-// TerraformConfigStateDriftFindingStore reads active Terraform
+// FindingStore reads active Terraform
 // config-vs-state drift reducer facts for one bounded state-snapshot scope.
-type TerraformConfigStateDriftFindingStore interface {
-	ListActiveFindings(ctx context.Context, filter TerraformConfigStateDriftFindingFilter) ([]TerraformConfigStateDriftFindingRow, error)
-	CountActiveFindings(ctx context.Context, filter TerraformConfigStateDriftFindingFilter) (int, error)
+type FindingStore interface {
+	ListActiveFindings(ctx context.Context, filter FindingFilter) ([]FindingRow, error)
+	CountActiveFindings(ctx context.Context, filter FindingFilter) (int, error)
 }
 
-// TerraformConfigStateDriftFindingFilter is the query-layer request shape for
+// FindingFilter is the query-layer request shape for
 // the Terraform config-vs-state drift read surface.
 //
 // Scoped and AllowedScopeIDs carry the caller's exact granted
 // repository/ingestion-scope grant (#5442 P2, bindTerraformConfigStateDriftFilterAccess)
-// through to PostgresTerraformConfigStateDriftFindingStore ->
+// through to PostgresFindingStore ->
 // postgres.TerraformConfigStateDriftFindingFilter, the same defense-in-depth
 // double guard IaCManagementFilter uses (#5167 W4, bindIaCManagementFilterAccess):
 // when Scoped is true, the postgres store intersects every row with
@@ -54,7 +54,7 @@ type TerraformConfigStateDriftFindingStore interface {
 // value (Scoped false) preserves the pre-#5442-P2 all-scopes behavior, so
 // every existing fakeTerraformConfigStateDriftStore test that builds this
 // struct without setting Scoped stays correct.
-type TerraformConfigStateDriftFindingFilter struct {
+type FindingFilter struct {
 	ScopeID    string
 	Address    string
 	Outcome    string
@@ -66,7 +66,7 @@ type TerraformConfigStateDriftFindingFilter struct {
 	AllowedScopeIDs []string
 }
 
-// TerraformConfigStateDriftFindingRow is one active finding as read back from
+// FindingRow is one active finding as read back from
 // storage.
 //
 // AmbiguousOwnerCandidatesWithheldCount is set (#5442 P1) when a scoped
@@ -76,7 +76,7 @@ type TerraformConfigStateDriftFindingFilter struct {
 // can tell "ambiguous with a visible subset" apart from "ambiguous with no
 // competing evidence at all." It is always zero (and omitted) for an
 // unscoped caller, who always sees every candidate.
-type TerraformConfigStateDriftFindingRow struct {
+type FindingRow struct {
 	FactID                                string           `json:"fact_id"`
 	ScopeID                               string           `json:"scope_id"`
 	GenerationID                          string           `json:"generation_id"`
@@ -95,31 +95,31 @@ type TerraformConfigStateDriftFindingRow struct {
 	Evidence                              []map[string]any `json:"evidence,omitempty"`
 }
 
-// PostgresTerraformConfigStateDriftFindingStore adapts
+// PostgresFindingStore adapts
 // postgres.TerraformConfigStateDriftFindingStore to the query-layer
-// TerraformConfigStateDriftFindingStore contract, mirroring
+// FindingStore contract, mirroring
 // PostgresIaCManagementStore's wrapping of postgres.
 // AWSCloudRuntimeDriftFindingStore.
-type PostgresTerraformConfigStateDriftFindingStore struct {
+type PostgresFindingStore struct {
 	store postgres.TerraformConfigStateDriftFindingStore
 }
 
-// NewPostgresTerraformConfigStateDriftFindingStore constructs the adapter
+// NewPostgresFindingStore constructs the adapter
 // over an instrumented Postgres handle.
-func NewPostgresTerraformConfigStateDriftFindingStore(db *sql.DB) *PostgresTerraformConfigStateDriftFindingStore {
+func NewPostgresFindingStore(db *sql.DB) *PostgresFindingStore {
 	storeDB := &postgres.InstrumentedDB{
 		Inner:     postgres.SQLDB{DB: db},
 		Tracer:    otel.Tracer(telemetry.DefaultSignalName),
 		StoreName: "terraform_config_state_drift",
 	}
-	return &PostgresTerraformConfigStateDriftFindingStore{store: postgres.NewTerraformConfigStateDriftFindingStore(storeDB)}
+	return &PostgresFindingStore{store: postgres.NewTerraformConfigStateDriftFindingStore(storeDB)}
 }
 
-// ListActiveFindings implements TerraformConfigStateDriftFindingStore.
-func (s *PostgresTerraformConfigStateDriftFindingStore) ListActiveFindings(
+// ListActiveFindings implements FindingStore.
+func (s *PostgresFindingStore) ListActiveFindings(
 	ctx context.Context,
-	filter TerraformConfigStateDriftFindingFilter,
-) ([]TerraformConfigStateDriftFindingRow, error) {
+	filter FindingFilter,
+) ([]FindingRow, error) {
 	if s == nil {
 		return nil, nil
 	}
@@ -127,17 +127,17 @@ func (s *PostgresTerraformConfigStateDriftFindingStore) ListActiveFindings(
 	if err != nil {
 		return nil, err
 	}
-	out := make([]TerraformConfigStateDriftFindingRow, 0, len(rows))
+	out := make([]FindingRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, terraformConfigStateDriftRowFromPostgres(row))
 	}
 	return out, nil
 }
 
-// CountActiveFindings implements TerraformConfigStateDriftFindingStore.
-func (s *PostgresTerraformConfigStateDriftFindingStore) CountActiveFindings(
+// CountActiveFindings implements FindingStore.
+func (s *PostgresFindingStore) CountActiveFindings(
 	ctx context.Context,
-	filter TerraformConfigStateDriftFindingFilter,
+	filter FindingFilter,
 ) (int, error) {
 	if s == nil {
 		return 0, nil
@@ -153,7 +153,7 @@ func (s *PostgresTerraformConfigStateDriftFindingStore) CountActiveFindings(
 // postgres store's SQL-layer grant intersection permanently inert for this
 // domain even though the store itself supports it).
 func terraformConfigStateDriftFilterToPostgres(
-	filter TerraformConfigStateDriftFindingFilter,
+	filter FindingFilter,
 ) postgres.TerraformConfigStateDriftFindingFilter {
 	return postgres.TerraformConfigStateDriftFindingFilter{
 		ScopeID:         filter.ScopeID,
@@ -167,7 +167,7 @@ func terraformConfigStateDriftFilterToPostgres(
 	}
 }
 
-func terraformConfigStateDriftRowFromPostgres(row postgres.TerraformConfigStateDriftFindingRow) TerraformConfigStateDriftFindingRow {
+func terraformConfigStateDriftRowFromPostgres(row postgres.TerraformConfigStateDriftFindingRow) FindingRow {
 	evidence := make([]map[string]any, 0, len(row.Evidence))
 	for _, atom := range row.Evidence {
 		evidence = append(evidence, map[string]any{
@@ -180,7 +180,7 @@ func terraformConfigStateDriftRowFromPostgres(row postgres.TerraformConfigStateD
 			"confidence":    atom.Confidence,
 		})
 	}
-	return TerraformConfigStateDriftFindingRow{
+	return FindingRow{
 		FactID:                   row.FactID,
 		ScopeID:                  row.ScopeID,
 		GenerationID:             row.GenerationID,
@@ -199,25 +199,25 @@ func terraformConfigStateDriftRowFromPostgres(row postgres.TerraformConfigStateD
 	}
 }
 
-// TerraformConfigStateDriftHandler serves the Terraform config-vs-state
+// Handler serves the Terraform config-vs-state
 // drift read surface (issue #5442). It is a separate, provider-neutral
 // handler/route/capability from the AWS and multi-cloud runtime-drift
 // handlers: config-vs-state drift is not cloud-specific.
-type TerraformConfigStateDriftHandler struct {
-	Store   TerraformConfigStateDriftFindingStore
-	Profile QueryProfile
+type Handler struct {
+	Store   FindingStore
+	Profile querycontract.QueryProfile
 }
 
 // Mount registers the Terraform config-vs-state drift route on the given mux.
-func (h *TerraformConfigStateDriftHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/terraform/config-state-drift/findings", h.handleFindings)
 }
 
-func (h *TerraformConfigStateDriftHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
-	return NormalizeQueryProfile(string(h.Profile))
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
 type terraformConfigStateDriftRequest struct {
@@ -229,41 +229,41 @@ type terraformConfigStateDriftRequest struct {
 	Offset     int      `json:"offset"`
 }
 
-func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryTerraformConfigStateDriftFindings,
 		"POST /api/v0/terraform/config-state-drift/findings",
-		terraformConfigStateDriftFindingsCapability,
+		Capability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), terraformConfigStateDriftFindingsCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), Capability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"Terraform config-vs-state drift findings require reducer-materialized drift facts",
-			ErrorCodeUnsupportedCapability,
-			terraformConfigStateDriftFindingsCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			Capability,
 			h.profile(),
-			querycontract.RequiredProfile(terraformConfigStateDriftFindingsCapability),
+			querycontract.RequiredProfile(Capability),
 		)
 		return
 	}
 
 	var req terraformConfigStateDriftRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	filter, err := normalizeTerraformConfigStateDriftRequest(req)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if h == nil || h.Store == nil {
-		WriteError(w, http.StatusServiceUnavailable, "Terraform config-vs-state drift finding store is required")
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "Terraform config-vs-state drift finding store is required")
 		return
 	}
 
@@ -283,12 +283,12 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 
 	totalFindings, err := h.Store.CountActiveFindings(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	rows, err := h.Store.ListActiveFindings(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	findings := terraformConfigStateDriftFindingRows(rows)
@@ -306,10 +306,10 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 }
 
 // bindTerraformConfigStateDriftFilterAccess binds a
-// TerraformConfigStateDriftFindingFilter to the caller's exact granted
+// FindingFilter to the caller's exact granted
 // repository/ingestion-scope grant (#5442 P2), mirroring
 // bindIaCManagementFilterAccess (#5167 W4). It is the one place
-// Scoped/AllowedScopeIDs get set, and PostgresTerraformConfigStateDriftFindingStore
+// Scoped/AllowedScopeIDs get set, and PostgresFindingStore
 // carries them through to postgres.TerraformConfigStateDriftFindingFilter,
 // which intersects every row with the grant (or returns zero rows without
 // querying, for an empty grant). An all-scopes caller (no AuthContext,
@@ -321,12 +321,12 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 // AllowedScopeIDs alone, because this domain's handler-level precheck
 // (access.allowsRepositoryID) already accepts a grant on either list -- the
 // state-snapshot scope_id itself is commonly granted as a repository ID (see
-// terraform_config_state_drift_test.go) -- so the SQL-layer guard must
+// handler_test.go) -- so the SQL-layer guard must
 // intersect the same merged set the precheck already validated against.
 func bindTerraformConfigStateDriftFilterAccess(
 	access querycontract.RepositoryAccessFilter,
-	filter TerraformConfigStateDriftFindingFilter,
-) TerraformConfigStateDriftFindingFilter {
+	filter FindingFilter,
+) FindingFilter {
 	filter.Scoped = access.Scoped()
 	if filter.Scoped {
 		filter.AllowedScopeIDs = access.RepositorySearchIDs()
@@ -345,9 +345,9 @@ func bindTerraformConfigStateDriftFilterAccess(
 // all" rather than seeing a payload that looks like a clean finding. An
 // unscoped (admin) caller is unaffected and always sees every candidate.
 func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
-	findings []TerraformConfigStateDriftFindingRow,
+	findings []FindingRow,
 	access querycontract.RepositoryAccessFilter,
-) []TerraformConfigStateDriftFindingRow {
+) []FindingRow {
 	if !access.Scoped() || len(findings) == 0 {
 		return findings
 	}
@@ -358,7 +358,7 @@ func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
 		filtered := make([]map[string]any, 0, len(findings[i].AmbiguousOwnerCandidates))
 		withheld := 0
 		for _, candidate := range findings[i].AmbiguousOwnerCandidates {
-			if access.AllowsRepositoryID(StringVal(candidate, "repo_id")) {
+			if access.AllowsRepositoryID(querycontract.StringVal(candidate, "repo_id")) {
 				filtered = append(filtered, candidate)
 				continue
 			}
@@ -376,12 +376,12 @@ func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
 func writeTerraformConfigStateDriftFindings(
 	w http.ResponseWriter,
 	r *http.Request,
-	h *TerraformConfigStateDriftHandler,
-	filter TerraformConfigStateDriftFindingFilter,
-	findings []TerraformConfigStateDriftFindingRow,
+	h *Handler,
+	filter FindingFilter,
+	findings []FindingRow,
 	totalFindings int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id":              filter.ScopeID,
 		"address":               filter.Address,
 		"outcome":               filter.Outcome,
@@ -393,8 +393,8 @@ func writeTerraformConfigStateDriftFindings(
 		"total_findings_count":  totalFindings,
 		"limit":                 filter.Limit,
 		"offset":                filter.Offset,
-		"truncated":             iacManagementTruncated(filter.Offset, len(findings), totalFindings),
-		"next_offset":           iacManagementNextOffset(filter.Offset, len(findings), totalFindings),
+		"truncated":             iac.ManagementTruncated(filter.Offset, len(findings), totalFindings),
+		"next_offset":           iac.ManagementNextOffset(filter.Offset, len(findings), totalFindings),
 		"truth_basis":           "materialized_reducer_rows",
 		"analysis_status":       "materialized_terraform_config_state_drift",
 		"graph_projection_note": "read-model-backed drift surface; graph projection remains deferred, mirroring the AWS and multi-cloud runtime drift domains",
@@ -404,22 +404,22 @@ func writeTerraformConfigStateDriftFindings(
 			"a scope whose backend never resolves to any config repo is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift",
 			"\"stale\" is not emitted by this version -- see go/internal/correlation/drift/tfconfigstate/doc.go",
 		},
-	}, BuildTruthEnvelope(
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		terraformConfigStateDriftFindingsCapability,
-		TruthBasisSemanticFacts,
+		Capability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from active reducer-materialized Terraform config-vs-state drift findings",
 	))
 }
 
-func terraformConfigStateDriftFindingRows(rows []TerraformConfigStateDriftFindingRow) []TerraformConfigStateDriftFindingRow {
+func terraformConfigStateDriftFindingRows(rows []FindingRow) []FindingRow {
 	if rows == nil {
 		return nil
 	}
 	return rows
 }
 
-func terraformConfigStateDriftOutcomeGroups(findings []TerraformConfigStateDriftFindingRow) []map[string]any {
+func terraformConfigStateDriftOutcomeGroups(findings []FindingRow) []map[string]any {
 	byOutcome := map[string]int{}
 	var outcomes []string
 	for _, finding := range findings {
@@ -437,8 +437,8 @@ func terraformConfigStateDriftOutcomeGroups(findings []TerraformConfigStateDrift
 }
 
 func terraformConfigStateDriftStory(
-	filter TerraformConfigStateDriftFindingFilter,
-	findings []TerraformConfigStateDriftFindingRow,
+	filter FindingFilter,
+	findings []FindingRow,
 	total int,
 ) string {
 	scope := filter.ScopeID
@@ -453,8 +453,8 @@ func terraformConfigStateDriftStory(
 	)
 }
 
-func normalizeTerraformConfigStateDriftRequest(req terraformConfigStateDriftRequest) (TerraformConfigStateDriftFindingFilter, error) {
-	filter := TerraformConfigStateDriftFindingFilter{
+func normalizeTerraformConfigStateDriftRequest(req terraformConfigStateDriftRequest) (FindingFilter, error) {
+	filter := FindingFilter{
 		ScopeID:    strings.TrimSpace(req.ScopeID),
 		Address:    strings.TrimSpace(req.Address),
 		Outcome:    strings.TrimSpace(req.Outcome),
@@ -463,13 +463,13 @@ func normalizeTerraformConfigStateDriftRequest(req terraformConfigStateDriftRequ
 		Offset:     req.Offset,
 	}
 	if filter.ScopeID == "" {
-		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("scope_id is required")
+		return FindingFilter{}, fmt.Errorf("scope_id is required")
 	}
 	if !strings.HasPrefix(filter.ScopeID, "state_snapshot:") {
-		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("scope_id must be a state_snapshot scope")
+		return FindingFilter{}, fmt.Errorf("scope_id must be a state_snapshot scope")
 	}
 	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "derived" && filter.Outcome != "ambiguous" && filter.Outcome != "unresolved" {
-		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("outcome must be exact, derived, ambiguous, or unresolved")
+		return FindingFilter{}, fmt.Errorf("outcome must be exact, derived, ambiguous, or unresolved")
 	}
 	if filter.Limit <= 0 {
 		filter.Limit = terraformConfigStateDriftDefaultLimit

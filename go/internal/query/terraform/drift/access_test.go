@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package drift
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -25,7 +27,7 @@ import (
 func TestTerraformConfigStateDriftFilterToPostgresThreadsScopeGrantFields(t *testing.T) {
 	t.Parallel()
 
-	filter := TerraformConfigStateDriftFindingFilter{
+	filter := FindingFilter{
 		ScopeID:         "state_snapshot:s3:hash-1",
 		Address:         "aws_s3_bucket.x",
 		Outcome:         "ambiguous",
@@ -59,11 +61,11 @@ func TestTerraformConfigStateDriftFilterToPostgresThreadsScopeGrantFields(t *tes
 func TestBindTerraformConfigStateDriftFilterAccessSetsScopeGrant(t *testing.T) {
 	t.Parallel()
 
-	scopedAccess := querycontract.RepositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), AuthContext{
-		Mode:                 AuthModeScoped,
+	scopedAccess := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1", "repo-a"},
 	}))
-	filter := bindTerraformConfigStateDriftFilterAccess(scopedAccess, TerraformConfigStateDriftFindingFilter{ScopeID: "state_snapshot:s3:hash-1"})
+	filter := bindTerraformConfigStateDriftFilterAccess(scopedAccess, FindingFilter{ScopeID: "state_snapshot:s3:hash-1"})
 	if !filter.Scoped {
 		t.Fatal("filter.Scoped = false, want true for a scoped caller")
 	}
@@ -73,7 +75,7 @@ func TestBindTerraformConfigStateDriftFilterAccessSetsScopeGrant(t *testing.T) {
 	}
 
 	unscopedAccess := querycontract.RepositoryAccessFilterFromContext(context.Background())
-	unscopedFilter := bindTerraformConfigStateDriftFilterAccess(unscopedAccess, TerraformConfigStateDriftFindingFilter{ScopeID: "state_snapshot:s3:hash-1"})
+	unscopedFilter := bindTerraformConfigStateDriftFilterAccess(unscopedAccess, FindingFilter{ScopeID: "state_snapshot:s3:hash-1"})
 	if unscopedFilter.Scoped {
 		t.Fatal("unscopedFilter.Scoped = true, want false for an all-scopes caller")
 	}
@@ -89,8 +91,8 @@ func TestBindTerraformConfigStateDriftFilterAccessSetsScopeGrant(t *testing.T) {
 // state_snapshot scope, plus a config atom scoped to
 // resolver.CommitAnchor.ScopeID -- the CONFIG repo's own repo-snapshot scope,
 // a different identifier the caller was never granted (#5442 P3).
-func terraformConfigStateDriftExactFixtureRowWithEvidence() TerraformConfigStateDriftFindingRow {
-	return TerraformConfigStateDriftFindingRow{
+func terraformConfigStateDriftExactFixtureRowWithEvidence() FindingRow {
+	return FindingRow{
 		FactID: "fact:tf-exact-evidence-1", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation:tf-exact-evidence-1",
 		SourceSystem: "reducer/terraform_config_state_drift", CanonicalID: "canonical:tf-exact-evidence-1",
 		CandidateID: "drift:hash-1:aws_s3_bucket.tenant_a:added_in_state", CandidateKind: "terraform_config_state_drift",
@@ -128,10 +130,10 @@ func terraformConfigStateDriftExactFixtureRowWithEvidence() TerraformConfigState
 func TestHandleTerraformConfigStateDriftFindingsRedactsEvidenceScopeIDOutsideGrant(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{terraformConfigStateDriftExactFixtureRowWithEvidence()},
+			rows: []FindingRow{terraformConfigStateDriftExactFixtureRowWithEvidence()},
 		},
 	}
 	mux := http.NewServeMux()
@@ -141,9 +143,9 @@ func TestHandleTerraformConfigStateDriftFindingsRedactsEvidenceScopeIDOutsideGra
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1"},
 	}))
 	w := httptest.NewRecorder()
@@ -190,7 +192,7 @@ func TestHandleTerraformConfigStateDriftFindingsRedactsEvidenceScopeIDOutsideGra
 		if !ok {
 			t.Fatalf("evidence entry = %#v, want map", raw)
 		}
-		byType[StringVal(atom, "evidence_type")] = atom
+		byType[querycontract.StringVal(atom, "evidence_type")] = atom
 	}
 	configAtom, ok := byType["terraform_config_resource"]
 	if !ok {
@@ -225,10 +227,10 @@ func TestHandleTerraformConfigStateDriftFindingsRedactsEvidenceScopeIDOutsideGra
 func TestHandleTerraformConfigStateDriftFindingsUnscopedCallerSeesFullEvidenceScopeIDs(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{terraformConfigStateDriftExactFixtureRowWithEvidence()},
+			rows: []FindingRow{terraformConfigStateDriftExactFixtureRowWithEvidence()},
 		},
 	}
 	mux := http.NewServeMux()
@@ -238,7 +240,7 @@ func TestHandleTerraformConfigStateDriftFindingsUnscopedCallerSeesFullEvidenceSc
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

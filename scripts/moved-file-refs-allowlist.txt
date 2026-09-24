@@ -102,6 +102,10 @@ docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/interna
 # tree had a layout it did not have, which is worse than a stale path.
 CHANGELOG.md:go/internal/query/openapi_paths_terraform_config_state_drift.go
 
+# The same two dated CHANGELOG entries also name the read-surface handler as it
+# stood when each release shipped, before #6642 moved it to terraform/drift/.
+CHANGELOG.md:go/internal/query/terraform_config_state_drift.go
+
 # A dated report of the SSE content-type change, naming the file that edit
 # actually touched. Repointing it would attribute the edit to a path that did
 # not exist when the edit was made.

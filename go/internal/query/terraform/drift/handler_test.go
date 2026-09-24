@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package drift
 
 import (
 	"bytes"
@@ -11,17 +11,20 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type fakeTerraformConfigStateDriftStore struct {
-	observedFilter *TerraformConfigStateDriftFindingFilter
-	rows           []TerraformConfigStateDriftFindingRow
+	observedFilter *FindingFilter
+	rows           []FindingRow
 	total          int
 }
 
 func (f fakeTerraformConfigStateDriftStore) ListActiveFindings(
-	_ context.Context, filter TerraformConfigStateDriftFindingFilter,
-) ([]TerraformConfigStateDriftFindingRow, error) {
+	_ context.Context, filter FindingFilter,
+) ([]FindingRow, error) {
 	if f.observedFilter != nil {
 		*f.observedFilter = filter
 	}
@@ -29,7 +32,7 @@ func (f fakeTerraformConfigStateDriftStore) ListActiveFindings(
 }
 
 func (f fakeTerraformConfigStateDriftStore) CountActiveFindings(
-	_ context.Context, _ TerraformConfigStateDriftFindingFilter,
+	_ context.Context, _ FindingFilter,
 ) (int, error) {
 	if f.total > 0 {
 		return f.total, nil
@@ -40,12 +43,12 @@ func (f fakeTerraformConfigStateDriftStore) CountActiveFindings(
 func TestHandleTerraformConfigStateDriftFindingsReturnsOutcomes(t *testing.T) {
 	t.Parallel()
 
-	var observed TerraformConfigStateDriftFindingFilter
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	var observed FindingFilter
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
 			observedFilter: &observed,
-			rows: []TerraformConfigStateDriftFindingRow{
+			rows: []FindingRow{
 				{
 					FactID: "fact:tf-1", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation:tf-1",
 					SourceSystem: "collector/terraform-state", CanonicalID: "canonical:x",
@@ -63,7 +66,7 @@ func TestHandleTerraformConfigStateDriftFindingsReturnsOutcomes(t *testing.T) {
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -103,15 +106,15 @@ func TestHandleTerraformConfigStateDriftFindingsReturnsOutcomes(t *testing.T) {
 func TestHandleTerraformConfigStateDriftFindingsRequiresScopeID(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store:   fakeTerraformConfigStateDriftStore{},
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/terraform/config-state-drift/findings", bytes.NewBufferString(`{}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -128,8 +131,8 @@ func TestHandleTerraformConfigStateDriftFindingsScopedCallerWithoutGrantGetsEmpt
 	t.Parallel()
 
 	storeCalled := false
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStoreFunc(func() {
 			storeCalled = true
 		}),
@@ -140,9 +143,9 @@ func TestHandleTerraformConfigStateDriftFindingsScopedCallerWithoutGrantGetsEmpt
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/terraform/config-state-drift/findings", bytes.NewBufferString(`{
 		"scope_id": "state_snapshot:s3:hash-1"
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"repo-a"},
 	}))
 	w := httptest.NewRecorder()
@@ -168,8 +171,8 @@ func TestHandleTerraformConfigStateDriftFindingsScopedCallerWithoutGrantGetsEmpt
 // TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData
 // asserts comes back for a scoped caller whose grant matches the requested
 // scope_id.
-func terraformConfigStateDriftScopedFixtureRows() []TerraformConfigStateDriftFindingRow {
-	return []TerraformConfigStateDriftFindingRow{
+func terraformConfigStateDriftScopedFixtureRows() []FindingRow {
+	return []FindingRow{
 		{
 			FactID: "fact:tf-scoped-1", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation:tf-scoped-1",
 			SourceSystem: "collector/terraform-state", CanonicalID: "canonical:tenant-a",
@@ -191,9 +194,9 @@ func terraformConfigStateDriftScopedFixtureRows() []TerraformConfigStateDriftFin
 func TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData(t *testing.T) {
 	t.Parallel()
 
-	var observed TerraformConfigStateDriftFindingFilter
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	var observed FindingFilter
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
 			observedFilter: &observed,
 			rows:           terraformConfigStateDriftScopedFixtureRows(),
@@ -206,9 +209,9 @@ func TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData(
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1"},
 	}))
 	w := httptest.NewRecorder()
@@ -245,14 +248,14 @@ func TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData(
 type fakeTerraformConfigStateDriftStoreFunc func()
 
 func (f fakeTerraformConfigStateDriftStoreFunc) ListActiveFindings(
-	context.Context, TerraformConfigStateDriftFindingFilter,
-) ([]TerraformConfigStateDriftFindingRow, error) {
+	context.Context, FindingFilter,
+) ([]FindingRow, error) {
 	f()
 	return nil, nil
 }
 
 func (f fakeTerraformConfigStateDriftStoreFunc) CountActiveFindings(
-	context.Context, TerraformConfigStateDriftFindingFilter,
+	context.Context, FindingFilter,
 ) (int, error) {
 	f()
 	return 0, nil
@@ -266,8 +269,8 @@ func (f fakeTerraformConfigStateDriftStoreFunc) CountActiveFindings(
 // evidence, not gated by the finding's own scope_id, so it can leak another
 // tenant's repo_id/scope_id/commit_id even when the caller's grant for the
 // finding's own state-snapshot scope is legitimate.
-func terraformConfigStateDriftAmbiguousFixtureRow() TerraformConfigStateDriftFindingRow {
-	return TerraformConfigStateDriftFindingRow{
+func terraformConfigStateDriftAmbiguousFixtureRow() FindingRow {
+	return FindingRow{
 		FactID: "fact:tf-ambiguous-1", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation:tf-ambiguous-1",
 		SourceSystem: "collector/terraform-state", CanonicalID: "canonical:ambiguous-1",
 		CandidateID: "candidate:ambiguous-1", CandidateKind: "terraform_config_state_drift",
@@ -288,10 +291,10 @@ func terraformConfigStateDriftAmbiguousFixtureRow() TerraformConfigStateDriftFin
 func TestHandleTerraformConfigStateDriftFindingsFiltersAmbiguousOwnerCandidatesOutsideGrant(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
+			rows: []FindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
 		},
 	}
 	mux := http.NewServeMux()
@@ -301,9 +304,9 @@ func TestHandleTerraformConfigStateDriftFindingsFiltersAmbiguousOwnerCandidatesO
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1", "repo-a"},
 	}))
 	w := httptest.NewRecorder()
@@ -360,10 +363,10 @@ func TestHandleTerraformConfigStateDriftFindingsFiltersAmbiguousOwnerCandidatesO
 func TestHandleTerraformConfigStateDriftFindingsUnscopedCallerSeesAllAmbiguousOwnerCandidates(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
+			rows: []FindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
 		},
 	}
 	mux := http.NewServeMux()
@@ -373,7 +376,7 @@ func TestHandleTerraformConfigStateDriftFindingsUnscopedCallerSeesAllAmbiguousOw
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -407,10 +410,10 @@ func TestHandleTerraformConfigStateDriftFindingsUnscopedCallerSeesAllAmbiguousOw
 func TestHandleTerraformConfigStateDriftFindingsReportsAmbiguousWhenAllCandidatesWithheld(t *testing.T) {
 	t.Parallel()
 
-	handler := &TerraformConfigStateDriftHandler{
-		Profile: ProfileLocalAuthoritative,
+	handler := &Handler{
+		Profile: querycontract.ProfileLocalAuthoritative,
 		Store: fakeTerraformConfigStateDriftStore{
-			rows: []TerraformConfigStateDriftFindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
+			rows: []FindingRow{terraformConfigStateDriftAmbiguousFixtureRow()},
 		},
 	}
 	mux := http.NewServeMux()
@@ -420,9 +423,9 @@ func TestHandleTerraformConfigStateDriftFindingsReportsAmbiguousWhenAllCandidate
 		"scope_id": "state_snapshot:s3:hash-1",
 		"limit": 10
 	}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1"},
 	}))
 	w := httptest.NewRecorder()

@@ -3,7 +3,10 @@
 
 package contract
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/terraform/drift"
+)
 
 // canonicalCapabilityOrder mirrors capability-matrix.v1.yaml followed by its
 // fragments in filename order. The contract test locks this snapshot to the
@@ -157,12 +160,6 @@ func init() {
 	// Keep this final capability row in the lexically last matrix file so the
 	// canonical order is installed only after every earlier matrix fragment has
 	// registered its rows.
-	register("terraform_config_state_drift.findings.list", capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
+	register(drift.Capability, drift.Support())
 	querycontract.SetCapabilityOrder(canonicalCapabilityOrder)
 }
