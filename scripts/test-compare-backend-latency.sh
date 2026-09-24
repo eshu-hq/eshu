@@ -114,6 +114,17 @@ printf '%s\n' "${out}" | rg -qF '| GET /a | - | - | - | - | - | NON-COMPARABLE (
 printf '%s\n' "${out}" | rg -qF '| GET /b | 5.00 | 7.00 | 5.00 | 4.00 | 0.57x | 80/80 |' \
 	|| fail "GET /b must still compare normally despite GET /a's zero p95:\n${out}"
 
+# --- A zero RIGHT-leg p95 is the symmetric case: no division-by-zero here
+# (the ratio is right/left), but "0x" would be as meaningless as the left
+# case, so it gets the same NON-COMPARABLE treatment and the same
+# doesn't-crash-the-table proof. ---
+jq '.routes[0].warm.p95_ms = 0' "${work}/neo4j.json" >"${work}/neo4j-zero-right-p95.json"
+out="$(bash "${script}" "${work}/nornicdb.json" "${work}/neo4j-zero-right-p95.json")" || fail "a zero right p95 must not abort the whole comparison"
+printf '%s\n' "${out}" | rg -qF '| GET /a | - | - | - | - | - | NON-COMPARABLE (right p95 is 0ms; ratio is undefined) |' \
+	|| fail "GET /a with a zero right p95 must render NON-COMPARABLE:\n${out}"
+printf '%s\n' "${out}" | rg -qF '| GET /b | 5.00 | 7.00 | 5.00 | 4.00 | 0.57x | 80/80 |' \
+	|| fail "GET /b must still compare normally despite GET /a's zero right p95:\n${out}"
+
 # --- A non-integer identity.runs refuses (exit 2, naming the field) instead
 # of letting bash's `[[ -ge ]]` throw its own uncaught arithmetic error. ---
 jq '.identity.runs = 3.5' "${work}/neo4j.json" >"${work}/neo4j-runs-float.json"

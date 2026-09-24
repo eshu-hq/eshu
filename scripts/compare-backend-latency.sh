@@ -32,9 +32,10 @@
 # runs by construction, but binary floating point can still differ in the
 # last bit between two independently computed averages of the same integer
 # counters, and that is not the kind of "different work" this check exists
-# to catch. A route whose left-leg warm p95 is exactly 0ms is also listed
-# NON-COMPARABLE (the ratio right/left is undefined) rather than aborting the
-# whole table on a jq division-by-zero.
+# to catch. A route whose left-leg OR right-leg warm p95 is exactly 0ms is
+# also listed NON-COMPARABLE (the ratio right/left is undefined either way)
+# rather than aborting the whole table on a jq division-by-zero (left) or
+# silently rendering a meaningless "0x" ratio (right).
 #
 # No --benchstat mode: the schema (n/p50/p95/min/max/stddev per route) is
 # already exactly what this script needs, and adding a benchfmt emitter plus
@@ -150,6 +151,8 @@ table="$(jq -n -r --slurpfile L "${left}" --slurpfile R "${right}" '
 		"| \($route) | - | - | - | - | - | NON-COMPARABLE (no warm samples on one or both legs) |"
 	elif ($lr.warm.p95_ms == 0) then
 		"| \($route) | - | - | - | - | - | NON-COMPARABLE (left p95 is 0ms; ratio is undefined) |"
+	elif ($rr.warm.p95_ms == 0) then
+		"| \($route) | - | - | - | - | - | NON-COMPARABLE (right p95 is 0ms; ratio is undefined) |"
 	else
 		(round2($rr.warm.p95_ms / $lr.warm.p95_ms)) as $ratio
 		| "| \($route) | \(fmt2ms($lr.warm.p50_ms)) | \(fmt2ms($lr.warm.p95_ms)) | \(fmt2ms($rr.warm.p50_ms)) | \(fmt2ms($rr.warm.p95_ms)) | \($ratio)x | \($lr.warm.n)/\($rr.warm.n) |"
