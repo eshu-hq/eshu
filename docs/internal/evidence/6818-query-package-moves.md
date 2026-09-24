@@ -405,29 +405,30 @@ log line changes; the move touches no telemetry emission point.
 
 ## Performance and observability evidence for the `testutil` split (move 5)
 
-No-Regression Evidence: two commits on `refactor/6818-testutil`. 5a
-(`bc7134a73`) peels the fake `database/sql` driver family out of
-`querytestutil/content` into the new `internal/testutil/contentreader`
-leaf, package clause `contentreader`: `reader_args.go` to `args.go`,
-`reader_columns.go` to `columns.go`, `reader_defaults.go` to
-`defaults.go`, `reader_driver.go` to `driver.go`, plus the 4 reader
-tests (names kept). The 4 non-test files are byte-identical up to the
+No-Regression Evidence: five commits on `refactor/6818-testutil`,
+rebased onto `origin/main` (`0e8e9eefe`). 5a (`96db2022f`) peels the
+fake `database/sql` driver family out of `querytestutil/content` into
+the new `internal/testutil/contentreader` leaf, package clause
+`contentreader`: `reader_args.go` to `args.go`, `reader_columns.go`
+to `columns.go`, `reader_defaults.go` to `defaults.go`,
+`reader_driver.go` to `driver.go`, plus the 4 reader tests (names
+kept). The 4 non-test files are byte-identical up to the
 package/import/selector swap (proven per file by normalized diff);
 the tests additionally carry the `defaults.go` filename constant the
 coverage self-check reads. 20 root test files repoint the import and
 the `content.(Reader|OpenReader)` selectors; store-fake users keep the
 content import. The peel also carries the `naming-glue-gate`
-exemption feature below. 5b (`d93f8d614`) is the pure rename of the
-56-file helper tree (parent + `content` and `graph` leaves) to
-`query/testutil`, clause `testutil`: 2752+/2752- symmetric, 432
-modified `.go` files in which every changed line is the identifier
-swap — 394 with the swap in place, 38 with the renamed import
-additionally resorted within its block by `gofumpt` (import-block
-comparison; an independent recount classified 43 as resorted under a
-stricter same-line rule — both agree zero files carry any other
-change).
+exemption feature below. 5b (`cd7df783c`) is the pure rename of the
+helper tree (parent + `content` and `graph` leaves, plus main's
+`scope_queryer.go` which joined the tree via the rebase) to
+`query/testutil`, clause `testutil`: 492 files, 2752+/2752-
+symmetric, 57 rename pairs all on the old-to-new path, 431 modified
+`.go` files with zero changed lines outside the identifier swap
+(`git show cd7df783c | rg '^[-+]' | rg -v '^[-+][-+]' | rg -v
+testutil | wc -l` prints 0; the 394/38 `gofumpt`-resort split was
+measured pre-rebase at `d93f8d614` under the same method).
 
-Byte-identity proof (all commands run against base `4e1e534b4`, exit
+Byte-identity proof (all commands run against base `0e8e9eefe`, exit
 0): every 5b rename pair diffs empty after normalizing
 `querytestutil` to `testutil`, except 4 doc files whose extra prose
 documents the peel-out; every modified `.go` file diffs empty after
@@ -435,6 +436,23 @@ pairing off rename lines, except the 20 peel consumers and the 2 gate
 files; the 8 peel files diff empty after normalizing the package,
 import, and selector swap. No Cypher literal, queue bound, worker
 count, or retry knob changes anywhere in the diff.
+
+Rebase resolutions (both main-content-preserving): main's #7053 had
+renamed root `scope_query_test_helpers_test.go` to
+`querytestutil/scope_queryer.go` with an exported API
+(`OpenScopeQueryerTestDB`, `ScopeQueryerRecorder`) consumed by 6
+main files. The 5a conflict resolved to main's file byte-verbatim
+(hash `40efc5a16`; our one-line comment tweak was moot — #7053 had
+rewritten that sentence away). The 5b conflict placed that content at
+`query/testutil/scope_queryer.go` with the clause following the
+rename (`package testutil`) and main's provenance comment kept. A
+stale `rerere` recording replayed a wrong-side resolution once; it
+was cleared (`git rerere clear`), the rebase aborted, and both
+conflicts re-resolved by byte comparison against `0e8e9eefe` — the
+abort/redo is why the SHAs above supersede the pre-rebase pins.
+`22c2fc051` repoints 38 main-new files still spelling the old name
+(5 test files, 33 family docs; 107+/107- symmetric, historical
+evidence/design prose untouched).
 
 `queryplan`'s test-only-helper gate follows the rename: constant
 `testOnlyHelperPackage` to `"testutil"`, fixtures and comments
@@ -456,17 +474,19 @@ classification (a malformed ledger fails closed, exit 2).
 `go test -count=1` passes for root `query`, `queryplan`,
 `query/testutil/...`, and `testutil/contentreader`
 (`TestDiscoverQueryCallsites*` green, including the nested-leaf and
-helper-imports-own-leaf fixtures). Test-name union: `go test -list`
-under `./internal/query/...` registers 5172 Tests before and 5155
-after; the 17 relocated Tests register under
-`./internal/testutil/contentreader/` with byte-identical names
-(proven by diff), so nothing dropped, added, or renamed.
-`scripts/verify-moved-file-refs.sh --base 4e1e534b4` reports 58
+helper-imports-own-leaf fixtures). Test-name union, re-measured
+post-rebase: `go test -list` under `./internal/query/...` registers
+5172 Tests at base `0e8e9eefe` (throwaway worktree count) versus 5155
+on the branch; the 17 relocated Tests register under
+`./internal/testutil/contentreader/` (test files untouched since the
+peel — only its `AGENTS.md` prose followed the rename), so 5155 +
+17 = 5172 exactly: nothing dropped, added, or renamed by the move.
+`scripts/verify-moved-file-refs.sh --base 0e8e9eefe` reports 59
 vacated Go paths with no dangling references;
 `scripts/verify-package-docs.sh` reports the `contentreader` doc
 trio present; `scripts/verify-performance-evidence.sh` passes
 (exit 0) on this section.
 
 No-Observability-Change: no span name, attribute, registered metric,
-or log line changes; the two commits touch no telemetry emission
+or log line changes; the five commits touch no telemetry emission
 point.
