@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -42,41 +43,67 @@ const (
 	// statuses from the same TransactionTimeout, so the rollback guarantee is
 	// identical and the classifier treats them the same way.
 	transactionTimedOutServerConfigurationCode = "Neo.ClientError.Transaction.TransactionTimedOut"
-	// transactionLockClientStoppedCode is what Neo4j reports instead of a
-	// timeout status when the timed-out transaction is waiting on another
-	// transaction's lock: terminating a transaction stops its lock client
+	// transactionLockClientStoppedCode is what Neo4j reports when a
+	// transaction is terminated while it waits on another transaction's lock:
+	// termination stops the lock client
 	// (KernelTransactionImplementation.markForTerminationIfPossible), so the
-	// pending acquisition fails with this status. Observed on
-	// neo4j:2026-community by TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite.
-	// It is matched before the transient "LockClient" substring so a timed-out
-	// write is not replayed locally for another full timeout while it holds its
-	// lease. The same status also covers operator kills and shutdown; each of
-	// those terminates the transaction before commit as well.
+	// pending acquisition fails with this status. The cause can be a
+	// transaction timeout, an operator's TERMINATE TRANSACTIONS, or a database
+	// shutdown, and the status does not say which. It is therefore not a
+	// timeout status; see lockClientStoppedRequeue for how it is handled.
 	transactionLockClientStoppedCode = "Neo.ClientError.Transaction.LockClientStopped"
 )
 
 // isTransactionTimedOut identifies the exact typed error a graph backend
 // emits after rolling back a transaction that reached its timeout: NornicDB
 // and Neo4j both report the client-configured status, and Neo4j reports the
-// server-configured status for db.transaction.timeout, or the stopped lock
-// client when the transaction was waiting on a lock. In Neo4j all three come
-// from the kernel's termination path, which rolls the transaction back rather
-// than committing it (KernelTransactionImplementation.closeTransaction checks
+// server-configured status for db.transaction.timeout. In Neo4j both come from
+// the kernel's termination path, which rolls the transaction back rather than
+// committing it (KernelTransactionImplementation.closeTransaction checks
 // canCommit before commitTransaction). It is durable-queue retryable only
 // when its outer error chain preserves the known rollback outcome.
 func isTransactionTimedOut(err error) bool {
+	return transactionTimeoutCode(err) != ""
+}
+
+// transactionTimeoutCode returns the typed timeout status carried by err, or
+// an empty string when err is not a transaction timeout.
+func transactionTimeoutCode(err error) string {
 	var neo4jErr *neo4jdriver.Neo4jError
 	if !errors.As(err, &neo4jErr) {
-		return false
+		return ""
 	}
 	switch neo4jErr.Code {
 	case transactionTimedOutClientConfigurationCode,
-		transactionTimedOutServerConfigurationCode,
-		transactionLockClientStoppedCode:
-		return true
+		transactionTimedOutServerConfigurationCode:
+		return neo4jErr.Code
 	default:
-		return false
+		return ""
 	}
+}
+
+// lockClientStoppedRequeue returns a durable-queue retryable error when err
+// is Neo4j's stopped-lock-client status with a known rollback outcome, and nil
+// otherwise. Every termination reason rolls the transaction back, so a queue
+// replay is safe in every group. It is not retried in place: after a timeout,
+// each in-place replay would wait another full timeout while the caller holds
+// its lease. A status nested in a connectivity error or a driver execution
+// limit has an unknown outer outcome and is left to the ordinary classifier.
+func lockClientStoppedRequeue(operation string, err error) error {
+	if hasUnknownTransactionOutcome(err) {
+		return nil
+	}
+	var neo4jErr *neo4jdriver.Neo4jError
+	if !errors.As(err, &neo4jErr) || neo4jErr.Code != transactionLockClientStoppedCode {
+		return nil
+	}
+	slog.Warn(
+		"neo4j transaction terminated during lock wait, requeueing without local retry",
+		"operation", operation,
+		"code", neo4jErr.Code,
+		"error", err.Error(),
+	)
+	return &neo4jRetryableError{inner: err, code: transactionLockClientStoppedCode}
 }
 
 // GraphWriteTimeoutError marks a graph write deadline/cancellation with enough

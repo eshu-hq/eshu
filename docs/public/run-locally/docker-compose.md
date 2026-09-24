@@ -385,9 +385,9 @@ docker compose -f docker-compose.neo4j.yml up --build
 Service shape and host ports match the default stack except the graph service
 is `neo4j`, `ESHU_GRAPH_BACKEND=neo4j`, and the database is `neo4j`. It adds the
 `workflow-coordinator` profile, omits `webhook-listener`, and forwards
-`ESHU_CANONICAL_WRITE_TIMEOUT` (the server transaction timeout, applied only
-when set) and `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` to every graph writer. Use it for
-Neo4j compatibility; use the default NornicDB stack for local evaluation.
+`ESHU_CANONICAL_WRITE_TIMEOUT` (the transaction timeout, applied only when set)
+and `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` (default 8, measured on NornicDB only) to
+every graph writer. Use it for Neo4j compatibility, not local evaluation.
 
 ## Telemetry Overlay
 

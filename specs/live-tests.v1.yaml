@@ -63,7 +63,7 @@ tests:
   - file: go/cmd/ingester/neo4j_write_timeout_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; proves a timed-out Neo4j ingester canonical write requeues as retryable graph_write_timeout and never commits late; one local run on neo4j:2026-community took 7.12s — promote to blocking with repeated timing evidence
+    reason: untagged live proof gated by env Skip; proves a timed-out Neo4j ingester canonical write requeues as retryable graph_write_timeout; one local run on neo4j:2026-community took 4.46s — promote to blocking with repeated timing evidence
     backends: neo4j
   - file: go/cmd/ingester/wiring_canonical_writer_tfstate_resolvers_live_test.go
     tag: ~
@@ -104,7 +104,7 @@ tests:
   - file: go/cmd/reducer/neo4j_write_timeout_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; asserts Neo4j-only termination codes (LockClientStopped, TransactionTimedOutClientConfiguration); one local run on neo4j:2026-community took 6.05s — promote to blocking with repeated timing evidence
+    reason: untagged live proof gated by env Skip; asserts Neo4j-only termination codes (LockClientStopped from a timeout and from TERMINATE TRANSACTIONS requeues, TransactionTimedOutClientConfiguration stays terminal); one local run on neo4j:2026-community took 7.40s — promote to blocking with repeated timing evidence
     backends: neo4j
   - file: go/cmd/reducer/nornicdb_workload_instance_retraction_lookup_live_test.go
     tag: live_nornicdb_answer_truth

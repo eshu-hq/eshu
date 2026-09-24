@@ -140,8 +140,9 @@ services:
       # Neo4j applies this as the server transaction timeout only when set;
       # empty keeps Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
-      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
-      # legacy unbounded (passthrough) behavior.
+      # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
+      # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy
+      # unbounded (passthrough) behavior.
       ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
@@ -306,8 +307,9 @@ services:
       # Neo4j applies this as the server transaction timeout only when set;
       # empty keeps Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
-      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
-      # legacy unbounded (passthrough) behavior.
+      # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
+      # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy
+      # unbounded (passthrough) behavior.
       ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
@@ -401,8 +403,9 @@ services:
       # Neo4j applies this as the server transaction timeout only when set;
       # empty keeps Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
-      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
-      # legacy unbounded (passthrough) behavior.
+      # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
+      # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy
+      # unbounded (passthrough) behavior.
       ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
     volumes:
       - type: volume

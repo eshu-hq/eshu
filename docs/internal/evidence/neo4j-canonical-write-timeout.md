@@ -30,12 +30,20 @@ assumed a bounded write.
   before the server terminates the transaction (the lock-wait case returned
   after 2.57 to 3.47s against a 2s timeout), so a timed-out write requeues as
   retryable `graph_write_timeout` on both backends instead of dead-lettering
-  on Neo4j. With the variable unset, the chain is unchanged.
-- The retry classifier treats the three statuses Neo4j reports for a
-  timed-out transaction the same way it already treated NornicDB's
+  on Neo4j. With the variable unset, no client-deadline wrapper is added.
+- The retry classifier treats the two statuses Neo4j reports for a timed-out
+  transaction the same way it already treated NornicDB's
   `TransactionTimedOutClientConfiguration`: no local retry, a durable
   `graph_write_timeout` deferral for the replay-safe `RUNS_ON` groups only, and
   terminal elsewhere.
+- `LockClientStopped` is handled separately, because Neo4j reports it for any
+  transaction terminated during a lock wait: a timeout, an operator's
+  `TERMINATE TRANSACTIONS`, or a database shutdown. It is no longer retried in
+  place, and it returns to the durable queue as retryable
+  `graph_write_timeout` in every group. Before this change it reached the same
+  retryable end state only after three in-place retries. This classifier
+  change applies on every Neo4j deployment, whether or not
+  `ESHU_CANONICAL_WRITE_TIMEOUT` is set.
 
 ## Timeout gates enumerated
 
@@ -69,26 +77,37 @@ lists every NornicDB-only write-timeout gate, and each one is now handled:
   server-wide `db.transaction.timeout` (the overload without a timeout
   argument). Both statuses come from the same `TransactionTimeout`; only the
   status differs.
-- `Neo.ClientError.Transaction.LockClientStopped`: observed live. A write that
-  is waiting on another transaction's lock when its timeout fires does not
-  report a timeout status. Terminating a transaction stops its lock client
-  (`KernelTransactionImplementation.markForTerminationIfPossible` calls
-  `lockClient.stop()`), and the pending lock acquisition fails with this
-  status.
+- `Neo.ClientError.Transaction.LockClientStopped`: observed live, and not a
+  timeout status. Terminating a transaction for any reason stops its lock
+  client (`KernelTransactionImplementation.markForTerminationIfPossible` calls
+  `lockClient.stop()`), so a write waiting on another transaction's lock fails
+  with this status whether a timeout, an operator's `TERMINATE TRANSACTIONS`,
+  or a database shutdown terminated it. The status text says so, and the live
+  test reproduces both the timeout and the operator-kill cause.
 
 Rollback safety: `closeTransaction` checks `canCommit()` (commit requested and
 no termination mark) before `commitTransaction`, so a transaction terminated
 before commit is rolled back, and the terminating status reaches the client
 through `failOnNonExplicitRollbackIfNeeded` or through the failed statement.
-The live test below confirms that neither shape left a committed contender
-write.
+That holds by protocol for an abandoned client transaction too: the server
+cannot commit an explicit transaction without the client's COMMIT, and on a
+cancelled context the driver closes the connection. No live check here can
+fail on a late commit, so none is claimed as proof. The residual window is a
+COMMIT already in flight when the client deadline fires; that is reported as
+retryable `graph_write_timeout` and relies on idempotent replay, as on
+NornicDB.
 
 Before this change, `LockClientStopped` matched the transient `"LockClient"`
 substring in `classifyTransientNeo4jError`, so `RetryingExecutor` retried it
-in place up to three more times. Each retry waits one more full timeout while
-the caller still holds its lease. On ops-qa, with a 300s timeout, that is up
-to 20 minutes for one write. `isTransactionTimedOut` now matches the exact
-typed status before the substring check. Typed-code matching only: the
+in place up to three more times before requeueing it. Each retry waits one
+more full timeout while the caller still holds its lease. On ops-qa, with a
+300s timeout, that is up to 20 minutes for one write.
+`lockClientStoppedRequeue` now matches the exact typed status before the
+substring check and requeues it at once. Every termination reason rolls the
+transaction back, so a queue replay is safe in every group. Nested under a
+connectivity error or driver execution limit, where the outer outcome is
+unknown, it stays on the ordinary classifier path, as before. Typed-code
+matching only: the
 `Neo.TransientError.*` spellings, strings without a typed code, and code
 prefixes stay on their existing paths
 (`TestNeo4jTransactionTimeoutClassificationFailsClosedForLookalikes`).
@@ -121,10 +140,19 @@ RED before the change, GREEN after:
   cases pass for each of the four packages, including the unchanged NornicDB
   default and invalid-value fallbacks.
 - `TestRetryingExecutorDefersNeo4jTransactionTimeoutForReplaySafeGroup`: with
-  only the helper renames applied, the `TransactionTimedOut` case failed. With
-  the `LockClientStopped` case added, the lock-wait case failed on both the
-  deferral and the terminal tests, because the substring path retried it
-  locally.
+  only the helper renames applied, the `TransactionTimedOut` case failed. It
+  also pins that a deferral records the status the backend sent; before that
+  fix, a `TransactionTimedOut` deferral recorded
+  `TransactionTimedOutClientConfiguration`.
+- `TestRetryingExecutorRequeuesNeo4jLockClientStoppedWithoutLocalRetry`: a
+  kill-shaped `LockClientStopped` (the message an operator kill produced live)
+  in a single statement, an unrelated group, and a `RUNS_ON` group. Each makes
+  one attempt and ends retryable with class `graph_write_timeout`. On the
+  previous branch head (`7470d29337`), the single-statement and unrelated-group
+  cases failed on `reducer.IsRetryable` (they would have dead-lettered), and
+  the `RUNS_ON` case recorded the wrong code.
+  `TestRetryingExecutorKeepsCommitAmbiguousLockClientStoppedTerminal` keeps
+  the lost-during-commit shape terminal.
 - `TestComposeForwardsGraphWriteBoundsToEveryGraphWriter`: run against
   origin/main's `docker-compose.neo4j.yml`, it failed with
   `compose env ESHU_CANONICAL_WRITE_TIMEOUT missing`.
@@ -141,21 +169,26 @@ RED before the change, GREEN after:
 - `TestLiveNeo4jIngesterCanonicalWriteTimeoutRequeues`, against
   `neo4j:2026-community` through the production Neo4j
   `canonicalExecutorForGraphBackend` chain with a 2s timeout and a held lock:
-  it returned a retryable `graph_write_timeout` after 2.00s. After the holder
-  committed and a 4s wait, the probe still carried the holder's value, so the
-  abandoned server transaction did not commit late. With `boundNeo4jWrites`
+  it returned a retryable `graph_write_timeout` after 2.00s, on a freshly
+  started server (the seed and cleanup writes go through an unbounded
+  executor, so a cold server cannot time them out). With `boundNeo4jWrites`
   mutated to a passthrough, the same test failed on a terminal
   `LockClientStopped` after 2.67s.
 - `TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite`, run against
   `neo4j:2026-community` with `ESHU_CANONICAL_WRITE_TIMEOUT=2s` through the
   production `newReducerNeo4jExecutor` seam:
-  - lock wait: aborted after 3.47s with `LockClientStopped`, one attempt,
-    terminal, holder value intact.
-  - long statement: aborted after 2.27s with
-    `TransactionTimedOutClientConfiguration`, one attempt, terminal, seed
-    value intact.
-  - Mutation with `LockClientStopped` removed from the classifier: 4 attempts,
-    11.69s, failed `want 1`.
+  - lock wait: aborted after 2.45s with `LockClientStopped`, one attempt,
+    retryable.
+  - long statement: aborted after 2.29s with
+    `TransactionTimedOutClientConfiguration`, one attempt, terminal.
+  - operator kill, with no transaction timeout: `TERMINATE TRANSACTIONS` on
+    the lock-waiting contender returned `LockClientStopped` after 0.16s, one
+    attempt, retryable.
+  - With the previous branch head's classifier swapped in through
+    `go test -overlay`, the lock-wait and operator-kill cases failed on
+    `reducer.IsRetryable(...) = false, want true`.
+  - Mutation with `LockClientStopped` removed from the classifier, on an
+    earlier revision: 4 attempts, 11.69s, failed `want 1`.
   - Mutation with the Neo4j gate returning `0`: failed
     `reducerTransactionTimeout(neo4j) = 0s, want 2s`.
 
@@ -173,8 +206,10 @@ alternating origin/main and head on one shared Apple M5 Max host:
 The ranges overlap and the gap is host noise on code this change does not
 touch. The Neo4j client-deadline wrapper runs only when the timeout is set.
 It adds one `context.WithTimeout` per write, the same cost NornicDB already pays
-on these paths, next to a Bolt round trip. Unset Neo4j deployments run the
-unchanged chain. These figures do not estimate Neo4j throughput. On Neo4j with the
+on these paths, next to a Bolt round trip. Unset Neo4j deployments get no
+client-deadline wrapper. The `LockClientStopped` change does apply to them: a
+write terminated during a lock wait now requeues after one attempt instead of
+after three in-place retries. These figures do not estimate Neo4j throughput. On Neo4j with the
 variable set, a write that previously would have hung now ends at the
 configured timeout. That is the intended behavior change, and it is bounded
 by the operator's own setting.
@@ -192,6 +227,11 @@ projector), the write span records error status with the typed code.
 A replay-safe `RUNS_ON` group's queue row is recorded as retrying with
 `failure_class=graph_write_timeout`, which feeds the existing
 `eshu_dp_reducer_retry_surge_total` and the write-timeout backpressure depth
-query. Terminal rows keep the typed code in `failure_details`. Because a
-timeout is no longer retried in place, `eshu_dp_neo4j_deadlock_retries_total`
-no longer counts `reason=transient` for a lock-wait timeout.
+query. Terminal rows keep the typed code in `failure_details`, and a deferred
+row's error carries the code the backend actually sent. Because
+`LockClientStopped` is no longer retried in place,
+`eshu_dp_neo4j_deadlock_retries_total` no longer counts `reason=transient` for
+it. Instead, each occurrence logs one WARN, "neo4j transaction terminated
+during lock wait, requeueing without local retry", with `operation`, `code`,
+and `error`, and its queue row retries with
+`failure_class=graph_write_timeout`.

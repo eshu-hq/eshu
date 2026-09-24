@@ -18,9 +18,7 @@ import (
 // neo4jTransactionTimeoutErrors are the two statuses Neo4j reports when its
 // transaction monitor terminates a transaction for exceeding a timeout
 // (KernelImpl.beginTransaction, Neo4j 2026.06): the client-configured timeout
-// sent with neo4j.WithTxTimeout, the server-wide db.transaction.timeout, and
-// the stopped lock client a terminated transaction reports while waiting on a
-// lock.
+// sent with neo4j.WithTxTimeout and the server-wide db.transaction.timeout.
 // Messages follow the Neo4j status-code catalogue descriptions.
 func neo4jTransactionTimeoutErrors() map[string]*neo4jdriver.Neo4jError {
 	return map[string]*neo4jdriver.Neo4jError{
@@ -31,14 +29,6 @@ func neo4jTransactionTimeoutErrors() map[string]*neo4jdriver.Neo4jError {
 		"server db.transaction.timeout": {
 			Code: "Neo.ClientError.Transaction.TransactionTimedOut",
 			Msg:  "The transaction has not completed within the specified timeout (db.transaction.timeout). You may want to retry with a longer timeout.",
-		},
-		// Observed live on neo4j:2026-community by
-		// TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite: a write that is
-		// waiting on another transaction's lock when its timeout fires reports
-		// the stopped lock client, not the timeout status.
-		"timeout while waiting on a lock": {
-			Code: "Neo.ClientError.Transaction.LockClientStopped",
-			Msg:  "The transaction has been terminated. Retry your operation in a new transaction, and you should see a successful result. The transaction has been terminated, so no more locks can be acquired. This can occur because the transaction ran longer than the configured transaction timeout, or because a human operator manually terminated the transaction, or because the database is shutting down. ForsetiClient[transactionId=8, clientId=2]",
 		},
 	}
 }
@@ -61,6 +51,9 @@ func TestRetryingExecutorDefersNeo4jTransactionTimeoutForReplaySafeGroup(t *test
 			require.True(t, errors.As(err, &classified))
 			require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
 			require.ErrorIs(t, err, timeoutErr)
+			var deferred *neo4jRetryableError
+			require.True(t, errors.As(err, &deferred))
+			require.Equal(t, timeoutErr.Code, deferred.code, "deferral must record the status the backend sent")
 		})
 	}
 }

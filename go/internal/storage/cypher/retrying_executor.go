@@ -148,14 +148,14 @@ func (r *RetryingExecutor) runWithRetry(
 		if lastErr == nil {
 			return nil
 		}
+		if requeue := lockClientStoppedRequeue(operationLabel, lastErr); requeue != nil {
+			return requeue
+		}
 		if isTransactionTimedOut(lastErr) ||
 			hasTransactionTimeoutInUnknownOutcome(lastErr) {
 			if !hasUnknownTransactionOutcome(lastErr) &&
 				len(timeoutReplayGroup) > 0 && isCanonicalRunsOnReplaySafeGroup(timeoutReplayGroup) {
-				return &neo4jRetryableError{
-					inner: lastErr,
-					code:  transactionTimedOutClientConfigurationCode,
-				}
+				return &neo4jRetryableError{inner: lastErr, code: transactionTimeoutCode(lastErr)}
 			}
 			return lastErr
 		}

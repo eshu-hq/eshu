@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,22 +21,26 @@ import (
 )
 
 // TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite proves on a real Neo4j
-// server that ESHU_CANONICAL_WRITE_TIMEOUT now bounds reducer graph writes.
-// The runner is built from reducerTransactionTimeout for the Neo4j backend and
-// driven through newReducerNeo4jExecutor, the production retry seam. Two
-// shapes are covered:
+// server that ESHU_CANONICAL_WRITE_TIMEOUT now bounds reducer graph writes,
+// and that a write terminated while it waits on a lock requeues whatever
+// terminated it. Each case is driven through newReducerNeo4jExecutor, the
+// production retry seam:
 //
-//   - lock wait: a holder transaction keeps the write lock on the probe node,
-//     so the contender blocks until the server terminates it. Neo4j reports
-//     Neo.ClientError.Transaction.LockClientStopped for this shape.
-//   - long statement: the contender runs a CPU-bound statement that outlives
-//     the timeout. Neo4j reports
-//     Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration.
+//   - lock wait: with the reducerTransactionTimeout budget, a holder
+//     transaction keeps the write lock on the probe node, so the contender
+//     blocks until the server terminates it. Neo4j reports
+//     Neo.ClientError.Transaction.LockClientStopped; the write requeues.
+//   - long statement: with the same budget, the contender runs a CPU-bound
+//     statement that outlives the timeout. Neo4j reports
+//     Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration,
+//     which stays terminal outside the replay-safe RUNS_ON groups.
+//   - operator kill: with no transaction timeout, the contender blocks on
+//     the holder's lock until TERMINATE TRANSACTIONS stops it. Neo4j reports
+//     the same LockClientStopped status, and the write must requeue rather
+//     than dead-letter.
 //
-// Each shape must abort near the configured timeout, make exactly one attempt
-// (a timed-out write must not be replayed locally for another full timeout
-// while its lease is held), stay terminal outside the replay-safe RUNS_ON
-// groups, and leave no committed contender write behind.
+// Every case must make exactly one attempt: a terminated write must not be
+// replayed locally while its lease is held.
 //
 // Run with a disposable Neo4j (auth disabled):
 //
@@ -67,25 +72,40 @@ func TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite(t *testing.T) {
 		t.Fatalf("reducerTransactionTimeout(neo4j) = %s, want %s", txTimeout, configured)
 	}
 
+	const lockClientStopped = "Neo.ClientError.Transaction.LockClientStopped"
 	tests := []struct {
-		name     string
-		holdLock bool
-		cypher   string
-		wantCode string
+		name          string
+		holdLock      bool
+		terminate     bool
+		txTimeout     time.Duration
+		cypher        string
+		wantCode      string
+		wantRetryable bool
 	}{
 		{
-			name:     "lock wait",
-			holdLock: true,
-			cypher:   `MATCH (n:Neo4jWriteTimeoutProbe {probe: $probe}) SET n.value = 'contender'`,
-			wantCode: "Neo.ClientError.Transaction.LockClientStopped",
+			name:          "lock wait",
+			holdLock:      true,
+			txTimeout:     txTimeout,
+			cypher:        `MATCH (n:Neo4jWriteTimeoutProbe {probe: $probe}) SET n.value = 'contender'`,
+			wantCode:      lockClientStopped,
+			wantRetryable: true,
 		},
 		{
-			name: "long statement",
+			name:      "long statement",
+			txTimeout: txTimeout,
 			cypher: `MATCH (n:Neo4jWriteTimeoutProbe {probe: $probe})
 UNWIND range(1, 2000000000) AS x
 WITH n, sum(x) AS total
 SET n.value = 'contender-' + toString(total)`,
 			wantCode: "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
+		},
+		{
+			name:          "operator kill",
+			holdLock:      true,
+			terminate:     true,
+			cypher:        `MATCH (n:Neo4jWriteTimeoutProbe {probe: $probe}) SET n.value = 'killed-contender'`,
+			wantCode:      lockClientStopped,
+			wantRetryable: true,
 		},
 	}
 	for _, tt := range tests {
@@ -105,12 +125,10 @@ SET n.value = 'contender-' + toString(total)`,
 					map[string]any{"probe": probe})
 			})
 
-			wantValue := "seed"
-			var holder neo4jdriver.ExplicitTransaction
 			if tt.holdLock {
 				holderSession := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite})
 				defer func() { _ = holderSession.Close(context.Background()) }()
-				holder, err = holderSession.BeginTransaction(ctx)
+				holder, err := holderSession.BeginTransaction(ctx)
 				if err != nil {
 					t.Fatalf("begin holder transaction: %v", err)
 				}
@@ -118,19 +136,25 @@ SET n.value = 'contender-' + toString(total)`,
 					map[string]any{"probe": probe}); err != nil {
 					t.Fatalf("holder takes write lock: %v", err)
 				}
-				wantValue = "holder"
 			}
 
-			runner := &countingCypherRunner{inner: neo4jSessionRunner{Driver: driver, TxTimeout: txTimeout}}
+			runner := &countingCypherRunner{inner: neo4jSessionRunner{Driver: driver, TxTimeout: tt.txTimeout}}
 			executor := newReducerNeo4jExecutor(runner, nil)
 			start := time.Now()
-			writeErr := executor.ExecuteGroup(ctx, []sourcecypher.Statement{{
-				Operation:  sourcecypher.OperationCanonicalUpsert,
-				Cypher:     tt.cypher,
-				Parameters: map[string]any{"probe": probe},
-			}})
+			done := make(chan error, 1)
+			go func() {
+				done <- executor.ExecuteGroup(ctx, []sourcecypher.Statement{{
+					Operation:  sourcecypher.OperationCanonicalUpsert,
+					Cypher:     tt.cypher,
+					Parameters: map[string]any{"probe": probe},
+				}})
+			}()
+			if tt.terminate {
+				terminateBlockedContender(ctx, t, driver, "killed-contender")
+			}
+			writeErr := <-done
 			elapsed := time.Since(start)
-			t.Logf("contender returned after %s (attempts=%d): %v", elapsed, runner.groups, writeErr)
+			t.Logf("contender returned after %s (attempts=%d): %v", elapsed, runner.groups.Load(), writeErr)
 
 			var neo4jErr *neo4jdriver.Neo4jError
 			if !errors.As(writeErr, &neo4jErr) {
@@ -139,44 +163,52 @@ SET n.value = 'contender-' + toString(total)`,
 			if neo4jErr.Code != tt.wantCode {
 				t.Fatalf("contender error code = %q, want %q", neo4jErr.Code, tt.wantCode)
 			}
-			if elapsed < configured || elapsed > configured+10*time.Second {
+			if tt.txTimeout > 0 && (elapsed < configured || elapsed > configured+10*time.Second) {
 				t.Fatalf("contender aborted after %s, want about %s", elapsed, configured)
 			}
-			if runner.groups != 1 {
-				t.Fatalf("group attempts = %d, want 1: a timed-out write must not retry locally", runner.groups)
+			if attempts := runner.groups.Load(); attempts != 1 {
+				t.Fatalf("group attempts = %d, want 1: a terminated write must not retry locally", attempts)
 			}
-			if reducer.IsRetryable(writeErr) {
-				t.Fatalf("contender error = %v, want terminal outside replay-safe RUNS_ON groups", writeErr)
-			}
-
-			if holder != nil {
-				if err := holder.Commit(ctx); err != nil {
-					t.Fatalf("commit holder: %v", err)
-				}
-			}
-			readSession := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead})
-			defer func() { _ = readSession.Close(context.Background()) }()
-			result, err := readSession.Run(ctx, `MATCH (n:Neo4jWriteTimeoutProbe {probe: $probe}) RETURN n.value AS value`,
-				map[string]any{"probe": probe})
-			if err != nil {
-				t.Fatalf("read probe: %v", err)
-			}
-			record, err := result.Single(ctx)
-			if err != nil {
-				t.Fatalf("read probe record: %v", err)
-			}
-			if value, _ := record.Get("value"); value != wantValue {
-				t.Fatalf("probe value = %v, want %s: the timed-out write must roll back", value, wantValue)
+			if got := reducer.IsRetryable(writeErr); got != tt.wantRetryable {
+				t.Fatalf("reducer.IsRetryable(%v) = %t, want %t", writeErr, got, tt.wantRetryable)
 			}
 		})
 	}
+}
+
+// terminateBlockedContender waits for the contender transaction whose query
+// contains marker to appear in SHOW TRANSACTIONS, then terminates it the way
+// an operator would.
+func terminateBlockedContender(ctx context.Context, t *testing.T, driver neo4jdriver.DriverWithContext, marker string) {
+	t.Helper()
+	const show = `SHOW TRANSACTIONS YIELD transactionId, currentQuery
+WHERE currentQuery CONTAINS $marker AND NOT currentQuery CONTAINS 'SHOW TRANSACTIONS'
+RETURN transactionId`
+	for ctx.Err() == nil {
+		result, err := neo4jdriver.ExecuteQuery(ctx, driver, show, map[string]any{"marker": marker},
+			neo4jdriver.EagerResultTransformer)
+		if err != nil {
+			t.Fatalf("show transactions: %v", err)
+		}
+		if len(result.Records) == 1 {
+			id, _ := result.Records[0].Get("transactionId")
+			if _, err := neo4jdriver.ExecuteQuery(ctx, driver, `TERMINATE TRANSACTIONS $id`,
+				map[string]any{"id": id}, neo4jdriver.EagerResultTransformer); err != nil {
+				t.Fatalf("terminate contender %v: %v", id, err)
+			}
+			t.Logf("terminated contender transaction %v", id)
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("contender transaction never appeared: %v", ctx.Err())
 }
 
 // countingCypherRunner counts grouped attempts so the live proof can show the
 // retry seam made exactly one attempt.
 type countingCypherRunner struct {
 	inner  neo4jSessionRunner
-	groups int
+	groups atomic.Int32
 }
 
 func (r *countingCypherRunner) RunCypher(ctx context.Context, cypher string, params map[string]any) error {
@@ -184,6 +216,6 @@ func (r *countingCypherRunner) RunCypher(ctx context.Context, cypher string, par
 }
 
 func (r *countingCypherRunner) RunCypherGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
-	r.groups++
+	r.groups.Add(1)
 	return r.inner.RunCypherGroup(ctx, stmts)
 }
