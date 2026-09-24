@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package dependency
 
 // dependenciesCypher builds the bounded Cypher for GET /api/v0/dependencies.
 //
@@ -44,17 +44,17 @@ func dependenciesCypher(
 		"package":    pkg,
 	}
 	if direction == dependencyDirectionReverse {
-		return reverseDependenciesCypher(pkg), params
+		return reverseCypher(pkg), params
 	}
-	return forwardDependenciesCypher(pkg), params
+	return ForwardCypher(pkg), params
 }
 
-// forwardDependenciesCypher returns the "deps of an anchor" traversal. When a
+// ForwardCypher returns the "deps of an anchor" traversal. When a
 // package anchor is provided the match starts from that indexed Package; the
 // unanchored browse starts from every declaring Package but still filters on
 // indexed anchors, projects narrow columns, and applies the keyset cursor
 // before LIMIT.
-func forwardDependenciesCypher(pkg string) string {
+func ForwardCypher(pkg string) string {
 	srcAnchor := "(src:Package)"
 	if pkg != "" {
 		srcAnchor = "(src:Package {normalized_name: $package})"
@@ -82,11 +82,11 @@ ORDER BY d.dependency_normalized, d.uid
 LIMIT $limit`
 }
 
-// reverseDependenciesCypher returns the "dependents of a package" traversal. It
+// reverseCypher returns the "dependents of a package" traversal. It
 // anchors on the target Package (required for reverse) and walks back to the
 // declaring PackageVersion, reporting the dependent identity from the version
 // because declaring packages may not be Package nodes.
-func reverseDependenciesCypher(pkg string) string {
+func reverseCypher(pkg string) string {
 	targetAnchor := "(target:Package {normalized_name: $package})"
 	if pkg == "" {
 		targetAnchor = "(target:Package)"

@@ -43,9 +43,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/dependencies_cypher.go
-      symbol: forwardDependenciesCypher
-      source_sha256: 8242442185b6f32d8b8e301d971a83929f00b28a06437329bc069ce7b5500966
+      file: go/internal/query/dependency/cypher.go
+      symbol: ForwardCypher
+      source_sha256: 40965c983304a28a2768fcb8b4a14f3979b01e5454d9116fefec54b84c59e752
       line_hint: 54
     required_anchors:
       - label: Package

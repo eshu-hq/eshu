@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package dependency
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type recordingDependenciesGraphReader struct {
@@ -42,8 +44,8 @@ func (*recordingDependenciesGraphReader) RunSingle(
 	return nil, nil
 }
 
-func newDependenciesMux(reader GraphQuery) *http.ServeMux {
-	handler := &DependenciesHandler{Neo4j: reader}
+func newDependenciesMux(reader querycontract.GraphQuery) *http.ServeMux {
+	handler := &Handler{Neo4j: reader}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -81,11 +83,11 @@ func TestDependenciesDefaultsToForwardWithDefaultLimit(t *testing.T) {
 	}
 
 	var resp struct {
-		Dependencies []DependencyRow `json:"dependencies"`
-		Direction    string          `json:"direction"`
-		Count        int             `json:"count"`
-		Limit        int             `json:"limit"`
-		Truncated    bool            `json:"truncated"`
+		Dependencies []Row  `json:"dependencies"`
+		Direction    string `json:"direction"`
+		Count        int    `json:"count"`
+		Limit        int    `json:"limit"`
+		Truncated    bool   `json:"truncated"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -176,8 +178,8 @@ func TestDependenciesForwardAnchorsByPackageAndEcosystem(t *testing.T) {
 	}
 
 	var resp struct {
-		Dependencies []DependencyRow `json:"dependencies"`
-		Direction    string          `json:"direction"`
+		Dependencies []Row  `json:"dependencies"`
+		Direction    string `json:"direction"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -242,8 +244,8 @@ func TestDependenciesReverseAnchorsOnTargetPackage(t *testing.T) {
 	}
 
 	var resp struct {
-		Dependencies []DependencyRow `json:"dependencies"`
-		Direction    string          `json:"direction"`
+		Dependencies []Row  `json:"dependencies"`
+		Direction    string `json:"direction"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -291,7 +293,7 @@ func TestDependenciesTruncatesAndEmitsKeysetCursor(t *testing.T) {
 	}
 
 	var resp struct {
-		Dependencies []DependencyRow   `json:"dependencies"`
+		Dependencies []Row             `json:"dependencies"`
 		Truncated    bool              `json:"truncated"`
 		NextCursor   map[string]string `json:"next_cursor"`
 	}
@@ -343,7 +345,7 @@ func TestDependenciesForwardCursorThreadsKeysetParams(t *testing.T) {
 func TestDependenciesBackendUnavailableWhenGraphMissing(t *testing.T) {
 	t.Parallel()
 
-	handler := &DependenciesHandler{}
+	handler := &Handler{}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

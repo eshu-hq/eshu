@@ -4,6 +4,7 @@
 package query
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/dependency"
 	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 )
 
@@ -44,3 +45,13 @@ func NewPostgresPackageRegistryCorrelationStore(db registry.CorrelationQueryer) 
 func NewGraphPackageRegistryAggregateStore(graph GraphQuery) GraphPackageRegistryAggregateStore {
 	return registry.NewGraphAggregateStore(graph)
 }
+
+// === Package dependency inventory (formerly dependencies.go) ===
+
+// DependenciesHandler exposes the graph-backed package dependency inventory
+// (GET /api/v0/dependencies). It reads the same Package graph the registry
+// family serves, which is why its alias sits in this file rather than a new
+// root file named after the dependency package. The implementation moved to
+// internal/query/dependency as dependency.Handler (#6642); cmd/api builds it
+// through package query, so the alias stays until the #6642 alias sweep.
+type DependenciesHandler = dependency.Handler

@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/dependency"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
@@ -194,7 +195,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	codeownersOwnershipCursor := codeowners.OwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
 	codeownersLastMatchOwner, _ := codeowners.LastMatchOwnerCypher("proof-repository")
 	return map[string]string{
-		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
+		"QP-SC-DEPS":                                      dependency.ForwardCypher("proof"),
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,
 		"QP-DEPLOY-CATALOG-ENV":                           repository.CatalogWorkloadEvidenceEnvironmentCypher,
 		"QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":             repository.RepositoryDependencyEdgeCountCypher,

@@ -192,7 +192,9 @@ func TestListDependenciesMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.listDependencies(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
