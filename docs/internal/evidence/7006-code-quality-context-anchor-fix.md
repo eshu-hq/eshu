@@ -147,11 +147,10 @@ those readings are of the label-DISJUNCTION shape (`MATCH (n:A|B|...)`), the
 one Wave 3 below proved silently returns zero rows on this pin and replaced
 with the per-label loop -- not the shipped per-label-loop shape. They were
 never valid latency evidence for what actually shipped, on top of already
-being disclaimed as contended. The shipped per-label-loop shape has not been
-separately latency-measured on ops-qa; this session could not reach ops-qa to
-take that measurement (`kubectl`/the team's port-forward wrapper timed out,
-exit 124, with no auth or connectivity error -- the same class of access gap
-as the earlier MCP-server 401 blocker). What IS proven: correctness (Accuracy
+being disclaimed as contended. The shipped per-label-loop shape was not
+measured on NornicDB; it was measured on the ops-qa Neo4j backend that
+replaced NornicDB (section "ops-qa Neo4j measurement (2026-09-24)" at the end
+of this document). What IS proven: correctness (Accuracy
 Evidence below, and the Wave 3 addendum's live per-label-loop reproduction on
 a real `Workload` id), and a hard upper bound -- every call is now capped by
 the shared 10s deadline (Wave 4 addendum), so post-fix latency cannot exceed
@@ -403,21 +402,16 @@ literal, and are now documented in
 shared-deadline-loop behavior above (issue #7006 review round 3, F2).
 
 **F3 (measurement gap).** Neither `infra/relationships`' shipped per-label
-loop nor `code/quality/inspect` has a clean post-fix latency measurement;
-earlier claims borrowed numbers from the replaced label-disjunction shape and
-from `get_entity_context` respectively. This session could not reach ops-qa
-to take the correct measurement (`kubectl`/the team's port-forward wrapper
-both timed out, exit 124, no auth or connectivity error). Both rows are
-relabeled "not measured" in the PR body; what is proven is correctness
-(Wave 3's live per-label-loop reproduction, and `quality/inspect`'s
-Repository-first anchor being structurally identical to the
-separately-measured `complexityListAnchor`, corrected in its own doc comment)
-and a hard ceiling: `infra/relationships`' per-label loop is bounded by the
-shared 10s `WithBoundedGraphReadDeadline` budget (above), while
-`code/quality/inspect` is a single statement bounded at 10s by
+loop nor `code/quality/inspect` had a post-fix latency measurement; earlier
+claims borrowed numbers from the replaced label-disjunction shape and from
+`get_entity_context` respectively. Closed by the ops-qa Neo4j measurement
+(last section of this document): both shipped statements were measured on 6
+varied real params each, against the deployed baseline, on the same backend
+and data. The 10s ceiling still holds as before: `infra/relationships`'
+per-label loop is bounded by the shared `WithBoundedGraphReadDeadline`
+budget, while `code/quality/inspect` is a single statement bounded at 10s by
 `Neo4jReader`'s own per-read policy (it never calls
-`WithBoundedGraphReadDeadline`) -- so post-fix latency for both cannot exceed
-the pre-fix unbounded-scan floor already measured.
+`WithBoundedGraphReadDeadline`).
 
 **F4 (#7014 proof).** The previously-cited proof was uncommitted and the
 wrong shape (a single-hop rejoin ordered by the rejoined variable, not this
@@ -450,3 +444,56 @@ not just the single-hop-rejoin shape the earlier test covers. The test file
 itself is left uncommitted in each of those three worktrees, matching the
 existing ad hoc verification pattern already used there for #7014; it is not
 part of this repo's own commit history.
+
+## ops-qa Neo4j measurement (2026-09-24)
+
+Closes review round 3 F3. ops-qa moved from NornicDB to Neo4j Community
+`2026.08.1` on 2026-09-24, so the NornicDB timings above cannot be re-taken;
+this measures all four rewritten routes on the current backend.
+
+Method: before = the deployed image `sha-763c65e` (main `763c65e552`, no
+#7006); after = the statements this branch (`bee2ff4a14`) sends. Both were
+extracted by driving the real handlers with a recording `GraphQuery` over a
+`git archive` of each commit (worktree untouched), so Cypher and params are
+exactly what each build sends; the two loop routes record all 14 per-label
+statements in loop order. Each was run as `PROFILE` through `cypher-shell
+--access-mode read` (read-only), 3 repetitions, and the before side was also
+timed over the API, 2 passes. Graph: 921,615 nodes, 445,784 `Function`.
+
+Caveat: a reprojection drain was running (Postgres IO-bound, Neo4j under
+write load), so absolute times are from a moving, partly populated graph.
+PROFILE `Time` is server-side; API seconds add network, auth and content
+hydration. Compare PROFILE to PROFILE. Db-hit counts and ratios are the
+load-independent part.
+
+Performance Evidence: on Neo4j the deployed statements were already under
+1.5s (API max 1.42s, PROFILE max 0.81s) against the 10s deadline.
+`code/complexity` list and `code/quality/inspect`, 6 repos each (0 to 39.6k
+complexity>0 functions): before 0.09-0.46s API, 0-262ms PROFILE; after
+0-313ms; db hits identical on all 12 pairs (16-447k). `EXPLAIN` of the
+deployed statement is `NodeUniqueIndexSeek` (Repository) -> `Expand` ->
+`Expand`, so Neo4j already seeds from the Repository index and the rewrite is
+a no-op here. `get_entity_context`, 5 real ids: before 0.75-1.42s API,
+715-808ms PROFILE, 1.84-1.89M db hits; after (loop to first hit, 1-7 tries)
+405-513ms, 0.89-1.22M db hits; a miss (14 tries) 551-594ms vs 690ms.
+`infra/relationships`, 6 real ids: before 0.74-1.16s API, 754-797ms PROFILE,
+1.84M db hits; after 0-59ms, 366-108k db hits (1-11 tries); a miss 72-74ms vs
+776-783ms.
+
+Accuracy Evidence: `infra/relationships` raw output is byte-identical between
+the deployed and first-hit per-label statements for all 6 ids; for
+`get_entity_context` every column matches except `repo_name` (dropped from the
+Cypher, backfilled from the content store); an absent id returns no row on
+both. One repo first showed a 2-db-hit mismatch across runs: live reprojection
+drift, byte-identical on a back-to-back re-run.
+
+Reading: #7006's large latency win is NornicDB-specific; nothing timed out
+before the fix on Neo4j. There, `infra/relationships` improves about 10x-400x
+in server time, `get_entity_context` about 1.2x-2x (its first label is still a
+445,784-node `NodeByLabelScan` because Neo4j indexes `Function.uid`, not
+`Function.id`; a `uid` anchor is a possible follow-up), and complexity/inspect
+not at all. The Neo4j value of #7006 is the query-name telemetry, the shared
+bounded deadline, and the accuracy fix.
+
+No-Observability-Change: this section adds measurement only; no code, metric,
+span, or log field changed.
