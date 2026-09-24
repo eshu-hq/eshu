@@ -19,7 +19,11 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-latest
-    timeout-minutes: 30
+    # 45, not 30: `go test ./...` on macos-latest now takes 25-28 minutes, so
+    # 30 cancelled 3 of the last 20 runs at exactly 30m on 2026-09-24 (PRs
+    # #7067 twice, #7071), turning this blocking gate into a coin flip on
+    # runner speed rather than a test signal.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v5
