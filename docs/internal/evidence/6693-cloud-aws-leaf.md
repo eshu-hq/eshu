@@ -103,11 +103,9 @@ and `go/internal/collector/awscloud/AGENTS.md` (a dependent-file list entry).
 
 `bash scripts/verify-moved-file-refs.sh` (which does not carve out
 `docs/internal/design`) caught a sixth: `docs/internal/design/1286-postgres-ownership-inventory.md`'s
-dated "Sources used" list (`Source check date: 2026-06-02`) names both old
-paths as files that PR's inventory read. Repointing would misstate what
-#1286 actually read at that check date, so both lines were added to
-`scripts/moved-file-refs-allowlist.txt` instead, following the existing
-`#6642`/`#6777` dated-evidence precedents there.
+"Sources used" list names both old paths. Both lines are repointed to the
+new `cloud/aws/` paths, matching how the `maintenance/` and `vulnerability/`
+moves repointed their entries in the same list.
 
 ## Doc trio and root docs
 
@@ -178,9 +176,8 @@ fixture repoint) and the new `cloud/aws/`. `go test
 file, so no pin refresh was needed. `go test -list '.*'
 ./internal/storage/postgres/cloud/aws/` shows all 13 moved tests. From the
 repo root: `bash scripts/verify-dirgate.sh --all` exits 0;
-`bash scripts/verify-moved-file-refs.sh` exits 0 (4 vacated paths against
-this branch's base, no dangling references after the allowlist addition
-above); `bash scripts/verify-doc-citations.sh` exits 0;
+`bash scripts/verify-moved-file-refs.sh` exits 0 (no dangling references
+after the repoint above); `bash scripts/verify-doc-citations.sh` exits 0;
 `bash scripts/verify-package-docs.sh` and `bash
 scripts/verify-performance-evidence.sh origin/main` are clean; `git diff
 --check` is clean; `rg` for `aws_pagination_checkpoint.go`,

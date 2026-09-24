@@ -284,13 +284,3 @@ scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_j
 # querycontract/entity/repo_identity.go; repointing would misstate what #6060
 # promoted.
 docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal/query/querycontract/entity_repo_identity.go
-
-# #1286's ownership inventory carries a dated "Sources used" list (Source
-# check date: 2026-06-02) recording exactly which files were read to produce
-# that PR's inventory. #6693 checklist step 11 later moved these two into
-# cloud/aws/; repointing would misstate what #1286 actually read at its
-# stated check date. The live pointers are
-# go/internal/storage/postgres/cloud/aws/scan_status.go and
-# go/internal/storage/postgres/cloud/aws/pagination_checkpoint.go.
-docs/internal/design/1286-postgres-ownership-inventory.md:go/internal/storage/postgres/aws_scan_status.go
-docs/internal/design/1286-postgres-ownership-inventory.md:go/internal/storage/postgres/aws_pagination_checkpoint.go
