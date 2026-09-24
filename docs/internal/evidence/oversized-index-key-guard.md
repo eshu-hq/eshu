@@ -87,9 +87,14 @@ write passes through:
   shape (MERGE/CREATE inline maps, `SET n.p = expr`, `SET n += row.map`,
   `UNWIND $rows AS row`), sums the string bytes each row puts into every schema
   key of the written labels, and drops rows over `MaxIndexKeyBytes` (8000).
-  A dropped row takes every edge the same row writes; edges in other statements
-  MATCH the node and cannot attach. A value in a scalar parameter skips the
-  statement.
+  A dropped row takes everything that row writes, every node and every edge in
+  the statement, not only the node whose key was oversized: an oversized
+  `row.environment` on `BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher`
+  also drops the EvidenceArtifact node and its `HAS_DEPLOYMENT_EVIDENCE` and
+  `EVIDENCES_REPOSITORY_RELATIONSHIP` edges
+  (`TestEvidenceArtifactEnvironmentRowDropsWholeRow`). Edges in other
+  statements MATCH the node and cannot attach. A value in a scalar parameter
+  skips the statement.
 - `storage/cypher.InstrumentedExecutor` runs it on every `Execute` and
   `ExecuteGroup`. Every production write chain (ingester, projector,
   bootstrap-index, reducer canonical, semantic, edge and node writers) is built
@@ -129,14 +134,19 @@ fails on the semantic stage with `... name='annotation_unique'`. With the guard
 it passes (4.54 s on a fresh container including schema creation, 0.23 s on a warm rerun): all normal nodes and edges land in both generations and no
 oversized or mid-range value does.
 
-No-Regression Evidence (round 2, Apple M5 Max, host load average 2.8–5.0):
-`go test ./internal/graph -bench GuardIndexKeyWrites -benchmem -count=5`:
-500-row semantic Function batch 71.9–72.7 µs, 500-row canonical entity batch
-(`SET n += row.props`) 113.0–117.1 µs, 0 allocs/op in steady state. The
-canonical materialization guard reran at 358.6–367.2 µs, 0 allocs
-(`BenchmarkDropOversizedIndexKeysNoneDropped`, 5 runs), in line with round 1's
-365 µs. No Cypher text, batching, transaction shape or statement order changes;
-rows are filtered in place and the caller's parameters are never mutated.
+No-Regression Evidence (round 2, re-measured in round 3 on Apple M5 Max, shared
+host, load average 16–23): `go test ./internal/graph -bench GuardIndexKeyWrites
+-benchmem -count=5` measured 87–134 µs for the 500-row semantic Function batch
+and 131–144 µs for the 500-row canonical entity batch (`SET n += row.props`),
+0 allocs/op in steady state. A quiet host measured 72–117 µs earlier in round 2,
+and the round-2 reviewer measured 141–635 µs (semantic) and 209–349 µs
+(canonical) at load average 42, so the absolute figure moves with host load;
+the per-row cost stays between 0.2 and 1.3 µs, under 1% of a 500-row Neo4j
+write. The canonical materialization guard
+(`BenchmarkDropOversizedIndexKeysNoneDropped`, 5 runs) measured 394–455 µs, 0
+allocs, at the same load, against round 1's 365 µs on a quieter host. No
+Cypher text, batching, transaction shape or statement order changes; rows are
+filtered in place and the caller's parameters are never mutated.
 
 Observability Evidence (round 2): the counter is now
 `eshu_dp_graph_oversized_index_keys_skipped_total` (renamed from the unreleased
@@ -149,3 +159,87 @@ Observability Evidence (round 2): the counter is now
 span. The counter counts once per write attempt: the guard sits above the
 transient-retry executor, so driver retries do not recount; a work-item retry
 that rebuilds the write counts the same node again.
+
+## Round 3: the analyzer says what it cannot read
+
+Round 2 review (N1) found that `analyzeIndexWrites` reads Cypher text with
+regexes and, for a shape it did not recognize, tracked nothing and reported
+nothing. A future writer could reintroduce #7058 on Neo4j with no signal. The
+overlay probe wrote 9000-byte values in these shapes and dropped nothing:
+backtick label, lowercase keywords, `WITH row AS r`, a map lifted with
+`WITH row, row.props AS p ... SET n += p`, a nested `UNWIND row.params AS p`,
+`MERGE (m {uid}) SET m:Module, m.name = ...`, and a literal joined into the key
+(`'prefix:' + row.name`).
+
+This round does not claim the analyzer covers every Cypher shape. It reads the
+shapes below and reports the rest loudly.
+
+Read now (each has a RED test in `index_key_guard_shapes_test.go`): keywords in any case, backtick labels, `WITH row AS alias`,
+`WITH row.field AS alias` used as `SET n += alias`, `SET n += row`,
+`SET n:Label` after an unlabeled MERGE, and the bytes of string literals joined
+to a key with `+`.
+
+Reported, not dropped: `graph.UnanalyzedIndexWrites(cypher)` lists each
+schema-indexed label a statement writes in a shape the analyzer cannot read,
+with a closed reason. `unresolved_value` covers a value read from something the
+analyzer cannot resolve (a nested `UNWIND` element, an alias of an unknown
+map). `unparsed_write` covers a property-map entry or SET item outside the
+recognized forms (a backtick property key, `m['name'] = ...`, an unbalanced
+map). `unbound_label` covers a schema label in a write clause that the
+node-pattern reader never bound (a variable name outside `\w`). The rows are
+not dropped, because the guard cannot measure them; dropping unmeasured rows
+would be a silent data loss of its own.
+`InstrumentedExecutor` (and so the reducer materializer chain, which calls
+`GuardStatementIndexKeys`) increments
+`eshu_dp_graph_index_key_guard_unanalyzed_total{node_label,reason}` once per
+write attempt and logs one WARN per distinct statement,
+`graph write shape not analyzed by the index-key guard`, with `operation`,
+`node_label`, `reason` and a `statement_head` of at most 200 characters (no
+parameter values). The WARN is once per cached plan, and the plan cache holds
+4096 statements, so a full cache keeps the counter but stops the WARN.
+
+Sweep: `TestProductionCypherLiteralsAreGuarded` parses every non-test Go string
+literal (constants folded, `+` chains joined, `%s` filled with a schema label)
+under `internal/storage`, `internal/reducer`, `internal/projector`,
+`internal/collector` and `cmd`. It picks writers with its own regexes, not the
+analyzer's, so a shape the analyzer misses still counts. A literal that writes
+a schema-indexed label must get a guard plan with no unanalyzed report.
+Relationship-only MERGEs over MATCHed endpoints name no schema label in a write
+clause and SET only relationship variables, so the sweep classifies them out
+without a list. Two literals are on the explicit allowlist with reasons: the
+read-API latency gate's synthetic seeder, and the tfstate label migration that
+writes no value. The sweep examined 94 indexed-write literals on the tree it
+was written against and fails below 60, so a moved tree cannot pass it
+vacuously. `TestSweepFlagsSeededViolations` plants a nested-`UNWIND` writer and
+an accented-variable writer in a scratch tree and requires both to be found,
+while recognized shapes, relationship-only MERGEs, `%s` templates and DDL stay
+clean. Seeded RED on the real tree: a planted non-test literal under
+`internal/storage` failed the sweep with
+`guard reports [{Label:Parameter Reason:unresolved_value}]`; with it removed the sweep passes.
+
+No-Regression Evidence (round 3): the extra work per statement is one
+plan-cache lookup in `UnanalyzedIndexWrites`. `BenchmarkUnanalyzedIndexWrites`
+measured 14–22 ns and 0 allocs per call (5 runs, load average 16–23; the
+guard benchmarks above are the same run window). The plan for a statement is
+analyzed once, as before; the analysis now also computes the report.
+
+Observability Evidence (round 3): counter
+`eshu_dp_graph_index_key_guard_unanalyzed_total` with `node_label` (schema
+label) and `reason` (`unbound_label`, `unresolved_value`, `unparsed_write`),
+both closed sets, and the once-per-statement WARN above. Rows:
+`docs/public/observability/telemetry-coverage.md` (graph write, canonical
+atomic), `docs/public/reference/telemetry/metrics.md`,
+`docs/public/reference/telemetry/metrics-reducer-storage.md`. At 3 AM a non-zero
+rate of this counter means a writer took a shape the analyzer must learn; the
+WARN names the label, the reason and the head of the statement. In the live
+Neo4j run below no `not analyzed` WARN fired, so none of the production writers
+the test drives took an unread shape.
+
+Live proof (round 3, `neo4j:2026-community@sha256:eabfbb04…`, started with
+`NEO4J_AUTH=none`, which `openBoltTestRunner` needs because it connects with no
+authentication): `ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:47687
+ESHU_CYPHER_BOLT_DATABASE=neo4j go test ./internal/storage/cypher -run
+TestLiveCanonicalWriteSkipsOversizedIndexKeys -count=1 -v` passed in 8.28 s. The canonical and reducer statement guards logged the 32,473
+byte Module, the 9,029 and 8,100 byte Functions, the 9,029 byte Annotation, and
+the 9,024 and 9,041 byte Terraform state resource and module for both
+generations, and the normal nodes and edges landed.

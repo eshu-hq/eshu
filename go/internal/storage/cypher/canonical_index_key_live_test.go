@@ -91,8 +91,10 @@ func (e indexKeyAtomicExecutor) ExecuteGroup(ctx context.Context, stmts []Statem
 // or mid-range value may.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN must point at a Neo4j backend (the rejection step
-// is Neo4j-only; set ESHU_CYPHER_BOLT_DATABASE=neo4j). When unset the test
-// skips.
+// is Neo4j-only; set ESHU_CYPHER_BOLT_DATABASE=neo4j). openBoltTestRunner
+// connects with no authentication, so start Neo4j with NEO4J_AUTH=none; a
+// server that requires a password fails with Neo.ClientError.Security.Unauthorized.
+// When ESHU_CYPHER_BOLT_DSN is unset the test skips.
 func TestLiveCanonicalWriteSkipsOversizedIndexKeys(t *testing.T) {
 	runner := openBoltTestRunner(t)
 	t.Cleanup(func() { runner.close(context.Background()) })

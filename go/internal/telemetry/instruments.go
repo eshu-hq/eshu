@@ -1536,6 +1536,15 @@ type Instruments struct {
 	// so both sets are closed. The value and repository stay in the paired
 	// WARN log line, never in a label.
 	GraphOversizedIndexKeysSkipped metric.Int64Counter
+	// GraphIndexKeyGuardUnanalyzed counts graph write statement attempts that
+	// write a schema-indexed label in a shape the index-key analyzer cannot
+	// read, so an oversized value written that way is neither dropped nor
+	// counted (#7058). The rows still reach the backend. It is emitted by
+	// cypher.InstrumentedExecutor, once per attempt per (label, reason).
+	// Labels: node_label (a schema-indexed label) and reason
+	// (unbound_label, unresolved_value, or unparsed_write), both closed sets.
+	// The statement text stays in the once-per-statement WARN, never in a label.
+	GraphIndexKeyGuardUnanalyzed metric.Int64Counter
 
 	// Neo4j transient error retry metrics
 	Neo4jDeadlockRetries metric.Int64Counter
@@ -4746,6 +4755,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GraphOversizedIndexKeysSkipped counter: %w", err)
+	}
+
+	inst.GraphIndexKeyGuardUnanalyzed, err = meter.Int64Counter(
+		"eshu_dp_graph_index_key_guard_unanalyzed_total",
+		metric.WithDescription("Total graph write attempts to a schema-indexed label in a shape the oversized-index-key analyzer cannot read, by node_label and reason; the rows are written unguarded"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GraphIndexKeyGuardUnanalyzed counter: %w", err)
 	}
 
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(

@@ -788,7 +788,7 @@ write and retract templates actually do.
 **Executor wrappers** (composable chain links)
 
 - `InstrumentedExecutor` — OTEL span, query-duration histogram, and the #7058
-  oversized index-key guard on every write (`GuardStatementIndexKeys`; see graph README)
+  oversized index-key guard on every write (`GuardStatementIndexKeys`; unread write shapes counted and logged; see graph README)
 - `RetryingExecutor` — wraps `Executor` with exponential backoff/jitter for
   transient Neo4j and NornicDB errors
 - `TimeoutExecutor` — bounds individual statements with a child context;

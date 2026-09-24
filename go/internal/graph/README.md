@@ -39,8 +39,11 @@ graph/
   schema_labels.go — schema label naming helpers
   schema_index_keys.go — MaxIndexKeyBytes, IndexKey, SchemaIndexKeys:
                    the label -> indexed-properties map derived from the DDL
-  index_key_guard.go, index_key_guard_parse.go — GuardIndexKeyWrites: the
-                   schema-derived oversized-index-key guard for one statement
+  index_key_guard.go, index_key_guard_parse.go, index_key_guard_expr.go —
+                   GuardIndexKeyWrites: the schema-derived oversized-index-key
+                   guard for one statement
+  index_key_guard_report.go — UnanalyzedIndexWrites: the fail-loud report for
+                   indexed-label writes the analyzer cannot read
 ```
 
 ## Oversized index-key guard (#7058)
@@ -54,11 +57,29 @@ fields or parameters feed each property (`{p: row.x}` maps, `SET n.p = expr`,
 (`SchemaIndexKeysByLabel`) it sums the string bytes of the row's values and
 drops the row when the total exceeds `MaxIndexKeyBytes` (8000). A statement
 whose value comes from a scalar parameter is reported as skipped. MATCH and
-WHERE values are lookups and never count. Plans are cached per Cypher text
-(bounded at 4096 entries); the steady-state cost is about 72 µs for a
-500-row semantic Function batch and 113 µs for a 500-row canonical entity batch,
-with 0 allocations. `storage/cypher.InstrumentedExecutor` calls it on every
-graph write, so it applies to every writer on both backends.
+WHERE values are lookups and never count. Dropping a row drops every node and
+edge that row writes, not only the node whose key was oversized. Plans are
+cached per Cypher text (bounded at 4096 entries); on a loaded Apple M5 Max the
+steady-state cost measured 87-134 µs for a 500-row semantic Function batch and
+131-144 µs for a 500-row canonical entity batch, with 0 allocations.
+`storage/cypher.InstrumentedExecutor` calls it on every graph write, so it
+applies to every writer on both backends.
+
+The analyzer reads the shapes Eshu writers use: any keyword case, backtick
+labels, `UNWIND $rows AS row`, `WITH row AS r` and `WITH row.props AS p`
+aliases, inline MERGE/CREATE maps, `SET n.p = expr`, `SET n += map`, `SET
+n:Label`, and string literals joined with `+`. It does not read every Cypher
+spelling. `UnanalyzedIndexWrites(cypher)` reports each schema-indexed label a
+statement writes in a shape the analyzer cannot read, with a closed reason
+(`unbound_label`, `unresolved_value`, `unparsed_write`), for example a value
+read from a nested `UNWIND row.params AS p` element. Those rows are not
+dropped, since their values cannot be measured; `InstrumentedExecutor` counts
+them on `eshu_dp_graph_index_key_guard_unanalyzed_total` and logs one WARN per
+distinct statement. `TestProductionCypherLiteralsAreGuarded` parses the
+production Go string literals under `internal/storage`, `internal/reducer`,
+`internal/projector`, `internal/collector`, and `cmd`, and fails when one
+writes a schema-indexed label the guard does not fully read; its `sweepAllow`
+list carries each exception with a reason.
 
 ## Ownership boundary
 

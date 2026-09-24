@@ -32,5 +32,8 @@
 // DDL, and GuardIndexKeyWrites uses them to drop any statement row that would
 // put more than MaxIndexKeyBytes into one index key, so a single oversized
 // source value skips one node instead of failing the atomic write it rides
-// in. A new index is covered without touching any writer.
+// in. A new index is covered without touching any writer. The guard reads the
+// write shapes Eshu writers emit; UnanalyzedIndexWrites reports any write to an
+// indexed label in a shape it cannot read, so an unrecognized shape is loud
+// rather than silently unguarded.
 package graph

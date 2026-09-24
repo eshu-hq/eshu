@@ -55,16 +55,27 @@ var (
 //
 // The indexed keys come from the Go-owned schema (SchemaIndexKeysByLabel),
 // so a new index is guarded without touching any writer. For UNWIND $param
-// statements it drops the offending rows, which also drops every edge the
-// same row would have written; edges written by other statements MATCH the
-// node and so cannot attach to a node that was never written. For statements
-// whose indexed value comes from a scalar parameter it reports skip=true and
-// the caller must not execute the statement.
+// statements it drops the offending rows, and dropping a row drops everything
+// that row writes: every node and every edge in the statement, not only the
+// node whose key was oversized. An oversized row.environment on
+// BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher, for example,
+// also drops the EvidenceArtifact node and its HAS_DEPLOYMENT_EVIDENCE and
+// EVIDENCES_REPOSITORY_RELATIONSHIP edges. Edges written by other statements
+// MATCH the node and so cannot attach to a node that was never written. For
+// statements whose indexed value comes from a scalar parameter it reports
+// skip=true and the caller must not execute the statement.
+//
+// The analyzer reads the write shapes Eshu writers use (see
+// index_key_guard_parse.go). It does not claim to read every Cypher spelling:
+// a statement that writes a schema-indexed label in a shape it cannot read is
+// left unchanged and reported by UnanalyzedIndexWrites, which the executor
+// turns into a metric and a WARN. TestProductionCypherLiteralsAreGuarded fails
+// when a production writer takes such a shape.
 //
 // params is never mutated. When nothing is oversized, params is returned
 // unchanged and dropped is nil.
 func GuardIndexKeyWrites(cypher string, params map[string]any) (out map[string]any, dropped []OversizedIndexWrite, skip bool) {
-	plan := indexWritePlanFor(cypher)
+	plan, _ := indexWritePlanFor(cypher)
 	if len(plan.vars) == 0 {
 		return params, nil, false
 	}
@@ -97,17 +108,22 @@ func GuardIndexKeyWrites(cypher string, params map[string]any) (out map[string]a
 	return out, dropped, false
 }
 
-func indexWritePlanFor(cypher string) *indexWritePlan {
-	if cached, ok := indexWritePlans.Load(cypher); ok {
-		return cached.(*indexWritePlan)
+// indexWritePlanFor returns the analysis of cypher and whether it lives in
+// the plan cache. A plan analyzed while the cache is full is returned
+// uncached and analyzed again on the next call.
+func indexWritePlanFor(cypher string) (plan *indexWritePlan, cached bool) {
+	if hit, ok := indexWritePlans.Load(cypher); ok {
+		return hit.(*indexWritePlan), true
 	}
-	plan := analyzeIndexWrites(cypher)
-	if indexWritePlanCount.Load() < indexWritePlanCacheLimit {
-		if _, loaded := indexWritePlans.LoadOrStore(cypher, plan); !loaded {
-			indexWritePlanCount.Add(1)
-		}
+	plan = analyzeIndexWrites(cypher)
+	if indexWritePlanCount.Load() >= indexWritePlanCacheLimit {
+		return plan, false
 	}
-	return plan
+	actual, loaded := indexWritePlans.LoadOrStore(cypher, plan)
+	if !loaded {
+		indexWritePlanCount.Add(1)
+	}
+	return actual.(*indexWritePlan), true
 }
 
 // filterIndexWriteRows returns the kept rows of params[param] in their
@@ -253,6 +269,9 @@ func (v *indexWriteVar) propSize(prop string, row, params map[string]any) (int, 
 			for _, f := range e.fields {
 				consider(row[f])
 			}
+			if e.wholeRow {
+				consider(row)
+			}
 		}
 		for _, p := range e.params {
 			consider(params[p])
@@ -279,7 +298,7 @@ func (e indexWriteExpr) size(row, params map[string]any) (int, string) {
 		add(params[p])
 	}
 	if e.sum {
-		return total, bestValue
+		return total + e.constBytes, bestValue
 	}
 	return best, bestValue
 }
@@ -291,6 +310,9 @@ func (e indexWriteExpr) maps(row, params map[string]any) []map[string]any {
 			if m, ok := row[f].(map[string]any); ok {
 				out = append(out, m)
 			}
+		}
+		if e.wholeRow {
+			out = append(out, row)
 		}
 	}
 	for _, p := range e.params {

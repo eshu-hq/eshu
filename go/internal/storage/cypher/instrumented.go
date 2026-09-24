@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -263,6 +264,7 @@ func guardStatementIndexKeys(ctx context.Context, statement Statement, instrumen
 	if len(dropped) > 0 {
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("oversized_index_keys_skipped", len(dropped)))
 	}
+	reportUnanalyzedIndexWrites(ctx, statement, instruments)
 	statement.Parameters = params
 	return statement, len(dropped), skip
 }
@@ -289,4 +291,45 @@ func GuardStatementsIndexKeys(ctx context.Context, stmts []Statement, instrument
 		return stmts
 	}
 	return out
+}
+
+// unanalyzedStatementHeadBytes bounds the statement text one WARN carries.
+const unanalyzedStatementHeadBytes = 200
+
+// reportUnanalyzedIndexWrites makes a write the index-key analyzer cannot read
+// visible instead of silently unguarded (#7058). The statement still executes
+// with its rows intact: the guard cannot reason about those values, so it
+// neither drops nor counts them. Each attempt increments
+// eshu_dp_graph_index_key_guard_unanalyzed_total per (node_label, reason), and
+// the first attempt of each distinct statement logs one WARN carrying a bounded
+// statement head and never a parameter value.
+func reportUnanalyzedIndexWrites(ctx context.Context, statement Statement, instruments *telemetry.Instruments) {
+	refs, first := graph.UnanalyzedIndexWrites(statement.Cypher)
+	if len(refs) == 0 {
+		return
+	}
+	if instruments != nil && instruments.GraphIndexKeyGuardUnanalyzed != nil {
+		for _, ref := range refs {
+			instruments.GraphIndexKeyGuardUnanalyzed.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrNodeLabel(ref.Label),
+				telemetry.AttrReason(ref.Reason),
+			))
+		}
+	}
+	if !first {
+		return
+	}
+	head := strings.Join(strings.Fields(statement.Cypher), " ")
+	if len(head) > unanalyzedStatementHeadBytes {
+		head = strings.ToValidUTF8(head[:unanalyzedStatementHeadBytes], "")
+	}
+	for _, ref := range refs {
+		slog.WarnContext(
+			ctx, "graph write shape not analyzed by the index-key guard",
+			"operation", string(statement.Operation),
+			"node_label", ref.Label,
+			"reason", ref.Reason,
+			"statement_head", head,
+		)
+	}
 }
