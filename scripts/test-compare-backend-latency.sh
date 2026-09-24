@@ -20,12 +20,12 @@ fail() {
 	exit 1
 }
 
-# base_report BACKEND -- a minimal valid schema-version-1 report with two
+# emit_leg BACKEND -- a minimal valid schema-version-1 report with two
 # comparable routes (GET /a, GET /b), written to "${work}/${1}.json".
 # The template lives in scripts/lib/test-compare-backend-latency-report.json
 # (the heredoc budget gate caps inline heredocs at 512 bytes).
 fixture="${repo_root}/scripts/lib/test-compare-backend-latency-report.json"
-base_report() {
+emit_leg() {
 	local backend="$1" p95_a="$2" p95_b="$3"
 	jq --arg backend "${backend}" --argjson a "${p95_a}" --argjson b "${p95_b}" '
 		.identity.backend = $backend
@@ -34,8 +34,8 @@ base_report() {
 	' "${fixture}" >"${work}/${backend}.json"
 }
 
-base_report nornicdb 13 7
-base_report neo4j 26 4
+emit_leg nornicdb 13 7
+emit_leg neo4j 26 4
 
 # --- GREEN: a matching identity pair renders the table with both routes
 # compared, no NON-COMPARABLE rows. ---
