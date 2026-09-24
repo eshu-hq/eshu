@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestCompareEnvironmentsReturnsStoryGradePacket(t *testing.T) {
@@ -236,5 +236,5 @@ func TestEnvironmentCompareResponseCarriesAnswerMetadata(t *testing.T) {
 		false,
 		false,
 	)
-	querytestutil.AssertAnswerMetadata(t, "environment comparison", environment)
+	testutil.AssertAnswerMetadata(t, "environment comparison", environment)
 }
