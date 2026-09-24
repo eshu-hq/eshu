@@ -82,6 +82,10 @@ func TestNeo4jEntityIDAnchorLabelsMatchSchema(t *testing.T) {
 // expression, e.g. "Package:PackageRegistryPackage".
 var uidMergeLabelsRe = regexp.MustCompile(`MERGE \(\w*:([A-Za-z0-9:]+)\s*\{uid:`)
 
+// idMergeLabelsRe matches a literal id-keyed MERGE and captures its label
+// expression.
+var idMergeLabelsRe = regexp.MustCompile(`MERGE \(\w*:([A-Za-z0-9:]+)\s*\{id:`)
+
 // TestNeo4jEntityIDAnchorCoversEveryUIDWriter fails when a production graph
 // writer MERGEs a node by uid under a label the anchor cannot seek. Every such
 // uid can come back to a caller -- the relationships row returns neighbours'
@@ -117,6 +121,15 @@ func TestNeo4jEntityIDAnchorCoversEveryUIDWriter(t *testing.T) {
 				labels := strings.Split(m[1], ":")
 				if !slices.ContainsFunc(labels, func(l string) bool { _, ok := anchored[l]; return ok }) {
 					t.Errorf("%s: MERGE on uid for %q, but no label is in an entity-id anchor list", path, m[1])
+				}
+			}
+			// An id-keyed MERGE on a uid-anchored label could write a node whose
+			// id differs from its uid, which the uid branch would not find.
+			for _, m := range idMergeLabelsRe.FindAllStringSubmatch(string(src), -1) {
+				for _, l := range strings.Split(m[1], ":") {
+					if slices.Contains(neo4jEntityUIDAnchorLabels, l) || slices.Contains(neo4jEntityUIDIndexAnchorLabels, l) {
+						t.Errorf("%s: MERGE on id for uid-anchored label %q; uid seeks would miss it", path, l)
+					}
 				}
 			}
 			return nil

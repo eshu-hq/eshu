@@ -48,7 +48,7 @@ the same node.
 | Module (semantic entities) | `module_uid_unique` | semantic writer MERGEs on uid and sets `id` to the same value. The canonical import-graph Module MERGEs on `(name, lang)` with no id or uid. | equal, or neither | yes | uid constraint |
 | File | `file_uid_unique` | canonical file writer MERGEs on `path` and sets `f.uid`; it never sets `id` | no `id` | yes (search and call-graph results) | uid constraint |
 | Reducer or dedicated-writer uid labels: CloudResource, KubernetesWorkload, KubernetesNamespace, CidrBlock, PrefixList, SecurityGroupRule, IncidentRoutingEvidence, CodeTaintEvidence, ExternalPrincipal, SecretsIAM*, ShellCommand, TerraformStateResource, OCI and package-registry labels | `<label>_uid_unique` | `MERGE (x:Label {uid: row.uid})` then `SET x.id = row.uid`. ShellCommand's edge writer sets no id. The dependency-target upsert sets `id` ON CREATE to the same value it MERGEs uid on. | equal, or no `id` | yes (infra, cloud, supply-chain reads) | uid constraint |
-| Rationale, DocumentationSection | `rationale_uid`, `documentation_section_uid` RANGE indexes (new here) | `MERGE (rationale:Rationale {uid: row.rationale_uid})` (`canonical_rationale_edges.go`) and `MERGE (section:DocumentationSection {uid: row.section_uid})` (`canonical_documentation_edges.go`); no `id` | no `id` | yes: the relationships row returns them as `source_id` of EXPLAINS and DOCUMENTS neighbours | uid index |
+| Rationale, DocumentationSection | `rationale_uid`, `documentation_section_uid` RANGE indexes (new here, Neo4j only) | `MERGE (rationale:Rationale {uid: row.rationale_uid})` (`canonical_rationale_edges.go`) and `MERGE (section:DocumentationSection {uid: row.section_uid})` (`canonical_documentation_edges.go`); no `id` | no `id` | yes: the relationships row returns them as `source_id` of EXPLAINS and DOCUMENTS neighbours | uid index |
 | Repository, Workload, WorkloadInstance, Platform, Endpoint, EvidenceArtifact, CloudAction | `REQUIRE x.id IS UNIQUE` | MERGE on `id`; no writer sets `uid` | no `uid` | yes: Repository and Workload ids come straight from resolve | id constraint |
 | Parameter, Directory, name-keyed import Module, Environment, Ecosystem, Tier, CodeownerTeam, SourceLocalRecord | other keys | MERGE on name, path or ref keys; no `id` or `uid` | neither | the old predicate never matched them | not needed |
 
@@ -119,7 +119,9 @@ than the `AllNodesScan`, so it was dropped.
 
 ### Schema change
 
-`schemaPerformanceIndexes` adds two statements, applied on both backends:
+A new Neo4j-only list, `neo4jUIDLookupIndexes`, adds two statements. It is
+gated by the schema dialect, the mirror of the NornicDB-only
+`nornicDBMergeLookupIndexes`:
 
 - `CREATE INDEX rationale_uid IF NOT EXISTS FOR (r:Rationale) ON (r.uid)`
 - `CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)`
@@ -128,24 +130,34 @@ These are RANGE indexes, not uniqueness constraints. A constraint would fail
 to create on an existing graph that already holds duplicate uids, and the
 anchor only needs a seek.
 
-Both schema fingerprints move:
+They stay off NornicDB on purpose. NornicDB readers resolve the label first
+and never use `Neo4jEntityIDAnchor`. A NornicDB fingerprint bump would make
+bootstrap re-apply the full schema on every existing NornicDB store, and a
+re-issued `CREATE INDEX IF NOT EXISTS` re-backfills existing property indexes
+there (`nornicdb-pitfalls.md`, section "Pitfall: `CREATE INDEX IF NOT
+EXISTS` Rebackfills Existing Property Indexes"). The NornicDB statement list, fingerprint
+(`f957752d...`) and compatible list are byte-identical to base `a95dd0d54d`.
+`TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly` pins the fingerprint, and a
+statement dump from both trees compares equal.
 
-- Neo4j `9041fb74...` to `51025f70...`
-- NornicDB `f957752d...` to `04419f9a...`
-
-The bump is additive. The writers already MERGE both labels on uid, no MERGE
-or MATCH identity changes, and a writer on the previous schema writes the
-same graph. The previous fingerprints are recorded as
-`graphSchema*PreUnconstrainedUIDIndexFingerprint` in `schema_predecessors.go`
-and listed as compatible, ahead of the #6793 and #6541 predecessors.
-`TestSchemaApplicationsDeclareCompatibilityDecision` pins the new decision.
+Only the Neo4j fingerprint moves, from `9041fb74...` to `dc9d1cfb...` (254 to
+256 statements). The bump is additive. The writers already MERGE both labels
+on uid, no MERGE or MATCH identity changes, and a writer on the previous
+schema writes the same graph. The previous Neo4j fingerprint is recorded as
+`graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint` in
+`schema_predecessors.go` and listed as compatible, ahead of the #6793 and
+#6541 predecessors. `TestSchemaApplicationsDeclareCompatibilityDecision` pins
+the decision. `TestEnsureSchemaAppliesUnconstrainedUIDIndexesOnNeo4jOnly`
+drives the real execution path, which walks the DDL tables separately from
+the statement listing. It checks that Neo4j executes both indexes, that
+NornicDB executes neither, and that every listed statement is executed.
 
 DDL cost on the fixture below: 66.6 ms and 109.3 ms to create the two
 indexes over 2,000 nodes each, and 137 ms for `db.awaitIndexes`. The Neo4j
-cutover applies the schema on a new, empty graph, so building the index there
-costs nothing. Until an existing graph has the index, the middle branch plans
-as a `UnionNodeByLabelsScan` over just those two labels: 8,244 db hits on the
-fixture, still with the right rows.
+cutover applies the schema on a new, empty graph, so building the indexes
+there costs nothing. Until an existing Neo4j graph has the indexes, the
+middle branch plans as a `UnionNodeByLabelsScan` over just those two labels:
+8,244 db hits on the fixture, still with the right rows.
 
 ### Label-list pins
 
@@ -161,7 +173,17 @@ copied into it. Two tests keep the copies honest:
   `MERGE (x:Label {uid:`. It also takes every canonical `entityTypeLabelMap`
   label, since the canonical writer MERGEs those on uid through a template.
   It fails when one of those labels is in none of the three lists. That is
-  how F1 happened: a uid writer with no constraint and no index.
+  how F1 happened: a uid writer with no constraint and no index. It also
+  fails on a literal id-keyed `MERGE (x:Label {id:` whose label is
+  uid-anchored, since that could write a node whose id is not its uid. A
+  planted `MERGE (f:Function {id: row.id})` failed the test and removing it
+  passed.
+
+One known gap: the semantic writer's string-concatenated MERGE
+(`"MERGE (n:" + label + " {uid: ..."` in `semantic_entity_statements.go`)
+is invisible to the literal scan. Today every label it receives is
+uid-constrained, so no label is missed. Enumerating the semantic label set
+would close the gap; that is left as a follow-up.
 
 ## Tests
 
@@ -280,5 +302,5 @@ No-Observability-Change: these are query-shape changes inside existing
 readers and builders, plus two additive schema indexes. They add no metric,
 span, or log key. The existing graph-read telemetry on these handlers (query
 duration, row counts, and the graph deadline error path) still covers the
-same reads. The existing schema bootstrap logs report each new index
+same reads. The existing schema bootstrap logs report each new Neo4j index
 statement with its backend, ordinal, duration and failure class.

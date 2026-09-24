@@ -81,11 +81,11 @@ const (
 	// directory language-query route's seek and changes no MERGE or MATCH
 	// identity, so a writer on the previous schema writes exactly the same
 	// graph -- it merely reads that one route more slowly.
-	// The #6793 tf_module/tf_output evidence_source indexes and the #7057
-	// Rationale/DocumentationSection uid indexes are additive too; see
+	// The #6793 tf_module/tf_output evidence_source indexes and the Neo4j-only
+	// #7057 Rationale/DocumentationSection uid indexes are additive too; see
 	// schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "51025f70d0241d9af778b50d8b2c2d03ea7d0f7392c5cf6f118939436ebd1fb3"
-	graphSchemaNornicDBFingerprint = "04419f9acfe9061ae65d3d4fbe71d712b13965e6ef08685892bbb80f2e217ba5"
+	graphSchemaNeo4jFingerprint    = "dc9d1cfb57e5cc89f89f6af0cdd8b39842241badf6856742c4b290dbeb986b74"
+	graphSchemaNornicDBFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
 	// are the digests immediately before that index was added, which is the
@@ -351,13 +351,14 @@ var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
 // Destructive schema changes, schema changes coupled to new reducer domains,
 // and write-identity cutovers must not list predecessors.
 //
-// The current fingerprint maps to an empty list on purpose: the #6102 Module
-// (name, lang) cutover changes what a writer MERGEs on, and a writer on any
-// earlier release resolves an import-edge target by module name alone. The
-// pre-cutover entry below is retained, keyed by that schema's own fingerprint
-// rather than the current one, so it can never be reached by the current
-// lookup. It records what that schema admitted, and the fence tests drive the
-// real admission decision with it.
+// The current fingerprint lists only the additive index bumps made since the
+// #6102 Module (name, lang) cutover; the chain stops at that cutover, because
+// it changed what a writer MERGEs on and a writer on any earlier release
+// resolves an import-edge target by module name alone. The pre-cutover entry
+// below is retained, keyed by that schema's own fingerprint rather than the
+// current one, so it can never be reached by the current lookup. It records
+// what that schema admitted, and the fence tests drive the real admission
+// decision with it.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
@@ -387,7 +388,6 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
-			graphSchemaNornicDBPreUnconstrainedUIDIndexFingerprint,
 			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
 			graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
 		},

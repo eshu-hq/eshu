@@ -200,15 +200,6 @@ var schemaPerformanceIndexes = []string{
 	// of a scan of the whole label.
 	"CREATE INDEX tf_module_evidence_source IF NOT EXISTS FOR (m:TerraformModule) ON (m.evidence_source)",
 	"CREATE INDEX tf_output_evidence_source IF NOT EXISTS FOR (o:TerraformOutput) ON (o.evidence_source)",
-	// Rationale and DocumentationSection are MERGEd on uid
-	// (canonical_rationale_edges.go, canonical_documentation_edges.go) but
-	// carry no uid uniqueness constraint. Their uids reach API callers as the
-	// source_id of EXPLAINS / DOCUMENTS neighbours on the relationships row,
-	// and the Neo4j entity-id anchor (codemodel.Neo4jEntityIDAnchor) seeks
-	// them through these indexes instead of scanning every node (#7057). The
-	// same indexes put both writers' uid MERGE on an index lookup.
-	"CREATE INDEX rationale_uid IF NOT EXISTS FOR (r:Rationale) ON (r.uid)",
-	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
 	// Backs the #5443 MATCHES_STATE edge write: the graph writer anchors on
 	// `{repo_id, name}` where name is the config-declared bare address (e.g.
 	// "aws_instance.web") -- the most selective property available (an
@@ -338,6 +329,22 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
+}
+
+// neo4jUIDLookupIndexes are uid RANGE indexes applied on Neo4j only, the
+// mirror of the NornicDB-only lookup lists above. Rationale and
+// DocumentationSection are MERGEd on uid (canonical_rationale_edges.go,
+// canonical_documentation_edges.go) but carry no uid uniqueness constraint.
+// Their uids reach API callers as the source_id of EXPLAINS / DOCUMENTS
+// neighbours on the relationships row, and the Neo4j entity-id anchor
+// (codemodel.Neo4jEntityIDAnchor) seeks them through these indexes instead of
+// scanning every node (#7057). NornicDB readers resolve the label first and
+// never use that anchor, so these stay off the NornicDB dialect: a NornicDB
+// fingerprint bump would force a full schema re-apply on every existing store,
+// and re-issued property indexes re-backfill there (nornicdb-pitfalls.md).
+var neo4jUIDLookupIndexes = []string{
+	"CREATE INDEX rationale_uid IF NOT EXISTS FOR (r:Rationale) ON (r.uid)",
+	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
 }
 
 // schemaFulltextIndexes lists Neo4j full-text index creation statements.
