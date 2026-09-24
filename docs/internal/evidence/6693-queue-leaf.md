@@ -50,6 +50,15 @@ Adding the `queue/` directory makes dirgate's sibling-name rule flag root's
 (checklist step 38). That file now carries a `//nolint:dirgate` marker naming
 step 38 until that move lands.
 
+`scripts/verify-moved-file-refs.sh` also caught non-doc references to the two
+vacated root paths: `.github/workflows/ifa-determinism-gate.yml`'s and
+`specs/ci-gates.v1.yaml`'s `ifa-determinism-gate`/`ifa-live-gate` trigger path
+lists, and `scripts/lib/ifa_live_gate_selector_cases.sh`'s selector fixture
+table. All three are repointed to `queue/failure_metadata.go`/`queue/backoff.go`;
+`bash scripts/verify-ci-gates-registry.sh --drift` and both YAML files parsing
+via `python3 -c "import yaml; yaml.safe_load(open(...))"` confirm the registry
+and workflow stayed in sync.
+
 No-Regression Evidence: `QueueFailureMetadata`, `DeadLetterTriageMetadata`,
 `ComputeRetryDelay`, `DefaultRetryMaxDelayFallback`, `DefaultJitterSource`,
 and `sanitizeFailureText` are unchanged apart from the package clause and the
