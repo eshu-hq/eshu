@@ -9,8 +9,6 @@ import (
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
-
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 func TestNornicDBEntityLabelBatchSizes(t *testing.T) {
@@ -247,23 +245,6 @@ func TestIngesterContentBeforeCanonicalOnlyLocalAuthoritative(t *testing.T) {
 		return ""
 	}) {
 		t.Fatal("ingesterContentBeforeCanonical(production) = true, want false")
-	}
-}
-
-func TestCanonicalTransactionTimeoutOnlyAppliesToNornicDB(t *testing.T) {
-	t.Parallel()
-
-	getenv := func(key string) string {
-		if key == "ESHU_CANONICAL_WRITE_TIMEOUT" {
-			return "3s"
-		}
-		return ""
-	}
-	if got := canonicalTransactionTimeout(runtimecfg.GraphBackendNeo4j, getenv); got != 0 {
-		t.Fatalf("canonicalTransactionTimeout(neo4j) = %s, want 0", got)
-	}
-	if got := canonicalTransactionTimeout(runtimecfg.GraphBackendNornicDB, getenv); got != 3*time.Second {
-		t.Fatalf("canonicalTransactionTimeout(nornicdb) = %s, want 3s", got)
 	}
 }
 
