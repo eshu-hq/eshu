@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `governance/audit/` (2 non-test, 5 test)
+### `governance/audit/` (2 non-test, 4 test)
 
 ```text
 governance_audit_store.go -> governance/audit/store.go
@@ -17,9 +17,18 @@ governance_audit_store_helpers.go -> governance/audit/helpers.go
 governance_audit_append_bench_test.go -> governance/audit/append_bench_test.go
 governance_audit_list_warn_test.go -> governance/audit/list_warn_test.go
 governance_audit_scan_tolerance_test.go -> governance/audit/scan_tolerance_test.go
-governance_audit_store_test.go -> governance/audit/store_test.go   # external test package: imports root
 governance_audit_tenant_test.go -> governance/audit/tenant_test.go
 ```
+
+`governance_audit_store_test.go` stays in root (see `root.md`): it asserts
+root's `BootstrapDefinitions()`/`orderedBootstrapDefinitionNames`, matching the
+`cicd/` leaf's precedent.
+
+`governance/audit/tenant_test.go` split its event-id-uniqueness tests
+(`TestGovernanceAuditEventIDDistinctAcrossTenants` and two more) into a
+sibling `tenant_eventid_test.go` at move time to keep both files under the
+repo's 500-line cap; this is a same-destination file split, not a
+symbol/package remapping, so it does not change this section's file counts.
 
 </details>
 

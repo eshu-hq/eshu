@@ -41,6 +41,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -135,7 +136,7 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "governance_audit",
 	}
-	governanceAuditStore := postgres.NewGovernanceAuditStore(governanceAuditDB)
+	governanceAuditStore := auditstore.NewGovernanceAuditStore(governanceAuditDB)
 	if err := governanceAuditStore.EnsureSchema(parent); err != nil {
 		return err
 	}

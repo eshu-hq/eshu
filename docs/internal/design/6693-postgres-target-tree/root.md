@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 113 test)
+### `root (stays)` (4 non-test, 114 test)
 
 ```text
 adapters.go -> adapters.go
@@ -63,6 +63,7 @@ facts_cross_batch_fencing_proof_test.go -> facts_cross_batch_fencing_proof_test.
 fips_md5_queries_test.go -> fips_md5_queries_test.go   # SPLIT: reads private symbols of identity/admin, status
 freshness_claim_lease_migration_backfill_integration_test.go -> freshness_claim_lease_migration_backfill_integration_test.go   # spans root=43% freshness/aws=29% freshness/gcp=29%
 generation_prior_live_test.go -> generation_prior_live_test.go
+governance_audit_store_test.go -> governance_audit_store_test.go   # asserts root BootstrapDefinitions() includes the governance audit DDL (found in the governance/audit/ move; cicd/ precedent)
 graph_node_owner_store_test.go -> graph_node_owner_store_test.go   # SPLIT: reads private symbols of graph/owner, lock
 iac_inventory_index_schema_test.go -> iac_inventory_index_schema_test.go
 identity_admin_fake_rows_test.go -> identity_admin_fake_rows_test.go   # no production references

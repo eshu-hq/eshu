@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -222,7 +223,7 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminAPITokens(
 // the detailed List surface disables the events endpoint without failing
 // startup.
 type adminGovernanceAuditReader struct {
-	store   pgstatus.GovernanceAuditStore
+	store   auditstore.GovernanceAuditStore
 	summary query.GovernanceAuditSummaryReader
 }
 
@@ -245,7 +246,7 @@ func newAdminGovernanceAuditReader(
 		}
 	}
 	return &adminGovernanceAuditReader{
-		store:   pgstatus.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger),
+		store:   auditstore.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger),
 		summary: summary,
 	}
 }
@@ -254,7 +255,7 @@ func (a *adminGovernanceAuditReader) ListAuditEvents(
 	ctx context.Context,
 	q query.AdminAuditQuery,
 ) ([]governanceaudit.Event, error) {
-	return a.store.List(ctx, pgstatus.GovernanceAuditQuery{
+	return a.store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: q.OperatorAuthorized,
 		EventType:          governanceaudit.EventType(q.EventType),
 		Decision:           governanceaudit.Decision(q.Decision),

@@ -665,7 +665,7 @@ and wiring both would double-emit one logical MCP read.
 Enabling this path adds one `governance_audit_events` row per allowed MCP
 transport request, so it assumes the deployment has the hosted retention job
 configured (`GovernanceAuditStore.DeleteExpired`,
-`go/internal/storage/postgres/governance_audit_store.go`); see
+`go/internal/storage/postgres/governance/audit/store.go`); see
 [Hosted Retention And Deletion Policy](../hosted-retention-deletion-policy.md)
 for how to configure the cutoff.
 
@@ -684,7 +684,7 @@ non-blocking channel send (~130ns/op serial, ~3.5ns/op amortized under
 64-way concurrent load per `BenchmarkAsyncAppenderEnqueueSerial` /
 `…Parallel64`, `-benchmem -count=5`) and never touches Postgres on the
 request path; the prove-theory-first benchmark
-(`go/internal/storage/postgres/governance_audit_append_bench_test.go`)
+(`go/internal/storage/postgres/governance/audit/append_bench_test.go`)
 recorded the rejected synchronous alternative at ~10.48ms/op against local
 Postgres, ~427,000x slower than the async enqueue path measured by
 `go/internal/governanceaudit/async_enqueue_prove_bench_test.go` (~24.5ns/op).

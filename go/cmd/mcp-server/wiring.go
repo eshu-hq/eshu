@@ -29,6 +29,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -252,7 +253,7 @@ func wireAPI(
 		newStatusStore(pgstatus.SQLQueryer{DB: rawDB}, instruments),
 		semanticProviderProfiles...,
 	)
-	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: rawDB})
+	governanceAudit := auditstore.NewGovernanceAuditStore(pgstatus.SQLDB{DB: rawDB})
 	// allowedReadAudit is the F-9 (#5170) allowed-read governance-audit sink:
 	// a bounded, non-blocking async appender over the SAME durable
 	// governanceAudit store the denial paths already use synchronously. It

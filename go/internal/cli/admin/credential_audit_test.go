@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 )
 
 // fakeCLIAuditAppender captures every governance-audit event appended during
@@ -182,7 +183,7 @@ func TestAuditBootstrapCredentialEventsNilAppenderIsNoop(t *testing.T) {
 // persist. fakeCLIAuditAppender (used by every other test in this file)
 // only captures whatever Append receives directly — it never runs
 // governanceaudit.NormalizeEvent, so it cannot catch an event that the real
-// pgstorage.GovernanceAuditStore would silently reject and drop (every
+// auditstore.GovernanceAuditStore would silently reject and drop (every
 // Append call site in this codebase discards the error:
 // `_ = appender.Append(...)`, matching query.LocalIdentityHandler's
 // established fire-and-forget convention). NormalizeEvent requires a
@@ -212,13 +213,13 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 
-	store := pgstorage.NewGovernanceAuditStore(pgstorage.SQLDB{DB: db})
+	store := auditstore.NewGovernanceAuditStore(pgstorage.SQLDB{DB: db})
 	auditBootstrapCredentialRetrieved(ctx, store, "key-real-a", nil)
 	auditBootstrapCredentialReset(ctx, store, "key-real-b", nil)
 	auditBootstrapCredentialRetrieved(ctx, store, "key-real-a", fmt.Errorf("decrypt failed"))
 	auditBootstrapCredentialReset(ctx, store, "key-real-b", fmt.Errorf("reset failed"))
 
-	retrieved, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	retrieved, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapCredentialAuditReasonRetrieved,
 	})
@@ -235,7 +236,7 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 		t.Fatal("persisted retrieval event OccurredAt is zero")
 	}
 
-	retrieveFailed, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	retrieveFailed, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapCredentialAuditReasonRetrieveFailed,
 	})
@@ -249,7 +250,7 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 		t.Fatalf("persisted retrieve-failed event Decision = %q, want %q", retrieveFailed[0].Decision, governanceaudit.DecisionDenied)
 	}
 
-	reset, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	reset, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapCredentialAuditReasonReset,
 	})
@@ -263,7 +264,7 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 		t.Fatalf("persisted reset event CorrelationID = %q, want %q", reset[0].CorrelationID, "key:key-real-b")
 	}
 
-	resetFailed, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+	resetFailed, err := store.List(ctx, auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapCredentialAuditReasonResetFailed,
 	})

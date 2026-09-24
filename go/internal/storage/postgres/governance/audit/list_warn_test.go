@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package auditstore
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 type governanceAuditWarnLine struct {
@@ -62,9 +63,9 @@ func TestGovernanceAuditStoreListWarnsOncePerUnknownEnumField(t *testing.T) {
 	otherClassAndEvent[1] = "other_class"
 
 	var logs bytes.Buffer
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
-		{rows: [][]any{futureClass(), known, futureClass(), otherClassAndEvent}},
-		{rows: [][]any{known, known}},
+	db := &fake.ExecQueryer{QueryResponses: []fake.Rows{
+		{Data: [][]any{futureClass(), known, futureClass(), otherClassAndEvent}},
+		{Data: [][]any{known, known}},
 	}}
 	store := NewGovernanceAuditStore(db).WithLogger(slog.New(slog.NewJSONHandler(&logs, nil)))
 	query := GovernanceAuditQuery{OperatorAuthorized: true, Limit: 25}

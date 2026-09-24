@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 )
 
 // Bootstrap admin credential CLI durable audit events (issue #4963
@@ -52,7 +53,7 @@ func newAdminCredentialAuditAppender(database db.ExecQueryer) query.GovernanceAu
 	if database == nil {
 		return nil
 	}
-	store := pgstorage.NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 	return store
 }
 

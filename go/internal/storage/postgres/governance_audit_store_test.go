@@ -11,10 +11,20 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
+// TestBootstrapDefinitionsIncludeGovernanceAuditEvents stays in root (rather
+// than moving to governance/audit/ with its production file) because it
+// asserts against root's BootstrapDefinitions bootstrap registry and
+// orderedBootstrapDefinitionNames, matching
+// TestCICDRunWatermarkSchemaMatchesBootstrapMigration's precedent for the
+// cicd/ leaf (itself following TestBootstrapDefinitionsIncludeSemanticExtractionQueue
+// for semantic/). The other governance-audit tests in this file exercise
+// auditstore.GovernanceAuditStore directly through this root-only file's own
+// fakes; they did not need to move with it.
 func TestBootstrapDefinitionsIncludeGovernanceAuditEvents(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +65,7 @@ func TestGovernanceAuditStoreAppendNormalizesAndDeduplicatesRetry(t *testing.T) 
 	t.Parallel()
 
 	database := newGovernanceAuditMemoryDB()
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 	event := governanceAuditStoreTestEvent()
 
 	if err := store.Append(context.Background(), []governanceaudit.Event{event}); err != nil {
@@ -86,7 +96,7 @@ func TestGovernanceAuditStoreAppendRejectsUnsafeEventWithoutEcho(t *testing.T) {
 	t.Parallel()
 
 	database := &fakeExecQueryer{}
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 	event := governanceAuditStoreTestEvent()
 	event.ActorIDHash = "Bearer unsafe-token"
 
@@ -106,9 +116,9 @@ func TestGovernanceAuditStoreListRequiresOperatorAuthorization(t *testing.T) {
 	t.Parallel()
 
 	database := &fakeExecQueryer{}
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 
-	_, err := store.List(context.Background(), GovernanceAuditQuery{
+	_, err := store.List(context.Background(), auditstore.GovernanceAuditQuery{
 		EventType: governanceaudit.EventTypeReadAuthorization,
 		Limit:     10,
 	})
@@ -144,9 +154,9 @@ func TestGovernanceAuditStoreListAppliesBoundsAndOrdering(t *testing.T) {
 			sql.NullString{}, // workspace_id
 		}}}},
 	}
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 
-	events, err := store.List(context.Background(), GovernanceAuditQuery{
+	events, err := store.List(context.Background(), auditstore.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		EventType:          governanceaudit.EventTypeReadAuthorization,
 		ActorClass:         governanceaudit.ActorClassScopedToken,
@@ -195,7 +205,7 @@ func TestGovernanceAuditStoreDeleteExpiredUsesCutoff(t *testing.T) {
 	t.Parallel()
 
 	database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 3}}}
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 	cutoff := governanceAuditStoreTestTime().Add(-24 * time.Hour)
 
 	deleted, err := store.DeleteExpired(context.Background(), cutoff)
@@ -231,7 +241,7 @@ func TestGovernanceAuditStoreSummaryAggregatesWithoutBodies(t *testing.T) {
 			{"reason", "subject_scope_missing", int64(2), now},
 		}}},
 	}
-	store := NewGovernanceAuditStore(database)
+	store := auditstore.NewGovernanceAuditStore(database)
 
 	summary, err := store.Summary(context.Background())
 	if err != nil {
