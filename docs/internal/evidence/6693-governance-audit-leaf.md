@@ -75,9 +75,9 @@ Per the executor brief's "must stay in root" guidance:
 - Updated `docs/internal/design/6693-postgres-target-tree.md`'s
   "Per-directory counts" table: `storage/postgres` (root) row up by 1 test,
   `governance/audit/` row 5 -> 4.
-- Updated the "Test placement" tally: "in-package test" minus 1, "stays in
-  root" plus 1 (an unannotated mapping line moved from the in-package-test
-  bucket to the stays-in-root bucket).
+- Updated the "Test placement" tally: "external test package" minus 1,
+  "stays in root" plus 1 (the mapping line was annotated `# external test
+  package: imports root`, so it leaves that bucket).
 - Ticked `13. [x] governance/audit/ (2 files)` in the checklist.
 - Rebases onto sibling moves can merge two identical count edits as one
   change without a conflict (the same line, changed the same way by both

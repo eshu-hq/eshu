@@ -46,7 +46,8 @@
   `list_warn_test.go` and `scan_tolerance_test.go` updated together — they
   pin the exact field/rows/values shape an operator greps for.
 - Change tenant scoping only with `tenant_test.go`'s cross-tenant isolation
-  and event-id-uniqueness regressions kept green.
+  regressions and `tenant_eventid_test.go`'s event-id-uniqueness regressions
+  kept green.
 
 ## Failure modes
 

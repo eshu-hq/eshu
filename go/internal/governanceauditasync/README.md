@@ -17,7 +17,7 @@ path.
 This package owns the buffering, batching, drop, and shutdown-flush policy for
 best-effort audit events. It does not own event shape validation (that is
 `governanceaudit`), durable storage (that is the caller's `Appender`, normally
-`storage/postgres.GovernanceAuditStore`), or the decision of which requests get
+`storage/postgres/governance/audit.GovernanceAuditStore`), or the decision of which requests get
 audited (that is the caller — see `go/internal/query/auth_audit.go`).
 
 ## Exported surface
