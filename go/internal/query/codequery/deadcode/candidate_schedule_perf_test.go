@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 type deadCodeSaturationProbeStore struct {
@@ -200,7 +200,7 @@ func runDeadCodeSaturationShape(
 
 func runDeadCodeSaturationScanner(t *testing.T, scanner string, store *deadCodeSaturationProbeStore) {
 	t.Helper()
-	analyzer := newDeadCodeTestAnalyzer(store, querytestutil.FakeGraphReader{})
+	analyzer := newDeadCodeTestAnalyzer(store, graph.FakeGraphReader{})
 	ctx := context.Background()
 	var err error
 	switch scanner {

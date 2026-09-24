@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvidence
@@ -83,7 +83,7 @@ func TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvid
 		},
 	}
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": workload,
 				"w.id = $workload_id":    workload,
@@ -199,7 +199,7 @@ func TestTraceDeploymentChainOwnRepoPartialControllerDiscoveryDoesNotLeakOtherWo
 		},
 	}
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": workload,
 				"w.id = $workload_id":    workload,
@@ -323,7 +323,7 @@ func TestTraceDeploymentChainOwnRepoWorkloadCountProbeErrorFailsClosedToNoTrust(
 	}
 	workloadCountProbeErr := errors.New("nornicdb: injected workload-count probe failure")
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": workload,
 				"w.id = $workload_id":    workload,

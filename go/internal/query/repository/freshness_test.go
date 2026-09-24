@@ -13,17 +13,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func repositoryFreshnessTestHandler(reader *querytestutil.FakeRepositoryFreshnessReader) *Handler {
 	return &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
 		},
-		Content:   querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
+		Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
 		Freshness: reader,
 	}
 }
@@ -286,8 +288,8 @@ func TestGetRepositoryFreshnessUnknownRepositoryReturns404(t *testing.T) {
 
 	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := &Handler{
-		Neo4j:     querytestutil.FakeRepoGraphReader{},
-		Content:   querytestutil.FakePortContentStore{},
+		Neo4j:     graph.FakeRepoGraphReader{},
+		Content:   content.FakePortContentStore{},
 		Freshness: reader,
 	}
 	mux := http.NewServeMux()

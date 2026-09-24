@@ -12,14 +12,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetWorkloadContextReturnsEnrichedResponse(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				// Base workload query
 				"MATCH (w:Workload)": {
@@ -145,7 +145,7 @@ func TestFetchWorkloadContextLogsStageTimings(t *testing.T) {
 	var logs bytes.Buffer
 	handler := &Handler{
 		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (w:Workload)": {
 					"id":   "workload-1",
@@ -198,7 +198,7 @@ func TestGetWorkloadContextReturnsNotFoundForMissingWorkload(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
 		},
@@ -221,7 +221,7 @@ func TestGetWorkloadContextSkipsEnrichmentWhenNoRepoID(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (w:Workload)": {
 					"id":        "workload-orphan",
@@ -269,7 +269,7 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $service_name": {
 					"id":        "workload:service-edge-api",
@@ -324,7 +324,7 @@ func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {
 					"id":        "workload:service-edge-api",
@@ -387,7 +387,7 @@ func TestGetServiceStoryAcceptsQualifiedWorkloadIDAndNormalizesServiceName(t *te
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {
 					"id":        "workload:service-edge-api",

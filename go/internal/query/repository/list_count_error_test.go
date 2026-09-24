@@ -13,14 +13,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestListRepositoriesDoesNotPublishZeroWhenGraphCountFails(t *testing.T) {
 	t.Parallel()
 
 	pageCalls := 0
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return nil, errors.New("count unavailable")
 		},
@@ -49,7 +49,7 @@ func TestListRepositoriesDoesNotPublishZeroWhenGraphCountFails(t *testing.T) {
 func TestListRepositoriesMapsGraphCountAvailabilityError(t *testing.T) {
 	t.Parallel()
 	const privateCause = "bolt://private.graph.invalid:7687"
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return nil, fmt.Errorf("%s: %w", privateCause, querycontract.ErrGraphUnavailable)
 		},

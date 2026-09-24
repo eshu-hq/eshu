@@ -14,13 +14,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveEntityFallsBackToContentEntities(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -81,7 +82,7 @@ func TestResolveEntityFallsBackToContentEntities(t *testing.T) {
 func TestResolveEntityFallsBackToAnyRepoContentMatchesAndAliases(t *testing.T) {
 	t.Parallel()
 
-	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
+	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -143,7 +144,7 @@ func TestResolveEntityReturnsGraphBackedTypeScriptClassWithTypeScriptSemantics(t
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["name"], "Service"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)
@@ -227,7 +228,7 @@ func TestResolveEntityReturnsGraphBackedJavaScriptFunctionWithJavaScriptSemantic
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["name"], "getTab"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)

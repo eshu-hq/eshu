@@ -11,14 +11,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return nil, nil
@@ -71,11 +71,11 @@ func TestResolveWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 func TestResolveWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "w.id = $service_name") {
 			t.Fatalf("first query = %q, want exact id lookup", cypher)
 		}
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		return []map[string]any{{"id": "workload:orders"}}, nil
 	}}
 
@@ -93,7 +93,7 @@ func TestResolveWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 func TestResolveWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return []map[string]any{{"id": "workload:different", "repo_id": "repo-a"}}, nil
@@ -117,7 +117,7 @@ func TestResolveWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
 func TestResolveWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return nil, nil
@@ -156,8 +156,8 @@ func scopedAuthContext(allowedRepositoryIDs ...string) context.Context {
 func TestResolveWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{},
@@ -180,8 +180,8 @@ func TestResolveWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testing.T) 
 func TestResolveWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:in-grant", "repo_id": "repo-a", "defining": []string{},
@@ -202,8 +202,8 @@ func TestResolveWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 func TestResolveWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:collision", "repo_id": "repo-other", "defining": []string{"repo-z", "repo-a"},
@@ -229,8 +229,8 @@ func TestResolveWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 	for i := range overBound {
 		overBound[i] = map[string]any{"id": "workload:dup", "repo_id": "repo-a", "defining": []string{}}
 	}
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}

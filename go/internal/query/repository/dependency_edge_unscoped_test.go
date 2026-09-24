@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead proves an
@@ -27,7 +27,7 @@ func TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead(t *testing.T) {
 
 	var ran []string
 	var groupLimit any
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			ran = append(ran, cypher)
 			if cypher == RepositoryDependencyEdgeCountCypher {
@@ -92,7 +92,7 @@ func assertFastPathGroupedShape(t *testing.T, cypher string, wants ...string) {
 			t.Errorf("grouped cypher must not contain %q (it disables the fast path and it is unscoped):\n%s", forbidden, cypher)
 		}
 	}
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 }
 
 // TestLoadRepositoryDependencyEdgesScopedKeepsPerEdgeGrantRead proves a
@@ -103,7 +103,7 @@ func TestLoadRepositoryDependencyEdgesScopedKeepsPerEdgeGrantRead(t *testing.T) 
 	t.Parallel()
 
 	var ran []string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			ran = append(ran, cypher)
 			return []map[string]any{{"source_id": "repository:a", "target_id": "repository:b"}}, nil

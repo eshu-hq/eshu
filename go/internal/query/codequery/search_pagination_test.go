@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestGlobalCodeSearchReportsExactAndOverflowPages(t *testing.T) {
@@ -100,7 +100,7 @@ func TestGlobalCodeSearchMaximumPublicLimitUsesOneRowProbe(t *testing.T) {
 // fake in package query (entity_name_search_test.go): a _test.go symbol is
 // not importable across the package boundary (#6060).
 type recordingEntityNameSearcher struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	Searches []entity.EntityNameSearch
 	Rows     []querycontract.EntityContent
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestConfigDerivedCloudResourceDependenciesUseUniqueCrossAnchorSentinel(t *testing.T) {
@@ -19,7 +19,7 @@ func TestConfigDerivedCloudResourceDependenciesUseUniqueCrossAnchorSentinel(t *t
 	calls := 0
 	got, truncated, err := loadConfigDerivedCloudResourceDependenciesBounded(
 		t.Context(),
-		querytestutil.FakeGraphReader{RunFn: func(_ context.Context, query string, params map[string]any) ([]map[string]any, error) {
+		graph.FakeGraphReader{RunFn: func(_ context.Context, query string, params map[string]any) ([]map[string]any, error) {
 			calls++
 			if got, want := StringVal(params, "config_anchor_pattern"), `.*(?:/config/primary|/config/secondary|/config/special\+a).*`; got != want {
 				t.Fatalf("config_anchor_pattern = %q, want %q", got, want)
@@ -88,7 +88,7 @@ func TestConfigDerivedCloudResourceDependenciesPropagateUpstreamArtifactTruncati
 	calls := 0
 	got, truncated, err := loadConfigDerivedCloudResourceDependenciesBounded(
 		t.Context(),
-		querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			calls++
 			return nil, nil
 		}},
@@ -119,7 +119,7 @@ func TestConfigDerivedCloudResourceDependenciesOmitUnownedCandidatesForScopedTok
 	})
 	got, truncated, err := loadConfigDerivedCloudResourceDependenciesBounded(
 		ctx,
-		querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			calls++
 			return []map[string]any{{"id": "cloud:out-of-grant", "config_path": "/config/orders/db"}}, nil
 		}},
@@ -145,7 +145,7 @@ func TestMaterializedCloudResourceDependenciesBindExactRepository(t *testing.T) 
 
 	got, err := loadMaterializedServiceCloudResourceDependencies(
 		t.Context(),
-		querytestutil.FakeGraphReader{RunFn: func(_ context.Context, query string, params map[string]any) ([]map[string]any, error) {
+		graph.FakeGraphReader{RunFn: func(_ context.Context, query string, params map[string]any) ([]map[string]any, error) {
 			for _, want := range []string{
 				"MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})",
 				"repo.id = $repo_id",
@@ -181,7 +181,7 @@ func TestMaterializedCloudResourceDependenciesOmitUnownedEvidenceForScopedTokens
 	})
 	got, err := loadMaterializedServiceCloudResourceDependencies(
 		ctx,
-		querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			calls++
 			return []map[string]any{{"id": "cloud:unowned"}}, nil
 		}},

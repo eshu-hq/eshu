@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // #5167 code family: a scoped token may name a repository two ways, and only
@@ -118,7 +118,7 @@ func TestDeadCodeRoutesResolveAScopeOnlyGrantToItsRepository(t *testing.T) {
 func TestComplexityListResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	graph := &graph.EvaluatingRepositoryGraph{
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
@@ -142,7 +142,7 @@ func TestComplexityListResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {
 func TestCodeQualityInspectResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	graph := &graph.EvaluatingRepositoryGraph{
 		Seeds:             codeQualityInspectSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}

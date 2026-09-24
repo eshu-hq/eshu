@@ -11,13 +11,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 	t.Parallel()
 
-	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
@@ -59,7 +59,7 @@ func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 func TestFetchDeploymentSourcesRejectsNonFiniteConfidence(t *testing.T) {
 	t.Parallel()
 
-	_, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	_, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
@@ -76,7 +76,7 @@ func TestFetchDeploymentSourcesRejectsNonFiniteConfidence(t *testing.T) {
 func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t *testing.T) {
 	t.Parallel()
 
-	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
@@ -107,7 +107,7 @@ func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t 
 func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *testing.T) {
 	t.Parallel()
 
-	result, err := impact.FetchDeploymentSourceResultFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+	result, err := impact.FetchDeploymentSourceResultFromGraph(t.Context(), graph.FakeRepoGraphReader{
 		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"repo_id":   "repository:deploy",
@@ -129,7 +129,7 @@ func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *
 func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "DEPLOYMENT_SOURCE") &&
 			!strings.Contains(cypher, "ORDER BY repo_name, instance_id, repo_id") {
 			t.Fatalf("canonical deployment-source query lacks endpoint tie-breakers:\n%s", cypher)
@@ -159,7 +159,7 @@ func TestFetchDeploymentSourcesScopesEveryRepositoryEndpointBeforeLimit(t *testi
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		limitIndex := strings.Index(cypher, "LIMIT $source_limit")
 		if limitIndex < 0 {
 			t.Fatalf("deployment-source query is missing its bound:\n%s", cypher)
@@ -205,7 +205,7 @@ func TestFetchDeploymentSourcesScopesEveryRepositoryEndpointBeforeLimit(t *testi
 func TestFetchDeploymentSourcesBoundsGraphExpansionAndReportsCoverage(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "LIMIT $source_limit") {
 			t.Fatalf("deployment-source query is unbounded:\n%s", cypher)
 		}
@@ -255,7 +255,7 @@ func TestFetchDeploymentSourcesBoundsGraphExpansionAndReportsCoverage(t *testing
 func TestFetchDeploymentSourcesDeduplicatesEndpointsBeforeSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "DEPLOYMENT_SOURCE") {
 			if !strings.Contains(cypher, "WITH i.id as instance_id, repo.id as repo_id") {
 				t.Fatalf("canonical query does not group unique endpoints before LIMIT: %s", cypher)

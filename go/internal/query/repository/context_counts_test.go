@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestQueryRepositoryContextCountCallersAlwaysProjectACountAggregate guards
@@ -29,7 +29,7 @@ func TestQueryRepositoryContextCountCallersAlwaysProjectACountAggregate(t *testi
 	assertCountAggregate := func(t *testing.T, run func(reader querycontract.GraphQuery) error) {
 		t.Helper()
 		var sawCypher string
-		reader := querytestutil.FakeRepoGraphReader{
+		reader := graph.FakeRepoGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				sawCypher = cypher
 				return []map[string]any{{"count": int64(1)}}, nil
@@ -89,7 +89,7 @@ func TestQueryRepositoryContextCountCallersAlwaysProjectACountAggregate(t *testi
 func TestQueryRepositoryDependencyCountLaterPositionCallPropagatesGraphReadError(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "REPO_CONTAINS]->(f:File)") && strings.Contains(cypher, "count(DISTINCT f)"):

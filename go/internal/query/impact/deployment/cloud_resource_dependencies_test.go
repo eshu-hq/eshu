@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey pins
@@ -21,7 +21,7 @@ func TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey(t *te
 	t.Parallel()
 
 	var captured string
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		captured = cypher
 		return nil, nil
 	}}
@@ -56,7 +56,7 @@ func TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey(t *te
 func TestLoadConfigDerivedCloudResourceDependenciesOrderByIsTotalKey(t *testing.T) {
 	t.Parallel()
 	var captured string
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		captured = cypher
 		return nil, nil
 	}}

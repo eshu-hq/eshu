@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestLoadUnscopedRepositoryDependencyEdgesCapsTransfer proves the grouped
@@ -50,7 +50,7 @@ func TestLoadUnscopedRepositoryDependencyEdgesCapsTransfer(t *testing.T) {
 			t.Parallel()
 			var ran []string
 			var groupLimit any
-			reader := querytestutil.FakeRepoGraphReader{
+			reader := graph.FakeRepoGraphReader{
 				RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 					ran = append(ran, cypher)
 					switch cypher {
@@ -180,7 +180,7 @@ func TestLoadUnscopedRepositoryDependencyEdgesCappedEdgeCases(t *testing.T) {
 			t.Parallel()
 			ran := 0
 			var groupLimit any
-			reader := querytestutil.FakeRepoGraphReader{
+			reader := graph.FakeRepoGraphReader{
 				RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 					ran++
 					switch cypher {
@@ -326,7 +326,7 @@ func TestLoadUnscopedRepositoryDependencyEdgesCappedDetectsConcurrentGrowth(t *t
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			reader := querytestutil.FakeRepoGraphReader{
+			reader := graph.FakeRepoGraphReader{
 				RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 					switch cypher {
 					case RepositoryDependencyEdgeCountCypher:

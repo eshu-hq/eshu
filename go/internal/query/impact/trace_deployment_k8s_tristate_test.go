@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // fetchK8sResourcesContentStore is a minimal ContentStore double whose
@@ -17,7 +17,7 @@ import (
 // fetchK8sResources row-construction logic (as opposed to hand-building the
 // map[string]any rows that logic produces).
 type fetchK8sResourcesContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	byName []querycontract.EntityContent
 }
 

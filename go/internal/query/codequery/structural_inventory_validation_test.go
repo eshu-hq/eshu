@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // Structural-inventory handler and request validation proofs. These stay in
@@ -23,7 +23,7 @@ import (
 func TestCodeHandlerStructuralInventoryRejectsInvalidBounds(t *testing.T) {
 	t.Parallel()
 
-	handler := &CodeHandler{Content: querytestutil.FakePortContentStore{}, Profile: ProfileLocalAuthoritative}
+	handler := &CodeHandler{Content: content.FakePortContentStore{}, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

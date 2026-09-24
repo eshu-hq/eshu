@@ -16,13 +16,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 			if !strings.Contains(cypher, "allowed_repository_ids") {
 				t.Fatalf("repository count query missing scoped repository predicate:\n%s", cypher)
@@ -74,7 +76,7 @@ func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(3)}, nil
 		},
@@ -172,7 +174,7 @@ func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=2", nil)
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -216,7 +218,7 @@ func TestResolveRepositorySelectorAppliesScopedAuthBeforeAmbiguity(t *testing.T)
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
 		Mode:                 queryauth.AuthModeScoped,
@@ -241,7 +243,7 @@ func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
 		Mode:                 queryauth.AuthModeScoped,
@@ -267,7 +269,7 @@ func TestRepositoryListSharedAuthKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -292,7 +294,7 @@ func TestRepositoryListAllScopeAdminKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{

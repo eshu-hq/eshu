@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // The story route resolves a target name by reading candidates a granted
@@ -43,7 +44,7 @@ const (
 )
 
 type storyBudgetContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows           []EntityContent
 	askedRepo      []string
 	askedExactRepo []string

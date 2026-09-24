@@ -13,6 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCounts(t *testing.T) {
@@ -20,7 +22,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 
 	indexedAt := time.Date(2026, 6, 6, 15, 30, 0, 0, time.UTC)
 	handler := &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "count(DISTINCT e) as entity_count") {
 					t.Fatalf("repository coverage stats graph fallback ran despite content coverage:\n%s", cypher)
@@ -52,7 +54,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 				}
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Coverage: querycontract.RepositoryContentCoverage{
 				Available:       true,
 				FileCount:       42,
@@ -112,11 +114,11 @@ func TestGetRepositoryStoryReportsMissingContentCoverageReason(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeRepoGraphReader{
+		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
-			RunFn: querytestutil.StoryEnvelopeGraphRows(t, "repo-1"),
+			RunFn: graph.StoryEnvelopeGraphRows(t, "repo-1"),
 		},
 	}
 

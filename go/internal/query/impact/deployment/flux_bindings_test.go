@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchFluxDeploymentSourceTargetBindingsIsBoundedAndEvidenceSpecific(t *testing.T) {
@@ -20,7 +20,7 @@ func TestFetchFluxDeploymentSourceTargetBindingsIsBoundedAndEvidenceSpecific(t *
 	var seenCyphers []string
 	var seenParams []map[string]any
 	call := 0
-	result, err := FetchFluxDeploymentSourceTargetBindings(context.Background(), querytestutil.FakeRepoGraphReader{
+	result, err := FetchFluxDeploymentSourceTargetBindings(context.Background(), graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			seenCyphers = append(seenCyphers, cypher)
 			seenParams = append(seenParams, maps.Clone(params))
@@ -76,7 +76,7 @@ func TestFetchFluxDeploymentSourceTargetBindingsScopedQueryHasOneWherePerMatch(t
 	t.Parallel()
 	var cyphers []string
 	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{"repo-deploy", "repo-app"}, Allowed: map[string]struct{}{"repo-deploy": {}, "repo-app": {}}}
-	_, err := FetchFluxDeploymentSourceTargetBindings(t.Context(), querytestutil.FakeRepoGraphReader{RunFn: func(_ context.Context, got string, _ map[string]any) ([]map[string]any, error) {
+	_, err := FetchFluxDeploymentSourceTargetBindings(t.Context(), graph.FakeRepoGraphReader{RunFn: func(_ context.Context, got string, _ map[string]any) ([]map[string]any, error) {
 		cyphers = append(cyphers, got)
 		if len(cyphers) == 1 {
 			return []map[string]any{{"artifact_id": "artifact-1"}}, nil

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // This file is this package's own copy of root package query's
@@ -24,15 +24,15 @@ import (
 // rather than exported from root, matching graph_reader_test_adapter_test.go's
 // own documented precedent for codequery's identically-shaped copy.
 
-// fakeGraphReader adapts querytestutil.FakeGraphReader the same way root's
+// fakeGraphReader adapts graph.FakeGraphReader the same way root's
 // copy and codequery's copy do.
 type fakeGraphReader struct {
 	run       func(context.Context, string, map[string]any) ([]map[string]any, error)
 	runSingle func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
-func (f fakeGraphReader) delegate() querytestutil.FakeGraphReader {
-	return querytestutil.FakeGraphReader{
+func (f fakeGraphReader) delegate() graph.FakeGraphReader {
+	return graph.FakeGraphReader{
 		RunFn:       f.run,
 		RunSingleFn: f.runSingle,
 	}

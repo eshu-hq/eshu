@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // fakeLanguageListerContentStore embeds the base fake and additionally implements
@@ -17,7 +18,7 @@ import (
 // language predicate and path/ref lookup run in the content store (and the file
 // cap applies to the matching set) rather than the in-Go post-cap filter.
 type fakeLanguageListerContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	byLanguage    []querycontract.FileContent
 	byLanguageErr error
 	pathExists    bool
@@ -45,7 +46,7 @@ func (f *fakeLanguageListerContentStore) RepoFilePathContext(
 
 func languageListerTreeStore() *fakeLanguageListerContentStore {
 	return &fakeLanguageListerContentStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 		},
 		pathExists: true,

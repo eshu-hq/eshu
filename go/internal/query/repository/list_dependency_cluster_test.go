@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestListRepositoriesGroupsByDependencyCluster proves the end-to-end handler
@@ -22,7 +22,7 @@ import (
 func TestListRepositoriesGroupsByDependencyCluster(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(4)}, nil
 		},
@@ -100,7 +100,7 @@ func TestListRepositoriesScopedDependencyClusterMembership(t *testing.T) {
 	t.Parallel()
 
 	var capturedEdgeCypher string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},

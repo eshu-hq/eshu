@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestBuildDeploymentTraceResponseIncludesControllerEntities(t *testing.T) {
@@ -80,7 +80,7 @@ func TestFetchControllerEntitiesReturnsArgoCDControllersFromDeploymentSources(t 
 	// (package-query import would cycle through family_impact_shim.go), and
 	// the SQL decoding layer stays covered by the root content_reader tests.
 	// See #6060.
-	handler := &Handler{Content: &querytestutil.FakePortContentStore{
+	handler := &Handler{Content: &content.FakePortContentStore{
 		Entities: []querycontract.EntityContent{
 			{
 				EntityID: "argocd-app-1", RepoID: "repo-deploy", RelativePath: "argocd/payments.yaml",

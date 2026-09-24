@@ -12,13 +12,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFetchCloudResourceResultUsesUniqueSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "LIMIT $cloud_observation_limit") {
 			t.Fatalf("cloud resource observation query is unbounded: %s", cypher)
 		}
@@ -49,7 +49,7 @@ func TestFetchCloudResourceResultOmitsUnownedEvidenceForScopedTokens(t *testing.
 	t.Parallel()
 
 	calls := 0
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		calls++
 		return []map[string]any{{"id": "cloud:unowned"}}, nil
 	}}
@@ -80,7 +80,7 @@ func TestFetchCloudResourceResultOmitsUnownedEvidenceForScopedTokens(t *testing.
 func TestFetchCloudResourceResultBindsExactRepository(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		for _, want := range []string{
 			"MATCH (repo:Repository)-[:DEFINES]->(w:Workload {id: $workload_id})",
 			"WHERE repo.id = $repo_id",
@@ -111,7 +111,7 @@ func TestFetchCloudResourceResultBindsExactRepository(t *testing.T) {
 func TestFetchCloudResourceResultReturnsBoundedObservationRowsWithoutAggregation(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		rowOrder := strings.Index(cypher, "ORDER BY sort_name, sort_id, sort_confidence DESC")
 		rowLimit := strings.Index(cypher, "LIMIT $cloud_observation_limit")
 		if rowOrder < 0 || rowLimit < 0 {
@@ -157,7 +157,7 @@ func TestFetchCloudResourceResultReturnsBoundedObservationRowsWithoutAggregation
 func TestFetchCloudResourceResultReportsObservationSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
 			"id":                "cloud:orders",
 			"observation_count": querycontract.ServiceStoryItemLimit*querycontract.ServiceStoryItemLimit + 1,
@@ -193,7 +193,7 @@ func TestFetchCloudResourceResultReportsObservationSentinel(t *testing.T) {
 func TestFetchCloudResourceResultMarksObservationCountLowerBoundAtResourceSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		rows := make([]map[string]any, 0, querycontract.ServiceStoryItemLimit+1)
 		for index := range querycontract.ServiceStoryItemLimit + 1 {
 			rows = append(rows, map[string]any{
@@ -223,7 +223,7 @@ func TestFetchCloudResourceResultMarksObservationCountLowerBoundAtResourceSentin
 func TestFetchCloudResourceResultKeepsOneProvenanceObservationIntact(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "properties(rel) as observation") {
 			t.Fatalf("cloud resource query must return complete provenance observations: %s", cypher)
 		}
@@ -292,7 +292,7 @@ func TestFetchCloudResourceResultRejectsNonFiniteObservationConfidence(t *testin
 	for name, confidence := range testCases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return []map[string]any{{
 					"id": "cloud:orders",
 					"observations": []any{

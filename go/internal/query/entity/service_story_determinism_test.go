@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
@@ -48,7 +49,7 @@ func TestFetchWorkloadRuntimeTopologySortsInstancesByEnvironmentAndIdentity(t *t
 		rows := rows
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			}}
 			result, err := FetchWorkloadRuntimeTopology(
@@ -162,7 +163,7 @@ func assertRuntimeTopologyEdgeShape(t *testing.T, name string, edges []map[strin
 
 func buildDeterminismRuntimeTopology(t *testing.T, rows []map[string]any) workloadRuntimeTopologyResult {
 	t.Helper()
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return rows, nil
 	}}
 	result, err := FetchWorkloadRuntimeTopology(
@@ -216,7 +217,7 @@ func TestAttachDirectPlatformsOrdersPlatformsByStableIdentity(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			rows := newRows(name)
-			reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			reader := graph.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			}}
 			handler := &Handler{Neo4j: reader}
@@ -353,7 +354,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 		candidates = []deployment.ProvisioningRepositoryCandidate{candidates[1], candidates[0]}
 	}
 
-	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "RUNS_ON") {
 			return platformRows, nil
 		}

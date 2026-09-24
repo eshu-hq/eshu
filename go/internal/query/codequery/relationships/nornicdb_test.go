@@ -16,11 +16,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type nornicDBRelationshipContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entities map[string]codequery.EntityContent
 }
 
@@ -39,7 +39,7 @@ func TestHandleRelationshipsUsesNornicDBRowQueriesForDirectCalls(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		GraphBackend: codequery.GraphBackendNornicDB,
 		Content: nornicDBRelationshipContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "payments"}},
 			},
 			entities: map[string]codequery.EntityContent{
@@ -338,7 +338,7 @@ func TestHandleRelationshipsHydratesNornicDBPlaceholderRepoIdentityFromContent(t
 			},
 		},
 		Content: nornicDBRelationshipContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{
 					{ID: "repo-1", Name: "eshu"},
 				},

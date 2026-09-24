@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestRelationshipsGraphRowAnchorsOnRepositoryForRepoIDBranch proves the
@@ -23,7 +23,7 @@ func TestRelationshipsGraphRowAnchorsOnRepositoryForRepoIDBranch(t *testing.T) {
 
 	var capturedCypher string
 	var capturedParams map[string]any
-	reader := querytestutil.FakeGraphReaderWithSingle{
+	reader := graph.FakeGraphReaderWithSingle{
 		RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 			capturedCypher = cypher
 			capturedParams = params
@@ -55,5 +55,5 @@ func TestRelationshipsGraphRowAnchorsOnRepositoryForRepoIDBranch(t *testing.T) {
 	if got, want := capturedParams["name"], "Run"; got != want {
 		t.Errorf("name param = %#v, want %#v", got, want)
 	}
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, capturedCypher)
+	graph.AssertCypherHasNoBrokenAndOr(t, capturedCypher)
 }

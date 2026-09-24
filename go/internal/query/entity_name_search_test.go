@@ -15,8 +15,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestSearchEntityNamesPushesFiltersBeforeLimit(t *testing.T) {
@@ -368,7 +367,7 @@ func TestCanonicalContentEntityTruthReflectsActualReadPath(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			content := querytestutil.ResolvingEntityContentStore{
+			content := content.ResolvingEntityContentStore{
 				EntitiesByID: map[string]EntityContent{tc.entity.EntityID: tc.entity},
 				Repositories: []RepositoryCatalogEntry{{ID: "repo-a", Name: "Repository A"}},
 			}

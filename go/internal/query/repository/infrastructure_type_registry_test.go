@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // repositoryInfrastructureCypherLabelPattern extracts the label names the
@@ -119,7 +119,7 @@ func TestRepositoryInfrastructureGraphCypherMatchesCanonicalTypes(t *testing.T) 
 	t.Parallel()
 
 	var captured string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			captured = cypher
 			return nil, nil

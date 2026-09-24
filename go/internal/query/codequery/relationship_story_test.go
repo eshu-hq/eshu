@@ -13,11 +13,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type relationshipStoryContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	matches []EntityContent
 	entity  *EntityContent
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
@@ -19,7 +20,7 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 
 	entryPointQueried := false
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "collect(DISTINCT dr.id) as defining"):
@@ -79,7 +80,7 @@ func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testi
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
 					// The base lookup is the one read that legitimately carries
@@ -122,7 +123,7 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunByMatch: map[string][]map[string]any{
 				"collect(DISTINCT dr.id) as defining": {
 					{
@@ -255,7 +256,7 @@ func TestGetWorkloadStoryReturnsNotFoundForMissingWorkload(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
 		},

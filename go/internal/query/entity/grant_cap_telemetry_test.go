@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 const scopeGrantInlineCappedMetric = "eshu_dp_query_scope_grant_inline_capped_total"
@@ -65,7 +65,7 @@ func TestGetServiceContextGrantCapEmitsInlineCappedTelemetry(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			instruments, reader := newTestInstruments(t)
-			handler := &Handler{Neo4j: querytestutil.FakeGraphReader{}, Instruments: instruments}
+			handler := &Handler{Neo4j: graph.FakeGraphReader{}, Instruments: instruments}
 			ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
 				Mode: queryauth.AuthModeScoped, AllowedRepositoryIDs: tc.grants,
 			})

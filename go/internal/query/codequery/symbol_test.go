@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestCodeHandlerFindSymbolRejectsHugeOffset(t *testing.T) {
 	t.Parallel()
 
-	handler := &CodeHandler{Content: querytestutil.FakePortContentStore{}, Profile: ProfileLocalAuthoritative}
+	handler := &CodeHandler{Content: content.FakePortContentStore{}, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

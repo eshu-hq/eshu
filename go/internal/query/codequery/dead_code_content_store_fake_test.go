@@ -7,10 +7,10 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
-// fakeDeadCodeContentStore adapts querytestutil.FakeDeadCodeContentStore to
+// fakeDeadCodeContentStore adapts content.FakeDeadCodeContentStore to
 // the field names the codequery tests already use. Neither read is
 // reimplemented here: both live in querytestutil, the single home for the
 // double, so this adapter cannot drift from the fake the deadcode leaf
@@ -18,14 +18,14 @@ import (
 // across a package boundary, which is why the deadcode leaf keeps its own
 // twin of this adapter rather than importing this one.
 type fakeDeadCodeContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entities          map[string]deadcode.EntityContent
 	incomingEntityIDs map[string]bool
 }
 
 // promoted converts this adapter into the shared double it delegates to.
-func (f fakeDeadCodeContentStore) promotedDeadCode() querytestutil.FakeDeadCodeContentStore {
-	return querytestutil.FakeDeadCodeContentStore{
+func (f fakeDeadCodeContentStore) promotedDeadCode() content.FakeDeadCodeContentStore {
+	return content.FakeDeadCodeContentStore{
 		FakePortContentStore: f.FakePortContentStore,
 		Entities:             f.entities,
 		IncomingEntityIDs:    f.incomingEntityIDs,

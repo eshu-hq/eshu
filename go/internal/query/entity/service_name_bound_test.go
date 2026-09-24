@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestGetServiceContextScopedNameReadBoundsGrantedRows pins the #6801 review
@@ -23,8 +23,8 @@ func TestGetServiceContextScopedNameReadBoundsGrantedRows(t *testing.T) {
 
 	var nameCypher string
 	var nameParams map[string]any
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.name = $service_name") {
 			nameCypher, nameParams = cypher, params
 		}

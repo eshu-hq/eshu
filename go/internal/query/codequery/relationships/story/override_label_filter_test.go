@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestOverrideRowsCypherUsesEvaluatedLabelFilter pins the OVERRIDES story read
@@ -34,8 +34,8 @@ func TestOverrideRowsCypherUsesEvaluatedLabelFilter(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			cypher, params := OverrideRowsCypher(tc.req, tc.access)
-			querytestutil.AssertCypherHasNoIgnoredLabelPredicate(t, cypher)
-			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+			graph.AssertCypherHasNoIgnoredLabelPredicate(t, cypher)
+			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 			if _, ok := params["override_labels"]; ok {
 				t.Fatalf("params still bind override_labels, which no statement term reads: %v", params)
 			}

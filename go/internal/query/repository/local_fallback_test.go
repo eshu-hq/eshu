@@ -10,14 +10,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestListRepositoriesFallsBackToContentCatalogWithoutGraph(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{
 					ID:        "repository:r_local",
@@ -67,7 +67,7 @@ func TestGetRepositoryCoverageFallsBackToContentCatalogWithoutGraph(t *testing.T
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{
 					ID:        "repository:r_local",

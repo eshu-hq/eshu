@@ -12,11 +12,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type topicInvestigationContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows     []CodeTopicEvidenceRow
 	requests []CodeTopicInvestigationRequest
 	err      error

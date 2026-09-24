@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // serviceEvidenceOverflowHostname lives in exactly one seeded evidence file:
@@ -149,7 +149,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesTheServiceEvidenceFileBound(t 
 	}
 
 	consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
-		context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
+		context.Background(), nil, content.FakePortContentStore{}, "repository:orders", "orders-api",
 		nil, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, true,
 	)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesTheHostnameLimitCut(t *testing
 		{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 	}
 	consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
-		context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
+		context.Background(), nil, content.FakePortContentStore{}, "repository:orders", "orders-api",
 		hostnames, 1, oneCandidate, false, false,
 	)
 	if err != nil {
@@ -221,7 +221,7 @@ func traceWithServiceEvidenceCorpus(t *testing.T, fileCount int) map[string]any 
 	workload := provisioningTruncationWorkload()
 	handler := &impact.Handler{
 		Neo4j:   provisioningCandidateGraphReader(workload, provisioningCandidateRows(serviceEvidenceCandidateRowCount)),
-		Content: querytestutil.FakePortContentStore{RepoFiles: serviceEvidenceFileCorpus(fileCount)},
+		Content: content.FakePortContentStore{RepoFiles: serviceEvidenceFileCorpus(fileCount)},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,

@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -283,7 +283,7 @@ func TestCallGraphMetricsDataRecordsExpansionAndResultTelemetry(t *testing.T) {
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	ctx, span := provider.Tracer("test").Start(context.Background(), "call-graph-test")
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		_ string,
 		_ map[string]any,
@@ -331,7 +331,7 @@ func TestCallGraphMetricsDataFailsClosedAndRecordsScanOverflow(t *testing.T) {
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	ctx, span := provider.Tracer("test").Start(context.Background(), "call-graph-overflow-test")
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		_ string,
 		_ map[string]any,
@@ -372,7 +372,7 @@ func TestCallGraphMetricsDataFailsClosedAndRecordsScanOverflow(t *testing.T) {
 func TestCallGraphMetricsDataAcceptsExactEdgeScanLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		_ string,
 		_ map[string]any,

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -23,8 +23,8 @@ func TestResolveWorkloadSelectorIDDenialThenNameAdmitCountsNoDenial(t *testing.T
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return []map[string]any{{"id": "api", "name": "legacy", "repo_id": "repo-b", "defining": []string{}}}, nil
@@ -50,7 +50,7 @@ func TestResolveWorkloadSelectorDeniedByBothLookupsCountsOneDenial(t *testing.T)
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return []map[string]any{{"id": "api", "name": "legacy", "repo_id": "repo-b", "defining": []string{}}}, nil
@@ -85,7 +85,7 @@ func TestResolveWorkloadSelectorOverflowReturnsTypedErrorWithoutCount(t *testing
 	for i := range overBound {
 		overBound[i] = map[string]any{"id": "workload:orders", "name": "orders", "repo_id": "repo-b", "defining": []string{}}
 	}
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
@@ -108,7 +108,7 @@ func TestResolveWorkloadSelectorOverflowReturnsTypedErrorWithoutCount(t *testing
 func TestResolveWorkloadSelectorAmbiguityUsesDistinctIDs(t *testing.T) {
 	t.Parallel()
 
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
@@ -130,7 +130,7 @@ func TestResolveWorkloadSelectorAmbiguityUsesDistinctIDs(t *testing.T) {
 func TestResolveWorkloadSelectorDuplicateRowsForOneIDResolve(t *testing.T) {
 	t.Parallel()
 
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}

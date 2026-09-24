@@ -6,10 +6,10 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeGraphReader is this package's adapter onto querytestutil.FakeGraphReader.
+// fakeGraphReader is this package's adapter onto graph.FakeGraphReader.
 // The behavior lives there so handler families moving out of package query
 // (#6060, epic #6053) can reach it -- a _test.go symbol is not importable
 // across a package boundary. codequery keeps its own identically-shaped copy
@@ -24,8 +24,8 @@ type fakeGraphReader struct {
 }
 
 // delegate builds the shared fake from this adapter's fields.
-func (f fakeGraphReader) delegate() querytestutil.FakeGraphReader {
-	return querytestutil.FakeGraphReader{
+func (f fakeGraphReader) delegate() graph.FakeGraphReader {
+	return graph.FakeGraphReader{
 		RunFn:         f.run,
 		RunIncomingFn: f.runIncoming,
 		RunSingleFn:   f.runSingle,

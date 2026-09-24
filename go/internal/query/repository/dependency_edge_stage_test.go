@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestDependencyEdgeStageCompletionAttributes proves GET /api/v0/catalog and
@@ -64,7 +64,7 @@ func TestDependencyEdgeStageCompletionAttributes(t *testing.T) {
 		for _, tt := range cases {
 			t.Run(route.operation+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
-				reader := querytestutil.FakeRepoGraphReader{
+				reader := graph.FakeRepoGraphReader{
 					RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 						return map[string]any{"total": int64(1)}, nil
 					},

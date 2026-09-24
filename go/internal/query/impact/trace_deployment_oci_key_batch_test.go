@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // testOCIRecordedMaxKeys is the bounded_key_batch max_keys that
@@ -34,7 +34,7 @@ func TestFetchOCIImageRegistryTruthBatchesDigestKeysWithinRecordedBound(t *testi
 	}
 
 	queried := make(map[string]int, refs)
-	_, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	_, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			// Only the ContainerImage label: the closing paren keeps
 			// ContainerImageIndex and ContainerImageDescriptor out.
@@ -79,7 +79,7 @@ func TestFetchOCIImageRegistryTruthBatchesTagRefsWithinRecordedBound(t *testing.
 	}
 
 	queried := make(map[string]int, refs)
-	_, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	_, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "MATCH (tag:ContainerImageTagObservation)") {
 				return nil, nil

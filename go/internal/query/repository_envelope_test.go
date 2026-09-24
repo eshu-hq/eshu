@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -36,7 +37,7 @@ func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
 					"has_remote": false,
 				}, nil
 			},
-			run: querytestutil.StoryEnvelopeGraphRows(t, "repo-story"),
+			run: graph.StoryEnvelopeGraphRows(t, "repo-story"),
 		},
 		Profile: ProfileProduction,
 	}

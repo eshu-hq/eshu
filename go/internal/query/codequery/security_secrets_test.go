@@ -13,11 +13,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 type hardcodedSecretInvestigationContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	rows     []HardcodedSecretFindingRow
 	requests []HardcodedSecretInvestigationRequest
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func repositoryTreeFixtureFiles() []querycontract.FileContent {
@@ -24,7 +25,7 @@ func repositoryTreeFixtureFiles() []querycontract.FileContent {
 
 func repositoryTreeHandler() *Handler {
 	return &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 		},
@@ -178,7 +179,7 @@ func TestGetRepositoryTreeServesSelectedIndexedBranch(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -198,7 +199,7 @@ func TestGetRepositoryTreeServesSelectedIndexedCommitSHA(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -218,7 +219,7 @@ func TestGetRepositoryTreeRejectsUnindexedSelectedBranch(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -238,7 +239,7 @@ func TestGetRepositoryTreeRejectsSelectedBranchWhenRefsUnavailable(t *testing.T)
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 		},
@@ -287,7 +288,7 @@ func TestGetRepositoryTreeRecursiveReturnsFullSubtree(t *testing.T) {
 func TestGetRepositoryTreeUnknownRepositoryReturns404(t *testing.T) {
 	t.Parallel()
 
-	handler := &Handler{Content: querytestutil.FakePortContentStore{}}
+	handler := &Handler{Content: content.FakePortContentStore{}}
 	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-ghost/tree")
 	if got, want := w.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
@@ -307,7 +308,7 @@ func TestGetRepositoryTreeEmptyRepositoryReturnsEmptyEntries(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 		},
 	}
@@ -327,7 +328,7 @@ func TestGetRepositoryTree_LocalLightweightReturnsTree(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalLightweight,
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
 		},

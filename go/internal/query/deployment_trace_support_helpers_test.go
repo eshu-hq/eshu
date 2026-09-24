@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestLoadProvisioningSourceChainsBuildsCompactTerraformEvidence(t *testing.T) {
@@ -117,7 +117,7 @@ func TestLoadProvisioningSourceChainsBuildsCompactTerraformEvidence(t *testing.T
 func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 	t.Parallel()
 
-	content := querytestutil.PatternConsumerSearchContentStore{
+	content := content.PatternConsumerSearchContentStore{
 		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-1", RelativePath: "config/service.json"},
@@ -212,7 +212,7 @@ func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 func TestLoadConsumerRepositoryEnrichmentFindsCrossRepoConsumersOutsideGraphCandidates(t *testing.T) {
 	t.Parallel()
 
-	content := querytestutil.PatternConsumerSearchContentStore{
+	content := content.PatternConsumerSearchContentStore{
 		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-9", RelativePath: "configs/service.json"},
@@ -276,7 +276,7 @@ func TestLoadConsumerRepositoryEnrichmentFindsCrossRepoConsumersOutsideGraphCand
 func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceStrength(t *testing.T) {
 	t.Parallel()
 
-	content := querytestutil.PatternConsumerSearchContentStore{
+	content := content.PatternConsumerSearchContentStore{
 		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-1", RelativePath: "config/service.json"},
@@ -354,7 +354,7 @@ func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceS
 func TestLoadConsumerRepositoryEnrichmentBackfillsRepositoryNamesForContentOnlyConsumers(t *testing.T) {
 	t.Parallel()
 
-	content := querytestutil.PatternConsumerSearchContentStore{
+	content := content.PatternConsumerSearchContentStore{
 		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-9", RelativePath: "configs/service.json"},

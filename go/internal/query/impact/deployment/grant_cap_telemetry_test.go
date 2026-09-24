@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestResolveWorkloadSelectorGrantCapEmitsInlineCappedTelemetry covers #6801
@@ -39,7 +39,7 @@ func TestResolveWorkloadSelectorGrantCapEmitsInlineCappedTelemetry(t *testing.T)
 			ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
 				Mode: queryauth.AuthModeScoped, AllowedRepositoryIDs: tc.grants,
 			})
-			if _, err := ResolveWorkloadSelector(ctx, querytestutil.FakeGraphReader{}, "api", nil, instruments); err != nil {
+			if _, err := ResolveWorkloadSelector(ctx, graph.FakeGraphReader{}, "api", nil, instruments); err != nil {
 				t.Fatalf("ResolveWorkloadSelector() error = %v", err)
 			}
 			var collected metricdata.ResourceMetrics

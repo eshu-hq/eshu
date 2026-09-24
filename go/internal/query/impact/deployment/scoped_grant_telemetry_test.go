@@ -9,12 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const queryScopedGrantDeniedMetric = "eshu_dp_query_scoped_grant_denied_total"
@@ -84,7 +83,7 @@ func TestResolveWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry(t *testin
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
 
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{"id": "workload:different", "repo_id": "repo-a"}}, nil
 		}
@@ -126,7 +125,7 @@ func TestResolveWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *testing
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
 
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{}}}, nil
 		}
@@ -160,7 +159,7 @@ func TestResolveWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *testing
 func TestResolveWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
 	t.Parallel()
 
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{"id": "workload:different", "repo_id": "repo-a"}}, nil
 		}
@@ -190,7 +189,7 @@ func TestResolveWorkloadSelectorOperationLabel(t *testing.T) {
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	graph := graph.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{}}}, nil
 		}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -20,7 +21,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunByMatch: map[string][]map[string]any{
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			},
@@ -134,9 +135,9 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 	}
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
 				}
 				return nil, nil
@@ -213,9 +214,9 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 	}
 
 	handler := &EntityHandler{
-		Neo4j: querytestutil.FakeWorkloadGraphReader{
+		Neo4j: graph.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment) {
 					return graphRows, nil
 				}
 				return nil, nil

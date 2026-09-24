@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
@@ -22,7 +23,7 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 		[]string{"scope:owner"},
 	)
 	var calls int
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		cypher string,
 		params map[string]any,
@@ -83,7 +84,7 @@ func TestChangeSurfaceDeniedRowsCannotSetScopedTruncation(t *testing.T) {
 	t.Parallel()
 
 	access := changeSurfaceTestAccess([]string{"repository:granted"}, nil)
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		_ string,
 		params map[string]any,
@@ -118,7 +119,7 @@ func TestChangeSurfaceUnscopedQueriesStayByteIdentical(t *testing.T) {
 
 	var queries []string
 	var paramsSeen []map[string]any
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		cypher string,
 		params map[string]any,

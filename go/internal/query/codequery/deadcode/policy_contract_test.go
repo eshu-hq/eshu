@@ -14,10 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeDeadCodeContentStore adapts querytestutil.FakeDeadCodeContentStore to the
+// fakeDeadCodeContentStore adapts content.FakeDeadCodeContentStore to the
 // field names this package's tests already use. 35 root files build it with
 // keyed literals over entities/incomingEntityIDs, so those names stay lowercase
 // and none of those literals changed.
@@ -28,14 +29,14 @@ import (
 // package boundary. Two copies of a double's dispatch drift, and the drifted one
 // keeps passing.
 type fakeDeadCodeContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	entities          map[string]deadcode.EntityContent
 	incomingEntityIDs map[string]bool
 }
 
 // promoted converts this adapter into the shared double it delegates to.
-func (f fakeDeadCodeContentStore) promotedDeadCode() querytestutil.FakeDeadCodeContentStore {
-	return querytestutil.FakeDeadCodeContentStore{
+func (f fakeDeadCodeContentStore) promotedDeadCode() content.FakeDeadCodeContentStore {
+	return content.FakeDeadCodeContentStore{
 		FakePortContentStore: f.FakePortContentStore,
 		Entities:             f.entities,
 		IncomingEntityIDs:    f.incomingEntityIDs,
@@ -55,7 +56,7 @@ func TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
@@ -160,7 +161,7 @@ func TestHandleDeadCodeExcludesDefaultEntrypointsTestsAndGeneratedCode(t *testin
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)

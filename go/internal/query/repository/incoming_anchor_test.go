@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // rightAnchoredRepository matches a pattern whose only bound Repository sits at
@@ -29,7 +29,7 @@ func TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository(t *testing.T) 
 	t.Parallel()
 
 	var cyphers []string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			cyphers = append(cyphers, cypher)
 			return nil, nil
@@ -71,7 +71,7 @@ func TestRepositoryContextIncomingReadsKeepTheirRowOrder(t *testing.T) {
 	t.Parallel()
 
 	var cyphers []string
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "<-[") {
 				cyphers = append(cyphers, cypher)

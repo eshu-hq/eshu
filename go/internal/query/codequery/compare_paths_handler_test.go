@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // compareGraphFixture serves diamond outgoing edges by source entity id,
@@ -83,7 +83,7 @@ func postComparePaths(t *testing.T, handler *CodeHandler, body string) (int, com
 
 func compareHandler(graph compareGraphFixture, backend GraphBackend) *CodeHandler {
 	return &CodeHandler{
-		Content:      querytestutil.FakePortContentStore{},
+		Content:      content.FakePortContentStore{},
 		Neo4j:        fakeGraphReader{run: graph.run},
 		Profile:      ProfileLocalAuthoritative,
 		GraphBackend: backend,

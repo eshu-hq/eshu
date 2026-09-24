@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -36,7 +36,7 @@ func osPackageFindingRowForRuntimeContext() impact.FindingRow {
 func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{}}
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{}}
 	handler := &Handler{ImpactFindings: store}
 	access := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repository:r_217415d9"},
@@ -58,7 +58,7 @@ func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		Rows: []impact.FindingRow{osPackageFindingRowForRuntimeContext()},
 		ByRepo: map[string]impact.RuntimeContext{
 			"repository:r_217415d9": {ServiceIDs: []string{"service:5747:allowed"}},
@@ -94,7 +94,7 @@ func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.
 func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
 		"repository:r_217415d9": {
 			WorkloadIDs:       []string{"workload:supply-chain-demo-db"},
 			ServiceIDs:        []string{"service:demo-db"},
@@ -150,7 +150,7 @@ func TestApplySupplyChainRuntimeContextKeepsRepeatedDigestEvidenceWithinRowPlan(
 	second.FindingID = "finding-os-2"
 	second.RepositoryID = "repository:r_second"
 	second.Environments = []string{"staging"}
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			first.RepositoryID:  {},
 			second.RepositoryID: {},
@@ -206,7 +206,7 @@ func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidate
 		rows[index].Environments = []string{environment}
 		confirmed[environment] = impact.RuntimeEnvironmentEvidenceDeployEvent
 	}
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{repositoryID: {}},
 		ByDigest: map[string]map[string]string{
 			rows[0].SubjectDigest: confirmed,
@@ -246,7 +246,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 	// Repo exists but has no workload/service/env facts yet (fresh ingest):
 	// the context is present and labeled, with empty lists — not an error,
 	// not a silently-missing field a caller could misread as "never scanned".
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{}}
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{}}
 	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.FindingRow{osPackageFindingRowForRuntimeContext()}
@@ -268,7 +268,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 func TestApplySupplyChainRuntimeContextSkipsFindingWithNoRepositoryAnchor(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
 		"repository:r_217415d9": {WorkloadIDs: []string{"workload:x"}},
 	}}
 	handler := &Handler{ImpactFindings: store}
@@ -291,7 +291,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 	t.Parallel()
 
 	wantErr := errors.New("postgres: connection reset")
-	store := &querytestutil.FakeRuntimeContextFindingStore{Err: wantErr}
+	store := &graph.FakeRuntimeContextFindingStore{Err: wantErr}
 	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.FindingRow{osPackageFindingRowForRuntimeContext()}
@@ -304,7 +304,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 func TestApplySupplyChainRuntimeContextDeterministicOrdering(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
 		"repository:r_217415d9": {
 			WorkloadIDs:   []string{"workload:b", "workload:a"},
 			ServiceIDs:    []string{"service:b", "service:a"},

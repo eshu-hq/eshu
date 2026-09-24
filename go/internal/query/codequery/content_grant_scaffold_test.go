@@ -6,7 +6,7 @@ package codequery
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // Two-tenant grant scaffold for the code-family auth-scoped route proofs in
@@ -52,7 +52,7 @@ func (r *codeContentGrantRecorder) storeWasQueried() bool        { return r.quer
 // call it.
 
 type hardcodedSecretGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 
@@ -79,7 +79,7 @@ func (s *hardcodedSecretGrantStore) InvestigateHardcodedSecrets(
 }
 
 type symbolSearchGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 
@@ -92,7 +92,7 @@ func (s *symbolSearchGrantStore) SearchSymbols(
 }
 
 type structuralInventoryGrantStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	codeContentGrantRecorder
 }
 

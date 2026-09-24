@@ -6,10 +6,10 @@ package codequery
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
-// fakeGraphReader adapts querytestutil.FakeGraphReader to the field names the
+// fakeGraphReader adapts graph.FakeGraphReader to the field names the
 // codequery tests already use. Neither read is reimplemented here: both live
 // in querytestutil, the single home for the dispatch rules, so this adapter
 // cannot drift from the fake the moved leaf families use. A symbol declared
@@ -23,8 +23,8 @@ type fakeGraphReader struct {
 }
 
 // delegate builds the shared fake from this adapter's fields.
-func (f fakeGraphReader) delegate() querytestutil.FakeGraphReader {
-	return querytestutil.FakeGraphReader{
+func (f fakeGraphReader) delegate() graph.FakeGraphReader {
+	return graph.FakeGraphReader{
 		RunFn:         f.run,
 		RunIncomingFn: f.runIncoming,
 		RunSingleFn:   f.runSingle,

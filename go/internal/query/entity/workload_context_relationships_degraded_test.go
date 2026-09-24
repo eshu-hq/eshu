@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -21,8 +22,8 @@ import (
 // TestGetWorkloadContextReturnsEnrichedResponse does, and lets a test decide
 // whether the repository-dependencies read (workload_context.go's first
 // repository.QueryRepoDependencies call, around line 155) succeeds or fails.
-func workloadDependenciesGraphReader(dependenciesErr error) querytestutil.FakeWorkloadGraphReader {
-	return querytestutil.FakeWorkloadGraphReader{
+func workloadDependenciesGraphReader(dependenciesErr error) graph.FakeWorkloadGraphReader {
+	return graph.FakeWorkloadGraphReader{
 		RunSingleByMatch: map[string]map[string]any{
 			"MATCH (w:Workload)": {
 				"id":        "workload-1",

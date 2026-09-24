@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 const laterLabelCandidateID = "later-class-candidate"
@@ -95,7 +95,7 @@ func deadCodeFairnessRow(entityID, name, label, language, path string) map[strin
 func TestDeadCodeScanContinuesAfterFirstLabelSaturates(t *testing.T) {
 	t.Parallel()
 
-	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), querytestutil.FakeGraphReader{})
+	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), graph.FakeGraphReader{})
 	scan, err := analyzer.ScanDeadCodeCandidates(context.Background(), deadcode.DeadCodeRequest{
 		RepoID: "repo-1",
 		Limit:  10,
@@ -117,7 +117,7 @@ func TestDeadCodeScanContinuesAfterFirstLabelSaturates(t *testing.T) {
 func TestDeadCodeInvestigationContinuesAfterFirstLabelSaturates(t *testing.T) {
 	t.Parallel()
 
-	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), querytestutil.FakeGraphReader{})
+	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), graph.FakeGraphReader{})
 	scan, err := analyzer.ScanDeadCodeInvestigation(context.Background(), deadcode.DeadCodeInvestigationRequest{
 		RepoID: "repo-1",
 		Limit:  10,
@@ -140,7 +140,7 @@ func TestDeadCodeInvestigationContinuesAfterFirstLabelSaturates(t *testing.T) {
 func TestCrossRepoDeadCodeContinuesAfterFirstLabelSaturates(t *testing.T) {
 	t.Parallel()
 
-	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), querytestutil.FakeGraphReader{})
+	analyzer := newDeadCodeTestAnalyzer(newSaturatedFirstLabelDeadCodeStore(), graph.FakeGraphReader{})
 	scan, err := analyzer.ScanCrossRepoDeadCodeCandidates(context.Background(), deadcode.CrossRepoDeadCodeRequest{
 		RepoID: "repo-1",
 		Limit:  10,

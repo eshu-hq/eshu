@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestQueryRepositoryStoryStringRowsBoundsRowsWithNamedLimit is the LIMIT
@@ -30,7 +30,7 @@ func TestQueryRepositoryStoryStringRowsBoundsRowsWithNamedLimit(t *testing.T) {
 
 	var sawLimitClause bool
 	var sawLimitParam any
-	reader := querytestutil.FakeRepoGraphReader{
+	reader := graph.FakeRepoGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			sawLimitClause = strings.Contains(cypher, "LIMIT $limit")
 			sawLimitParam = params["limit"]
@@ -69,8 +69,8 @@ func TestQueryRepositoryStoryStringRowsBoundsRowsWithNamedLimit(t *testing.T) {
 func TestQueryRepositoryStoryStringRowsDetectsExactTruncation(t *testing.T) {
 	t.Parallel()
 
-	newReaderWithRowCount := func(rowCount int) querytestutil.FakeRepoGraphReader {
-		return querytestutil.FakeRepoGraphReader{
+	newReaderWithRowCount := func(rowCount int) graph.FakeRepoGraphReader {
+		return graph.FakeRepoGraphReader{
 			RunFn: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
 				limit := querycontract.IntVal(params, "limit")
 				rows := make([]map[string]any, 0, rowCount)

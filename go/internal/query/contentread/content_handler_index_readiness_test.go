@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // These two tests split from root's content_handler_index_readiness_test.go
@@ -58,7 +58,7 @@ func TestContentHandlerSearchEntitiesReturns503UntilSubstringIndexesReady(t *tes
 }
 
 type contentSubstringIndexNotReadyStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func (contentSubstringIndexNotReadyStore) SearchFileContentAnyRepo(context.Context, string, int) ([]querycontract.FileContent, error) {

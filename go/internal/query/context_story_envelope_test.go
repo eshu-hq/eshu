@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestGetWorkloadContextReturnsEnvelopeWhenRequested(t *testing.T) {
@@ -129,8 +129,8 @@ func TestGetEntityContextReturnsEnvelopeWhenRequested(t *testing.T) {
 	}
 }
 
-func workloadEnvelopeGraphReader(workloadID, workloadName string) querytestutil.FakeWorkloadGraphReader {
-	return querytestutil.FakeWorkloadGraphReader{
+func workloadEnvelopeGraphReader(workloadID, workloadName string) graph.FakeWorkloadGraphReader {
+	return graph.FakeWorkloadGraphReader{
 		RunSingleByMatch: map[string]map[string]any{
 			"MATCH (w:Workload)": {
 				"id":        workloadID,

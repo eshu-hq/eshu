@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestContentHandlerScopedSearchFilesUsesAllowedReposWithoutAnyRepoFallback(t *testing.T) {
@@ -159,7 +159,7 @@ func TestContentHandlerScopedSearchFilesFiltersDuplicateRepositoryNames(t *testi
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "payments", RepoSlug: "other/payments"},
@@ -197,7 +197,7 @@ func TestContentHandlerScopedSearchEntitiesDeniesOutOfScopeRepositoryList(t *tes
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "orders", RepoSlug: "acme/orders"},
@@ -232,7 +232,7 @@ func TestContentHandlerScopedReadFileDeniesOutOfScopeSelector(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "orders", RepoSlug: "acme/orders"},
@@ -310,7 +310,7 @@ func decodeContentAuthzBody(t *testing.T, rec *httptest.ResponseRecorder) map[st
 }
 
 type recordingContentAuthzStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	byFileRepo        map[string][]querycontract.FileContent
 	byEntityRepo      map[string][]querycontract.EntityContent
 	anyFiles          []querycontract.FileContent

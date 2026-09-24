@@ -17,7 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -85,7 +85,7 @@ func TestFetchWorkloadContextForOperationAnchorMismatchEmitsTelemetry(t *testing
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
 
-	graph := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	graph := graph.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 		return map[string]any{"id": "workload:different", "name": "different", "repo_id": "repo-a"}, nil
 	}}
 	handler := &Handler{Neo4j: graph, Logger: logger, Instruments: instruments}
@@ -123,7 +123,7 @@ func TestFetchWorkloadContextForOperationGrantDeniedEmitsTelemetry(t *testing.T)
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{
+	graph := graph.FakeGraphReader{
 		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			return map[string]any{"id": "workload:out-of-grant", "name": "workload:out-of-grant", "repo_id": "repo-b"}, nil
 		},
@@ -170,7 +170,7 @@ func TestGetEntityContextAnchorMismatchEmitsTelemetry(t *testing.T) {
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
 
-	graph := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	graph := graph.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 		return map[string]any{
 			"id": "entity-different", "labels": []any{"Function"}, "name": "different",
 			"repo_id": "repo-a", "relationships": []any{},
@@ -205,7 +205,7 @@ func TestGetEntityContextGrantDeniedEmitsTelemetry(t *testing.T) {
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
-	graph := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	graph := graph.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 		return map[string]any{
 			"id": "entity-a", "labels": []any{"Function"}, "name": "entity-a",
 			"repo_id": "repo-out-of-grant", "relationships": []any{},
@@ -275,7 +275,7 @@ func TestQueryScopedGrantDeniedOperationValues(t *testing.T) {
 			t.Parallel()
 
 			instruments, reader := newTestInstruments(t)
-			graph := querytestutil.FakeGraphReader{
+			graph := graph.FakeGraphReader{
 				RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 					return map[string]any{"id": "workload:out-of-grant", "name": "workload:out-of-grant", "repo_id": "repo-b"}, nil
 				},

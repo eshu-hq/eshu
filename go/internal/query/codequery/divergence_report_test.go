@@ -19,7 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // reportEnvelope decodes the report answer packet: counts by kind, the
@@ -184,7 +184,7 @@ func (deadlineGraph) RunSingle(context.Context, string, map[string]any) (map[str
 // the exact assembly suppresses it under wrapper_family and the wrapper
 // track must qualify it over the graph.
 type shapedDivergenceStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func shapedDivergenceMembers() []codedivergence.Member {

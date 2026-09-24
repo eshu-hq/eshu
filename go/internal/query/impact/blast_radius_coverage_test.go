@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes guards the
@@ -92,7 +92,7 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "CALL {"):
@@ -175,7 +175,7 @@ func TestFindBlastRadiusCrossplaneXrdReportsMaterializedCoverage(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "K8sResource)-[:SATISFIED_BY]->(xrd)"):
@@ -250,7 +250,7 @@ func TestFindBlastRadiusRepositoryCompleteWithEmptyCoverage(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, ":DEPENDS_ON*1..5"):
@@ -305,9 +305,9 @@ func TestFindBlastRadiusRepositoryCompleteWithEmptyCoverage(t *testing.T) {
 // without a backend.
 func TestSQLBlastRadiusCleanupVerifiesEveryDelete(t *testing.T) {
 	const prefix = "probeCleanupShape"
-	probes := querytestutil.SqlBlastRadiusProbes(prefix)
+	probes := graph.SqlBlastRadiusProbes(prefix)
 	if len(probes) == 0 {
-		t.Fatal("querytestutil.SqlBlastRadiusProbes returned nothing: cleanup that deletes nothing cannot leave the graph clean")
+		t.Fatal("graph.SqlBlastRadiusProbes returned nothing: cleanup that deletes nothing cannot leave the graph clean")
 	}
 	for _, probe := range probes {
 		if probe.What == "" {
@@ -319,7 +319,7 @@ func TestSQLBlastRadiusCleanupVerifiesEveryDelete(t *testing.T) {
 			continue
 		}
 		if !strings.Contains(probe.Verify, "AS leftover") {
-			t.Errorf("probe %q verify query must return its rows as `leftover`; querytestutil.SqlBlastRadiusLeftovers "+
+			t.Errorf("probe %q verify query must return its rows as `leftover`; graph.SqlBlastRadiusLeftovers "+
 				"reads that column and reports an empty name otherwise: %s", probe.What, probe.Verify)
 		}
 		if !strings.Contains(probe.Verify, "LIMIT") {
@@ -346,7 +346,7 @@ func TestSQLBlastRadiusCleanupVerifiesEveryDelete(t *testing.T) {
 // this runs inside t.Cleanup where a panic would bury the failure it is
 // reporting.
 func TestSQLBlastRadiusLeftoversNamesTheRows(t *testing.T) {
-	got := querytestutil.SqlBlastRadiusLeftovers([]map[string]any{
+	got := graph.SqlBlastRadiusLeftovers([]map[string]any{
 		{"leftover": "probe5409_repo_a"},
 		{"leftover": "probe5409_repo_b"},
 		{"unexpected": 7},
@@ -380,7 +380,7 @@ func (r *sqlBlastRadiusReportRecorder) Logf(format string, args ...any) {
 	r.logf = append(r.logf, fmt.Sprintf(format, args...))
 }
 
-// TestSQLBlastRadiusCleanupReportsEveryFailure drives querytestutil.SqlBlastRadiusCleanupWith
+// TestSQLBlastRadiusCleanupReportsEveryFailure drives graph.SqlBlastRadiusCleanupWith
 // down each of its three failure paths and asserts each one fails the test
 // rather than logging. It is the function the live gate runs, reached through
 // the same call the gate makes, not a copy of it.
@@ -392,16 +392,16 @@ func (r *sqlBlastRadiusReportRecorder) Logf(format string, args ...any) {
 // is a stub here.
 func TestSQLBlastRadiusCleanupReportsEveryFailure(t *testing.T) {
 	const prefix = "probeReportShape"
-	probes := querytestutil.SqlBlastRadiusProbes(prefix)
+	probes := graph.SqlBlastRadiusProbes(prefix)
 	if len(probes) == 0 {
-		t.Fatal("querytestutil.SqlBlastRadiusProbes returned nothing: there is no cleanup to report on")
+		t.Fatal("graph.SqlBlastRadiusProbes returned nothing: there is no cleanup to report on")
 	}
 	target := probes[0]
 	backendErr := errors.New("connection reset by peer")
 
 	cases := []struct {
 		name string
-		run  querytestutil.SqlBlastRadiusRunner
+		run  graph.SqlBlastRadiusRunner
 		want string
 	}{
 		{
@@ -439,7 +439,7 @@ func TestSQLBlastRadiusCleanupReportsEveryFailure(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := &sqlBlastRadiusReportRecorder{}
-			querytestutil.SqlBlastRadiusCleanupWith(context.Background(), recorder, tc.run, prefix)
+			graph.SqlBlastRadiusCleanupWith(context.Background(), recorder, tc.run, prefix)
 
 			if len(recorder.logf) != 0 {
 				t.Errorf("cleanup logged %v instead of failing the test -- Logf prints and the run "+
@@ -464,7 +464,7 @@ func TestSQLBlastRadiusCleanupReportsEveryFailure(t *testing.T) {
 // unconditionally would satisfy every case there and fail every live run.
 func TestSQLBlastRadiusCleanupSaysNothingWhenTheGraphIsEmpty(t *testing.T) {
 	recorder := &sqlBlastRadiusReportRecorder{}
-	querytestutil.SqlBlastRadiusCleanupWith(
+	graph.SqlBlastRadiusCleanupWith(
 		context.Background(),
 		recorder,
 		func(context.Context, string, map[string]any) ([]map[string]any, error) { return nil, nil },

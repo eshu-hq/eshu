@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
@@ -42,7 +42,7 @@ func TestResolveRepositorySelectorRejectsAmbiguousMatches(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:r_one", Name: "payments"},
 				{ID: "repository:r_two", Name: "payments"},
@@ -73,7 +73,7 @@ func TestHandleDeadCodeResolvesRepositorySelectorAlias(t *testing.T) {
 			},
 		},
 		Content: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{
 					{ID: "repository:r_payments", Name: "payments", RepoSlug: "acme/payments", LocalPath: "/src/payments"},
 				},
@@ -119,7 +119,7 @@ func TestHandleCallChainResolvesRepositorySelectorAlias(t *testing.T) {
 				return []map[string]any{{"chain": []any{}, "depth": int64(0)}}, nil
 			},
 		},
-		Content: querytestutil.FakePortContentStore{
+		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:r_payments", Name: "payments", RepoSlug: "acme/payments", LocalPath: "/src/payments"},
 			},

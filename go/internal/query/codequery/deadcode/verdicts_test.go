@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func rubyControllerActionResult(entityID string, rootKinds ...string) map[string]any {
@@ -103,7 +103,7 @@ func TestFilterDeadCodeResultsByDefaultPolicyDowngradeFlipsToDead(t *testing.T) 
 }
 
 type fakeVerdictContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	downgraded map[string]map[string]struct{}
 	err        error
 	calls      int
@@ -141,7 +141,7 @@ func TestLoadDeadCodeDowngradedRootsFailOpen(t *testing.T) {
 	})
 
 	t.Run("store without verdict interface keeps everything", func(t *testing.T) {
-		analyzer := newDeadCodeTestAnalyzer(querytestutil.FakePortContentStore{}, nil)
+		analyzer := newDeadCodeTestAnalyzer(content.FakePortContentStore{}, nil)
 		if got := analyzer.LoadDeadCodeDowngradedRoots(context.Background(), results); got != nil {
 			t.Fatalf("non-verdict store must yield nil, got %#v", got)
 		}

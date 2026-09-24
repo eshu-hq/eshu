@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // This file holds the CodeHandler-specific cases of the #6060
@@ -21,7 +21,7 @@ import (
 // REGRESSION of that (an accidental rename, or the production wiring no
 // longer passing a real content store).
 //
-// Every fake here embeds querytestutil.FakePortContentStore rather than
+// Every fake here embeds content.FakePortContentStore rather than
 // root's fakePortContentStore adapter -- a _test.go symbol in another
 // package is not importable, and this family now lives outside package
 // query -- and adds only the one interface method under test, so `ok` in
@@ -31,7 +31,7 @@ import (
 // --- HardcodedSecretInvestigator ---
 
 type fakeHardcodedSecretTripwireStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	calls int
 }
 
@@ -62,7 +62,7 @@ func TestCodeHandlerHardcodedSecretRowsUsesInvestigatorFastPath(t *testing.T) {
 // --- SymbolContentSearcher ---
 
 type fakeSymbolSearchTripwireStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	calls int
 }
 
@@ -99,7 +99,7 @@ func TestCodeHandlerSymbolSearchResultsUsesSearcherFastPath(t *testing.T) {
 // --- CodeTopicContentInvestigator ---
 
 type fakeCodeTopicTripwireStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	calls int
 }
 

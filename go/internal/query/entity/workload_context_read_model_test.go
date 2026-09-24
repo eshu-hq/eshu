@@ -13,6 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -38,7 +40,7 @@ import (
 // len(entities) > repository.InfrastructureEntityLimit check -- not a
 // client-side fake clamp -- decides truncation.
 type serviceReadModelInfrastructureOverflowContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	infrastructureEntities []querycontract.EntityContent
 	workloadNames          []string
 }
@@ -73,7 +75,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 	t.Parallel()
 
 	content := serviceReadModelInfrastructureOverflowContentStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "order-service"}},
 		},
 		infrastructureEntities: querytestutil.OverflowingInfrastructureEntities(repository.InfrastructureEntityLimit + 1),
@@ -84,7 +86,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 	// w.id = $service_name) returns nil, which is what forces the fallback to
 	// FetchServiceReadModelWorkloadContext in the first place.
 	handler := &Handler{
-		Neo4j:   querytestutil.FakeWorkloadGraphReader{},
+		Neo4j:   graph.FakeWorkloadGraphReader{},
 		Content: content,
 	}
 	mux := http.NewServeMux()

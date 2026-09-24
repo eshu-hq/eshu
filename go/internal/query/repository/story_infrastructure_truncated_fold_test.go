@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated is the
@@ -34,15 +36,15 @@ func TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated(t *testi
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return map[string]any{"id": "repo-story-infra-trunc-1", "name": "repo-story-infra-trunc-one"}, nil
 			},
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, querytestutil.StoryWorkloadNamesCypherFragment):
+				case strings.Contains(cypher, graph.StoryWorkloadNamesCypherFragment):
 					return []map[string]any{{"workload_name": "checkout"}}, nil
-				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, graph.InfrastructureGraphReadCypherFragment):
 					limit := querycontract.IntVal(params, "limit")
 					rows := make([]map[string]any, limit)
 					for i := range rows {
@@ -54,7 +56,7 @@ func TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated(t *testi
 				}
 			},
 		},
-		Content: querytestutil.FakePortContentStore{},
+		Content: content.FakePortContentStore{},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-story-infra-trunc-1/story", nil)
 	req.SetPathValue("repo_id", "repo-story-infra-trunc-1")

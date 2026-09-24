@@ -17,14 +17,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleCallGraphMetricsReturnsBoundedHubFunctions(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})") {
 					t.Fatalf("cypher = %q, want one repo-indexed CALLS pass", cypher)
@@ -102,7 +102,7 @@ func TestHandleCallGraphMetricsReturnsRecursiveFunctions(t *testing.T) {
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})") {
 					t.Fatalf("cypher = %q, want one repo-indexed CALLS pass", cypher)
@@ -156,7 +156,7 @@ func TestHandleCallGraphMetricsReturnsRecursiveFunctions(t *testing.T) {
 func TestHandleCallGraphMetricsRejectsUnscopedRequests(t *testing.T) {
 	t.Parallel()
 
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -177,7 +177,7 @@ func TestHandleCallGraphMetricsFailsClosedWhenEdgeScanLimitExceeded(t *testing.T
 	t.Parallel()
 
 	handler := &codequery.CodeHandler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "LIMIT $edge_scan_limit") {
 					t.Fatalf("cypher = %q, want bounded edge sentinel", cypher)
@@ -214,7 +214,7 @@ func TestHandleCallGraphMetricsFailsClosedWhenEdgeScanLimitExceeded(t *testing.T
 func TestHandleCallGraphMetricsRejectsNegativeLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -234,7 +234,7 @@ func TestHandleCallGraphMetricsRejectsNegativeLimit(t *testing.T) {
 func TestHandleCallGraphMetricsRejectsZeroLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &codequery.CodeHandler{Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

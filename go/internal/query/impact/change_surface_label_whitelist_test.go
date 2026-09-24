@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter pins the Go-side
@@ -27,7 +28,7 @@ func TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter(t *testing.T) {
 	t.Parallel()
 
 	access := changeSurfaceTestAccess([]string{"repository:owner"}, nil)
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(
+	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
 		cypher string,
 		_ map[string]any,
@@ -101,8 +102,8 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	t.Parallel()
 
 	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, changeSurfaceEnvironmentClause("prod"))
-	querytestutil.AssertCypherHasNoIgnoredLabelPredicate(t, rendered)
-	querytestutil.AssertCypherHasNoBrokenAndOr(t, rendered)
+	graph.AssertCypherHasNoIgnoredLabelPredicate(t, rendered)
+	graph.AssertCypherHasNoBrokenAndOr(t, rendered)
 
 	// Every label read in the WHERE must be one whitelist term. A stray
 	// `impacted:File` or a second any() would be a filter this guard cannot

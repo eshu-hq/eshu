@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // #5167 code-family batch 2a review round 2, finding 2.
@@ -82,8 +83,8 @@ func languageMetadataDocstring(repoID string) string {
 
 // languageMetadataCollisionSeeds are the two graph rows the fake returns: same
 // path, label, name and start line, different repository.
-func languageMetadataCollisionSeeds(omitRepoID bool) []querytestutil.GraphGrantSeed {
-	seeds := make([]querytestutil.GraphGrantSeed, 0, 2)
+func languageMetadataCollisionSeeds(omitRepoID bool) []graph.GrantSeed {
+	seeds := make([]graph.GrantSeed, 0, 2)
 	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
 		row := map[string]any{
 			"entity_id":  repoID + "#" + languageMetadataSharedName,
@@ -99,7 +100,7 @@ func languageMetadataCollisionSeeds(omitRepoID bool) []querytestutil.GraphGrantS
 		if omitRepoID {
 			delete(row, "repo_id")
 		}
-		seeds = append(seeds, querytestutil.GraphGrantSeed{RepoID: repoID, Row: row})
+		seeds = append(seeds, graph.GrantSeed{RepoID: repoID, Row: row})
 	}
 	return seeds
 }
@@ -108,7 +109,7 @@ func runLanguageMetadataCollisionQuery(t *testing.T, omitRepoID bool) []any {
 	t.Helper()
 
 	handler := &LanguageQueryHandler{
-		Neo4j: &querytestutil.EvaluatingRepositoryGraph{
+		Neo4j: &graph.EvaluatingRepositoryGraph{
 			Seeds:             languageMetadataCollisionSeeds(omitRepoID),
 			RepositoryAlias:   "r",
 			RepositoryColumns: repositoryProjectedColumns(),

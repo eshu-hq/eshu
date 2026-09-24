@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -342,7 +343,7 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 	// query -- topology, dependencies, provisioning candidates, the graph
 	// infrastructure fallback -- returning empty, so infrastructure_truncated
 	// stays the only bound this test can fire.
-	graphReader := querytestutil.FakeWorkloadGraphReader{
+	graphReader := graph.FakeWorkloadGraphReader{
 		RunSingleByMatch: map[string]map[string]any{
 			"MATCH (w:Workload)": {
 				"id": "workload-1", "name": "order-service", "kind": "Deployment",

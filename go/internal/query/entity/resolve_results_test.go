@@ -14,14 +14,15 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})"):
@@ -87,7 +88,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 				}
 			},
 		},
-		Content: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
+		Content: content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
 	}
 
 	mux := http.NewServeMux()
@@ -142,7 +143,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})"):
@@ -197,7 +198,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 				}
 			},
 		},
-		Content: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
+		Content: content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
 	}
 
 	mux := http.NewServeMux()
@@ -247,7 +248,7 @@ func TestResolveEntityReplacesGraphProjectionPlaceholdersWithContentRepoIdentity
 	t.Parallel()
 
 	handler := &Handler{
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 					t.Fatalf("cypher = %q, want entity resolve lookup", cypher)
@@ -270,7 +271,7 @@ func TestResolveEntityReplacesGraphProjectionPlaceholdersWithContentRepoIdentity
 				}, nil
 			},
 		},
-		Content: querytestutil.ResolvingEntityContentStore{
+		Content: content.ResolvingEntityContentStore{
 			EntitiesByID: map[string]querycontract.EntityContent{
 				"content-entity:e_handle": {
 					EntityID:     "content-entity:e_handle",

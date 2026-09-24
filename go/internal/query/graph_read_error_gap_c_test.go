@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestGetRepositoryBranchesMapsGraphReadAvailabilityErrors covers GET
@@ -20,7 +21,7 @@ func TestGetRepositoryBranchesMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: graph.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/branches", nil)
@@ -42,7 +43,7 @@ func TestGetRepositoryContentMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: graph.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/content?path=README.md", nil)
@@ -66,7 +67,7 @@ func TestGetRepositoryFreshnessMapsGraphReadAvailabilityErrors(t *testing.T) {
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
 			handler := &RepositoryHandler{
-				Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+				Neo4j: graph.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 					return nil, test.err
 				}},
 				Freshness: &querytestutil.FakeRepositoryFreshnessReader{},
@@ -90,7 +91,7 @@ func TestGetRepositoryTreeMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
 		t.Run(test.name, func(t *testing.T) {
-			handler := &RepositoryHandler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			handler := &RepositoryHandler{Neo4j: graph.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return nil, test.err
 			}}}
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/tree", nil)

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // TestGetServiceContextTriesNextAdmittedCandidate covers #6801 review
@@ -80,15 +80,15 @@ func TestGetServiceContextAllCandidatesRejectedCountsOneDenial(t *testing.T) {
 // same-name workloads that the candidate read admits through DEFINES ids.
 // The scoped DEFINES re-check resolves repo-a only for resolvableID ("" for
 // none), simulating the two reads disagreeing.
-func fallbackCandidateGraph(t *testing.T, resolvableID string) querytestutil.FakeGraphReader {
+func fallbackCandidateGraph(t *testing.T, resolvableID string) graph.FakeGraphReader {
 	t.Helper()
 	candidates := []map[string]any{
 		{"id": "workload:api-1", "name": "api", "kind": "service", "repo_id": "repo-x", "defining": []any{"repo-a"}},
 		{"id": "workload:api-2", "name": "api", "kind": "service", "repo_id": "repo-x", "defining": []any{"repo-a"}},
 	}
-	return querytestutil.FakeGraphReader{
+	return graph.FakeGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
+			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 				if resolvableID != "" && querycontract.StringVal(params, "workload_id") == resolvableID {

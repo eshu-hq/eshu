@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -41,7 +42,7 @@ func TestGetRepositoryStoryRowsTruncatedIsDisclosed(t *testing.T) {
 				return map[string]any{"id": "repo-story-rows-trunc-1", "name": "repo-story-rows-trunc-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, querytestutil.StoryWorkloadNamesCypherFragment) {
+				if !strings.Contains(cypher, graph.StoryWorkloadNamesCypherFragment) {
 					return nil, nil
 				}
 				limit := IntVal(params, "limit")
@@ -109,7 +110,7 @@ func TestGetRepositoryStoryRowsHealthyUnderLimitDoesNotDisclose(t *testing.T) {
 				return map[string]any{"id": "repo-story-rows-ok-1", "name": "repo-story-rows-ok-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, querytestutil.StoryWorkloadNamesCypherFragment) {
+				if !strings.Contains(cypher, graph.StoryWorkloadNamesCypherFragment) {
 					return nil, nil
 				}
 				return []map[string]any{{"workload_name": "checkout"}, {"workload_name": "payments"}}, nil

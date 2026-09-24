@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
@@ -32,7 +33,7 @@ func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
+		Neo4j: graph.FakeGraphReaderWithSingle{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") {
 					// A non-nil record with null path columns (no path found).
@@ -65,7 +66,7 @@ func TestTraceResourceToCodeAnchorsResolvedLabel(t *testing.T) {
 	var resolveCypher, traversalCypher string
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
+		Neo4j: graph.FakeGraphReaderWithSingle{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				resolveCypher = cypher
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
@@ -126,7 +127,7 @@ func TestTraceResourceToCodeReturnsStartWithoutPaths(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
+		Neo4j: graph.FakeGraphReaderWithSingle{
 			RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
@@ -157,7 +158,7 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	var pathCypher string
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
+		Neo4j: graph.FakeGraphReaderWithSingle{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "shortestPath") {
 					pathCypher = cypher

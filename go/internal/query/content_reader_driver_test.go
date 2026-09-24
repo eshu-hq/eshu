@@ -8,7 +8,7 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // contentReaderQueryResult is this package's view of one queued answer for the
@@ -16,7 +16,7 @@ import (
 // only so the 80-odd test files that build it with keyed literals over these
 // lowercase field names keep compiling (#6060).
 //
-// A type alias to querytestutil.ContentReaderQueryResult would not do. Its
+// A type alias to content.ReaderQueryResult would not do. Its
 // fields have to be exported to be settable from another package, so an alias
 // would carry the type and force every one of those literals to be renamed. The
 // adapter converts instead, and the field names stay put.
@@ -37,8 +37,8 @@ type contentReaderQueryResult struct {
 }
 
 // shared converts this package's result into the shared one.
-func (r contentReaderQueryResult) shared() querytestutil.ContentReaderQueryResult {
-	return querytestutil.ContentReaderQueryResult{
+func (r contentReaderQueryResult) shared() content.ReaderQueryResult {
+	return content.ReaderQueryResult{
 		Columns:              r.columns,
 		Rows:                 r.rows,
 		Err:                  r.err,
@@ -59,40 +59,40 @@ func (r contentReaderQueryResult) shared() querytestutil.ContentReaderQueryResul
 func openContentReaderTestDB(t *testing.T, results []contentReaderQueryResult) *sql.DB {
 	t.Helper()
 
-	shared := make([]querytestutil.ContentReaderQueryResult, 0, len(results))
+	shared := make([]content.ReaderQueryResult, 0, len(results))
 	for _, result := range results {
 		shared = append(shared, result.shared())
 	}
-	return querytestutil.OpenContentReaderTestDB(t, shared)
+	return content.OpenReaderTestDB(t, shared)
 }
 
 // contentReaderQueryContainsInOrder asserts each fragment appears in query
 // after the previous one, for a test holding a recorded query string rather
 // than a queued result.
 func contentReaderQueryContainsInOrder(query string, fragments []string) error {
-	return querytestutil.ContentReaderQueryContainsInOrder(query, fragments)
+	return content.ReaderQueryContainsInOrder(query, fragments)
 }
 
 // contentReaderRelationshipReadModelColumns returns the repository relationship
 // read model's columns, in order.
 func contentReaderRelationshipReadModelColumns() []string {
-	return querytestutil.ContentReaderRelationshipReadModelColumns()
+	return content.ReaderRelationshipReadModelColumns()
 }
 
 // contentReaderDeploymentEvidenceColumns returns the repository
 // deployment-evidence read's columns, in order.
 func contentReaderDeploymentEvidenceColumns() []string {
-	return querytestutil.ContentReaderDeploymentEvidenceColumns()
+	return content.ReaderDeploymentEvidenceColumns()
 }
 
 // contentReaderRelationshipEvidenceColumns returns the relationship evidence
 // read's columns, in order.
 func contentReaderRelationshipEvidenceColumns() []string {
-	return querytestutil.ContentReaderRelationshipEvidenceColumns()
+	return content.ReaderRelationshipEvidenceColumns()
 }
 
 // contentReaderDeadCodeCandidateColumns returns the dead-code candidate scan's
 // columns, in order.
 func contentReaderDeadCodeCandidateColumns() []string {
-	return querytestutil.ContentReaderDeadCodeCandidateColumns()
+	return content.ReaderDeadCodeCandidateColumns()
 }

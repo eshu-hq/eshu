@@ -11,17 +11,17 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // selectorAwareContentStore is a local copy of root package query's
 // selector-aware test double (content_handler_selector_test.go), which cannot
 // be imported across the package boundary. It embeds the shared
-// querytestutil.FakePortContentStore double and records the resolved
+// content.FakePortContentStore double and records the resolved
 // repository each content call ran against; keep it minimal and mirror the
 // root original if either changes.
 type selectorAwareContentStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 	fileRepoID          string
 	fileLinesRepoID     string
 	searchFileRepoIDs   []string
@@ -52,7 +52,7 @@ func TestContentHandlerReadFileLinesResolvesRepositorySelector(t *testing.T) {
 	t.Parallel()
 
 	store := &selectorAwareContentStore{
-		FakePortContentStore: querytestutil.FakePortContentStore{
+		FakePortContentStore: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{
 				ID:       "repo-1",
 				RepoSlug: "acme/payments",

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 func TestBuildRepositorySemanticOverviewTracksFrameworkCounts(t *testing.T) {
@@ -272,7 +272,7 @@ func TestHydrateRepositoryNarrativeFilesLoadsOnlyCandidateFiles(t *testing.T) {
 	// The hydration read goes through the content-store port, so the port
 	// double serves the same two files the SQL stub used to return; Dockerfile
 	// has no content row under either double and stays unhydrated.
-	store := querytestutil.FakePortContentStore{RepoFiles: []querycontract.FileContent{
+	store := content.FakePortContentStore{RepoFiles: []querycontract.FileContent{
 		{RepoID: "repo-1", RelativePath: "package.json", Content: `{"dependencies":{"react":"^18.3.0"}}`},
 		{RepoID: "repo-1", RelativePath: "README.md", Content: "# Sample\n"},
 	}}

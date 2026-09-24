@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -17,7 +17,7 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {
 				Environments: []string{"production"},
@@ -68,7 +68,7 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 			confirmed[environment] = impact.RuntimeEnvironmentEvidenceDeployEvent
 		}
 	}
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {
 				Environments: repositoryEnvironments,

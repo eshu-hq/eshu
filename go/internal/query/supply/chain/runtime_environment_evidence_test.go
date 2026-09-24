@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -50,7 +50,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 		Environments: []string{"production"},
 	}
 	row := osPackageFindingRowForRuntimeContext()
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			"repository:r_217415d9": contextValue,
 		},
@@ -79,7 +79,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnvironment(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
+	store := &graph.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
 		"repository:r_217415d9": {Environments: []string{"production"}},
 	}}
 	rows := []impact.FindingRow{osPackageFindingRowForRuntimeContext()}
@@ -99,7 +99,7 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{},
 		ByDigest: map[string]map[string]string{
 			row.SubjectDigest: {"production": "deploy_event"},
@@ -174,7 +174,7 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 
 	sourceEvidence := map[string]string{"production": "deploy_event"}
 	row := osPackageFindingRowForRuntimeContext()
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
@@ -203,7 +203,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	store := &querytestutil.FakeRuntimeContextFindingStore{
+	store := &graph.FakeRuntimeContextFindingStore{
 		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
@@ -245,7 +245,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	contextValue := impact.RuntimeContext{
 		Environments: []string{"production"},
 	}
-	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
+	contextStore := &graph.FakeRuntimeContextFindingStore{
 		Rows:   []impact.FindingRow{finding},
 		ByRepo: map[string]impact.RuntimeContext{repositoryID: contextValue},
 		ByDigest: map[string]map[string]string{

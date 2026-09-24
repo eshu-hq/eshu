@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 )
 
 // These tests exercise the #5363 anchored directed match: the impact-trace
@@ -24,15 +24,15 @@ import (
 
 // k8sSelectWideningStore is a ContentStore double whose name-anchored
 // SearchEntitiesByName returns exact-name K8sResource rows from entities (the
-// surfaced pool), while the embedded querytestutil.FakePortContentStore serves the narrow
+// surfaced pool), while the embedded content.FakePortContentStore serves the narrow
 // candidate scan and the by-ID hydration from the same entities set. One
 // fixture set therefore drives all three fetches consistently.
 type k8sSelectWideningStore struct {
-	querytestutil.FakePortContentStore
+	content.FakePortContentStore
 }
 
 func newK8sSelectWideningStore(entities []querycontract.EntityContent) k8sSelectWideningStore {
-	return k8sSelectWideningStore{FakePortContentStore: querytestutil.FakePortContentStore{Entities: entities}}
+	return k8sSelectWideningStore{FakePortContentStore: content.FakePortContentStore{Entities: entities}}
 }
 
 func (s k8sSelectWideningStore) SearchEntitiesByName(_ context.Context, repoID, entityType, name string, limit int) ([]querycontract.EntityContent, error) {

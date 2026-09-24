@@ -19,6 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // provenanceDeadCodeContentStore is a content store whose incoming-edge probe
@@ -83,7 +85,7 @@ func runDeadCodeWithContentIncoming(
 	handler := &codequery.CodeHandler{
 		Profile:      querycontract.ProfileLocalAuthoritative,
 		GraphBackend: querycontract.GraphBackendNornicDB,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:Function") {
 					return nil, nil
@@ -231,7 +233,7 @@ func TestDeadCodeWeakGraphIncomingEdgeKeepsSQLFunctionAsAmbiguous(t *testing.T) 
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:SqlFunction") {
 					return nil, nil
@@ -300,7 +302,7 @@ func TestDeadCodeInvestigationSurfacesWeakIncomingAmbiguityReason(t *testing.T) 
 
 	content := &investigationWeakIncomingStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "payments"}},
 			},
 			entities: map[string]deadcode.EntityContent{
@@ -319,7 +321,7 @@ func TestDeadCodeInvestigationSurfacesWeakIncomingAmbiguityReason(t *testing.T) 
 	}
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j:   querytestutil.FakeGraphReader{},
+		Neo4j:   graph.FakeGraphReader{},
 		Content: content,
 	}
 	mux := http.NewServeMux()
@@ -399,7 +401,7 @@ func TestDeadCodeStrongGraphIncomingEdgeFiltersSQLFunction(t *testing.T) {
 
 	handler := &codequery.CodeHandler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "e:SqlFunction") {
 					return nil, nil

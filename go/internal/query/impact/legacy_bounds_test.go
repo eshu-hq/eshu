@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
@@ -20,7 +21,7 @@ func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			// #5279: the handler now runs a bounded affected query (server-side
 			// LIMIT) and a SEPARATE tier lookup (bounded by the affected IN list,
 			// no LIMIT clause) merged in Go.
@@ -80,7 +81,7 @@ func TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation(t *testing.T)
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReaderWithSingle{
+		Neo4j: graph.FakeGraphReaderWithSingle{
 			RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
@@ -126,7 +127,7 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 
 	handler := &Handler{
 		Profile: querycontract.ProfileLocalAuthoritative,
-		Neo4j: querytestutil.FakeGraphReader{
+		Neo4j: graph.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				// Resolver probe resolves the start node by a label-anchored
 				// Workload id lookup.

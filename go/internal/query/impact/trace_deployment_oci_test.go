@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 const testOCIDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
@@ -21,7 +21,7 @@ func TestFetchOCIImageRegistryTruthUsesDigestMatchesAsCanonical(t *testing.T) {
 	t.Parallel()
 
 	imageRef := "ghcr.io/acme/payments-api@" + testOCIDigest
-	got, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	got, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (image:ContainerImage)") &&
@@ -77,7 +77,7 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveDigestAnchors(t *testing.T) {
 
 	imageRef := "ghcr.io/acme/payments-api@" + testOCIDigest
 	seenLabels := make(map[string]bool)
-	_, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	_, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			// Every image lookup is single-clause: the registry repository is
 			// resolved by a separate query and joined in Go, so the image
@@ -131,7 +131,7 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveDigestAnchors(t *testing.T) {
 func TestFetchOCIImageRegistryTruthDoesNotPromoteUnresolvedTag(t *testing.T) {
 	t.Parallel()
 
-	got, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	got, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "ContainerImageTagObservation") {
 				return nil, nil
@@ -152,7 +152,7 @@ func TestFetchOCIImageRegistryTruthMarksConflictingTagObservationsAmbiguous(t *t
 
 	tagRef := "ghcr.io/acme/payments-api:latest"
 	otherDigest := "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-	got, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	got, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (tag:ContainerImageTagObservation)"):
@@ -206,7 +206,7 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveTagAnchor(t *testing.T) {
 	tagRef := "ghcr.io/acme/payments-api:latest"
 	seenLabels := make(map[string]bool)
 	sawTagQuery := false
-	_, err := FetchOCIImageRegistryTruth(t.Context(), querytestutil.FakeWorkloadGraphReader{
+	_, err := FetchOCIImageRegistryTruth(t.Context(), graph.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (tag:ContainerImageTagObservation)"):

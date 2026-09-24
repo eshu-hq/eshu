@@ -19,6 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 func TestHandleCrossRepoDeadCodeClassifiesConsumerEvidence(t *testing.T) {
@@ -26,7 +28,7 @@ func TestHandleCrossRepoDeadCodeClassifiesConsumerEvidence(t *testing.T) {
 
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{
 					{ID: "repo-producer", Name: "payments-lib"},
 					{ID: "repo-consumer", Name: "checkout-api"},
@@ -155,7 +157,7 @@ func TestHandleCrossRepoDeadCodeClassifiesConsumerEvidence(t *testing.T) {
 			}},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -215,7 +217,7 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 				RelationshipReadModel: querycontract.RepositoryRelationshipReadModel{
 					Available: true,
@@ -252,7 +254,7 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 		},
 		evidenceByEntity: map[string][]deadcode.CrossRepoDeadCodeEvidence{},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -288,7 +290,7 @@ func TestHandleCrossRepoDeadCodeScopedConsumerEvidenceBecomesUnknown(t *testing.
 
 	content := &crossRepoDeadCodeContentStore{
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			FakePortContentStore: querytestutil.FakePortContentStore{
+			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
 			},
 			entities: map[string]deadcode.EntityContent{
@@ -319,7 +321,7 @@ func TestHandleCrossRepoDeadCodeScopedConsumerEvidenceBecomesUnknown(t *testing.
 			}},
 		},
 	}
-	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: querytestutil.FakeGraphReader{}}
+	handler := &codequery.CodeHandler{Profile: querycontract.ProfileLocalAuthoritative, Content: content, Neo4j: graph.FakeGraphReader{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

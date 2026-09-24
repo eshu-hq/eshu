@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -64,8 +65,8 @@ func (s *languageQueryPlainContentStore) SearchEntitiesByLanguageAndType(
 // languageQueryGraphSeeds is the two-tenant graph fixture every graph-backed
 // branch scans: one entity in the granted repository and one in another
 // tenant's.
-func languageQueryGraphSeeds(label string) []querytestutil.GraphGrantSeed {
-	return []querytestutil.GraphGrantSeed{
+func languageQueryGraphSeeds(label string) []graph.GrantSeed {
+	return []graph.GrantSeed{
 		{RepoID: codeGrantGrantedRepo, Row: languageQueryGraphRow(label, languageGrantGrantedEntity, codeGrantGrantedRepo)},
 		{RepoID: codeGrantOtherRepo, Row: languageQueryGraphRow(label, languageGrantUngrantedEntity, codeGrantOtherRepo)},
 	}
@@ -102,12 +103,12 @@ func languageQueryGrantBranches() []languageQueryGrantBranch {
 	}
 }
 
-func newLanguageQueryGrantHandler(branch languageQueryGrantBranch, store ContentStore) (*LanguageQueryHandler, *querytestutil.EvaluatingRepositoryGraph) {
+func newLanguageQueryGrantHandler(branch languageQueryGrantBranch, store ContentStore) (*LanguageQueryHandler, *graph.EvaluatingRepositoryGraph) {
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
 	if branch.graphLabel == "" {
 		return handler, nil
 	}
-	graph := &querytestutil.EvaluatingRepositoryGraph{
+	graph := &graph.EvaluatingRepositoryGraph{
 		Seeds:             languageQueryGraphSeeds(branch.graphLabel),
 		RepositoryAlias:   "r",
 		RepositoryColumns: repositoryProjectedColumns(),
@@ -345,7 +346,7 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 // first.
 //
 // The unresolvable sub-case runs on the content-backed branch, where h.Neo4j is
-// nil, on purpose. querytestutil.EvaluatingRepositoryGraph answers the selector's own
+// nil, on purpose. graph.EvaluatingRepositoryGraph answers the selector's own
 // MATCH (r:Repository) probe from its seeded rows, so a graph-backed handler
 // would resolve a selector that does not exist in the fixture.
 func TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector(t *testing.T) {
