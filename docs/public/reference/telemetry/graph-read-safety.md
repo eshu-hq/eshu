@@ -237,6 +237,18 @@ text instead:
   below NornicDB's default (5s), a read that is `slow` in Eshu but absent from
   the NornicDB log is expected -- lower `NORNICDB_SLOW_QUERY_THRESHOLD` to
   correlate reads in the 1-5s range.
+
+  Known limitation on current NornicDB builds (checked on upstream commits
+  `6ac958a9`, `f2163176` and `3691d795`; `f2163176` is the commit behind the
+  `fix-6915-f2163176` image): the per-database executors that serve Bolt and HTTP
+  `/db/<name>/tx/commit` queries are built without the slow-query logger or
+  threshold (`pkg/bolt/server.go` `newDatabaseScopedCypherExecutor`,
+  `cmd/nornicdb/main.go` `ConfigureDatabaseExecutor`), so Eshu's reads
+  produce no `slow_query` record at any threshold. Even where a record is
+  emitted, `plan_hash` is always `0000000000000000`, and some `CALL { ... UNION
+  ... }` and variable-length statements are logged as the literal
+  `<REDACTED>`. Until NornicDB fixes this, use the pprof capture below with
+  `graph_read.statement_head` as the correlation path.
 - **NornicDB pprof capture** -- when a statement shape recurs as `slow` or
   `deadline`, enable `NORNICDB_PPROF_ENABLED` (bind address
   `NORNICDB_PPROF_LISTEN`, default `127.0.0.1:9091`) and capture a profile with
