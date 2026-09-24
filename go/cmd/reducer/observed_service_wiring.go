@@ -15,6 +15,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -31,7 +32,7 @@ func buildObservedReducerService(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	logger *slog.Logger,
-) (reducer.Service, error) {
+) (reducer.Service, *snapshot.Refresher, error) {
 	activeWorkers := new(atomic.Int64)
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
@@ -47,7 +48,7 @@ func buildObservedReducerService(
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
 	identityCache, err := postgres.NewIdentityEpochCache(instruments, identityCacheMaxBytes(getenv))
 	if err != nil {
-		return reducer.Service{}, fmt.Errorf("identity epoch cache: %w", err)
+		return reducer.Service{}, nil, fmt.Errorf("identity epoch cache: %w", err)
 	}
 	serviceRunner, err := buildReducerService(
 		ctx,
@@ -64,11 +65,12 @@ func buildObservedReducerService(
 		identityCache,
 	)
 	if err != nil {
-		return reducer.Service{}, err
+		return reducer.Service{}, nil, err
 	}
-	if err := registerReducerObservableGauges(ctx, instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger); err != nil {
-		return reducer.Service{}, err
+	gaugeRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
+	if err != nil {
+		return reducer.Service{}, nil, err
 	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
-	return serviceRunner, nil
+	return serviceRunner, gaugeRefresher, nil
 }

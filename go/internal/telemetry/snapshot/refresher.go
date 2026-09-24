@@ -65,6 +65,7 @@ type reading struct {
 
 // Source is one gauge's cached snapshot. Counts never performs I/O.
 type Source struct {
+	owner  *Refresher
 	name   string
 	fetch  Fetch
 	latest atomic.Pointer[reading]
@@ -73,11 +74,17 @@ type Source struct {
 // Counts returns the most recently published snapshot without blocking or
 // touching the backing store. It returns a nil map and a nil error before the
 // first successful refresh, so an observable-gauge callback that ranges over
-// the result observes nothing until real data exists. Callers must not mutate
-// the returned map.
+// the result observes nothing until real data exists. It also returns nil once
+// the snapshot is older than the Refresher's max age (3x the interval), so a
+// gauge whose refreshes keep failing goes stale like a failed callback would
+// instead of reporting a frozen value forever; the age gauge keeps reporting.
+// Callers must not mutate the returned map.
 func (s *Source) Counts(context.Context) (map[string]int64, error) {
 	current := s.latest.Load()
 	if current == nil {
+		return nil, nil
+	}
+	if s.owner.now().Sub(current.at) > s.owner.maxAge {
 		return nil, nil
 	}
 	return current.counts, nil
@@ -90,6 +97,7 @@ func (s *Source) Counts(context.Context) (map[string]int64, error) {
 type Refresher struct {
 	interval time.Duration
 	timeout  time.Duration
+	maxAge   time.Duration
 	logger   *slog.Logger
 	now      func() time.Time
 	metrics  *refreshMetrics
@@ -116,6 +124,13 @@ func New(cfg Config) (*Refresher, error) {
 	}
 	if r.now == nil {
 		r.now = time.Now
+	}
+	// A snapshot expires after three missed intervals. The floor keeps a
+	// healthy but slow refresh (up to timeout after the interval) from
+	// expiring its own snapshot when the timeout exceeds twice the interval.
+	r.maxAge = 3 * r.interval
+	if floor := r.interval + r.timeout; r.maxAge < floor {
+		r.maxAge = floor
 	}
 	if cfg.Meter != nil {
 		metrics, err := newRefreshMetrics(cfg.Meter, r)
@@ -146,14 +161,15 @@ func (r *Refresher) Register(name string, fetch Fetch) (*Source, error) {
 			return nil, fmt.Errorf("snapshot source %q already registered", name)
 		}
 	}
-	source := &Source{name: name, fetch: fetch}
+	source := &Source{owner: r, name: name, fetch: fetch}
 	r.sources = append(r.sources, source)
 	return source, nil
 }
 
 // Start launches one refresh loop per Source, each running an immediate first
 // refresh. The loops stop when ctx is done; Wait blocks until they have. Start
-// is idempotent.
+// is idempotent. Pass the process shutdown context, not context.Background, so
+// the loops end before the backend they read from is closed.
 func (r *Refresher) Start(ctx context.Context) {
 	r.mu.Lock()
 	if r.started {
@@ -241,5 +257,5 @@ func (r *Refresher) warn(ctx context.Context, source *Source, outcome string, el
 	if previous := source.latest.Load(); previous != nil {
 		attrs = append(attrs, slog.Float64("snapshot_age_seconds", r.now().Sub(previous.at).Seconds()))
 	}
-	r.logger.WarnContext(ctx, "gauge snapshot refresh failed; serving the previous snapshot", attrs...)
+	r.logger.WarnContext(ctx, "gauge snapshot refresh failed; keeping the last good snapshot until it expires", attrs...)
 }

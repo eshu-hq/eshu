@@ -66,26 +66,27 @@ func (c cachedGraphOrphanNodes) GraphOrphanNodeCounts(ctx context.Context) (map[
 // /metrics collection. A slow or stuck graph read used to hold the metrics
 // collection lock and wedge every scrape (#7062); now the gauge callbacks only
 // read the last published snapshot, and the refresher reads the graph on its
-// own goroutines with a per-read deadline, stopping when ctx ends.
+// own goroutines with a per-read deadline. It returns the refresher without
+// starting it: the caller starts it with the process shutdown context via
+// startGraphGaugeRefresher and waits for it before closing the graph driver.
 //
 // The provenance gauges are exact, index-answered counts (the edge gauge sums
 // per-relationship-type aggregates; the file gauge is a File-label group), so a
 // series dropping to zero means extraction stopped emitting that tool or
 // language, not a sampling artifact. The group cap bounds label cardinality
 // only. Each gauge is skipped when its read port is nil (binaries without a
-// graph read port, or the orphan sweep disabled). The refresher is started only
-// when at least one gauge registered a source.
+// graph read port, or the orphan sweep disabled). It returns nil when no gauge
+// registered a source.
 func registerGraphBackedGauges(
-	ctx context.Context,
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	graphReader query.GraphQuery,
 	orphanObserver telemetry.GraphOrphanObserver,
 	getenv func(string) string,
 	logger *slog.Logger,
-) error {
+) (*snapshot.Refresher, error) {
 	if graphReader == nil && orphanObserver == nil {
-		return nil
+		return nil, nil
 	}
 	refresher, err := snapshot.New(snapshot.Config{
 		Interval: loadDurationOrDefault(getenv, graphGaugeRefreshIntervalEnv, snapshot.DefaultInterval),
@@ -94,24 +95,35 @@ func registerGraphBackedGauges(
 		Logger:   logger,
 	})
 	if err != nil {
-		return fmt.Errorf("build graph gauge snapshot refresher: %w", err)
+		return nil, fmt.Errorf("build graph gauge snapshot refresher: %w", err)
 	}
 	if graphReader != nil {
 		if err := registerProvenanceCoverageGauges(refresher, instruments, meter, graphReader, getenv); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if orphanObserver != nil {
 		source, err := refresher.Register(gaugeGraphOrphanNodes, orphanObserver.GraphOrphanNodeCounts)
 		if err != nil {
-			return fmt.Errorf("register graph orphan snapshot source: %w", err)
+			return nil, fmt.Errorf("register graph orphan snapshot source: %w", err)
 		}
 		if err := telemetry.RegisterGraphOrphanObservableGauge(instruments, meter, cachedGraphOrphanNodes{source: source}); err != nil {
-			return fmt.Errorf("register graph orphan observable gauge: %w", err)
+			return nil, fmt.Errorf("register graph orphan observable gauge: %w", err)
 		}
 	}
+	return refresher, nil
+}
+
+// startGraphGaugeRefresher starts refresher (a no-op for nil) under ctx, the
+// process shutdown context, and returns a function that blocks until its loops
+// have exited. Call that function before closing the graph driver so no
+// in-flight refresh read fails against a closed driver.
+func startGraphGaugeRefresher(ctx context.Context, refresher *snapshot.Refresher) (wait func()) {
+	if refresher == nil {
+		return func() {}
+	}
 	refresher.Start(ctx)
-	return nil
+	return refresher.Wait
 }
 
 // registerProvenanceCoverageGauges registers the extraction-provenance

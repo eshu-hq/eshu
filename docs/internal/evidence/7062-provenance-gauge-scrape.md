@@ -21,8 +21,13 @@ and no `eshu_dp_*` reducer series reached the metrics backend.
   the result through an `atomic.Pointer`. Gauge callbacks read the last
   snapshot only; nothing is observed before the first successful refresh.
 - `go/cmd/reducer/provenance_gauge_wiring.go` feeds the two provenance gauges
-  and the graph-orphan gauge from that refresher, started with the reducer
-  process context.
+  and the graph-orphan gauge from that refresher, started under the reducer's
+  signal (shutdown) context in `run.go`; the reducer waits for the loops before
+  the graph driver closes.
+- A snapshot older than three intervals (or interval plus timeout, if larger) is
+  no longer observed, so a gauge whose refreshes keep failing goes stale like a
+  failed callback did on main, keeping `EshuGraphOrphanNodesHigh` honest. The
+  `EshuGraphGaugeSnapshotStale` alert watches `eshu_dp_gauge_snapshot_age_seconds`.
 - Two env vars: `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` (5m) and
   `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` (30s).
 - Three signals: `eshu_dp_gauge_snapshot_refreshes_total{gauge,outcome}`,
@@ -65,8 +70,11 @@ statements are byte-identical. Only one refresh per gauge is ever in flight, so
 graph read concurrency from these gauges is capped at three. The scrape path
 does no graph I/O and no longer takes any graph-latency-dependent time.
 
-Trade-off, stated plainly: the three gauges can now lag the graph by up to one
-interval plus one read. `eshu_dp_gauge_snapshot_age_seconds` exposes the lag.
+Trade-off, stated plainly: while refreshes succeed the three gauges lag the
+graph by up to one interval plus one read. While refreshes keep failing, the
+previous snapshot is served only until it is three intervals old, then the
+gauge reports nothing. `eshu_dp_gauge_snapshot_age_seconds` exposes the lag and
+keeps reporting after expiry.
 
 ## Observability Evidence
 
@@ -74,7 +82,7 @@ An operator at 3 AM sees a stale gauge through
 `eshu_dp_gauge_snapshot_refreshes_total{gauge,outcome}` (rising `timeout` or
 `error`), `eshu_dp_gauge_snapshot_age_seconds{gauge}` (growing), the
 duration histogram (a `timeout` series pinned at the deadline), and a WARN
-`gauge snapshot refresh failed; serving the previous snapshot` carrying
+`gauge snapshot refresh failed; keeping the last good snapshot until it expires` carrying
 `gauge`, `outcome`, `elapsed_seconds`, `timeout_seconds`, `failure_class`, and
 `snapshot_age_seconds`. Tests: `TestRefreshPublishesSnapshotAndKeepsItOnFailure`,
 `TestRefreshTimeoutRecordsTimeoutOutcome`, `TestShutdownStopsRefreshLoops`,
@@ -86,9 +94,12 @@ duration histogram (a `timeout` series pinned at the deadline), and a WARN
 One goroutine per gauge; one read in flight per gauge; the next read starts an
 interval after the previous one ends, so reads never overlap or pile up.
 Publication is an atomic pointer swap of an immutable snapshot (no lock is held
-across a read). Shutdown: the loops exit when the process context ends and a
-read cancelled by shutdown is not recorded as a failure
-(`TestShutdownStopsRefreshLoops`, `-race`). A `Fetch` that ignores its context
+across a read). Shutdown: the loops start under the signal context and exit when it ends, and
+`run.go` waits for them before the graph driver closes; a read cut short by
+shutdown, including one that fails with a non-context "driver closed" error, is
+not recorded as a failure (`TestShutdownStopsRefreshLoops`,
+`TestGraphGaugeRefresherStopsWithRunContext`, `-race`). Expiry is covered by
+`TestSnapshotExpiresAfterMaxAge`. A `Fetch` that ignores its context
 would stall only its own loop; the bolt driver honors context cancellation, and
 the symptom would be a growing snapshot age, never a blocked scrape.
 

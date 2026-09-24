@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -55,9 +56,12 @@ func TestProvenanceGaugesDoNotBlockMetricsCollection(t *testing.T) {
 		}
 		return ""
 	}
-	if err := registerGraphBackedGauges(ctx, instruments, provider.Meter("test"), graph, nil, getenv, nil); err != nil {
+	refresher, err := registerGraphBackedGauges(instruments, provider.Meter("test"), graph, nil, getenv, nil)
+	if err != nil {
 		t.Fatalf("registerGraphBackedGauges() error = %v", err)
 	}
+	wait := startGraphGaugeRefresher(ctx, refresher)
+	t.Cleanup(func() { cancel(); wait() })
 	select {
 	case <-graph.entered:
 	case <-time.After(2 * time.Second):
@@ -98,9 +102,12 @@ func TestProvenanceGaugeRefreshTimeoutIsRecorded(t *testing.T) {
 		}
 		return ""
 	}
-	if err := registerGraphBackedGauges(ctx, &telemetry.Instruments{}, provider.Meter("test"), graph, nil, getenv, nil); err != nil {
+	refresher, err := registerGraphBackedGauges(&telemetry.Instruments{}, provider.Meter("test"), graph, nil, getenv, nil)
+	if err != nil {
 		t.Fatalf("registerGraphBackedGauges() error = %v", err)
 	}
+	wait := startGraphGaugeRefresher(ctx, refresher)
+	t.Cleanup(func() { cancel(); wait() })
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -119,6 +126,10 @@ func TestProvenanceGaugeRefreshTimeoutIsRecorded(t *testing.T) {
 }
 
 func timeoutOutcomes(rm metricdata.ResourceMetrics, gauge string) int64 {
+	return refreshOutcomes(rm, gauge, "timeout")
+}
+
+func refreshOutcomes(rm metricdata.ResourceMetrics, gauge, outcome string) int64 {
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
 			sum, ok := m.Data.(metricdata.Sum[int64])
@@ -128,7 +139,7 @@ func timeoutOutcomes(rm metricdata.ResourceMetrics, gauge string) int64 {
 			for _, dp := range sum.DataPoints {
 				g, _ := dp.Attributes.Value("gauge")
 				o, _ := dp.Attributes.Value("outcome")
-				if g.AsString() == gauge && o.AsString() == "timeout" {
+				if g.AsString() == gauge && o.AsString() == outcome {
 					return dp.Value
 				}
 			}
@@ -169,9 +180,12 @@ func TestGraphBackedGaugesServeRefreshedSnapshot(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	getenv := func(string) string { return "" }
-	if err := registerGraphBackedGauges(ctx, &telemetry.Instruments{}, provider.Meter("test"), countingGraphReader{}, fakeOrphanObserver{}, getenv, nil); err != nil {
+	refresher, err := registerGraphBackedGauges(&telemetry.Instruments{}, provider.Meter("test"), countingGraphReader{}, fakeOrphanObserver{}, getenv, nil)
+	if err != nil {
 		t.Fatalf("registerGraphBackedGauges() error = %v", err)
 	}
+	wait := startGraphGaugeRefresher(ctx, refresher)
+	t.Cleanup(func() { cancel(); wait() })
 
 	want := map[string]struct {
 		label string
@@ -226,7 +240,82 @@ func TestGraphBackedGaugesServeRefreshedSnapshot(t *testing.T) {
 func TestGraphBackedGaugesSkipWithoutGraphPorts(t *testing.T) {
 	provider := sdkmetric.NewMeterProvider()
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	if err := registerGraphBackedGauges(context.Background(), &telemetry.Instruments{}, provider.Meter("test"), nil, nil, func(string) string { return "" }, nil); err != nil {
+	refresher, err := registerGraphBackedGauges(&telemetry.Instruments{}, provider.Meter("test"), nil, nil, func(string) string { return "" }, nil)
+	if err != nil {
 		t.Fatalf("registerGraphBackedGauges(nil ports) error = %v", err)
+	}
+	if refresher != nil {
+		t.Fatal("registerGraphBackedGauges(nil ports) returned a refresher, want nil")
+	}
+	// Starting and waiting on the nil refresher must be a safe no-op.
+	startGraphGaugeRefresher(context.Background(), refresher)()
+}
+
+// closingGraphReader fails with a non-context error once the run context is
+// cancelled, the way a graph driver being closed at shutdown fails an in-flight
+// read (#7062 review F1).
+type closingGraphReader struct{ entered chan struct{} }
+
+func (r *closingGraphReader) Run(ctx context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	select {
+	case r.entered <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return nil, errors.New("driver closed")
+}
+
+func (r *closingGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	rows, err := r.Run(ctx, cypher, params)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
+}
+
+// TestGraphGaugeRefresherStopsWithRunContext proves cancelling the context the
+// reducer runs under stops the refresh loops, and that a read cut short by that
+// shutdown is not counted or logged as a refresh failure.
+func TestGraphGaugeRefresherStopsWithRunContext(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	graph := &closingGraphReader{entered: make(chan struct{}, 1)}
+	getenv := func(key string) string {
+		if key == graphGaugeRefreshTimeoutEnv {
+			return "1h"
+		}
+		return ""
+	}
+	refresher, err := registerGraphBackedGauges(&telemetry.Instruments{}, provider.Meter("test"), graph, nil, getenv, nil)
+	if err != nil {
+		t.Fatalf("registerGraphBackedGauges() error = %v", err)
+	}
+	runCtx, cancelRun := context.WithCancel(context.Background())
+	wait := startGraphGaugeRefresher(runCtx, refresher)
+	select {
+	case <-graph.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresher never started its graph read")
+	}
+	cancelRun()
+
+	stopped := make(chan struct{})
+	go func() { wait(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("refresh loops still running after the run context was cancelled")
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	for _, gauge := range []string{gaugeEdgesBySourceTool, gaugeFilesByLanguage} {
+		for _, outcome := range []string{"error", "timeout", "success"} {
+			if got := refreshOutcomes(rm, gauge, outcome); got != 0 {
+				t.Fatalf("%s %s outcomes after shutdown = %d, want 0", gauge, outcome, got)
+			}
+		}
 	}
 }

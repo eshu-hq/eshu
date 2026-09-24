@@ -347,3 +347,78 @@ func TestNewAppliesDefaults(t *testing.T) {
 		t.Fatalf("defaults = %v/%v, want %v/%v", r.interval, r.timeout, DefaultInterval, DefaultTimeout)
 	}
 }
+
+// fakeClock is a settable clock for max-age tests.
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+// TestSnapshotExpiresAfterMaxAge pins #7062 review F3: once refreshes keep
+// failing past MaxAge (3x the interval) the gauge stops observing the stale
+// value, so its series goes stale like a callback error would, while the age
+// gauge keeps reporting so the staleness stays visible.
+func TestSnapshotExpiresAfterMaxAge(t *testing.T) {
+	t.Parallel()
+	reader, provider := newMeter(t)
+	clock := &fakeClock{now: time.Unix(1_000_000, 0)}
+	var fail atomic.Bool
+	var calls atomic.Int64
+	r, _ := New(Config{Interval: time.Millisecond, Timeout: time.Second, Meter: provider.Meter("t"), Now: clock.Now})
+	src, _ := r.Register("edges", func(context.Context) (map[string]int64, error) {
+		calls.Add(1)
+		if fail.Load() {
+			return nil, errors.New("graph unreachable")
+		}
+		return map[string]int64{"terraform": 7}, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	r.Start(ctx)
+	t.Cleanup(func() { cancel(); r.Wait() })
+
+	eventually(t, "first snapshot", func() bool {
+		counts, _ := src.Counts(context.Background())
+		return counts["terraform"] == 7
+	})
+	fail.Store(true)
+	// Let at least one failing refresh land, then age the snapshot.
+	seen := calls.Load()
+	eventually(t, "a failing refresh", func() bool { return calls.Load() > seen+1 })
+
+	clock.Advance(r.maxAge - time.Millisecond)
+	if counts, _ := src.Counts(context.Background()); counts["terraform"] != 7 {
+		t.Fatalf("snapshot just inside MaxAge = %v, want the served value", counts)
+	}
+	clock.Advance(2 * time.Millisecond)
+	if counts, _ := src.Counts(context.Background()); counts != nil {
+		t.Fatalf("snapshot past MaxAge = %v, want nothing observed", counts)
+	}
+	if !ageGaugePresent(t, reader, "edges") {
+		t.Fatal("age gauge must keep reporting for an expired snapshot")
+	}
+}
+
+func TestMaxAgeDerivedFromInterval(t *testing.T) {
+	t.Parallel()
+	r, _ := New(Config{Interval: time.Minute, Timeout: 10 * time.Second})
+	if r.maxAge != 3*time.Minute {
+		t.Fatalf("maxAge = %v, want 3x interval", r.maxAge)
+	}
+	// A timeout longer than the derived bound must not expire healthy slow reads.
+	r, _ = New(Config{Interval: time.Second, Timeout: time.Minute})
+	if r.maxAge < time.Second+time.Minute {
+		t.Fatalf("maxAge = %v, want at least interval+timeout", r.maxAge)
+	}
+}

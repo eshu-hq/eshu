@@ -16,9 +16,10 @@
   and Sources stay independent of each other.
 - **Bounded reads.** Every `Fetch` runs under `Config.Timeout`. Do not remove
   the deadline.
-- **Keep the last good snapshot on failure.** Never publish an empty or partial
-  map from a failed read; a stale value with a rising age is honest, a fake zero
-  is not.
+- **Keep the last good snapshot on failure, but expire it.** Never publish an
+  empty or partial map from a failed read. A snapshot older than the max age
+  (3x interval) must stop being observed so the gauge series goes stale instead
+  of freezing; a fake zero is worse. The age gauge keeps reporting after expiry.
 - **Closed `gauge` label.** `Register` names come from the caller as constants;
   never derive one from graph data.
 - **Shutdown is not a failure.** A read cancelled by the parent context is not

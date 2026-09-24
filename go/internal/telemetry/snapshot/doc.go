@@ -12,8 +12,9 @@
 // callback: Source.Counts is a lock-free read of the last published snapshot
 // and never performs I/O. Refresher.Start runs one deadline-bounded read at a
 // time per Source on its own goroutine, publishes each success atomically,
-// keeps the previous snapshot on error or timeout, and stops when the context
-// passed to Start ends.
+// keeps the previous snapshot on error or timeout (until it is older than
+// three intervals, after which the Source reports nothing), and stops when the
+// context passed to Start ends.
 //
 // The refresher emits eshu_dp_gauge_snapshot_refreshes_total,
 // eshu_dp_gauge_snapshot_refresh_duration_seconds, and

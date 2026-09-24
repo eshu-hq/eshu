@@ -36,7 +36,9 @@ flowchart LR
 - `Refresher.Start(ctx)` / `Refresher.Wait()`: start the loops once; `Wait`
   blocks until they exit after `ctx` ends.
 - `Source.Counts(ctx)`: last published snapshot; `nil, nil` before the first
-  success. Callers must not mutate the returned map.
+  success and once the snapshot is older than the max age (3x `Interval`, or
+  `Interval + Timeout` if larger). The age gauge keeps reporting after expiry.
+  Callers must not mutate the returned map.
 - `OutcomeSuccess`, `OutcomeError`, `OutcomeTimeout`; `DefaultInterval` (5m),
   `DefaultTimeout` (30s).
 
@@ -57,7 +59,7 @@ stalls only its own loop and shows as a growing
 | `eshu_dp_gauge_snapshot_refreshes_total` | `gauge`, `outcome` | Refreshes by result. |
 | `eshu_dp_gauge_snapshot_refresh_duration_seconds` | `gauge`, `outcome` | Refresh read latency. |
 | `eshu_dp_gauge_snapshot_age_seconds` | `gauge` | Age of the snapshot being served. |
-| WARN `gauge snapshot refresh failed; serving the previous snapshot` | `gauge`, `outcome`, `failure_class` | One per failed or timed-out refresh. |
+| WARN `gauge snapshot refresh failed; keeping the last good snapshot until it expires` | `gauge`, `outcome`, `failure_class` | One per failed or timed-out refresh. |
 
 A refresh cancelled by process shutdown is not counted or logged as a failure.
 

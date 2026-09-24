@@ -28,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/incident"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -141,7 +142,6 @@ func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraph
 // It lives here rather than in main.go to keep that file within the file-size
 // budget.
 func registerReducerObservableGauges(
-	ctx context.Context,
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	database *sql.DB,
@@ -150,26 +150,26 @@ func registerReducerObservableGauges(
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 	logger *slog.Logger,
-) error {
+) (*snapshot.Refresher, error) {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: database})
 	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
-		return fmt.Errorf("register observable gauges: %w", err)
+		return nil, fmt.Errorf("register observable gauges: %w", err)
 	}
 
 	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
-		return fmt.Errorf("register acceptance observable gauge: %w", err)
+		return nil, fmt.Errorf("register acceptance observable gauge: %w", err)
 	}
 	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
-		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
+		return nil, fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
 	}
 
 	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: database}, loadGenerationLivenessConfig(getenv))
 	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
-		return fmt.Errorf("register active generation age observable gauge: %w", err)
+		return nil, fmt.Errorf("register active generation age observable gauge: %w", err)
 	}
 
 	// The poison stuck-gauge is wired unconditionally (unlike the recovery
@@ -177,10 +177,10 @@ func registerReducerObservableGauges(
 	// regardless of whether bounded auto-retry is enabled (#4740).
 	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterPoisonLivenessObservableGauges(instruments, meter, poisonObserver); err != nil {
-		return fmt.Errorf("register poison liveness observable gauges: %w", err)
+		return nil, fmt.Errorf("register poison liveness observable gauges: %w", err)
 	}
 
-	return registerGraphBackedGauges(ctx, instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
+	return registerGraphBackedGauges(instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
 }
 
 func graphOrphanObserver(service reducer.Service) telemetry.GraphOrphanObserver {
