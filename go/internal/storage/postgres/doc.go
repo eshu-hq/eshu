@@ -95,12 +95,6 @@
 // missing. That reset also deletes the succeeded reducer work items and the
 // graph projection phase rows for the same generations, in one transaction with
 // the projector re-enqueue.
-// AdmissionDecisionStore persists reducer-owned correlation admission outcomes
-// and redaction-safe evidence handles under a scope/generation/domain boundary;
-// rejected, ambiguous, stale, hidden, unsupported, and unsafe rows explain why
-// canonical graph writes were skipped without promoting those candidates to
-// truth. The store rejects unsupported admission states before write execution,
-// and SQL keeps the same closed vocabulary as a migration-level guardrail.
 // Relationship evidence backfill reads latest file/content facts plus
 // gcp_cloud_relationship facts so cloud provider relationships without file
 // content can still flow through the resolver's catalog-admission contract.

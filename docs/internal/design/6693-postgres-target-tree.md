@@ -351,7 +351,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 13. [x] `governance/audit/` (2 files)
 14. [x] `graph/owner/` (2 files)
 15. [x] `queue/` (2 files)
-16. [ ] `admission/` (3 files)
+16. [x] `admission/` (3 files)
 17. [ ] `code/reachability/` (3 files)
 18. [ ] `freshness/aws/` (3 files)
 19. [ ] `freshness/gcp/` (3 files)

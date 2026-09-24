@@ -216,10 +216,10 @@ the concrete adapters stay here.
   (`storage/postgres/decisions`) — upserts `projection_decisions` and
   `projection_decision_evidence`; `decisionsstore.DecisionFilter` for scoped
   reads
-- `AdmissionDecisionStore` / `NewAdmissionDecisionStore` — upserts
+- `admissionstore.AdmissionDecisionStore` / `admissionstore.NewAdmissionDecisionStore` (`storage/postgres/admission`) — upserts
   `admission_decisions` and `admission_decision_evidence`; reads require
   domain, scope, and generation bounds before optional state/anchor filters.
-  `AdmissionDecisionSchemaSQL` registers the schema in bootstrap as
+  `admissionstore.AdmissionDecisionSchemaSQL` registers the schema in bootstrap as
   `007a_admission_decisions.sql`, preserving compatibility with existing
   projection decisions and reducer fact payloads.
 

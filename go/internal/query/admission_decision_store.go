@@ -9,20 +9,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/admission"
 )
 
 // PostgresAdmissionDecisionReadStore adapts the reducer admission decision
 // store to the query read surface.
 type PostgresAdmissionDecisionReadStore struct {
-	store *postgres.AdmissionDecisionStore
+	store *admissionstore.AdmissionDecisionStore
 }
 
 // NewPostgresAdmissionDecisionReadStore creates a Postgres-backed admission
 // decision read store.
 func NewPostgresAdmissionDecisionReadStore(database db.ExecQueryer) PostgresAdmissionDecisionReadStore {
 	return PostgresAdmissionDecisionReadStore{
-		store: postgres.NewAdmissionDecisionStore(database),
+		store: admissionstore.NewAdmissionDecisionStore(database),
 	}
 }
 
@@ -42,7 +42,7 @@ func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisions(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.ListDecisions(ctx, postgres.AdmissionDecisionFilter{
+	rows, err := s.store.ListDecisions(ctx, admissionstore.AdmissionDecisionFilter{
 		Domain:       filter.Domain,
 		ScopeID:      filter.ScopeID,
 		GenerationID: filter.GenerationID,
@@ -89,18 +89,18 @@ func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	return out, nil
 }
 
-func postgresAdmissionDecisionState(state *string) (*postgres.AdmissionDecisionState, error) {
+func postgresAdmissionDecisionState(state *string) (*admissionstore.AdmissionDecisionState, error) {
 	if state == nil {
 		return nil, nil
 	}
 	if !validAdmissionDecisionState(*state) {
 		return nil, fmt.Errorf("unsupported admission decision state %q", *state)
 	}
-	converted := postgres.AdmissionDecisionState(*state)
+	converted := admissionstore.AdmissionDecisionState(*state)
 	return &converted, nil
 }
 
-func admissionDecisionReadRowFromPostgres(row postgres.AdmissionDecision) AdmissionDecisionReadRow {
+func admissionDecisionReadRowFromPostgres(row admissionstore.AdmissionDecision) AdmissionDecisionReadRow {
 	return AdmissionDecisionReadRow{
 		DecisionID:          row.DecisionID,
 		Domain:              row.Domain,
@@ -140,7 +140,7 @@ func admissionDecisionReadRowFromPostgres(row postgres.AdmissionDecision) Admiss
 }
 
 func admissionDecisionSourceHandlesFromPostgres(
-	handles []postgres.AdmissionDecisionSourceHandle,
+	handles []admissionstore.AdmissionDecisionSourceHandle,
 ) []AdmissionDecisionSourceHandle {
 	out := make([]AdmissionDecisionSourceHandle, 0, len(handles))
 	for _, handle := range handles {
