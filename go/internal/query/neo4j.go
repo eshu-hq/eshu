@@ -11,7 +11,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -137,15 +137,15 @@ func RepoRefFromRow(row map[string]any) querycontract.RepoRef {
 // map-valued comprehension corrupts on the pinned NornicDB build, so the raw
 // list is unwound here instead. This decoder lives in neo4j.go because it is the
 // only driver-aware seam in the query package (per the package AGENTS.md); it
-// returns the impacttrace plain struct so the impact handler family (#6060
+// returns the deployment plain struct so the impact handler family (#6060
 // lane B2) can shape hops without importing the driver, which the depguard
 // query-no-graph-driver rule forbids outside the driver-owning files.
-func impactRelProvenanceList(raw any) []impacttrace.ImpactRelProvenance {
+func impactRelProvenanceList(raw any) []deployment.ImpactRelProvenance {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]impacttrace.ImpactRelProvenance, 0, len(items))
+	out := make([]deployment.ImpactRelProvenance, 0, len(items))
 	for _, item := range items {
 		switch rel := item.(type) {
 		case neo4jdriver.Relationship:
@@ -160,8 +160,8 @@ func impactRelProvenanceList(raw any) []impacttrace.ImpactRelProvenance {
 
 // impactRelProvenanceFromProps builds provenance from a relationship type and its
 // property map, tolerating a nil property map.
-func impactRelProvenanceFromProps(relType string, props map[string]any) impacttrace.ImpactRelProvenance {
-	p := impacttrace.ImpactRelProvenance{RelType: relType}
+func impactRelProvenanceFromProps(relType string, props map[string]any) deployment.ImpactRelProvenance {
+	p := deployment.ImpactRelProvenance{RelType: relType}
 	if conf, ok := props["confidence"].(float64); ok {
 		p.Confidence = conf
 		p.HasConf = true
@@ -177,12 +177,12 @@ func impactRelProvenanceFromProps(relType string, props map[string]any) impacttr
 // relationships(path)); a map[string]any fallback is kept for safety. Same
 // boundary rationale as impactRelProvenanceList: the driver switch stays here,
 // the plain struct crosses into the impact family. See #6060.
-func impactNodeIdentityList(raw any) []impacttrace.ImpactNodeIdentity {
+func impactNodeIdentityList(raw any) []deployment.ImpactNodeIdentity {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]impacttrace.ImpactNodeIdentity, 0, len(items))
+	out := make([]deployment.ImpactNodeIdentity, 0, len(items))
 	for _, item := range items {
 		switch node := item.(type) {
 		case neo4jdriver.Node:
@@ -199,8 +199,8 @@ func impactNodeIdentityList(raw any) []impacttrace.ImpactNodeIdentity {
 }
 
 // impactNodeIdentityFromProps reads id/name from a node property map.
-func impactNodeIdentityFromProps(props map[string]any) impacttrace.ImpactNodeIdentity {
-	return impacttrace.ImpactNodeIdentity{ID: StringVal(props, "id"), Name: StringVal(props, "name")}
+func impactNodeIdentityFromProps(props map[string]any) deployment.ImpactNodeIdentity {
+	return deployment.ImpactNodeIdentity{ID: StringVal(props, "id"), Name: StringVal(props, "name")}
 }
 
 // resourceInvestigationHopList decodes a relationships(path) value into the

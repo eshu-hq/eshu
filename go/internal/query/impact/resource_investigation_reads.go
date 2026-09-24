@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -169,7 +169,7 @@ func (h *Handler) ResourceInvestigationWorkloads(
 		// filtered in resolveResourceInvestigationTarget), but a resource can be
 		// USEd by a workload in a different repository, so each dependent workload
 		// is bound to the grant independently here.
-		if !impacttrace.ImpactRepoIDAllowed(resolved.repoID, access) {
+		if !deployment.ImpactRepoIDAllowed(resolved.repoID, access) {
 			continue
 		}
 		workload := querycontract.CompactStringMap(map[string]any{
@@ -292,6 +292,6 @@ func (h *Handler) ResourceInvestigationRepoPaths(
 	// set BEFORE the trim so a cross-tenant path sorted ahead of a granted one
 	// cannot consume a limit slot and drop the granted path past the boundary;
 	// truncated then reflects the granted set the caller may actually see.
-	paths, truncated := trimImpactRows(impacttrace.FilterRowsByRepoIDForAccess(paths, access), req.Limit)
+	paths, truncated := trimImpactRows(deployment.FilterRowsByRepoIDForAccess(paths, access), req.Limit)
 	return paths, truncated, nil
 }

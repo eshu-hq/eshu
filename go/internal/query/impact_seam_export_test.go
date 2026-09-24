@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -49,8 +49,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if impact.ContainsString([]string{"a"}, "a") != querycontract.ContainsString([]string{"a"}, "a") {
 		t.Fatal("ContainsString != querycontract.ContainsString")
 	}
-	if impact.JoinOrNone(nil) != impacttrace.JoinOrNone(nil) {
-		t.Fatal("JoinOrNone != impacttrace.JoinOrNone")
+	if impact.JoinOrNone(nil) != deployment.JoinOrNone(nil) {
+		t.Fatal("JoinOrNone != deployment.JoinOrNone")
 	}
 	if got := impact.JoinOrNone(nil); got != "none" {
 		t.Fatalf("JoinOrNone(nil) = %q, want none", got)
@@ -102,20 +102,20 @@ func TestImpactSeamExportsForward(t *testing.T) {
 		t.Fatalf("PreChangeImpactErrorStatus(nil) = %d, want 500", got)
 	}
 	unscoped := RepositoryAccessFilter{AllScopes: true}
-	if impact.RepoIDAllowed("", unscoped) != impacttrace.ImpactRepoIDAllowed("", unscoped) {
-		t.Fatal("RepoIDAllowed != impacttrace.ImpactRepoIDAllowed")
+	if impact.RepoIDAllowed("", unscoped) != deployment.ImpactRepoIDAllowed("", unscoped) {
+		t.Fatal("RepoIDAllowed != deployment.ImpactRepoIDAllowed")
 	}
 	if !reflect.DeepEqual(
 		impact.FilterRowsByRepoIDForAccess(nil, unscoped),
-		impacttrace.FilterRowsByRepoIDForAccess(nil, unscoped),
+		deployment.FilterRowsByRepoIDForAccess(nil, unscoped),
 	) {
-		t.Fatal("FilterRowsByRepoIDForAccess != impacttrace.FilterRowsByRepoIDForAccess")
+		t.Fatal("FilterRowsByRepoIDForAccess != deployment.FilterRowsByRepoIDForAccess")
 	}
 	if !reflect.DeepEqual(
 		impact.FilterProvisioningRepositoryCandidatesForAccess(nil, unscoped),
-		impacttrace.FilterProvisioningRepositoryCandidatesForAccess(nil, unscoped),
+		deployment.FilterProvisioningRepositoryCandidatesForAccess(nil, unscoped),
 	) {
-		t.Fatal("FilterProvisioningRepositoryCandidatesForAccess != impacttrace.FilterProvisioningRepositoryCandidatesForAccess")
+		t.Fatal("FilterProvisioningRepositoryCandidatesForAccess != deployment.FilterProvisioningRepositoryCandidatesForAccess")
 	}
 	instances := []map[string]any{{"k": "b"}, {"k": ""}, {"other": "x"}, {"k": "a"}}
 	if got, want := impact.DistinctSortedInstanceField(instances, "k"), []string{"a", "b"}; !reflect.DeepEqual(got, want) {
@@ -140,7 +140,7 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	// alias-typed variable only compiles when the alias holds, so each line
 	// below is a compile-time identity proof (written through a generic to
 	// keep the assertion while satisfying staticcheck QF1011).
-	assertSeamAlias[impact.ProvisioningRepositoryCandidate](impacttrace.ProvisioningRepositoryCandidate{})
+	assertSeamAlias[impact.ProvisioningRepositoryCandidate](deployment.ProvisioningRepositoryCandidate{})
 	assertSeamAlias[RepositoryAccessFilter](querycontract.RepositoryAccessFilter{})
 	var _ impact.DeploymentSourceResult
 	var _ impact.K8sResourceResult
@@ -155,8 +155,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if impact.ContractImpactCapability != "platform_impact.contract_impact" {
 		t.Fatalf("ContractImpactCapability = %q", impact.ContractImpactCapability)
 	}
-	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, impacttrace.ErrAmbiguousWorkloadSelector) {
-		t.Fatal("ErrAmbiguousTraceWorkloadSelector != impacttrace.ErrAmbiguousWorkloadSelector")
+	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, deployment.ErrAmbiguousWorkloadSelector) {
+		t.Fatal("ErrAmbiguousTraceWorkloadSelector != deployment.ErrAmbiguousWorkloadSelector")
 	}
 
 	// Renamed ImpactHandler methods resolve and behave.

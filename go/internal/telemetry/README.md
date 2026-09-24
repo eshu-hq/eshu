@@ -285,7 +285,7 @@ when the reducer has a graph orphan observer.
 | `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
-| `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, entity/workload_lookup.go, impacttrace/workload_selection.go; `grant_denied` counts once per request, only when no lookup admitted a workload) |
+| `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, entity/workload_lookup.go, deployment/workload_selection.go; `grant_denied` counts once per request, only when no lookup admitted a workload) |
 | `InfraInventoryReads` | `eshu_dp_infra_inventory_reads_total` |
 | `InfraInventoryDerives` | `eshu_dp_infra_inventory_derives_total` |
 | `InfraInventoryBackfillRuns` | `eshu_dp_infra_inventory_backfill_runs_total` |

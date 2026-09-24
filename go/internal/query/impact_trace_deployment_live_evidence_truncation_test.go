@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// #5663: response-level proof that impacttrace.BuildDeploymentFactSummary surfaces
+// #5663: response-level proof that deployment.BuildDeploymentFactSummary surfaces
 // live_instance_count_truncated, split out of
 // impact/trace_deployment_live_evidence_test.go to stay under the repo's
 // 500-line-per-file cap. Uses the shared
@@ -12,7 +12,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -28,7 +28,7 @@ func TestBuildDeploymentFactSummaryLiveInstanceCountTruncatedTrue(t *testing.T) 
 	ctx["_live_instance_count"] = 50
 	ctx["_live_instance_count_truncated"] = true
 	instances, _ := ctx["instances"].([]map[string]any)
-	summary := impacttrace.BuildDeploymentFactSummary(
+	summary := deployment.BuildDeploymentFactSummary(
 		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
 		nil, nil, nil, nil, nil, "controller", true,
 	)

@@ -6,13 +6,13 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
 func TestBuildDeploymentFactsPreservesExactTopologyRelationships(t *testing.T) {
 	t.Parallel()
 
-	facts := impacttrace.BuildDeploymentFacts(
+	facts := deployment.BuildDeploymentFacts(
 		[]map[string]any{{
 			"instance_id": "instance:sample-service:production",
 			"platforms": []map[string]any{{
@@ -63,7 +63,7 @@ func TestBuildDeploymentFactsPreservesExactTopologyRelationships(t *testing.T) {
 func TestBuildDeploymentTraceResponseReportsCollectionCoverage(t *testing.T) {
 	t.Parallel()
 
-	got := impacttrace.BuildDeploymentTraceResponse("service-edge-api", map[string]any{
+	got := deployment.BuildDeploymentTraceResponse("service-edge-api", map[string]any{
 		"id": "workload:service-edge-api", "name": "service-edge-api",
 		"deployment_sources": []map[string]any{},
 		"deployment_source_limits": map[string]any{

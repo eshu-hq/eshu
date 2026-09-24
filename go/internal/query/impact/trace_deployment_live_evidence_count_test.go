@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -24,14 +24,14 @@ import (
 // test here; it panics if reached so a wiring mistake fails loudly instead of
 // silently returning a wrong bool.
 type stubKubernetesPodTemplateListStore struct {
-	matchesByTrackingID        map[string][]impacttrace.LiveIdentityMatch
-	matchesByDeclaredObjectKey map[string][]impacttrace.LiveIdentityMatch
+	matchesByTrackingID        map[string][]deployment.LiveIdentityMatch
+	matchesByDeclaredObjectKey map[string][]deployment.LiveIdentityMatch
 	err                        error
-	calls                      []impacttrace.KubernetesPodTemplateFilter
+	calls                      []deployment.KubernetesPodTemplateFilter
 }
 
 // declaredObjectMatchKey builds the stub's lookup key for a declared-object
-// anchor filter, matching impacttrace.DeclaredObjectAnchors' own key shape
+// anchor filter, matching deployment.DeclaredObjectAnchors' own key shape
 // (impact_trace_deployment_live_evidence_identity_declared.go:84).
 func declaredObjectMatchKey(gvr, namespace, name string) string {
 	return gvr + "|" + namespace + "|" + name
@@ -39,20 +39,20 @@ func declaredObjectMatchKey(gvr, namespace, name string) string {
 
 func (s *stubKubernetesPodTemplateListStore) HasLiveIdentityMatch(
 	context.Context,
-	impacttrace.KubernetesPodTemplateFilter,
+	deployment.KubernetesPodTemplateFilter,
 ) (bool, error) {
 	panic("HasLiveIdentityMatch must not be called by fetchWorkloadLiveInstanceSummary")
 }
 
 func (s *stubKubernetesPodTemplateListStore) ListLiveIdentityMatches(
 	_ context.Context,
-	filter impacttrace.KubernetesPodTemplateFilter,
-) ([]impacttrace.LiveIdentityMatch, error) {
+	filter deployment.KubernetesPodTemplateFilter,
+) ([]deployment.LiveIdentityMatch, error) {
 	s.calls = append(s.calls, filter)
 	if s.err != nil {
 		return nil, s.err
 	}
-	if filter.AnchorKind == impacttrace.LiveIdentityAnchorDeclaredObject {
+	if filter.AnchorKind == deployment.LiveIdentityAnchorDeclaredObject {
 		key := declaredObjectMatchKey(filter.GroupVersionResource, filter.Namespace, filter.Name)
 		return s.matchesByDeclaredObjectKey[key], nil
 	}
@@ -60,7 +60,7 @@ func (s *stubKubernetesPodTemplateListStore) ListLiveIdentityMatches(
 }
 
 // singleTrackingIDFixture builds the controllers/k8sResources pair that
-// impacttrace.ExpectedArgoCDTrackingIDs resolves to exactly one tracking-id, matching the
+// deployment.ExpectedArgoCDTrackingIDs resolves to exactly one tracking-id, matching the
 // argoCDControllerFixture/k8sResourceFixture helpers
 // (trace_deployment_live_evidence_test.go).
 func singleTrackingIDFixture(appName, kind, name, namespace, apiVersion string) (
@@ -68,7 +68,7 @@ func singleTrackingIDFixture(appName, kind, name, namespace, apiVersion string) 
 ) {
 	controllers := []map[string]any{querytestutil.ArgoCDControllerFixture(appName)}
 	resources := []map[string]any{querytestutil.K8sResourceFixture(kind, name, namespace, apiVersion)}
-	trackingIDs := impacttrace.ExpectedArgoCDTrackingIDs(controllers, resources)
+	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 1 {
 		panic(fmt.Sprintf("test fixture bug: want exactly 1 tracking id, got %d", len(trackingIDs)))
 	}
@@ -162,7 +162,7 @@ func TestFetchWorkloadLiveInstanceSummaryEmptyAccess(t *testing.T) {
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {{ReadyReplicas: int32Ptr(3)}},
 		},
 	}
@@ -192,7 +192,7 @@ func TestFetchWorkloadLiveInstanceSummaryMaxNotSum(t *testing.T) {
 
 	controllers, resources, trackingID := singleTrackingIDFixture("deployable-source", "Deployment", "deployable-source", "production", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {
 				{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(3)}, // Deployment
 				{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(3)}, // ReplicaSet, same tracking-id, same cluster
@@ -227,7 +227,7 @@ func TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters(t *testi
 
 	controllers, resources, trackingID := singleTrackingIDFixture("deployable-source", "Deployment", "deployable-source", "production", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {
 				{ClusterID: "cluster-a", ReadyReplicas: int32Ptr(3)}, // cluster A: Deployment
 				{ClusterID: "cluster-a", ReadyReplicas: int32Ptr(3)}, // cluster A: ReplicaSet copy (same tracking-id)
@@ -265,12 +265,12 @@ func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
 		querytestutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
 	}
-	trackingIDs := impacttrace.ExpectedArgoCDTrackingIDs(controllers, resources)
+	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 2 {
 		t.Fatalf("test fixture bug: want 2 tracking ids, got %d", len(trackingIDs))
 	}
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingIDs[0]: {{ObjectID: "obj-a", ReadyReplicas: int32Ptr(2)}},
 			trackingIDs[1]: {{ObjectID: "obj-b", ReadyReplicas: int32Ptr(5)}},
 		},
@@ -299,7 +299,7 @@ func TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasOmitsCount(t *testin
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {
 				{ReadyReplicas: nil},
 				{ReadyReplicas: nil},
@@ -326,7 +326,7 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {{ReadyReplicas: int32Ptr(0)}},
 		},
 	}
@@ -359,13 +359,13 @@ func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t 
 	t.Parallel()
 
 	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
-	anchors := impacttrace.DeclaredObjectAnchors(resources)
+	anchors := deployment.DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 {
 		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))
 	}
 	key := declaredObjectMatchKey(anchors[0].GroupVersionResource, anchors[0].Namespace, anchors[0].Name)
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByDeclaredObjectKey: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByDeclaredObjectKey: map[string][]deployment.LiveIdentityMatch{
 			key: {{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(4)}},
 		},
 	}
@@ -387,7 +387,7 @@ func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t 
 	if len(store.calls) != 1 {
 		t.Fatalf("store queried %d times, want 1 (declared-object anchor only, no ArgoCD controller)", len(store.calls))
 	}
-	if got := store.calls[0].AnchorKind; got != impacttrace.LiveIdentityAnchorDeclaredObject {
+	if got := store.calls[0].AnchorKind; got != deployment.LiveIdentityAnchorDeclaredObject {
 		t.Fatalf("store.calls[0].AnchorKind = %q, want declared-object", got)
 	}
 }
@@ -409,7 +409,7 @@ func TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleC
 	t.Parallel()
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
-	anchors := impacttrace.DeclaredObjectAnchors(resources)
+	anchors := deployment.DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 {
 		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))
 	}
@@ -418,12 +418,12 @@ func TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleC
 	// The same live fact (object-D, prod-cluster, 3 ready replicas) is
 	// returned for BOTH the tracking-id anchor and the declared-object
 	// anchor, modelling the real store where the fact matches both queries.
-	sharedMatch := impacttrace.LiveIdentityMatch{ObjectID: "obj-D", ClusterID: "c", ReadyReplicas: int32Ptr(3)}
+	sharedMatch := deployment.LiveIdentityMatch{ObjectID: "obj-D", ClusterID: "c", ReadyReplicas: int32Ptr(3)}
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {sharedMatch},
 		},
-		matchesByDeclaredObjectKey: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByDeclaredObjectKey: map[string][]deployment.LiveIdentityMatch{
 			declaredKey: {sharedMatch},
 		},
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
@@ -271,7 +271,7 @@ func captureFluxDeploymentBindingQueryplanRuns(t *testing.T) *legacyQueryplanCap
 		}
 		return nil
 	}}
-	if _, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(
+	if _, err := deployment.FetchFluxDeploymentSourceTargetBindings(
 		context.Background(),
 		graphQuery,
 		"repository:target",

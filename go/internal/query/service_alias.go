@@ -6,14 +6,14 @@ package query //nolint:dirgate // B4 root alias shim for #6060: type aliases and
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // service_alias.go is the root alias shim for the service handler family
 // (#6060, lane B B4). ServiceCatalogHandler and its method files moved to
-// service/; the deployment-trace enrichment helpers moved to impacttrace/;
+// service/; the deployment-trace enrichment helpers moved to deployment/;
 // shared bounds moved to querycontract. Names the rest of the program still
 // spells `query.X` (handler wiring, cmd routers, serviceintelhttp, staying
 // root callers and tests) alias here so the move touches no caller outside
@@ -196,26 +196,26 @@ func appendUniqueString(values *[]string, value string) {
 type ServiceCatalogLocalDescriptorEvidenceRow = service.CatalogLocalDescriptorEvidenceRow
 
 // indirectEvidenceHostnameLimit bounds the surviving hostname list behind
-// consumer enrichment. Its home is impacttrace/; this declaration keeps the
+// consumer enrichment. Its home is deployment/; this declaration keeps the
 // staying deployment-trace regression test compiling unchanged.
-const indirectEvidenceHostnameLimit = impacttrace.IndirectEvidenceHostnameLimit
+const indirectEvidenceHostnameLimit = deployment.IndirectEvidenceHostnameLimit
 
 // loadProvisioningSourceChainsFromCandidates loads the provisioning source
 // chains for the pre-read candidate slice. The implementation moved to
-// impacttrace for #6060; this wrapper keeps the staying repo-ID tiebreak
+// deployment for #6060; this wrapper keeps the staying repo-ID tiebreak
 // test calling the package-local name unchanged.
 func loadProvisioningSourceChainsFromCandidates(
 	ctx context.Context,
 	content ContentStore,
 	candidates []provisioningRepositoryCandidate,
 ) ([]map[string]any, error) {
-	return impacttrace.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	return deployment.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
 }
 
 // buildGraphDependents groups provisioning candidates by repository. Its
 // home is service/; this wrapper keeps the staying repo-ID tiebreak test
 // calling the package-local name unchanged.
-func buildGraphDependents(candidates []impacttrace.ProvisioningRepositoryCandidate) []map[string]any {
+func buildGraphDependents(candidates []deployment.ProvisioningRepositoryCandidate) []map[string]any {
 	return service.BuildGraphDependents(candidates)
 }
 

@@ -11,18 +11,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
 // disjunction (`A|B|C`), which matches zero rows on the pinned NornicDB build.
-// Mirrors the impacttrace test helper for handler-level Cypher assertions;
-// the disjunction constant itself stays home in impacttrace. See #6060.
+// Mirrors the deployment test helper for handler-level Cypher assertions;
+// the disjunction constant itself stays home in deployment. See #6060.
 func assertNoImpactLabelDisjunction(t *testing.T, cypher string) {
 	t.Helper()
-	if strings.Contains(cypher, impacttrace.ImpactAnchorLabelDisjunction) {
+	if strings.Contains(cypher, deployment.ImpactAnchorLabelDisjunction) {
 		t.Fatalf("by-id anchor must use per-label inline-property anchors, not the label disjunction: %s", cypher)
 	}
 }

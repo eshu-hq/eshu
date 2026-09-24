@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -284,7 +284,7 @@ func TestBuildServiceNetworkPathsDoesNotFallBackToFirstRuntimeWithoutEnvironment
 func TestBuildGraphDependentsUsesRelationshipCandidates(t *testing.T) {
 	t.Parallel()
 
-	dependents := BuildGraphDependents([]impacttrace.ProvisioningRepositoryCandidate{
+	dependents := BuildGraphDependents([]deployment.ProvisioningRepositoryCandidate{
 		{
 			RepoID:              "repo-consumer-a",
 			RepoName:            "consumer-a",

@@ -27,7 +27,7 @@ import (
 // (nornicdb|neo4j, default nornicdb -- matching this epic's primary subject)
 // and ESHU_LIVE_GRAPH_DATABASE (default "nornic" for nornicdb, "neo4j" for
 // neo4j). ESHU_LIVE_GRAPH_DATABASE is the shared #6784/#6786 env contract
-// name; keep it in sync with impacttrace's selectorLiveGraphBackend.
+// name; keep it in sync with deployment's selectorLiveGraphBackend.
 func liveGraphBackend() (graph.SchemaBackend, string) {
 	backend := strings.ToLower(strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")))
 	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
@@ -45,7 +45,7 @@ func liveGraphBackend() (graph.SchemaBackend, string) {
 
 // liveWriteMaxAttempts bounds retries for a transient write conflict (e.g.
 // NornicDB/Neo4j's Neo.TransientError.Transaction.Outdated) a live schema
-// apply or seed write can hit. #6784 runs this package's and impacttrace's
+// apply or seed write can hit. #6784 runs this package's and deployment's
 // live tests as separate Go packages in one `go test` invocation, and Go
 // runs different packages' tests concurrently by default; two packages
 // seeding/cleaning against the SAME live database (they use disjoint id

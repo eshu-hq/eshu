@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package impact //nolint:dirgate // Handler methods stay in impact; deployment/ holds non-method helpers only (#6818).
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -58,7 +58,7 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 	}
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, selector, TraceEnrichmentConfig{MaxDepth: 4})
 	if err != nil {
-		if errors.Is(err, impacttrace.ErrAmbiguousWorkloadSelector) {
+		if errors.Is(err, deployment.ErrAmbiguousWorkloadSelector) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -122,7 +122,7 @@ func (h *Handler) enrichDeploymentConfigInfluenceContext(ctx context.Context, wo
 	// repositories (DEPLOYS_FROM edges can cross tenants), so they are bound to
 	// the grant here before feeding the influencing-repositories and gitops
 	// enrichment below.
-	sourceResult.result.rows = impacttrace.FilterRowsByRepoIDForAccess(sourceResult.result.rows, querycontract.RepositoryAccessFilterFromContext(ctx))
+	sourceResult.result.rows = deployment.FilterRowsByRepoIDForAccess(sourceResult.result.rows, querycontract.RepositoryAccessFilterFromContext(ctx))
 	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.FetchDeploymentSourceGitOps(ctx, querycontract.SafeStr(workload, "name"), repoID, sourceResult.result.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)

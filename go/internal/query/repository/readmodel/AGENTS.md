@@ -17,7 +17,7 @@ identity and page-shaping reads for the repository handler family.
   `repository/stats_limits.go`,
   `repository/language_inventory.go`.
 - `QueryRepositoryNamesByID` — graph name lookup by repository id. Callers:
-  `impacttrace/deployment_trace_enrichment_support.go`.
+  `deployment/deployment_trace_enrichment_support.go`.
 - `Ref`, `Refs`, `RefsDefaultBranch`, `RefEntry`,
   `ValidateSelectedRepositoryRef` — ref/branch resolution. Callers:
   `repository/branches.go`, `repository/content.go`,

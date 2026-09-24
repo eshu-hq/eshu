@@ -308,7 +308,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impacttrace/cloud_resource_dependencies.go
+      file: go/internal/query/impact/deployment/cloud_resource_dependencies.go
       symbol: LoadMaterializedServiceCloudResourceDependencies
       source_sha256: c12098c98fcc3e9bbdd585558eb57eaf01e5badd257e6f24068d61e04c86cb47
       line_hint: 19
@@ -637,7 +637,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+      file: go/internal/query/impact/deployment/flux_bindings.go
       symbol: FetchFluxDeploymentSourceTargetBindings
       source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
       line_hint: 34
@@ -665,7 +665,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+      file: go/internal/query/impact/deployment/flux_bindings.go
       symbol: FetchFluxDeploymentSourceTargetBindings
       source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
       line_hint: 34

@@ -6,7 +6,7 @@ package querytestutil
 // SampleServiceDossierContext builds the canonical sample-service workload
 // context map the service-story and deployment-trace response tests shape
 // fixtures from. It moved here from the query root with lane B2 of #6060
-// because root, impact/, and impacttrace/ tests all need it and test files
+// because root, impact/, and deployment/ tests all need it and test files
 // cannot share helpers across packages.
 func SampleServiceDossierContext() map[string]any {
 	return map[string]any{

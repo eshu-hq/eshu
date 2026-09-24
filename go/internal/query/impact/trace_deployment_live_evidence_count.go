@@ -25,7 +25,7 @@ package impact
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -108,7 +108,7 @@ func (h *Handler) fetchWorkloadLiveInstanceSummary(
 	ctx, span := tracing.HandlerTracer().Start(ctx, "impact.live_instance_count")
 	defer span.End()
 
-	anchors := impacttrace.ResolveLiveIdentityAnchors(controllers, k8sResources)
+	anchors := deployment.ResolveLiveIdentityAnchors(controllers, k8sResources)
 	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(anchors)))
 	if len(anchors) == 0 {
 		span.SetAttributes(attribute.String("eshu.live_instance_count_skip_reason", "no_identity_binding"))
@@ -139,7 +139,7 @@ func (h *Handler) fetchWorkloadLiveInstanceSummary(
 	seen := map[string]struct{}{}
 	truncated := false
 	for _, anchor := range anchors {
-		filter := impacttrace.LiveIdentityAnchorFilter(anchor, imageRefs, access)
+		filter := deployment.LiveIdentityAnchorFilter(anchor, imageRefs, access)
 		matches, err := h.KubernetesPodTemplates.ListLiveIdentityMatches(ctx, filter)
 		if err != nil {
 			span.RecordError(err)

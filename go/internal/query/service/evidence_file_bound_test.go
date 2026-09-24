@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -144,16 +144,16 @@ func TestLoadServiceQueryEvidenceDisclosesTheFileListBound(t *testing.T) {
 func TestLoadConsumerRepositoryEnrichmentDisclosesTheServiceEvidenceFileBound(t *testing.T) {
 	t.Parallel()
 
-	oneCandidate := []impacttrace.ProvisioningRepositoryCandidate{
+	oneCandidate := []deployment.ProvisioningRepositoryCandidate{
 		{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 	}
 
-	consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+	consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 		context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
 		nil, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, true,
 	)
 	if err != nil {
-		t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 	}
 	if got, want := len(consumers), querycontract.DefaultIndirectEvidenceSearchLimit; got >= want {
 		t.Fatalf("len(consumers) = %d, want well under the limit of %d so only the file bound can set the flag", got, want)
@@ -182,23 +182,23 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesTheHostnameLimitCut(t *testing
 	// narrowing are silent, and only the cut against a limit of 1 can set the
 	// flag.
 	hostnames := []string{"orders-a.example.test", "orders-b.example.test"}
-	kept, hostnamesTruncated := impacttrace.BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
+	kept, hostnamesTruncated := deployment.BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
 	if got, want := len(kept), len(hostnames); got != want {
 		t.Fatalf("len(kept hostnames) = %d, want %d (both carry the service token and sit under the 4-cap)", got, want)
 	}
 	if hostnamesTruncated {
-		t.Fatal("impacttrace.BoundedIndirectEvidenceHostnamesForService() truncated = true, want false so neither source 2 nor the affinity narrowing can be the one reporting")
+		t.Fatal("deployment.BoundedIndirectEvidenceHostnamesForService() truncated = true, want false so neither source 2 nor the affinity narrowing can be the one reporting")
 	}
 
-	oneCandidate := []impacttrace.ProvisioningRepositoryCandidate{
+	oneCandidate := []deployment.ProvisioningRepositoryCandidate{
 		{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 	}
-	consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+	consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 		context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
 		hostnames, 1, oneCandidate, false, false,
 	)
 	if err != nil {
-		t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 	}
 	if got, want := len(consumers), 1; got != want {
 		t.Fatalf("len(consumers) = %d, want %d", got, want)
@@ -248,7 +248,7 @@ const serviceEvidenceCandidateRowCount = 2
 // TestTraceDeploymentChainDisclosesTheServiceEvidenceFileBound proves the
 // production wiring of source 0, which the helper-level cases above cannot see:
 // EnrichServiceQueryContextWithOptions has to hand evidence.filesTruncated to
-// impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates. Passing a literal false there
+// deployment.LoadConsumerRepositoryEnrichmentFromCandidates. Passing a literal false there
 // leaves every other test in the package green.
 //
 // The flags are deliberately opposed, the same shape round 8 used for the

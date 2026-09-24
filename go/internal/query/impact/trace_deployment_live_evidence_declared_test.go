@@ -6,7 +6,7 @@ package impact
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -47,7 +47,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConf
 	// AnchorKind, GroupVersionResource, Namespace, Name, and ImageRefs must
 	// all thread through liveIdentityAnchorFilter unchanged.
 	got := store.calls[0]
-	if got.AnchorKind != impacttrace.LiveIdentityAnchorDeclaredObject {
+	if got.AnchorKind != deployment.LiveIdentityAnchorDeclaredObject {
 		t.Fatalf("store.calls[0].AnchorKind = %q, want declared-object", got.AnchorKind)
 	}
 	if got.GroupVersionResource != "apps/v1/deployments" {
@@ -77,7 +77,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConf
 //
 // This test is RED-provable: if the name/GVR equality in the declared-object
 // stub match key (declaredObjectStubMatchKey) or in the production identity
-// binding (impacttrace.DeclaredObjectAnchors / impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery)
+// binding (deployment.DeclaredObjectAnchors / deployment.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery)
 // were dropped in favor of matching on image digest alone, trace(A) would
 // wrongly promote here.
 func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorSharedDigestDistinctWorkloadsNoPromotion(t *testing.T) {
@@ -115,7 +115,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorSharedDigestDistinctWorklo
 // REQUIRED #5639 namespace-guard proof: the SAME kind and name in a
 // DIFFERENT namespace must never match -- no cluster-scoped or
 // cross-namespace wildcard match is ever allowed. RED-provable by dropping
-// the namespace equality from impacttrace.DeclaredObjectAnchors/the declared-object SQL
+// the namespace equality from deployment.DeclaredObjectAnchors/the declared-object SQL
 // predicate.
 func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorNamespaceGuard(t *testing.T) {
 	t.Parallel()

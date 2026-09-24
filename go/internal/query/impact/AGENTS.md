@@ -13,7 +13,7 @@
   import here cycles, including from `_test.go` files in this package. The
   external `impact_test` package (`defaults_test.go`) is the only
   exception: nothing imports it, so it may wire root constructors.
-- Import `impacttrace`, never the reverse.
+- Import `deployment`, never the reverse.
 - Family capability rows live in `capabilities.go` and register through
   `querycontract.RegisterCapabilities` in this package's `init`. Do not
   re-add them to the root matrix: duplicate initialization is a contract
@@ -28,7 +28,7 @@
 
 ## Verification
 
-Run focused `impact` tests, then root `query`, `impacttrace`, `queryplan`,
+Run focused `impact` tests, then root `query`, `deployment`, `queryplan`,
 and `mcp` suites, plus whole-module build and vet. Run
 `scripts/verify-package-docs.sh` whenever this package changes. The B-7
 cassettes and B-12 snapshot must stay byte-identical: this family moves code,
@@ -38,7 +38,7 @@ never Cypher text or queue/projection behavior.
 
 - Add a handler method with its route in `Mount`, gate on the family's
   capability, and register the capability here if it is new.
-- Promote a helper to `impacttrace` only when it touches no handler state;
+- Promote a helper to `deployment` only when it touches no handler state;
   otherwise it stays here.
 - Export a boundary symbol only when a staying root test or external caller
   pins it; keep the home here and document the reason.

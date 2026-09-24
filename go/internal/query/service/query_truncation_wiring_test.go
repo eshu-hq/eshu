@@ -20,7 +20,7 @@ import (
 
 // provisioningCandidateCypherFragment identifies the one graph read whose
 // LIMIT feeds dependents, consumer_repositories, and
-// provisioning_source_chains (impacttrace.QueryProvisioningRepositoryCandidates in
+// provisioning_source_chains (deployment.QueryProvisioningRepositoryCandidates in
 // deployment_trace_support_helpers.go).
 const provisioningCandidateCypherFragment = "MATCH (target:Repository {id: $repo_id})<-[rel:PROVISIONS_DEPENDENCY_FOR"
 
@@ -75,7 +75,7 @@ func provisioningCandidateGraphReader(workload map[string]any, rows []map[string
 // with exactly `limit` rows, all in one repository, so
 // searchConsumerEvidenceAnyRepo's `len(rows) >= limit` probe reports a
 // truncated per-search read (source 4 of the enumeration on
-// impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates) while the merged consumer
+// deployment.LoadConsumerRepositoryEnrichmentFromCandidates) while the merged consumer
 // set grows by a single entry and stays far under the final cap.
 type fullPageConsumerSearchContentStore struct {
 	querytestutil.FakePortContentStore
@@ -217,7 +217,7 @@ func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
 // is the #5720 round-8 P1-1 regression.
 //
 // Round 7 wired consumer_repositories_truncated to the bool
-// impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates returns, which ORed five
+// deployment.LoadConsumerRepositoryEnrichmentFromCandidates returns, which ORed five
 // sources at the time (seven as of round 9). Nothing in the suite held that
 // wiring in place. Replacing the
 // returned bool at the production call site with the upstream

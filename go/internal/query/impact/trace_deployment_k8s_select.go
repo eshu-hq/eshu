@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -70,7 +70,7 @@ func k8sResourceWireRow(row querycontract.EntityContent) map[string]any {
 		"relative_path":    row.RelativePath,
 		"container_images": images,
 		"namespace":        kubernetes.Namespace(row.Metadata),
-		"api_version":      impacttrace.MetadataNonEmptyStringValue(row.Metadata, "api_version"),
+		"api_version":      deployment.MetadataNonEmptyStringValue(row.Metadata, "api_version"),
 	}
 	if selector, ok := row.Metadata["selector"].(string); ok {
 		resource["selector"] = selector

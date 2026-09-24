@@ -8,13 +8,13 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // family_impact_shim.go is the root alias shim for the impact handler family
 // (#6060). ImpactHandler and its method files moved to impact/; the
-// deployment-trace helpers moved to impacttrace/; pure helpers moved to
+// deployment-trace helpers moved to deployment/; pure helpers moved to
 // querycontract/. Names the rest of the program still spells `query.X`
 // (handler wiring, cmd routers, external query_test consumers) alias here so
 // the move touches no caller outside the family. Production backend wiring
@@ -49,12 +49,12 @@ func uniqueStrings(values []string) []string {
 }
 
 // NewPostgresKubernetesPodTemplateStore builds the Postgres-backed
-// kubernetes_live.pod_template read model. Its home is impacttrace/; this
+// kubernetes_live.pod_template read model. Its home is deployment/; this
 // variable (not a wrapper) keeps the cmd wirings spelling the
 // query.NewPostgresKubernetesPodTemplateStore name unchanged, and callers
 // pass the database handle positionally so the unexported queryer parameter
 // never needs naming outside its home. See #6060.
-var NewPostgresKubernetesPodTemplateStore = impacttrace.NewPostgresKubernetesPodTemplateStore
+var NewPostgresKubernetesPodTemplateStore = deployment.NewPostgresKubernetesPodTemplateStore
 
 // containsAllSubstrings reports whether value contains every part. Its home
 // is querytestutil; this forwarder keeps lane-A and content-reader staying

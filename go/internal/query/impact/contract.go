@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -160,7 +160,7 @@ func (h *Handler) contractImpactResponse(
 	// provider_repo_id (empty providers, no query issued) rather than
 	// distinguishing "not found" from "not yours" to a scoped caller.
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
-	if !impacttrace.ImpactRepoIDAllowed(req.ProviderRepoID, access) {
+	if !deployment.ImpactRepoIDAllowed(req.ProviderRepoID, access) {
 		return resp, nil
 	}
 	rows, err := h.Neo4j.Run(ctx, contractImpactHTTPProviderCypher(), map[string]any{

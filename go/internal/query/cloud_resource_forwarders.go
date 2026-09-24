@@ -6,17 +6,17 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
-// Cloud-resource evidence loaders moved to impacttrace for #6060 (they back
+// Cloud-resource evidence loaders moved to deployment for #6060 (they back
 // deployment-trace cloud evidence). The names below forward so root callers
-// and staying tests keep working; the single home is impacttrace.
+// and staying tests keep working; the single home is deployment.
 
 const (
-	uncorrelatedCloudResourceCandidateLimit = impacttrace.UncorrelatedCloudResourceCandidateLimit
-	serviceCloudResourceDependencyLimit     = impacttrace.ServiceCloudResourceDependencyLimit
-	infraResourceFreeTextPredicate          = impacttrace.InfraResourceFreeTextPredicate
+	uncorrelatedCloudResourceCandidateLimit = deployment.UncorrelatedCloudResourceCandidateLimit
+	serviceCloudResourceDependencyLimit     = deployment.ServiceCloudResourceDependencyLimit
+	infraResourceFreeTextPredicate          = deployment.InfraResourceFreeTextPredicate
 )
 
 func loadUncorrelatedCloudResourceCandidates(
@@ -25,7 +25,7 @@ func loadUncorrelatedCloudResourceCandidates(
 	serviceName string,
 	limit int,
 ) ([]map[string]any, error) {
-	return impacttrace.LoadUncorrelatedCloudResourceCandidates(ctx, graph, serviceName, limit)
+	return deployment.LoadUncorrelatedCloudResourceCandidates(ctx, graph, serviceName, limit)
 }
 
 func loadUncorrelatedCloudResourceCandidatesBounded(
@@ -34,7 +34,7 @@ func loadUncorrelatedCloudResourceCandidatesBounded(
 	serviceName string,
 	limit int,
 ) ([]map[string]any, bool, error) {
-	return impacttrace.LoadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, limit)
+	return deployment.LoadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, limit)
 }
 
 func loadMaterializedServiceCloudResourceDependencies(
@@ -44,7 +44,7 @@ func loadMaterializedServiceCloudResourceDependencies(
 	workloadID string,
 	limit int,
 ) ([]map[string]any, error) {
-	return impacttrace.LoadMaterializedServiceCloudResourceDependencies(ctx, graph, repoID, workloadID, limit)
+	return deployment.LoadMaterializedServiceCloudResourceDependencies(ctx, graph, repoID, workloadID, limit)
 }
 
 func loadConfigDerivedCloudResourceDependencies(
@@ -53,7 +53,7 @@ func loadConfigDerivedCloudResourceDependencies(
 	deploymentEvidence map[string]any,
 	limit int,
 ) ([]map[string]any, error) {
-	return impacttrace.LoadConfigDerivedCloudResourceDependencies(ctx, graph, deploymentEvidence, limit)
+	return deployment.LoadConfigDerivedCloudResourceDependencies(ctx, graph, deploymentEvidence, limit)
 }
 
 func loadConfigDerivedCloudResourceDependenciesBounded(
@@ -62,9 +62,9 @@ func loadConfigDerivedCloudResourceDependenciesBounded(
 	deploymentEvidence map[string]any,
 	limit int,
 ) ([]map[string]any, bool, error) {
-	return impacttrace.LoadConfigDerivedCloudResourceDependenciesBounded(ctx, graph, deploymentEvidence, limit)
+	return deployment.LoadConfigDerivedCloudResourceDependenciesBounded(ctx, graph, deploymentEvidence, limit)
 }
 
 func configReadCloudResourceAnchors(deploymentEvidence map[string]any) ([]string, bool) {
-	return impacttrace.ConfigReadCloudResourceAnchors(deploymentEvidence)
+	return deployment.ConfigReadCloudResourceAnchors(deploymentEvidence)
 }

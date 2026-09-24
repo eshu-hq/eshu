@@ -6,7 +6,7 @@ Does this Service select that workload, and on what evidence.
 
 The Service -> workload `SELECTS` edge is built from four places: the content
 relationship builder in `internal/query`, the deployment trace in
-`internal/query/impact`, the GitOps helpers in `internal/query/impacttrace`,
+`internal/query/impact`, the GitOps helpers in `internal/query/impact/deployment`,
 and the port fake in `internal/query/querytestutil`. Before the move they
 reached one implementation in `querycontract` through a set of unexported
 wrappers on package `query`, added for #6060 compatibility and deleted with
@@ -32,8 +32,8 @@ boundary. Measured at `2d68f1cbb`:
 
 | literal | also asserted in |
 | --- | --- |
-| `k8s_service_name_namespace` | `apps/console/src/api/eshuGraphDeployment.truth.test.ts`, `content_relationships_k8s_test.go`, `entity_content_iac_fallback_test.go`, `impacttrace/impact_trace_deployment_k8s_test.go` |
-| `k8s_service_selector_match` | `content_relationships_k8s_test.go`, `content_relationships_k8s_truncation_test.go`, `impacttrace/impact_trace_deployment_k8s_test.go` |
+| `k8s_service_name_namespace` | `apps/console/src/api/eshuGraphDeployment.truth.test.ts`, `content_relationships_k8s_test.go`, `entity_content_iac_fallback_test.go`, `deployment/k8s_test.go` |
+| `k8s_service_selector_match` | `content_relationships_k8s_test.go`, `content_relationships_k8s_truncation_test.go`, `deployment/k8s_test.go` |
 
 The console test asserts the string on the wire
 (`expect(selectsEdge?.evidence).toContain("reason: k8s_service_name_namespace")`),

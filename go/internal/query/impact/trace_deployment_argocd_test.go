@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -49,7 +49,7 @@ func TestBuildDeploymentTraceResponseIncludesControllerEntities(t *testing.T) {
 		},
 	}
 
-	got := impacttrace.BuildDeploymentTraceResponse("payments-api", ctx, map[string]any{})
+	got := deployment.BuildDeploymentTraceResponse("payments-api", ctx, map[string]any{})
 	controllerOverview, ok := got["controller_overview"].(map[string]any)
 	if !ok {
 		t.Fatalf("controller_overview type = %T, want map[string]any", got["controller_overview"])

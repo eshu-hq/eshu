@@ -132,7 +132,7 @@ func TestFindChangeSurfaceMapsGraphReadAvailabilityErrors(t *testing.T) {
 
 // TestTraceDeploymentChainMapsGraphReadAvailabilityErrors proves
 // TraceDeploymentChain's workload-selector resolution
-// (impacttrace/workload_selection.go / ResolveWorkloadSelector) maps the shared
+// (deployment/workload_selection.go / ResolveWorkloadSelector) maps the shared
 // Neo4jReader sentinels to 503/504.
 func TestTraceDeploymentChainMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()

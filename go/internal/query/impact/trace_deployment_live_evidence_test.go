@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -16,12 +16,12 @@ import (
 func TestDeploymentOverallConfidenceLiveEvidence(t *testing.T) {
 	t.Parallel()
 
-	confidence, reason := impacttrace.DeploymentOverallConfidence(nil, nil, nil, true)
+	confidence, reason := deployment.DeploymentOverallConfidence(nil, nil, nil, true)
 	if confidence != 0.95 {
-		t.Fatalf("impacttrace.DeploymentOverallConfidence(live=true) confidence = %v, want 0.95", confidence)
+		t.Fatalf("deployment.DeploymentOverallConfidence(live=true) confidence = %v, want 0.95", confidence)
 	}
 	if reason != "live_runtime_observation" {
-		t.Fatalf("impacttrace.DeploymentOverallConfidence(live=true) reason = %q, want %q", reason, "live_runtime_observation")
+		t.Fatalf("deployment.DeploymentOverallConfidence(live=true) reason = %q, want %q", reason, "live_runtime_observation")
 	}
 }
 
@@ -31,7 +31,7 @@ func TestDeploymentOverallConfidenceLiveEvidenceOverridesInstances(t *testing.T)
 	instances := []map[string]any{
 		{"materialization_confidence": 0.9},
 	}
-	confidence, reason := impacttrace.DeploymentOverallConfidence(instances, nil, nil, true)
+	confidence, reason := deployment.DeploymentOverallConfidence(instances, nil, nil, true)
 	if confidence != 0.95 {
 		t.Fatalf("confidence = %v, want 0.95", confidence)
 	}
@@ -43,7 +43,7 @@ func TestDeploymentOverallConfidenceLiveEvidenceOverridesInstances(t *testing.T)
 func TestDeploymentOverallConfidenceNoEvidence(t *testing.T) {
 	t.Parallel()
 
-	confidence, reason := impacttrace.DeploymentOverallConfidence(nil, nil, nil, false)
+	confidence, reason := deployment.DeploymentOverallConfidence(nil, nil, nil, false)
 	if confidence != 0 {
 		t.Fatalf("confidence = %v, want 0", confidence)
 	}
@@ -57,7 +57,7 @@ func TestBuildDeploymentFactSummaryTierLiveEvidence(t *testing.T) {
 
 	ctx := querytestutil.SampleServiceDossierContext()
 	instances, _ := ctx["instances"].([]map[string]any)
-	summary := impacttrace.BuildDeploymentFactSummary(
+	summary := deployment.BuildDeploymentFactSummary(
 		ctx,
 		instances,
 		[]string{"production", "qa"},
@@ -96,7 +96,7 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 	// only hasLiveEvidence does that.
 	ctx["_live_instance_count"] = 3
 	instances, _ := ctx["instances"].([]map[string]any)
-	summary := impacttrace.BuildDeploymentFactSummary(
+	summary := deployment.BuildDeploymentFactSummary(
 		ctx,
 		instances,
 		[]string{"production", "qa"},
@@ -139,7 +139,7 @@ func TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation(t *t
 
 	ctx := querytestutil.SampleServiceDossierContext()
 	instances, _ := ctx["instances"].([]map[string]any)
-	summary := impacttrace.BuildDeploymentFactSummary(
+	summary := deployment.BuildDeploymentFactSummary(
 		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
 		nil, nil, nil, nil, nil, "controller", false,
 	)
@@ -155,7 +155,7 @@ func TestBuildDeploymentFactSummaryTierEmptyWhenNoEvidence(t *testing.T) {
 	t.Parallel()
 
 	ctx := map[string]any{}
-	summary := impacttrace.BuildDeploymentFactSummary(
+	summary := deployment.BuildDeploymentFactSummary(
 		ctx,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		"",
@@ -180,25 +180,25 @@ type stubKubernetesPodTemplateStore struct {
 	// calls records every filter passed to HasLiveIdentityMatch, so tests
 	// can assert the probe never queried the store (call-count = 0) and
 	// inspect access-scoping fields.
-	calls []impacttrace.KubernetesPodTemplateFilter
+	calls []deployment.KubernetesPodTemplateFilter
 }
 
 // declaredObjectStubMatchKey builds the stub's match key for a
 // declared-object anchor filter, mirroring the identity tuple
-// impacttrace.DeclaredObjectAnchors binds on (group_version_resource, namespace, name).
+// deployment.DeclaredObjectAnchors binds on (group_version_resource, namespace, name).
 func declaredObjectStubMatchKey(gvr, namespace, name string) string {
 	return gvr + "|" + namespace + "|" + name
 }
 
 func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	_ context.Context,
-	filter impacttrace.KubernetesPodTemplateFilter,
+	filter deployment.KubernetesPodTemplateFilter,
 ) (bool, error) {
 	s.calls = append(s.calls, filter)
 	if s.err != nil {
 		return false, s.err
 	}
-	if filter.AnchorKind == impacttrace.LiveIdentityAnchorDeclaredObject {
+	if filter.AnchorKind == deployment.LiveIdentityAnchorDeclaredObject {
 		key := declaredObjectStubMatchKey(filter.GroupVersionResource, filter.Namespace, filter.Name)
 		_, matched := s.matchingDeclaredObjects[key]
 		return matched, nil
@@ -214,13 +214,13 @@ func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
 // (trace_deployment_live_evidence_count_test.go).
 func (s *stubKubernetesPodTemplateStore) ListLiveIdentityMatches(
 	context.Context,
-	impacttrace.KubernetesPodTemplateFilter,
-) ([]impacttrace.LiveIdentityMatch, error) {
+	deployment.KubernetesPodTemplateFilter,
+) ([]deployment.LiveIdentityMatch, error) {
 	return nil, nil
 }
 
 // k8sResourceFixture builds a minimal declared k8sResource map as
-// impacttrace.CollectDeploymentSourceK8sResources/k8sResourceWireRow would produce it.
+// deployment.CollectDeploymentSourceK8sResources/k8sResourceWireRow would produce it.
 
 func TestFetchWorkloadLiveEvidenceNilHandler(t *testing.T) {
 	t.Parallel()
@@ -378,7 +378,7 @@ func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 	if got := store.calls[0].TrackingID; got != trackingIDA {
 		t.Fatalf("trace(A) first (ArgoCD) call queried tracking id %q, want %q", got, trackingIDA)
 	}
-	if got := store.calls[1].AnchorKind; got != impacttrace.LiveIdentityAnchorDeclaredObject {
+	if got := store.calls[1].AnchorKind; got != deployment.LiveIdentityAnchorDeclaredObject {
 		t.Fatalf("trace(A) second call AnchorKind = %q, want declared-object", got)
 	}
 	if got := store.calls[1].Namespace; got != "shared-ns" {

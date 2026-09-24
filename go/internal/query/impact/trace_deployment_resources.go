@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
@@ -86,7 +86,7 @@ func (h *Handler) fetchCloudResourceResult(
 		}
 		observationCount++
 	}
-	resources, err := impacttrace.DeploymentTraceCloudResourcesFromRows(rows, "")
+	resources, err := deployment.DeploymentTraceCloudResourcesFromRows(rows, "")
 	if err != nil {
 		return CloudResourceResult{}, err
 	}
@@ -225,7 +225,7 @@ func boundedK8sResourceResult(
 	selectCandidatePoolTruncated bool,
 ) k8sResourceResult {
 	merged := mergeDeploymentTraceRows(contentRows, deploymentSourceRows)
-	impacttrace.SortDeploymentTraceMaps(merged)
+	deployment.SortDeploymentTraceMaps(merged)
 	observedCount := len(merged)
 	rows, mergedTruncated := querycontract.CapMapRows(merged, querycontract.ServiceStoryItemLimit)
 
@@ -298,6 +298,6 @@ func mergeDeploymentTraceRows(left []map[string]any, right []map[string]any) []m
 		seen[key] = struct{}{}
 		merged = append(merged, row)
 	}
-	impacttrace.SortDeploymentTraceMaps(merged)
+	deployment.SortDeploymentTraceMaps(merged)
 	return merged
 }

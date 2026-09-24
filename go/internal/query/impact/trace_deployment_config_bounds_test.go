@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -20,8 +20,8 @@ import (
 func TestTraceDeploymentChainDisclosesOmittedConfigAnchorWithNoCandidateRows(t *testing.T) {
 	t.Parallel()
 
-	artifacts := make([]map[string]any, 0, impacttrace.ServiceCloudResourceDependencyLimit+1)
-	for index := range impacttrace.ServiceCloudResourceDependencyLimit + 1 {
+	artifacts := make([]map[string]any, 0, deployment.ServiceCloudResourceDependencyLimit+1)
+	for index := range deployment.ServiceCloudResourceDependencyLimit + 1 {
 		artifacts = append(artifacts, map[string]any{
 			"relationship_type": "READS_CONFIG_FROM",
 			"matched_value":     fmt.Sprintf("/config/%03d/*", index),

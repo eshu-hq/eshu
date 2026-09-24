@@ -24,7 +24,7 @@ func ArgoCDControllerFixture(appName string) map[string]any {
 // K8sResourceFixture builds the minimal K8s resource map the live-evidence
 // identity tests feed anchor resolution: kind, entity name, namespace, and
 // API version. It moved here from the impact handler tests with lane B2 of
-// #6060 because root, impact/, and impacttrace/ tests all need it and test
+// #6060 because root, impact/, and deployment/ tests all need it and test
 // files cannot share helpers across packages.
 func K8sResourceFixture(kind, name, namespace, apiVersion string) map[string]any {
 	return map[string]any{
@@ -77,7 +77,7 @@ func AssertAnswerMetadata(t *testing.T, name string, data map[string]any) {
 
 // DecodeImpactEnvelopeData asserts an HTTP 200 envelope response and returns
 // its data map. It is the shared home for the envelope-data decode the query
-// root, impact/, and impacttrace/ handler tests all need; it moved here from
+// root, impact/, and deployment/ handler tests all need; it moved here from
 // the query root with lane B2 of #6060 so the subpackage tests can use it
 // without importing the root package.
 func DecodeImpactEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {

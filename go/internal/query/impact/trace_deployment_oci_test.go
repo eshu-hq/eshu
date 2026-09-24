@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -266,7 +266,7 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveTagAnchor(t *testing.T) {
 func TestBuildDeploymentTraceResponseIncludesOCIRegistryTruthInOverview(t *testing.T) {
 	t.Parallel()
 
-	got := impacttrace.BuildDeploymentTraceResponse("payments-api", map[string]any{
+	got := deployment.BuildDeploymentTraceResponse("payments-api", map[string]any{
 		"id":         "workload:payments-api",
 		"name":       "payments-api",
 		"image_refs": []string{"ghcr.io/acme/payments-api@" + testOCIDigest},

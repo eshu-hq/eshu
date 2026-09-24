@@ -4,17 +4,17 @@
 package impact
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // candidate_access_filter.go holds the grant-binding row filters whose
 // signatures name the candidate structs this package defines
 // (ChangeSurfaceTargetCandidate, ResourceInvestigationCandidate). They live
-// here rather than in impacttrace/impact_access_filter.go because an
-// impacttrace function cannot name an impact-defined type (package impact
-// imports impacttrace, so the reverse import would be a cycle). The row-map
-// and provisioning filters, whose element types live in impacttrace, stay
+// here rather than in deployment/impact_access_filter.go because an
+// deployment function cannot name an impact-defined type (package impact
+// imports deployment, so the reverse import would be a cycle). The row-map
+// and provisioning filters, whose element types live in deployment, stay
 // there. See #6060.
 
 // filterChangeSurfaceCandidatesForAccess drops resolved change-surface target
@@ -32,7 +32,7 @@ func filterChangeSurfaceCandidatesForAccess(
 	}
 	filtered := make([]ChangeSurfaceTargetCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
-		if impacttrace.ImpactRepoIDAllowed(candidate.RepoID, access) {
+		if deployment.ImpactRepoIDAllowed(candidate.RepoID, access) {
 			filtered = append(filtered, candidate)
 		}
 	}
@@ -51,7 +51,7 @@ func filterResourceInvestigationCandidatesForAccess(
 	}
 	filtered := make([]ResourceInvestigationCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
-		if impacttrace.ImpactRepoIDAllowed(candidate.RepoID, access) {
+		if deployment.ImpactRepoIDAllowed(candidate.RepoID, access) {
 			filtered = append(filtered, candidate)
 		}
 	}

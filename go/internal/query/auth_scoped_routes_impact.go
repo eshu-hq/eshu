@@ -35,7 +35,7 @@ import "net/http"
 //     scoped caller, since those rows carry no repository property to bind to
 //     a grant at all.
 //
-// trace_resource_to_code, explain_dependency_path (impact/handler.go, impacttrace/impact_anchor_resolve.go)
+// trace_resource_to_code, explain_dependency_path (impact/handler.go, deployment/impact_anchor_resolve.go)
 // and trace_exposure_path (exposure_path.go) are NOT included here. Their walks
 // are bounded -- max_depth 1..20 with normalizeImpactListLimit, one shortestPath
 // of at most 8 hops, and clampExposureDepth with exposurePathResultLimit

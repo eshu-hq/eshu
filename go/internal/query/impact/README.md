@@ -14,8 +14,8 @@ staying root package consumes through aliases in `family_impact_shim.go`.
 This package owns handler orchestration for the impact routes and the
 `Handler` struct with its `Neo4j`, `Content`, `Profile`, `TraceContext`,
 `CodeSurface`, and `PathProbe` dependencies. Non-method helpers the family
-needs but that touch no handler state live in `impacttrace`; this package
-imports `impacttrace`, never the reverse, and neither imports the query
+needs but that touch no handler state live in `deployment`; this package
+imports `deployment`, never the reverse, and neither imports the query
 root (the root would cycle back through `compare.go` and
 `family_impact_shim.go`).
 
@@ -48,7 +48,7 @@ stay unexported; cross-package test pins go through `querytestutil`
 
 The package imports the Go standard library, `querycontract` (types, ports,
 capability registry, shared bounds), `querytestutil` in tests only,
-`impacttrace`, `queryauth` (tests), and `tracing`/`internal/telemetry`
+`deployment`, `queryauth` (tests), and `tracing`/`internal/telemetry`
 for handler spans. It must not import the query root or graph drivers.
 
 ## Telemetry
@@ -180,7 +180,7 @@ The root alias in `family_impact_shim.go` keeps its pre-move spelling
 (`type ImpactHandler = impact.Handler`) so `cmd/api`/`cmd/mcp-server` wiring
 and the ~260 `query.ImpactHandler`/`ImpactHandler` call sites across
 `internal/query` compile unchanged; only this package's own declarations and
-their direct qualified callers moved. `impacttrace.ImpactRepoIDAllowed` is a
+their direct qualified callers moved. `deployment.ImpactRepoIDAllowed` is a
 different package's own export (its own rule-2/4 debt, out of scope here) and
 keeps its name; this package's `RepoIDAllowed` seam still forwards to it.
 

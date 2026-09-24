@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -16,7 +16,7 @@ import (
 // values, which embed Neo4j driver structs) into anchors and hop provenance
 // for the by-id impact reads. The driver-typed decoding stays in root because
 // only the driver-owning files may import the graph driver (package AGENTS.md,
-// depguard query-no-graph-driver); the plain-data shaping runs in impacttrace.
+// depguard query-no-graph-driver); the plain-data shaping runs in deployment.
 // ImpactHandler.PathProbe carries the production adapter; tests inject fakes
 // through the same interface. See #6060.
 type impactPathProbeBackend struct{}
@@ -32,18 +32,18 @@ func (impactPathProbeBackend) ResolveAnchor(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	idParam, id string,
-) (*impacttrace.ResolvedImpactAnchor, error) {
-	return impacttrace.ResolveImpactAnchorNode(ctx, reader, idParam, id)
+) (*deployment.ResolvedImpactAnchor, error) {
+	return deployment.ResolveImpactAnchorNode(ctx, reader, idParam, id)
 }
 
 // TraceHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) TraceHops(relsRaw any) []map[string]any {
-	return impacttrace.ImpactTraceHops(impactRelProvenanceList(relsRaw))
+	return deployment.ImpactTraceHops(impactRelProvenanceList(relsRaw))
 }
 
 // DependencyHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) DependencyHops(nodesRaw, relsRaw any) []map[string]any {
-	return impacttrace.ImpactDependencyHops(impactNodeIdentityList(nodesRaw), impactRelProvenanceList(relsRaw))
+	return deployment.ImpactDependencyHops(impactNodeIdentityList(nodesRaw), impactRelProvenanceList(relsRaw))
 }
 
 // PathHasNodes implements impact.PathProbeBackend.

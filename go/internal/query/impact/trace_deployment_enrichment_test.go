@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestBuildDeploymentTraceResponseUsesCanonicalServiceNameAndDrilldowns(t *testing.T) {
 	t.Parallel()
 
-	got := impacttrace.BuildDeploymentTraceResponse("workload:service-edge-api", map[string]any{
+	got := deployment.BuildDeploymentTraceResponse("workload:service-edge-api", map[string]any{
 		"id":        "workload:service-edge-api",
 		"name":      "service-edge-api",
 		"kind":      "service",
@@ -111,7 +111,7 @@ func TestBuildDeploymentTraceResponseNarratesTypedControllerProvenance(t *testin
 		},
 	}
 
-	got := impacttrace.BuildDeploymentTraceResponse("payments-api", ctx, map[string]any{})
+	got := deployment.BuildDeploymentTraceResponse("payments-api", ctx, map[string]any{})
 	story, ok := got["story"].(string)
 	if !ok {
 		t.Fatalf("story type = %T, want string", got["story"])
@@ -200,7 +200,7 @@ func TestBuildDeploymentTraceResponseIncludesServiceEvidenceConsumersAndProvisio
 		},
 	}
 
-	got := impacttrace.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
+	got := deployment.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
 	deploymentOverview, ok := got["deployment_overview"].(map[string]any)
 	if !ok {
@@ -297,7 +297,7 @@ func TestBuildDeploymentTraceResponseRecognizesGitOpsFromReadModelEvidence(t *te
 		},
 	}
 
-	got := impacttrace.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
+	got := deployment.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
 	gitopsOverview, ok := got["gitops_overview"].(map[string]any)
 	if !ok {

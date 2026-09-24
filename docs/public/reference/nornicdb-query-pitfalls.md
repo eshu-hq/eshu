@@ -700,7 +700,7 @@ the safe fix is a per-label inline-property anchor (one `MATCH (n:Label {id:$id}
 per label) plus the single-clause projection contract.
 
 Both by-id impact reads were fixed this way (#5286,
-`go/internal/query/impacttrace/impact_anchor_resolve.go`, `go/internal/query/impact/handler.go`, guard test
+`go/internal/query/impact/deployment/impact_anchor_resolve.go`, `go/internal/query/impact/handler.go`, guard test
 `TestImpactAnchorResolveCypherIsPerLabelUnion`, live proof
 `docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`):
 `trace-resource-to-code` folds the label resolution into the traversal as a

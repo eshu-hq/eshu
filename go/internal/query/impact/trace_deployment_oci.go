@@ -9,12 +9,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
-	// ociDigestMatchStrength moved to internal/query/impacttrace with lane B2
+	// ociDigestMatchStrength moved to internal/query/deployment with lane B2
 	// of #6060 (canonicalOCIImageMatchCount is this package's only reader
 	// outside the trace response shaper); see OciDigestMatchStrength there.
 	ociTagMatchStrength        = "tag_resolved_to_digest"
@@ -388,7 +388,7 @@ func buildOCIDigestTruthRows(
 			continue
 		}
 		for _, imageRef := range digestRefs[digest] {
-			truth = append(truth, ociTruthRow(row, imageRef, digest, impacttrace.OciDigestMatchStrength, "digest", false))
+			truth = append(truth, ociTruthRow(row, imageRef, digest, deployment.OciDigestMatchStrength, "digest", false))
 		}
 	}
 	return truth

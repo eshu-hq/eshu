@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -28,7 +28,7 @@ func (f fetchK8sResourcesContentStore) SearchEntitiesByName(
 }
 
 // TestFetchK8sResourcesPreservesSelectorPodTemplateLabelsNamespaceTriState
-// drives the real Handler.fetchK8sResources (not impacttrace.BuildK8sRelationships
+// drives the real Handler.fetchK8sResources (not deployment.BuildK8sRelationships
 // with hand-made maps) and proves it carries the selector/pod_template_labels
 // keys through to the returned resource row IFF the source content entity's
 // metadata carries them, and never defaults an absent key to "". This is the
@@ -116,7 +116,7 @@ func TestFetchK8sResourcesPreservesSelectorPodTemplateLabelsNamespaceTriState(t 
 }
 
 // TestCollectDeploymentSourceK8sResourcesPreservesSelectorPodTemplateLabelsNamespaceTriState
-// drives the real impacttrace.CollectDeploymentSourceK8sResources (not impacttrace.BuildK8sRelationships
+// drives the real deployment.CollectDeploymentSourceK8sResources (not deployment.BuildK8sRelationships
 // with hand-made maps) and proves the same comma-ok tri-state preservation on
 // the GitOps-controller-scoped resource path: a K8sResource entity under the
 // controller's source root carries selector/pod_template_labels through IFF
@@ -164,7 +164,7 @@ func TestCollectDeploymentSourceK8sResourcesPreservesSelectorPodTemplateLabelsNa
 		},
 	}
 
-	resources, _ := impacttrace.CollectDeploymentSourceK8sResources(controllers, entities)
+	resources, _ := deployment.CollectDeploymentSourceK8sResources(controllers, entities)
 	if len(resources) != 2 {
 		t.Fatalf("len(resources) = %d, want 2: %#v", len(resources), resources)
 	}

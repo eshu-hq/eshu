@@ -5,7 +5,7 @@
 
 // Live accuracy proof for #6811: QueryRepoDeploymentEvidence's incoming read
 // (deployment_evidence.go) and FetchFluxDeploymentSourceTargetBindings'
-// expansion read (impacttrace/impact_trace_deployment_flux_bindings.go) both
+// expansion read (deployment/impact_trace_deployment_flux_bindings.go) both
 // anchor at the arrow head of an incoming relationship into the bound
 // repository -- the shape #6794 proved costs disproportionate time on
 // NornicDB and that this backend can also return the wrong row set for (see
@@ -42,7 +42,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -470,7 +470,7 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 	t.Run("flux expansion row-set truth", func(t *testing.T) {
 		access := querycontract.RepositoryAccessFilter{AllScopes: true}
 
-		prodResult, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(ctx, reader, seed.hubID, seed.srcIDs, 1000, access)
+		prodResult, err := deployment.FetchFluxDeploymentSourceTargetBindings(ctx, reader, seed.hubID, seed.srcIDs, 1000, access)
 		if err != nil {
 			t.Fatalf("FetchFluxDeploymentSourceTargetBindings: %v", err)
 		}

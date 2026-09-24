@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
@@ -29,7 +29,7 @@ import (
 // See #6060.
 type stubImpactPathProbe struct{}
 
-func (stubImpactPathProbe) ResolveAnchor(context.Context, querycontract.GraphQuery, string, string) (*impacttrace.ResolvedImpactAnchor, error) {
+func (stubImpactPathProbe) ResolveAnchor(context.Context, querycontract.GraphQuery, string, string) (*deployment.ResolvedImpactAnchor, error) {
 	return nil, nil
 }
 

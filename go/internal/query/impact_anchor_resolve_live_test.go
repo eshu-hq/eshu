@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -71,7 +71,7 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 		map[string]any{"s": srcID, "m": midID, "t": tgtID})
 
 	// Capture the OLD label-disjunction anchor (matches zero rows) for evidence.
-	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
+	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+deployment.ImpactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
 	t.Logf("OLD label-disjunction anchor rows: %d (want 0 — broken)", len(oldAnchor))
 
 	mux := http.NewServeMux()

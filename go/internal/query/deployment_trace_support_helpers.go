@@ -6,7 +6,7 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -17,10 +17,10 @@ const (
 	maxIndirectEvidenceSearchLimit     = querycontract.MaxIndirectEvidenceSearchLimit
 )
 
-// provisioningRepositoryCandidate aliases the impacttrace home (moved there
+// provisioningRepositoryCandidate aliases the deployment home (moved there
 // with lane B2 of #6060); the root producer and readers keep the
 // package-local name.
-type provisioningRepositoryCandidate = impacttrace.ProvisioningRepositoryCandidate
+type provisioningRepositoryCandidate = deployment.ProvisioningRepositoryCandidate
 
 // loadProvisioningSourceChains loads the provisioning source chains for a
 // service repository, returning the chains and whether the read underneath
@@ -49,11 +49,11 @@ func loadProvisioningSourceChainsWithLimit(
 	serviceRepoID string,
 	limit int,
 ) ([]map[string]any, bool, error) {
-	candidates, truncated, err := impacttrace.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+	candidates, truncated, err := deployment.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
 		return nil, false, err
 	}
-	chains, err := impacttrace.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	chains, err := deployment.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
 	if err != nil {
 		return nil, false, err
 	}
@@ -102,16 +102,16 @@ func loadConsumerRepositoryEnrichmentWithLimit(
 	hostnames []string,
 	limit int,
 ) ([]map[string]any, bool, error) {
-	candidates, candidatesTruncated, err := impacttrace.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+	candidates, candidatesTruncated, err := deployment.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
 		return nil, false, err
 	}
-	return impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, false)
+	return deployment.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, false)
 }
 
 // queryProvisioningRepositoryCandidates probes the provisioning-candidate
 // read one row past the caller's limit. The implementation moved to
-// impacttrace for #6060; this wrapper keeps the staying deployment-trace
+// deployment for #6060; this wrapper keeps the staying deployment-trace
 // tests calling the package-local name.
 func queryProvisioningRepositoryCandidates(
 	ctx context.Context,
@@ -119,12 +119,12 @@ func queryProvisioningRepositoryCandidates(
 	serviceRepoID string,
 	limit int,
 ) ([]provisioningRepositoryCandidate, bool, error) {
-	return impacttrace.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+	return deployment.QueryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 }
 
 // loadConsumerRepositoryEnrichmentFromCandidates merges graph-derived
 // provisioning candidates with content-evidence consumer matches. The
-// implementation moved to impacttrace for #6060; this wrapper keeps the
+// implementation moved to deployment for #6060; this wrapper keeps the
 // staying deployment-trace tests calling the package-local name.
 func loadConsumerRepositoryEnrichmentFromCandidates(
 	ctx context.Context,
@@ -138,15 +138,15 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	candidatesTruncated bool,
 	evidenceFilesTruncated bool,
 ) ([]map[string]any, bool, error) {
-	return impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, evidenceFilesTruncated)
+	return deployment.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, evidenceFilesTruncated)
 }
 
 // BoundedIndirectEvidenceHostnamesForService chooses the hostnames most
 // likely to identify the service itself before spending cross-repo content
-// searches. The implementation moved to impacttrace for #6060; this wrapper
+// searches. The implementation moved to deployment for #6060; this wrapper
 // keeps the staying deployment-trace tests calling the package-local name.
 func BoundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) ([]string, bool) {
-	return impacttrace.BoundedIndirectEvidenceHostnamesForService(hostnames, serviceName)
+	return deployment.BoundedIndirectEvidenceHostnamesForService(hostnames, serviceName)
 }
 
 // boundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
