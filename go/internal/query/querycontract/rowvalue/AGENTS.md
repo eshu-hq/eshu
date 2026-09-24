@@ -78,7 +78,7 @@ Two packages forward into here, and they do not forward the same set.
 `querycontract/response_shaping_helpers.go` forwards all five names.
 `query/neo4j.go` forwards only four — `StringVal`, `BoolVal`, `IntVal` and
 `StringSliceVal`. Package `query` has no exported `FloatVal`: it reaches this
-one through two unexported wrappers, `floatVal` in `compare.go` (10 call sites
+one through two unexported wrappers, `floatVal` in `compare/handler.go` (10 call sites
 in 2 files) and `relationshipFloatVal` in `repository_compat.go` (1 call site
 in 1 file).
 

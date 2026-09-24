@@ -13,7 +13,7 @@ import "net/http"
 //   - investigate_contract_impact (impact/contract.go): the only implemented
 //     family (http) is anchored on an exact, required provider_repo_id, so an
 //     ungranted repo renders the same empty-providers shape as an unknown one.
-//   - compare_environments (compare.go): the resolved workload's repo_id is
+//   - compare_environments (compare/handler.go): the resolved workload's repo_id is
 //     checked against the grant before any environment/cloud-resource read;
 //     an ungranted workload renders the existing "workload not found" shape.
 //   - find_blast_radius (impact/blast_radius.go): every affected row is a

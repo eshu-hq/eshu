@@ -165,7 +165,7 @@ func compareEnvironmentsTestGraph() fakeGraphReader {
 
 // TestCompareEnvironmentsScopedGrantAndDenyMutationCheck is a #5167 W3
 // mutation-check route: removing the workload repo_id grant check in
-// compare.go's compareEnvironments makes a denied caller see status "present"
+// compare/handler.go's compareEnvironments makes a denied caller see status "present"
 // (or any status other than "not found") instead of the missing-workload
 // response.
 func TestCompareEnvironmentsScopedGrantAndDenyMutationCheck(t *testing.T) {

@@ -14,7 +14,7 @@ package query
 // StatusHandler is implemented in status.go
 // PackageRegistryHandler is implemented in package/registry/handler.go
 
-// CompareHandler is implemented in compare.go
+// CompareHandler is implemented in compare/handler.go (aliased in compare_alias.go)
 // Handler is implemented in admin/handler.go, admin/facts.go,
 // admin/replay.go, admin/generations.go, admin/deadletters.go, and
 // admin/inputinvalid.go; the identity handlers live in admin/identity/, the

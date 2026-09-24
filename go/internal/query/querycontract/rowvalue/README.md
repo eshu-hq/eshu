@@ -54,7 +54,7 @@ all.
 
 Package `query` forwards only four of them — `StringVal`, `BoolVal`, `IntVal`
 and `StringSliceVal`, in `neo4j.go`. It has no exported `FloatVal`; it reaches
-this one through two unexported wrappers, `floatVal` in `compare.go` and
+this one through two unexported wrappers, `floatVal` in `compare/handler.go` and
 `relationshipFloatVal` in `repository_compat.go`.
 
 Every one of those wrappers inlines away, including the ones `querycontract`

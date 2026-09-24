@@ -131,7 +131,7 @@ unchanged. That put a *second* forwarding wrapper in front of five functions the
 query read paths call constantly: a root call site now reads
 `query.X -> querycontract.X -> rowvalue.X`, where before #6597 it stopped at
 `querycontract.X`. `FloatVal` has no exported root wrapper; root reaches it
-through two unexported ones, `floatVal` in `compare.go` and
+through two unexported ones, `floatVal` in `compare/handler.go` and
 `relationshipFloatVal` in `repository_compat.go`, so its chain is the same three
 hops deep.
 
