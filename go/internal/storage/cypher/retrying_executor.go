@@ -124,8 +124,8 @@ func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bo
 // classify returns a bounded reason for errors that are safe to retry; do
 // performs the work. Both callers share the same exponential-backoff-with-
 // jitter cadence and the same retry-budget exhaustion behavior. The optional
-// timeoutReplayGroup is validated only after NornicDB returns its exact
-// rollback-complete transaction timeout.
+// timeoutReplayGroup is validated only after the backend (NornicDB or Neo4j)
+// returns its exact rollback-complete transaction timeout.
 func (r *RetryingExecutor) runWithRetry(
 	ctx context.Context,
 	operationLabel string,
@@ -148,13 +148,13 @@ func (r *RetryingExecutor) runWithRetry(
 		if lastErr == nil {
 			return nil
 		}
-		if isNornicDBTransactionTimedOutClientConfiguration(lastErr) ||
-			hasNornicDBTransactionTimeoutInUnknownOutcome(lastErr) {
+		if isTransactionTimedOut(lastErr) ||
+			hasTransactionTimeoutInUnknownOutcome(lastErr) {
 			if !hasUnknownTransactionOutcome(lastErr) &&
 				len(timeoutReplayGroup) > 0 && isCanonicalRunsOnReplaySafeGroup(timeoutReplayGroup) {
 				return &neo4jRetryableError{
 					inner: lastErr,
-					code:  nornicDBTransactionTimedOutClientConfigurationCode,
+					code:  transactionTimedOutClientConfigurationCode,
 				}
 			}
 			return lastErr

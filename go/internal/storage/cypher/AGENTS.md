@@ -102,8 +102,10 @@
   upsert templates. It does not make arbitrary `UNWIND ... DELETE` or
   accumulating `SET` replay-safe; see
   `docs/internal/design/6634-runs-on-atomic-replay.md` for its proof limits.
-  Exact v1.3.3 RUNS_ON transaction timeouts follow rollback and defer once
-  to the bounded queue as `graph_write_timeout`, without a local retry.
+  Exact RUNS_ON transaction timeouts (NornicDB v1.3.3, and Neo4j's
+  TransactionTimedOutClientConfiguration, TransactionTimedOut, and lock-wait
+  LockClientStopped) follow rollback and defer once to the bounded queue as
+  `graph_write_timeout`, without a local retry; elsewhere they stay terminal.
   Connectivity or driver-limit wrappers do not inherit that guarantee.
   The retract shape was added for #6176, when `SemanticEntityWriter` stopped
   dispatching its retract outside the group: a MERGE-only gate would have made

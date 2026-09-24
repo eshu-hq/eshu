@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // TimeoutExecutor bounds individual graph write statements with a child
@@ -25,6 +27,57 @@ type TimeoutExecutor struct {
 // which counts only retrying rows in this class so readiness backlogs cannot
 // false-throttle reducer admission (#3560).
 const GraphWriteTimeoutFailureClass = "graph_write_timeout"
+
+// Typed statuses a graph backend reports for a transaction it terminated at
+// its timeout; see isTransactionTimedOut.
+const (
+	// transactionTimedOutClientConfigurationCode is the status both backends
+	// report after rolling back a transaction that exceeded the timeout the
+	// client sent with it (neo4j.WithTxTimeout, ESHU_CANONICAL_WRITE_TIMEOUT).
+	// NornicDB reuses Neo4j's status verbatim.
+	transactionTimedOutClientConfigurationCode = "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration"
+	// transactionTimedOutServerConfigurationCode is the status Neo4j reports
+	// when the server-wide db.transaction.timeout terminates the transaction
+	// instead. KernelImpl.beginTransaction (Neo4j 2026.06) builds both
+	// statuses from the same TransactionTimeout, so the rollback guarantee is
+	// identical and the classifier treats them the same way.
+	transactionTimedOutServerConfigurationCode = "Neo.ClientError.Transaction.TransactionTimedOut"
+	// transactionLockClientStoppedCode is what Neo4j reports instead of a
+	// timeout status when the timed-out transaction is waiting on another
+	// transaction's lock: terminating a transaction stops its lock client
+	// (KernelTransactionImplementation.markForTerminationIfPossible), so the
+	// pending acquisition fails with this status. Observed on
+	// neo4j:2026-community by TestLiveNeo4jCanonicalWriteTimeoutAbortsBlockedWrite.
+	// It is matched before the transient "LockClient" substring so a timed-out
+	// write is not replayed locally for another full timeout while it holds its
+	// lease. The same status also covers operator kills and shutdown; each of
+	// those terminates the transaction before commit as well.
+	transactionLockClientStoppedCode = "Neo.ClientError.Transaction.LockClientStopped"
+)
+
+// isTransactionTimedOut identifies the exact typed error a graph backend
+// emits after rolling back a transaction that reached its timeout: NornicDB
+// and Neo4j both report the client-configured status, and Neo4j reports the
+// server-configured status for db.transaction.timeout, or the stopped lock
+// client when the transaction was waiting on a lock. In Neo4j all three come
+// from the kernel's termination path, which rolls the transaction back rather
+// than committing it (KernelTransactionImplementation.closeTransaction checks
+// canCommit before commitTransaction). It is durable-queue retryable only
+// when its outer error chain preserves the known rollback outcome.
+func isTransactionTimedOut(err error) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	if !errors.As(err, &neo4jErr) {
+		return false
+	}
+	switch neo4jErr.Code {
+	case transactionTimedOutClientConfigurationCode,
+		transactionTimedOutServerConfigurationCode,
+		transactionLockClientStoppedCode:
+		return true
+	default:
+		return false
+	}
+}
 
 // GraphWriteTimeoutError marks a graph write deadline/cancellation with enough
 // context for queue failure classifiers and operator status surfaces.
