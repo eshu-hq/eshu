@@ -1,0 +1,14 @@
+go/internal/query/codequery/call_chain_candidate_test.go
+  h_78a442cba0b3e6 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb2e2d0af4370e0492a8449720ddf2152eb43e0b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
