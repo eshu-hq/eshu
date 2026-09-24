@@ -383,24 +383,16 @@ func graphReadResult(
 ) (graphReadOutcome, error) {
 	if parentErr := parentCtx.Err(); parentErr != nil {
 		if errors.Is(parentErr, context.DeadlineExceeded) {
-			// A deadline WHOSE CAUSE is querycontract's
-			// WithBoundedGraphReadDeadline(For) budget IS the graph-read
-			// policy's own budget -- e.g. the shared deadline a per-label
-			// anchor loop derives once and reuses for every candidate --
-			// not an ordinary caller-imposed deadline. It is created a few
-			// microseconds before readCtx (this function's own per-read
-			// context.WithTimeout below), so it always expires first and
-			// this branch always fires for it; without this check every
-			// timeout on a shared-budget loop route (GetEntityContext,
-			// getRelationships) misclassified as caller_deadline -- no
-			// query.graph_read.warning log, no graph_query_name, and a raw
-			// context.DeadlineExceeded instead of the wrapped
-			// ErrGraphReadDeadline sentinel (#7006 review F1).
-			// IsBoundedGraphReadDeadline checks context.Cause, not merely
-			// whether parentCtx descends from a WithBoundedGraphReadDeadline
-			// call, so a shorter caller deadline set outside the bounded ctx
-			// that fires first still classifies as caller_deadline (#7006
-			// review round 4 F7).
+			// A deadline whose cause is querycontract's
+			// WithBoundedGraphReadDeadline(For) budget (the shared deadline a
+			// per-label anchor loop derives once) IS the graph-read policy's
+			// own budget. It expires a few microseconds before readCtx below,
+			// so without this check every timeout on such a route
+			// misclassified as caller_deadline: no query.graph_read.warning,
+			// no graph_query_name, and a raw context.DeadlineExceeded instead
+			// of ErrGraphReadDeadline (#7006 review F1). It checks
+			// context.Cause, so a shorter caller deadline set outside the
+			// bounded ctx still classifies as caller_deadline (F7).
 			if querycontract.IsBoundedGraphReadDeadline(parentCtx) {
 				return graphReadOutcomeDeadline, &graphReadError{public: ErrGraphReadDeadline, cause: parentErr}
 			}
