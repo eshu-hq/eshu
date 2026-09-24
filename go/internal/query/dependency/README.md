@@ -22,6 +22,8 @@ concern, or the package-registry family's own dependency reads
   production; `main_test.go` registers it for this package's tests, which
   never link root.
 - `handler_tracing.go` — this package's handler span seam.
+- `evidence-performance.md` — the route's query-shape contract and measured
+  proof (#1646), moved here from the query root with the handler.
 
 ## Dependencies
 

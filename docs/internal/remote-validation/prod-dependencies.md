@@ -30,7 +30,7 @@ neither skip nor duplicate rows.
 ## Committed reproducible evidence
 
 **Handler contract, direction, and keyset paging** —
-`go/internal/query/dependencies_test.go`:
+`go/internal/query/dependency/handler_test.go`:
 `TestDependenciesDefaultsToForwardWithDefaultLimit`,
 `TestDependenciesForwardAnchorsByPackageAndEcosystem`,
 `TestDependenciesReverseAnchorsOnTargetPackage`,
@@ -38,11 +38,11 @@ neither skip nor duplicate rows.
 `TestDependenciesForwardCursorThreadsKeysetParams`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestDependencies -count=1
+cd go && go test ./internal/query/dependency -run TestDependencies -count=1
 ```
 
 **Backend-unavailable honesty** —
-`go/internal/query/dependencies_test.go`:
+`go/internal/query/dependency/handler_test.go`:
 `TestDependenciesBackendUnavailableWhenGraphMissing` proves the handler
 reports an explicit unavailable state rather than a false-empty result when
 the graph backend is absent.
