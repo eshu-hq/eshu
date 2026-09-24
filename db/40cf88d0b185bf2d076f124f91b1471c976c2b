@@ -1,0 +1,14 @@
+go/internal/query/queryauth/doc.go
+  h_78a442cba0b3e6 28-32,37-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "db40cf88d0b185bf2d076f124f91b1471c976c2b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
