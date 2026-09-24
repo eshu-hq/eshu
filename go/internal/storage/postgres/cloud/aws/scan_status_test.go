@@ -7,13 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
@@ -215,7 +214,9 @@ func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
 		if !strings.Contains(exec.query, "AND fencing_token = $6") {
 			t.Fatalf("query missing exact fence guard:\n%s", exec.query)
 		}
-		assertPostgresPlaceholdersMatchArgs(t, exec.query, len(exec.args))
+		if err := fake.CheckPlaceholders(exec.query, len(exec.args)); err != nil {
+			t.Fatal(err)
+		}
 		if len(exec.args) != 18 && len(exec.args) != 10 {
 			t.Fatalf("arg count = %d, want 18 for observe or 10 for commit", len(exec.args))
 		}
@@ -232,32 +233,6 @@ func TestAWSScanStatusStoreClearsCommitFailureAfterSuccessfulCommit(t *testing.T
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("CommitAWSScan() query missing successful-commit cleanup %q:\n%s", want, query)
-		}
-	}
-}
-
-func assertPostgresPlaceholdersMatchArgs(t *testing.T, query string, argCount int) {
-	t.Helper()
-
-	matches := regexp.MustCompile(`\$(\d+)`).FindAllStringSubmatch(query, -1)
-	seen := make(map[int]bool, len(matches))
-	maxPlaceholder := 0
-	for _, match := range matches {
-		placeholder, err := strconv.Atoi(match[1])
-		if err != nil {
-			t.Fatalf("parse placeholder %q: %v", match[0], err)
-		}
-		seen[placeholder] = true
-		if placeholder > maxPlaceholder {
-			maxPlaceholder = placeholder
-		}
-	}
-	if maxPlaceholder != argCount {
-		t.Fatalf("query max placeholder = $%d, args = %d:\n%s", maxPlaceholder, argCount, query)
-	}
-	for placeholder := 1; placeholder <= maxPlaceholder; placeholder++ {
-		if !seen[placeholder] {
-			t.Fatalf("query skips placeholder $%d:\n%s", placeholder, query)
 		}
 	}
 }

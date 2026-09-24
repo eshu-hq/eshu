@@ -50,6 +50,9 @@ business logic it stands in for. Callers stage that behavior themselves via
 - `LegacyQueueRowAdapter` -- a `RowAdapter` reproducing the two column-count
   reshapes moved reducer-queue fixtures need (see its doc comment). Every
   other package's tests leave `Adapt` unset.
+- `CheckPlaceholders` -- returns an error unless a query's `$N` placeholders
+  are dense and the highest equals the argument count; store tests call it
+  on the `Query` and `Args` an `ExecQueryer` recorded.
 
 ## Dependencies
 

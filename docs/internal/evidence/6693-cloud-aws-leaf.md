@@ -43,8 +43,17 @@ moving `scan_status_test.go` helpers (`awsScanStatusTestDB`/
 `awsCheckpointRowsResult` and `assertPostgresPlaceholdersMatchArgs`). Step 10
 (`vulnerability/`) moved that test and made it standalone: it uses
 `internal/storage/postgres/fake` and keeps its own copy of
-`assertPostgresPlaceholdersMatchArgs`. This PR only updates that copy's
-comment to name its origin, `cloud/aws/scan_status_test.go`.
+`assertPostgresPlaceholdersMatchArgs`.
+
+A review on step 10's PR (#7052) pointed out that the helper would otherwise be
+copied into every later leaf. This PR hoists it into `fake` as
+`CheckPlaceholders(query string, argCount int) error`. It returns an error
+rather than taking `*testing.T`, so `fake` stays free of the `testing`
+import, and `TestCheckPlaceholders` covers the dense, repeated-placeholder
+and no-placeholder cases plus three seeded violations (extra args, missing
+args, a skipped placeholder). Both remaining copies, in
+`cloud/aws/scan_status_test.go` and `vulnerability/source_state_test.go`,
+are deleted, and their call sites call `fake.CheckPlaceholders`.
 
 No other root file referenced either moved test file's private symbols
 (checked with `rg` for `awsCheckpointExec`, `awsCheckpointRowsResult`,
@@ -170,8 +179,8 @@ the five prose repoints above.
 ## No-Observability-Change
 
 No-Observability-Change: no metric, span, log key, worker, queue, lease, retry, or durable write
-shape changed. This is a path/package move plus a comment update in
-`vulnerability/source_state_test.go`;
+shape changed. This is a path/package move plus a test-only helper hoist into
+`fake.CheckPlaceholders`;
 `AWSPaginationCheckpointStore`'s `eshu_dp_aws_pagination_checkpoint_events_total`
 counter and `AWSScanStatusStore`'s fencing SQL are untouched code, only their
 package location and import path changed.
