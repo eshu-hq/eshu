@@ -1,7 +1,7 @@
 # #6693 checklist step 11: `cloud/aws/` leaf
 
-Baseline: `origin/main` `93740d3d2`, branch `refactor/6693-cloud-aws-leaf` at
-`aaa5273a0` (no intervening commits touched this destination). Change: `git mv
+Baseline: rebased onto the step-10 `vulnerability/` head; no intervening
+commit touched this destination. Change: `git mv
 aws_pagination_checkpoint.go
 go/internal/storage/postgres/cloud/aws/pagination_checkpoint.go`, `git mv
 aws_scan_status.go
@@ -36,31 +36,15 @@ scan-status file's test (`assertPostgresPlaceholdersMatchArgs`); since both
 test files moved together into the same new package, these stayed exactly as
 written -- no rename or export needed.
 
-## Collision found and fixed: root files staying behind used moving test helpers
+## Shared test helper: already handled by step 10
 
-`vulnerability_source_state_test.go` (root, unrelated destination, not part
-of this mapping) used two of the moved test file's private helpers:
-`TestVulnerabilitySourceStateStoreUsesAtomicUpsert` built its fake database
-as `&awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 1}}}`,
-and its placeholder assertion called `assertPostgresPlaceholdersMatchArgs`
-(defined only in the moving `scan_status_test.go`). Moving the two AWS test
-files without fixing this would have broken compilation of a file that has
-nothing to do with `cloud/aws/`.
-
-Fixes, both following documented precedent:
-
-- `awsScanStatusTestDB`/`awsCheckpointRowsResult` (a generic `db.ExecQueryer`
-  double the test only used for `ExecContext`, staging `rowsAffected: 1`) are
-  replaced with `fake.ExecQueryer`/`fake.Result{}` from
-  `internal/storage/postgres/fake` -- identical behavior (`fake.Result{}`
-  also reports 1 row affected), confirmed by reading both definitions.
-  `db.execs[0].query`/`.args` became `db.Execs[0].Query`/`.Args`.
-- `assertPostgresPlaceholdersMatchArgs` (a 20-line helper with no state, only
-  `regexp`/`strconv` string parsing) is duplicated into
-  `vulnerability_source_state_test.go` with a comment noting its origin,
-  matching the precedent `docs/internal/evidence/6693-iac-leaf.md` set for
-  `decodeStringArrayJSON`: Go cannot import one package's test files from
-  another, and this is the only other root test using it.
+Before step 10, root's `vulnerability_source_state_test.go` used two of the
+moving `scan_status_test.go` helpers (`awsScanStatusTestDB`/
+`awsCheckpointRowsResult` and `assertPostgresPlaceholdersMatchArgs`). Step 10
+(`vulnerability/`) moved that test and made it standalone: it uses
+`internal/storage/postgres/fake` and keeps its own copy of
+`assertPostgresPlaceholdersMatchArgs`. This PR only updates that copy's
+comment to name its origin, `cloud/aws/scan_status_test.go`.
 
 No other root file referenced either moved test file's private symbols
 (checked with `rg` for `awsCheckpointExec`, `awsCheckpointRowsResult`,
@@ -127,8 +111,7 @@ and `awsstore.AWSScanStatusStore` / `awsstore.NewAWSScanStatusStore`.
 Two non-test files leave root, so the `internal/storage/postgres` row in
 `scripts/lib/dirgate-grandfather.tsv` is re-pinned to what
 `bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints
-for this tree (355, digest `408dde285868c1e062142129ef24b76fd6ca298789454986d1366efd080d3613`;
-each rebase onto a sibling move re-derives it), and
+for this tree (each rebase onto a sibling move re-derives it), and
 `bash scripts/generate-dirgate-grandfather-go.sh` regenerates
 `tools/golangci-lint-dirgate/grandfather.go` from it.
 
@@ -163,13 +146,12 @@ TestAWSScanStatusStoreClearsCommitFailureAfterSuccessfulCommit:      new exit 0 
 
 ## No-Regression Evidence
 
-`cd go && gofumpt -l` on every changed Go file reports nothing. `go build
+No-Regression Evidence: `cd go && gofumpt -l` on every changed Go file reports nothing. `go build
 ./...` and `go vet ./...` are clean across the whole module. `go vet -tags
 "integration perf5854_ack perf5740_completion perf6785_wait"
 ./internal/storage/postgres/...` is clean. `go test
 ./internal/storage/postgres/... -race -count=1` passes for every
-subpackage, including root (with the `vulnerability_source_state_test.go`
-fixture repoint) and the new `cloud/aws/`. `go test
+subpackage, including root and the new `cloud/aws/`. `go test
 ./cmd/collector-aws-cloud/... -race -count=1` (the repointed caller) passes.
 `go test ./internal/query -run QueryPlan -count=1` passes;
 `queryplan_production_variants_test.go` pins no source hash for either moved
@@ -187,9 +169,9 @@ the five prose repoints above.
 
 ## No-Observability-Change
 
-No metric, span, log key, worker, queue, lease, retry, or durable write
-shape changed. This is a path/package move plus the `fake`-package/duplicated-
-helper fixture substitutions in `vulnerability_source_state_test.go`;
+No-Observability-Change: no metric, span, log key, worker, queue, lease, retry, or durable write
+shape changed. This is a path/package move plus a comment update in
+`vulnerability/source_state_test.go`;
 `AWSPaginationCheckpointStore`'s `eshu_dp_aws_pagination_checkpoint_events_total`
 counter and `AWSScanStatusStore`'s fencing SQL are untouched code, only their
 package location and import path changed.
