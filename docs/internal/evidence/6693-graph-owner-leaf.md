@@ -1,6 +1,6 @@
 # #6693 checklist step 14: `graph/owner/` leaf
 
-Baseline: `origin/main`, worktree branched fresh for this step. Change: `git mv
+Baseline: rebased onto the step-13 `governance/audit/` head. Change: `git mv
 graph_node_owner_backfill_store.go go/internal/storage/postgres/graph/owner/backfill.go`,
 `git mv graph_node_owner_store.go go/internal/storage/postgres/graph/owner/store.go`,
 `git mv graph_node_owner_backfill_store_live_test.go go/internal/storage/postgres/graph/owner/backfill_live_test.go`,
@@ -194,7 +194,7 @@ TestGraphNodeOwnerStoreIntegration: new exit 0 / old exit 1
 
 ## No-Regression Evidence
 
-`cd go && gofumpt -l` on every changed file reports nothing (one file,
+No-Regression Evidence: `cd go && gofumpt -l` on every changed file reports nothing (one file,
 `internal/graphowner/retract_test.go`, needed an import-order fix, applied).
 `go build ./...` and `go vet ./...` are clean across the whole module. `go
 vet -tags "integration perf5854_ack perf5740_completion perf6785_wait"
@@ -216,7 +216,7 @@ every promoted symbol's old (lowercase) name outside
 
 ## No-Observability-Change
 
-No metric, span, log key, worker, queue, lease, retry, or durable write
+No-Observability-Change: no metric, span, log key, worker, queue, lease, retry, or durable write
 shape changed. This is a path/package move plus five unexported-to-exported
 symbol promotions (test-visibility only) and one dead-code-free
 type-deduplication (`sqlTxExecQueryer` -> `SQLTx` in two unrelated root
