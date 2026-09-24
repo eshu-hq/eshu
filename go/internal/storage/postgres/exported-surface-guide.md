@@ -89,8 +89,8 @@ the concrete adapters stay here.
   (batch); `ErrReducerClaimRejected`
 - `QueueObserverStore` / `NewQueueObserverStore` — queue depth, age, and
   blockage queries for the status surface
-- `AWSScanStatusStore` / `NewAWSScanStatusStore` — per AWS tuple scanner and
-  commit status for `/admin/status`
+- `awsstore.AWSScanStatusStore` / `awsstore.NewAWSScanStatusStore` — per AWS
+  tuple scanner and commit status for `/admin/status`
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` — bounded AWS resource →
   active Terraform state → owned Terraform config join for the
   `aws_cloud_runtime_drift` reducer domain, including explicit unknown and
@@ -204,8 +204,8 @@ the concrete adapters stay here.
 
 **AWS pagination checkpoints**
 
-- `AWSPaginationCheckpointStore` / `NewAWSPaginationCheckpointStore` — persists
-  claim-fenced AWS page tokens in `aws_scan_pagination_checkpoints`.
+- `awsstore.AWSPaginationCheckpointStore` / `awsstore.NewAWSPaginationCheckpointStore`
+  — persists claim-fenced AWS page tokens in `aws_scan_pagination_checkpoints`.
   `Save` rejects older fencing tokens, `ExpireStale` removes prior-generation
   rows for one AWS claim boundary, and `Complete` deletes operation state after
   a terminal page.

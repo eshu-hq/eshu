@@ -86,8 +86,8 @@ Sources used:
 - `go/internal/storage/postgres/aws_freshness_schema_sql.go`
 - `go/internal/storage/postgres/incident_freshness_schema_sql.go`
 - `go/internal/storage/postgres/webhook/trigger_store_schema_sql.go`
-- `go/internal/storage/postgres/aws_scan_status.go`
-- `go/internal/storage/postgres/aws_pagination_checkpoint.go`
+- `go/internal/storage/postgres/cloud/aws/scan_status.go`
+- `go/internal/storage/postgres/cloud/aws/pagination_checkpoint.go`
 - `go/internal/storage/postgres/vulnerability/source_state.go`
 - `go/internal/storage/postgres/maintenance/requests.go`
 - `docs/internal/design/431-nornicdb-primary-store-evaluation.md`

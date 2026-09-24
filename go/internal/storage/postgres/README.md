@@ -618,8 +618,8 @@ Primary groups:
   `InstrumentedDB`-wrapped connection (`PostgresServiceMaterializationWriter`,
   `PostgresAWSCloudRuntimeDriftWriter`) now keeps the same observability
   non-transactional writes get.
-- `AWSPaginationCheckpointStore` records AWS checkpoint load, save, resume,
-  expiry, and failure events through
+- `awsstore.AWSPaginationCheckpointStore` records AWS checkpoint load, save,
+  resume, expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and

@@ -133,7 +133,7 @@ are outside it, and of those only **five are non-test** —
 `go/cmd/collector-aws-cloud/config.go`,
 `go/cmd/collector-aws-cloud/status_committer.go`,
 `go/internal/collector/conformance/contract/assert.go`, and
-`go/internal/storage/postgres/aws_scan_status.go`.
+`go/internal/storage/postgres/cloud/aws/scan_status.go`.
 
 Three properties of that import surface matter for planning a move:
 

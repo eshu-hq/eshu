@@ -346,7 +346,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 8. [x] `search/index/` (1 file)
 9. [x] `terraform/state/` (1 file)
 10. [x] `vulnerability/` (1 file)
-11. [ ] `cloud/aws/` (2 files)
+11. [x] `cloud/aws/` (2 files)
 12. [ ] `code/taint/` (2 files)
 13. [ ] `governance/audit/` (2 files)
 14. [ ] `graph/owner/` (2 files)

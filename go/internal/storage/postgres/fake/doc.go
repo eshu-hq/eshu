@@ -33,6 +33,10 @@
 // queue tests need. Every other domain's fixtures leave Adapt nil and see
 // no behavior change.
 //
+// CheckPlaceholders is the shared placeholder-density check store tests run
+// on a recorded query and its arguments; it replaces per-package copies of
+// the same helper.
+//
 // ExecQueryer, Rows, and Result are safe for concurrent use, matching the
 // concurrency contract of the storage adapters they stand in for (see
 // go/internal/storage/postgres/content_writer_batch.go, whose parallel

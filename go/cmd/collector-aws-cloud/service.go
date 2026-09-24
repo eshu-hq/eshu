@@ -21,6 +21,7 @@ import (
 	cassette "github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -108,9 +109,9 @@ func buildClaimedService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
-	checkpoints := postgres.NewAWSPaginationCheckpointStore(database)
+	checkpoints := awsstore.NewAWSPaginationCheckpointStore(database)
 	checkpoints.Instruments = instruments
-	scanStatus := postgres.NewAWSScanStatusStore(database)
+	scanStatus := awsstore.NewAWSScanStatusStore(database)
 	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now, instruments)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),

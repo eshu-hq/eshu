@@ -5,7 +5,7 @@
 1. `README.md` - checkpoint contract and commit-boundary warning.
 2. `types.go` - scope, key, checkpoint, and store interface.
 3. `../awsruntime/source.go` - workflow claim and generation construction.
-4. `../../../../storage/postgres/aws_pagination_checkpoint.go` - durable
+4. `../../../storage/postgres/cloud/aws/pagination_checkpoint.go` - durable
    storage implementation.
 5. `../services/ecr/awssdk/client.go` - first service adapter using the seam.
 

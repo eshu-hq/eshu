@@ -34,7 +34,7 @@ WHERE scope_id = $1
 
 // saveCICDRunWatermarkQuery intentionally has NO generation_id/fencing_token
 // predicate on the SELECT side of the guard (unlike
-// aws_pagination_checkpoint.go's Load): a watermark must be readable ACROSS
+// cloud/aws/pagination_checkpoint.go's Load): a watermark must be readable ACROSS
 // generations, because gap detection compares this cycle's window against a
 // PRIOR cycle's (necessarily different generation_id) watermark. Only Save
 // is fenced.
