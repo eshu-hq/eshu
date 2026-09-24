@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestCallChainCandidateOneHopRowsNeo4jSeeksUID pins the Neo4j one-hop read
