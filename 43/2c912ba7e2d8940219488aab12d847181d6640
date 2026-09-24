@@ -1,0 +1,88 @@
+go/internal/query/codeowners/AGENTS.md
+  h_78a442cba0b3e6 85
+go/internal/query/codequery/AGENTS.md
+  h_78a442cba0b3e6 72
+go/internal/query/contentread/AGENTS.md
+  h_78a442cba0b3e6 45
+go/internal/query/contentread/README.md
+  h_78a442cba0b3e6 61,102-103
+go/internal/query/entity/AGENTS.md
+  h_78a442cba0b3e6 15
+go/internal/query/entity/README.md
+  h_78a442cba0b3e6 50,80-81,87
+go/internal/query/freshness/AGENTS.md
+  h_78a442cba0b3e6 24,88,91,97,101,105,108,112,114,121
+go/internal/query/freshness/README.md
+  h_78a442cba0b3e6 66,118-119,121-123,137
+go/internal/query/iac/README.md
+  h_78a442cba0b3e6 133
+go/internal/query/impact/AGENTS.md
+  h_78a442cba0b3e6 63
+go/internal/query/impact/README.md
+  h_78a442cba0b3e6 42-44,51
+go/internal/query/impact/deployment/AGENTS.md
+  h_78a442cba0b3e6 18,49
+go/internal/query/impact/deployment/README.md
+  h_78a442cba0b3e6 51
+go/internal/query/impact_trace_deployment_live_evidence_store_declared_test.go
+  h_78a442cba0b3e6 13,198,233,274,316
+go/internal/query/impact_trace_deployment_live_evidence_store_test.go
+  h_78a442cba0b3e6 13,109,138,268,306
+go/internal/query/kubernetes/correlations_test.go
+  h_78a442cba0b3e6 19,197,260
+go/internal/query/language/AGENTS.md
+  h_78a442cba0b3e6 74,77,82,84,87,91,94,97,103,107,110,112
+go/internal/query/language/README.md
+  h_78a442cba0b3e6 70
+go/internal/query/local/AGENTS.md
+  h_78a442cba0b3e6 121,124,134
+go/internal/query/observability/coverage/README.md
+  h_78a442cba0b3e6 54
+go/internal/query/observability/coverage/correlations_test.go
+  h_78a442cba0b3e6 17,212,278
+go/internal/query/querycontract/README.md
+  h_78a442cba0b3e6 318
+go/internal/query/querycontract/code/README.md
+  h_78a442cba0b3e6 11,32
+go/internal/query/querycontract/kubernetes/README.md
+  h_78a442cba0b3e6 10
+go/internal/query/repository/AGENTS.md
+  h_78a442cba0b3e6 14
+go/internal/query/repository/README.md
+  h_78a442cba0b3e6 49-51,99
+go/internal/query/repository/readmodel/README.md
+  h_78a442cba0b3e6 42,100
+go/internal/query/repositoryartifacts/README.md
+  h_78a442cba0b3e6 27,32
+go/internal/query/semanticsearch/AGENTS.md
+  h_78a442cba0b3e6 59,85,91-92
+go/internal/query/semanticsearch/README.md
+  h_78a442cba0b3e6 78,112
+go/internal/query/service/AGENTS.md
+  h_78a442cba0b3e6 14
+go/internal/query/service/README.md
+  h_78a442cba0b3e6 51,57
+go/internal/query/supply/chain/AGENTS.md
+  h_78a442cba0b3e6 158
+go/internal/query/supply/chain/advisory/AGENTS.md
+  h_78a442cba0b3e6 91
+go/internal/query/supply/chain/impact/AGENTS.md
+  h_78a442cba0b3e6 201
+go/internal/query/supply_chain_impact_explain_fast_path_test.go
+  h_78a442cba0b3e6 14,158
+go/internal/query/visualization/AGENTS.md
+  h_78a442cba0b3e6 76,79,84,87-88,90,94
+go/internal/query/visualization/README.md
+  h_78a442cba0b3e6 54,81,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "432c912ba7e2d8940219488aab12d847181d6640",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
