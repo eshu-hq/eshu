@@ -63,6 +63,10 @@ func TestRedact(t *testing.T) {
 		{"digit separators fraction", "RETURN 1_000.5_5, 1", "RETURN <REDACTED>, <REDACTED>"},
 		{"digit separators exponent", "RETURN 1e1_0, 1", "RETURN <REDACTED>, <REDACTED>"},
 		{"signed exponent with separator", "RETURN 1e-1_0 AS x", "RETURN <REDACTED> AS x"},
+		{"signed exponent then separator", "RETURN 1e-_5555 AS x, 1E+_6666 AS y", "RETURN <REDACTED> AS x, <REDACTED> AS y"},
+		{"exponent separator without sign", "RETURN 1e_7777 AS x", "RETURN <REDACTED> AS x"},
+		{"signed exponent then digit still redacts", "RETURN 1e-5 AS x, 2.5E+10 AS y", "RETURN <REDACTED> AS x, <REDACTED> AS y"},
+		{"sign after e that is not an exponent is an operator", "RETURN e - _x, 1e AS z", "RETURN e - _x, <REDACTED> AS z"},
 		{"trailing letters belong to the number", "RETURN 1abc AS x, 12e AS y", "RETURN <REDACTED> AS x, <REDACTED> AS y"},
 		{"no-break space before a number", "WHERE n.pin =\u00a01234", "WHERE n.pin = <REDACTED>"},
 		{"ideographic space before a number", "WHERE n.pin =\u30001234 AND y", "WHERE n.pin = <REDACTED> AND y"},
@@ -122,6 +126,7 @@ func FuzzRedactLeaksNoPlantedSecret(f *testing.F) {
 	f.Add("ab12", "cd34", uint8(3), uint8(1))
 	f.Add("dead", "beef", uint8(6), uint8(2))
 	f.Add("0f0f", "f0f0", uint8(9), uint8(3))
+	f.Add("1234", "5678", uint8(5), uint8(4))
 	f.Fuzz(func(t *testing.T, rawFirst, rawSecond string, kind, space uint8) {
 		first, second := hexOnly(rawFirst), hexOnly(rawSecond)
 		if len(first) < 4 || len(second) < 4 {
@@ -135,6 +140,7 @@ func FuzzRedactLeaksNoPlantedSecret(f *testing.F) {
 			"0o" + first + "_" + second,
 			"1_" + first + ".5_" + second,
 			"1e1_" + first + second,
+			"1e-_7" + first + "_" + second,
 			"-7" + first + "_" + second,
 			"'" + first + "\\'" + second + "'",
 			"'" + first + "''" + second + "'",
@@ -144,7 +150,7 @@ func FuzzRedactLeaksNoPlantedSecret(f *testing.F) {
 			`"` + first + " " + second,
 		}
 		statements := []string{"MATCH (p) WHERE p.q =" + gap + literals[int(kind)%len(literals)]}
-		if int(kind)%len(literals) < 10 {
+		if int(kind)%len(literals) < len(literals)-2 {
 			statements[0] += gap + "RETURN p"
 		}
 		statements = append(statements,

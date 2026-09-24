@@ -25,6 +25,10 @@ Read `doc.go` and `README.md` first.
   matching NornicDB alone leaks. If NornicDB adds a redacted class, the
   operator recipe in `docs/public/reference/telemetry/graph-read-safety.md`
   changes with it.
+- `FuzzRedactNumberStructure` generates numeric literals from the Neo4j 5
+  number grammar and requires each to redact to one placeholder. When the
+  lexer grammar gains a numeric form, extend its generator (`neo4jNumber` in
+  `redact_structure_test.go`) first and let it find the leak.
 - A new literal form needs a planted-secret row in `redact_test.go` and a case
   in `FuzzRedactLeaksNoPlantedSecret`, which plants fuzzer-chosen secrets in
   literal positions behind ASCII and Unicode whitespace and fails if any

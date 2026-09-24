@@ -72,15 +72,18 @@ Reading it honestly:
   `-memprofile` run with `-memprofilerate=1`, are the output buffer
   (`strings.Builder.Grow`), the `[]byte` copy handed to `sha256.Sum256`, and
   the two inside `hex.EncodeToString` (its byte buffer and the string).
-- The ns/op columns are not a reliable signal on this host. This second run
-  shared the machine with other agents' Go builds, which is why the ranges are
-  wide (the first run of the same design, before the buffer headroom change, had
-  a `bounded_reader` median of 1028 ns vs 1167 ns and a fingerprint median of
-  696 ns vs 747 ns). Across both runs the healthy-path medians on the stubbed
-  harness moved by well under 1 microsecond, and the fingerprint on a realistic
-  statement stayed at or below the previous head's cost in the second run. The
-  benchmark cannot resolve the difference from run-order and load noise, so this
-  document claims the fixed allocation cost, not a nanosecond figure.
+- Healthy-path cost, stated plainly: the fingerprint adds about **+0.15 to
+  +0.3 microseconds per read** on the stubbed driver, plus the exact
+  +264 B/op and +4 allocs/op above. My final interleaved measurement (compiled
+  test binaries for `origin/main` `a34030491e` and this branch, alternating
+  which runs first, 12 samples per cell, quiet host) gave `bounded_reader`
+  median 779.8 ns (range 749.5-838.3) before and 932.0 ns (905.3-1110) after
+  (+152 ns), and `unbounded_reader` 512.4 ns (502.6-624.9) before and 666.3 ns
+  (642.2-997.5) after (+154 ns). The reviewer's independent interleaved run
+  measured 782 to 1078 ns unbounded and 1107 to 1427 ns bounded (about +0.3
+  microsecond). The table above is an earlier, noisy run on a busy host; use
+  these figures for the delta. Either way the cost is negligible against a
+  Bolt round trip, which takes milliseconds.
 - Re-measured after the scanner learned Neo4j 5 digit separators, trailing
   number characters, and Unicode whitespace (review round 2): the scanner now
   decodes a rune for bytes at or above 0x80 and consumes trailing identifier
@@ -90,7 +93,9 @@ Reading it honestly:
   identifier loop and testing identifier starts before numbers brought it to
   627 vs 655 ns (min 602 vs 643, +28 ns median), with identical allocations
   (672 B, 4 allocs) on both sides. Interleaving compiled binaries is what made
-  the comparison usable on a shared host.
+  the comparison usable on a shared host. After the signed-exponent fix
+  (review round 3) the scanner measured 615.9 ns median (588.8-638.5) against
+  610.5 ns (600.5-640.9) for the previous head, 12 samples each: neutral.
 - No cache was added. Per-read cost is well under a microsecond even in the
   noisy run, and a cache keyed by statement text would put a shared structure on
   the read path to save less than the noise. Against the reader's 10-second

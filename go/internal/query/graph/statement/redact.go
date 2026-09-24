@@ -203,10 +203,21 @@ func startsNumber(src string, i int) bool {
 	return src[i] == '.' && i+1 < len(src) && isDigit(src[i+1])
 }
 
+// startsExponentDigits reports whether an exponent's digits begin at src[i]: a
+// digit, or a digit separator followed by a digit (Neo4j 5 INTEGER_PART is
+// `'_'? [0-9]`), as in 1e-_5.
+func startsExponentDigits(src string, i int) bool {
+	if i < len(src) && src[i] == '_' {
+		i++
+	}
+	return i < len(src) && isDigit(src[i])
+}
+
 // skipNumber returns the index just past the numeric literal at src[i]. It
 // consumes an optional sign and leading dot, then every character that
 // continues a number token (numberTailLen), a fraction whose dot is followed by
-// a digit, and an exponent sign that follows an e or E and precedes a digit.
+// a digit, and an exponent sign that follows an e or E and precedes a digit or
+// a separator and a digit.
 // The `..` of a range such as 1..5 ends the number, so both bounds redact
 // separately.
 func skipNumber(src string, i int) int {
@@ -225,7 +236,7 @@ func skipNumber(src string, i int) int {
 		switch c := src[i]; {
 		case c == '.' && next < len(src) && isDigit(src[next]):
 			i++
-		case (c == '+' || c == '-') && (src[i-1] == 'e' || src[i-1] == 'E') && next < len(src) && isDigit(src[next]):
+		case (c == '+' || c == '-') && (src[i-1] == 'e' || src[i-1] == 'E') && startsExponentDigits(src, next):
 			i++
 		default:
 			return i
