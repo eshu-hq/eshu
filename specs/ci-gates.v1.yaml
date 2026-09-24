@@ -303,6 +303,8 @@ gates:
       - ".claude/agents/**"
       - ".codex/skills/**"
       - ".codex/agents/**"
+      - ".codex/config.toml"
+      - ".codex/hooks.json"
       # verify-agent-canon.sh reads .claude/hooks/skill-nudge.sh to prove every
       # skill is reachable from a routing arm. Without this trigger a hook-only
       # edit would not select the gate that validates it, which is the same
@@ -324,6 +326,8 @@ gates:
       - "scripts/verify-agent-canon.sh"
       - "scripts/agent-roles.py"
       - "scripts/test-agent-roles.py"
+      - "scripts/goal-role-router.py"
+      - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
@@ -361,6 +365,8 @@ gates:
       - ".claude/agents/**"
       - ".codex/skills/**"
       - ".codex/agents/**"
+      - ".codex/config.toml"
+      - ".codex/hooks.json"
       - ".claude/hooks/**"
       - ".claude/settings.json"
       - ".muse/hooks/**"
@@ -372,6 +378,8 @@ gates:
       - "scripts/verify-agent-canon.sh"
       - "scripts/agent-roles.py"
       - "scripts/test-agent-roles.py"
+      - "scripts/goal-role-router.py"
+      - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
       - "scripts/test-agent-hooks.sh"
       - "scripts/test-goal-*cases*.sh"
@@ -393,7 +401,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"
@@ -4733,6 +4741,8 @@ gates:
 # Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
 # NOT registry gates. The drift check allows these without a gate mapping.
 hygiene_hooks:
+  - id: goal-role-routing
+    reason: "pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow"
   - id: no-ai-attribution-message
     reason: "commit-msg-stage variant of the no-ai-attribution gate (same check, different stage)"
   - id: frontend-format-staged

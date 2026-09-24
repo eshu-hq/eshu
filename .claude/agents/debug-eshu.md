@@ -1,6 +1,6 @@
 ---
 name: debug-eshu
-description: "Diagnose an unknown Eshu failure to evidence-backed root cause without editing."
+description: "Use for a goal's root-cause diagnosis phase, including work using eshu-diagnostic-rigor; diagnose without editing."
 tools: Read, Glob, Grep, Bash, WebFetch, Skill
 skills: eshu-diagnostic-rigor
 model: sonnet

@@ -1,5 +1,5 @@
 ---
-description: "Investigate a difficult cross-system or intermittent Eshu failure with deeper reasoning."
+description: "Use for a difficult cross-system or intermittent diagnosis phase that needs deeper reasoning with eshu-diagnostic-rigor."
 mode: all
 permission:
   edit: deny

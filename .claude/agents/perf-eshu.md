@@ -1,6 +1,6 @@
 ---
 name: perf-eshu
-description: "Measure an Eshu bottleneck or regression and hand off a proved change without editing."
+description: "Use for a goal's measurement or bottleneck phase with eshu-performance-rigor; hand off a proved change without editing."
 tools: Read, Glob, Grep, Bash, WebFetch, Skill
 skills: eshu-performance-rigor
 model: sonnet

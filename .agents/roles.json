@@ -19,19 +19,19 @@
   },
   "roles": {
     "scan-eshu": {
-      "description": "Bounded read-only Eshu evidence scan; returns cited facts, not a verdict or fix.",
+      "description": "Use for a goal phase that needs a bounded read-only evidence scan before diagnosis or implementation; return cited facts, not a verdict or fix.",
       "tier": "fast",
       "access": "read",
       "instructions": "Gather only the requested evidence with file and line references. Return a compact handoff. Do not edit, run promotion gates, or decide merge readiness."
     },
     "develop-eshu": {
-      "description": "Implement one scoped Eshu handoff with focused proof; leave promotion and publication to the coordinator.",
+      "description": "Use for a goal's scoped implementation phase, including work using golang-engineering; leave promotion and publication to the coordinator.",
       "tier": "workhorse",
       "access": "write",
       "instructions": "Implement only the supplied bounded handoff, starting from its failing acceptance test. Load the project skills matching the touched surfaces. Run focused verification and report the exact commands and results. Leave make pre-push, make pre-pr, push, and PR updates to the coordinator."
     },
     "debug-eshu": {
-      "description": "Diagnose an unknown Eshu failure to evidence-backed root cause without editing.",
+      "description": "Use for a goal's root-cause diagnosis phase, including work using eshu-diagnostic-rigor; diagnose without editing.",
       "tier": "workhorse",
       "access": "read",
       "skill": "eshu-diagnostic-rigor",
@@ -39,11 +39,11 @@
     },
     "debug-eshu-deep": {
       "base": "debug-eshu",
-      "description": "Investigate a difficult cross-system or intermittent Eshu failure with deeper reasoning.",
+      "description": "Use for a difficult cross-system or intermittent diagnosis phase that needs deeper reasoning with eshu-diagnostic-rigor.",
       "tier": "deep"
     },
     "perf-eshu": {
-      "description": "Measure an Eshu bottleneck or regression and hand off a proved change without editing.",
+      "description": "Use for a goal's measurement or bottleneck phase with eshu-performance-rigor; hand off a proved change without editing.",
       "tier": "workhorse",
       "access": "read",
       "skill": "eshu-performance-rigor",
@@ -51,11 +51,11 @@
     },
     "perf-eshu-deep": {
       "base": "perf-eshu",
-      "description": "Investigate a difficult Eshu performance cause or architecture decision with deeper reasoning.",
+      "description": "Use for a difficult performance cause or architecture decision that needs deeper reasoning with eshu-performance-rigor.",
       "tier": "deep"
     },
     "review-eshu": {
-      "description": "Review the final Eshu diff or PR readiness independently using eshu-code-review; read-only.",
+      "description": "Use for a goal's independent final diff or PR-readiness phase with eshu-code-review; read-only.",
       "tier": "workhorse",
       "access": "read",
       "skill": "eshu-code-review",

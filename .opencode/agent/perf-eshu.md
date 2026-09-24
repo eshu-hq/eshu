@@ -1,5 +1,5 @@
 ---
-description: "Measure an Eshu bottleneck or regression and hand off a proved change without editing."
+description: "Use for a goal's measurement or bottleneck phase with eshu-performance-rigor; hand off a proved change without editing."
 mode: all
 permission:
   edit: deny

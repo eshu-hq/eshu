@@ -1,5 +1,5 @@
 ---
-description: "Review the final Eshu diff or PR readiness independently using eshu-code-review; read-only."
+description: "Use for a goal's independent final diff or PR-readiness phase with eshu-code-review; read-only."
 mode: all
 permission:
   edit: deny

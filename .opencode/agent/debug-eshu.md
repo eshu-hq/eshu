@@ -1,5 +1,5 @@
 ---
-description: "Diagnose an unknown Eshu failure to evidence-backed root cause without editing."
+description: "Use for a goal's root-cause diagnosis phase, including work using eshu-diagnostic-rigor; diagnose without editing."
 mode: all
 permission:
   edit: deny
