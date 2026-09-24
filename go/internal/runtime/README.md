@@ -190,7 +190,12 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
   as a process-group leader whose group is SIGKILLed on context cancel, so
   cancelled operations never strand helper grandchildren (collector git's
   remote-https wrapper strands this way); the cancel-path companion to the
-  orphan reaper, which stays the backstop for the success-path race
+  orphan reaper, which stays the backstop for the success-path race. Cancel
+  re-sends SIGKILL to the group until it is empty (at most 20 x 5ms, on the
+  context watcher goroutine) because a single killpg can miss a child being
+  forked at that instant (#7066). `WaitDelay` is intentionally unset: Go also
+  applies it after a zero exit and would turn a successful command into
+  `exec.ErrWaitDelay`, which git callers treat as a failed clone
 
 ### API key
 
