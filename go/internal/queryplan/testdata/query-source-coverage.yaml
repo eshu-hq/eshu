@@ -115,12 +115,12 @@ source_coverage:
       - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: codequery/story_reads.go
     calls:
-      - {symbol: "(*CodeHandler).relationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: 5a40eb8aa2825307aa4ee465d8465e17e0974640b53e25904dd89bc412975917, key_bound: single_key, max_results: 201}}
-      - {symbol: "(*CodeHandler).relationshipStoryInheritanceDepthRows", count: 1, non_hot: {class: keyed_support, source_sha256: a0b4630f6b30f4a58ae9b88e8e5c8c8d88adff6322729f2ca734595340fda135, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*CodeHandler).relationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: 9aa6a5ab37553b88875eb73b4aa711b1b36265f038d10ab5e72d65fd9a09f98b, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*CodeHandler).relationshipStoryInheritanceDepthRows", count: 1, non_hot: {class: keyed_support, source_sha256: 3602a7259c4faac3bb4404f2b8eb13a76ca6dfad2145d4a99a494d89c4d0e95b, key_bound: single_key, max_results: 201}}
       - {symbol: "(*CodeHandler).relationshipStoryOverrideRows", count: 1, non_hot: {class: keyed_support, source_sha256: 616cc1d589a3bb4406b1bcb2531d29c58c24af45386b40d0143831906112bd7d, key_bound: single_key, max_results: 201}}
   - file: codequery/story_reads.go
     calls:
-      - {symbol: "(*CodeHandler).relationshipStoryGraphRowsForDirection", count: 1, non_hot: {class: keyed_support, source_sha256: ce87c53faae8092c2eca22a7b188353a86e1cb5bd071da552de596f26f370dcf, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*CodeHandler).relationshipStoryGraphRowsForDirection", count: 1, non_hot: {class: keyed_support, source_sha256: 9eab015b0ae0e071f35b334975d5f636f86e6f4430aa21c162a9677e561907d7, key_bound: single_key, max_results: 201}}
   - file: codequery/story_nornicdb.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: f3466ab04c16954898bbba99bffa6a82f522af21e36cce6ed9219225d473f1bc, key_bound: single_key, max_results: 201}}
@@ -133,7 +133,7 @@ source_coverage:
         count: 3
         non_hot:
           class: keyed_support
-          source_sha256: f9978cc3329ea82e524369bc8a6ea5ffb36304e9eab417cf2a4dd68ebcc88347
+          source_sha256: 6485a6936c25bd63ae546d81d3fe8af08b574d483cc8a735d6c8cd9d93999421
           key_bound: single_key
           max_results: 1
       - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909, key_bound: single_key, max_degree: 8, max_depth: 10}}

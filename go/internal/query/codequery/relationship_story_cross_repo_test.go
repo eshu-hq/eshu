@@ -177,7 +177,6 @@ func TestRelationshipStoryGraphCypherCrossRepoScopesAnchorAndRelatedRepositories
 		},
 		nil,
 		"incoming",
-		graphEntityIDPredicate,
 		repositoryAccessFilter{
 			AllowedRepositoryIDs: []string{"repo:billing", "repo:api"},
 			Allowed: map[string]struct{}{
@@ -229,7 +228,6 @@ func TestRelationshipStoryGraphCypherRepoScopedKeepsBothEndpointsInRepository(t 
 		},
 		nil,
 		"incoming",
-		graphEntityIDPredicate,
 		repositoryAccessFilter{AllScopes: true},
 	)
 

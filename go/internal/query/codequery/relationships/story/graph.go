@@ -16,14 +16,15 @@ import (
 // readers stay in codequery under their queryplan source_sha256 pins
 // and call these builders through same-named forwarders.
 
-// GraphCypher builds the direct one-direction relationship read. The
-// predicate renders the entity anchor; the grant predicates bind the
-// endpoints the request reaches.
+// GraphCypher builds the Neo4j direct one-direction relationship read. The
+// entity endpoint binds through codemodel.Neo4jEntityIDAnchor, which seeks the
+// uid and id uniqueness constraints instead of scanning every node for an
+// id-OR-uid match (issue #7057); the grant predicates bind the endpoints the
+// request reaches.
 func GraphCypher(
 	req codemodel.RelationshipStoryRequest,
 	entity *querycontract.EntityContent,
 	direction string,
-	predicate func(string, string) string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	relationshipType, _ := req.NormalizedRelationshipType()
@@ -38,11 +39,11 @@ func GraphCypher(
 	}
 	relPattern := ":" + relationshipType
 	if direction == "incoming" {
-		predicates := []string{predicate("target", "$entity_id")}
-		predicates = append(predicates, RepoPredicates(req, access, "source", "target", "target")...)
+		predicates := RepoPredicates(req, access, "source", "target", "target")
 		return `
+		` + codemodel.Neo4jEntityIDAnchor("target", "$entity_id") + `
 		MATCH (source)-[rel` + relPattern + `]->(target)
-		WHERE ` + strings.Join(predicates, " AND ") + `
+		` + Where(predicates) + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
 		RETURN 'incoming' as direction,
@@ -72,11 +73,11 @@ func GraphCypher(
 		LIMIT $limit
 	`, params
 	}
-	predicates := []string{predicate("source", "$entity_id")}
-	predicates = append(predicates, RepoPredicates(req, access, "source", "target", "source")...)
+	predicates := RepoPredicates(req, access, "source", "target", "source")
 	return `
+		` + codemodel.Neo4jEntityIDAnchor("source", "$entity_id") + `
 		MATCH (source)-[rel` + relPattern + `]->(target)
-		WHERE ` + strings.Join(predicates, " AND ") + `
+		` + Where(predicates) + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
 		RETURN 'outgoing' as direction,

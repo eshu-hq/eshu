@@ -179,9 +179,9 @@ text. They show only that the unchanged dialect still works, and they are not
 a regression proof for the Neo4j change. The Neo4j proof for the wrapper and
 compare-paths anchors is the PROFILE table above plus the unit tests.
 
-## Remaining scans (stacked follow-up, not changed here)
+## Scans left by this change (all fixed in the stacked follow-up)
 
-Four Neo4j reads still anchor with an id-OR-uid predicate:
+After this change, four Neo4j reads still anchored with an id-OR-uid predicate:
 
 - `relationshipsGraphRow` (`codequery/relationship_handlers.go`) runs first on
   every `/api/v0/code/relationships` request that carries an `entity_id`. It
@@ -189,23 +189,31 @@ Four Neo4j reads still anchor with an id-OR-uid predicate:
   lookup is label-agnostic: it can return Repository and other non-code nodes,
   and some of those are keyed only by `id` (`Repository {id: ...}` is used
   elsewhere in the same handler). Anchoring it on the code labels would drop
-  those rows, so it needs a label-resolution step first (the NornicDB route
-  already does this through `nornicDBRelationshipEntityLabel`).
+  those rows. Fixed in the follow-up: it binds `e` through
+  `codemodel.Neo4jEntityIDAnchor`, a CALL-UNION of a `{uid:}` seek over every
+  uid-constrained label and an `{id:}` seek over the id-constrained labels, so
+  Repository and Workload ids still resolve without a label-resolution step.
 - `relationshipStoryGraphCypher` (`codequery/relationships/story/graph.go`)
   renders an unlabeled relationship pattern,
   `MATCH (source)-[rel:<TYPE>]->(target)`, with the id-OR-uid predicate on the
-  anchor end. The same label-resolution question plausibly applies.
+  anchor end. Fixed in the follow-up with the same CALL-UNION anchor on the
+  anchored end.
 - `relationshipStoryClassMethodsCypher` (`story/class.go`) renders
   `MATCH (class)-[:CONTAINS]->(method:Function)` with the predicate on the
-  unlabeled `class` end. It can likely take a direct label plus `{uid:}` anchor.
+  unlabeled `class` end. Fixed in the follow-up with the same CALL-UNION
+  anchor, not a single `:Class` label: the class-hierarchy story resolves
+  Interface, Trait, Struct, Enum and Protocol entities too, a caller can pass
+  any entity id, and File and Function nodes also CONTAIN Functions. A File
+  uid returned the same 6 method rows before and after on the fixture.
 - `relationshipStoryInheritanceDepthCypher` (`story/class.go`) already labels
-  both ends `:Class` and applies the predicate in `WHERE`. It can likely take
-  the `{uid:}` anchor directly, with no label-resolution step.
+  both ends `:Class` and applies the predicate in `WHERE`. Fixed in the
+  follow-up with the inline anchor `(x:Class {uid: $entity_id})` and no
+  label-resolution step.
 
 The ~288k-db-hit `AllNodesScan` in the table above was measured on the
-unlabeled one-hop and transitive shapes only. The story reads were not
-profiled here. All four land in a stacked follow-up PR under #7057, before
-that issue closes.
+unlabeled one-hop and transitive shapes only. The truth table and the
+before/after PROFILE for all four reads are in
+`7057-relationship-uid-anchor.md`.
 
 ## Observability Evidence
 

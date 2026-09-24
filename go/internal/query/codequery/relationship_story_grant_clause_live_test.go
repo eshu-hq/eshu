@@ -233,7 +233,6 @@ func TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows(t *t
 		storyProbeRequest(),
 		&EntityContent{EntityID: liveClauseAnchorUID},
 		"outgoing",
-		graphEntityIDPredicate,
 		liveClauseGrantedAccess(),
 	)
 	rows, err := reader.Run(ctx, cypher, params)
