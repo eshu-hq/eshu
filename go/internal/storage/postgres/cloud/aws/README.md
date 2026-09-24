@@ -48,7 +48,7 @@ See `doc.go` for the godoc contract.
 
 `AWSPaginationCheckpointStore.Instruments`, when set, records
 `eshu_dp_aws_pagination_checkpoint_events_total` for load, save, complete,
-resume, and expiry events, tagged by service/account/region/operation and
+resume, expiry, and failure events, tagged by service/account/region/operation and
 result. `AWSScanStatusStore` emits no metric of its own; its rows are read
 directly by the `/admin/status` surface.
 
