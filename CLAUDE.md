@@ -226,6 +226,22 @@ actual task. Use available names and descriptions for discovery, read a skill
 once when it applies, and load its references only for the selected workflow.
 Do not reload an unchanged skill for each edit or every status message.
 
+A `/goal` command or goal prompt that names skills is enough to start role
+routing; the user does not need to name an agent or run a launcher. Keep the
+whole goal with the coordinator. At each bounded phase, use the phase's action
+and the named skills to choose the matching role in `.agents/roles.json`, then
+dispatch that role when separate context or independent work helps. A goal may
+move through scan, diagnosis, implementation, and independent review roles;
+do not assign the whole goal to one leaf agent because one skill name appears.
+`eshu-issue-driver` governs the coordinator's issue and PR sequence.
+`concurrency-deadlock-rigor`, backend, contract, and language skills refine
+the selected worker's method; they are not separate agent jobs. Preserve the
+goal's explicit ordering, ownership, and model instructions over defaults.
+Apply the manifest's model and effort when dispatching, and verify the actual
+child binding. If the active harness cannot enforce the role's model, effort,
+access, and instructions, the coordinator uses its documented launcher. The
+main session's model does not change automatically.
+
 | Task | Skill |
 | --- | --- |
 | Diagnose unexplained runtime, backend, or queue behavior | `eshu-diagnostic-rigor` |

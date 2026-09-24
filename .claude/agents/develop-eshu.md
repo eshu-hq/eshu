@@ -1,6 +1,6 @@
 ---
 name: develop-eshu
-description: "Implement one scoped Eshu handoff with focused proof; leave promotion and publication to the coordinator."
+description: "Use for a goal's scoped implementation phase, including work using golang-engineering; leave promotion and publication to the coordinator."
 model: sonnet
 effort: high
 ---

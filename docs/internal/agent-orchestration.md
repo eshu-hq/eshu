@@ -118,6 +118,25 @@ tier when it dispatches; a leaf agent does not downgrade its own model.
 Muse currently uses one model across the tiers, so its savings come from
 reasoning effort and bounded scopes rather than selecting a cheaper model.
 
+### Goal and skill prompts
+
+The normal entry point is a goal that names project skills. The user does not
+need to name a role or invoke `agent-roles.py`. The main session owns the goal
+and loads its skills. At each bounded phase, the coordinator matches the work
+to a role description in `.agents/roles.json` and applies that role's model,
+effort, access, and instructions when delegating. A long issue goal can use
+`scan-eshu` for evidence, `debug-eshu` for an unknown cause, `develop-eshu` for
+a proved fix, and `review-eshu` for an independent final diff. It does not
+assign the entire goal to the first matching role.
+
+Skill names describe methods, not automatic model switches. For example,
+`eshu-issue-driver` stays with the coordinator, `eshu-diagnostic-rigor` helps
+identify a diagnosis phase, and `concurrency-deadlock-rigor` refines the worker
+handling a race or lease. The coordinator preserves explicit phase ordering,
+ownership, and model choices in the goal. Small coupled work can stay in the
+main session; its selected model remains unchanged. Model savings come from
+bounded child work routed to the manifest tier.
+
 ### Where the model binds
 
 A tier is repo policy; the binding is per-harness and lives on the **role**, not
@@ -140,17 +159,23 @@ Muse's launcher runs one role as a headless session, rather than registering a
 native subagent. Its read-only profile may prevent a diagnostic or performance
 role from running a proof that writes local artifacts. OpenCode's read roles
 cannot run shell commands. In either case, the coordinator should run blocked
-proof separately and pass the result back.
+proof separately and pass the result back. When a Muse goal and skill prompt
+calls for a bounded role, the coordinator selects the manifest tier and either
+uses its native child tool with that configuration or invokes `muse-exec`
+itself; the user does not run the launcher.
 
 Codex custom role files bind models only when the active spawn tool can select
 the named role. The tested Codex 0.156.1 CLI/app schema exposes a task
 name and optional model override, but no custom-role selector. A child merely
 named `debug_eshu_deep` inherits its parent's model; that name does not load
-`debug-eshu-deep.toml`. Use `scripts/agent-roles.py codex-exec ROLE TASK` in
-that environment. It starts a separate headless Codex session with the model,
-effort, role instructions, and sandbox read from `.agents/roles.json`; it is
-not a spawned child of the coordinator. Check the CLI startup banner for the
-resolved model and effort. Do not report task-name dispatch as role routing.
+`debug-eshu-deep.toml`. The coordinator must pass the manifest's model, effort,
+access, and instructions explicitly to a native child, or invoke
+`scripts/agent-roles.py codex-exec ROLE TASK` itself. The user still supplies
+only the goal and skills. The launcher starts a separate headless Codex session
+with the model, effort, role instructions, and sandbox read from
+`.agents/roles.json`; it is not a spawned child of the coordinator. Check the
+CLI startup banner for the resolved model and effort. Do not report task-name
+dispatch as role routing.
 
 The reviewer uses the same skill in all four:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),

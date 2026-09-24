@@ -1,6 +1,6 @@
 ---
 name: perf-eshu-deep
-description: "Investigate a difficult Eshu performance cause or architecture decision with deeper reasoning."
+description: "Use for a difficult performance cause or architecture decision that needs deeper reasoning with eshu-performance-rigor."
 tools: Read, Glob, Grep, Bash, WebFetch, Skill
 skills: eshu-performance-rigor
 model: opus

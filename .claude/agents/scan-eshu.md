@@ -1,6 +1,6 @@
 ---
 name: scan-eshu
-description: "Bounded read-only Eshu evidence scan; returns cited facts, not a verdict or fix."
+description: "Use for a goal phase that needs a bounded read-only evidence scan before diagnosis or implementation; return cited facts, not a verdict or fix."
 tools: Read, Glob, Grep, Bash, WebFetch, Skill
 model: haiku
 effort: high
