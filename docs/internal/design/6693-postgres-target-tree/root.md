@@ -51,7 +51,7 @@ deferred_maintenance_lock_fakes_test.go -> deferred_maintenance_lock_fakes_test.
 deferred_maintenance_lock_test.go -> deferred_maintenance_lock_test.go   # SPLIT: reads private symbols of ingestion, lock
 documentation_findings_index_restart_live_test.go -> documentation_findings_index_restart_live_test.go
 drift_runtime_trigger_test.go -> drift_runtime_trigger_test.go   # SPLIT: reads private symbols of ingestion, queue/reducer
-eshu_search_index_bm25_partition_live_test.go -> eshu_search_index_bm25_partition_live_test.go   # SPLIT: reads private symbols of root, search/index
+eshu_search_index_bm25_partition_live_test.go -> eshu_search_index_bm25_partition_live_test.go   # SPLIT: reads private symbols of root and calls search/index query builders (exported for it)
 eshu_search_index_partition_contention_live_test.go -> eshu_search_index_partition_contention_live_test.go   # spans root=100%; follows its private symbols, not its name
 eshu_search_index_partition_live_test.go -> eshu_search_index_partition_live_test.go   # spans root=100%; follows its private symbols, not its name
 eshu_search_index_term_copy_bench_live_test.go -> eshu_search_index_term_copy_bench_live_test.go   # spans root=100%; follows its private symbols, not its name

@@ -13,9 +13,10 @@
 - `store_test.go` is an in-package test; `store_schema_test.go` is
   `package indexstore_test` (it needs root's exported `BootstrapDefinitions`
   and `Definition`) and imports `internal/storage/postgres`.
-- Never import the parent `postgres` package from `store.go`: the query
-  layer (`internal/query/semanticsearch`) already imports this package, so a
-  reverse import is a cycle.
+- Never import the parent `postgres` package from `store.go`: leaves must not
+  depend on root (#6693), and root's in-package
+  `eshu_search_index_bm25_partition_live_test.go` imports this package, so a
+  reverse import breaks root's test build with an import cycle.
 - `SortedSearchIndexTerms` and `BuildEshuSearchIndexQuery` stay exported even
   though production callers never call them directly; root's
   `eshu_search_index_bm25_partition_live_test.go` needs them for its EXPLAIN

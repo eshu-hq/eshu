@@ -58,9 +58,10 @@ no new runtime behavior.
   private to root's `_test.go` files and cannot cross a package boundary, so
   the test stays in root rather than moving here; see
   `docs/internal/design/6693-postgres-target-tree/root.md`'s entry for it.
-- Do not import the parent `postgres` package: that is an import cycle, since
-  the parent's query layer (`internal/query/semanticsearch`) already imports
-  this package.
+- Do not import the parent `postgres` package from `store.go`. Leaves under
+  `storage/postgres` must not depend on root (#6693), and root's in-package
+  test `eshu_search_index_bm25_partition_live_test.go` imports this package,
+  so a leaf-to-root import fails root's test build with an import cycle.
 
 ## Related docs
 
