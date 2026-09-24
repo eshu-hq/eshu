@@ -26,9 +26,9 @@ lock release. This package does not call the graph itself.
 
 Migrations `070`-`073` and `086` (four concurrent partial indexes over the
 winning row's resource type/provider/region/account, plus the runtime-digest
-read path) stay in the parent `postgres` package: they back
-`PostgresCloudResourceListStore`'s CloudResource identity page, a reader that
-has not moved out of root yet.
+read path) live in the `storage/postgres/migrations` package. They back the
+CloudResource identity page read by `PostgresCloudResourceListStore` in
+`internal/query`, which queries `graph_node_owner` directly.
 
 ## Exported surface
 

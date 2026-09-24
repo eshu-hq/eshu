@@ -153,10 +153,10 @@ only):
 No other file under `go/` referenced `GraphNodeOwnerStore`,
 `GraphNodeOwnerEntry`, `GraphNodeOwnerBackfillStore`, or
 `NewGraphNodeOwnerBackfillStore` qualified through `postgres.` (checked with
-`rg`); the one remaining `postgres.GraphNodeOwnerStore` hit repo-wide is a
-historical, point-in-time evidence note for an unrelated issue
-(`docs/internal/evidence/5652-nornic-bare-match-writeloss.md`), left as-is
-per the checklist's own evidence-doc exemption.
+`rg`), apart from the dated evidence note
+`docs/internal/evidence/5652-nornic-bare-match-writeloss.md`, which records
+what an earlier investigation read. The `5007` design doc now names
+`ownerstore.GraphNodeOwnerStore`.
 
 ## Doc trio and dirgate
 

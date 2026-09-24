@@ -2,7 +2,7 @@
 
 Status: Accepted and implemented. Stage 1 enforcement = the Postgres
 **owner-ledger with a per-uid advisory lock** (design (b) below), shipped as the
-`graph_node_owner` table (migration 056), the `postgres.GraphNodeOwnerStore`,
+`graph_node_owner` table (migration 056), the `ownerstore.GraphNodeOwnerStore`,
 and the `internal/graphowner` gate wrapping the five families' node writers in
 `cmd/reducer`. The original graph-side guard was disproven on NornicDB by the
 mandatory prove-theory shim
@@ -654,7 +654,7 @@ perf differential on the real writer before merge, as already required above.
   `uid`. (Named `graph_node_owner`, not `cloud_resource_owner`: canonical uids
   are globally unique across labels, so one table serves the CloudResource
   AWS/GCP/Azure + EC2-instance family and the KubernetesWorkload family.) The
-  store is `postgres.GraphNodeOwnerStore`; the gate is `internal/graphowner`.
+  store is `ownerstore.GraphNodeOwnerStore`; the gate is `internal/graphowner`.
 - The reducer node-write path, for each batch: sort the batch uids, acquire all
   per-uid advisory locks in one sorted statement, batch-upsert the ledger
   (atomic max), read back the winning order key per uid, and write to the graph
@@ -772,7 +772,7 @@ posture fact for the same resource — there is no order-key "winner" to
 resolve), so the fix is a lock-only critical section
 (`go/internal/graphowner.LockOnlyGate`): acquire the SAME per-uid
 `pg_advisory_xact_lock` key `Gate`/`ResolveOwnedUIDs` uses
-(`postgres.GraphNodeOwnerStore.LockUIDs`, added by refactoring
+(`ownerstore.GraphNodeOwnerStore.LockUIDs`, added by refactoring
 `acquireLocks` to delegate to it so the two key derivations cannot drift)
 across the posture writer's graph write, with no ledger upsert. `Retract*` is
 NOT lock-gated: it targets a scope (`WHERE r.<x>_scope_id IN $scope_ids`), not
