@@ -5,6 +5,7 @@ package querycontract
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -26,8 +27,8 @@ const DefaultGraphQueryName = "unnamed"
 // WithGraphQueryName returns ctx wrapped with name attached, so the eventual
 // graph read this context reaches can be attributed in telemetry. name should
 // be a bounded, low-cardinality route/handler identifier (e.g.
-// "code_quality.complexity_list"), never raw Cypher text, an entity id, or
-// other high-cardinality or private value.
+// "code_quality.complexity", "entity.context"), never raw Cypher text, an
+// entity id, or other high-cardinality or private value.
 func WithGraphQueryName(ctx context.Context, name string) context.Context {
 	if name == "" {
 		return ctx
@@ -56,28 +57,38 @@ func GraphQueryNameFromContext(ctx context.Context) string {
 // (issue #7006 review finding).
 const DefaultGraphReadTimeout = 10 * time.Second
 
-// boundedGraphReadDeadlineContextKey marks a context whose deadline came from
-// WithBoundedGraphReadDeadline(For), so Neo4jReader.runRead's graphReadResult
-// (go/internal/query/neo4j_read_policy.go) can tell that deadline apart from
-// an ordinary caller-imposed deadline (e.g. an MCP dispatch timeout, or a
-// test's own context.WithTimeout). Both look identical from graphReadResult's
-// side -- the parent context expired -- but only this one IS the graph-read
-// policy budget, just created a few microseconds earlier than the per-read
-// context.WithTimeout(ctx, readTimeout) call inside runRead that would
-// otherwise have been the one to expire and classify the outcome (#7006
-// review F1: without this marker, every timeout on a shared-budget loop
-// route misclassified as graphReadOutcomeCallerDeadline -- no
+// errBoundedGraphReadBudget is the context.WithTimeoutCause cause attached to
+// the deadline WithBoundedGraphReadDeadline(For) creates, so
+// Neo4jReader.runRead's graphReadResult (go/internal/query/neo4j_read_policy.go)
+// can tell that a context's deadline came from the graph-read policy's own
+// shared budget rather than an ordinary caller-imposed deadline (e.g. an MCP
+// dispatch timeout, or a test's own context.WithTimeout). Both look identical
+// from graphReadResult's parentCtx.Err() branch -- the parent context
+// expired -- but only a deadline whose context.Cause is this sentinel IS the
+// graph-read policy budget (#7006 review F1: without identifying which
+// deadline actually fired, every timeout on a shared-budget loop route
+// misclassified as graphReadOutcomeCallerDeadline -- no
 // query.graph_read.warning log, no graph_query_name, and a raw
 // context.DeadlineExceeded instead of the wrapped ErrGraphReadDeadline
 // sentinel).
-type boundedGraphReadDeadlineContextKey struct{}
+//
+// A context.WithValue marker on the bounded ctx is NOT enough: it identifies
+// which ctx CARRIES the budget, not which deadline FIRED. When a caller sets
+// a shorter deadline outside the bounded ctx (e.g. context.WithTimeout(30ms)
+// then WithBoundedGraphReadDeadlineFor(that ctx, 500ms)), the wrapped
+// context's Err() still expires from the caller's shorter deadline, but a
+// WithValue marker on the outer (bounded) ctx would still be visible and
+// wrongly report a policy deadline for a deadline the graph-read policy
+// never set (#7006 review round 4 F7). context.Cause resolves to the
+// innermost expired deadline's own cause, so it distinguishes the two.
+var errBoundedGraphReadBudget = errors.New("bounded graph read budget expired")
 
-// IsBoundedGraphReadDeadline reports whether ctx's deadline (or an ancestor
-// context's) came from WithBoundedGraphReadDeadline(For). See
-// boundedGraphReadDeadlineContextKey.
+// IsBoundedGraphReadDeadline reports whether ctx's deadline is the one
+// WithBoundedGraphReadDeadline(For) created, as opposed to an ancestor
+// caller deadline that happened to expire first. See
+// errBoundedGraphReadBudget.
 func IsBoundedGraphReadDeadline(ctx context.Context) bool {
-	marked, _ := ctx.Value(boundedGraphReadDeadlineContextKey{}).(bool)
-	return marked
+	return errors.Is(context.Cause(ctx), errBoundedGraphReadBudget)
 }
 
 // WithBoundedGraphReadDeadline returns ctx wrapped with a deadline of
@@ -101,6 +112,5 @@ func WithBoundedGraphReadDeadline(ctx context.Context) (context.Context, context
 // readCtx-deadline race deterministically and fast, without waiting out the
 // real 10s budget twice.
 func WithBoundedGraphReadDeadlineFor(ctx context.Context, budget time.Duration) (context.Context, context.CancelFunc) {
-	ctx = context.WithValue(ctx, boundedGraphReadDeadlineContextKey{}, true)
-	return context.WithTimeout(ctx, budget)
+	return context.WithTimeoutCause(ctx, budget, errBoundedGraphReadBudget)
 }

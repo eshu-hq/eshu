@@ -33,8 +33,10 @@ const (
 	LogKeyGraphReadStatementHead = "graph_read.statement_head"
 
 	// SpanAttrGraphReadQueryName reports the bounded, low-cardinality caller
-	// name for the query (e.g. "code_quality.complexity_list"), threaded
-	// through the request context by querycontract.WithGraphQueryName.
+	// name for the query (e.g. "code_quality.complexity",
+	// "code_quality.refactoring", "entity.context",
+	// "platform_impact.deployment_chain"), threaded through the request
+	// context by querycontract.WithGraphQueryName.
 	// Defaults to "unnamed" when no caller set one, so this attribute is
 	// always present rather than sometimes absent (issue #7006). It names the
 	// route/handler, never raw Cypher text or entity identifiers.

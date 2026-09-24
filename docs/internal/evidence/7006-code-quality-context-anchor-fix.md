@@ -412,9 +412,12 @@ relabeled "not measured" in the PR body; what is proven is correctness
 (Wave 3's live per-label-loop reproduction, and `quality/inspect`'s
 Repository-first anchor being structurally identical to the
 separately-measured `complexityListAnchor`, corrected in its own doc comment)
-and a hard ceiling -- the shared 10s deadline (above) bounds every call, so
-post-fix latency cannot exceed the pre-fix unbounded-scan floor already
-measured.
+and a hard ceiling: `infra/relationships`' per-label loop is bounded by the
+shared 10s `WithBoundedGraphReadDeadline` budget (above), while
+`code/quality/inspect` is a single statement bounded at 10s by
+`Neo4jReader`'s own per-read policy (it never calls
+`WithBoundedGraphReadDeadline`) -- so post-fix latency for both cannot exceed
+the pre-fix unbounded-scan floor already measured.
 
 **F4 (#7014 proof).** The previously-cited proof was uncommitted and the
 wrong shape (a single-hop rejoin ordered by the rejoined variable, not this
@@ -438,7 +441,9 @@ from the matching worktree under `~/os-repos/NornicDB-worktrees/`:
 
 Sensitivity check (a no-`ORDER BY` mutant of the same chained query, run then
 discarded, not part of the citable proof): PASS on `6ac958a9` and `f2163176`,
-**FAIL on `c4de1c5c`** (`LIMIT` 1-11 each dropped the one matching row) --
+**FAIL on `c4de1c5c`** (`LIMIT` 1-16 each dropped the one matching row, per
+the #7006 review round 4 rerun; an earlier run of this same mutant reported
+1-11, which this session did not reproduce) --
 confirms the harness genuinely detects the #7014 drop when its precondition
 (`ORDER BY` absent) holds, and that `ORDER BY` protects the chained shape too,
 not just the single-hop-rejoin shape the earlier test covers. The test file

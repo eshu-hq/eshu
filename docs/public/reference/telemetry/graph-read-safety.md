@@ -194,9 +194,12 @@ below), which IS the graph-read policy's own deadline even though the code
 that created it lives in a handler, not `Neo4jReader` itself.
 `caller_deadline` means an enclosing deadline that is NOT the graph-read
 policy's own budget expired first (e.g. an MCP dispatch timeout, or any other
-caller-imposed `context.WithTimeout` the handler did not derive from
-`querycontract.WithBoundedGraphReadDeadline`); it is not counted as a
-graph-policy deadline.
+caller-imposed `context.WithTimeout`). This includes a caller deadline set
+*outside* a shared `querycontract.WithBoundedGraphReadDeadline(For)` budget
+that happens to be shorter than it and so fires first -- only a deadline the
+policy itself created counts as `deadline`; a shorter enclosing deadline is
+not counted as a graph-policy deadline even though it expires the same
+wrapped context.
 
 The `neo4j.query` span records the same outcome plus
 `eshu.graph_read.attempts`, `eshu.graph_read.configured_deadline_ms`,
@@ -216,9 +219,9 @@ exceeds that bound).
 
 `eshu.graph_read.query_name` (and the `graph_query_name` log field) is a
 bounded, low-cardinality caller-supplied name for the route/handler that issued
-the read (e.g. `code_quality.complexity_list`, `entity.context`,
-`platform_impact.deployment_chain`), set via `querycontract.WithGraphQueryName`
-and defaulting to `unnamed` when a caller sets none, so the attribute is never
+the read (e.g. `code_quality.complexity`, `code_quality.refactoring`,
+`entity.context`, `platform_impact.deployment_chain`), set via
+`querycontract.WithGraphQueryName` and defaulting to `unnamed` when a caller sets none, so the attribute is never
 silently absent. It makes a bounded-read timeout or slow read attributable to a
 specific route without reading Cypher text (issue #7006's telemetry gap).
 
@@ -319,11 +322,16 @@ loop until a match or exhaustion -- derives ONE shared deadline once, before
 the loop, via `querycontract.WithBoundedGraphReadDeadline`, and reuses it for
 every candidate read. This bounds the whole loop by the same 10-second budget
 a single statement gets, instead of paying that budget once per candidate
-label. When the shared budget expires mid-loop, `Neo4jReader` classifies the
-outcome as `deadline` (not `caller_deadline`) and emits the same
-`query.graph_read.warning` with `graph_query_name` any other deadline does --
-the shared ctx carries an internal marker `graphReadResult` checks specifically
-so this case is never misclassified as ordinary caller cancellation.
+label. When the shared budget itself expires mid-loop, `Neo4jReader`
+classifies the outcome as `deadline` (not `caller_deadline`) and emits the
+same `query.graph_read.warning` with `graph_query_name` any other deadline
+does. `querycontract.WithBoundedGraphReadDeadline(For)` creates that deadline
+with `context.WithTimeoutCause`, and `graphReadResult` checks
+`context.Cause(parentCtx)` for that specific cause -- not merely whether the
+context descends from a `WithBoundedGraphReadDeadline(For)` call -- so a
+caller deadline set outside the bounded ctx that is shorter than the shared
+budget and fires first still classifies as `caller_deadline`, never
+`deadline`.
 
 `POST /api/v0/infra/relationships`'s request span additionally records
 `eshu.entity_anchor_labels_tried`, an integer count of how many candidate
