@@ -147,11 +147,8 @@ func codeTopicFilters(req codequery.CodeTopicInvestigationRequest) ([]string, []
 		nextArg++
 	} else {
 		filters = append(filters, "eshu_require_content_substring_indexes_ready()")
-		// #5167 W3 P1: bind a corpus-wide search to the caller's grant at the SQL
-		// WHERE so the LIMIT/OFFSET page is taken from the granted set, not a
-		// cross-tenant-polluted page that could push authorized rows past the
-		// limit. Only set for a scoped caller (populated by the change-surface
-		// caller); a nil/empty list leaves the search unrestricted.
+		// #5167 W3 P1: bind a corpus-wide search to the caller's grant so the
+		// LIMIT/OFFSET page is taken from the granted set, not cross-tenant.
 		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
 	}
 	if strings.TrimSpace(req.Language) != "" {
@@ -177,26 +174,12 @@ func splitCodeTopicTerms(value string) []string {
 }
 
 // appendRepositoryGrantFilter binds a corpus-wide content read to the caller's
-// granted repository ids at the SQL WHERE, so the statement's own LIMIT/OFFSET
-// page is taken from the granted set rather than from a cross-tenant-polluted
-// one (#5167 W3 P1 filter-before-limit). It is the single grant predicate
-// shared by codeTopicFilters, symbolSearchFilters, hardcodedSecretFilters and
-// structuralInventoryWhere -- four builders that had drifted into the same
-// `if repoID != "" { ... }`-with-no-else shape.
-//
-// An empty list is a no-op, which is correct for the unscoped shared, admin,
-// and local callers that pass one. A grantless SCOPED caller must never reach
-// here: an empty list leaves the scan unrestricted, so codeContentGrantScope
-// (code_repository_selector.go) fails that caller closed before the read.
-//
-// nextArg is the next free $N placeholder index and must equal len(args)+1.
-// The returned index is the next free one after the predicate is appended.
-func appendRepositoryGrantFilter(
-	filters []string,
-	args []any,
-	nextArg int,
-	allowedRepositoryIDs []string,
-) ([]string, []any, int) {
+// granted repository ids at the SQL WHERE (#5167 W3 P1 filter-before-limit).
+// Shared by codeTopicFilters, symbolSearchFilters, hardcodedSecretFilters and
+// structuralInventoryWhere. Empty is a no-op (unscoped shared/admin callers);
+// a grantless SCOPED caller never reaches here (codeContentGrantScope closes
+// it first). nextArg must equal len(args)+1; returns the next free index.
+func appendRepositoryGrantFilter(filters []string, args []any, nextArg int, allowedRepositoryIDs []string) ([]string, []any, int) {
 	if len(allowedRepositoryIDs) == 0 {
 		return filters, args, nextArg
 	}
@@ -206,23 +189,14 @@ func appendRepositoryGrantFilter(
 }
 
 // ---- Code divergence reads (epic #6833, child #6836) ----
-//
-// Fingerprint-equality grouping over the #6835 side tables lives
-// with the code-topic content reads: same Postgres content store,
-// same required-repo grant discipline, one fewer top-level file
-// under the internal/query dirgate cap.
+// Fingerprint-equality grouping over the #6835 side tables: same Postgres
+// content store and required-repo grant discipline as the topic reads above.
 
 // divergenceGroupStatsQuery is the phase-one grouping statement for one
-// fingerprint column (fp_exact or fp_renamed). It returns every multi-member
-// group in the repo — narrow rows (fingerprint, count, max tokens) that stay
-// small even at corpus scale (741 exact multi-groups at floor 50 over this
-// repo's 88k functions). The handler sorts and windows these stats before
-// any member fetch, so merged cross-kind paging is exact. Placeholders are
-// fixed: $1 repo_id, $2 token floor.
-//
-// The statement reads narrow fingerprint columns for grouping. It never
-// selects source_cache (#6835 contract gate: the grouping path must never
-// read it).
+// fingerprint column (fp_exact or fp_renamed): every multi-member group in
+// the repo, as narrow rows the handler sorts/windows before any member
+// fetch. Never selects source_cache (#6835 contract gate). $1 repo_id,
+// $2 token floor.
 func divergenceGroupStatsQuery(fingerprintColumn string) string {
 	if fingerprintColumn != "fp_exact" && fingerprintColumn != "fp_renamed" {
 		return ""
@@ -261,15 +235,9 @@ func divergenceColumn(kind codedivergence.Kind) string {
 }
 
 // DivergenceGroupStats returns every multi-member fingerprint group for one
-// repository and kind. repoID must already be resolved against the caller's
-// grant (required-repo pattern, like call-graph metrics): an ungranted repo
-// never reaches this read.
-func (cr *ContentReader) DivergenceGroupStats(
-	ctx context.Context,
-	repoID string,
-	kind codedivergence.Kind,
-	floor int,
-) ([]codedivergence.GroupStat, error) {
+// repository and kind. repoID must already be grant-resolved by the caller
+// (required-repo pattern, like call-graph metrics).
+func (cr *ContentReader) DivergenceGroupStats(ctx context.Context, repoID string, kind codedivergence.Kind, floor int) ([]codedivergence.GroupStat, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
@@ -312,9 +280,7 @@ func (cr *ContentReader) DivergenceGroupStats(
 }
 
 // driftedFindingStore adapts the drifted findings store over this reader's
-// handle with the reader's tracer, mirroring the Terraform drift adapter:
-// the query package owns the read contract, the postgres package owns the
-// SQL.
+// handle: the query package owns the read contract, postgres owns the SQL.
 func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindingStore {
 	storeDB := &postgres.InstrumentedDB{
 		Inner:     postgres.SQLDB{DB: cr.db},
@@ -325,16 +291,10 @@ func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindi
 }
 
 // DivergenceMembersByEntityID resolves wrapper-bypass finding members from
-// the fingerprint table by entity id: the wrapper plus its bypassers are
-// graph-discovered caller entities, not a fingerprint group, so the finding
-// needs their content details (path, lines, language, token count) keyed by
-// id. Graph/content skew drops out at the call site: ids missing here simply
-// resolve to nothing. Repo-scoped like every other divergence read.
-func (cr *ContentReader) DivergenceMembersByEntityID(
-	ctx context.Context,
-	repoID string,
-	entityIDs []string,
-) (map[string]codedivergence.Member, error) {
+// the fingerprint table by entity id (graph-discovered caller entities, not
+// a fingerprint group). Ids missing here simply resolve to nothing.
+// Repo-scoped like every other divergence read.
+func (cr *ContentReader) DivergenceMembersByEntityID(ctx context.Context, repoID string, entityIDs []string) (map[string]codedivergence.Member, error) {
 	if cr == nil || cr.db == nil {
 		return map[string]codedivergence.Member{}, nil
 	}
@@ -392,13 +352,9 @@ func (cr *ContentReader) DivergenceMembersByEntityID(
 }
 
 // DriftedFindingStats returns one stat per active drifted finding in the
-// repo for the merged cross-kind page: the writer finding id as fingerprint
-// with the pair token max, ranked on the same members x tokens currency as
-// the equality kinds.
-func (cr *ContentReader) DriftedFindingStats(
-	ctx context.Context,
-	repoID string,
-) ([]codedivergence.GroupStat, error) {
+// repo, keyed like the equality kinds (finding id as fingerprint, pair
+// token max) for the merged cross-kind page.
+func (cr *ContentReader) DriftedFindingStats(ctx context.Context, repoID string) ([]codedivergence.GroupStat, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
@@ -406,13 +362,9 @@ func (cr *ContentReader) DriftedFindingStats(
 }
 
 // DriftedFindingRows hydrates exactly the given finding ids into drifted
-// rows keyed by finding id. The caller passes only the page window, so a
-// large active set never turns hydration into a full-repo fetch.
-func (cr *ContentReader) DriftedFindingRows(
-	ctx context.Context,
-	repoID string,
-	findingIDs []string,
-) (map[string]codedivergence.DriftedRow, error) {
+// rows keyed by finding id, so a large active set never turns hydration
+// into a full-repo fetch.
+func (cr *ContentReader) DriftedFindingRows(ctx context.Context, repoID string, findingIDs []string) (map[string]codedivergence.DriftedRow, error) {
 	if cr == nil || cr.db == nil {
 		return map[string]codedivergence.DriftedRow{}, nil
 	}
@@ -420,15 +372,9 @@ func (cr *ContentReader) DriftedFindingRows(
 }
 
 // DivergenceMembers hydrates the members of exactly the given fingerprints
-// in one repository, keyed by fingerprint. The caller passes only the page
-// window, so a large group list never turns hydration into a full-repo
-// fetch.
-func (cr *ContentReader) DivergenceMembers(
-	ctx context.Context,
-	repoID string,
-	kind codedivergence.Kind,
-	fingerprints []string,
-) (map[string][]codedivergence.Member, error) {
+// in one repository, keyed by fingerprint, so a large group list never
+// turns hydration into a full-repo fetch.
+func (cr *ContentReader) DivergenceMembers(ctx context.Context, repoID string, kind codedivergence.Kind, fingerprints []string) (map[string][]codedivergence.Member, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
