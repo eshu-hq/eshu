@@ -21,9 +21,10 @@ type bucketAuditEntry struct {
 // this audit has boundaries for — both the _seconds duration histograms and
 // the count/size histograms that carry no unit suffix. Histograms listed
 // here with nil Buckets use the default OTEL bucket set (no
-// WithExplicitBucketBoundaries call); auditEntry reports those as
-// "default", not "fails" — a listed histogram with no explicit boundaries
-// passes this audit today. The table was originally _seconds-only; #5096
+// WithExplicitBucketBoundaries call); auditEntry reports a nil-Buckets
+// _seconds row as "fails" (#7084: the default set is millisecond-scaled and
+// cannot resolve sub-5-second work) and any other nil-Buckets row as
+// "default". The table was originally _seconds-only; #5096
 // added the count/size family after finding a new count histogram
 // registered with no explicit boundaries. This table is NOT auto-derived
 // from instruments.go and this test does not check that every registered
@@ -37,6 +38,8 @@ func bucketAuditTable() []bucketAuditEntry {
 	sharedProjectionProcessingBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	neo4jQueryBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	backfillBuckets := []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
+	claimDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+	freshnessLagBuckets := []float64{1, 5, 15, 30, 60, 300, 900, 1800, 3600, 7200, 21600, 86400}
 
 	return []bucketAuditEntry{
 		// ---- collector and workflow histograms ----
@@ -68,6 +71,10 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_confluence_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_aws_scan_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
 
+		// ---- cloud collector freshness lag (registered outside instruments.go) ----
+		{MetricName: "eshu_dp_gcp_cloud_freshness_lag_seconds", Buckets: freshnessLagBuckets},
+		{MetricName: "eshu_dp_azure_freshness_lag_seconds", Buckets: freshnessLagBuckets},
+
 		// ---- scanner worker histograms ----
 		{MetricName: "eshu_dp_scanner_worker_queue_wait_seconds", Buckets: scannerWorkerWaitBuckets},
 		{MetricName: "eshu_dp_scanner_worker_scan_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1200}},
@@ -84,7 +91,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		// ---- scope / fact / queue ----
 		{MetricName: "eshu_dp_scope_assign_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
 		{MetricName: "eshu_dp_fact_emit_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
-		{MetricName: "eshu_dp_queue_claim_duration_seconds", Buckets: nil}, // sub-second ops; default OTEL buckets are adequate
+		{MetricName: "eshu_dp_queue_claim_duration_seconds", Buckets: claimDurationBuckets},
 
 		// ---- generation retention ----
 		{MetricName: "eshu_dp_generation_retention_duration_seconds", Buckets: []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}},
@@ -104,13 +111,15 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_api_request_duration_seconds", Buckets: neo4jQueryBuckets},
 
 		// ---- shared acceptance / projection ----
-		{MetricName: "eshu_dp_shared_acceptance_upsert_duration_seconds", Buckets: nil}, // default OTEL
+		{MetricName: "eshu_dp_shared_acceptance_upsert_duration_seconds", Buckets: claimDurationBuckets},
 		{MetricName: "eshu_dp_shared_acceptance_lookup_duration_seconds", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
 		{MetricName: "eshu_dp_shared_projection_intent_wait_seconds", Buckets: sharedProjectionWaitBuckets()},
 		{MetricName: "eshu_dp_shared_projection_processing_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_shared_projection_step_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_shared_projection_partition_processing_seconds", Buckets: sharedProjectionProcessingBuckets},
-		{MetricName: "eshu_dp_documentation_drift_generation_duration_seconds", Buckets: nil}, // default OTEL
+		{MetricName: "eshu_dp_documentation_drift_generation_duration_seconds", Buckets: sharedProjectionProcessingBuckets},
+		{MetricName: "eshu_dp_identity_cache_reload_duration_seconds", Buckets: []float64{0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
+		{MetricName: "eshu_dp_identity_cache_probe_duration_seconds", Buckets: claimDurationBuckets},
 
 		// ---- repo snapshot / collector stage / file parse ----
 		{MetricName: "eshu_dp_repo_snapshot_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
@@ -169,9 +178,10 @@ type bucketVerdict struct {
 // cover count/size histograms alongside the original _seconds set. It does
 // NOT detect a histogram registered in instruments.go with no row here, and
 // a listed histogram with Buckets: nil reports "default" rather than
-// failing — so this audit cannot catch the #5096 gap class (a new histogram
-// shipped with no explicit boundaries and no audit coverage) on its own; it
-// only re-validates boundaries once someone has already added the row.
+// failing for non-_seconds rows. The #5096 gap class (a new histogram shipped
+// with no explicit boundaries and no audit row) is caught for _seconds
+// histograms by TestSecondsHistogramsHaveExplicitBuckets, which scans the
+// module source instead of trusting this table.
 func TestBucketAudit(t *testing.T) {
 	table := bucketAuditTable()
 	var verdicts []bucketVerdict
@@ -209,6 +219,13 @@ func TestBucketAudit(t *testing.T) {
 }
 
 func auditEntry(entry bucketAuditEntry) bucketVerdict {
+	if entry.Buckets == nil && strings.HasSuffix(entry.MetricName, "_seconds") {
+		return bucketVerdict{
+			MetricName: entry.MetricName,
+			Verdict:    "fails",
+			Reason:     "_seconds histogram on the default OTEL buckets (0..10000, millisecond-scaled); set explicit second-scale boundaries",
+		}
+	}
 	if entry.Buckets == nil {
 		return bucketVerdict{
 			MetricName: entry.MetricName,

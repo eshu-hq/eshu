@@ -116,6 +116,10 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 	freshnessLag, err := meter.Float64Histogram(
 		"eshu_dp_gcp_cloud_freshness_lag_seconds",
 		metric.WithDescription("GCP cloud collector freshness lag from provider update/read time to Eshu observation time"),
+		metric.WithUnit("s"),
+		// Provider-to-Eshu lag runs from seconds to a day; the OTEL default set
+		// is millisecond-scaled and cannot resolve it (#7084).
+		metric.WithExplicitBucketBoundaries(1, 5, 15, 30, 60, 300, 900, 1800, 3600, 7200, 21600, 86400),
 	)
 	if err != nil {
 		return nil, err
