@@ -20,13 +20,6 @@ const (
 	// finds the group empty, which is the normal case.
 	groupKillRetries       = 20
 	groupKillRetryInterval = 5 * time.Millisecond
-
-	// processGroupWaitDelay is the backstop for Cmd.Wait after the context is
-	// done or the child exits: if a descendant still holds the command's
-	// stdout/stderr pipes open after this long, Wait force-closes them and
-	// returns exec.ErrWaitDelay instead of blocking for that descendant's
-	// whole lifetime. Without it a single leaked pipe holder stalls shutdown.
-	processGroupWaitDelay = 2 * time.Second
 )
 
 // NewProcessGroupCommand builds a cancellable command whose whole process
@@ -43,12 +36,16 @@ const (
 // returns success (observed on darwin; #7066). The survivor is orphaned but
 // keeps the group id and the command's stdout/stderr pipes, so Cmd.Wait would
 // block until it exited on its own. Cancel therefore re-sends SIGKILL while
-// the group still has members (bounded by groupKillRetries), and WaitDelay
-// guarantees Wait returns even if a pipe holder somehow outlives the kills.
+// the group still has members (bounded by groupKillRetries).
+//
+// cmd.WaitDelay is deliberately left unset. Go applies it after a successful
+// exit too and then returns exec.ErrWaitDelay, which callers such as collector
+// git's clone path treat as a failure and clean up a good checkout. Only the
+// re-kill loop closes the #7066 stall, so a descendant that legitimately holds
+// the pipes after a zero exit still lets Wait return that success.
 func NewProcessGroupCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- callers pass internally constructed binaries and arguments, never user text
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.WaitDelay = processGroupWaitDelay
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil

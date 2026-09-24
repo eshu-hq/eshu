@@ -8,7 +8,9 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -81,6 +83,7 @@ func TestNewProcessGroupCommandKillsChildForkedDuringCancel(t *testing.T) {
 			if _, err := os.Stat(marker); err == nil {
 				break
 			}
+			time.Sleep(time.Millisecond)
 			if time.Now().After(spawnDeadline) {
 				cancel()
 				_ = syscall.Kill(-pgid, syscall.SIGKILL)
@@ -108,5 +111,29 @@ func TestNewProcessGroupCommandKillsChildForkedDuringCancel(t *testing.T) {
 				time.Sleep(5 * time.Millisecond)
 			}
 		}
+	}
+}
+
+// TestNewProcessGroupCommandKeepsSuccessWhenDescendantHoldsPipes pins that a
+// command which exits 0 is not turned into a failure because a descendant
+// still holds its stdout/stderr pipes. exec.Cmd.WaitDelay would return
+// exec.ErrWaitDelay in that case (Go reports it only when the exit status was
+// zero); collector git callers treat any error as a failed clone and delete the
+// checkout, so the constructor must leave WaitDelay unset and let Wait block
+// until the pipe holder closes them.
+func TestNewProcessGroupCommandKeepsSuccessWhenDescendantHoldsPipes(t *testing.T) {
+	// The background sleep outlives the shell and keeps stdout open for longer
+	// than any WaitDelay this package could plausibly choose while staying short
+	// enough for a unit test.
+	cmd := NewProcessGroupCommand(context.Background(), "sh", "-c", "echo out; sleep 4 & exit 0")
+	out, err := cmd.Output()
+	if err != nil {
+		if errors.Is(err, exec.ErrWaitDelay) {
+			t.Fatalf("Output() error = %v; a zero exit must not become a failure because a descendant holds the pipes", err)
+		}
+		t.Fatalf("Output() error = %v, want nil", err)
+	}
+	if got, want := string(out), "out\n"; got != want {
+		t.Fatalf("Output() = %q, want %q", got, want)
 	}
 }
