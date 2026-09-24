@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package drift
 
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
@@ -28,9 +28,9 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // that could be mistaken for missing data. An unscoped (admin) caller is
 // unaffected and always sees every atom's real scope_id.
 func filterTerraformConfigStateDriftEvidence(
-	findings []TerraformConfigStateDriftFindingRow,
+	findings []FindingRow,
 	access querycontract.RepositoryAccessFilter,
-) []TerraformConfigStateDriftFindingRow {
+) []FindingRow {
 	if !access.Scoped() || len(findings) == 0 {
 		return findings
 	}
@@ -54,7 +54,7 @@ func filterTerraformConfigStateDriftEvidence(
 // source_system, evidence_type, key, value, confidence) are never touched --
 // only the identifier that names an ungranted repository/scope is withheld.
 func redactTerraformConfigStateDriftEvidenceAtom(atom map[string]any, access querycontract.RepositoryAccessFilter) map[string]any {
-	scopeID := StringVal(atom, "scope_id")
+	scopeID := querycontract.StringVal(atom, "scope_id")
 	if scopeID == "" || access.AllowsRepositoryID(scopeID) {
 		return atom
 	}

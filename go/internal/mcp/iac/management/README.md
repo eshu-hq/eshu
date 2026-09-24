@@ -86,7 +86,7 @@ the shared API request duration and error metrics (`request_metrics.go` in
   `go/internal/query/iac/handler.go`, `go/internal/query/iac/management.go`,
   `go/internal/query/iac/management_surface.go`,
   `go/internal/query/iac/import_plan.go`,
-  `go/internal/query/terraform_config_state_drift.go`, and
+  `go/internal/query/terraform/drift/handler.go`, and
   `go/internal/query/iac/replatforming_ownership_handler.go`), never
   `go/internal/mcp/dispatch.go` or this package, so this extraction does not
   require repointing any registry entry — confirmed by searching the

@@ -391,20 +391,6 @@ func normalizeIaCManagementFindingSafety(finding *IaCManagementFindingRow) {
 	iac.NormalizeManagementFindingSafety(finding)
 }
 
-// iacManagementNextOffset mirrors iac.ManagementNextOffset. Its home is
-// iac/; terraform_config_state_drift.go keeps spelling
-// query.iacManagementNextOffset unchanged.
-func iacManagementNextOffset(offset, returned, total int) *int {
-	return iac.ManagementNextOffset(offset, returned, total)
-}
-
-// iacManagementTruncated mirrors iac.ManagementTruncated. Its home is iac/;
-// terraform_config_state_drift.go keeps spelling
-// query.iacManagementTruncated unchanged.
-func iacManagementTruncated(offset, returned, total int) bool {
-	return iac.ManagementTruncated(offset, returned, total)
-}
-
 // ReplatformingPlanNonGoals mirrors iac.ReplatformingPlanNonGoals. Its home
 // is iac/; no caller outside the family spells this root name today, and it
 // is kept so root's pre-move exported surface stays whole.
