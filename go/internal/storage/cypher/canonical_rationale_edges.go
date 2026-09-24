@@ -3,8 +3,6 @@
 
 package cypher
 
-import "strings"
-
 // Batched UNWIND Cypher for rationale EXPLAINS edges (issue #2230).
 //
 // An EXPLAINS edge links an identity-only Rationale node — built from an intent
@@ -16,14 +14,34 @@ import "strings"
 // on rationale.repo_id; delta-generation retracts anchor on target.path so a
 // changed file cannot delete other files' EXPLAINS truth.
 
-// The label disjunction is a constant so the indexed-write sweep can inspect
-// the complete Cypher statement. Delta retracts use the same source of truth.
-const rationaleExplainsTargetLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|Enum|File"
+// Both static Cypher scanners can resolve constants, so keep each label value
+// in one place while exposing a constant disjunction and a literal label list.
+const (
+	rationaleTargetFunctionLabel            = "Function"
+	rationaleTargetClassLabel               = "Class"
+	rationaleTargetStructLabel              = "Struct"
+	rationaleTargetInterfaceLabel           = "Interface"
+	rationaleTargetTypeAliasLabel           = "TypeAlias"
+	rationaleTargetEnumLabel                = "Enum"
+	rationaleTargetFileLabel                = "File"
+	rationaleExplainsTargetLabelDisjunction = rationaleTargetFunctionLabel + "|" +
+		rationaleTargetClassLabel + "|" + rationaleTargetStructLabel + "|" +
+		rationaleTargetInterfaceLabel + "|" + rationaleTargetTypeAliasLabel + "|" +
+		rationaleTargetEnumLabel + "|" + rationaleTargetFileLabel
+)
 
 // RationaleExplainsTargetLabels lists the code entity labels an EXPLAINS edge
-// can target. The write template and per-label delta retracts share the
-// disjunction above, so adding a label to one updates both paths.
-var RationaleExplainsTargetLabels = strings.Split(rationaleExplainsTargetLabelDisjunction, "|")
+// can target. The write template and per-label delta retracts use the same
+// label constants; the writer test checks that their ordered lists agree.
+var RationaleExplainsTargetLabels = []string{
+	rationaleTargetFunctionLabel,
+	rationaleTargetClassLabel,
+	rationaleTargetStructLabel,
+	rationaleTargetInterfaceLabel,
+	rationaleTargetTypeAliasLabel,
+	rationaleTargetEnumLabel,
+	rationaleTargetFileLabel,
+}
 
 // BatchCanonicalRationaleExplainsEdgeCypher targets its MATCH with a label
 // disjunction plus an inline {uid: ...} anchor. Probed on NornicDB v1.1.11:

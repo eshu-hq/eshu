@@ -268,9 +268,9 @@ string after `strings.Join(RationaleExplainsTargetLabels, "|")` as a complete
 query. That fragment has `row.rationale_uid` but no preceding `UNWIND`, so the
 analyzer correctly reported `Rationale/unresolved_value` for the fragment.
 The complete production query has the `UNWIND` and was already guarded. The
-label disjunction is now a constant; the exported label list is derived from
-it. This lets the sweep fold and inspect the complete statement without an
-allowlist exception.
+label disjunction and exported label list now share per-label constants. This
+lets both the indexed-write sweep and materialized-edge scanner inspect the
+complete statement without an allowlist exception.
 
 No-Regression Evidence (2026-09-24): baseline `c2610332` and this follow-up
 build the identical 613-byte Cypher statement, SHA-256
