@@ -24,6 +24,6 @@
 // pin the forward traversal text; production callers go through Handler.
 //
 // The package moved out of the root query package for #6642. Root keeps a
-// DependenciesHandler alias (package_registry_alias.go) for cmd/api until the
+// DependenciesHandler alias (dependency_alias.go) for cmd/api until the
 // #6642 alias sweep.
 package dependency
