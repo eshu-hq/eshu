@@ -1233,7 +1233,7 @@ live in [evidence-notes.md](evidence-notes.md).
   it actually run. Before this, SSO logins left no durable trace once their
   `browser_sessions` row expired — the local-login path already audited every
   outcome, but SSO audited none.
-- `RequestMetricsMiddleware` (`request_metrics.go`) wraps the application mux and
+- `RequestMetricsMiddleware` (`metrics_alias.go`, forwarding to `metrics/request.go`) wraps the application mux and
   records `eshu_dp_api_request_duration_seconds` and
   `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route
   pattern and `status_class`. It resolves the route via `mux.Handler` without

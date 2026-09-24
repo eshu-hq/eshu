@@ -28,27 +28,31 @@ guess when no source is configured.
 
 ## Committed reproducible evidence
 
-**Handler behavior, range validation, capability registration** —
-`go/internal/query/metrics_test.go`:
+**Handler behavior, range validation, capability ceiling** —
+`go/internal/query/metrics/handler_test.go`:
 `TestTimeSeriesRejectsUnknownMetric`,
 `TestTimeSeriesEmptyPointsWhenNoSourceConfigured`,
 `TestTimeSeriesReturnsSourcePoints`,
 `TestTimeSeriesEmptyHistoryIsBuildingNotError`,
 `TestTimeSeriesRejectsInvalidRangeAsBadRequest`,
-`TestTimeSeriesCapabilityIsRegistered`. Reproduce:
+`TestTimeSeriesSupportIsDerived`. Production registration of the row is
+proven by root's `TestCapabilityMatrixMatchesYAMLContract`
+(`go/internal/query/contract_matrix_test.go`) against
+`specs/capability-matrix.v1.yaml`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestTimeSeries -count=1
+cd go && go test ./internal/query/metrics -run TestTimeSeries -count=1
+cd go && go test ./internal/query -run TestCapabilityMatrixMatchesYAMLContract -count=1
 ```
 
 **Prometheus/Mimir range-API source and bound enforcement** —
-`go/internal/query/metrics_prometheus_test.go`:
+`go/internal/query/metrics/prometheus_test.go`:
 `TestPrometheusMetricsTimeSeriesSourceQueriesRangeAPI`,
 `TestPrometheusMetricsTimeSeriesSourceRejectsUnboundedRanges`,
 `TestPrometheusMetricExpressionsCoverSupportedMetrics`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestPrometheusMetrics -count=1
+cd go && go test ./internal/query/metrics -run TestPrometheusMetrics -count=1
 ```
 
 ## Notes

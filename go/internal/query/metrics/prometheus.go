@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package metrics
 
 import (
 	"context"
@@ -39,9 +39,9 @@ var prometheusMetricExpressions = map[string]string{
 	"query_p99":    "histogram_quantile(0.99, sum(rate(eshu_http_request_duration_seconds_bucket[5m])) by (le)) * 1000",
 }
 
-// PrometheusMetricsTimeSeriesConfig configures a Prometheus-compatible metrics
+// PrometheusTimeSeriesConfig configures a Prometheus-compatible metrics
 // source for the console trend API.
-type PrometheusMetricsTimeSeriesConfig struct {
+type PrometheusTimeSeriesConfig struct {
 	BaseURL    string
 	PathPrefix string
 	Token      string
@@ -50,9 +50,9 @@ type PrometheusMetricsTimeSeriesConfig struct {
 	Now        func() time.Time
 }
 
-// PrometheusMetricsTimeSeriesSource reads Eshu dashboard metrics through the
+// PrometheusTimeSeriesSource reads Eshu dashboard metrics through the
 // Prometheus-compatible query_range API used by Prometheus and Grafana Mimir.
-type PrometheusMetricsTimeSeriesSource struct {
+type PrometheusTimeSeriesSource struct {
 	baseURL    *url.URL
 	pathPrefix string
 	token      string
@@ -76,12 +76,12 @@ type prometheusRangeResult struct {
 	Values [][]any `json:"values"`
 }
 
-// NewPrometheusMetricsTimeSeriesSource validates config and returns a bounded
+// NewPrometheusTimeSeriesSource validates config and returns a bounded
 // query_range-backed source. Base URLs with embedded credentials are rejected so
 // secrets stay in headers.
-func NewPrometheusMetricsTimeSeriesSource(
-	config PrometheusMetricsTimeSeriesConfig,
-) (*PrometheusMetricsTimeSeriesSource, error) {
+func NewPrometheusTimeSeriesSource(
+	config PrometheusTimeSeriesConfig,
+) (*PrometheusTimeSeriesSource, error) {
 	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
 	if err != nil {
 		return nil, fmt.Errorf("parse metrics base_url: %w", err)
@@ -100,7 +100,7 @@ func NewPrometheusMetricsTimeSeriesSource(
 	if now == nil {
 		now = time.Now
 	}
-	return &PrometheusMetricsTimeSeriesSource{
+	return &PrometheusTimeSeriesSource{
 		baseURL:    base,
 		pathPrefix: strings.Trim(config.PathPrefix, "/"),
 		token:      strings.TrimSpace(config.Token),
@@ -112,10 +112,10 @@ func NewPrometheusMetricsTimeSeriesSource(
 
 // RangeQuery resolves a logical console metric to closed PromQL and returns one
 // ordered point series for the requested window.
-func (s *PrometheusMetricsTimeSeriesSource) RangeQuery(
+func (s *PrometheusTimeSeriesSource) RangeQuery(
 	ctx context.Context,
-	query MetricsRangeQuery,
-) ([]MetricPoint, error) {
+	query RangeQuery,
+) ([]Point, error) {
 	if s == nil {
 		return nil, fmt.Errorf("metrics time-series source is nil")
 	}
@@ -136,7 +136,7 @@ func (s *PrometheusMetricsTimeSeriesSource) RangeQuery(
 	}
 	end := s.now().UTC()
 	start := end.Add(-window)
-	// #nosec G704 -- scheme, host and path come only from operator config (ESHU_COLLECTOR_INSTANCES_JSON base_url/path_prefix, validated in NewPrometheusMetricsTimeSeriesSource); request input only selects constant PromQL from prometheusMetricExpressions and a validated duration step, both url.Values-encoded query params
+	// #nosec G704 -- scheme, host and path come only from operator config (ESHU_COLLECTOR_INSTANCES_JSON base_url/path_prefix, validated in NewPrometheusTimeSeriesSource); request input only selects constant PromQL from prometheusMetricExpressions and a validated duration step, both url.Values-encoded query params
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.queryRangeURL(expression, start, end, query.Step), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build metrics time-series request: %w", err)
@@ -169,7 +169,7 @@ func (s *PrometheusMetricsTimeSeriesSource) RangeQuery(
 	return decodePrometheusRangePoints(decoded.Data.Result)
 }
 
-func (s *PrometheusMetricsTimeSeriesSource) queryRangeURL(expression string, start, end time.Time, step string) string {
+func (s *PrometheusTimeSeriesSource) queryRangeURL(expression string, start, end time.Time, step string) string {
 	reqURL := *s.baseURL
 	reqURL.Path = path.Join(s.baseURL.Path, s.pathPrefix, prometheusQueryRangeEndpoint)
 	query := reqURL.Query()
@@ -181,7 +181,7 @@ func (s *PrometheusMetricsTimeSeriesSource) queryRangeURL(expression string, sta
 	return reqURL.String()
 }
 
-func decodePrometheusRangePoints(results []prometheusRangeResult) ([]MetricPoint, error) {
+func decodePrometheusRangePoints(results []prometheusRangeResult) ([]Point, error) {
 	valuesByTimestamp := map[int64]float64{}
 	for _, result := range results {
 		for _, raw := range result.Values {
@@ -204,9 +204,9 @@ func decodePrometheusRangePoints(results []prometheusRangeResult) ([]MetricPoint
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	points := make([]MetricPoint, 0, len(keys))
+	points := make([]Point, 0, len(keys))
 	for _, key := range keys {
-		points = append(points, MetricPoint{
+		points = append(points, Point{
 			T: time.Unix(0, key).UTC().Format(time.RFC3339),
 			V: valuesByTimestamp[key],
 		})

@@ -144,7 +144,7 @@ sort -u -o "$doc_files_tmp" "$doc_files_tmp"
 # registered_anywhere_tmp answers "is this documented metric real?" and so
 # searches the whole tree. Several first-party metrics are registered in a
 # dedicated *_metrics.go beside the code that emits them --
-# request_metrics.go, cloud_resources_metrics.go, iac/resources_metrics.go,
+# metrics/request.go, cloud_resources_metrics.go, iac/resources_metrics.go,
 # transport_auth_metrics.go. Reading only instruments.go made those look
 # unregistered, so the doc rows citing them could not be validated (#5548).
 rg -UPo --no-filename --glob '*.go' --glob '!**/*_test.go' \

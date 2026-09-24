@@ -621,7 +621,7 @@ few read-path metrics and there was no per-endpoint latency or error signal, so
 an operator could not tell which route was slow or failing from metrics alone.
 The middleware gives uniform per-route p50/p95/p99 latency (via the histogram)
 and per-route 5xx rate, verified by a Prometheus scrape assertion in
-`go/internal/query/request_metrics_test.go` that exercises a success, a server
+`go/internal/query/metrics/request_test.go` that exercises a success, a server
 error, and an unmatched route and confirms the metric families and `route` /
 `status_class` labels appear in the `/metrics` exposition.
 

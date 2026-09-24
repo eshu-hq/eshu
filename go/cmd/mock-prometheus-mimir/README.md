@@ -39,6 +39,6 @@ OpenTelemetry providers or Eshu product metrics.
 
 ## Related docs
 
-- `go/internal/query/metrics_prometheus.go` owns the production range client.
+- `go/internal/query/metrics/prometheus.go` owns the production range client.
 - `go/cmd/api/metrics_source.go` selects the configured Prometheus/Mimir target.
 - `scripts/verify-golden-corpus-gate.sh` runs the deployed proof.

@@ -28,11 +28,11 @@ import (
 // calls otel.SetMeterProvider in the process, so a test that later installs its
 // own manual-reader provider silently records onto the wrong (possibly already
 // shut down) provider instead — see initImageQueryInstruments's doc comment in
-// images_telemetry.go for the full mechanics. request_metrics.go was never
+// images_telemetry.go for the full mechanics. metrics/request.go was never
 // exposed to this bug: apiRequestMetrics calls otel.Meter(apiRequestMeterName)
-// from *inside* apiRequestInstrumentsOnce.Do (request_metrics.go), not from a
+// from *inside* apiRequestInstrumentsOnce.Do (metrics/request.go), not from a
 // package var — see TestRequestMetricsMiddlewareEmitsPerEndpointMetrics's
-// setup comment in request_metrics_test.go for why that in-once resolution,
+// setup comment in metrics/request_test.go for why that in-once resolution,
 // not "this is the only Prometheus-backed test in the package", is what makes
 // that test immune to file-order luck.
 //

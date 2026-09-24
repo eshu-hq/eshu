@@ -563,7 +563,7 @@ linters:
       - path: 'internal/query/investigation_packet_build\.go'
         linters:
           - exhaustive
-      - path: 'internal/query/metrics\.go'
+      - path: 'internal/query/metrics/handler\.go'
         linters:
           - exhaustive
       - path: 'internal/query/incident_context_model\.go'
