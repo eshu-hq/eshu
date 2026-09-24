@@ -21,7 +21,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   root-only helpers through `querycontract` (profiles, envelopes,
   capability registration, HTTP helpers, `RepositoryAccessFilterFromContext`),
   `auth` (`AuthContext`, tests only), `service`
-  (`CatalogCorrelationStore`/`Filter`/`Row`), `querytestutil` (shared
+  (`CatalogCorrelationStore`/`Filter`/`Row`), `testutil` (shared
   two-tenant test fixtures), or `tracing` (the shared handler-span seam);
   if none of those has what you need, it does not belong here -- ask before
   adding a new shared home.
@@ -85,40 +85,40 @@ moved in verbatim from root -- see README.md's Move evidence.
   `ServiceOwnership` fails every scoped caller closed (#5167); do not special
   -case nil into an unscoped-shaped answer.
 
-## Test fixtures hoisted to querytestutil (#6608 rule)
+## Test fixtures hoisted to testutil (#6608 rule)
 
 A fixture this package's tests share with root's staying
-`auth_all_scope_bearer_two_tenant_test.go` moved to `querytestutil` as an
+`auth_all_scope_bearer_two_tenant_test.go` moved to `testutil` as an
 exported helper (one definition; this package's own tests call it directly,
 and root needs no forwarder because its call sites were edited in the same
 move), rather than being duplicated. Do not re-duplicate any of these back
 into a `_test.go` copy here or in root:
 
-- `querytestutil.TwoTenantChangedSinceScope` / `TwoTenantChangedSinceScopes`
+- `testutil.TwoTenantChangedSinceScope` / `TwoTenantChangedSinceScopes`
   / `ChangedSinceTwoTenantPriorGeneration` / `GrantMirroringChangedSince` --
   this package's `changed_since_two_tenant_test.go` and root's
   `auth_all_scope_bearer_two_tenant_test.go` both construct it.
-- `querytestutil.TwoTenantGenerationRow` / `TwoTenantGenerationRows` /
+- `testutil.TwoTenantGenerationRow` / `TwoTenantGenerationRows` /
   `GrantMirroringGenerations` -- this package's
   `generations_two_tenant_test.go` and root's
   `auth_all_scope_bearer_two_tenant_test.go` both construct it.
-- `querytestutil.ScopedChangedSinceTenantA` -- the grant-bearing caller
+- `testutil.ScopedChangedSinceTenantA` -- the grant-bearing caller
   (tenant-a, repo-a, scope-a) all three of the above plus root's
   `auth_all_scope_bearer_two_tenant_test.go`'s restricted-bearer case share.
-- `querytestutil.DecodeChangedSinceEnvelope` -- the response-envelope
+- `testutil.DecodeChangedSinceEnvelope` -- the response-envelope
   decoder this package's `changed_since_two_tenant_test.go` and root's
   `auth_all_scope_bearer_two_tenant_test.go` both call.
 
-These fixtures live in `querytestutil/freshnessreader.go` beside the
+These fixtures live in `testutil/freshnessreader.go` beside the
 repository freshness double rather than in a file of their own: a new file
-would have put `querytestutil` one over the 40-non-test-file dirgate cap,
+would have put `testutil` one over the 40-non-test-file dirgate cap,
 and a cap exemption is not worth a second freshness fixture file. Do not add
 an exemption row to `scripts/lib/dirgate-naming-exempt.tsv` for this
 package's own files -- `freshness/` has none and must stay that way.
 
 `service_changed_since_telemetry_test.go`'s fixtures
 (`fakeServiceChangedSinceLineageReader`, `fakeServiceOwnershipProbeResult`)
-deliberately did NOT move to `querytestutil`: they are minimal single-caller
+deliberately did NOT move to `testutil`: they are minimal single-caller
 doubles sufficient only to land on each of the four closed grant-refusal
 reasons, not a reusable SQL-mirroring fixture. Root's
 `service_changed_since_grant_test.go` keeps its own richer

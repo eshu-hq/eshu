@@ -155,7 +155,7 @@ double to force a move is worse than leaving the test in root.
 
 ## Shared test fixtures
 
-`querytestutil` holds the fixtures both this package's tests and root
+`testutil` holds the fixtures both this package's tests and root
 need. Put a new shared fixture there rather than copying it. Reuse its
 doubles; never redeclare them. Small handler fakes needed on both sides
 stay duplicated per side with a comment naming the twin — do not widen

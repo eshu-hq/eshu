@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 type recordingKubernetesCorrelationStore struct {
@@ -194,7 +194,7 @@ func kubernetesCorrelationScopedFixtureRow(t *testing.T) []driver.Value {
 func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
 	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
@@ -257,7 +257,7 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 func TestKubernetesListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
 	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}

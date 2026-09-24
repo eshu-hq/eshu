@@ -39,7 +39,7 @@ way.
 The exported surface is described in [doc.go](doc.go). The page type and
 its constructors, the ref readers, and name lookup are exported because the
 `repository` package and staying root callers use them. Unexported helpers
-stay unexported; cross-package test pins go through `querytestutil` or
+stay unexported; cross-package test pins go through `testutil` or
 `querycontract`.
 
 ## Move evidence (#6642 Part D)
@@ -97,7 +97,7 @@ in-process read-shaping leaf. No new runtime behavior, so no new telemetry.
 ## Dependencies
 
 Standard library, `net/http`, and `querycontract` only, plus
-`querytestutil` in tests. No handler packages, no graph drivers.
+`testutil` in tests. No handler packages, no graph drivers.
 
 ## Verification
 

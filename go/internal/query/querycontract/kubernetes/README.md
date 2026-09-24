@@ -7,7 +7,7 @@ Does this Service select that workload, and on what evidence.
 The Service -> workload `SELECTS` edge is built from four places: the content
 relationship builder in `internal/query`, the deployment trace in
 `internal/query/impact`, the GitOps helpers in `internal/query/impact/deployment`,
-and the port fake in `internal/query/querytestutil/content`. Before the move they
+and the port fake in `internal/query/testutil/content`. Before the move they
 reached one implementation in `querycontract` through a set of unexported
 wrappers on package `query`, added for #6060 compatibility and deleted with
 this move. #6642 retires aliases, so the implementation now has a name callers

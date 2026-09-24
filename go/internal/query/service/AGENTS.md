@@ -11,7 +11,7 @@
 - This package must not import the query root or graph drivers. Root
   (`handler.go`, `service_alias.go`) imports this package, so a root import
   here cycles, including from `_test.go` files in this package. Tests that
-  need root doubles use `querytestutil`, never the root.
+  need root doubles use `testutil`, never the root.
 - Import `impact`/`deployment`, `repository`/`repositoryartifacts`,
   `service/evidence`, and `supplychain`, never the reverse. Those leaves must
   not import this package: several service files already import them, so a

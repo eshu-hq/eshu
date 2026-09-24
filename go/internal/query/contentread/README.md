@@ -58,7 +58,7 @@ The Go standard library, `database/sql` via the store port, and these
 - `codemodel` -- `EntityIDFromDocument`, the document-ID recovery the
   entity re-rank passes as its rank function (a direct leaf call; root's
   same-named shim in lane-A code stays untouched).
-- `auth`, `querytestutil/content` -- test-only: scoped auth contexts and the
+- `auth`, `testutil/content` -- test-only: scoped auth contexts and the
   shared `FakePortContentStore` double the tripwire fake embeds.
 
 It does **not** import root package `query`: that import would cycle, since
@@ -99,8 +99,8 @@ boundary. It must stay trivial so the two cannot drift.
 tests are local copies of root doubles**, for the same reason (Go never
 compiles one package's `_test.go` into anything another package can
 import). Both cite the root original they mirror. The tripwire fake instead
-embeds the shared `querytestutil/content`'s `FakePortContentStore` -- never redeclare
-what `querytestutil/content` already exports.
+embeds the shared `testutil/content`'s `FakePortContentStore` -- never redeclare
+what `testutil/content` already exports.
 
 **The batch entity-access helpers stay in root**
 (`content_entity_access_batch.go`). Only the single-entity helper moved

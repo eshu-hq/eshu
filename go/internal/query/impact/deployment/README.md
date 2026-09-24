@@ -48,7 +48,7 @@ carries a comment naming who pins it.
 ## Dependencies
 
 The package imports the Go standard library, `querycontract`, and
-`querytestutil` in tests only. It must not import the query root, `impact`,
+`testutil` in tests only. It must not import the query root, `impact`,
 or graph drivers.
 
 ## Telemetry

@@ -60,7 +60,7 @@ never Cypher text or queue/projection behavior.
 - Do not import the query root, even from tests (internal test files cycle;
   use the external test package when root constructors are needed).
 - Do not duplicate capability rows, overview shaping, or test fakes that
-  already live in `querytestutil` or `querycontract`.
+  already live in `testutil` or `querycontract`.
 - Do not replace root function wrappers with mutable function variables.
 
 ## ADR-controlled changes

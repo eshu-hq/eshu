@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
@@ -195,7 +195,7 @@ func TestKubernetesPodTemplateDeclaredObjectScopedEmptyGrantReturnsNoMatchWithou
 func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsRealStore(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -230,7 +230,7 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsR
 func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectNoMatch(t *testing.T) {
 	t.Parallel()
 
-	db, _ := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
+	db, _ := testutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -271,7 +271,7 @@ func TestListLiveIdentityMatchesDeclaredObjectRejectsUnboundedScope(t *testing.T
 func TestListLiveIdentityMatchesDeclaredObjectReturnsRows(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:production:deployable-source", "apps/v1/deployments", int64(3)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
@@ -313,7 +313,7 @@ func (q declaredObjectQueryerSpy) QueryContext(ctx context.Context, query string
 	if strings.Contains(query, "annotations") {
 		q.t.Fatalf("declared-object filter dispatched the ArgoCD annotation query instead:\n%s", query)
 	}
-	db, _ := querytestutil.OpenScopeQueryerTestDB(q.t, q.columns, q.rows)
+	db, _ := testutil.OpenScopeQueryerTestDB(q.t, q.columns, q.rows)
 	return db.QueryContext(ctx, query, args...)
 }
 

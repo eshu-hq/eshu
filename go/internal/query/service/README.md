@@ -48,13 +48,13 @@ service reads (entity handlers, the service seam, the container-image
 explanation, compare, the deployment-trace wrappers), the `cmd` wiring
 aliases, the `serviceintelhttp` composer, and the staying root tests that
 pin family behavior. Unexported helpers stay unexported; cross-package test
-pins go through `querytestutil` or `querycontract`.
+pins go through `testutil` or `querycontract`.
 
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds), `selector` (selector resolution),
-`querytestutil`-adjacent fakes in tests only, `impact`/`deployment`
+`testutil`-adjacent fakes in tests only, `impact`/`deployment`
 (deployment seams), `repository`/`repositoryartifacts` (deployment and
 relationship overviews), `service/evidence` (spec parsing), `supplychain`
 (image/SBOM read models), `doctruth` (image-ref normalization), and the

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
@@ -106,7 +106,7 @@ func TestKubernetesPodTemplateFilterScopedEmptyGrantReturnsNoMatchWithoutQuery(t
 func TestKubernetesPodTemplateHasLiveIdentityMatchScopedGrantHitsRealStore(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -135,7 +135,7 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchScopedGrantHitsRealStore(t *te
 func TestKubernetesPodTemplateHasLiveIdentityMatchNoMatch(t *testing.T) {
 	t.Parallel()
 
-	db, _ := querytestutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
+	db, _ := testutil.OpenScopeQueryerTestDB(t, []string{"?column?"}, nil)
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), deployment.KubernetesPodTemplateFilter{
@@ -265,7 +265,7 @@ func TestListLiveIdentityMatchesScopedEmptyGrantReturnsEmptyWithoutQuery(t *test
 func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
 	})
@@ -303,7 +303,7 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 func TestListLiveIdentityMatchesReadyZeroIsPresentNotOmitted(t *testing.T) {
 	t.Parallel()
 
-	db, _ := querytestutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
+	db, _ := testutil.OpenScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
 		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)

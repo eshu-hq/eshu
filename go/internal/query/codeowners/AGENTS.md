@@ -82,7 +82,7 @@ Use the in-package fakes (`recordingCodeownersGraphReader`,
 `fakeCodeownersCorrelationStore`,
 `recordingCodeownersLastMatchGraphReader`,
 `codeownersScopedTestAuthContext`). Do NOT import root package `query`
-or `querytestutil` from tests: the former cycles, and this family needs
+or `testutil` from tests: the former cycles, and this family needs
 neither (stdlib + own fakes only).
 
 ## Verification (paste all)

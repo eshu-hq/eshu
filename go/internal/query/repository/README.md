@@ -46,9 +46,9 @@ for staying callers: the other packages that consume repository reads
 `deployment_trace_support_helpers.go`, documentation and target-support
 stayers), the `cmd` wiring alias, and the staying root tests that pin
 family behavior. Unexported helpers stay unexported; cross-package test
-pins go through `querytestutil/graph` (`FakeGraphReader`,
-`FakeRepoGraphReader`), `querytestutil/content` (`FakePortContentStore`), and
-`querytestutil` (`FakeScopedTokenResolver`), or `querycontract` (row-value
+pins go through `testutil/graph` (`FakeGraphReader`,
+`FakeRepoGraphReader`), `testutil/content` (`FakePortContentStore`), and
+`testutil` (`FakeScopedTokenResolver`), or `querycontract` (row-value
 decoders, shared bounds, ports).
 
 ## Dependency-edge reads
@@ -96,7 +96,7 @@ list route adds `cluster_count`.
 The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds), `selector` (selector resolution),
 `auth` (scoped-context checks), `impact`/`deployment` (deployment
-seams), `repositoryartifacts`, `repository/readmodel`, `querytestutil` in
+seams), `repositoryartifacts`, `repository/readmodel`, `testutil` in
 tests only, and the `telemetry`/`log` packages for the
 `repository_query.stage_*` events. It never imports the query root or graph
 drivers.

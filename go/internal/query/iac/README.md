@@ -130,7 +130,7 @@ and the graph-read-error sweep fixtures (`graphReadSweepCases`,
 `assertGraphReadSweepResponse`, `fakeGraphReader`; iac/resources_graph_read_sweep_test.go
 duplicates root's `graph_read_error_sweep_shared_test.go`/
 `graph_reader_test_adapter_test.go`, the same pattern that file's own doc
-comment documents for codequery). No fixture was hoisted to querytestutil;
+comment documents for codequery). No fixture was hoisted to testutil;
 each is a trimmed copy, not a byte-identical one (non-comment code lines:
 `resources_scope_auth_fakes_test.go` 97 of 138, `replatforming_management_store_fake_test.go`
 63 of 96, `resources_graph_read_sweep_test.go` 73 of 116).

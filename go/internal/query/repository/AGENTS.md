@@ -11,7 +11,7 @@
 - This package must not import the query root or graph drivers. Root
   (`handler.go`, `repository_alias.go`, `repository_compat.go`) imports this
   package, so a root import here cycles, including from `_test.go` files in
-  this package. Tests that need root doubles use `querytestutil`, never the
+  this package. Tests that need root doubles use `testutil`, never the
   root.
 - Import `repositoryartifacts` and `repository/readmodel`, never the reverse.
 - `RepositoryAccessFilter` values must be derived from the request's

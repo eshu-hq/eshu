@@ -71,45 +71,45 @@ Move evidence.
   compile-time pin lives in root's `language_alias.go`, not here: `ContentReader`
   is a later lane's family (Part B) and this leaf must never name it.
 
-## Test fixtures hoisted to querytestutil (#6608 rule)
+## Test fixtures hoisted to testutil (#6608 rule)
 
 A fixture this package's tests share with root's staying tests moved to
-`querytestutil` as an exported helper (one definition; root's own file keeps
+`testutil` as an exported helper (one definition; root's own file keeps
 calling the identical unqualified name through a thin forward), rather than
 being duplicated. Do not re-duplicate any of these back into a `_test.go` copy
 here or in root:
 
-- `querytestutil.SearchString` -- root's `neo4j_test.go` keeps a forwarding
+- `testutil.SearchString` -- root's `neo4j_test.go` keeps a forwarding
   `searchString`.
-- `querytestutil.CodeGrantGrantedRepo` / `CodeGrantOtherRepo` -- root's
+- `testutil.CodeGrantGrantedRepo` / `CodeGrantOtherRepo` -- root's
   `code_grant_test_fixtures_test.go` keeps forwarding consts (93+ existing
   root callers compile unchanged).
-- `querytestutil.BoundCanonicalLanguage` -- root's
+- `testutil.BoundCanonicalLanguage` -- root's
   `typescript_function_graph_first_test.go` and
   `typescript_graph_metadata_test.go` call it directly (no root forward
   needed; only two call sites).
-- `querytestutil.LanguageMetadataSharedPath` / `LanguageMetadataSharedName` /
+- `testutil.LanguageMetadataSharedPath` / `LanguageMetadataSharedName` /
   `LanguageMetadataSharedStart` -- root's
   `language_query_metadata_repository_key_test.go` keeps forwarding consts.
-- `querytestutil.LanguageGrantGrantedEntity` / `LanguageGrantUngrantedEntity`
+- `testutil.LanguageGrantGrantedEntity` / `LanguageGrantUngrantedEntity`
   -- root's `auth_scoped_language_query_grant_test.go` keeps forwarding
   consts.
-- `querytestutil.LanguageQueryGrantEntities` -- root's
+- `testutil.LanguageQueryGrantEntities` -- root's
   `languageQueryGrantContentStore` (shipped_text_test.go) and
   `languageQueryPlainContentStore` (grant_test.go) call it directly; this
   package's `entity_search_dispatch_test.go` doubles
   (`entitySearchDispatchGrantBoundStore`, `entitySearchDispatchPlainStore`)
   call it too, so all three test the identical fixture data.
-- `querytestutil.MockLanguageQueryGraphReader` -- root's
+- `testutil.MockLanguageQueryGraphReader` -- root's
   `language_query_metadata_test.go` keeps a forwarding
   `mockLanguageQueryGraphReader` (its ~17 existing callers compile
   unchanged); this package's `typescript_declaration_family_test.go` and
-  `span_test.go` construct the querytestutil type directly.
+  `span_test.go` construct the testutil type directly.
 
 One exception moved rather than hoisted: `unscopedLanguageQueryGrant`
-(`typescript_declaration_family_test.go`) could not go to `querytestutil`
+(`typescript_declaration_family_test.go`) could not go to `testutil`
 because its return type names `codequery.LanguageQueryGrant`, a handler-family
-type `querytestutil`'s own doc.go forbids importing. It had exactly one
+type `testutil`'s own doc.go forbids importing. It had exactly one
 caller (this file), so it moved rather than being duplicated.
 
 ## Naming

@@ -63,7 +63,7 @@ forwarders.
 - Test files -- this package's own tests, several moved in verbatim from
   root (see Move evidence); `changed_since_two_tenant_test.go` and
   `generations_two_tenant_test.go` construct fixtures hoisted to
-  `querytestutil` (see AGENTS.md).
+  `testutil` (see AGENTS.md).
 
 ## Move evidence
 
@@ -115,12 +115,12 @@ against the YAML contract.
 
 Two fixtures this package's two-tenant grant-boundary tests share with
 package query's #6450 residual all-scope-bearer boundary test
-(`auth_all_scope_bearer_two_tenant_test.go`) moved to `querytestutil` instead
-of being duplicated (#6608 rule): `querytestutil.GrantMirroringChangedSince`/
+(`auth_all_scope_bearer_two_tenant_test.go`) moved to `testutil` instead
+of being duplicated (#6608 rule): `testutil.GrantMirroringChangedSince`/
 `TwoTenantChangedSinceScopes`/`ChangedSinceTwoTenantPriorGeneration` and
-`querytestutil.GrantMirroringGenerations`/`TwoTenantGenerationRows`, plus
-`querytestutil.ScopedChangedSinceTenantA` and
-`querytestutil.DecodeChangedSinceEnvelope`. See AGENTS.md.
+`testutil.GrantMirroringGenerations`/`TwoTenantGenerationRows`, plus
+`testutil.ScopedChangedSinceTenantA` and
+`testutil.DecodeChangedSinceEnvelope`. See AGENTS.md.
 
 One test moved rather than staying, correcting the original move brief: the
 grant-refusal span-attribute proof
@@ -134,7 +134,7 @@ no longer observed any span this route emits, and the test failed with
 "ended spans = 0, want 1". It moved to this package's own
 `service_changed_since_telemetry_test.go`, swapping `freshnessHandlerTracer`
 instead, with its own minimal fakes rather than reusing
-`querytestutil`'s SQL-mirroring two-tenant correlation fixture (that
+`testutil`'s SQL-mirroring two-tenant correlation fixture (that
 correctness proof stays where it was, in root's
 `service_changed_since_grant_test.go` -- this proof only needs to land on
 each of the four closed refusal reasons, not re-derive the grant

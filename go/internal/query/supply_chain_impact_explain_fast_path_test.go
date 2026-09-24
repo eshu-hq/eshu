@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
@@ -155,7 +155,7 @@ func (q *sequentialSupplyChainExplanationQueryer) QueryContext(
 		q.t.Fatalf("unexpected query %d:\n%s", index+1, query)
 	}
 	q.queries = append(q.queries, query)
-	db, _ := querytestutil.OpenScopeQueryerTestDB(
+	db, _ := testutil.OpenScopeQueryerTestDB(
 		q.t,
 		[]string{"finding_id", "source_confidence", "payload"},
 		q.responses[index],
