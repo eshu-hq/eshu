@@ -127,7 +127,9 @@ package's telemetry section.
   can hit Neo4j transaction size limits.
 - `ESHU_CANONICAL_WRITE_TIMEOUT` bounds NornicDB canonical graph writes in the
   standalone projector on both the client and server transaction. Empty or
-  invalid values use the built-in `30s` default.
+  invalid values use the built-in `30s` default. On Neo4j it sets the server
+  transaction timeout only when set to a positive duration; empty or invalid
+  values leave Neo4j transactions unbounded.
   Retryable MERGE unique conflicts are handled before a queue failure is
   recorded; persistent failures still surface through projector queue metadata.
 - `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`,

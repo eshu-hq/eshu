@@ -137,6 +137,12 @@ services:
       # receive it: the Go wiring reads the variable, but a container that is
       # never handed it reads empty and silently emits no dataflow facts.
       ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
+      # Neo4j applies this as the server transaction timeout only when set;
+      # empty keeps Neo4j graph writes unbounded.
+      ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
+      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
+      # legacy unbounded (passthrough) behavior.
+      ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
       GOMEMLIMIT: ${GOMEMLIMIT:-}
@@ -297,6 +303,12 @@ services:
       # receive it: the Go wiring reads the variable, but a container that is
       # never handed it reads empty and silently emits no dataflow facts.
       ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
+      # Neo4j applies this as the server transaction timeout only when set;
+      # empty keeps Neo4j graph writes unbounded.
+      ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
+      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
+      # legacy unbounded (passthrough) behavior.
+      ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
       GOMEMLIMIT: ${GOMEMLIMIT:-}
@@ -386,6 +398,12 @@ services:
       ESHU_SHARED_PROJECTION_POLL_INTERVAL: ${ESHU_SHARED_PROJECTION_POLL_INTERVAL:-500ms}
       ESHU_SHARED_PROJECTION_LEASE_TTL: ${ESHU_SHARED_PROJECTION_LEASE_TTL:-}
       ESHU_REDUCER_BATCH_CLAIM_SIZE: ${ESHU_REDUCER_BATCH_CLAIM_SIZE:-}
+      # Neo4j applies this as the server transaction timeout only when set;
+      # empty keeps Neo4j graph writes unbounded.
+      ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
+      # Bound concurrent graph writes, matching docker-compose.yaml. Set 0 for
+      # legacy unbounded (passthrough) behavior.
+      ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-8}
     volumes:
       - type: volume
         source: eshu_data

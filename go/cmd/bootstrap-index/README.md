@@ -402,7 +402,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Concurrent projection goroutines |
 | `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; one pooled connection per batch, so set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
 | `ESHU_DISCOVERY_REPORT` | `""` | File path to write discovery advisory JSON; empty disables |
-| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB) | Graph write transaction timeout |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB); unset (Neo4j) | Graph write transaction timeout. Neo4j applies it only when set to a positive duration. |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
 | `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | Conformance toggle; on NornicDB it commits per dependency phase — whole-materialization atomic is unsupported (#4027) |
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | NornicDB phase group statement cap |
