@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:dirgate // #6693 checklist step 38 moves this file to queue/reducer/observer.go; not yet executed
 
 import (
 	"context"
