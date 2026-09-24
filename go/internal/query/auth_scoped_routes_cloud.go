@@ -94,8 +94,8 @@ func scopedTerraformConfigStateDriftFindingsRoute(r *http.Request) bool {
 
 // scopedKubernetesCorrelationsRoute reports whether the request targets the
 // reducer-owned Kubernetes correlation reads. listCorrelations
-// (kubernetes.go) binds fact.scope_id to AllowedRepositoryIDs/AllowedScopeIDs
-// when scoped (PostgresKubernetesCorrelationStore, kubernetes_correlations.go)
+// (kubernetes/handler.go) binds fact.scope_id to AllowedRepositoryIDs/AllowedScopeIDs
+// when scoped (kubernetes.PostgresCorrelationStore, kubernetes/correlations.go)
 // and returns an empty page without a query for an empty-grant scoped caller.
 func scopedKubernetesCorrelationsRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/kubernetes/correlations"

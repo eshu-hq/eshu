@@ -44,7 +44,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | `decode/factschema_shared.go` | 1 | [#7044](https://github.com/eshu-hq/eshu/pull/7044) | **merged** `42020445c` | 270 |
 | `dependency/` (`handler.go`, `cypher.go`) | 2, +1 alias | [#7051](https://github.com/eshu-hq/eshu/pull/7051) | **merged** `31ce0cb56` | 269 |
 | `observability/coverage/` (`handler.go`, `correlations.go`) | 2, +1 alias | [#7053](https://github.com/eshu-hq/eshu/pull/7053) | **merged** `8d5949f90` | 268 |
-| `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | this PR | open | 267 |
+| `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | [#7055](https://github.com/eshu-hq/eshu/pull/7055) | **merged** `63613f158` | 267 |
+| `kubernetes/` (`handler.go`, `correlations.go`, `runtime_workload_store.go`) | 3, +1 alias | this PR | open | 265 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -363,3 +364,20 @@ capability row moves into `drift.Support()` with identical values. Root keeps
 
 No-Observability-Change: same span name, tracer and instrumented store name; no
 metric or log change.
+
+## Performance and observability evidence for the `kubernetes` leaf
+
+No-Regression Evidence: `kubernetes.go`, `kubernetes_correlations.go` and
+`kubernetes_runtime_workload_store.go` move to `kubernetes/`. Both SQL
+statements, their parameters, the 1-200 limit rejection, the anchor rule, the
+empty-grant short-circuit, the keyset cursor and the decode path are unchanged.
+The capability row moves into `kubernetes.Support()` with identical values.
+The store interface is `WorkloadCorrelationStore` so the `internal/mcp`
+route-serves-data registry's substring match stays unambiguous. The
+fairness live test and the runtime-probe performance pair stay in root because
+they drive root's `SupplyChainHandler`; `BuildRuntimeWorkloadQuery` is exported
+so the root performance helper can EXPLAIN the store's SQL. Root keeps
+`KubernetesHandler`, `PostgresKubernetesRuntimeWorkloadStore` and both store
+constructors in `kubernetes_alias.go`.
+
+No-Observability-Change: same span name and tracer; no metric or log change.

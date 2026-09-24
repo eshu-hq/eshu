@@ -118,8 +118,8 @@ type KubernetesPodTemplateFilter struct {
 	ImageRefs []string
 	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
 	// access-scoping bound, identical in shape and intent to
-	// KubernetesCorrelationFilter
-	// (go/internal/query/kubernetes_correlations.go) -- kubernetes_live
+	// kubernetes.CorrelationFilter
+	// (go/internal/query/kubernetes/correlations.go) -- kubernetes_live
 	// facts are scoped the same way (fact.scope_id against the caller's
 	// granted repositories/ingestion scopes).
 	AllScopes            bool
@@ -164,7 +164,7 @@ func NewPostgresKubernetesPodTemplateStore(db kubernetesPodTemplateQueryer) Post
 // filter.ImageRefs is non-empty, whose payload.image_refs array intersects
 // it. Bounded to LIMIT 1 (existence check only); nil-safe (DB == nil returns
 // an error -- fetchWorkloadLiveEvidence fails closed to false on any error,
-// mirroring PostgresKubernetesCorrelationStore's convention).
+// mirroring kubernetes.PostgresCorrelationStore's convention).
 func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	ctx context.Context,
 	filter KubernetesPodTemplateFilter,
@@ -178,7 +178,7 @@ func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 		}
 		return false, fmt.Errorf("tracking_id is required")
 	}
-	// Defense in depth (#5167, mirrors PostgresKubernetesCorrelationStore):
+	// Defense in depth (#5167, mirrors kubernetes.PostgresCorrelationStore):
 	// a scoped caller with no granted repository or ingestion scope gets a
 	// false match without a query.
 	if !filter.AllScopes && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
@@ -236,7 +236,7 @@ func queryLiveIdentityMatchExists(
 
 // hasLiveKubernetesPodTemplateIdentityQuery reuses the exact ACTIVE-generation
 // join and is_tombstone predicate from listKubernetesCorrelationsQuery
-// (go/internal/query/kubernetes_correlations.go): fact_records joined
+// (go/internal/query/kubernetes/correlations.go): fact_records joined
 // to ingestion_scopes on the scope's active_generation_id, and to
 // scope_generations filtered to status = 'active'. $2/$3 anchor the
 // annotation-keyed identity predicate; $4/$5 apply the optional image-refs

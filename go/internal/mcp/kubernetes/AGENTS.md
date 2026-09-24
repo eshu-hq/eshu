@@ -12,11 +12,11 @@
 6. `../tools_kubernetes.go` for the advertised schema, which stays at root and
    must keep naming the same ten fields and the same 1..200 `limit` range.
 7. `../contract/route/README.md` for the dependency-neutral request contract.
-8. `go/internal/query/kubernetes.go` for the handler that reads the keys this
+8. `go/internal/query/kubernetes/handler.go` for the handler that reads the keys this
    package selects: the required `limit` and its bound, the anchor rule, and
    the access-scope short-circuit all live there. The bound is a rejection,
    not a clamp: `limit` outside 1..200 is a 400.
-9. `go/internal/query/kubernetes_correlations.go` for the store, where
+9. `go/internal/query/kubernetes/correlations.go` for the store, where
    `outcome` and `drift_kind` are equality filters and `after_correlation_id`
    is a `fact_id` keyset cursor.
 

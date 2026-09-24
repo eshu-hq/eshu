@@ -29,7 +29,7 @@ reading the active fact read model with scope-grant filtering.
 ## Committed reproducible evidence
 
 **Handler bounds and scoped-grant filtering** —
-`go/internal/query/kubernetes_correlations_test.go`:
+`go/internal/query/kubernetes/correlations_test.go`:
 `TestKubernetesListCorrelationsRequiresScopeAndLimit`,
 `TestKubernetesListCorrelationsUsesBoundedStore`,
 `TestKubernetesListCorrelationsScopedEmptyGrantReturnsEmptyWithoutStoreRead`,
@@ -39,8 +39,8 @@ reading the active fact read model with scope-grant filtering.
 `TestKubernetesCorrelationFilterRejectsUnboundedScope`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestKubernetesListCorrelations -count=1
-cd go && go test ./internal/query -run TestKubernetesCorrelation -count=1
+cd go && go test ./internal/query/kubernetes -run TestKubernetesListCorrelations -count=1
+cd go && go test ./internal/query/kubernetes -run TestKubernetesCorrelation -count=1
 ```
 
 **Scoped-token grant filtering and performance/observability evidence** —

@@ -129,7 +129,7 @@ func TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed(t *testing.T) {
 		images.Served = append(append([]routeServedDomain(nil), images.Served...), routeServedDomain{
 			Domain:     "kubernetes_correlation",
 			StoreField: "Correlations",
-			StoreType:  "KubernetesCorrelationStore",
+			StoreType:  "WorkloadCorrelationStore",
 			Evidence: []routeReadEvidence{
 				{File: "go/internal/query/images.go", Marker: "reducer_kubernetes_correlation"},
 			},

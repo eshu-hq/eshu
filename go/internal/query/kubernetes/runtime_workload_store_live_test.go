@@ -3,7 +3,7 @@
 
 //go:build integration
 
-package query
+package kubernetes
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 
@@ -35,7 +37,7 @@ func TestKubernetesRuntimeWorkloadGateIndependentTruthSeamsLive(t *testing.T) {
 	seedKubernetesRuntimeWorkloadGateLive(t, ctx, db)
 
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	candidates := []KubernetesRuntimeCandidate{
+	candidates := []supplychain.KubernetesRuntimeCandidate{
 		{WorkloadUID: "accepted", Digest: digest, EdgeScopeID: "edge-allowed", EdgeGenerationID: "edge-allowed-gen"},
 		{WorkloadUID: "owner-denied", Digest: digest, EdgeScopeID: "edge-allowed", EdgeGenerationID: "edge-allowed-gen"},
 		{WorkloadUID: "edge-denied", Digest: digest, EdgeScopeID: "edge-denied", EdgeGenerationID: "edge-denied-gen"},
@@ -43,14 +45,14 @@ func TestKubernetesRuntimeWorkloadGateIndependentTruthSeamsLive(t *testing.T) {
 		{WorkloadUID: "owner-tombstoned", Digest: digest, EdgeScopeID: "edge-allowed", EdgeGenerationID: "edge-allowed-gen"},
 		{WorkloadUID: "edge-superseded", Digest: digest, EdgeScopeID: "edge-superseded", EdgeGenerationID: "edge-old-gen"},
 	}
-	store := NewPostgresKubernetesRuntimeWorkloadStore(db)
+	store := NewPostgresRuntimeWorkloadStore(db)
 	got, err := store.CurrentAuthorizedKubernetesRuntimeWorkloads(
 		ctx, candidates, false, nil, []string{"owner-allowed", "owner-stale", "edge-allowed", "edge-superseded"},
 	)
 	if err != nil {
 		t.Fatalf("current authorized Kubernetes runtime workloads: %v", err)
 	}
-	want := []KubernetesRuntimeWorkloadMatch{{
+	want := []supplychain.KubernetesRuntimeWorkloadMatch{{
 		Digest: digest,
 		WorkloadRef: impact.KubernetesRuntimeWorkloadRef{
 			UID: "accepted", ClusterID: "cluster-from-owner", Namespace: "payments", Name: "api",
@@ -60,7 +62,7 @@ func TestKubernetesRuntimeWorkloadGateIndependentTruthSeamsLive(t *testing.T) {
 		t.Fatalf("gate rows = %#v, want only independent-current-scope acceptance %#v", got, want)
 	}
 
-	query, args := buildKubernetesRuntimeWorkloadQuery(candidates, false, nil, []string{
+	query, args := BuildRuntimeWorkloadQuery(candidates, false, nil, []string{
 		"owner-allowed", "owner-stale", "edge-allowed", "edge-superseded",
 	})
 	var plan string

@@ -59,11 +59,11 @@ not export a new symbol without adding its caller to this list.
   `VulnerabilitySuppressionMutationResponse` — `cmd/api` wiring and
   staying root tests (via the root alias).
 - `KubernetesRuntimeCandidate`, `KubernetesRuntimeWorkloadMatch` —
-  staying `kubernetes_runtime_workload_store.go` and the MCP dispatch
-  test (via the root alias).
-- `KubernetesWorkloadCurrentInventoryFilter` — staying
-  `kubernetes_runtime_workload_store.go` assertion and `cmd/*` wiring
-  (via the root alias).
+  `internal/query/kubernetes/runtime_workload_store.go` (direct import)
+  and the MCP dispatch test (via the root alias).
+- `KubernetesWorkloadCurrentInventoryFilter` — root's
+  `compat_supply_chain.go` port assertion and `cmd/*` wiring (via the
+  root alias).
 - Container-image / SBOM / security-alert store ports and their
   filter/row/page/count values — the staying Postgres implementations,
   `entity/handler.go`, the incident-context stores, and `cmd/*` wiring (via the
@@ -144,7 +144,6 @@ These stay in root package `query` and reach the hub through the alias:
   lists) — moving any one forks a fake a staying test needs;
 - staying-store and budget tests (`cloud_resource_list_store_*`,
   `cloud_resource_runtime_digest_*`,
-  `kubernetes_runtime_workload_store_*` + its SQL bench,
   `container_image_identities_source_bridge_test.go`,
   `queryplan_*`, `supply_chain_impact_runtime_digest_route_live_test.go`)
   — they reach hub symbols through root's forwards.

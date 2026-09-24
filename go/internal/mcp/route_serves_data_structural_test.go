@@ -102,11 +102,11 @@ func methodBodySource(t *testing.T, path, receiverType, methodName string) strin
 //
 //  1. InfraHandler (go/internal/query/infra.go), which backs
 //     GET /api/v0/cloud/resources via listCloudResources, has no field typed
-//     KubernetesCorrelationStore, and listCloudResources's body never
+//     WorkloadCorrelationStore, and listCloudResources's body never
 //     mentions "kubernetes" or "Correlations".
-//  2. KubernetesHandler (go/internal/query/kubernetes.go), which backs
+//  2. kubernetes.Handler (go/internal/query/kubernetes/handler.go), which backs
 //     GET /api/v0/kubernetes/correlations via listCorrelations, DOES have a
-//     Correlations field typed KubernetesCorrelationStore, and
+//     Correlations field typed WorkloadCorrelationStore, and
 //     listCorrelations's body calls h.Correlations.ListKubernetesCorrelations.
 //
 // Even if a future change poisoned
@@ -124,11 +124,11 @@ func TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation
 	repoRoot := kindConsumerGateRepoRoot(t)
 	infraPath := filepath.Join(repoRoot, "go/internal/query/infra.go")
 	cloudResourcesPath := filepath.Join(repoRoot, "go/internal/query/cloud_resources.go")
-	kubernetesPath := filepath.Join(repoRoot, "go/internal/query/kubernetes.go")
+	kubernetesPath := filepath.Join(repoRoot, "go/internal/query/kubernetes/handler.go")
 
-	t.Run("InfraHandler_struct_has_no_KubernetesCorrelationStore_field", func(t *testing.T) {
+	t.Run("InfraHandler_struct_has_no_WorkloadCorrelationStore_field", func(t *testing.T) {
 		for _, fieldType := range structFieldTypeNames(t, infraPath, "InfraHandler") {
-			if strings.Contains(fieldType, "KubernetesCorrelationStore") {
+			if strings.Contains(fieldType, "WorkloadCorrelationStore") {
 				t.Fatalf("BITES FAILED: InfraHandler has a field typed %q — GET /api/v0/cloud/resources could serve kubernetes_correlation data", fieldType)
 			}
 		}
@@ -141,23 +141,23 @@ func TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation
 		}
 	})
 
-	t.Run("KubernetesHandler_struct_has_KubernetesCorrelationStore_field", func(t *testing.T) {
+	t.Run("kubernetes_Handler_struct_has_WorkloadCorrelationStore_field", func(t *testing.T) {
 		found := false
-		for _, fieldType := range structFieldTypeNames(t, kubernetesPath, "KubernetesHandler") {
-			if strings.Contains(fieldType, "KubernetesCorrelationStore") {
+		for _, fieldType := range structFieldTypeNames(t, kubernetesPath, "Handler") {
+			if strings.Contains(fieldType, "WorkloadCorrelationStore") {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("KubernetesHandler has no field typed KubernetesCorrelationStore — test premise broken or the handler was refactored; update this test's oracle")
+			t.Fatalf("kubernetes.Handler has no field typed WorkloadCorrelationStore — test premise broken or the handler was refactored; update this test's oracle")
 		}
 	})
 
 	t.Run("listCorrelations_body_reads_Correlations_store", func(t *testing.T) {
-		body := methodBodySource(t, kubernetesPath, "*KubernetesHandler", "listCorrelations")
+		body := methodBodySource(t, kubernetesPath, "*Handler", "listCorrelations")
 		if !strings.Contains(body, "h.Correlations") {
-			t.Fatalf("KubernetesHandler.listCorrelations does not reference h.Correlations — test premise broken or the handler was refactored; update this test's oracle")
+			t.Fatalf("kubernetes.Handler.listCorrelations does not reference h.Correlations — test premise broken or the handler was refactored; update this test's oracle")
 		}
 	})
 }

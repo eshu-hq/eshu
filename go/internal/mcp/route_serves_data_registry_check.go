@@ -302,7 +302,7 @@ func verifyDomainSignaturesClosed(
 
 // registryStructFields parses path and returns the named struct's fields as
 // a name -> source-shaped type map (e.g. "Correlations" ->
-// "KubernetesCorrelationStore", "Instruments" -> "*telemetry.Instruments").
+// "WorkloadCorrelationStore", "Instruments" -> "*telemetry.Instruments").
 // Embedded (anonymous) fields are keyed by their rendered type.
 func registryStructFields(path, structName string) (map[string]string, error) {
 	fset := token.NewFileSet()
@@ -374,7 +374,7 @@ func registryMethodBody(path, receiverType, methodName string) (string, error) {
 }
 
 // astExprString renders an AST type expression back to source-shaped
-// text ("*telemetry.Instruments", "KubernetesCorrelationStore") without
+// text ("*telemetry.Instruments", "WorkloadCorrelationStore") without
 // pulling in go/printer. Shared, package-level: both this production
 // engine and route_serves_data_structural_test.go use it, so the two
 // renderings can never diverge (PR #5641 review P2).

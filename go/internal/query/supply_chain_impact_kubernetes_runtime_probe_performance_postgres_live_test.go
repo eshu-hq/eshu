@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
+
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -106,7 +108,7 @@ func assertKubernetesRuntimePostgresPlans(
 		{name: "all-scopes-400", candidates: candidates[:400], allScopes: true},
 	}
 	for _, shape := range shapes {
-		query, args := buildKubernetesRuntimeWorkloadQuery(
+		query, args := kubernetes.BuildRuntimeWorkloadQuery(
 			shape.candidates, shape.allScopes, nil, []string{kubernetesRuntimePerformanceScope},
 		)
 		var raw []byte

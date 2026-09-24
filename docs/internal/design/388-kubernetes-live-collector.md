@@ -37,7 +37,7 @@ Deferred to follow-up PRs (stated so reviewers do not expect them here):
   `kubernetes_service`, `kubernetes_rbac_subject`).
 - The #388 reducer projection, correlation, and drift read model — LANDED
   (`go/internal/reducer/kubernetescorrelation/kubernetes_correlation.go`,
-  `go/internal/query/kubernetes.go`; see
+  `go/internal/query/kubernetes/handler.go`; see
   `docs/internal/design/388-kubernetes-correlation-readmodel.md`).
 - Helm chart values / charted workload — LANDED (`kubernetesLiveCollector`,
   off by default).

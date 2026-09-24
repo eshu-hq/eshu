@@ -242,7 +242,6 @@ LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/awscloud/awsruntime/source.go:177
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/git_source_processing.go:217
 LINE docs/internal/evidence/5457-provenance-edges.md go/internal/storage/cypher/oci_registry_canonical_writer.go:35
-LINE docs/internal/evidence/5471-live-evidence-identity-binding.md go/internal/query/kubernetes_correlations.go:168
 LINE docs/internal/evidence/5709-quiescence-probe.md go/internal/storage/postgres/reducer_queue_claim_query.go:25
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/collector/ociregistry/ociruntime/config_provenance.go:56
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/projector/container_image_identity_intents.go:36
@@ -442,7 +441,6 @@ LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/ci_c
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/cloud_inventory_read_model.go:22
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/documentation_read_model.go:359
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/images.go:30
-LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/kubernetes_correlations.go:15
 LINE go/internal/parser/hcl/terraform_resource_attributes.go go/internal/correlation/drift/tfconfigstate/classify.go:171
 LINE go/internal/parser/json/line_number_derived_test.go go/internal/content/writer.go:196
 LINE go/internal/parser/yaml/image_overrides_environment.go go/internal/query/repository_deployment_evidence_read_model.go:349
