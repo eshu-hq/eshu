@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package kubernetes
 
 import (
 	"context"
@@ -9,24 +9,26 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const kubernetesCorrelationFactKind = "reducer_kubernetes_correlation"
 
-// KubernetesCorrelationStore reads reducer-owned Kubernetes correlations (issue
+// WorkloadCorrelationStore reads reducer-owned Kubernetes correlations (issue
 // #388, PR2). The store is the read half of the PR1 producer
 // (reducer_kubernetes_correlation facts); it writes nothing and projects no
 // graph edges.
-type KubernetesCorrelationStore interface {
-	ListKubernetesCorrelations(context.Context, KubernetesCorrelationFilter) ([]KubernetesCorrelationRow, error)
+type WorkloadCorrelationStore interface {
+	ListKubernetesCorrelations(context.Context, CorrelationFilter) ([]CorrelationRow, error)
 }
 
-// KubernetesCorrelationFilter bounds correlation reads to a concrete cluster,
+// CorrelationFilter bounds correlation reads to a concrete cluster,
 // workload, namespace, image reference, source digest, outcome, drift kind, or
 // ingestion scope. At least one anchor is required so a read never scans the
 // whole fact store.
-type KubernetesCorrelationFilter struct {
+type CorrelationFilter struct {
 	ScopeID            string
 	ClusterID          string
 	WorkloadObjectID   string
@@ -52,11 +54,11 @@ type KubernetesCorrelationFilter struct {
 	AllowedScopeIDs      []string
 }
 
-// KubernetesCorrelationRow is one durable Kubernetes correlation fact. The
+// CorrelationRow is one durable Kubernetes correlation fact. The
 // fields mirror the reducer payload written by
 // PostgresKubernetesCorrelationWriter; IDs, outcomes, and classifications only,
 // preserving the metadata-only contract.
-type KubernetesCorrelationRow struct {
+type CorrelationRow struct {
 	CorrelationID          string
 	ClusterID              string
 	WorkloadObjectID       string
@@ -78,33 +80,35 @@ type KubernetesCorrelationRow struct {
 	EvidenceFactIDs        []string
 }
 
-type kubernetesCorrelationQueryer interface {
+// CorrelationQueryer is the database/sql surface PostgresCorrelationStore
+// reads through; *sql.DB satisfies it.
+type CorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresKubernetesCorrelationStore reads active Kubernetes correlation facts
+// PostgresCorrelationStore reads active Kubernetes correlation facts
 // from Postgres using bounded payload predicates against the shared active-fact
 // read model.
-type PostgresKubernetesCorrelationStore struct {
-	DB kubernetesCorrelationQueryer
+type PostgresCorrelationStore struct {
+	DB CorrelationQueryer
 }
 
-// NewPostgresKubernetesCorrelationStore creates the Postgres-backed Kubernetes
+// NewPostgresCorrelationStore creates the Postgres-backed Kubernetes
 // correlation read model.
-func NewPostgresKubernetesCorrelationStore(
-	db kubernetesCorrelationQueryer,
-) PostgresKubernetesCorrelationStore {
-	return PostgresKubernetesCorrelationStore{DB: db}
+func NewPostgresCorrelationStore(
+	db CorrelationQueryer,
+) PostgresCorrelationStore {
+	return PostgresCorrelationStore{DB: db}
 }
 
 // ListKubernetesCorrelations returns one bounded page of active reducer
 // Kubernetes correlation facts. It requires a concrete scope anchor and a
 // bounded limit, and orders by fact_id so after_correlation_id pagination is
 // deterministic.
-func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
+func (s PostgresCorrelationStore) ListKubernetesCorrelations(
 	ctx context.Context,
-	filter KubernetesCorrelationFilter,
-) ([]KubernetesCorrelationRow, error) {
+	filter CorrelationFilter,
+) ([]CorrelationRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("kubernetes correlation database is required")
 	}
@@ -146,7 +150,7 @@ func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]KubernetesCorrelationRow, 0, filter.Limit)
+	out := make([]CorrelationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -193,7 +197,7 @@ LIMIT $11
 // listKubernetesCorrelationsScopedQuery is listKubernetesCorrelationsQuery with
 // an additional #5167 access-scoping predicate: rows are restricted to the
 // scoped caller's granted repositories/ingestion scopes. Bound only when
-// filter.AllScopes is false (see KubernetesCorrelationFilter's doc comment).
+// filter.AllScopes is false (see CorrelationFilter's doc comment).
 const listKubernetesCorrelationsScopedQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -220,7 +224,7 @@ ORDER BY fact.fact_id ASC
 LIMIT $11
 `
 
-func (f KubernetesCorrelationFilter) hasScope() bool {
+func (f CorrelationFilter) hasScope() bool {
 	return f.ScopeID != "" ||
 		f.ClusterID != "" ||
 		f.WorkloadObjectID != "" ||
@@ -232,30 +236,30 @@ func (f KubernetesCorrelationFilter) hasScope() bool {
 func decodeKubernetesCorrelationRow(
 	factID string,
 	payloadBytes []byte,
-) (KubernetesCorrelationRow, error) {
+) (CorrelationRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return KubernetesCorrelationRow{}, fmt.Errorf("decode kubernetes correlation: %w", err)
+		return CorrelationRow{}, fmt.Errorf("decode kubernetes correlation: %w", err)
 	}
-	return KubernetesCorrelationRow{
+	return CorrelationRow{
 		CorrelationID:          factID,
-		ClusterID:              StringVal(payload, "cluster_id"),
-		WorkloadObjectID:       StringVal(payload, "workload_object_id"),
-		Namespace:              StringVal(payload, "namespace"),
-		WorkloadName:           StringVal(payload, "workload_name"),
-		WorkloadUID:            StringVal(payload, "workload_uid"),
-		ImageRef:               StringVal(payload, "image_ref"),
-		SourceDigest:           StringVal(payload, "source_digest"),
-		JoinMode:               StringVal(payload, "join_mode"),
-		IdentityEdgeKey:        StringVal(payload, "identity_edge_key"),
-		RelationshipType:       StringVal(payload, "relationship_type"),
-		Outcome:                StringVal(payload, "outcome"),
-		DriftKind:              StringVal(payload, "drift_kind"),
-		Reason:                 StringVal(payload, "reason"),
-		NonPromotion:           StringVal(payload, "non_promotion"),
-		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
-		CandidateSourceDigests: StringSliceVal(payload, "candidate_source_digests"),
-		Warnings:               StringSliceVal(payload, "warnings"),
-		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
+		ClusterID:              querycontract.StringVal(payload, "cluster_id"),
+		WorkloadObjectID:       querycontract.StringVal(payload, "workload_object_id"),
+		Namespace:              querycontract.StringVal(payload, "namespace"),
+		WorkloadName:           querycontract.StringVal(payload, "workload_name"),
+		WorkloadUID:            querycontract.StringVal(payload, "workload_uid"),
+		ImageRef:               querycontract.StringVal(payload, "image_ref"),
+		SourceDigest:           querycontract.StringVal(payload, "source_digest"),
+		JoinMode:               querycontract.StringVal(payload, "join_mode"),
+		IdentityEdgeKey:        querycontract.StringVal(payload, "identity_edge_key"),
+		RelationshipType:       querycontract.StringVal(payload, "relationship_type"),
+		Outcome:                querycontract.StringVal(payload, "outcome"),
+		DriftKind:              querycontract.StringVal(payload, "drift_kind"),
+		Reason:                 querycontract.StringVal(payload, "reason"),
+		NonPromotion:           querycontract.StringVal(payload, "non_promotion"),
+		ProvenanceOnly:         querycontract.BoolVal(payload, "provenance_only"),
+		CandidateSourceDigests: querycontract.StringSliceVal(payload, "candidate_source_digests"),
+		Warnings:               querycontract.StringSliceVal(payload, "warnings"),
+		EvidenceFactIDs:        querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

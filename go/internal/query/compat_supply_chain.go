@@ -178,9 +178,6 @@ const (
 
 	supplyChainCloudRuntimeProbeMaxResults = supplychain.CloudRuntimeProbeMaxResults
 	// Staying callers: cloud_resource_list_store.go owner-ledger budget.
-	supplyChainKubernetesRuntimeProbeMaxResults             = supplychain.KubernetesRuntimeProbeMaxResults
-	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
-	// Staying callers: kubernetes_runtime_workload_store.go candidate budget.
 	supplyChainKubernetesRuntimeProbeMaxConcurrency = supplychain.KubernetesRuntimeProbeMaxConcurrency
 	supplyChainKubernetesRuntimeProbeCypher         = supplychain.KubernetesRuntimeProbeCypher
 	// Staying callers: queryplan_production_binding_test.go, which pins

@@ -284,26 +284,26 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		},
 	},
 
-	// KubernetesHandler.listCorrelations -> h.Correlations
-	// (PostgresKubernetesCorrelationStore): fact_kind = $1 bound to
+	// kubernetes.Handler.listCorrelations -> h.Correlations
+	// (kubernetes.PostgresCorrelationStore): fact_kind = $1 bound to
 	// "reducer_kubernetes_correlation"
-	// (go/internal/query/kubernetes_correlations.go:15,168).
+	// (go/internal/query/kubernetes/correlations.go).
 	"GET /api/v0/kubernetes/correlations": {
-		RegistrationFile: "go/internal/query/kubernetes.go",
-		HandlerStruct:    "KubernetesHandler",
-		StructFile:       "go/internal/query/kubernetes.go",
+		RegistrationFile: "go/internal/query/kubernetes/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/kubernetes/handler.go",
 		Method:           "listCorrelations",
-		MethodFile:       "go/internal/query/kubernetes.go",
+		MethodFile:       "go/internal/query/kubernetes/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/kubernetes.go",
-			"go/internal/query/kubernetes_correlations.go",
+			"go/internal/query/kubernetes/handler.go",
+			"go/internal/query/kubernetes/correlations.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "kubernetes_correlation",
 			StoreField: "Correlations",
-			StoreType:  "KubernetesCorrelationStore",
+			StoreType:  "WorkloadCorrelationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/kubernetes_correlations.go", Marker: "reducer_kubernetes_correlation"},
+				{File: "go/internal/query/kubernetes/correlations.go", Marker: "reducer_kubernetes_correlation"},
 			},
 		}},
 	},

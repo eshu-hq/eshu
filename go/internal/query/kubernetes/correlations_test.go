@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package kubernetes
 
 import (
 	"context"
@@ -14,26 +14,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingKubernetesCorrelationStore struct {
-	rows       []KubernetesCorrelationRow
-	lastFilter KubernetesCorrelationFilter
+	rows       []CorrelationRow
+	lastFilter CorrelationFilter
 }
 
 func (s *recordingKubernetesCorrelationStore) ListKubernetesCorrelations(
 	_ context.Context,
-	filter KubernetesCorrelationFilter,
-) ([]KubernetesCorrelationRow, error) {
+	filter CorrelationFilter,
+) ([]CorrelationRow, error) {
 	s.lastFilter = filter
-	return append([]KubernetesCorrelationRow(nil), s.rows...), nil
+	return append([]CorrelationRow(nil), s.rows...), nil
 }
 
 func TestKubernetesListCorrelationsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &KubernetesHandler{Correlations: &recordingKubernetesCorrelationStore{}}
+	handler := &Handler{Correlations: &recordingKubernetesCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -60,7 +62,7 @@ func TestKubernetesListCorrelationsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingKubernetesCorrelationStore{
-		rows: []KubernetesCorrelationRow{
+		rows: []CorrelationRow{
 			{
 				CorrelationID:    "kubernetes-correlation-1",
 				ClusterID:        "cluster-prod",
@@ -78,7 +80,7 @@ func TestKubernetesListCorrelationsUsesBoundedStore(t *testing.T) {
 			{CorrelationID: "kubernetes-correlation-2", WorkloadObjectID: "deployment/payments/orphan", Outcome: "unresolved"},
 		},
 	}
-	handler := &KubernetesHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -107,11 +109,11 @@ func TestKubernetesListCorrelationsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Correlations []KubernetesCorrelationResult `json:"correlations"`
-		Count        int                           `json:"count"`
-		Limit        int                           `json:"limit"`
-		Truncated    bool                          `json:"truncated"`
-		NextCursor   map[string]string             `json:"next_cursor"`
+		Correlations []CorrelationResult `json:"correlations"`
+		Count        int                 `json:"count"`
+		Limit        int                 `json:"limit"`
+		Truncated    bool                `json:"truncated"`
+		NextCursor   map[string]string   `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -137,16 +139,16 @@ func TestKubernetesListCorrelationsUsesBoundedStore(t *testing.T) {
 func TestKubernetesListCorrelationsScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingKubernetesCorrelationStore{rows: []KubernetesCorrelationRow{
+	store := &recordingKubernetesCorrelationStore{rows: []CorrelationRow{
 		{CorrelationID: "kubernetes-correlation-1", ClusterID: "cluster-prod"},
 	}}
-	handler := &KubernetesHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/kubernetes/correlations?cluster_id=cluster-prod&limit=10", nil)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:     AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:     auth.AuthModeScoped,
 		TenantID: "tenant-a",
 	}))
 	w := httptest.NewRecorder()
@@ -183,7 +185,7 @@ func kubernetesCorrelationScopedFixtureRow(t *testing.T) []driver.Value {
 
 // TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData
 // proves the #5167 fix against the ACTUAL production backend
-// (PostgresKubernetesCorrelationStore over a real *sql.DB -- the same type
+// (PostgresCorrelationStore over a real *sql.DB -- the same type
 // cmd/api/wiring_handlers.go and cmd/mcp-server/wiring.go construct), not a
 // handler-level test double: a scoped caller with a matching grant reaches
 // the store, the dispatched SQL carries the access-scoping predicate with the
@@ -195,13 +197,13 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
-	handler := &KubernetesHandler{Correlations: NewPostgresKubernetesCorrelationStore(db)}
+	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/kubernetes/correlations?cluster_id=cluster-tenant-a&limit=10", nil)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
+		Mode:                 auth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		AllowedScopeIDs:      []string{"cluster-scope:tenant-a"},
 		AllowedRepositoryIDs: []string{"repo-tenant-a"},
@@ -231,7 +233,7 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 	}
 
 	var resp struct {
-		Correlations []KubernetesCorrelationResult `json:"correlations"`
+		Correlations []CorrelationResult `json:"correlations"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -248,7 +250,7 @@ func TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *
 }
 
 // TestKubernetesListCorrelationsUnscopedQueryStaysUnfiltered is the
-// no-regression counterpart: a shared/admin caller (no AuthContext, matching
+// no-regression counterpart: a shared/admin caller (no auth.AuthContext, matching
 // every pre-#5167 caller) must still issue the byte-identical unscoped query
 // with no access-scoping predicate, so this fix cannot silently narrow
 // existing admin/shared-key behavior.
@@ -258,7 +260,7 @@ func TestKubernetesListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		kubernetesCorrelationScopedFixtureRow(t),
 	})
-	handler := &KubernetesHandler{Correlations: NewPostgresKubernetesCorrelationStore(db)}
+	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -323,8 +325,8 @@ func TestKubernetesCorrelationFilterRejectsUnboundedScope(t *testing.T) {
 	// A non-nil DB ensures the nil-DB guard passes so the scope/anchor
 	// validation is the path actually exercised. The queryer fails the test if
 	// it is ever reached, proving the unbounded read is rejected up front.
-	store := PostgresKubernetesCorrelationStore{DB: failingKubernetesCorrelationQueryer{t: t}}
-	_, err := store.ListKubernetesCorrelations(context.Background(), KubernetesCorrelationFilter{Limit: 10})
+	store := PostgresCorrelationStore{DB: failingKubernetesCorrelationQueryer{t: t}}
+	_, err := store.ListKubernetesCorrelations(context.Background(), CorrelationFilter{Limit: 10})
 	if err == nil {
 		t.Fatal("ListKubernetesCorrelations() error = nil, want non-nil for unbounded scope")
 	}
@@ -336,8 +338,8 @@ func TestKubernetesCorrelationFilterRejectsUnboundedScope(t *testing.T) {
 func TestKubernetesCorrelationFilterRejectsNilDB(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresKubernetesCorrelationStore{DB: nil}
-	_, err := store.ListKubernetesCorrelations(context.Background(), KubernetesCorrelationFilter{
+	store := PostgresCorrelationStore{DB: nil}
+	_, err := store.ListKubernetesCorrelations(context.Background(), CorrelationFilter{
 		ClusterID: "cluster-prod",
 		Limit:     10,
 	})

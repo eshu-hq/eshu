@@ -79,7 +79,7 @@ This reuses, unchanged, the exact ACTIVE-generation join (`fact_records` join
 `ingestion_scopes` on `active_generation_id`, join `scope_generations` filtered
 to `status = 'active'`) and the #5167 access-scoping predicate shape already
 proven in `listKubernetesCorrelationsQuery`
-(`go/internal/query/kubernetes_correlations.go:168-221`). The new statement is
+(`go/internal/query/kubernetes/correlations.go`). The new statement is
 narrower and cheaper than that proven shape, not wider: it is bounded to
 `LIMIT 1` (an existence check, versus the correlation store's
 caller-configurable `LIMIT` up to 200), and its own predicates

@@ -1,44 +1,46 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package kubernetes
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
-// PostgresKubernetesRuntimeWorkloadStore owns current-inventory and
+// PostgresRuntimeWorkloadStore owns current-inventory and
 // authorization reads for exact digest-bound Kubernetes runtime candidates.
-type PostgresKubernetesRuntimeWorkloadStore struct {
+type PostgresRuntimeWorkloadStore struct {
 	db *sql.DB
 }
 
-// NewPostgresKubernetesRuntimeWorkloadStore returns the production Kubernetes
+// NewPostgresRuntimeWorkloadStore returns the production Kubernetes
 // runtime candidate gate.
-func NewPostgresKubernetesRuntimeWorkloadStore(db *sql.DB) *PostgresKubernetesRuntimeWorkloadStore {
-	return &PostgresKubernetesRuntimeWorkloadStore{db: db}
+func NewPostgresRuntimeWorkloadStore(db *sql.DB) *PostgresRuntimeWorkloadStore {
+	return &PostgresRuntimeWorkloadStore{db: db}
 }
 
 // CurrentAuthorizedKubernetesRuntimeWorkloads returns graph candidates whose
 // owner winner and RUNS_IMAGE edge generation are each current and authorized.
 // Owner and edge provenance are deliberately independent: a canonical workload
 // may be owned by a different current scope from the current correlation edge.
-func (s *PostgresKubernetesRuntimeWorkloadStore) CurrentAuthorizedKubernetesRuntimeWorkloads(
+func (s *PostgresRuntimeWorkloadStore) CurrentAuthorizedKubernetesRuntimeWorkloads(
 	ctx context.Context,
-	candidates []KubernetesRuntimeCandidate,
+	candidates []supplychain.KubernetesRuntimeCandidate,
 	allScopes bool,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
-) ([]KubernetesRuntimeWorkloadMatch, error) {
+) ([]supplychain.KubernetesRuntimeWorkloadMatch, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("kubernetes runtime workload database is required")
 	}
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	query, args := buildKubernetesRuntimeWorkloadQuery(
+	query, args := BuildRuntimeWorkloadQuery(
 		candidates, allScopes, allowedRepositoryIDs, allowedScopeIDs,
 	)
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -47,9 +49,9 @@ func (s *PostgresKubernetesRuntimeWorkloadStore) CurrentAuthorizedKubernetesRunt
 	}
 	defer func() { _ = rows.Close() }()
 
-	matches := make([]KubernetesRuntimeWorkloadMatch, 0, len(candidates))
+	matches := make([]supplychain.KubernetesRuntimeWorkloadMatch, 0, len(candidates))
 	for rows.Next() {
-		var match KubernetesRuntimeWorkloadMatch
+		var match supplychain.KubernetesRuntimeWorkloadMatch
 		if err := rows.Scan(
 			&match.Digest,
 			&match.WorkloadRef.UID,
@@ -67,8 +69,13 @@ func (s *PostgresKubernetesRuntimeWorkloadStore) CurrentAuthorizedKubernetesRunt
 	return matches, nil
 }
 
-func buildKubernetesRuntimeWorkloadQuery(
-	candidates []KubernetesRuntimeCandidate,
+// BuildRuntimeWorkloadQuery returns the SQL and bind arguments
+// PostgresRuntimeWorkloadStore issues for one candidate batch. It is exported
+// so root's supply-chain runtime-probe live performance test can EXPLAIN the
+// exact statement the store runs; production callers go through
+// CurrentAuthorizedKubernetesRuntimeWorkloads.
+func BuildRuntimeWorkloadQuery(
+	candidates []supplychain.KubernetesRuntimeCandidate,
 	allScopes bool,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
@@ -93,9 +100,9 @@ func buildKubernetesRuntimeWorkloadQuery(
 	digestSet := bind(digests)
 	edgeScopeSet := bind(edgeScopeIDs)
 	edgeGenerationSet := bind(edgeGenerationIDs)
-	candidateLimit := supplyChainKubernetesRuntimeProbeMaxResults
+	candidateLimit := supplychain.KubernetesRuntimeProbeMaxResults
 	if allScopes {
-		candidateLimit = supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates
+		candidateLimit = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
 	}
 	limit := bind(candidateLimit)
 

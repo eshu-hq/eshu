@@ -96,7 +96,7 @@ func (h *Handler) fetchWorkloadLiveEvidence(
 		return false, nil
 	}
 	// #5167 access-scoping discipline, mirroring listCorrelations
-	// (go/internal/query/kubernetes.go): a scoped caller with no
+	// (go/internal/query/kubernetes/handler.go): a scoped caller with no
 	// granted repositories never queries the store.
 	if access.Empty() {
 		span.SetAttributes(

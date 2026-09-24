@@ -3,12 +3,8 @@
 
 package contract
 
+import "github.com/eshu-hq/eshu/go/internal/query/kubernetes"
+
 func init() {
-	register(kubernetesCorrelationsCapability, capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
+	register(kubernetesCorrelationsCapability, kubernetes.Support())
 }

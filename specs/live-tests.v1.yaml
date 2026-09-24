@@ -431,7 +431,7 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
-  - file: go/internal/query/kubernetes_runtime_workload_store_live_test.go
+  - file: go/internal/query/kubernetes/runtime_workload_store_live_test.go
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run

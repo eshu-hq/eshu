@@ -38,7 +38,7 @@ type Handler struct {
 	// config-only classification.
 	//
 	// This replaced an earlier KubernetesCorrelations-backed probe
-	// (PostgresKubernetesCorrelationStore) that promoted on an
+	// (kubernetes.PostgresCorrelationStore) that promoted on an
 	// image-digest-only match with no binding to the traced workload's own
 	// identity -- two workloads sharing a base image digest could promote
 	// one workload on another's live row. KubernetesPodTemplates fixes that

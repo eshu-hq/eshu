@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package kubernetes
 
 import (
 	"strings"
 	"testing"
+
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
 func TestBuildKubernetesRuntimeWorkloadQueryGatesOwnerAndEdgeIndependently(t *testing.T) {
 	t.Parallel()
 
-	query, args := buildKubernetesRuntimeWorkloadQuery([]KubernetesRuntimeCandidate{{
+	query, args := BuildRuntimeWorkloadQuery([]supplychain.KubernetesRuntimeCandidate{{
 		WorkloadUID: "workload-1", Digest: "sha256:abc", EdgeScopeID: "edge-scope", EdgeGenerationID: "edge-generation",
 	}}, false, []string{"repository:allowed"}, []string{"scope:allowed"})
 
@@ -39,15 +41,15 @@ func TestBuildKubernetesRuntimeWorkloadQueryGatesOwnerAndEdgeIndependently(t *te
 	if len(args) != 7 {
 		t.Fatalf("argument count = %d, want 7", len(args))
 	}
-	if got, ok := args[4].(int); !ok || got != supplyChainKubernetesRuntimeProbeMaxResults {
-		t.Fatalf("candidate limit = %#v, want %d", args[4], supplyChainKubernetesRuntimeProbeMaxResults)
+	if got, ok := args[4].(int); !ok || got != supplychain.KubernetesRuntimeProbeMaxResults {
+		t.Fatalf("candidate limit = %#v, want %d", args[4], supplychain.KubernetesRuntimeProbeMaxResults)
 	}
 }
 
 func TestBuildKubernetesRuntimeWorkloadQueryAllScopesOmitsAuthorizationPredicates(t *testing.T) {
 	t.Parallel()
 
-	query, args := buildKubernetesRuntimeWorkloadQuery([]KubernetesRuntimeCandidate{{
+	query, args := BuildRuntimeWorkloadQuery([]supplychain.KubernetesRuntimeCandidate{{
 		WorkloadUID: "workload-1", Digest: "sha256:abc", EdgeScopeID: "edge-scope", EdgeGenerationID: "edge-generation",
 	}}, true, nil, nil)
 	if strings.Contains(query, "source_key = ANY(") {
@@ -56,7 +58,7 @@ func TestBuildKubernetesRuntimeWorkloadQueryAllScopesOmitsAuthorizationPredicate
 	if len(args) != 5 {
 		t.Fatalf("argument count = %d, want 5", len(args))
 	}
-	if got, ok := args[4].(int); !ok || got != supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("candidate limit = %#v, want %d", args[4], supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got, ok := args[4].(int); !ok || got != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("candidate limit = %#v, want %d", args[4], supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 }
