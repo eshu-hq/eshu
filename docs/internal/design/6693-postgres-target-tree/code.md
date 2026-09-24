@@ -53,7 +53,7 @@ value_flow_refresh_ack_test.go -> code/flow/refresh_ack_test.go
 
 </details>
 
-### `code/reachability/` (3 non-test, 4 test)
+### `code/reachability/` (3 non-test, 3 test)
 
 ```text
 code_reachability.go -> code/reachability/store.go
@@ -64,11 +64,18 @@ code_reachability_loader.go -> code/reachability/loader.go
 <details><summary>Tests</summary>
 
 ```text
-code_reachability_route_liveness_live_test.go -> code/reachability/store_route_liveness_live_test.go   # external test package + export_test.go shim: imports root
+code_reachability_route_liveness_live_test.go -> code/reachability/store_route_liveness_live_test.go   # external test package + own export_test.go shim (private loader methods): imports root for SQLDB/ApplyBootstrap only; duplicates code_reachability_upgrade_backfill_live_test.go's per-test DSN-open/suffix/cleanup helpers rather than depend on that root file's test-only symbols (Go test exports do not cross packages)
 code_reachability_sql_shape_test.go -> code/reachability/store_sql_shape_test.go
 code_reachability_test.go -> code/reachability/store_test.go
-code_reachability_upgrade_backfill_live_test.go -> code/reachability/store_upgrade_backfill_live_test.go   # external test package: imports root
 ```
+
+`code_reachability_upgrade_backfill_live_test.go` stays in root (see
+`root.md`): it defines `testSuffix`, `openUpgradeBackfillLiveDB`, and
+`registerUpgradeBackfillCleanup`, and `testSuffix` is also used by unrelated
+root live tests (`recovery_refinalize_*`,
+`reducer_queue_workload_replay_live_test.go`,
+`repo_dependency_acceptance_gate_expiry_test.go`,
+`recovery_claim_token_fence_live_test.go`).
 
 </details>
 

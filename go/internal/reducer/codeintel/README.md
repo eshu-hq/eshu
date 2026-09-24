@@ -74,11 +74,11 @@ reducer root or any other family subpackage.
 
 The reducer root (`internal/reducer/service.go`) imports this package to
 declare the `CodeReachabilityProjectionRunner` field on `Service`, and
-`internal/storage/postgres` (`code_reachability.go`,
-`code_reachability_loader.go`) imports it to implement
-`CodeReachabilityInputLoader` and `CodeReachabilityRowWriter` and to shape SQL
-scan targets. `cmd/reducer` wires the concrete runner. Import is one-way: this
-package never imports back.
+`internal/storage/postgres/code/reachability` (`store.go`, `loader.go`)
+imports it to implement `CodeReachabilityInputLoader` and
+`CodeReachabilityRowWriter` and to shape SQL scan targets. `cmd/reducer`
+wires the concrete runner. Import is one-way: this package never imports
+back.
 
 ## Telemetry
 

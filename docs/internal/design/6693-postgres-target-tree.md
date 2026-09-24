@@ -301,10 +301,10 @@ its name says. Then Go's package rules decide the form:
 | form | tests | when |
 | --- | ---: | --- |
 | in-package test | 373 | it only needs its own package and packages below it |
-| external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
+| external test package (`package x_test`) | 137 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 88 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 40 | it reads private symbols of two or more future packages |
-| stays in root | 74 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root | 75 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -352,7 +352,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 14. [x] `graph/owner/` (2 files)
 15. [x] `queue/` (2 files)
 16. [x] `admission/` (3 files)
-17. [ ] `code/reachability/` (3 files)
+17. [x] `code/reachability/` (3 files)
 18. [ ] `freshness/aws/` (3 files)
 19. [ ] `freshness/gcp/` (3 files)
 20. [ ] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
@@ -419,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 114 | ok |
+| `storage/postgres` (root) | 4 | 115 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 1 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -428,7 +428,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `cloud/multi/` | 5 | 5 | ok |
 | `code/divergence/` | 3 | 3 | ok |
 | `code/flow/` | 8 | 11 | ok |
-| `code/reachability/` | 3 | 4 | ok |
+| `code/reachability/` | 3 | 3 | ok |
 | `code/taint/` | 2 | 2 | ok |
 | `collector/` | 4 | 2 | ok |
 | `container/image/` | 7 | 9 | ok |

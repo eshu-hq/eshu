@@ -1,16 +1,77 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package reachabilitystore_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
+
+// openRouteLivenessLiveDB and routeLivenessTestSuffix are this file's own
+// copies of code_reachability_upgrade_backfill_live_test.go's
+// openUpgradeBackfillLiveDB/testSuffix (that file stays in the parent
+// postgres package per #6693: testSuffix is also shared by unrelated root
+// live tests, so it cannot move here, and Go test-only exports do not cross
+// package boundaries). registerRouteLivenessCleanup mirrors that file's
+// registerUpgradeBackfillCleanup for the same reason.
+func openRouteLivenessLiveDB(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the #5494 route-liveness proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	t.Cleanup(cancel)
+	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
+	return ctx, db
+}
+
+func routeLivenessTestSuffix(t *testing.T) string {
+	return fmt.Sprintf("%s-%d", strings.NewReplacer("/", "-", " ", "-").Replace(t.Name()), time.Now().UnixNano())
+}
+
+func registerRouteLivenessCleanup(t *testing.T, db *sql.DB, scopeID, repoID string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		stmts := []struct {
+			q    string
+			args []any
+		}{
+			{`DELETE FROM code_root_verdicts WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM code_reachability_rows WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM code_reachability_repository_watermarks WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM shared_projection_intents WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM shared_projection_acceptance WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM content_entities WHERE repo_id=$1`, []any{repoID}},
+			{`DELETE FROM scope_generations WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM ingestion_scopes WHERE scope_id=$1`, []any{scopeID}},
+		}
+		for _, s := range stmts {
+			if _, err := db.ExecContext(ctx, s.q, s.args...); err != nil {
+				t.Logf("cleanup %q: %v", s.q, err)
+			}
+		}
+	})
+}
 
 // seedRouteLivenessController seeds one Ruby controller class (ancestry:
 // ApplicationController, so #5376 always confirms) plus one action method
@@ -68,10 +129,10 @@ func seedRouteLivenessRailsFile(t *testing.T, ctx context.Context, exec func(str
 // with EXPLAIN in the #5494 proof note) feeding the real
 // codeintel.BuildCodeRootVerdicts, not a hand-built fixture.
 func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
-	ctx, db := openUpgradeBackfillLiveDB(t)
-	store := NewCodeReachabilityStore(SQLDB{DB: db})
+	ctx, db := openRouteLivenessLiveDB(t)
+	store := reachabilitystore.NewCodeReachabilityStore(postgres.SQLDB{DB: db})
 
-	suffix := testSuffix(t)
+	suffix := routeLivenessTestSuffix(t)
 	scopeID := "scope-" + suffix
 	generationID := "gen-" + suffix
 	repoRouted := "repo-routed-" + suffix
@@ -79,10 +140,10 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 	repoAmbiguous := "repo-ambiguous-" + suffix
 	repoNoData := "repo-nodata-" + suffix
 
-	registerUpgradeBackfillCleanup(t, db, scopeID, repoRouted)
-	registerUpgradeBackfillCleanup(t, db, scopeID, repoUnrouted)
-	registerUpgradeBackfillCleanup(t, db, scopeID, repoAmbiguous)
-	registerUpgradeBackfillCleanup(t, db, scopeID, repoNoData)
+	registerRouteLivenessCleanup(t, db, scopeID, repoRouted)
+	registerRouteLivenessCleanup(t, db, scopeID, repoUnrouted)
+	registerRouteLivenessCleanup(t, db, scopeID, repoAmbiguous)
+	registerRouteLivenessCleanup(t, db, scopeID, repoNoData)
 
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -120,15 +181,15 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 	seedRouteLivenessController(t, ctx, exec, repoNoData, "GadgetsController", "orphan")
 
 	for _, repoID := range []string{repoRouted, repoUnrouted, repoAmbiguous, repoNoData} {
-		classes, err := store.loadCodeReachabilityRubyClasses(ctx, repoID)
+		classes, err := reachabilitystore.LoadCodeReachabilityRubyClasses(store, ctx, repoID)
 		if err != nil {
 			t.Fatalf("loadCodeReachabilityRubyClasses(%s): %v", repoID, err)
 		}
-		roots, err := store.loadCodeReachabilityRoots(ctx, repoID)
+		roots, err := reachabilitystore.LoadCodeReachabilityRoots(store, ctx, repoID)
 		if err != nil {
 			t.Fatalf("loadCodeReachabilityRoots(%s): %v", repoID, err)
 		}
-		routes, err := store.loadCodeReachabilityRailsRouteFacts(ctx, repoID)
+		routes, err := reachabilitystore.LoadCodeReachabilityRailsRouteFacts(store, ctx, repoID)
 		if err != nil {
 			t.Fatalf("loadCodeReachabilityRailsRouteFacts(%s): %v", repoID, err)
 		}
@@ -176,15 +237,15 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 // exact scenario would have silently downgraded WelcomeController#index to
 // route_unreachable -- a live controller called dead.
 func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *testing.T) {
-	ctx, db := openUpgradeBackfillLiveDB(t)
-	store := NewCodeReachabilityStore(SQLDB{DB: db})
+	ctx, db := openRouteLivenessLiveDB(t)
+	store := reachabilitystore.NewCodeReachabilityStore(postgres.SQLDB{DB: db})
 
-	suffix := testSuffix(t)
+	suffix := routeLivenessTestSuffix(t)
 	scopeID := "scope-" + suffix
 	generationID := "gen-" + suffix
 	repoID := "repo-root-routed-" + suffix
 
-	registerUpgradeBackfillCleanup(t, db, scopeID, repoID)
+	registerRouteLivenessCleanup(t, db, scopeID, repoID)
 
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -208,15 +269,15 @@ func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *t
 	// -- exactly what framework_routes.go emits for `root "welcome#index"`.
 	seedRouteLivenessRailsFile(t, ctx, exec, scopeID, generationID, repoID, nil, true)
 
-	classes, err := store.loadCodeReachabilityRubyClasses(ctx, repoID)
+	classes, err := reachabilitystore.LoadCodeReachabilityRubyClasses(store, ctx, repoID)
 	if err != nil {
 		t.Fatalf("loadCodeReachabilityRubyClasses: %v", err)
 	}
-	roots, err := store.loadCodeReachabilityRoots(ctx, repoID)
+	roots, err := reachabilitystore.LoadCodeReachabilityRoots(store, ctx, repoID)
 	if err != nil {
 		t.Fatalf("loadCodeReachabilityRoots: %v", err)
 	}
-	routes, err := store.loadCodeReachabilityRailsRouteFacts(ctx, repoID)
+	routes, err := reachabilitystore.LoadCodeReachabilityRailsRouteFacts(store, ctx, repoID)
 	if err != nil {
 		t.Fatalf("loadCodeReachabilityRailsRouteFacts: %v", err)
 	}

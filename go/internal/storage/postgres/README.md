@@ -45,7 +45,6 @@ flowchart TB
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
   C --> M["auditstore.GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
   C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
-  C --> P["CodeReachabilityStore\ncode_reachability_rows\nactive-generation lookup"]
   E --> O["Beginner.Begin\natomic ack transaction:\nlocal lock_timeout → update scope → mark owned work succeeded → supersede obsolete terminal → supersede active → activate"]
 ```
 
@@ -75,11 +74,6 @@ High-signal invariants for this package:
   catalog shape, and only then publishes `ready`. Normal schema bootstrap and
   upgrades retain the indexes and initialize the lifecycle from their actual
   validity; no steady-state path drops them.
-- `code_reachability_rows` stores reducer-materialized code reachable-set rows
-  by active source generation, and `code_reachability_repository_watermarks`
-  records the completed intent timestamp covered by each repository snapshot so
-  empty reachable sets do not loop forever; query dead-code reads consult the
-  rows before the compatibility scan over completed shared projection intents.
 - Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, remove
   JSONB-incompatible U+0000 characters and control bytes without changing
   literal source text such as `\u0000`, and skip unchanged pending-or-active

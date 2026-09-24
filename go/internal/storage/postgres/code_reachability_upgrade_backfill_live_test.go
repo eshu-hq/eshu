@@ -15,6 +15,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
 
 // upgradeBackfillLargeBatchLimit is used both for the loader observation and the
@@ -175,7 +176,7 @@ func testSuffix(t *testing.T) string {
 	return fmt.Sprintf("%s-%d", strings.NewReplacer("/", "-", " ", "-").Replace(t.Name()), time.Now().UnixNano())
 }
 
-func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilityStore) map[string]bool {
+func loadedRepoIDs(t *testing.T, ctx context.Context, store *reachabilitystore.CodeReachabilityStore) map[string]bool {
 	t.Helper()
 	inputs, err := store.LoadPendingCodeReachabilityInputs(ctx, upgradeBackfillLargeBatchLimit)
 	if err != nil {
@@ -188,7 +189,7 @@ func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilitySto
 	return got
 }
 
-func upgradeBackfillRunner(store *CodeReachabilityStore) *codeintel.CodeReachabilityProjectionRunner {
+func upgradeBackfillRunner(store *reachabilitystore.CodeReachabilityStore) *codeintel.CodeReachabilityProjectionRunner {
 	return &codeintel.CodeReachabilityProjectionRunner{
 		InputLoader: store,
 		RowWriter:   store,
@@ -204,7 +205,7 @@ func upgradeBackfillRunner(store *CodeReachabilityStore) *codeintel.CodeReachabi
 // pre-P1 loader (no epoch predicate); green after.
 func TestCodeReachabilityUpgradeBackfillReschedules(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
-	store := NewCodeReachabilityStore(SQLDB{DB: db})
+	store := reachabilitystore.NewCodeReachabilityStore(SQLDB{DB: db})
 	_, repoID := seedUpgradeBackfillRepo(t, ctx, db, testSuffix(t), time.Hour, rubyControllerEntitiesSQL)
 
 	if !loadedRepoIDs(t, ctx, store)[repoID] {
@@ -219,7 +220,7 @@ func TestCodeReachabilityUpgradeBackfillReschedules(t *testing.T) {
 // order (the determinism proof the reviewer specified).
 func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
-	store := NewCodeReachabilityStore(SQLDB{DB: db})
+	store := reachabilitystore.NewCodeReachabilityStore(SQLDB{DB: db})
 
 	// Backlog of >10 OLDER stale pending repos: they sort before the target.
 	seedStalePendingBacklog(t, ctx, db, "rtbacklog", 12)
@@ -240,8 +241,8 @@ func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT verdict_schema_epoch FROM code_reachability_repository_watermarks WHERE scope_id=$1 AND repository_id=$2`, scopeID, repoID).Scan(&epoch); err != nil {
 		t.Fatalf("read epoch: %v", err)
 	}
-	if epoch != CodeReachabilityVerdictSchemaEpoch {
-		t.Fatalf("watermark epoch = %d, want %d", epoch, CodeReachabilityVerdictSchemaEpoch)
+	if epoch != reachabilitystore.CodeReachabilityVerdictSchemaEpoch {
+		t.Fatalf("watermark epoch = %d, want %d", epoch, reachabilitystore.CodeReachabilityVerdictSchemaEpoch)
 	}
 	if loadedRepoIDs(t, ctx, store)[repoID] {
 		t.Fatalf("anti-loop: repo re-scheduled after its watermark was stamped with the current epoch")
@@ -254,7 +255,7 @@ func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 // projection and never re-scheduled — again behind a stale backlog.
 func TestCodeReachabilityUpgradeBackfillZeroVerdictAntiLoop(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
-	store := NewCodeReachabilityStore(SQLDB{DB: db})
+	store := reachabilitystore.NewCodeReachabilityStore(SQLDB{DB: db})
 
 	seedStalePendingBacklog(t, ctx, db, "zvbacklog", 12)
 	scopeID, repoID := seedUpgradeBackfillRepo(t, ctx, db, testSuffix(t), time.Hour, nonRubyEntitiesSQL)
@@ -278,8 +279,8 @@ func TestCodeReachabilityUpgradeBackfillZeroVerdictAntiLoop(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT verdict_schema_epoch FROM code_reachability_repository_watermarks WHERE scope_id=$1 AND repository_id=$2`, scopeID, repoID).Scan(&epoch); err != nil {
 		t.Fatalf("read epoch: %v", err)
 	}
-	if epoch != CodeReachabilityVerdictSchemaEpoch {
-		t.Fatalf("no-Ruby watermark epoch = %d, want %d", epoch, CodeReachabilityVerdictSchemaEpoch)
+	if epoch != reachabilitystore.CodeReachabilityVerdictSchemaEpoch {
+		t.Fatalf("no-Ruby watermark epoch = %d, want %d", epoch, reachabilitystore.CodeReachabilityVerdictSchemaEpoch)
 	}
 	if loadedRepoIDs(t, ctx, store)[repoID] {
 		t.Fatalf("anti-loop: zero-verdict no-Ruby repo re-scheduled forever (the naive count==0 defect)")
