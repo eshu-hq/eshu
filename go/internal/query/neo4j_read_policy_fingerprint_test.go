@@ -6,6 +6,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"testing"
@@ -35,6 +36,79 @@ func TestGraphStatementFingerprintDiffersBetweenStatements(t *testing.T) {
 	b := graphStatementFingerprint("MATCH (n:Workload) RETURN n")
 	if a == b {
 		t.Fatalf("fingerprints of distinct statements collided: %q", a)
+	}
+}
+
+// TestGraphStatementFingerprintIgnoresLiterals proves statements that differ
+// only in literal values share one fingerprint (shape identity), so no
+// literal-derived value leaves the process through the hash (#7035).
+func TestGraphStatementFingerprintIgnoresLiterals(t *testing.T) {
+	a := graphStatementFingerprint(`MATCH (r:Repository) WHERE r.name = 'alpha' AND r.rank > 1 RETURN r`)
+	b := graphStatementFingerprint(`MATCH (r:Repository) WHERE r.name = "beta-secret" AND r.rank > 99 RETURN r`)
+	if a != b {
+		t.Fatalf("fingerprints of literal-only variants differ: %q vs %q", a, b)
+	}
+	c := graphStatementFingerprint(`MATCH (r:Repository) WHERE r.name = 'alpha' AND r.rank < 1 RETURN r`)
+	if a == c {
+		t.Fatalf("fingerprints of structurally different statements collided: %q", a)
+	}
+}
+
+// TestGraphStatementHeadRedactsLiterals proves the head carries the redacted
+// statement, so a literal typed into ad-hoc Cypher never reaches the log
+// (#7035).
+func TestGraphStatementHeadRedactsLiterals(t *testing.T) {
+	got := graphStatementHead(`MATCH (r:Repository) WHERE r.name = 'acme-private-repo' AND r.token = "tok-SECRET-123" RETURN r LIMIT 1`)
+	const want = "MATCH (r:Repository) WHERE r.name = <REDACTED> AND r.token = <REDACTED> RETURN r LIMIT <REDACTED>"
+	if got != want {
+		t.Fatalf("graphStatementHead() = %q, want %q", got, want)
+	}
+}
+
+// TestGraphStatementHeadTruncatesAfterRedaction proves a literal that straddles
+// the truncation bound is redacted whole, never cut into a partial value.
+func TestGraphStatementHeadTruncatesAfterRedaction(t *testing.T) {
+	prefix := strings.Repeat("A", graphStatementHeadMaxLen-15)
+	got := graphStatementHead("RETURN " + prefix + " 'secret-straddling-the-cut'")
+	if strings.Contains(got, "secret") || strings.Contains(got, "'") {
+		t.Fatalf("graphStatementHead() leaked literal text across the cut: %q", got)
+	}
+}
+
+// TestNeo4jReaderWarningRedactsInlineLiterals proves an ad-hoc statement run
+// with nil params (the /code/cypher route shape, where every value is an inline
+// literal) warns without any literal value in any log field (#7035).
+func TestNeo4jReaderWarningRedactsInlineLiterals(t *testing.T) {
+	var logs bytes.Buffer
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{}}}
+	})
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	reader.policy.slowThreshold = time.Nanosecond
+
+	const cypher = `MATCH (r:Repository) WHERE r.name = 'acme-private-repo' AND r.token = "tok-SECRET-123" RETURN r LIMIT 1`
+	if _, err := reader.Run(context.Background(), cypher, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	var record map[string]any
+	if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+		t.Fatalf("warning log is not one JSON object: %v: %s", err, logs.String())
+	}
+	if record["event_name"] != "query.graph_read.warning" {
+		t.Fatalf("event_name = %v, want query.graph_read.warning: %s", record["event_name"], logs.String())
+	}
+	for _, leaked := range []string{"acme-private-repo", "tok-SECRET-123"} {
+		if strings.Contains(logs.String(), leaked) {
+			t.Fatalf("warning log leaked literal %q: %s", leaked, logs.String())
+		}
+	}
+	const wantHead = "MATCH (r:Repository) WHERE r.name = <REDACTED> AND r.token = <REDACTED> RETURN r LIMIT <REDACTED>"
+	if record["graph_read.statement_head"] != wantHead {
+		t.Fatalf("statement_head = %v, want %q", record["graph_read.statement_head"], wantHead)
+	}
+	if strings.Contains(logs.String(), "LIMIT 1") {
+		t.Fatalf("warning log leaked numeric literal: %s", logs.String())
 	}
 }
 

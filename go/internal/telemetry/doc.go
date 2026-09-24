@@ -149,9 +149,11 @@
 // (span, every read) and LogKeyGraphReadStatementFingerprint/
 // LogKeyGraphReadStatementHead (the query.graph_read.warning log, slow/
 // deadline/unavailable outcomes) name the exact Cypher statement shape behind
-// a read: the fingerprint is a sha256 hash and the head is a bounded,
-// whitespace-collapsed statement text, so together they identify the
-// statement without ever recording a bound parameter value.
+// a read: the fingerprint is a sha256 hash and the head is a bounded statement
+// text, both computed over the statement's redacted shape (every literal
+// replaced by <REDACTED>, comments dropped, whitespace collapsed; see
+// internal/query/graph/statement), so together they identify the statement
+// shape without recording a bound parameter value or an inline literal.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in

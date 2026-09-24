@@ -14,17 +14,19 @@ const (
 	// deadline; an earlier parent deadline remains authoritative at execution.
 	SpanAttrGraphReadConfiguredDeadlineMS = "eshu.graph_read.configured_deadline_ms"
 	// SpanAttrGraphReadStatementFingerprint reports the first 12 hex characters
-	// of the sha256 of the whitespace-collapsed Cypher statement text, computed
-	// on every bounded read regardless of outcome. It never carries parameters,
-	// so it identifies the statement shape without leaking bound values.
+	// of the sha256 of the redacted, whitespace-collapsed Cypher statement
+	// shape, computed on every bounded read regardless of outcome. Every
+	// literal is replaced before hashing, so it identifies the statement shape
+	// without leaking a bound parameter or an inline literal value.
 	SpanAttrGraphReadStatementFingerprint = "eshu.graph_read.statement_fingerprint"
 
 	// LogKeyGraphReadStatementFingerprint carries the same bounded fingerprint
 	// as SpanAttrGraphReadStatementFingerprint on the query.graph_read.warning
 	// log line.
 	LogKeyGraphReadStatementFingerprint = "graph_read.statement_fingerprint"
-	// LogKeyGraphReadStatementHead carries the whitespace-collapsed Cypher
-	// statement text truncated to a bounded length, with a truncation marker
-	// appended when the statement exceeds it. It never carries parameters.
+	// LogKeyGraphReadStatementHead carries the redacted, whitespace-collapsed
+	// Cypher statement shape truncated to a bounded length, with a truncation
+	// marker appended when the statement exceeds it. Every literal is replaced
+	// with <REDACTED>; it never carries a parameter or an inline literal value.
 	LogKeyGraphReadStatementHead = "graph_read.statement_head"
 )

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -36,8 +37,8 @@ const (
 	// resolveGraphReadSlowThreshold. Registered in
 	// go/internal/envregistry/entries.go.
 	graphReadSlowThresholdEnv = "ESHU_GRAPH_READ_SLOW_THRESHOLD"
-	// graphStatementHeadMaxLen bounds the whitespace-collapsed statement text
-	// carried on the query.graph_read.warning log (#7035).
+	// graphStatementHeadMaxLen bounds the redacted, whitespace-collapsed
+	// statement text carried on the query.graph_read.warning log (#7035).
 	graphStatementHeadMaxLen = 300
 	// graphStatementHeadTruncatedMarker is appended to a statement head that
 	// was cut at graphStatementHeadMaxLen, so the log line discloses the cut
@@ -136,31 +137,28 @@ func resolveGraphReadSlowThreshold(getenv func(string) string, logger *slog.Logg
 	return parsed
 }
 
-// collapseGraphStatementWhitespace normalizes a Cypher statement's formatting
-// (newlines, tabs, repeated spaces) to single spaces, so a fingerprint or head
-// identifies the statement's shape rather than its incidental layout.
-func collapseGraphStatementWhitespace(cypher string) string {
-	return strings.Join(strings.Fields(cypher), " ")
-}
-
 // graphStatementFingerprint returns the first graphStatementFingerprintLen hex
-// characters of the sha256 digest of the whitespace-collapsed Cypher
-// statement text. It never includes parameters, so it identifies a statement
-// shape without leaking bound values (#7035).
+// characters of the sha256 digest of the statement's redacted, whitespace-
+// collapsed shape (statement.Redact). Every literal is replaced before
+// hashing, so no literal-derived value leaves the process and statements that
+// differ only in literals share one fingerprint. Bound parameters never appear
+// in Cypher text at all (#7035).
 func graphStatementFingerprint(cypher string) string {
-	sum := sha256.Sum256([]byte(collapseGraphStatementWhitespace(cypher)))
+	sum := sha256.Sum256([]byte(statement.Redact(cypher)))
 	return hex.EncodeToString(sum[:])[:graphStatementFingerprintLen]
 }
 
-// graphStatementHead returns the whitespace-collapsed Cypher statement text,
-// truncated to graphStatementHeadMaxLen runes with graphStatementHeadTruncatedMarker
-// appended when the statement exceeds that bound. It never includes
-// parameters (#7035).
+// graphStatementHead returns the redacted, whitespace-collapsed Cypher
+// statement (statement.Redact), truncated to graphStatementHeadMaxLen runes
+// with graphStatementHeadTruncatedMarker appended when it exceeds that bound.
+// Redaction runs before truncation, so a literal straddling the cut is
+// replaced whole. Inline literals in ad-hoc Cypher never reach the log, and
+// bound parameters are not part of the text (#7035).
 func graphStatementHead(cypher string) string {
-	collapsed := collapseGraphStatementWhitespace(cypher)
-	runes := []rune(collapsed)
+	redacted := statement.Redact(cypher)
+	runes := []rune(redacted)
 	if len(runes) <= graphStatementHeadMaxLen {
-		return collapsed
+		return redacted
 	}
 	return string(runes[:graphStatementHeadMaxLen]) + graphStatementHeadTruncatedMarker
 }
