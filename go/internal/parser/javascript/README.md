@@ -311,8 +311,16 @@ the parent parser engine and runtime instrumentation.
 
 ## Telemetry
 
-This package emits no telemetry. Parse timing remains owned by the parent
-parser engine and runtime instrumentation.
+This package emits no metrics or spans. Parse timing remains owned by the
+parent parser engine and runtime instrumentation. It emits two structured
+`slog.Warn` lines, both with `component=parser.javascript`:
+
+- `javascript-family parse file bounded` (`action=file_skipped`) when a file
+  exceeds the 1 MiB parse cap (`language_helpers.go`, #4766).
+- `javascript-family import source exceeds bound` (`action=import_dropped`,
+  with `path`, `import_type`, `line_number`, `source_bytes`) when an
+  imports-bucket row's module specifier exceeds 1024 bytes and is dropped
+  (`import_bound.go`, #7056).
 
 ## Gotchas / invariants
 
@@ -349,7 +357,9 @@ Hapi handlers, exact Next.js app-router route handler exports, named Next.js
 `pages/api` default handlers, Fastify route-object handlers, framework
 callbacks, TypeScript interface implementation methods, module-contract exports,
 and public API re-exports must remain grounded in syntax or bounded repository
-files.
+files. A re-export row needs the grammar's string-literal `source` field, and
+`import_bound.go` drops (and logs) any imports-bucket row whose specifier is
+over 1024 bytes before it can become a `Module` node name (#7056).
 Receiver type metadata is likewise bounded to local syntax: constructor
 assignments, typed fields, typed parameters, and simple typed function returns.
 Function values passed as call or constructor arguments are emitted as
@@ -390,6 +400,7 @@ through package internals: `engine_ast_conversion_test.go`,
 `engine_nextjs_route_entries_test.go`,
 `engine_package_surface_cache_test.go`,
 `engine_reexports_test.go`,
+`engine_reexport_boundaries_test.go`,
 `engine_repo_config_cache_bench_test.go`,
 `engine_repo_config_cache_test.go`, `engine_require_test.go`,
 `engine_route_handler_test.go`, `engine_semantics_test.go`,
