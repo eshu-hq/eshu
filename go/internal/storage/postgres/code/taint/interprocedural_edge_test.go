@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package taintstore_test
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 // TestCodeInterprocProjectedEdgeStoreSchemaSQL proves the migration DDL
@@ -18,7 +19,7 @@ import (
 func TestCodeInterprocProjectedEdgeStoreSchemaSQL(t *testing.T) {
 	t.Parallel()
 
-	sql := CodeInterprocProjectedEdgeSchemaSQL()
+	sql := taintstore.CodeInterprocProjectedEdgeSchemaSQL()
 	for _, want := range []string{
 		"code_interproc_projected_edge",
 		"code_interproc_projected_edge_source_scope_idx",
@@ -36,8 +37,8 @@ func TestCodeInterprocProjectedEdgeStoreSchemaSQL(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 	at := time.Date(2026, time.July, 7, 0, 0, 0, 0, time.UTC)
 
 	err := store.RecordProjectedEdges(
@@ -51,10 +52,10 @@ func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T
 	if err != nil {
 		t.Fatalf("RecordProjectedEdges error: %v", err)
 	}
-	if len(database.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(database.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	args := database.execs[0].args
+	args := database.Execs[0].Args
 	// 2 unique non-blank uids: uid-a, uid-b. Each row = 5 args.
 	if len(args) != 10 {
 		t.Fatalf("args count = %d, want 10 (2 rows * 5 columns)", len(args))
@@ -76,8 +77,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T
 func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.RecordProjectedEdges(
 		context.Background(),
@@ -89,8 +90,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RecordProjectedEdges error: %v", err)
 	}
-	if len(database.execs) != 0 {
-		t.Fatalf("exec calls = %d, want 0", len(database.execs))
+	if len(database.Execs) != 0 {
+		t.Fatalf("exec calls = %d, want 0", len(database.Execs))
 	}
 }
 
@@ -99,8 +100,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	_, err := store.ListSourceUIDsForScopes(
 		context.Background(),
@@ -110,18 +111,18 @@ func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSourceUIDsForScopes error: %v", err)
 	}
-	if len(database.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(database.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := database.queries[0]
-	if !strings.Contains(q.query, "DISTINCT source_function_uid") {
-		t.Fatalf("ListSourceUIDsForScopes query missing DISTINCT:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "DISTINCT source_function_uid") {
+		t.Fatalf("ListSourceUIDsForScopes query missing DISTINCT:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "scope_id = ANY($2)") {
-		t.Fatalf("ListSourceUIDsForScopes query missing ANY:\n%s", q.query)
+	if !strings.Contains(q.Query, "scope_id = ANY($2)") {
+		t.Fatalf("ListSourceUIDsForScopes query missing ANY:\n%s", q.Query)
 	}
-	if len(q.args) != 2 || q.args[0] != "reducer/code-interproc" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 2 || q.Args[0] != "reducer/code-interproc" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
 
@@ -130,8 +131,8 @@ func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	_, err := store.ListStaleSourceUIDs(
 		context.Background(),
@@ -143,18 +144,18 @@ func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStaleSourceUIDs error: %v", err)
 	}
-	if len(database.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(database.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := database.queries[0]
-	if !strings.Contains(q.query, "generation_id <> $3") {
-		t.Fatalf("ListStaleSourceUIDs query missing generation_id <>:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "generation_id <> $3") {
+		t.Fatalf("ListStaleSourceUIDs query missing generation_id <>:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "LIMIT $4") {
-		t.Fatalf("ListStaleSourceUIDs query missing LIMIT:\n%s", q.query)
+	if !strings.Contains(q.Query, "LIMIT $4") {
+		t.Fatalf("ListStaleSourceUIDs query missing LIMIT:\n%s", q.Query)
 	}
-	if len(q.args) != 4 || q.args[0] != "reducer/code-interproc" || q.args[1] != "scope-1" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 4 || q.Args[0] != "reducer/code-interproc" || q.Args[1] != "scope-1" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
 
@@ -163,8 +164,8 @@ func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.PruneForScopes(
 		context.Background(),
@@ -173,10 +174,10 @@ func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneForScopes error: %v", err)
 	}
-	if len(database.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(database.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	query := database.execs[0].query
+	query := database.Execs[0].Query
 	if !strings.Contains(query, "DELETE FROM code_interproc_projected_edge") {
 		t.Fatalf("PruneForScopes query missing DELETE:\n%s", query)
 	}
@@ -191,8 +192,8 @@ func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.PruneStaleForUIDs(
 		context.Background(),
@@ -203,10 +204,10 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneStaleForUIDs error: %v", err)
 	}
-	if len(database.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(database.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	query := database.execs[0].query
+	query := database.Execs[0].Query
 	if !strings.Contains(query, "DELETE FROM code_interproc_projected_edge") {
 		t.Fatalf("PruneStaleForUIDs query missing DELETE:\n%s", query)
 	}
@@ -216,7 +217,7 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	if !strings.Contains(query, "source_function_uid = ANY($4)") {
 		t.Fatalf("PruneStaleForUIDs query missing source_function_uid = ANY($4):\n%s", query)
 	}
-	args := database.execs[0].args
+	args := database.Execs[0].Args
 	if len(args) != 4 || args[0] != "reducer/code-interproc" || args[1] != "scope-1" || args[2] != "gen-current" {
 		t.Fatalf("args wrong: %+v", args)
 	}
@@ -231,13 +232,13 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 }
 
 // TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape proves
-// the EXISTS query has the correct shape and parameters. The recording fakes
-// return no rows, so hasRows is always false — that's fine for a shape test.
+// the EXISTS query has the correct shape and parameters. The fake queryer
+// returns no rows, so hasRows is always false — that's fine for a shape test.
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -249,70 +250,31 @@ func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape(t *test
 	if hasRows {
 		t.Fatalf("LedgerHasRowsForSource returned true with empty rows")
 	}
-	if len(database.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(database.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := database.queries[0]
-	if !strings.Contains(q.query, "SELECT EXISTS") {
-		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "SELECT EXISTS") {
+		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "code_interproc_projected_edge") {
-		t.Fatalf("LedgerHasRowsForSource query missing table:\n%s", q.query)
+	if !strings.Contains(q.Query, "code_interproc_projected_edge") {
+		t.Fatalf("LedgerHasRowsForSource query missing table:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "evidence_source = $1") {
-		t.Fatalf("LedgerHasRowsForSource query missing evidence_source filter:\n%s", q.query)
+	if !strings.Contains(q.Query, "evidence_source = $1") {
+		t.Fatalf("LedgerHasRowsForSource query missing evidence_source filter:\n%s", q.Query)
 	}
-	if len(q.args) != 1 || q.args[0] != "reducer/code-interproc" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 1 || q.Args[0] != "reducer/code-interproc" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
-
-// ledgerHasRowsDB is a minimal ExecQueryer that returns a single boolean row
-// for the LedgerHasRowsForSource EXISTS query.
-type ledgerHasRowsDB struct {
-	result bool
-}
-
-func (database ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	return nil, nil
-}
-
-func (database ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return &ledgerHasRowsRows{exists: database.result}, nil
-}
-
-type ledgerHasRowsRows struct {
-	exists bool
-	done   bool
-}
-
-func (r *ledgerHasRowsRows) Next() bool {
-	if r.done {
-		return false
-	}
-	r.done = true
-	return true
-}
-
-func (r *ledgerHasRowsRows) Scan(dest ...any) error {
-	if len(dest) > 0 {
-		if b, ok := dest[0].(*bool); ok {
-			*b = r.exists
-		}
-	}
-	return nil
-}
-
-func (r *ledgerHasRowsRows) Err() error   { return nil }
-func (r *ledgerHasRowsRows) Close() error { return nil }
 
 // TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue proves the
 // EXISTS query returns true when the table has rows for the source.
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue(t *testing.T) {
 	t.Parallel()
 
-	database := ledgerHasRowsDB{result: true}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{true}}}}}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -331,8 +293,8 @@ func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue(t *testing.T)
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceFalse(t *testing.T) {
 	t.Parallel()
 
-	database := ledgerHasRowsDB{result: false}
-	store := NewCodeInterprocProjectedEdgeStore(database)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{false}}}}}
+	store := taintstore.NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -351,8 +313,8 @@ func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceFalse(t *testing.T
 func TestCodeInterprocProjectedEdgeMigrationSchemaSQLParity(t *testing.T) {
 	t.Parallel()
 
-	goDDL := CodeInterprocProjectedEdgeSchemaSQL()
-	migrationSQL := MigrationSQL("code_interproc_projected_edge")
+	goDDL := taintstore.CodeInterprocProjectedEdgeSchemaSQL()
+	migrationSQL := postgres.MigrationSQL("code_interproc_projected_edge")
 	if goDDL != migrationSQL {
 		t.Fatalf("Go DDL != migration SQL.\nGo DDL:\n%s\nMigration:\n%s", goDDL, migrationSQL)
 	}

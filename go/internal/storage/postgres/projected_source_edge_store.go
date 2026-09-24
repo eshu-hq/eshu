@@ -73,8 +73,9 @@ func ProjectedSourceEdgeSchemaSQL() string {
 // edge for a given evidence source, so reducer edge retracts can enumerate
 // prior-generation source uids from the ledger instead of scanning the whole
 // graph. This is the generalized counterpart of
-// CodeInterprocProjectedEdgeStore: the same superset-ledger pattern, keyed by
-// an arbitrary evidence_source rather than a single hardcoded edge kind.
+// taintstore.CodeInterprocProjectedEdgeStore: the same superset-ledger
+// pattern, keyed by an arbitrary evidence_source rather than a single
+// hardcoded edge kind.
 type ProjectedSourceEdgeStore struct {
 	database db.ExecQueryer
 }

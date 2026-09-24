@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package taintstore_test
 
 import (
 	"context"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 // TestCodeTaintEvidenceProjectedNodeStoreSchemaSQL proves the migration DDL
@@ -15,7 +19,7 @@ import (
 func TestCodeTaintEvidenceProjectedNodeStoreSchemaSQL(t *testing.T) {
 	t.Parallel()
 
-	d := CodeTaintEvidenceProjectedNodeSchemaSQL()
+	d := taintstore.CodeTaintEvidenceProjectedNodeSchemaSQL()
 	for _, want := range []string{
 		"code_taint_evidence_projected_node",
 		"code_taint_evidence_projected_node_source_scope_idx",
@@ -33,8 +37,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreSchemaSQL(t *testing.T) {
 func TestCodeTaintEvidenceProjectedNodeStoreRecordDedupesAndSkipsBlanks(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 	at := time.Date(2026, time.July, 7, 0, 0, 0, 0, time.UTC)
 
 	err := store.RecordProjectedNodes(
@@ -48,10 +52,10 @@ func TestCodeTaintEvidenceProjectedNodeStoreRecordDedupesAndSkipsBlanks(t *testi
 	if err != nil {
 		t.Fatalf("RecordProjectedNodes error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	args := db.execs[0].args
+	args := database.Execs[0].Args
 	// 2 unique non-blank uids: uid-a, uid-b. Each row = 5 args.
 	if len(args) != 10 {
 		t.Fatalf("args count = %d, want 10 (2 rows * 5 columns)", len(args))
@@ -73,8 +77,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreRecordDedupesAndSkipsBlanks(t *testi
 func TestCodeTaintEvidenceProjectedNodeStoreRecordEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	if err := store.RecordProjectedNodes(
 		context.Background(),
@@ -86,8 +90,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreRecordEmptyIsNoOp(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RecordProjectedNodes error: %v", err)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("exec calls = %d, want 0", len(db.execs))
+	if len(database.Execs) != 0 {
+		t.Fatalf("exec calls = %d, want 0", len(database.Execs))
 	}
 }
 
@@ -96,8 +100,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreRecordEmptyIsNoOp(t *testing.T) {
 func TestCodeTaintEvidenceProjectedNodeStoreListNodeUIDsForScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	_, err := store.ListNodeUIDsForScopes(
 		context.Background(),
@@ -107,18 +111,18 @@ func TestCodeTaintEvidenceProjectedNodeStoreListNodeUIDsForScopes(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ListNodeUIDsForScopes error: %v", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := db.queries[0]
-	if !strings.Contains(q.query, "DISTINCT node_uid") {
-		t.Fatalf("ListNodeUIDsForScopes query missing DISTINCT:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "DISTINCT node_uid") {
+		t.Fatalf("ListNodeUIDsForScopes query missing DISTINCT:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "scope_id = ANY($2)") {
-		t.Fatalf("ListNodeUIDsForScopes query missing ANY:\n%s", q.query)
+	if !strings.Contains(q.Query, "scope_id = ANY($2)") {
+		t.Fatalf("ListNodeUIDsForScopes query missing ANY:\n%s", q.Query)
 	}
-	if len(q.args) != 2 || q.args[0] != "reducer/code-taint" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 2 || q.Args[0] != "reducer/code-taint" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
 
@@ -127,8 +131,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreListNodeUIDsForScopes(t *testing.T) 
 func TestCodeTaintEvidenceProjectedNodeStoreListStaleNodeUIDs(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	_, err := store.ListStaleNodeUIDs(
 		context.Background(),
@@ -140,18 +144,18 @@ func TestCodeTaintEvidenceProjectedNodeStoreListStaleNodeUIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStaleNodeUIDs error: %v", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := db.queries[0]
-	if !strings.Contains(q.query, "generation_id <> $3") {
-		t.Fatalf("ListStaleNodeUIDs query missing generation_id <>:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "generation_id <> $3") {
+		t.Fatalf("ListStaleNodeUIDs query missing generation_id <>:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "LIMIT $4") {
-		t.Fatalf("ListStaleNodeUIDs query missing LIMIT:\n%s", q.query)
+	if !strings.Contains(q.Query, "LIMIT $4") {
+		t.Fatalf("ListStaleNodeUIDs query missing LIMIT:\n%s", q.Query)
 	}
-	if len(q.args) != 4 || q.args[0] != "reducer/code-taint" || q.args[1] != "scope-1" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 4 || q.Args[0] != "reducer/code-taint" || q.Args[1] != "scope-1" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
 
@@ -160,8 +164,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreListStaleNodeUIDs(t *testing.T) {
 func TestCodeTaintEvidenceProjectedNodeStorePruneForScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	if err := store.PruneForScopes(
 		context.Background(),
@@ -170,10 +174,10 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneForScopes(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneForScopes error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	query := db.execs[0].query
+	query := database.Execs[0].Query
 	if !strings.Contains(query, "DELETE FROM code_taint_evidence_projected_node") {
 		t.Fatalf("PruneForScopes query missing DELETE:\n%s", query)
 	}
@@ -188,8 +192,8 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneForScopes(t *testing.T) {
 func TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	if err := store.PruneStaleForUIDs(
 		context.Background(),
@@ -200,10 +204,10 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneStaleForUIDs error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.Execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.Execs))
 	}
-	query := db.execs[0].query
+	query := database.Execs[0].Query
 	if !strings.Contains(query, "DELETE FROM code_taint_evidence_projected_node") {
 		t.Fatalf("PruneStaleForUIDs query missing DELETE:\n%s", query)
 	}
@@ -213,7 +217,7 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs(t *testing.T) {
 	if !strings.Contains(query, "node_uid = ANY($4)") {
 		t.Fatalf("PruneStaleForUIDs query missing node_uid = ANY($4):\n%s", query)
 	}
-	args := db.execs[0].args
+	args := database.Execs[0].Args
 	if len(args) != 4 || args[0] != "reducer/code-taint" || args[1] != "scope-1" || args[2] != "gen-current" {
 		t.Fatalf("args wrong: %+v", args)
 	}
@@ -231,8 +235,8 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs(t *testing.T) {
 func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceQueryShape(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{}}}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -244,21 +248,21 @@ func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceQueryShape(t *
 	if hasRows {
 		t.Fatalf("LedgerHasRowsForSource returned true with empty rows")
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.Queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.Queries))
 	}
-	q := db.queries[0]
-	if !strings.Contains(q.query, "SELECT EXISTS") {
-		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.query)
+	q := database.Queries[0]
+	if !strings.Contains(q.Query, "SELECT EXISTS") {
+		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "code_taint_evidence_projected_node") {
-		t.Fatalf("LedgerHasRowsForSource query missing table:\n%s", q.query)
+	if !strings.Contains(q.Query, "code_taint_evidence_projected_node") {
+		t.Fatalf("LedgerHasRowsForSource query missing table:\n%s", q.Query)
 	}
-	if !strings.Contains(q.query, "evidence_source = $1") {
-		t.Fatalf("LedgerHasRowsForSource query missing evidence_source filter:\n%s", q.query)
+	if !strings.Contains(q.Query, "evidence_source = $1") {
+		t.Fatalf("LedgerHasRowsForSource query missing evidence_source filter:\n%s", q.Query)
 	}
-	if len(q.args) != 1 || q.args[0] != "reducer/code-taint" {
-		t.Fatalf("args wrong: %+v", q.args)
+	if len(q.Args) != 1 || q.Args[0] != "reducer/code-taint" {
+		t.Fatalf("args wrong: %+v", q.Args)
 	}
 }
 
@@ -267,8 +271,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceQueryShape(t *
 func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceTrue(t *testing.T) {
 	t.Parallel()
 
-	db := ledgerHasRowsDB{result: true}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{true}}}}}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -287,8 +291,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceTrue(t *testin
 func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceFalse(t *testing.T) {
 	t.Parallel()
 
-	db := ledgerHasRowsDB{result: false}
-	store := NewCodeTaintEvidenceProjectedNodeStore(db)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{false}}}}}
+	store := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -307,8 +311,8 @@ func TestCodeTaintEvidenceProjectedNodeStoreLedgerHasRowsForSourceFalse(t *testi
 func TestCodeTaintEvidenceProjectedNodeMigrationSchemaSQLParity(t *testing.T) {
 	t.Parallel()
 
-	goDDL := CodeTaintEvidenceProjectedNodeSchemaSQL()
-	migrationSQL := MigrationSQL("code_taint_evidence_projected_node")
+	goDDL := taintstore.CodeTaintEvidenceProjectedNodeSchemaSQL()
+	migrationSQL := postgres.MigrationSQL("code_taint_evidence_projected_node")
 	if goDDL != migrationSQL {
 		t.Fatalf("Go DDL != migration SQL.\nGo DDL:\n%s\nMigration:\n%s", goDDL, migrationSQL)
 	}

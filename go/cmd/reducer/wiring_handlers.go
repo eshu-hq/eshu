@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -245,8 +246,8 @@ func buildReducerCodeEvidenceHandlers(
 	functionSourceStore := postgres.NewFunctionSourceStore(database)
 	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
 	valueFlowFixpointComponentStore := postgres.NewValueFlowFixpointComponentStore(database)
-	codeInterprocLedger := postgres.NewCodeInterprocProjectedEdgeStore(database)
-	codeTaintLedger := postgres.NewCodeTaintEvidenceProjectedNodeStore(database)
+	codeInterprocLedger := taintstore.NewCodeInterprocProjectedEdgeStore(database)
+	codeTaintLedger := taintstore.NewCodeTaintEvidenceProjectedNodeStore(database)
 	valueFlowFixpointProjector := newValueFlowFixpointProjector(
 		functionSummaryStore,
 		functionSourceStore,

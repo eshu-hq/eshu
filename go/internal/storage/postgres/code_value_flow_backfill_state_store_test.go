@@ -5,9 +5,12 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestCodeValueFlowBackfillStateStoreSchemaSQL proves the migration DDL includes
@@ -134,3 +137,45 @@ func TestCodeValueFlowBackfillStateMigrationSchemaSQLParity(t *testing.T) {
 		t.Fatalf("Go DDL != migration SQL.\nGo DDL:\n%s\nMigration:\n%s", goDDL, migrationSQL)
 	}
 }
+
+// ledgerHasRowsDB is a minimal ExecQueryer that returns a single boolean row
+// for an EXISTS query, used by this file's IsComplete true/false tests.
+// #6693 moved this type's former home (a projected-edge-ledger test file) to
+// internal/storage/postgres/code/taint; this is its only remaining consumer
+// in the root package, so the type moved here with it.
+type ledgerHasRowsDB struct {
+	result bool
+}
+
+func (database ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (database ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return &ledgerHasRowsRows{exists: database.result}, nil
+}
+
+type ledgerHasRowsRows struct {
+	exists bool
+	done   bool
+}
+
+func (r *ledgerHasRowsRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *ledgerHasRowsRows) Scan(dest ...any) error {
+	if len(dest) > 0 {
+		if b, ok := dest[0].(*bool); ok {
+			*b = r.exists
+		}
+	}
+	return nil
+}
+
+func (r *ledgerHasRowsRows) Err() error   { return nil }
+func (r *ledgerHasRowsRows) Close() error { return nil }
