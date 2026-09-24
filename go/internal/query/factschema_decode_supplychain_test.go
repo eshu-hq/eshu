@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -14,7 +15,7 @@ import (
 // TestSupplyChainDecodeWrappersClassifyMissingRequiredField proves the
 // accuracy guarantee eshu-contract-rigor names: a required payload key
 // absent (or null) from a source-fact payload must dead-letter as a
-// classified input_invalid *queryDecodeError, never a silent zero-value
+// classified input_invalid *decode.Error, never a silent zero-value
 // struct. Table-driven so every #4795 W2b supply-chain decode wrapper still
 // living in this package is covered by the same assertion. The four
 // vulnerability wrappers moved with the advisory-evidence read model to
@@ -104,9 +105,9 @@ func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 			if err == nil {
 				t.Fatalf("decode error = nil, want classified input_invalid error for missing %q", tc.missingField)
 			}
-			var queryErr *queryDecodeError
+			var queryErr *decode.Error
 			if !errors.As(err, &queryErr) {
-				t.Fatalf("error = %v (%T), want *queryDecodeError", err, err)
+				t.Fatalf("error = %v (%T), want *decode.Error", err, err)
 			}
 			if queryErr.Classification != factschema.ClassificationInputInvalid {
 				t.Fatalf("Classification = %q, want %q", queryErr.Classification, factschema.ClassificationInputInvalid)

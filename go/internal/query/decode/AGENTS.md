@@ -1,13 +1,16 @@
 # Agent instructions: decode
 
-Read `doc.go` and `README.md` first. This package is one type and one
-constructor; nearly any change here is a contract change.
+Read `doc.go` and `README.md` first. This package is one type, one
+constructor, the shared default schema version and a `*string` deref; nearly
+any change here is a contract change.
 
 ## Invariants
 
-- `Error()` and `Unwrap()` MUST stay exported. Root aliases this type, and a
-  type alias cannot reach unexported methods across a package boundary. Making
-  either unexported silently forces a 73-site rename in package `query`.
+- `Error()` and `Unwrap()` MUST stay exported under those names: the `error`
+  interface and `errors.Is`/`errors.As` find them by name.
+- `DefaultSchemaMajorVersion` and `DerefString` have one copy, here. Do not
+  re-fork either into a handler family; the per-family copies they replaced
+  existed only because those families could not import root.
 - `Unwrap` MUST return the underlying `*factschema.DecodeError`. Callers reach
   its `ErrUnsupportedSchemaMajor` sentinel via `errors.Is`/`errors.As`; wrapping
   or dropping it compiles fine and stops the sentinel matching.
@@ -25,7 +28,7 @@ they see.
 
 - A caller builds `Error{FactKind: ..., FactID: ...}` from the exported fields
   and never sets the wrapped error. `Error()` and `Unwrap()` are nil-guarded for
-  exactly this, because the type had to be exported for root's alias. A panic
+  exactly this, because the type's fields are exported. A panic
   here would surface as a 500 on a read path whose job is to degrade one bad
   fact gracefully.
 - `Unwrap` returning a typed nil rather than an untyped one. A nil
@@ -38,9 +41,8 @@ they see.
 
 ## Anti-patterns
 
-- Do not unexport `Error()` or `Unwrap()`. Root aliases this type, and an alias
-  cannot reach unexported methods across a package boundary; doing so forces a
-  rename across all 73 references in package `query`.
+- Do not unexport `Error()` or `Unwrap()`; the type stops being an `error`
+  and the wrapped sentinel stops matching.
 - Do not add decoding logic here. This package holds the failure shape. The
   `factschema` Decode* seam does the decoding and the query layer decides what
   to do with a drop.

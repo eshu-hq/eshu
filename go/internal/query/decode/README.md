@@ -7,6 +7,10 @@ carrying the fact kind, the fact id, the missing field, and the classification,
 so a read path can drop that row instead of silently returning a row of empty
 strings.
 
+Beside it, the two things every query-layer factschema decoder shares: the
+schema version a version-less row normalizes to, and a nil-safe `*string`
+deref.
+
 ## Ownership boundary
 
 This package owns the query layer's decode-failure shape. It does not decode
@@ -16,7 +20,8 @@ durable fact record; it classifies one decoded row as unusable.
 
 ## Exported surface
 
-`Error` and `New`, described in [doc.go](doc.go).
+`Error` and `New`, plus `DefaultSchemaMajorVersion` and `DerefString`
+(`factschema_shared.go`), described in [doc.go](doc.go).
 
 ## Dependencies
 
@@ -31,12 +36,15 @@ inherit anything else through it; the same reasoning put the handler span in
 
 ## Gotchas / invariants
 
-`Error()` and `Unwrap()` are exported, and that is load-bearing for the root
-package. Package `query` keeps `type queryDecodeError = decode.Error`, and
-a type alias reaches a type's exported methods but **not** its unexported ones
-across a package boundary. Had these been named `error()` and `unwrap()`, all 73
-existing references in root would have needed rewriting, which is exactly what
-`RepositoryAccessFilter` cost in the same epic.
+`Error()` and `Unwrap()` are exported because the `error` interface and
+`errors.Is`/`errors.As` look them up by those names. Root used to alias this
+type as `queryDecodeError`; #6642 deleted that alias, so callers name
+`decode.Error` directly.
+
+`DefaultSchemaMajorVersion` is `"1.0.0"` because every migrated fact kind that
+normalizes through it is at schema major 1. If a family moves to a new major,
+that family's decoder should say so explicitly rather than changing this
+default for everyone.
 
 `Unwrap` must keep returning the underlying `*factschema.DecodeError`, because
 callers reach its `ErrUnsupportedSchemaMajor` sentinel through `errors.Is` and
@@ -56,7 +64,14 @@ decode behavior, error classification, or wrapped-error semantics changed.
 
 ## No-Regression Evidence
 
-Baseline `origin/main` at the move vs this branch: `go build ./...` and
+`factschema_shared.go` came from the query root's `factschema_decode_shared.go`
+for #6642 (move-sequence row 7). Its alias and forwarder were deleted, its
+constant and helper exported, and the five package-local copies of the constant
+and five of the helper in `package/registry`, `workitem`, `incident/store` and
+`supply/chain/{advisory,impact}` now call these instead. Every copy returned
+the same literal or the same zero-value deref, so no decoded value changes.
+
+Earlier: baseline `origin/main` at the move vs this branch: `go build ./...` and
 `go test ./internal/query/... -count=1` pass with 0 failures. The decode
 paths that exercise this package live in the root package's
 `factschema_decode_*_test.go` files, `internal/query/incident/store`,

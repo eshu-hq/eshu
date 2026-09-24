@@ -451,8 +451,7 @@ func VisualizationEdgeID(source, target, relationship string) string {
 // originals and aliasing them would have pulled unrelated root files into
 // the builder's compatibility surface. This package could now call those
 // copies directly; the #6597 moves keep them so they change no code. Mirrors
-// the registry family's derefString/derefBool
-// precedent (#6060).
+// the registry family's package-local derefBool precedent (#6060).
 func cloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil

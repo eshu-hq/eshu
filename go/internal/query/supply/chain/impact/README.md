@@ -100,9 +100,8 @@ Internal packages, all of them leaves that never import root package `query`:
   and `WriteError` (root forwards to the same functions, so behavior
   is identical on both sides of the move).
 - `internal/query/decode` — the classified decode failure the
-  copied source-fact wrappers return via `decode.New`, the same
-  constructor root's `newQueryDecodeError` forwards to (advisory and
-  the registry family's precedent).
+  copied source-fact wrappers return via `decode.New`, plus the shared
+  `DefaultSchemaMajorVersion` and `DerefString`.
 - `internal/storage/postgres/array` — the array scan/build surface
   the stores read through.
 - `internal/storage/postgres` — the suppression-mutation storage
@@ -114,9 +113,9 @@ service-catalog, and vulnerability-suppression decode seams) and the
 standard library.
 
 The `compactStrings`/`firstNonEmptyString`/`appendUniqueString`/
-`stringMapVal` payload helpers, the `derefString` nil-safe deref, the
+`stringMapVal` payload helpers, the
 `supplyChainFactDecodeInput` bundle, the `supplyChainSchemaEnvelope`
-adapter (with its `supplyChainDefaultSchemaMajorVersion` literal),
+adapter,
 the six source-fact decode wrappers, the
 `decodeSupplyChainComponentEvidence` seam, the
 `serviceCatalogCorrelationFactKind`/`cicdRunCorrelationFactKind`

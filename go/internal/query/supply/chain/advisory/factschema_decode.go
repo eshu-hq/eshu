@@ -56,20 +56,9 @@ type supplyChainFactDecodeInput struct {
 	Payload       map[string]any
 }
 
-// supplyChainDefaultSchemaMajorVersion is the schema version this file
-// assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
-// major-1 version because every in-tree vulnerability source-fact emitter
-// stamps a concrete major-1 version; the Decode seam dispatches on the major
-// component only. Kept as this family's own copy rather than an import: the
-// root constant is unexported and this trivial literal has no shared-drift
-// risk (same rationale as the registry family's
-// packageCorrelationDefaultSchemaMajorVersion).
-const supplyChainDefaultSchemaMajorVersion = "1.0.0"
-
 // supplyChainSchemaEnvelope adapts one scanned advisory evidence fact row
 // into the contracts-module factschema.Envelope the Decode* seam accepts. An
-// empty schemaVersion normalizes to supplyChainDefaultSchemaMajorVersion,
+// empty schemaVersion normalizes to decode.DefaultSchemaMajorVersion,
 // matching the version-less legacy default; every in-tree
 // vulnerability source-fact emitter stamps a concrete major-1 version, so
 // the empty case is defensive rather than the production path. A present but
@@ -77,7 +66,7 @@ const supplyChainDefaultSchemaMajorVersion = "1.0.0"
 // branch instead of being decoded as v1.
 func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[string]any) factschema.Envelope {
 	if schemaVersion == "" {
-		schemaVersion = supplyChainDefaultSchemaMajorVersion
+		schemaVersion = decode.DefaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
 		FactKind:      factKind,

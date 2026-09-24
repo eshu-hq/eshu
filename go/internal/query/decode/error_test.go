@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// Exporting this type so root can alias it also lets any importer build one
+// The type is exported, so any importer can build one
 // from the exported fields alone. New always sets the unexported wrapped error,
 // but a struct literal cannot, and Error()/Unwrap() must not panic on that
 // value. A panic here surfaces as a 500 on a read path whose whole purpose is

@@ -45,11 +45,9 @@ func boolPointerVal(payload map[string]any, key string) *bool {
 //
 // Each wrapper wraps the matching sdk/go/factschema Decode* seam and, on a
 // classified *factschema.DecodeError (a missing/null required identity
-// field), returns a *decode.Error via decode.New -- the leaf
-// constructor root's newQueryDecodeError forwards to (root's queryDecodeError
-// is an alias for decode.Error), so the returned values are identical
-// to what the root seam produced. Callers drop the fact's contribution
-// instead of fabricating a zero-valued row.
+// field), returns a *decode.Error via decode.New, the same classified
+// failure root's own supply-chain decoders return. Callers drop the fact's
+// contribution instead of fabricating a zero-valued row.
 
 // supplyChainFactDecodeInput carries one scanned evidence-fact row into a
 // decode wrapper. Copied from root package query's
@@ -60,27 +58,16 @@ type supplyChainFactDecodeInput struct {
 	Payload       map[string]any
 }
 
-// supplyChainDefaultSchemaMajorVersion is the schema version this file
-// assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
-// major-1 version because every in-tree supply-chain source-fact emitter
-// stamps a concrete major-1 version; the Decode seam dispatches on the major
-// component only. Kept as this family's own copy rather than an import: the
-// root constant is unexported and this trivial literal has no shared-drift
-// risk (same rationale as advisory's
-// supplyChainDefaultSchemaMajorVersion).
-const supplyChainDefaultSchemaMajorVersion = "1.0.0"
-
 // supplyChainSchemaEnvelope adapts one scanned supply-chain evidence fact
 // row into the contracts-module factschema.Envelope the Decode* seam
 // accepts. Copied from root package query's
 // factschema_decode_supplychain.go; an empty schemaVersion normalizes to
-// supplyChainDefaultSchemaMajorVersion, matching the version-less legacy
+// decode.DefaultSchemaMajorVersion, matching the version-less legacy
 // default. A present but unsupported major still dead-letters through the
 // Decode* seam's default branch instead of being decoded as v1.
 func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[string]any) factschema.Envelope {
 	if schemaVersion == "" {
-		schemaVersion = supplyChainDefaultSchemaMajorVersion
+		schemaVersion = decode.DefaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
 		FactKind:      factKind,
@@ -162,21 +149,6 @@ func decodeServiceCatalogRepositoryLink(in supplyChainFactDecodeInput) (servicec
 	return link, nil
 }
 
-// derefString returns the value a *string points at, or "" when it is nil.
-// Copied from root package query's derefString
-// (factschema_decode_shared.go, named workItemDerefString there before
-// #6642 destuttered it): root decode files still call it, so the #6060
-// family move could not take it, and an unexported root symbol cannot be
-// called across a package boundary. Named for what it does
-// here rather than the root file it came from: nothing in this package is
-// work-item-shaped (same rationale as advisory's derefString).
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
 // supplyChainComponentEvidence bundles the subset of anchor/component
 // fields buildSupplyChainComponentExplanation and
 // buildSupplyChainExplanationAnchors (explain_build.go)
@@ -223,7 +195,7 @@ func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentE
 		return supplyChainComponentEvidence{
 			Matched:       true,
 			DocumentID:    document.DocumentID,
-			SubjectDigest: derefString(document.SubjectDigest),
+			SubjectDigest: decode.DerefString(document.SubjectDigest),
 		}
 	case factschema.FactKindSBOMComponent:
 		component, err := decodeSBOMComponent(in)
@@ -232,10 +204,10 @@ func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentE
 		}
 		return supplyChainComponentEvidence{
 			Matched:      true,
-			Version:      derefString(component.Version),
-			PURL:         derefString(component.PURL),
+			Version:      decode.DerefString(component.Version),
+			PURL:         decode.DerefString(component.PURL),
 			DocumentID:   component.DocumentID,
-			LockfilePath: derefString(component.LockfilePath),
+			LockfilePath: decode.DerefString(component.LockfilePath),
 		}
 	case factschema.FactKindPackageRegistryPackageDependency:
 		dependency, err := decodePackageRegistryPackageDependency(in)
@@ -244,8 +216,8 @@ func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentE
 		}
 		return supplyChainComponentEvidence{
 			Matched:         true,
-			Version:         derefString(dependency.Version),
-			DependencyRange: derefString(dependency.DependencyRange),
+			Version:         decode.DerefString(dependency.Version),
+			DependencyRange: decode.DerefString(dependency.DependencyRange),
 		}
 	case factschema.FactKindServiceCatalogEntity:
 		entity, err := decodeServiceCatalogEntity(in)
@@ -261,7 +233,7 @@ func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentE
 		return supplyChainComponentEvidence{
 			Matched:   true,
 			EntityRef: ownership.EntityRef,
-			OwnerRef:  derefString(ownership.OwnerRef),
+			OwnerRef:  decode.DerefString(ownership.OwnerRef),
 		}
 	case factschema.FactKindServiceCatalogRepositoryLink:
 		link, err := decodeServiceCatalogRepositoryLink(in)

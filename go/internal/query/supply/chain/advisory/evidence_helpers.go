@@ -113,27 +113,12 @@ func stringMapSliceVal(payload map[string]any, key string) []map[string]string {
 	return out
 }
 
-// derefString returns the value a *string points at, or "" when it is nil.
-// Copied from root package query's derefString
-// (factschema_decode_shared.go, named workItemDerefString there before
-// #6642 destuttered it): root decode files still call it, so the #6060
-// family move could not take it, and an unexported root symbol cannot be
-// called across a package boundary. Named for what it does here rather than
-// the root file it came from: nothing in this package is work-item-shaped
-// (same rationale as the registry family's derefString).
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
 // derefFloat64 returns the value a *float64 points at, or 0 when it is nil,
 // matching the pre-typing floatVal(0) behavior for a field this migration
 // converts from a raw payload lookup to a typed pointer. Copied from the
 // former root package query helper of the same shape (deleted when the
-// advisory family moved in the #6060 lane-A PR1) for the same reason as
-// derefString.
+// advisory family moved in the #6060 lane-A PR1); decode.DerefString covers
+// only the *string case, and no other query package needs this one.
 func derefFloat64(value *float64) float64 {
 	if value == nil {
 		return 0

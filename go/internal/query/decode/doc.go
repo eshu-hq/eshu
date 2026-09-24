@@ -16,4 +16,10 @@
 // depends on sdk/go/factschema, and querycontract is the package families
 // import for types without inheriting a runtime (nested under query/ and
 // destuttered to decode for #6642 Part D).
+//
+// DefaultSchemaMajorVersion and DerefString are the two pieces every
+// query-layer factschema decoder shares: the schema version a version-less row
+// normalizes to, and the nil-safe *string deref a typed pointer field needs.
+// They moved here from the query root for #6642, replacing the per-package
+// copies each handler family carried because it could not import root.
 package decode

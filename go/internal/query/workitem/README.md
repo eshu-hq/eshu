@@ -41,7 +41,7 @@ envelope helpers (`querycontract`), or the classified decode-error type
   shaping.
 - `factschema_decode.go` -- the nine `work_item.*` typed decode wrappers
   (`decodeWorkItemRecord`, `decodeWorkItemTransition`, ...), `workItemDecodeInput`,
-  `workItemSchemaEnvelope`, and this package's own `derefString`/`derefBool`.
+  `workItemSchemaEnvelope`, and this package's own `derefBool`.
 - `capability.go` -- `EvidenceSupport`, this family's capability contract.
 - Test files -- this package's own tests, moved in verbatim from root (see
   Move evidence).
@@ -82,7 +82,9 @@ it any more) and shed the nine `work_item.*` decode wrappers,
 which moved into this package's `factschema_decode.go` using `decode.Error`/
 `decode.New` directly and this package's own `defaultSchemaMajorVersion`
 literal (duplicated rather than imported, since this package must not import
-root).
+root). Row 7 of the #6642 move sequence later moved that root file to
+`decode/factschema_shared.go`; this package now calls `decode.DerefString`
+and `decode.DefaultSchemaMajorVersion` and keeps only `derefBool`.
 
 `work_item_evidence_scope_test.go` split: the two
 `TestAuthMiddlewareWithScopedTokens*WorkItem*` tests exercise root's own auth

@@ -66,7 +66,7 @@ Internal packages, all of them leaves that never import root package `query`:
 
 Plus `sdk/go/factschema` (typed vulnerability decode seams) and the
 standard library. The `mapVal`/`stringMapSliceVal` payload helpers and the
-`derefString`/`derefFloat64` nil-safe derefs are family-local copies of
+`derefFloat64` nil-safe deref are family-local copies of
 trivial root helpers that cannot cross the package boundary; each carries
 a provenance comment naming its root source.
 
