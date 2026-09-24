@@ -48,6 +48,15 @@ type SweepOptions struct {
 	// whose warmup probe returns a 4xx is not exercised and is not sampled
 	// further.
 	Iterations int
+	// Runs is the number of independent counted sweeps per route: run 1 is
+	// the COLD pass (immediately after warmupRequests, no additional warmup
+	// before it), and runs 2..Runs are WARM passes (no warmup between them
+	// either — the connection and caches are already hot from run 1). Zero
+	// or one behaves exactly like the original single-pass gate: RouteLatency.P95
+	// is computed from run 1's samples alone and WarmSamples/WarmRunP95s stay
+	// empty, so a caller that never sets Runs (every existing caller, and CI
+	// via -runs' default of 1) gets byte-for-byte unchanged output.
+	Runs int
 	// Timeout bounds each individual request.
 	Timeout time.Duration
 	// Meter, when set, measures the Postgres work of each exercised route's
@@ -72,6 +81,10 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	runs := opts.Runs
+	if runs < 1 {
+		runs = 1
+	}
 	results := make([]RouteLatency, 0, len(opts.Routes))
 
 	for _, route := range opts.Routes {
@@ -84,7 +97,7 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 			url += "?" + q
 		}
 
-		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, opts.Meter)
+		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, runs, opts.Meter)
 		if err != nil {
 			return nil, err
 		}
@@ -94,8 +107,12 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 	return results, nil
 }
 
-// sweepRoute runs the warmup-then-counted sweep for one route.
-func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations int, meter WorkMeter) (RouteLatency, error) {
+// sweepRoute runs the warmup-then-counted sweep for one route: warmupRequests
+// discarded probes, then `runs` independent passes of `iterations` counted
+// requests each, with no additional warmup between passes. Run 1 is the cold
+// pass (RouteLatency.Samples); runs 2..runs are warm passes
+// (RouteLatency.WarmSamples/WarmRunP95s). See SweepOptions.Runs.
+func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
 		_, status, _, err := sweepOne(client, url, apiKey)
 		if err != nil {
@@ -112,39 +129,68 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		}
 	}
 
-	durations := make([]time.Duration, 0, iterations)
+	var coldSamples []time.Duration
+	var warmSamples []time.Duration
+	var warmRunP95s []time.Duration
 	hardFailed := false
 	hardFailedBody := ""
 	status := 0
-	for i := 0; i < iterations; i++ {
-		d, s, body, err := sweepOne(client, url, apiKey)
-		if err != nil {
-			return RouteLatency{}, fmt.Errorf("sweep %s (iteration %d/%d): %w", route, i+1, iterations, err)
-		}
-		status = s
-		if s >= 500 {
-			if !hardFailed {
-				hardFailedBody = body
+
+	for run := 0; run < runs; run++ {
+		runSamples := make([]time.Duration, 0, iterations)
+		for i := 0; i < iterations; i++ {
+			d, s, body, err := sweepOne(client, url, apiKey)
+			if err != nil {
+				return RouteLatency{}, fmt.Errorf("sweep %s (run %d/%d, iteration %d/%d): %w", route, run+1, runs, i+1, iterations, err)
 			}
-			hardFailed = true
+			status = s
+			if s >= 500 {
+				if !hardFailed {
+					hardFailedBody = body
+				}
+				hardFailed = true
+			}
+			runSamples = append(runSamples, d)
 		}
-		durations = append(durations, d)
+		if run == 0 {
+			coldSamples = runSamples
+			continue
+		}
+		warmSamples = append(warmSamples, runSamples...)
+		// percentile sorts in place; runSamples is this run's own slice, not
+		// shared with warmSamples' backing array (warmSamples grows by
+		// append, copying), so sorting it here does not disturb pooling
+		// order above.
+		warmRunP95s = append(warmRunP95s, p95(runSamples))
 	}
 
+	// official is the sample set RouteLatency.P95 is computed from: the cold
+	// pass alone when there is no warm data (Runs<=1, so this is
+	// byte-for-byte what the gate has always computed), otherwise the pooled
+	// warm samples — the cold pass's cache-cold connection makes it
+	// unrepresentative of steady state, the same reasoning warmupRequests
+	// already applies one level up.
+	official := coldSamples
+	if len(warmSamples) > 0 {
+		official = warmSamples
+	}
 	result := RouteLatency{
 		Route:          route,
-		P95:            p95(durations),
+		P95:            p95(append([]time.Duration(nil), official...)),
 		Exercised:      true,
 		Status:         status,
 		HardFailed:     hardFailed,
 		HardFailedBody: hardFailedBody,
+		Samples:        coldSamples,
+		WarmSamples:    warmSamples,
+		WarmRunP95s:    warmRunP95s,
 	}
 	if meter != nil {
 		counters, err := meter.Read(ctx)
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s: read work meter: %w", route, err)
 		}
-		n := float64(iterations)
+		n := float64(iterations * runs)
 		result.Metered = true
 		result.Work = WorkPerRequest{
 			Calls: float64(counters.Calls) / n,
@@ -202,17 +248,17 @@ func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, stri
 	return elapsed, resp.StatusCode, body, nil
 }
 
-// p95 returns the nearest-rank 95th percentile of durations: the smallest
-// value v such that at least 95% of samples are <= v, i.e. the
-// ceil(0.95*n)'th smallest sample (1-indexed). durations is sorted in
-// place. For n=20 this is index 18 (0-indexed) — the SECOND-highest sample,
+// percentile returns the nearest-rank p'th percentile of durations: the
+// smallest value v such that at least p of samples are <= v, i.e. the
+// ceil(p*n)'th smallest sample (1-indexed). durations is sorted in place.
+// For p=0.95, n=20 this is index 18 (0-indexed) — the SECOND-highest sample,
 // not the maximum — so a single outlier does not dominate the statistic.
-func p95(durations []time.Duration) time.Duration {
+func percentile(durations []time.Duration, p float64) time.Duration {
 	if len(durations) == 0 {
 		return 0
 	}
 	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
-	rank := int(math.Ceil(0.95 * float64(len(durations))))
+	rank := int(math.Ceil(p * float64(len(durations))))
 	idx := rank - 1
 	if idx >= len(durations) {
 		idx = len(durations) - 1
@@ -221,4 +267,11 @@ func p95(durations []time.Duration) time.Duration {
 		idx = 0
 	}
 	return durations[idx]
+}
+
+// p95 returns percentile(durations, 0.95); kept as a named wrapper because
+// "p95" is the term every doc comment, test name, and budget-table column in
+// this package already uses.
+func p95(durations []time.Duration) time.Duration {
+	return percentile(durations, 0.95)
 }

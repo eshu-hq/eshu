@@ -314,6 +314,99 @@ func TestSweepRoutesFailsOnConnectionFailure(t *testing.T) {
 	}
 }
 
+// TestSweepRoutesRunsProducesColdAndWarmSamples pins the -runs contract: run 1
+// is the cold pass (RouteLatency.Samples, opts.Iterations entries) and runs
+// 2..Runs are warm passes pooled into WarmSamples ((Runs-1)*Iterations
+// entries) with one WarmRunP95s entry per warm run. Warmup requests happen
+// only once, before run 1 — not once per run.
+func TestSweepRoutesRunsProducesColdAndWarmSamples(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	const iterations = 4
+	const runs = 3
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL:    srv.URL,
+		APIKey:     "test-key",
+		Routes:     []string{"GET /health"},
+		Iterations: iterations,
+		Runs:       runs,
+		Timeout:    5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("SweepRoutes: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	r := results[0]
+	if len(r.Samples) != iterations {
+		t.Errorf("len(Samples) = %d, want %d (the cold run-1 pass)", len(r.Samples), iterations)
+	}
+	if want := (runs - 1) * iterations; len(r.WarmSamples) != want {
+		t.Errorf("len(WarmSamples) = %d, want %d ((Runs-1)*Iterations pooled)", len(r.WarmSamples), want)
+	}
+	if len(r.WarmRunP95s) != runs-1 {
+		t.Errorf("len(WarmRunP95s) = %d, want %d (one p95 per warm run)", len(r.WarmRunP95s), runs-1)
+	}
+	if want := warmupRequests + runs*iterations; int(atomic.LoadInt32(&calls)) != want {
+		t.Errorf("total requests issued = %d, want %d (warmup once, then Runs*Iterations counted requests)", calls, want)
+	}
+}
+
+// TestSweepRoutesRunsDefaultLeavesWarmDataEmpty pins the byte-for-byte
+// compatibility guarantee: Runs unset (zero value) behaves exactly like
+// Runs=1 — a single cold pass, no warm data, P95 computed from that one pass
+// alone, matching every pre-existing caller of SweepRoutes.
+func TestSweepRoutesRunsDefaultLeavesWarmDataEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL:    srv.URL,
+		APIKey:     "test-key",
+		Routes:     []string{"GET /health"},
+		Iterations: 5,
+		Timeout:    5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("SweepRoutes: %v", err)
+	}
+	r := results[0]
+	if len(r.Samples) != 5 {
+		t.Errorf("len(Samples) = %d, want 5", len(r.Samples))
+	}
+	if r.WarmSamples != nil {
+		t.Errorf("WarmSamples = %v, want nil when Runs is unset", r.WarmSamples)
+	}
+	if r.WarmRunP95s != nil {
+		t.Errorf("WarmRunP95s = %v, want nil when Runs is unset", r.WarmRunP95s)
+	}
+}
+
+// TestPercentileKnownVector pins percentile's nearest-rank formula on a fixed
+// vector where p50 and p95 are unambiguous by hand: 1..10 ms. p50 is the
+// ceil(0.5*10)=5th smallest (5ms, index 4), p95 is the ceil(0.95*10)=10th
+// smallest (10ms, index 9 — the max, since n=10 makes ceil(9.5)=10).
+func TestPercentileKnownVector(t *testing.T) {
+	samples := make([]time.Duration, 10)
+	for i := range samples {
+		samples[i] = time.Duration(i+1) * time.Millisecond
+	}
+	if got := percentile(append([]time.Duration(nil), samples...), 0.50); got != 5*time.Millisecond {
+		t.Errorf("p50 = %v, want 5ms", got)
+	}
+	if got := percentile(append([]time.Duration(nil), samples...), 0.95); got != 10*time.Millisecond {
+		t.Errorf("p95 = %v, want 10ms", got)
+	}
+}
+
 // TestSweepRoutesRejectsNonPositiveIterations guards a vacuous-green hole: with
 // zero counted requests the p95 is 0 and the work averages are 0/0 = NaN, and
 // NaN is never greater than a budget, so every latency and work check passed

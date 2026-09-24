@@ -31,9 +31,13 @@ func main() {
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
 	sharedIntentCount := flag.Int("shared-intent-count", defaultSharedIntentCount, "shared_projection_intents rows to seed, newest 1% pending (issue #6820: the status routes' domain backlog aggregate must read pending intents by index, not scan the table)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
+	runs := flag.Int("runs", 1, "independent counted sweeps per route; run 1 is the cold pass, runs 2.. are warm passes with no additional warmup (default 1: identical stdout and budget evaluation to a single-pass gate)")
 	budgetsPath := flag.String("budgets", "testdata/benchmarks/read-api-route-budgets.txt", "route latency budget table path")
 	workBudgetsPath := flag.String("work-budgets", "testdata/benchmarks/read-api-route-work-budgets.txt", "route Postgres work budget table path")
 	workReportPath := flag.String("work-report", "", "write the per-route Postgres work measured this run as JSON (input to scripts/refresh-read-api-work-budgets.sh)")
+	latencyReportPath := flag.String("latency-report", "", "write the full per-route latency distribution (cold/warm samples, identity block) as JSON, before budget evaluation")
+	eshuCommit := flag.String("eshu-commit", os.Getenv("GATE_ESHU_COMMIT"), "eshu git commit to record in the latency report identity block (best-effort)")
+	apiBinarySHA256 := flag.String("api-binary-sha256", os.Getenv("GATE_API_BINARY_SHA256"), "eshu-api binary sha256 to record in the latency report identity block (best-effort)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
 	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
@@ -41,25 +45,29 @@ func main() {
 	flag.Parse()
 
 	if err := run(runOptions{
-		postgresDSN:     *postgresDSN,
-		graphURI:        *graphURI,
-		graphDatabase:   *graphDatabase,
-		graphUsername:   *graphUsername,
-		graphPassword:   *graphPassword,
-		apiBaseURL:      *apiBaseURL,
-		apiKey:          *apiKey,
-		totalScopes:     *totalScopes,
-		nodesPerLabel:   *nodesPerLabel,
-		iacFactCount:    *iacFactCount,
-		sharedIntents:   *sharedIntentCount,
-		iterations:      *iterations,
-		budgetsPath:     *budgetsPath,
-		workBudgetsPath: *workBudgetsPath,
-		workReportPath:  *workReportPath,
-		backgroundIdle:  *backgroundIdle,
-		skipSeed:        *skipSeed,
-		seedOnly:        *seedOnly,
-		requestTimeout:  *requestTimeout,
+		postgresDSN:       *postgresDSN,
+		graphURI:          *graphURI,
+		graphDatabase:     *graphDatabase,
+		graphUsername:     *graphUsername,
+		graphPassword:     *graphPassword,
+		apiBaseURL:        *apiBaseURL,
+		apiKey:            *apiKey,
+		totalScopes:       *totalScopes,
+		nodesPerLabel:     *nodesPerLabel,
+		iacFactCount:      *iacFactCount,
+		sharedIntents:     *sharedIntentCount,
+		iterations:        *iterations,
+		runs:              *runs,
+		budgetsPath:       *budgetsPath,
+		workBudgetsPath:   *workBudgetsPath,
+		workReportPath:    *workReportPath,
+		latencyReportPath: *latencyReportPath,
+		eshuCommit:        *eshuCommit,
+		apiBinarySHA256:   *apiBinarySHA256,
+		backgroundIdle:    *backgroundIdle,
+		skipSeed:          *skipSeed,
+		seedOnly:          *seedOnly,
+		requestTimeout:    *requestTimeout,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
 		os.Exit(1)
@@ -67,25 +75,29 @@ func main() {
 }
 
 type runOptions struct {
-	postgresDSN     string
-	graphURI        string
-	graphDatabase   string
-	graphUsername   string
-	graphPassword   string
-	apiBaseURL      string
-	apiKey          string
-	totalScopes     int
-	nodesPerLabel   int
-	iacFactCount    int
-	sharedIntents   int
-	iterations      int
-	budgetsPath     string
-	workBudgetsPath string
-	workReportPath  string
-	backgroundIdle  time.Duration
-	skipSeed        bool
-	seedOnly        bool
-	requestTimeout  time.Duration
+	postgresDSN       string
+	graphURI          string
+	graphDatabase     string
+	graphUsername     string
+	graphPassword     string
+	apiBaseURL        string
+	apiKey            string
+	totalScopes       int
+	nodesPerLabel     int
+	iacFactCount      int
+	sharedIntents     int
+	iterations        int
+	runs              int
+	budgetsPath       string
+	workBudgetsPath   string
+	workReportPath    string
+	latencyReportPath string
+	eshuCommit        string
+	apiBinarySHA256   string
+	backgroundIdle    time.Duration
+	skipSeed          bool
+	seedOnly          bool
+	requestTimeout    time.Duration
 }
 
 func run(opts runOptions) error {
@@ -143,6 +155,7 @@ func run(opts runOptions) error {
 		Routes:     routes,
 		QueryArgs:  RouteQueryArgs,
 		Iterations: opts.iterations,
+		Runs:       opts.runs,
 		Timeout:    opts.requestTimeout,
 		Meter:      meter,
 		Context:    ctx,
@@ -151,6 +164,13 @@ func run(opts runOptions) error {
 		return fmt.Errorf("sweep routes: %w", err)
 	}
 	if err := writeWorkReportFile(opts.workReportPath, results); err != nil {
+		return err
+	}
+	// Written before budget evaluation below: a leg that goes on to breach
+	// its budget must still yield a report -- the report is measurement,
+	// not a verdict, and a comparator needs both legs' reports regardless of
+	// which one (if either) is green.
+	if err := writeLatencyReportFile(opts.latencyReportPath, opts, results); err != nil {
 		return err
 	}
 

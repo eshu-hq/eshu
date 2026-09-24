@@ -47,6 +47,25 @@ type RouteLatency struct {
 	// meaningful only then. See WorkPerRequest.
 	Metered bool
 	Work    WorkPerRequest
+	// Samples holds the COLD (first) run's counted-iteration sample
+	// durations, in request order. Populated whenever Exercised is true,
+	// regardless of SweepOptions.Runs. P95 is computed from these samples
+	// when Runs <= 1 (the default), so this is the same sample set that has
+	// always backed the gate's own budget check.
+	Samples []time.Duration
+	// WarmSamples holds every counted sample from runs 2..Runs, pooled in
+	// run order (empty when Runs <= 1). Run 1's cold connection and cold
+	// Postgres/NornicDB caches make it unrepresentative of steady state
+	// (the same reasoning as warmupRequests, one level up); WarmSamples is
+	// what a multi-run latency report's distribution is computed from, and
+	// what P95 is computed from when Runs > 1.
+	WarmSamples []time.Duration
+	// WarmRunP95s holds the nearest-rank p95 of EACH individual warm run
+	// (runs 2..Runs), in run order — not the p95 of the pooled WarmSamples.
+	// Its min..max shows run-to-run spread that a single pooled p95 cannot:
+	// a host under variable load can produce a stable pooled p95 while
+	// individual runs swing widely.
+	WarmRunP95s []time.Duration
 }
 
 // BudgetBreach is one route that failed the gate: either its measured p95
