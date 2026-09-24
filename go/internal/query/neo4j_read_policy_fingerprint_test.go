@@ -128,7 +128,7 @@ func TestNeo4jReaderSpanCarriesStatementFingerprint(t *testing.T) {
 }
 
 // TestResolveGraphReadSlowThresholdDefaultIsOneSecond proves the default
-// threshold matches the 1-second endpoint budget (#7035).
+// threshold is 1 second, down from 2 seconds (#7035).
 func TestResolveGraphReadSlowThresholdDefaultIsOneSecond(t *testing.T) {
 	getenv := func(string) string { return "" }
 	got := resolveGraphReadSlowThreshold(getenv, slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)))

@@ -205,8 +205,8 @@ two fields that name the exact statement shape: `graph_read.statement_fingerprin
 whitespace-collapsed statement, truncated to 300 characters with an
 `...[truncated]` marker when it exceeds that bound).
 
-The slow threshold defaults to 1 second, matching the API/MCP endpoint budget,
-and is configurable through `ESHU_GRAPH_READ_SLOW_THRESHOLD` (a Go duration
+The slow threshold defaults to 1 second (it was 2 seconds before #7035, so
+expect more `slow` warnings after upgrading) and is configurable through `ESHU_GRAPH_READ_SLOW_THRESHOLD` (a Go duration
 string, for example `750ms`). An unset value keeps the default; an invalid or
 non-positive value logs `query.graph_read.invalid_slow_threshold` once at
 startup and falls back to the default rather than silently disabling the
