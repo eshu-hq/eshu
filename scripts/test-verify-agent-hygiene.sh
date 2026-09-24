@@ -303,8 +303,9 @@ else
 fi
 
 if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq '\.claude/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.codex/(skills|agents)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq '\.claude/(skills|agents|hooks)/' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq '\.muse/hooks/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'agent-roles\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'test-goal-role-router\.py' "$repo_root/.pre-commit-config.yaml" \
