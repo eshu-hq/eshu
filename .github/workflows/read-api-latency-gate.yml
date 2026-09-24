@@ -41,6 +41,7 @@ on:
       - 'scripts/test-refresh-read-api-work-budgets.sh'
       - 'scripts/compare-backend-latency.sh'
       - 'scripts/test-compare-backend-latency.sh'
+      - 'scripts/lib/test-compare-backend-latency-report.json'
       - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/lib/golden-corpus-host-helpers.sh'
       - 'scripts/lib/compose_verification_runtime_common.sh'

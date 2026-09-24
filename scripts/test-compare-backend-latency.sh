@@ -22,30 +22,16 @@ fail() {
 
 # base_report BACKEND -- a minimal valid schema-version-1 report with two
 # comparable routes (GET /a, GET /b), written to "${work}/${1}.json".
+# The template lives in scripts/lib/test-compare-backend-latency-report.json
+# (the heredoc budget gate caps inline heredocs at 512 bytes).
+fixture="${repo_root}/scripts/lib/test-compare-backend-latency-report.json"
 base_report() {
 	local backend="$1" p95_a="$2" p95_b="$3"
-	cat >"${work}/${backend}.json" <<JSON
-{
-  "schema_version": 1,
-  "identity": {
-    "backend": "${backend}",
-    "eshu_commit": "deadbeef",
-    "api_binary_sha256": "binsha",
-    "seed_options": {"total_scopes": 800, "nodes_per_label": 150000, "iac_fact_count": 150000, "shared_intent_count": 2500000},
-    "runs": 5,
-    "iterations": 20,
-    "warmups": 2
-  },
-  "routes": [
-    {"route": "GET /a", "exercised": true, "status": 200, "hard_failed": false, "metered": true,
-     "work": {"calls": 10, "rows": 5, "blks": 100},
-     "warm": {"n": 80, "p50_ms": 10, "p95_ms": ${p95_a}, "min_ms": 8, "max_ms": ${p95_a}, "stddev_ms": 1.0, "run_p95_min_ms": 9, "run_p95_max_ms": ${p95_a}}},
-    {"route": "GET /b", "exercised": true, "status": 200, "hard_failed": false, "metered": true,
-     "work": {"calls": 5, "rows": 2, "blks": 40},
-     "warm": {"n": 80, "p50_ms": 5, "p95_ms": ${p95_b}, "min_ms": 4, "max_ms": ${p95_b}, "stddev_ms": 0.5, "run_p95_min_ms": 5, "run_p95_max_ms": ${p95_b}}}
-  ]
-}
-JSON
+	jq --arg backend "${backend}" --argjson a "${p95_a}" --argjson b "${p95_b}" '
+		.identity.backend = $backend
+		| .routes[0].warm |= (.p95_ms = $a | .max_ms = $a | .run_p95_max_ms = $a)
+		| .routes[1].warm |= (.p95_ms = $b | .max_ms = $b | .run_p95_max_ms = $b)
+	' "${fixture}" >"${work}/${backend}.json"
 }
 
 base_report nornicdb 13 7

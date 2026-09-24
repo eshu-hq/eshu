@@ -2492,6 +2492,7 @@ gates:
     triggers:
       - "scripts/compare-backend-latency.sh"
       - "scripts/test-compare-backend-latency.sh"
+      - "scripts/lib/test-compare-backend-latency-report.json"
     local:
       command: "bash scripts/test-compare-backend-latency.sh"
       test_command: ""
