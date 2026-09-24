@@ -14,6 +14,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -148,7 +149,7 @@ VALUES ($1, $2, $3, $4, $5, 'aws', $5, $6, $6, $7, $8::jsonb)`,
 		t.Fatalf("begin: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	q := sqlTxExecQueryer{tx}
+	q := SQLTx{Tx: tx}
 
 	t.Run("admission_uids", func(t *testing.T) {
 		alive, err := LiveAdmissionCloudUIDs(ctx, q, []string{
@@ -207,9 +208,9 @@ VALUES ($1, $2, $3, $4, $5, 'aws', $5, $6, $6, $7, $8::jsonb)`,
 	})
 
 	t.Run("ledger_release", func(t *testing.T) {
-		store := NewGraphNodeOwnerStore()
+		store := ownerstore.NewGraphNodeOwnerStore()
 		uid := prefix + "-release-me"
-		if _, _, err := store.ResolveOwnedUIDs(ctx, q, []GraphNodeOwnerEntry{
+		if _, _, err := store.ResolveOwnedUIDs(ctx, q, []ownerstore.GraphNodeOwnerEntry{
 			{UID: uid, SourceOrderKey: "9999-z", WinningRow: []byte(`{}`)},
 		}, now); err != nil {
 			t.Fatalf("resolve: %v", err)
@@ -317,7 +318,7 @@ ON CONFLICT (work_item_id) DO UPDATE SET status = EXCLUDED.status, updated_at = 
 			t.Fatalf("begin: %v", err)
 		}
 		defer func() { _ = tx.Rollback() }()
-		return LiveAdmissionCloudUIDs(ctx, sqlTxExecQueryer{tx}, []string{uidHeld})
+		return LiveAdmissionCloudUIDs(ctx, SQLTx{Tx: tx}, []string{uidHeld})
 	}
 	itemB2 := prefix + "-work-b2"
 	for _, status := range []string{"pending", "claimed", "running", "retrying", "failed", "dead_letter"} {

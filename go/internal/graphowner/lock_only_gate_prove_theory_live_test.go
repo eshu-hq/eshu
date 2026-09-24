@@ -18,13 +18,14 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 // TestLiveLockOnlyGateProveTheory is the #5062 P1 prove-theory-first gate for
 // LockOnlyGate: it races an UNGATED posture write against a Gate-gated
 // base-property write on the SAME CloudResource-shaped uid, and separately
 // races the SAME posture write wrapped in LockOnlyGate — using the IDENTICAL
-// postgres.GraphNodeOwnerStore advisory lock key Gate uses — against the same
+// ownerstore.GraphNodeOwnerStore advisory lock key Gate uses — against the same
 // base write, using the widened-transaction-window shim
 // TestLiveGraphGuardProveTheory proved reliably reproduces NornicDB
 // conflict-handling defects (a plain narrow single-statement race is a known
@@ -84,7 +85,7 @@ func TestLiveLockOnlyGateProveTheory(t *testing.T) {
 	}
 	defer func() { _ = rawDB.Close() }()
 	sqldb := postgres.SQLDB{DB: rawDB}
-	if err := postgres.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
+	if err := ownerstore.NewGraphNodeOwnerStore().EnsureSchema(ctx, sqldb); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}
 

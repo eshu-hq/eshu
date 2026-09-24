@@ -162,12 +162,12 @@ the concrete adapters stay here.
 
 **Shared projection**
 
-- `GraphNodeOwnerStore` / `NewGraphNodeOwnerStore` — per-uid advisory-lock and
-  max-order-key resolver for canonical CloudResource and KubernetesWorkload
-  writers.
-- `GraphNodeOwnerBackfillStore` / `NewGraphNodeOwnerBackfillStore` — bounded,
-  monotonic seed and durable completion marker for CloudResource graph rows
-  written before the owner ledger existed.
+- `ownerstore.GraphNodeOwnerStore` / `ownerstore.NewGraphNodeOwnerStore` —
+  per-uid advisory-lock and max-order-key resolver for canonical CloudResource
+  and KubernetesWorkload writers.
+- `ownerstore.GraphNodeOwnerBackfillStore` / `ownerstore.NewGraphNodeOwnerBackfillStore`
+  — bounded, monotonic seed and durable completion marker for CloudResource
+  graph rows written before the owner ledger existed.
 
 - `SharedIntentStore` / `NewSharedIntentStore` — reads
   `shared_projection_intents` and writes shared projection intents in bounded

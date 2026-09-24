@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -23,7 +24,7 @@ const (
 	// available. A minimum order key preserves that state without letting a
 	// migration race overwrite any real reducer contribution, whose observed-at
 	// timestamp is always greater than this sentinel.
-	cloudResourceBackfillMinimumOrderKeyPrefix = postgres.GraphNodeOwnerBackfillMinimumOrderKeyPrefix
+	cloudResourceBackfillMinimumOrderKeyPrefix = ownerstore.GraphNodeOwnerBackfillMinimumOrderKeyPrefix
 )
 
 const cloudResourceOwnerBackfillProjection = `
@@ -89,7 +90,7 @@ LIMIT $limit`
 // graph_node_owner before the indexed cloud-resource read path is exposed.
 type CloudResourceOwnerBackfillStore interface {
 	IsCloudResourceBackfillComplete(context.Context) (bool, error)
-	SeedExistingGraphNodeOwners(context.Context, []postgres.GraphNodeOwnerEntry, time.Time) error
+	SeedExistingGraphNodeOwners(context.Context, []ownerstore.GraphNodeOwnerEntry, time.Time) error
 	MarkCloudResourceBackfillComplete(context.Context, time.Time) error
 }
 
@@ -110,7 +111,7 @@ func BackfillCloudResourceOwnerLedger(ctx context.Context, db *sql.DB, graph Gra
 	if db == nil {
 		return fmt.Errorf("cloud resource owner backfill database is required")
 	}
-	store := postgres.NewGraphNodeOwnerBackfillStore(postgres.SQLDB{DB: db})
+	store := ownerstore.NewGraphNodeOwnerBackfillStore(postgres.SQLDB{DB: db})
 	return (CloudResourceOwnerBackfiller{Graph: graph, Store: store}).Backfill(ctx)
 }
 
@@ -185,8 +186,8 @@ func (b CloudResourceOwnerBackfiller) Backfill(ctx context.Context) error {
 	return nil
 }
 
-func cloudResourceBackfillEntries(rows []map[string]any) ([]postgres.GraphNodeOwnerEntry, error) {
-	entries := make([]postgres.GraphNodeOwnerEntry, 0, len(rows))
+func cloudResourceBackfillEntries(rows []map[string]any) ([]ownerstore.GraphNodeOwnerEntry, error) {
+	entries := make([]ownerstore.GraphNodeOwnerEntry, 0, len(rows))
 	previousUID := ""
 	for _, graphRow := range rows {
 		uid := strings.TrimSpace(StringVal(graphRow, "uid"))
@@ -208,7 +209,7 @@ func cloudResourceBackfillEntries(rows []map[string]any) ([]postgres.GraphNodeOw
 		if err != nil {
 			return nil, fmt.Errorf("encode cloud resource owner backfill row %q: %w", uid, err)
 		}
-		entries = append(entries, postgres.GraphNodeOwnerEntry{
+		entries = append(entries, ownerstore.GraphNodeOwnerEntry{
 			UID:            uid,
 			SourceOrderKey: cloudResourceBackfillMinimumOrderKeyPrefix + factID,
 			WinningRow:     encoded,

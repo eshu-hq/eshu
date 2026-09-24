@@ -108,7 +108,7 @@ func TestExpectedContentEntityCountsAgreeWithTheGraphForContentLabels(t *testing
 }
 
 // TestOwnerLedgerMarkerTargetsTheBackfillStateTable pins the two literals the
-// marker shares with go/internal/storage/postgres/graph_node_owner_backfill_store.go
+// marker shares with go/internal/storage/postgres/graph/owner/backfill.go
 // (an unexported key and SQL there), since the gate cannot import them.
 func TestOwnerLedgerMarkerTargetsTheBackfillStateTable(t *testing.T) {
 	if ownerLedgerBackfillKey != "cloud_resource_owner:v1" {

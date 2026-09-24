@@ -349,7 +349,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 11. [x] `cloud/aws/` (2 files)
 12. [x] `code/taint/` (2 files)
 13. [x] `governance/audit/` (2 files)
-14. [ ] `graph/owner/` (2 files)
+14. [x] `graph/owner/` (2 files)
 15. [ ] `queue/` (2 files)
 16. [ ] `admission/` (3 files)
 17. [ ] `code/reachability/` (3 files)

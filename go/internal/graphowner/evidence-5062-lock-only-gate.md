@@ -2,7 +2,7 @@
 
 Records the performance and observability evidence for `LockOnlyGate`
 (`lock_only_gate.go`, `posture_locked_writers.go`) and its
-`postgres.GraphNodeOwnerStore.LockUIDs` support, so the hot-path evidence
+`ownerstore.GraphNodeOwnerStore.LockUIDs` support, so the hot-path evidence
 gate (`scripts/verify-performance-evidence.sh`) has a tracked, in-repo record
 specific to this change. See
 `docs/internal/design/5007-cross-scope-node-ownership.md`'s "#5062 P1:
@@ -12,7 +12,7 @@ gate's evidence-file location requirement with the exact same numbers.
 
 ## Change shape
 
-`go/internal/storage/postgres/graph_node_owner_store.go`: `acquireLocks` now
+`go/internal/storage/postgres/graph/owner/store.go`: `acquireLocks` now
 delegates to a new exported `LockUIDs(ctx, tx, uids)` method (no ledger
 upsert, no ownership resolution) so the lock-only path and the owner-ledger
 path share one key-derivation code path and cannot drift.

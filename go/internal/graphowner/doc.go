@@ -17,7 +17,7 @@
 // lock table (#5007 P2-1: an unbounded transaction failed with "out of shared
 // memory" at ~20000 uids). Per chunk: open a Postgres transaction, acquire
 // that chunk's per-uid advisory locks in one sorted statement, batch-upsert
-// the owner ledger (postgres.GraphNodeOwnerStore) keeping the max order key,
+// the owner ledger (ownerstore.GraphNodeOwnerStore) keeping the max order key,
 // and write to the graph ONLY the uids this chunk currently owns —
 // using this chunk's OWN Go-typed rows, never a value round-tripped out of the
 // ledger (which would mangle []string/int64 types and break byte-identity for
@@ -38,7 +38,7 @@
 // the SAME CloudResource nodes Gate resolves ownership for, but every scope
 // observes the same posture fact for the same resource, so there is no
 // "winner" to converge to. LockOnlyGate acquires the IDENTICAL per-uid
-// pg_advisory_xact_lock key Gate uses (postgres.GraphNodeOwnerStore.LockUIDs,
+// pg_advisory_xact_lock key Gate uses (ownerstore.GraphNodeOwnerStore.LockUIDs,
 // the same key derivation ResolveOwnedUIDs uses) across the posture writer's
 // graph write, with no ledger upsert, so that write can never overlap a
 // concurrent Gate-resolved base-property write on the same uid. A nil or

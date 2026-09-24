@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package ownerstore
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 )
 
 const (
@@ -25,23 +26,32 @@ const (
 	maxGraphNodeOwnerAdvisoryKey = uint64(1<<63 - 1)
 )
 
-// graphNodeOwnerAcquireLocksSQL acquires one transaction-scoped advisory lock
+// GraphNodeOwnerAcquireLocksSQL acquires one transaction-scoped advisory lock
 // per key, in ascending key order. The inner subquery materializes the DISTINCT
 // keys sorted BEFORE the lock function is applied, so two concurrent batches
 // with overlapping uids always acquire their shared locks in the same order and
 // can never deadlock. It is one round-trip regardless of batch size.
-const graphNodeOwnerAcquireLocksSQL = `
+//
+// Exported so the root #6693 SPLIT test
+// (postgres.TestGraphNodeOwnerAcquireLocksSortsBeforeLocking,
+// postgres.TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs) can assert on
+// the exact statement text while it still shares a file with root-private
+// package-registry-identity lock comparisons; production code never needs
+// this constant outside the package.
+const GraphNodeOwnerAcquireLocksSQL = `
 SELECT pg_advisory_xact_lock(k)
 FROM (SELECT DISTINCT k FROM unnest($1::bigint[]) AS t(k) ORDER BY k) s`
 
-// graphNodeOwnerUpsertPrefix / graphNodeOwnerUpsertSuffix build the batched
+// graphNodeOwnerUpsertPrefix / GraphNodeOwnerUpsertSuffix build the batched
 // atomic max-resolution upsert: a row is overwritten only when the incoming
 // source_order_key is strictly greater than the stored one, so Postgres
 // resolves the max (observed_at, source_fact_id) contributor per uid.
 const graphNodeOwnerUpsertPrefix = `
 INSERT INTO graph_node_owner (uid, source_order_key, winning_row, updated_at) VALUES `
 
-const graphNodeOwnerUpsertSuffix = `
+// GraphNodeOwnerUpsertSuffix is exported for the same root SPLIT-test reason
+// as GraphNodeOwnerAcquireLocksSQL (postgres.TestGraphNodeOwnerUpsertKeepsMaxOrderKey).
+const GraphNodeOwnerUpsertSuffix = `
 ON CONFLICT (uid) DO UPDATE
 SET source_order_key = EXCLUDED.source_order_key,
     winning_row = EXCLUDED.winning_row,
@@ -94,7 +104,7 @@ func (GraphNodeOwnerStore) EnsureSchema(ctx context.Context, ex db.Executor) err
 	if ex == nil {
 		return fmt.Errorf("graph node owner store executor is required")
 	}
-	ddl, err := graphNodeOwnerSchemaSQL()
+	ddl, err := GraphNodeOwnerSchemaSQL()
 	if err != nil {
 		return err
 	}
@@ -104,10 +114,15 @@ func (GraphNodeOwnerStore) EnsureSchema(ctx context.Context, ex db.Executor) err
 	return nil
 }
 
-// graphNodeOwnerSchemaSQL returns the embedded migration DDL for the
+// GraphNodeOwnerSchemaSQL returns the embedded migration DDL for the
 // graph_node_owner table, so the store never drifts from the migration.
-func graphNodeOwnerSchemaSQL() (string, error) {
-	for _, def := range BootstrapDefinitions() {
+//
+// Exported so the root #6693 SPLIT test
+// (postgres.TestGraphNodeOwnerSchemaSQLMatchesMigration) can assert on the
+// resolved DDL while it still shares a file with root-private
+// package-registry-identity lock comparisons.
+func GraphNodeOwnerSchemaSQL() (string, error) {
+	for _, def := range migrations.BootstrapDefinitions() {
 		if def.Name == graphNodeOwnerDefinitionName {
 			return def.SQL, nil
 		}
@@ -139,7 +154,7 @@ func (s GraphNodeOwnerStore) ResolveOwnedUIDs(
 	if updatedAt.IsZero() {
 		return nil, 0, fmt.Errorf("graph node owner updated_at is required")
 	}
-	unique := dedupeOwnerEntries(entries)
+	unique := DedupeOwnerEntries(entries)
 	if len(unique) == 0 {
 		return map[string]struct{}{}, 0, nil
 	}
@@ -181,7 +196,7 @@ func (s GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx db.ExecQueryer
 }
 
 // LockUIDs acquires the transaction-scoped advisory lock for every uid, using
-// the IDENTICAL graphNodeOwnerAdvisoryKey derivation and graphNodeOwnerAcquireLocksSQL
+// the IDENTICAL GraphNodeOwnerAdvisoryKey derivation and GraphNodeOwnerAcquireLocksSQL
 // statement acquireLocks uses on ResolveOwnedUIDs's path (acquireLocks now
 // delegates to this method, so the two can never drift). It performs NO ledger
 // upsert and NO ownership resolution.
@@ -213,12 +228,12 @@ func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx db.ExecQueryer, uids
 		if uid == "" {
 			continue
 		}
-		keys = append(keys, graphNodeOwnerAdvisoryKey(uid))
+		keys = append(keys, GraphNodeOwnerAdvisoryKey(uid))
 	}
 	if len(keys) == 0 {
 		return nil
 	}
-	if _, err := tx.ExecContext(ctx, graphNodeOwnerAcquireLocksSQL, keys); err != nil {
+	if _, err := tx.ExecContext(ctx, GraphNodeOwnerAcquireLocksSQL, keys); err != nil {
 		return fmt.Errorf("acquire graph node owner advisory locks: %w", err)
 	}
 	return nil
@@ -236,7 +251,7 @@ func (GraphNodeOwnerStore) upsert(ctx context.Context, tx db.ExecQueryer, entrie
 		}
 		args = append(args, entry.UID, entry.SourceOrderKey, []byte(row), updatedAt)
 	}
-	query := graphNodeOwnerUpsertPrefix + strings.Join(values, ", ") + graphNodeOwnerUpsertSuffix
+	query := graphNodeOwnerUpsertPrefix + strings.Join(values, ", ") + GraphNodeOwnerUpsertSuffix
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert graph node owners: %w", err)
 	}
@@ -294,11 +309,17 @@ func (GraphNodeOwnerStore) winningOrderKeys(ctx context.Context, tx db.ExecQuery
 	return winners, nil
 }
 
-// dedupeOwnerEntries drops entries with a blank uid and collapses duplicate
+// DedupeOwnerEntries drops entries with a blank uid and collapses duplicate
 // uids within one batch to the maximum SourceOrderKey (the same within-batch
 // tie-break the extractors apply), returning the result sorted by uid so lock
 // acquisition and upsert argument order are deterministic.
-func dedupeOwnerEntries(entries []GraphNodeOwnerEntry) []GraphNodeOwnerEntry {
+//
+// Exported so the root #6693 SPLIT test
+// (postgres.TestDedupeOwnerEntriesCollapsesToMaxOrderKeyAndSorts,
+// postgres.TestDedupeOwnerEntriesEmptyReturnsNil) can call it directly while
+// it still shares a file with root-private package-registry-identity lock
+// comparisons.
+func DedupeOwnerEntries(entries []GraphNodeOwnerEntry) []GraphNodeOwnerEntry {
 	byUID := make(map[string]GraphNodeOwnerEntry, len(entries))
 	for _, entry := range entries {
 		uid := strings.TrimSpace(entry.UID)
@@ -321,9 +342,14 @@ func dedupeOwnerEntries(entries []GraphNodeOwnerEntry) []GraphNodeOwnerEntry {
 	return out
 }
 
-// graphNodeOwnerAdvisoryKey derives the deterministic 63-bit advisory lock key
+// GraphNodeOwnerAdvisoryKey derives the deterministic 63-bit advisory lock key
 // for a node uid, mirroring PackageRegistryIdentityLocker's fnv-based scheme.
-func graphNodeOwnerAdvisoryKey(uid string) int64 {
+//
+// Exported so the root #6693 SPLIT test
+// (postgres.TestGraphNodeOwnerAdvisoryKeyIsDeterministicAndNamespaced) can
+// compare it against root-private packageRegistryIdentityAdvisoryLockKey
+// while that test still shares a file with root-private lock comparisons.
+func GraphNodeOwnerAdvisoryKey(uid string) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(graphNodeOwnerAdvisoryPrefix))
 	_, _ = h.Write([]byte(strings.TrimSpace(uid)))

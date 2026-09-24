@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
 )
 
 func TestCloudResourceOwnerBackfillerSeedsExistingGraphRowsBeforeCompletion(t *testing.T) {
@@ -216,7 +216,7 @@ func (g *scriptedCloudResourceBackfillGraph) RunSingle(context.Context, string, 
 
 type recordingCloudResourceBackfillStore struct {
 	complete       bool
-	seeded         []postgres.GraphNodeOwnerEntry
+	seeded         []ownerstore.GraphNodeOwnerEntry
 	seedErr        error
 	markedComplete bool
 	markedAt       time.Time
@@ -228,7 +228,7 @@ func (s *recordingCloudResourceBackfillStore) IsCloudResourceBackfillComplete(co
 
 func (s *recordingCloudResourceBackfillStore) SeedExistingGraphNodeOwners(
 	_ context.Context,
-	entries []postgres.GraphNodeOwnerEntry,
+	entries []ownerstore.GraphNodeOwnerEntry,
 	_ time.Time,
 ) error {
 	s.seeded = append(s.seeded, entries...)
@@ -241,7 +241,7 @@ func (s *recordingCloudResourceBackfillStore) MarkCloudResourceBackfillComplete(
 	return nil
 }
 
-func seededUIDs(entries []postgres.GraphNodeOwnerEntry) []string {
+func seededUIDs(entries []ownerstore.GraphNodeOwnerEntry) []string {
 	uids := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		uids = append(uids, entry.UID)

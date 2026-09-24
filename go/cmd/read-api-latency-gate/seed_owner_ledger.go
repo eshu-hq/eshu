@@ -12,7 +12,7 @@ import (
 )
 
 // ownerLedgerBackfillKey and ownerLedgerBackfillMarkSQL mirror what
-// go/internal/storage/postgres/graph_node_owner_backfill_store.go writes when
+// go/internal/storage/postgres/graph/owner/backfill.go writes when
 // eshu-api's CloudResource owner-ledger upgrade backfill completes.
 const (
 	ownerLedgerBackfillKey     = "cloud_resource_owner:v1"
