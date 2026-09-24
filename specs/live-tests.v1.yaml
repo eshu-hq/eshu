@@ -287,6 +287,11 @@ tests:
     tag: live_nornicdb_relationship_story
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/codequery/relationship_story_grant_neo4j_live_test.go
+    tag: live_neo4j_relationship_story
+    class: scheduled
+    reason: live grant-leak proof for the Neo4j-compat story builder (moved off NornicDB in #7057, where its CALL () subquery is unsupported); local run on neo4j:2026-community, seeded fixture — promote to blocking with repeated timing evidence
+    backends: neo4j
   - file: go/internal/query/codequery/relationship_story_inheritance_interior_live_test.go
     tag: live_nornicdb_relationship_story
     class: scheduled

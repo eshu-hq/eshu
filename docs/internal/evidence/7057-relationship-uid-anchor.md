@@ -296,6 +296,27 @@ time for `POST /api/v0/code/relationships` on the 984-repo corpus. The trial
 report says the handler's non-graph work is a large part of its 1.27s p50,
 so whether the endpoint gets under 1s has to be measured on that corpus.
 
+## Live grant-leak probe moved to Neo4j
+
+`TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows`
+(scheduled class, tag `live_nornicdb_relationship_story`) fed the Neo4j-compat
+story builder to NornicDB. That builder now carries the `CALL () { ... UNION
+... }` anchor, which NornicDB rejects ("unsupported clause after CALL {}:
+MATCH"); production never sends it there. The probe was moved, not dropped:
+`TestLiveNeo4jRelationshipStoryCompatBuilderMustNotLeakUngrantedRows`
+(`relationship_story_grant_neo4j_live_test.go`, tag
+`live_neo4j_relationship_story`, ledger row `backends: neo4j`) runs the same
+builder on Neo4j against the shared two-tenant fixture, seeded into the `neo4j`
+database. It also asserts the granted callee is present, so an empty result
+cannot pass. The historical name in the 5167 evidence notes is left as the
+record of that earlier run.
+
+Run on `neo4j:2026-community` (digest as above): PASS with one row, source
+`LiveClauseAnchorFn`, target `LiveClauseGrantedCallee`. Seeded mutation, with
+the grant predicate dropped from `story.RepoPredicates`: FAIL with three rows,
+returning `LiveClauseUngrantedCallee` and `LiveClauseOrphanCallee`. The mutant
+was reverted and the probe passed again.
+
 ## Observability Evidence
 
 No-Observability-Change: these are query-shape changes inside existing
