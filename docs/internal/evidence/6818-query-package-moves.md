@@ -405,8 +405,8 @@ log line changes; the move touches no telemetry emission point.
 
 ## Performance and observability evidence for the `testutil` split (move 5)
 
-No-Regression Evidence: six commits on `refactor/6818-testutil`,
-rebased onto `origin/main` (`152d58562`, second rebase after the PR opened conflicting). 5a (`75525ad63`) peels the
+No-Regression Evidence: eight commits on `refactor/6818-testutil`,
+rebased onto `origin/main` (`123f92841`, third rebase). 5a (`75525ad63`) peels the
 fake `database/sql` driver family out of `querytestutil/content` into
 the new `internal/testutil/contentreader` leaf, package clause
 `contentreader`: `reader_args.go` to `args.go`, `reader_columns.go`
@@ -460,6 +460,7 @@ replayed to `query/testutil/metricreader.go` with only the clause
 changed, consumer import + 3 comment lines repointed. Proof re-run
 in full; union 5188 = 5171 + 17. Stack:
 `75525ad63`/`24e25844b`/`9f5c38b57`/`1f9f9e9a2`/`432c912ba`/`41240cdc7`.
+Third rebase (`152d58562` → `123f92841`, 9 main commits, zero manual conflicts, byte-identity diffs unchanged, `storage/postgres/queue/` intact): stack `414bd154a`/`1754625ae`/`28ebc1ebb`/`98e052d2c`/`20465b25d`/`70ed8a3d7`/`b0cc8d89d`; proof re-run in full exit 0, union re-measured 5188 = 5171 + 17. Advisory: temp `replace` to nornicdb main `81542d88` builds and passes the focused set, then reverted (pinned module stays `v1.0.45`).
 
 `queryplan`'s test-only-helper gate follows the rename: constant
 `testOnlyHelperPackage` to `"testutil"`, fixtures and comments
@@ -483,17 +484,17 @@ classification (a malformed ledger fails closed, exit 2).
 (`TestDiscoverQueryCallsites*` green, including the nested-leaf and
 helper-imports-own-leaf fixtures). Test-name union, re-measured
 post-rebase: `go test -list` under `./internal/query/...` registers
-5188 Tests at base `152d58562` (throwaway worktree count) versus 5171
+5188 Tests at base `123f92841` (throwaway worktree count) versus 5171
 on the branch; the 17 relocated Tests register under
 `./internal/testutil/contentreader/` (test files untouched since the
 peel — only its `AGENTS.md` prose followed the rename), so 5171 +
 17 = 5188 exactly: nothing dropped, added, or renamed by the move.
-`scripts/verify-moved-file-refs.sh --base 152d58562` reports 59
+`scripts/verify-moved-file-refs.sh --base 123f92841` reports 59
 vacated Go paths with no dangling references;
 `scripts/verify-package-docs.sh` reports the `contentreader` doc
 trio present; `scripts/verify-performance-evidence.sh` passes
 (exit 0) on this section.
 
 No-Observability-Change: no span name, attribute, registered metric,
-or log line changes; the five commits touch no telemetry emission
-point.
+or log line changes; the eight commits touch no telemetry emission
+point (the three pins commits edit only this evidence file).
