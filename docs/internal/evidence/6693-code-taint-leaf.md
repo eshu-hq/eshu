@@ -1,8 +1,7 @@
 # #6693 checklist step 12: `code/taint/` (2 files)
 
-Baseline: `origin/main` `aaa5273a0` (rebased onto `8560a0f8c` after #7038, the
-`maintenance/` leaf, merged mid-session; no file this step touches overlaps
-that merge). Change: move `code_interproc_projected_edge_store.go` and
+Baseline: rebased onto the step-11 `cloud/aws/` head; no sibling step touches
+the files this step moves. Change: move `code_interproc_projected_edge_store.go` and
 `code_taint_evidence_projected_node_store.go` (and their tests) to the new
 non-root package `go/internal/storage/postgres/code/taint` (package clause
 `taintstore`; no existing package of that name — `rg -n '^package taintstore$'
@@ -92,11 +91,11 @@ helper — no assertion or behavior changed in either file.
 ## dirgate
 
 Creating the `code/taint/` subpackage dropped `internal/storage/postgres`'s
-non-test `.go` file count from 357 to 355 (2 files moved). Re-pinned via
+non-test `.go` file count by 2 (2 files moved). Re-pinned via
 `bash scripts/dev/precommit-go.sh dirgate-digest internal/storage/postgres`
 and regenerated `tools/golangci-lint-dirgate/grandfather.go` with `bash
 scripts/generate-dirgate-grandfather-go.sh`. The digest run additionally
-printed 6 pre-existing `naming_violation` rows for files this step does not
+printed pre-existing `naming_violation` rows for files this step does not
 touch (`iac_reachability_materializer.go`, three `incident_freshness_*.go`
 files, `incident_routing_evidence_loader.go`, `scope_quiescence.go`) — all
 already-mapped, not-yet-moved root files from earlier plan sections; none is
@@ -127,9 +126,8 @@ new and none is this step's concern.
   output. `bash scripts/verify-package-docs.sh`: exit 0, "changed Go package
   docs present". `bash scripts/verify-performance-evidence.sh origin/main`:
   exit 0, "benchmark and observability markers found for hot-path changes".
-  `bash scripts/verify-moved-file-refs.sh`: exit 0, "4 vacated go path(s)
-  against base aaa5273a09629107ce63bf979a4a265097e6c9ab, no dangling
-  references". `bash scripts/verify-doc-citations.sh`: exit 0, "257 test
+  `bash scripts/verify-moved-file-refs.sh`: exit 0, no dangling
+  references. `bash scripts/verify-doc-citations.sh`: exit 0, "257 test
   citation(s) checked (0 baselined dead), 289 fixture citation(s) checked (11
   baselined unresolved), 435 raw line citation occurrence(s) tracked".
   `git diff --check`: exit 0, no output.
