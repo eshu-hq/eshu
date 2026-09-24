@@ -18,11 +18,11 @@ import (
 // is the positive/negative proof pair for issue #5594's follow-up: a scope
 // whose backend ownership could not be resolved at all
 // (tfstatebackend.ErrNoConfigRepoOwnsBackend, durably written by
-// Handler.writeUnresolvedOwner in the reducer) must
-// be reported differently from a scope that resolved cleanly and simply has
-// no drift. Before this fix both cases returned an identical empty page
-// (findings_count=0); a caller had no way to tell "nothing wrong" from
-// "never checked."
+// tfconfigstate.TerraformConfigStateDriftHandler.writeUnresolvedOwner in the
+// reducer) must be reported differently from a scope that resolved cleanly
+// and simply has no drift. Before this fix both cases returned an identical
+// empty page (findings_count=0); a caller had no way to tell "nothing wrong"
+// from "never checked."
 func TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDrift(t *testing.T) {
 	t.Parallel()
 
