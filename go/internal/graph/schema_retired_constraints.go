@@ -39,9 +39,12 @@ var neo4jRetiredUniqueConstraints = []string{
 // the work item retried instead of dead-lettering.
 //
 // Unlike Neo4j, no replacement path index is added: on the pinned NornicDB the
-// delta entity retract (n.path IN $file_paths) does not seek a path index or a
-// path constraint -- a label scan in every state -- so an index would cost
-// writes and a backfill for no read (evidence 7097).
+// delta entity retract filters repo_id, evidence_source, path IN $file_paths
+// and generation_id together, and that shape is a label scan with or without a
+// path index or constraint. NornicDB does seek a path index for path = $p and
+// for IN alone, so the retract is a pre-existing gap, not an unanchorable
+// shape. An index would cost writes and a backfill for no read today
+// (evidence 7097).
 var nornicDBRetiredUniqueConstraints = []string{
 	"kustomize_unique",
 	"helm_values_unique",

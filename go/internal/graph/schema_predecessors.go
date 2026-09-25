@@ -43,6 +43,7 @@ const graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint = "dc9d1cfb57e5cc89
 // lists it as compatible: it only drops constraints and adds no statement that
 // changes a MERGE or MATCH identity, so a writer on the previous schema writes
 // exactly the same graph against the new one -- and no longer retries a moved
-// block on a UNIQUE violation. It adds no path index, because the retract that
-// filters on path does not seek one on NornicDB.
+// block on a UNIQUE violation. It adds no path index, because the retract's
+// path IN $file_paths filter, combined with the repo, evidence-source and
+// generation predicates, does not seek one on NornicDB.
 const graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"

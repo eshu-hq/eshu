@@ -71,21 +71,52 @@ figure below uses fresh ones).
 | Constraint dropped, no path index | 205-207 ms |
 | Constraint dropped, `helm_values_path` index present | 208-210 ms |
 | `path IN [1]` alone, no index / with index | 203 ms / 203 ms |
-| `path = $p` alone, with index | 208 ms |
+| `path = $p` alone, with index (this run) | 208 ms |
 | `uid = $u` (existing `helm_values_uid_lookup`) | 0.8 ms |
 
-NornicDB does not seek a `path` index or a `path` uniqueness constraint for
-this filter in any state: every variant is a label scan, and only the `uid`
-index is seeked. So dropping the constraint changes no plan (the retract was a
-label scan before and still is; that is a pre-existing gap, not a regression),
-and a replacement path index would add write cost and a backfill without
-serving a read. No query in the repo anchors HelmValues, KustomizeOverlay or
-TerragruntConfig on `path` other than this retract. The Neo4j fix added path
-indexes because Neo4j did seek them (#7095); that reasoning does not carry
-over. Entity upserts MERGE on `uid` and keep seeking `<label>_uid_unique`
-and the `*_uid_lookup` index. The container ran the amd64
-image under emulation on an arm64 host, so absolute times are inflated; the
-comparison across states is what matters.
+The `path = $p` row above scanned in this run. A separate review probe on the
+same pinned image (30,000 HelmValues across 1,000 repos, parameters varied per
+run, 12 runs each, the `uid` index seek at 0.9 ms as the control that proves the
+probe can tell a seek from a scan) measured the shapes individually:
+
+| Shape (separate review probe) | `path` index | Median |
+| --- | --- | --- |
+| `path = $a` alone | present | 3.2 ms (seek) |
+| `repo_id AND evidence_source AND path = $a AND generation_id <> $g` | present | 2.5 ms (seek) |
+| same equality form | absent | 210 ms (scan) |
+| `path IN [$a, $b]` alone | present | 0.9 ms (seek) |
+| retract shape: `repo_id AND evidence_source AND path IN [$a, $b] AND generation_id <> $g` | present | 192 ms (scan) |
+| retract shape with `IN [$a]` | present | 209 ms (scan) |
+| retract shape (earlier 30k run): constraint present / dropped / path index | | 935 / 660 / 1060 ms |
+
+So the two runs disagree on `path = $p` alone. The figures are from different
+datasets and are not reconciled here; the review probe, with a control, is the
+better-supported one, and it says NornicDB does seek a `path` index for an
+equality predicate and for `IN` alone. What both agree on is the shape that
+matters: the retract's `path IN $file_paths` combined with `repo_id`,
+`evidence_source` and `generation_id` is a label scan whether the uniqueness
+constraint is present, dropped, or a `path` index exists (a constraint creates
+no index on NornicDB). Dropping the constraint therefore changes no plan.
+
+That shape is why no `path` index is added: it would cost write amplification
+and a backfill on every populated store and serve no read, because the only
+query that filters these labels on `path` is the retract, and the retract does
+not use it. No other query in the repo anchors HelmValues, KustomizeOverlay or
+TerragruntConfig on `path`; they all anchor on `uid`. The Neo4j fix added path
+indexes because Neo4j seeks them for that retract (#7095); that reasoning does
+not carry over.
+
+The missed anchor is a pre-existing retract performance gap, not something this
+change introduces or can be blamed for, and it is not impossible to fix. The
+label scan grows with label size (about 200 ms per label per delta at 30,000
+nodes, more at production cardinality). Rewriting the retract as
+`UNWIND $file_paths AS p MATCH (n:Label {path: p}) WHERE ...` together with a
+`path` index is the candidate fix. That is a theory until measured against the
+retract's real result shape, so it is out of scope here and belongs in a
+follow-up. Entity upserts MERGE on `uid` and keep seeking `<label>_uid_unique`
+and the `*_uid_lookup` index. The container ran the amd64 image under emulation
+on an arm64 host, so absolute times are inflated; the comparison across states
+is what matters.
 
 Observability Evidence: the schema bootstrap logs each new statement through
 the existing `graph schema statement applying` and `graph schema statement applied`

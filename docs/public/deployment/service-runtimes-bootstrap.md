@@ -134,21 +134,25 @@ changes may declare older writer fingerprints compatible in the marker row.
 Destructive schema changes leave the list empty so stale pods refuse before
 runtime graph writes fail.
 
-The graph schema bootstrap also drops constraints that later releases retire. `DROP CONSTRAINT ... IF EXISTS` runs before every other statement. The
+The graph schema bootstrap also drops constraints that later releases retire.
+`DROP CONSTRAINT ... IF EXISTS` runs before every other statement. On Neo4j the
 first retired set (#7095) covers `tf_module_unique`, `helm_chart_unique`,
-`helm_values_unique`, `kustomize_unique`, and `tg_config_unique`. Their keys
-were narrower than the canonical `uid` identity, so the delta that moved a block
-failed with `ConstraintValidationFailed`.
+`helm_values_unique`, `kustomize_unique`, and `tg_config_unique`; NornicDB
+retires three of them (#7097), described below. Their keys were narrower than
+the canonical `uid` identity, so the delta that moved a block failed with
+`ConstraintValidationFailed` on Neo4j.
 
-Rolling back to a release whose fingerprint the marker lists as compatible does
-not re-create those constraints. `eshu-bootstrap-data-plane` finds its own
-fingerprint in the marker's compatible list and skips graph DDL. The constraints
-stay dropped, and the older release writes against the constraint-free schema.
-Its writers MERGE on `uid`, so they write the same graph.
+On Neo4j, rolling back to a release whose fingerprint the marker lists as
+compatible does not re-create those constraints. `eshu-bootstrap-data-plane`
+finds its own fingerprint in the marker's compatible list and skips graph DDL.
+The constraints stay dropped, and the older release writes against the
+constraint-free schema. Its writers MERGE on `uid`, so they write the same
+graph.
 
-The older schema's DDL runs only with `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY`, for a
-release older than the compatible window, or when the marker is missing (the
-`eshu-bootstrap-index` path). In those cases, first drop
+On Neo4j, the older schema's DDL runs only with
+`ESHU_GRAPH_SCHEMA_FORCE_REAPPLY`, for a release older than the compatible
+window, or when the marker is missing (the `eshu-bootstrap-index` path). In
+those cases, first drop
 `kustomize_overlay_path`, `helm_values_path`, and `terragrunt_config_path`.
 Otherwise the path constraints fail with `IndexAlreadyExists`. Then resolve
 TerraformModule and HelmChart nodes that share `(name, path)`, which this schema
@@ -157,13 +161,21 @@ permits. Otherwise the composite constraints fail with
 
 NornicDB retires the three single-property members of that set (#7097):
 `kustomize_unique`, `helm_values_unique`, and `tg_config_unique`. NornicDB never
-created the composite `tf_module_unique` and `helm_chart_unique`. The same delta
-failed on NornicDB with `Neo.TransientError.Transaction.Outdated` (a UNIQUE
-constraint violation). NornicDB marks that error transient, so the work item
-retried instead of dead-lettering. NornicDB gets no replacement `path` index:
-the delta retract filters `n.path IN $file_paths` and does not seek a `path`
-index or constraint on the pinned NornicDB, so an index would cost writes and a
-backfill and serve no read.
+created the composite `tf_module_unique` and `helm_chart_unique`, and it never
+had the three `path` indexes, so there is nothing to drop first on a rollback.
+The same delta failed on NornicDB with `Neo.TransientError.Transaction.Outdated`
+(a UNIQUE constraint violation). NornicDB marks that error transient, so the
+work item retried instead of dead-lettering.
+
+NornicDB gets no replacement `path` index. The delta retract filters
+`repo_id`, `evidence_source`, `n.path IN $file_paths`, and `generation_id`
+together, and on the pinned NornicDB that shape is a label scan with or without
+a `path` index or constraint. A separate probe found that NornicDB does seek a
+`path` index for `path = $p` and for `IN` alone, but not for the `IN` combined
+with the other predicates the retract uses. No other query anchors these three
+labels on `path`; they anchor on `uid`. The retract's label scan is a
+pre-existing performance gap, not a regression from this change. See
+`docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`.
 
 This moves the NornicDB schema fingerprint, so the first
 `eshu-bootstrap-data-plane` run after the upgrade re-applies the schema on an

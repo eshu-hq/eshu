@@ -375,9 +375,13 @@ knob was added.
   `nornicDBRetiredUniqueConstraints`. It never created the composite forms.
   Its violation surfaces as `Neo.TransientError.Transaction.Outdated`, so a
   moved block retried instead of dead-lettering. NornicDB adds no `path`
-  index: the delta retract's `n.path IN $file_paths` filter does not seek a
-  `path` index or constraint there (label scan in every state at 50,000
-  nodes, `docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`).
+  index: the delta retract's `n.path IN $file_paths` filter, combined with
+  the repo, evidence-source and generation predicates, is a label scan on the
+  pinned NornicDB with or without a `path` index or constraint. NornicDB does
+  seek a `path` index for `path = $p` and for `IN` alone (separate review
+  probe), so the retract is a pre-existing gap, not a shape that cannot be
+  anchored
+  (`docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`).
   Its fingerprint moved and the previous one stays compatible.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
