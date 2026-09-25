@@ -398,8 +398,7 @@ the per-collector long-pole signal: `sum by (collector_kind)` of `_sum` over
 `_count` gives mean run duration per family. It shares the `collector_kind`
 label with the #3678 per-stage `eshu_dp_bootstrap_pipeline_phase_seconds` so the
 per-collector and per-phase layers join cleanly. The matching trace span is
-`collector.claimed_run`, carrying the same `collector_kind`, `source_system`,
-and `outcome` attributes.
+`collector.claimed_run`, with the same `collector_kind`, `source_system`, and `outcome` attributes.
 
 `WorkflowClaimFactsEmitted` (`eshu_dp_workflow_claim_facts_emitted_total`, labels
 `collector_kind` and `source_system`) counts facts committed per claimed-service
