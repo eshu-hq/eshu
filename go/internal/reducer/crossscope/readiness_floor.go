@@ -47,7 +47,7 @@ const ProducerReadinessMaxWait = 30 * time.Minute
 // (#5709), and it closes one specific window. The consumer that was ALREADY
 // CLAIMED when the producer finished is handled elsewhere and needs no floor:
 // the completion fanout marks such a consumer with cross_scope_replay_required
-// (go/internal/storage/postgres/cross_scope_completion_fanout.go) and the
+// (go/internal/storage/postgres/scope/completion/fanout.go) and the
 // trigger installed by migration 093 rewrites that row's 'succeeded'
 // acknowledgement back to 'pending', so it runs again.
 //

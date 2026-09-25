@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // The probe seeds 64 running consumers in the full disposable schema. Explain
@@ -36,7 +37,7 @@ func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now ti
 		args        []any
 	}{
 		{"generic_ack_64", ackReducerWorkBatchQuery(), ackArgs},
-		{"fanout_64", fanoutCrossScopeCompletionQuery, []any{now, lease.EventID, lease.ProducerDomain, lease.LeaseOwner, lease.ClaimEpoch, 1, producers, consumers}},
+		{"fanout_64", completionstore.FanoutCrossScopeCompletionQuery, []any{now, lease.EventID, lease.ProducerDomain, lease.LeaseOwner, lease.ClaimEpoch, 1, producers, consumers}},
 	} {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {

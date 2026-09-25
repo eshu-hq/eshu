@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -53,7 +54,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 	ackConn := ackFanoutProbeConnection(t, ctx, database, "ack-6488")
 	fanoutConn := ackFanoutProbeConnection(t, ctx, database, "fanout-6488")
 	queue := ReducerQueue{database: ackConn, LeaseOwner: "ack-6488", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
-	store := NewCrossScopeCompletionStore(fanoutConn)
+	store := completionstore.NewCrossScopeCompletionStore(fanoutConn)
 	store.Now = func() time.Time { return now }
 	for trial := range 40 {
 		// The probe measures only its own 64 rows: the standing eshu:global

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 type workflowImageForcedOrderLoader struct {
@@ -128,7 +129,7 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 	}
 	assertCrossScopeCompletionEventCount(t, ctx, db, reducer.DomainContainerImageIdentity, 1)
 
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return time.Now().UTC().Add(3 * time.Second) }
 	runner := reducer.CrossScopeCompletionRunner{
 		Queue:      store,

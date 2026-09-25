@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 const (
@@ -139,7 +140,7 @@ func TestValueFlowRefreshFanoutReopensSingletonLive(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ACK refresh producer: %v", err)
 	}
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	// The emitted event becomes visible 250ms after the ACK; run the claim
 	// past that horizon like the existing fanout proofs.
 	store.Now = func() time.Time { return now.Add(3 * time.Second) }

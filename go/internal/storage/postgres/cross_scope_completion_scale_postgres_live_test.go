@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 func TestCrossScopeCompletionProductionShapeConvergesLive(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCrossScopeCompletionProductionShapeConvergesLive(t *testing.T) {
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: time.Minute,
 	}
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return time.Now().UTC().Add(3 * time.Second) }
 	runner := reducer.CrossScopeCompletionRunner{
 		Queue:      store,

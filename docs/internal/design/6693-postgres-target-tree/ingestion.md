@@ -230,7 +230,16 @@ TestDeferredScopedFactOwnRepoIDFromScope (ingestion_backfill_deferred_regex_test
 
 </details>
 
-### `scope/completion/` (4 non-test, 6 test)
+### `scope/completion/` (4 non-test, 3 test)
+
+Step 22 moves the four production files and the three self-contained tests.
+Three mapped tests stay in root past this step and move with their owning
+families instead: `cross_scope_completion_concurrency_postgres_live_test.go`
+and `cross_scope_completion_snapshot_postgres_live_test.go` open their
+database only through the container-image ACK capability harness (see
+`container/image/`), and `reducer_queue_ack_scale_plan_test.go` constructs
+`ReducerQueue` with its unexported `database` field (see `queue/reducer/`).
+Moving any of them now would duplicate the harness or the queue type.
 
 ```text
 cross_scope_completion_fanout.go -> scope/completion/fanout.go
@@ -242,11 +251,8 @@ scope_quiescence.go -> scope/completion/quiescence.go
 <details><summary>Tests</summary>
 
 ```text
-cross_scope_completion_concurrency_postgres_live_test.go -> scope/completion/cross_concurrency_postgres_live_test.go   # external test package + export_test.go shim: imports root
-cross_scope_completion_snapshot_postgres_live_test.go -> scope/completion/cross_snapshot_postgres_live_test.go   # external test package: imports root
 cross_scope_producer_readiness_test.go -> scope/completion/producer_readiness_test.go
-reducer_queue_ack_scale_plan_test.go -> scope/completion/reducer_queue_ack_scale_plan_test.go   # external test package + export_test.go shim: imports root; follows its private symbols, not its name
-scope_quiescence_live_test.go -> scope/completion/quiescence_live_test.go   # external test package: imports root
+scope_quiescence_live_test.go -> scope/completion/quiescence_live_test.go
 scope_quiescence_test.go -> scope/completion/quiescence_test.go
 ```
 

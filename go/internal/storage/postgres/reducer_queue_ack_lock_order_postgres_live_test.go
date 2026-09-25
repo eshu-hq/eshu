@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // A held first key must stop every writer before it owns any later key. The
@@ -82,7 +83,7 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				if variant.fanout {
-					store := NewCrossScopeCompletionStore(worker)
+					store := completionstore.NewCrossScopeCompletionStore(worker)
 					store.Now = func() time.Time { return now }
 					_, err := store.Fanout(ctx, lease, 1)
 					done <- err

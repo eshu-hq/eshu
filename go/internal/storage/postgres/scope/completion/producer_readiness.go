@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package completionstore
 
 import (
 	"context"
@@ -119,7 +119,7 @@ type CrossScopeProducerReadinessStore struct {
 // subset, so telling them apart costs no extra round trip.
 //
 // The window this targets: the already-claimed consumer is handled elsewhere --
-// cross_scope_completion_fanout.go marks a consumer in 'claimed'/'running' with
+// scope/completion/fanout.go marks a consumer in 'claimed'/'running' with
 // cross_scope_replay_required, and the trigger from migration 093 rewrites that
 // row's 'succeeded' acknowledgement back to 'pending'. What remains is the
 // ACTIVATION window: the producer's reducer row reaches 'succeeded', but its

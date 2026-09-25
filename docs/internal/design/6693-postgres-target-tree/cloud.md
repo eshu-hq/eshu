@@ -113,7 +113,7 @@ multi_cloud_runtime_drift_value_attributes_test.go -> cloud/multi/runtime_drift_
 
 </details>
 
-### `container/image/` (7 non-test, 9 test)
+### `container/image/` (7 non-test, 11 test)
 
 ```text
 container_image_identity_beginner.go -> container/image/beginner.go
@@ -130,6 +130,8 @@ schema_container_image_identity_cutover.go -> container/image/cutover_schema.go
 ```text
 container_image_identity_beginner_test.go -> container/image/beginner_test.go
 container_image_identity_cutover_migration_behavior_live_test.go -> container/image/cutover_migration_behavior_live_test.go
+cross_scope_completion_concurrency_postgres_live_test.go -> container/image/cross_scope_completion_concurrency_postgres_live_test.go   # follows its DB harness, not its name: opens its database only through the container-image ACK capability harness; deferred from scope/completion/ step 22
+cross_scope_completion_snapshot_postgres_live_test.go -> container/image/cross_scope_completion_snapshot_postgres_live_test.go   # follows its DB harness, not its name (see above); deferred from scope/completion/ step 22
 container_image_identity_cutover_migration_rerun_live_test.go -> container/image/cutover_migration_rerun_live_test.go   # external test package: imports root
 container_image_identity_cutover_test.go -> container/image/cutover_test.go
 container_image_identity_cutover_work_item_lock_live_test.go -> container/image/cutover_work_item_lock_live_test.go   # external test package: imports root

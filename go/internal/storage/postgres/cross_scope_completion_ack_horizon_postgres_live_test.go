@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // Exercise ON CONFLICT against an existing queued event on both sides of its
@@ -46,7 +47,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				if err := worker.Conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&fanoutPID); err != nil {
 					t.Fatal(err)
 				}
-				store := NewCrossScopeCompletionStore(worker)
+				store := completionstore.NewCrossScopeCompletionStore(worker)
 				store.Now = func() time.Time { return now }
 				lease := reducer.CrossScopeCompletionLease{EventID: claimed, ProducerDomain: domain, LeaseOwner: "horizon-fanout", ClaimEpoch: 1}
 				intents := []reducer.Intent{{IntentID: "horizon-producer", Domain: domain, ClaimEpoch: 1, ClaimedAt: &now}}

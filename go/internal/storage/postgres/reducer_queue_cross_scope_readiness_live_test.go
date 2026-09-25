@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // Real-queue proof for the #5709 cross-scope readiness deferral on
@@ -26,7 +27,7 @@ import (
 //
 // So everything on the queue side here is production code driven against real
 // PostgreSQL: the real ReducerQueue Claim/Fail/Ack SQL against the real
-// fact_work_items DDL, the real CrossScopeProducerReadinessStore reading real
+// fact_work_items DDL, the real completionstore.CrossScopeProducerReadinessStore reading real
 // ingestion_scopes rows through the committed quiescence probe, the real
 // SupplyChainImpactHandler, and the real crossScopeProducerNotReadyError that
 // carries the failure class. What stays a fake is the FACT SOURCE -- the
@@ -175,7 +176,7 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	handler := reducer.SupplyChainImpactHandler{
 		FactLoader:        crossScopeReadinessProofLoader{},
 		Writer:            writer,
-		ProducerReadiness: CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
+		ProducerReadiness: completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
 	}
 	// The queue clock is injected so each cycle's retry delay elapses without
 	// sleeping. created_at stays where it was seeded, so the handler's own
@@ -318,7 +319,7 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 	handler := reducer.SupplyChainImpactHandler{
 		FactLoader:        crossScopeReadinessProofLoader{},
 		Writer:            writer,
-		ProducerReadiness: CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
+		ProducerReadiness: completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
 	}
 	queue := ReducerQueue{
 		database:      SQLDB{DB: db},

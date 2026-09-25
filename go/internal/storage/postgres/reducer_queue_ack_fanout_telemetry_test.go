@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
@@ -60,7 +61,7 @@ func TestReducerContentionGateAckFanoutTelemetryLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertAckFanoutGauges(t, ctx, gaugeReader, true)
-	store := NewCrossScopeCompletionStore(observed)
+	store := completionstore.NewCrossScopeCompletionStore(observed)
 	store.Now = func() time.Time { return now }
 	logRecord := runAckFanoutTelemetryRunner(t, &ackFanoutTelemetryQueue{CrossScopeCompletionQueue: store, lease: lease})
 	if logRecord["msg"] != "cross-scope completion fanout committed" || logRecord["producer_domain"] != string(lease.ProducerDomain) || logRecord["events_processed"] != float64(1) || logRecord["producer_items_processed"] != float64(1) || logRecord["intents_enqueued"] != float64(1) {
@@ -85,7 +86,7 @@ func TestReducerContentionGateAckFanoutTelemetryErrors(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Fatalf("ACK error=%v", err)
 	}
-	store := NewCrossScopeCompletionStore(observed)
+	store := completionstore.NewCrossScopeCompletionStore(observed)
 	lease := reducer.CrossScopeCompletionLease{EventID: 17, ProducerDomain: reducer.DomainCICDRunCorrelation, LeaseOwner: "telemetry-fanout", ClaimEpoch: 3, AttemptCount: 2}
 	adapter := &ackFanoutTelemetryQueue{CrossScopeCompletionQueue: store, lease: lease}
 	record := runAckFanoutTelemetryRunner(t, adapter)

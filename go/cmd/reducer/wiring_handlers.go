@@ -6,6 +6,7 @@ package main
 import (
 	"log/slog"
 
+	taintstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/trace"
@@ -19,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -287,7 +288,7 @@ func buildReducerCrossScopeHandlers(
 	logger *slog.Logger,
 ) reducer.CrossScopeHandlers {
 	return reducer.CrossScopeHandlers{
-		CrossScopeProducerReadiness:    postgres.CrossScopeProducerReadinessStore{DB: database},
+		CrossScopeProducerReadiness:    completionstore.CrossScopeProducerReadinessStore{DB: database},
 		IAMCanPerformCrossScopeTargets: iamCanPerformCrossScopeTargetsFor(database, factStore),
 		WorkloadInstanceExistence:      workloadInstanceExistenceFor(graphReader),
 		ReadinessWaits:                 readinessWaitsFor(database),

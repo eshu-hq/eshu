@@ -57,7 +57,7 @@ work_queue_test.go -> queue/projector/work_test.go
 
 </details>
 
-### `queue/reducer/` (13 non-test, 99 test)
+### `queue/reducer/` (13 non-test, 100 test)
 
 ```text
 queue_observer.go -> queue/reducer/observer.go
@@ -165,6 +165,7 @@ reducer_queue_resource_node_fencing_test.go -> queue/reducer/resource_node_fenci
 reducer_queue_s3_external_principal_grant_readiness_test.go -> queue/reducer/s3_external_principal_grant_readiness_test.go
 reducer_queue_s3_internet_exposure_readiness_test.go -> queue/reducer/s3_internet_exposure_readiness_test.go
 reducer_queue_s3_logs_to_readiness_test.go -> queue/reducer/s3_logs_to_readiness_test.go
+reducer_queue_ack_scale_plan_test.go -> queue/reducer/ack_scale_plan_test.go   # follows ReducerQueue (unexported database field) and the scale seed helpers, not its name; deferred from scope/completion/ step 22
 reducer_queue_secrets_iam_readiness_test.go -> queue/reducer/secrets_iam_readiness_test.go
 reducer_queue_security_group_reachability_readiness_test.go -> queue/reducer/security_group_reachability_readiness_test.go
 reducer_queue_semantic_claim_limit_test.go -> queue/reducer/semantic_claim_limit_test.go

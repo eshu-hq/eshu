@@ -84,7 +84,7 @@
   a route is ever repointed to cite this package's file, that creates the
   coupling the sibling extractions warn about: the registry test reads
   cited files by path and fails with `read ...: no such file` on a rename.
-- **`go/internal/storage/postgres/cross_scope_producer_readiness.go`** cites
+- **`go/internal/storage/postgres/scope/completion/producer_readiness.go`** cites
   `candidateFactKinds` by qualified path in a comment explaining why
   `container_image_identity` intents are NOT fully captured by its producer
   map (they also arrive from aws/azure/gcp/git/sbom_attestation scopes).

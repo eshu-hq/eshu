@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 func TestCrossScopeCompletionIdentityThenCICDConvergesLive(t *testing.T) {
@@ -76,7 +77,7 @@ WHERE scope_id IN ($1, $3)
 	}
 	assertCrossScopeCompletionEventCount(t, ctx, db, reducer.DomainContainerImageIdentity, 1)
 
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return time.Now().UTC().Add(3 * time.Second) }
 	runner := reducer.CrossScopeCompletionRunner{
 		Queue:      store,
@@ -186,7 +187,7 @@ FROM unnest(ARRAY['succeeded','claimed','running','pending','retrying','dead_let
 		t, ctx, db, reducer.DomainContainerImageIdentity,
 		"pending", "", time.Time{}, 0, now.Add(-time.Second),
 	)
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return now }
 	lease, ok, err := store.Claim(ctx, owner, time.Minute)
 	if err != nil || !ok {

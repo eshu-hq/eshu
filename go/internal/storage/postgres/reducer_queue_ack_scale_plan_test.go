@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // This opt-in diagnostic preserves the existing scale fixture and executes each
@@ -32,7 +33,7 @@ func TestReducerAckFanoutScalePlanProbe(t *testing.T) {
 	seedCrossScopeCompletionScale(t, ctx, database, 900, 25, owner)
 	probe := &ackScalePlanDB{SQLDB: SQLDB{DB: database}, t: t, calls: make(map[string]int)}
 	queue := ReducerQueue{database: probe, LeaseOwner: owner, LeaseDuration: time.Minute}
-	store := NewCrossScopeCompletionStore(probe)
+	store := completionstore.NewCrossScopeCompletionStore(probe)
 	store.Now = func() time.Time { return time.Now().UTC().Add(3 * time.Second) }
 	runner := reducer.CrossScopeCompletionRunner{
 		Queue: store, LeaseOwner: "fanout-5740-scale", LeaseTTL: time.Minute,
@@ -77,7 +78,7 @@ func (database *ackScalePlanDB) ExecContext(ctx context.Context, query string, a
 }
 
 func (database *ackScalePlanDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	if query == fanoutCrossScopeCompletionQuery {
+	if query == completionstore.FanoutCrossScopeCompletionQuery {
 		database.explain(ctx, fmt.Sprintf("fanout_%v", args[2]), query, args...)
 	}
 	return database.SQLDB.QueryContext(ctx, query, args...)
