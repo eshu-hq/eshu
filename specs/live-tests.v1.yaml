@@ -405,6 +405,11 @@ tests:
     tag: resource_selector_slo_live
     class: scheduled
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/internal/query/impact_anchor_candidates_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 scoped shared-name anchor resolves the granted candidate over 20 asserted runs; passed on neo4j:2026-community — promote to blocking with timing evidence
+    backends: neo4j
   - file: go/internal/query/impact_anchor_resolve_live_test.go
     tag: ~
     class: scheduled
@@ -421,10 +426,25 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_ownership_budget_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 impact ownership statement cost, cap and deadline; passed on neo4j:2026-community — promote to blocking with timing evidence
+    backends: neo4j
+  - file: go/internal/query/impact_ownership_hub_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 hub fan-in never admits a hub whose granted owner the row cap cut; passed on neo4j:2026-community — promote to blocking with timing evidence
+    backends: neo4j
   - file: go/internal/query/impact_resource_investigation_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/impact_scoped_grant_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 two-tenant scoped impact grant with shared-key negative controls; passed on neo4j:2026-community — promote to blocking with timing evidence
+    backends: neo4j
   - file: go/internal/query/impact_trace_deployment_flux_bindings_live_test.go
     tag: ~
     class: scheduled
