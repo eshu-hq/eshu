@@ -1,20 +1,41 @@
-# NornicDB re-pin to plain upstream main (#7014)
+# NornicDB re-pin to plain upstream main `f2163176` (#7014)
 
 Change: the default NornicDB backend pin moves from the eshu-hq self-built
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`
 (upstream `6ac958a9` plus the unmerged orneryd/NornicDB#502 patch) to
-`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a`
-(amd64 child `sha256:79a171850c586fb495a2d7cc66916c200bff8d27a15ab798fdc83f15e41720fb`,
-arm64 child `sha256:3a4649d64116f410d10729091b1e94e05e03e94c01339c7eb1ec12e366d5c372`).
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be`
+(amd64 child `sha256:7cabadf4380389b27d96129ae79dd548cb17021010ff1a30bf7c87d231c76f21`,
+arm64 child `sha256:67e3c82c6ff4f3389903a0dd69488a95253379ba44851d669fe94882fa1602e8`),
+an eshu-hq build of plain upstream orneryd/NornicDB `main` at commit
+`f2163176` (post #492/#512/#519, still carrying #491/#498/#501 and the #500
+ORDER BY fix; see "Root cause and upstream fix" below).
 The same 41 files move together as in the prior re-pins
 ([6915-nornicdb-fix500-repin.md](6915-nornicdb-fix500-repin.md),
 [6162-nornicdb-fix499-repin.md](6162-nornicdb-fix499-repin.md)). Prior evidence
 notes stay untouched as historical records.
 
+Superseded first attempt: the branch first pinned
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a`
+(amd64 child `sha256:79a171850c586fb495a2d7cc66916c200bff8d27a15ab798fdc83f15e41720fb`,
+arm64 child `sha256:3a4649d64116f410d10729091b1e94e05e03e94c01339c7eb1ec12e366d5c372`).
+That candidate went RED on the live golden-corpus gate (5 required-fails, the
+mutualPing call-chain regression root-caused to orneryd/NornicDB#519 below)
+and was replaced by `f2163176`, which carries the upstream #519 fix. The
+`c4de1c5c` narrative is kept below as the audit trail for that rejected
+candidate, not as the description of this PR's pin.
+
 ## What the image is
 
 An eshu-hq build of plain upstream orneryd/NornicDB `main` at commit
-`c4de1c5c`, with no Eshu-carried patch on top. Built with
+`f2163176`, with no Eshu-carried patch on top. Built with
+`docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.amd64-cpu`
+and pushed to the public eshu-hq GHCR package `nornicdb-amd64-cpu`.
+
+### Superseded first attempt: `c4de1c5c` (rejected — RED gate, #519)
+
+The rejected candidate was an eshu-hq build of plain upstream
+orneryd/NornicDB `main` at commit `c4de1c5c`, with no Eshu-carried patch on
+top. Built with
 `docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.amd64-cpu`
 and pushed to the public eshu-hq GHCR package `nornicdb-amd64-cpu`.
 
