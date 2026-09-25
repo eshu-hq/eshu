@@ -22,7 +22,7 @@ p.normalized_name, p.uid LIMIT $limit`, the pinned build ignores both the
 all 3,000 rows in storage order. A handler that then cuts `rows[:limit]`
 serves an arbitrary page, and its `truncated` flag is meaningless.
 `POST /api/v0/code/bundles` shipped that statement until #5167 and is now the
-same anchor-only read plus a page-bound `UNWIND` count as the package-registry
+same anchor-only read plus a page-bound, index-backed version count as the package-registry
 browse route (`registry.VersionCountsByPackageID`). Keep `ORDER BY` and
 `LIMIT` directly on the anchor `RETURN`, where this build honours them, and
 resolve aggregates for the returned page in a second statement. Proof:
@@ -35,3 +35,10 @@ A second trap surfaced by the same work: this build **silently ignores a
 syntactically invalid `WHERE` predicate and returns every row**. A guard test
 that only checks the statement text proves nothing; assert row membership
 against a live seed.
+
+## Timing caveat: the read result cache
+
+The pinned build has a server-side read result cache keyed on statement text
+and params, so a benchmark that repeats identical params measures cache hits.
+Give every measured run a unique unused `$nonce` param (or a unique value in an
+id list) and interleave the shapes being compared.

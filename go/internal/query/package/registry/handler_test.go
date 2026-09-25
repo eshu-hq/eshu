@@ -196,9 +196,8 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 
 	countCypher := reader.cypherCalls[1]
 	for _, fragment := range []string{
-		"UNWIND $package_ids AS candidate_package_id",
-		"MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion)",
-		"RETURN p.uid AS package_id, count(r) AS version_count",
+		"MATCH (v:PackageVersion) WHERE v.package_id IN $package_ids",
+		"RETURN v.package_id AS package_id, count(v) AS version_count",
 	} {
 		if !strings.Contains(countCypher, fragment) {
 			t.Fatalf("count cypher = %q, want fragment %q", countCypher, fragment)

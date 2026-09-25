@@ -216,6 +216,15 @@ func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly, publicOnly
 	if uniqueOnly {
 		projection += ` DISTINCT`
 	}
+	// An ecosystem-pinned read has one ecosystem, so ordering by it changes no
+	// row's position; dropping the key leaves the (ecosystem, name, uid)
+	// contract intact and halves the sort cost on the pinned NornicDB
+	// (measured 115 -> 69 ms at limit 51, 343 -> 178 ms at limit 201 over 3,000
+	// packages, uncached).
+	orderBy := `p.ecosystem, p.normalized_name, p.uid`
+	if ecosystem != "" {
+		orderBy = `p.normalized_name, p.uid`
+	}
 	cypher += `
 ` + projection + ` p.uid AS package_id,
        p.normalized_name AS name,
@@ -223,7 +232,7 @@ func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly, publicOnly
        p.registry AS registry,
        p.namespace AS namespace,
        p.purl AS purl
-ORDER BY p.ecosystem, p.normalized_name, p.uid
+ORDER BY ` + orderBy + `
 LIMIT $limit`
 
 	return cypher, params

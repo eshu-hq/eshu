@@ -35,22 +35,31 @@ ORDER BY p.ecosystem, p.normalized_name, p.uid
 LIMIT $limit`, params
 }
 
-// packageRegistryVersionCountsCypher resolves HAS_VERSION counts for an
-// explicit page of package uids as its own single-clause, MATCH-only
-// statement (a concrete relationship variable anchored on bound package
-// identities via UNWIND). NornicDB's OPTIONAL MATCH + count(v) aggregate
-// silently collapses every zero-match group into a single row instead of
-// grouping by every non-aggregate RETURN key, so neither
-// packageRegistryPackagesCypher nor packageRegistryPackagesScopedEcosystemCypher
-// may carry the version count itself. Any package uid absent from this
-// query's result has zero versions; the caller
-// (Handler.attachPackageVersionCounts) zero-fills it for
-// every listPackages branch, scoped and unscoped alike. See
-// docs/public/reference/nornicdb-pitfalls.md.
+// packageRegistryVersionCountsCypher resolves version counts for an explicit
+// page of package uids as its own single-clause, MATCH-only statement over
+// PackageVersion nodes: `WHERE v.package_id IN $package_ids`, served by the
+// package_version_package_id index (schema_tables_indexes.go). NornicDB's
+// OPTIONAL MATCH + count(v) aggregate is kept out of the anchor reads because
+// the pinned build ignores the ORDER BY/LIMIT that follow it (see
+// docs/public/reference/nornicdb-aggregate-order-limit.md), so neither
+// packageRegistryPackagesCypher, packageRegistryPackagesScopedEcosystemCypher,
+// nor the code bundles read carries the count itself. Any package uid absent
+// from this query's result has zero versions; the callers zero-fill it.
+//
+// This counts PackageVersion nodes by their package_id property, not
+// HAS_VERSION edges. Both writers set v.package_id on the node
+// (canonicalPackageRegistryVersionUpsertCypher), but the HAS_VERSION edge is
+// written in a deferred second write group after the node group commits
+// (package_registry_edge_writer.go). Between those two groups a version node
+// exists whose edge does not, so this count can briefly exceed an edge count
+// mid-materialization; once both groups have committed the two agree (proven
+// live by TestLiveSearchBundlesVersionCountEqualsEdgeCount). The previous
+// UNWIND + HAS_VERSION statement was correct but measured about 260 ms at 51
+// ids and 1 s at 201 ids uncached (p50, 3,000 packages); this one measures
+// 3 ms and 6 ms.
 func packageRegistryVersionCountsCypher(packageIDs []string) (string, map[string]any) {
-	return `UNWIND $package_ids AS candidate_package_id
-MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion)
-RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"package_ids": packageIDs}
+	return `MATCH (v:PackageVersion) WHERE v.package_id IN $package_ids
+RETURN v.package_id AS package_id, count(v) AS version_count`, map[string]any{"package_ids": packageIDs}
 }
 
 // packageRegistryPackagesScopedEcosystemCypher is the scoped-caller variant

@@ -22,12 +22,12 @@ type bundlesCall struct {
 }
 
 // bundlesFake serves an anchor page for the catalog read and version counts
-// for the UNWIND read, recording every statement.
+// for the version-count read, recording every statement.
 func bundlesFake(anchor []map[string]any, counts []map[string]any, calls *[]bundlesCall) fakeGraphReader {
 	return fakeGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			*calls = append(*calls, bundlesCall{cypher: cypher, params: params})
-			if strings.Contains(cypher, "UNWIND $package_ids") {
+			if strings.Contains(cypher, "v.package_id IN $package_ids") {
 				return counts, nil
 			}
 			return anchor, nil

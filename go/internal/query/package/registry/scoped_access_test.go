@@ -378,7 +378,7 @@ func TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCyphe
 		t.Fatalf("scoped ecosystem browse leaked source_path: %s", rec.Body.String())
 	}
 	// Two calls: the anchor-only scoped-ecosystem read, then the separate
-	// UNWIND version-count read (packageRegistryVersionCountsCypher) that
+	// PackageVersion.package_id version-count read (packageRegistryVersionCountsCypher) that
 	// attachPackageVersionCounts merges in Go. The scoped-ecosystem cypher
 	// must NOT carry its own OPTIONAL MATCH + count(v) -- see
 	// packageRegistryPackagesScopedEcosystemCypher's doc comment and
@@ -392,8 +392,8 @@ func TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCyphe
 	if strings.Contains(graph.calls[0], "count(v)") || strings.Contains(graph.calls[0], "OPTIONAL MATCH") {
 		t.Fatalf("scoped ecosystem cypher must NOT carry its own OPTIONAL MATCH + count(v) (NornicDB collapses every zero-version row): %s", graph.calls[0])
 	}
-	if !strings.Contains(graph.calls[1], "UNWIND $package_ids") {
-		t.Fatalf("expected the second call to be the UNWIND version-count read, got: %s", graph.calls[1])
+	if !strings.Contains(graph.calls[1], "v.package_id IN $package_ids") {
+		t.Fatalf("expected the second call to be the version-count read, got: %s", graph.calls[1])
 	}
 }
 

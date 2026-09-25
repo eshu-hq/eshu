@@ -15,8 +15,8 @@ the shared key included, was exposed to.
 - The read is now two statements. The anchor read returns the ordered page
   (`MATCH (p:Package) WHERE ... RETURN ... ORDER BY p.ecosystem,
   p.normalized_name, p.uid LIMIT $limit`); `registry.VersionCountsByPackageID`
-  (the package-registry family's `UNWIND` count statement, now exported) counts
-  versions for that page and Go zero-fills.
+  (the package-registry family's version-count statement, now exported and
+  index-backed, see below) counts versions for that page and Go zero-fills.
 - All five ledger promotion steps: `scopedCodeBundlesRoute` in
   `scopedHTTPRouteSupportsTenantFilter`, the `scopedTokenAdvertisedRoutes`
   entry (`scopedRouteGrantBound`), the OpenAPI `x-scoped-token-support` marker,
@@ -90,31 +90,79 @@ covers `POST /api/v0/code/bundles` through the advertised-routes map.
 
 ## Performance Evidence
 
-Performance Evidence: the anchor read is `MATCH (p:Package) WHERE p.uid IS NOT
-NULL AND p.ecosystem = $ecosystem [AND p.visibility = 'public'] RETURN ...
-ORDER BY p.ecosystem, p.normalized_name, p.uid LIMIT $limit`; the count read is
-`UNWIND $package_ids AS candidate_package_id MATCH (p:Package {uid:
-candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion) RETURN p.uid,
-count(r)`. Backend: NornicDB 1.3.3, compose pin above, isolated container. Input:
-3,000 `Package` nodes in one ecosystem, 1,000 with one `HAS_VERSION` edge. The
-probe container had no schema bootstrap, so no `Package.uid` constraint or index
-existed; production adds the uid constraint the count statement anchors on. Timings
-are client round trips over bolt from the test process, 41 samples each,
-verified by that run; the old statement is the exact text the handler sent
-before this change.
+This is a correctness and bounded-read fix, not a speedup. On the local
+3,000-package fixture the new pair is slower than the old single statement,
+because the old statement returned the whole catalog without sorting it.
 
-| `limit` sent | old statement (rows returned, p50) | new pair (rows returned, p50) |
+Performance Evidence: backend NornicDB 1.3.3, compose pin above, isolated
+container with the production Package/PackageVersion uid constraints and the
+`package_ecosystem`, `package_normalized_name`, `package_registry`,
+`package_namespace`, `package_visibility`, and `package_version_package_id`
+indexes applied. Input: 3,000 `Package` nodes in one ecosystem (all
+`visibility = public`), 2,250 with 1-3 `PackageVersion` nodes carrying
+`package_id` plus a `HAS_VERSION` edge. This build has a server-side read
+result cache keyed on statement text and params, so every measured run carries a
+unique unused `$nonce` param (or a unique uid in the id list) and the shapes are
+interleaved; timings measured this way are client bolt round trips, n = 15.
+
+End to end with the final code (old single statement vs anchor + count):
+
+| `limit` sent | old single statement | new anchor + count |
 |---:|---|---|
-| 51 (the API default 50, plus the probe row) | 3,000 rows, 37.7 ms | 51 rows, 3.9 ms |
-| 201 (the API maximum 200, plus the probe row) | 3,000 rows, 12.4 ms | 201 rows, 4.5 ms |
+| 51 (API default 50, plus the probe row) | 3,000 rows, p50 21.2 ms (min 20.0, max 38.5) | 51 rows, p50 57.3 ms (min 49.9, max 67.8) |
+| 201 (API maximum 200, plus the probe row) | 3,000 rows, p50 19.7 ms (min 19.3, max 25.7) | 201 rows, p50 142.7 ms (min 138.3, max 157.4) |
 
-The old statement returned the whole catalog at both limits, which is the bug.
-The new pair returns exactly the requested page. Sample variance on the host
-was high (p90 25-92 ms for both shapes), so read the p50 column as the
-direction of the change, not a precise ratio. The added cost is one extra
-round trip bound to at most 200 uids, skipped when the page is empty. The
-package-registry browse route pays the same second statement
-(`docs/internal/evidence/5167-package-registry-version-count-nornicdb.md`).
+The old statement returned all 3,000 rows at both limits (the bug), so it did no
+top-k sort; the new anchor honours ORDER BY/LIMIT and pays the sort. A second
+seeding of the same shape measured the old single statement at 42 ms (limit 51)
+and 49 ms (limit 201) p50, so treat the old column as 20-50 ms; the new pair is
+about 2.7x slower at limit 51 and 7x at limit 201 on this fixture.
+
+Statement level, first seeding, n = 15 interleaved, p50 (the anchor here is the
+first version, ordering by ecosystem as well):
+
+| statement | limit 51 / 51 ids | limit 201 / 201 ids |
+|---|---:|---:|
+| old single (unordered, LIMIT ignored) | 42.3 ms | 48.9 ms |
+| anchor, ORDER BY ecosystem, name, uid | 103.2 ms | 356.9 ms |
+| count, UNWIND + HAS_VERSION edge (previous helper) | 257.7 ms | 999.9 ms |
+| count, `WHERE v.package_id IN $ids` (shipped) | 3.1 ms | 5.7 ms |
+
+The previous count helper, which the package-registry browse route also uses,
+was the larger cost, so the shipped count read was rewritten to the
+`package_version_package_id`-index-backed form, about 80x faster at 51 ids and
+170x at 201 ids. The anchor's cost is the sort: variants measured at n = 9,
+p50, limit 51 / 201:
+
+| anchor variant | limit 51 | limit 201 |
+|---|---:|---:|
+| ORDER BY ecosystem, name, uid (first version) | 114.9 ms | 342.7 ms |
+| ORDER BY name, uid (shipped when an ecosystem is pinned) | 69.0 ms | 177.8 ms |
+| ORDER BY uid only | 64.9 ms | 187.3 ms |
+| no ORDER BY, LIMIT only | 29.9 ms | 24.4 ms |
+
+An ecosystem-pinned read has one ecosystem, so dropping it from the sort key
+keeps the (ecosystem, name, uid) contract and roughly halves the sort. A
+query-only read keeps ecosystem as the first key. The remaining cost is the
+top-k sort itself, which this build makes proportional to the limit; an
+index-ordered scan was not available in these measurements.
+
+The browse route's version counts get the same faster helper, so
+`GET /api/v0/package-registry/packages` drops its count-read cost accordingly;
+its handler tests pass against the new statement (they assert the new text).
+The browse route's own anchor statement is unchanged.
+
+Version count semantics. The shipped count reads `PackageVersion` nodes by
+`package_id`, not `HAS_VERSION` edges. Both writers set `v.package_id` on the
+node (`canonicalPackageRegistryVersionUpsertCypher`), but the `HAS_VERSION`
+edge is written in a deferred second write group after the node group commits
+(`package_registry_edge_writer.go`). Between the two groups a version node
+exists whose edge does not, and the property count is briefly higher than the
+edge count. Once both groups have committed they agree: on the 3,000-package
+fixture, 2,250 packages have versions and 0 of 3,000 differ between the two
+counts, and `TestLiveSearchBundlesVersionCountEqualsEdgeCount` asserts equality
+per package plus the no-edge window (a version node with `package_id` and no
+edge counts by property, not by edge).
 
 Query-plan pins: `handleSearchBundles` moved from the grandfathered prose
 disposition to a typed `label_inventory` entry (label `Package`,

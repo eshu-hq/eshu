@@ -45,7 +45,9 @@ Read `doc.go` and `README.md` first.
 `version_counts.go` exports `VersionCountsByPackageID`, which
 `Handler.attachPackageVersionCounts` and `codequery`'s bundles read (POST
 `/api/v0/code/bundles`) both call. Its statement stays the MATCH-only
-`UNWIND` in `packageRegistryVersionCountsCypher`; a caller zero-fills by
+index-backed `MATCH (v:PackageVersion) WHERE v.package_id IN $package_ids` in
+`packageRegistryVersionCountsCypher` (it counts version nodes by property, not
+HAS_VERSION edges; see the statement's doc comment); a caller zero-fills by
 indexing the returned map. It is pinned in
 `go/internal/queryplan/testdata/query-source-coverage.yaml`, so an edit
 re-derives its `source_sha256`. Keep this package free of any `codequery`

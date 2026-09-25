@@ -296,7 +296,7 @@ func TestBoundedVisualizationCypher_TerminalCap(t *testing.T) {
 func TestHandleSearchBundles_SearchesRegistryPackages(t *testing.T) {
 	stub := fakeGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "UNWIND $package_ids") {
+			if strings.Contains(cypher, "v.package_id IN $package_ids") {
 				// The page's version counts arrive as their own statement.
 				return []map[string]any{{"package_id": "pkg-1", "version_count": int64(3)}}, nil
 			}
@@ -509,6 +509,20 @@ func TestSearchRegistryBundlesCypherAlwaysScoped(t *testing.T) {
 				t.Fatalf("params[ecosystem] = %#v, want %#v", params["ecosystem"], tc.ecosystem)
 			}
 		})
+	}
+}
+
+// TestSearchRegistryBundlesCypherOrdering proves the ordering contract per
+// shape: an ecosystem-pinned read orders by (name, uid), because every row
+// shares the ecosystem; a query-only read must still order by ecosystem first.
+func TestSearchRegistryBundlesCypherOrdering(t *testing.T) {
+	pinned, _ := searchRegistryBundlesCypher("react", "npm", false, false, 51)
+	if !strings.Contains(pinned, "ORDER BY p.normalized_name, p.uid\nLIMIT $limit") {
+		t.Fatalf("ecosystem-pinned cypher = %q, want ORDER BY p.normalized_name, p.uid", pinned)
+	}
+	open, _ := searchRegistryBundlesCypher("react", "", false, false, 51)
+	if !strings.Contains(open, "ORDER BY p.ecosystem, p.normalized_name, p.uid\nLIMIT $limit") {
+		t.Fatalf("query-only cypher = %q, want ORDER BY p.ecosystem, p.normalized_name, p.uid", open)
 	}
 }
 

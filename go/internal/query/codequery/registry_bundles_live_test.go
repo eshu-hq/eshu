@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -58,6 +59,8 @@ func liveBundlesFixture() []liveBundlesPackage {
 type liveBundlesRecordingReader struct {
 	inner *liveNornicDBReader
 	rows  []int
+	// write runs one seed statement through a write session.
+	write func(cypher string, params map[string]any)
 }
 
 func (r *liveBundlesRecordingReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -115,7 +118,7 @@ func openLiveBundlesReader(t *testing.T) *liveBundlesRecordingReader {
 				map[string]any{"uid": pkg.uid, "vuid": fmt.Sprintf("ver:live5167b:%s:%d", pkg.uid, v), "version": fmt.Sprintf("1.0.%d", v)})
 		}
 	}
-	return &liveBundlesRecordingReader{inner: newLiveNornicDBReader(driver, "nornic")}
+	return &liveBundlesRecordingReader{inner: newLiveNornicDBReader(driver, "nornic"), write: write}
 }
 
 // liveBundlesSearch drives the shipped handler and decodes the bundles page.
@@ -286,5 +289,50 @@ func TestLiveSearchBundlesEveryPredicateFiltersRows(t *testing.T) {
 				t.Fatalf("rows = %d %v, want %d", len(got), got, tc.want)
 			}
 		})
+	}
+}
+
+// TestLiveSearchBundlesVersionCountEqualsEdgeCount proves the index-backed
+// count statement (PackageVersion.package_id) agrees with a HAS_VERSION edge
+// count on every fixture package once both writer phases have committed, and
+// pins the one window where they differ: a version node written by the node
+// phase whose deferred HAS_VERSION edge is not written yet counts by property
+// but not by edge (package_registry_edge_writer.go).
+func TestLiveSearchBundlesVersionCountEqualsEdgeCount(t *testing.T) {
+	reader := openLiveBundlesReader(t)
+	ctx := context.Background()
+	fixture := liveBundlesFixture()
+	ids := make([]string, 0, len(fixture))
+	for _, pkg := range fixture {
+		ids = append(ids, pkg.uid)
+	}
+	edgeCounts := func() map[string]int {
+		rows, err := reader.inner.Run(ctx, `UNWIND $ids AS id
+MATCH (p:Package {uid: id})-[r:HAS_VERSION]->(v:PackageVersion)
+RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"ids": ids})
+		if err != nil {
+			t.Fatalf("edge count read: %v", err)
+		}
+		out := map[string]int{}
+		for _, row := range rows {
+			out[StringVal(row, "package_id")] = IntVal(row, "version_count")
+		}
+		return out
+	}
+	propCounts, err := registry.VersionCountsByPackageID(ctx, reader, ids)
+	if err != nil {
+		t.Fatalf("VersionCountsByPackageID: %v", err)
+	}
+	edges := edgeCounts()
+	for _, pkg := range fixture {
+		if propCounts[pkg.uid] != edges[pkg.uid] || propCounts[pkg.uid] != pkg.versions {
+			t.Errorf("%s: property count %d, edge count %d, seeded %d; want all equal", pkg.uid, propCounts[pkg.uid], edges[pkg.uid], pkg.versions)
+		}
+	}
+	// Node-phase-only window: a version with package_id but no edge yet.
+	reader.write(`CREATE (:PackageVersion {uid: 'ver:live5167b:no-edge', package_id: $id, version: '9.9.9'})`, map[string]any{"id": ids[0]})
+	propCounts, _ = registry.VersionCountsByPackageID(ctx, reader, ids[:1])
+	if got, want := propCounts[ids[0]], edgeCounts()[ids[0]]+1; got != want {
+		t.Errorf("no-edge window: property count %d, want edge count + 1 = %d", got, want)
 	}
 }

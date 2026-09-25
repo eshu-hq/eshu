@@ -9,10 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// VersionCountsByPackageID resolves HAS_VERSION counts for one explicit page
-// of package uids through packageRegistryVersionCountsCypher, the MATCH-only
-// UNWIND statement that avoids the pinned NornicDB's OPTIONAL MATCH +
-// count(v) zero-group collapse (see docs/public/reference/nornicdb-pitfalls.md).
+// VersionCountsByPackageID resolves version counts for one explicit page of
+// package uids through packageRegistryVersionCountsCypher, the MATCH-only,
+// index-backed statement over PackageVersion.package_id (it counts version
+// nodes by that property, not HAS_VERSION edges; see the statement's doc
+// comment for the window where the two differ). It keeps the aggregate out of
+// the anchor reads, where the pinned NornicDB ignores ORDER BY/LIMIT after it
+// (see docs/public/reference/nornicdb-aggregate-order-limit.md).
 // A package uid absent from the returned map has zero versions; callers
 // zero-fill by indexing the map, which yields 0 for a missing key. An empty
 // page skips the round trip and returns an empty map.
