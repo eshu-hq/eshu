@@ -185,6 +185,33 @@ supplies any command output their proof needs.
 `scripts/agent-roles.py check` is part of `verify-agent-canon.sh`, so a stale
 binding fails locally and in CI.
 
+Every role can exchange task messages with its coordinator or named peers when
+its harness exposes native agent messaging. This is separate from dispatch:
+leaf roles still do not spawn agents, and a peer message cannot grant user
+approval or change permissions. Claude's read-role tool allowlist includes
+`SendMessage`; its write role inherits the available tool pool without a new
+deny rule. Codex enables multi-agent tools by default; the collaboration
+runtime supplies messaging to spawned roles, including read-only ones, without
+a per-role permission field. Standalone `codex-exec` sessions have no parent
+peer roster. Muse's headless role launcher also has no in-process teammate
+roster; a Muse session can use `muse session-message` only when it knows a target
+session. The shared messaging instruction applies when a role has a reachable
+coordinator or peer.
+
+Claude applies a role's frontmatter only when the named agent type is actually
+selected. A per-invocation model overrides its `model:` field; agent-team
+teammates do not preload its `skills:` field, so their task or role body must
+load the skill explicitly. Check `/tasks` for the running role and model when
+the chosen model matters. A resumed teammate may also lose a project role's
+definition until the agent file's folder is trusted.
+
+For an active Claude `/goal`, the `Agent` PreToolUse hook removes an unrequested
+model override from a named Eshu role call. The role's frontmatter then selects
+the manifest model. If the owner's goal names a Claude model, the hook leaves
+model selection to the coordinator; unknown or unnamed agent types are also
+untouched. The goal hook still provides phase hints, so the coordinator must
+select the named role for this guard to apply.
+
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |

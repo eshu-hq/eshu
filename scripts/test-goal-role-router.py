@@ -34,6 +34,8 @@ class GoalRoleRouterTests(unittest.TestCase):
             output = context(f"/goal {goal}", "claude", tmp)
         for marker in ("debug-eshu", "develop-eshu", "review-eshu", "sonnet", "eshu-issue-driver stays", "concurrency-deadlock-rigor is a method"):
             self.assertIn(marker, output)
+        self.assertIn("select its named .claude/agents agent type", output)
+        self.assertIn("omit a model override", output)
 
     def test_muse_goal_text_routes_performance_and_review(self):
         output = context("/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review.", "muse")
@@ -217,6 +219,79 @@ class GoalRoleRouterTests(unittest.TestCase):
             goal = scratchpad / "goal.txt"
             goal.write_text("Diagnose with eshu-diagnostic-rigor")
             self.assertIn("debug-eshu", context(f"/goal {goal}", "claude", ROOT))
+
+    def test_claude_dispatch_uses_role_frontmatter_for_goal_models(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            goal = work / ".claude" / "active-goal.session-1"
+            goal.parent.mkdir()
+            goal.write_text("SESSION: session-1\nDiagnose with eshu-diagnostic-rigor\n")
+            payload = {
+                "tool_name": "Agent", "tool_input": {
+                    "subagent_type": "debug-eshu-deep", "model": "haiku",
+                    "prompt": "Diagnose", "description": "Investigate failure",
+                },
+                "cwd": tmp, "session_id": "session-1", "hook_event_name": "PreToolUse",
+            }
+            def dispatch():
+                result = subprocess.run(
+                    [sys.executable, str(ROUTER), "claude-dispatch"],
+                    input=json.dumps(payload), capture_output=True, text=True, check=True,
+                    cwd=ROOT,
+                )
+                return json.loads(result.stdout)["hookSpecificOutput"] if result.stdout else None
+
+            output = dispatch()
+            self.assertEqual("PreToolUse", output["hookEventName"])
+            self.assertEqual({key: value for key, value in payload["tool_input"].items()
+                              if key != "model"}, output["updatedInput"])
+            self.assertIn("opus", output["additionalContext"])
+            goal.write_text("SESSION: session-1\nUse Haiku for debug-eshu-deep\n")
+            self.assertIsNone(dispatch())
+            goal.write_text("CONSENT: push\nSESSION: session-1\nDiagnose\n")
+            self.assertIsNotNone(dispatch())
+            prepared = work / "goal.txt"
+            prepared.write_text("Use Haiku for debug-eshu-deep")
+            goal.write_text("SESSION: session-1\ngoal.txt\n")
+            self.assertIsNone(dispatch())
+            goal.write_text("SESSION: other-session\nDiagnose\n")
+            self.assertIsNone(dispatch())
+            goal.write_text("SESSION: session-1\nDiagnose\n")
+            payload["tool_input"]["subagent_type"] = "Explore"
+            self.assertIsNone(dispatch())
+            payload["tool_input"]["subagent_type"] = "debug-eshu"
+            payload["tool_input"]["model"] = "sonnet"
+            self.assertIsNone(dispatch())
+            payload["tool_input"]["model"] = "haiku"
+            goal.write_text("SESSION: session-1\nDONE\n")
+            self.assertIsNone(dispatch())
+            goal.unlink()
+            self.assertIsNone(dispatch())
+
+    def test_claude_dispatch_hook_is_wired(self):
+        config = json.loads((ROOT / ".claude/settings.json").read_text())
+        commands = [hook["command"] for row in config["hooks"]["PreToolUse"]
+                    if row.get("matcher") == "Agent" for hook in row["hooks"]]
+        self.assertTrue(any("goal-role-router.py\" claude-dispatch" in command
+                            for command in commands))
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            goal = work / ".claude" / "active-goal.session-1"
+            goal.parent.mkdir()
+            goal.write_text("SESSION: session-1\nDiagnose with eshu-diagnostic-rigor\n")
+            payload = json.dumps({
+                "tool_name": "Agent", "tool_input": {
+                    "subagent_type": "debug-eshu-deep", "model": "haiku",
+                    "prompt": "Diagnose", "description": "Investigate failure",
+                },
+                "cwd": tmp, "session_id": "session-1", "hook_event_name": "PreToolUse",
+            })
+            result = subprocess.run(
+                ["/bin/sh", "-c", commands[0]], input=payload,
+                capture_output=True, text=True, cwd=ROOT,
+                env={**os.environ, "CLAUDE_PROJECT_DIR": str(ROOT)}, check=True,
+            )
+            self.assertNotIn("model", json.loads(result.stdout)["hookSpecificOutput"]["updatedInput"])
 
 
 if __name__ == "__main__":

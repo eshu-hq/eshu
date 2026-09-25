@@ -99,11 +99,68 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         model = f"; {binding['model']} effort={binding['effort']}" if binding else ""
         lines.append(f"- {name}: {role['description']} ({tier}; {role['access']}{model})")
     if harness == "claude":
-        lines.append("Delegate a bounded phase to its native .claude/agents role when useful.")
+        lines.append(
+            "When delegating a bounded phase, select its named .claude/agents agent type "
+            "and omit a model override unless the goal requests one. Team teammates "
+            "must load named skills explicitly."
+        )
     elif harness in {"codex", "muse"}:
         lines.append(f"When the native child tool cannot select this role and binding, the coordinator can run scripts/agent-roles.py {harness}-exec ROLE TASK.")
     lines.append("Preserve the goal's explicit phases and model choices. Do not assign the whole goal from this hint; the main session model is unchanged.")
     return "\n".join(lines)
+
+
+def claude_dispatch(payload: dict) -> str:
+    """Keep a named Eshu role's frontmatter model for an ordinary /goal run."""
+    if payload.get("tool_name") != "Agent":
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict) or not isinstance(tool_input.get("model"), str):
+        return ""
+    role_name = tool_input.get("subagent_type")
+    if not isinstance(role_name, str):
+        return ""
+    manifest = json.loads((ROOT / ".agents/roles.json").read_text())
+    role = manifest["roles"].get(role_name)
+    if role is None:
+        return ""
+    if "base" in role:
+        role = {**manifest["roles"][role["base"]], **role}
+    expected = manifest["models"]["claude"][role["tier"]]["model"]
+    if tool_input["model"] == expected:
+        return ""
+
+    cwd = payload.get("cwd")
+    session_id = payload.get("session_id")
+    if not isinstance(cwd, str) or not isinstance(session_id, str) or not cwd or not session_id:
+        return ""
+    safe_id = re.sub(r"[^A-Za-z0-9._-]", "-", session_id)
+    goal_file = Path(cwd) / ".claude" / ("active-goal." + safe_id)
+    if goal_file.is_symlink() or not goal_file.is_file() or goal_file.stat().st_size > 65536:
+        return ""
+    goal_lines = goal_file.read_text(errors="replace").splitlines()
+    body_start = 0
+    while body_start < len(goal_lines) and (
+        not goal_lines[body_start].strip()
+        or goal_lines[body_start].lstrip().lower().startswith("consent:")
+    ):
+        body_start += 1
+    if body_start == len(goal_lines) or goal_lines[body_start] != "SESSION: " + session_id:
+        return ""
+    goal = "\n".join(goal_lines[body_start + 1:])
+    if re.search(r"(?im)^\s*DONE\b", goal):
+        return ""
+    goal = prepared_goal(goal.strip(), cwd) or goal
+    # A named model in the owner's goal takes precedence over repo defaults.
+    if re.search(r"(?i)\b(?:haiku|sonnet|opus|fable|claude-(?:haiku|sonnet|opus|fable)[\w.-]*)\b", goal):
+        return ""
+    revised = {key: value for key, value in tool_input.items() if key != "model"}
+    return json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "updatedInput": revised,
+        "additionalContext": "Eshu removed an unrequested model override for " + role_name
+        + "; the role frontmatter selects " + expected + ".",
+    }})
 
 
 def main() -> None:
@@ -112,6 +169,11 @@ def main() -> None:
         harness = sys.argv[1] if len(sys.argv) > 1 else ""
         prompt = str(payload.get("prompt", ""))
         cwd = str(payload.get("cwd", ""))
+        if harness == "claude-dispatch":
+            result = claude_dispatch(payload)
+            if result:
+                print(result)
+            return
         if harness == "expand":
             expanded = goal_text(prompt, cwd)
             if expanded:

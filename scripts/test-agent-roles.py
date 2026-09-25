@@ -43,6 +43,19 @@ def main():
         assert run(root, "check").returncode == 0
         binding = root / ".codex" / "agents" / "debug-eshu-deep.toml"
         assert "eshu-diagnostic-rigor" in binding.read_text()
+        message_rule = "Use native agent messaging, when available"
+        for name, spec in manifest["roles"].items():
+            access = spec.get("access") or manifest["roles"][spec["base"]]["access"]
+            claude = (root / ".claude" / "agents" / (name + ".md")).read_text()
+            codex_binding = (root / ".codex" / "agents" / (name + ".toml")).read_text()
+            opencode = (root / ".opencode" / "agent" / (name + ".md")).read_text()
+            assert all(message_rule in text for text in (claude, codex_binding, opencode))
+            if access == "read":
+                assert "tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage\n" in claude
+                assert "disallowedTools:" not in claude
+            else:
+                assert "disallowedTools:" not in claude
+                assert "tools:" not in claude.split("---", 2)[1]
         chosen = manifest["models"]["codex"]["deep"]["model"]
         binding.write_text(binding.read_text().replace('model = "' + chosen + '"', 'model = "wrong"'))
         stale = run(root, "check")
