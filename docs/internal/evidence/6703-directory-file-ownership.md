@@ -44,6 +44,18 @@ The new fixture uses a per-run nonce, removes only its tagged nodes before
 driver close, and checks for residue; its test passed twice in one isolated
 v1.3.3 run.
 
+On a disposable Neo4j 2026 Community store, a torn-edge fixture with one
+owned, one cross-repository, and one ownerless File returned `file_count=3`
+under the old production match and `file_count=1` under the File-owned match.
+Both statements were run with `PROFILE`. The separate
+`TestLiveNeo4jDirectoryLanguageQueryCountsOnlyOwnedFiles` regression drives
+the production handler on that Neo4j backend: restoring the old match made
+it fail with `file_count=3` (expected 1), then restoring the File-owned match
+passed with `-count=2`;
+it deletes only its nonce-tagged nodes and asserts no fixture residue.
+This local correctness fixture is separate from the read-only ops-qa timing
+corpus below.
+
 ## Before and after
 
 Performance Evidence: five interleaved same-store/same-corpus query-shim
@@ -74,6 +86,15 @@ scope had no cross-repository edges, so its unchanged row set is a
 performance control; the synthetic torn-edge fixture proves the intended
 accuracy delta. Statement PROFILE does not establish the full HTTP/MCP
 endpoint's latency.
+
+The broad local `make pre-pr` gate passed on head `1bd36385` before later
+unrelated base rebases. Its B-7 corpus reported 570 required passes, zero
+dead letters, and 363 s total against a 1,800 s ceiling. The first-drain
+and maintenance phase times raised advisory warnings (131 s and 202 s),
+but those phases run before the API starts and do not exercise this read.
+Their Apple Silicon baseline is not comparable to this Linux x86-64 host;
+the cause of the phase variation is unknown. Final-head CI B-7 remains a
+merge gate, not a latency claim for this query.
 
 No-Observability-Change: the route keeps `SpanQueryLanguageQuery` with
 `http.route` and `eshu.capability`, the graph-reader query-duration metric,
