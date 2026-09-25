@@ -235,17 +235,22 @@ report `PropertiesSet`/`LabelsAdded`. An exemption excuses execution proof,
 never drift: templates, fragments, and the source digest still pin the symbol,
 and the manifest validator rejects any drift in them.
 
-A label-dispatch read is judged as one read. When a handler resolves an id
-with one single-label `MATCH (v:Label)` per candidate label (label
-disjunctions return zero rows on the pinned NornicDB build, #7006), every
-label tried before the owning label misses by construction. Texts that are
+A same-parameter sibling read is judged as one read. When a handler issues
+one single-label `MATCH (v:Label)` per candidate label with byte-identical
+parameters, either a first-hit-wins dispatch (label disjunctions return
+zero rows on the pinned NornicDB build, #7006) or an independent per-label
+fan-out whose rows are concatenated or merged in Go, every label besides
+the owning label misses by construction for a present id. Texts that are
 identical after stripping the leading single-label anchor, and that the
 recordings show executed with byte-identical parameters, form one family
 keyed by the unlabeled text: the family is always-empty only if no member
 ever returned rows, and a read exemption on the unlabeled text covers it.
 Members that never returned rows while their family did are advisory
-(`dispatch-miss`). Reads that share a text modulo label but never shared
-parameters stay independent.
+(`dispatch-miss`, named for the motivating dispatch case). The rule groups
+per-label fan-outs too, so a fan-out member broken on every execution stays
+green while a sibling returns rows and shows up only as an advisory miss.
+Reads that share a text modulo label but never shared parameters stay
+independent.
 
 Run it over local captures (single pair is enough; CI merges both pairings by
 backend):

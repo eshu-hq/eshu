@@ -152,8 +152,8 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	// every candidate, not let each RunSingle claim its own fresh
 	// Neo4jReader.runRead window -- production's raw request context
 	// carries no deadline of its own for this route, so an unbounded loop
-	// could pay up to len(impactRelationshipAnchorLabels) x the single-read
-	// budget (~140s for 14 labels at 10s each) instead of the one
+	// could pay up to (len(impactRelationshipAnchorLabels)+1) x the single-read
+	// budget (~150s for 15 anchors at 10s each) instead of the one
 	// bounded-read budget the pre-fix single-statement handler had.
 	ctx, cancel := querycontract.WithBoundedGraphReadDeadline(
 		querycontract.WithGraphQueryName(r.Context(), "platform_impact.deployment_chain"),

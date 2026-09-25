@@ -79,7 +79,8 @@ func runStatementCoverage(o options, stdout io.Writer, r *Report) error {
 
 // printCoverageReport writes the per-backend coverage detail: executed,
 // never-executed, and exempted manifest keys, always-empty and failed-only
-// reads, advisory label-dispatch misses, advisory counter gaps, and
+// reads, advisory same-parameter sibling misses (dispatch-miss), advisory
+// counter gaps, and
 // unattributed executions. Failures print
 // in full (they are usually few); advisory lists are capped.
 func printCoverageReport(report backendconformance.StatementCoverageReport, stdout io.Writer) {

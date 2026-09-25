@@ -40,10 +40,11 @@ type StatementCoverageFailure struct {
 // executions never carried Bolt counters: advisory only, since a MERGE
 // that matched-existing legitimately reports zeros — but a backend that
 // never reports any counter anywhere is a counter-fidelity signal.
-// DispatchMisses names label-dispatch member texts (labelDispatchFamilies)
-// that never returned rows while their family did: advisory only, since a
-// label tried before the owning label misses by construction, but it shows
-// which anchor labels the corpus never positively exercised.
+// DispatchMisses names same-parameter sibling member texts
+// (labelDispatchFamilies) that never returned rows while their family did:
+// advisory only, since a label tried before the owning label of a dispatch,
+// or a non-owning label of a per-label fan-out, misses by construction, but
+// it shows which anchor labels the corpus never positively exercised.
 type BackendStatementCoverage struct {
 	Backend               string
 	Executed              []string
@@ -196,15 +197,16 @@ func variantMatches(variant queryplan.StatementVariant, text string) bool {
 }
 
 // emptyReads groups successful read executions by read: its statement
-// text, or for a proven label-dispatch member (labelDispatchFamilies) its
+// text, or for a proven same-parameter sibling member
+// (labelDispatchFamilies: a label dispatch or a per-label fan-out) its
 // family's unlabeled text, so one logical read split across per-label
 // statements is judged once. A read whose executions all returned zero
 // rows is always-empty (failing unless exempted); a text with only failed
 // executions is failed-only (reported, never failing: transients must not
 // red the gate, and slice-3's failures kind owns persistent failure). A
-// dispatch member that never returned rows while its family did is a
-// dispatch miss (reported, never failing: a label tried before the owning
-// label misses by construction). Writes (no digest) never qualify.
+// family member that never returned rows while its family did is a
+// dispatch miss (reported, never failing: a non-owning label misses by
+// construction). Writes (no digest) never qualify.
 func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alwaysEmpty, failedOnly, dispatchMisses []string) {
 	type readStats struct {
 		succeeded bool

@@ -199,7 +199,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: c1ed9d950a6317c6b9f775b017b1bcbac75b67479d16ca39d07ddefd00d2d313
+          source_sha256: 000e8388ca47382bf21d5f4b159eb8f4a48a4203e8f67119bcad4d50df4db6c9
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go
@@ -442,7 +442,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 229eb833bd1f79b15594037d550645c56bbd7e0cbe1c5f808d03ad0d319b63c2
+          source_sha256: f8838785b939e5a7741fa8adee2ad96ef17ae1738571c7a42083311809408a34
           key_bound: single_key
           max_results: 1
   - file: infra_resource_aggregates.go

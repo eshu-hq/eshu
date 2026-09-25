@@ -88,8 +88,8 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		// across every candidate, not let each RunSingle claim its own
 		// fresh Neo4jReader.runRead window -- production's raw request
 		// context carries no deadline of its own for this route, so an
-		// unbounded loop could pay up to len(EntityContextAnchorLabels) x
-		// the single-read budget (~140s for 14 labels at 10s each) instead
+		// unbounded loop could pay up to (len(EntityContextAnchorLabels)+1) x
+		// the single-read budget (~160s for 16 anchors at 10s each) instead
 		// of the one bounded-read budget the pre-fix single-statement
 		// handler had.
 		// #7006 review (F6): the telemetry query_name is "entity.context",

@@ -125,3 +125,75 @@ func TestStatementCoverageReportsDispatchMissesAsAdvisory(t *testing.T) {
 		t.Fatalf("AlwaysEmptyReads = %v, want none", coverage.AlwaysEmptyReads)
 	}
 }
+
+// An independent per-label fan-out is the second shape the family rule
+// groups (fetchOCIImagesByDigest in query/impact/trace_deployment_oci.go
+// runs one single-label digest lookup per image label with the same digests
+// batch and concatenates every label's rows; the resource-investigation
+// selector fan-out in query/impact/resource_investigation_selector.go does
+// the same, concurrently, with one params map). Nothing stops at a first
+// hit, but the recordings look identical to a dispatch: same text modulo
+// the anchor label, byte-identical parameters. The gate groups them by
+// design, so an expected non-owning-label miss is advisory rather than an
+// always-empty read. These tests pin that shape as intended, not as an
+// accident of the dispatch rule.
+const (
+	fanoutParams     = `{"digests":["sha256:abc"]}`
+	fanoutImageIndex = "MATCH (image:ContainerImageIndex) WHERE image.digest IN $digests RETURN image.digest AS digest"
+	fanoutImageDesc  = "MATCH (image:ContainerImageDescriptor) WHERE image.digest IN $digests RETURN image.digest AS digest"
+	fanoutUnlabeled  = "MATCH (image) WHERE image.digest IN $digests RETURN image.digest AS digest"
+)
+
+// TestStatementCoveragePerLabelFanoutWithSharedParamsGroupsWithoutFailure:
+// both labels are probed with the same batch and both return rows (the
+// concatenate semantics). The family returned rows, so nothing fails and
+// nothing is a miss.
+func TestStatementCoveragePerLabelFanoutWithSharedParamsGroupsWithoutFailure(t *testing.T) {
+	records := map[string][]DifferentialRecord{"neo4j": {
+		dispatchRead(fanoutImageIndex, fanoutParams, 2),
+		dispatchRead(fanoutImageDesc, fanoutParams, 3),
+	}}
+	report := ComputeStatementCoverage(dispatchManifest(), records)
+	if failures := report.Failures(); len(failures) != 0 {
+		t.Fatalf("Failures() = %v, want none: every fan-out label returned rows", failures)
+	}
+	if misses := report.ByBackend["neo4j"].DispatchMisses; len(misses) != 0 {
+		t.Fatalf("DispatchMisses = %v, want none", misses)
+	}
+}
+
+// TestStatementCoveragePerLabelFanoutMissIsAdvisoryWhileSiblingHits: the
+// digest lives on only one label, so the other label's probe misses by
+// construction. The fan-out is judged once: no failure, and the miss is
+// reported as advisory. This is also the disclosed masking trade-off: a
+// fan-out member broken on both backends stays green while a sibling
+// returns rows, and only the advisory line shows it.
+func TestStatementCoveragePerLabelFanoutMissIsAdvisoryWhileSiblingHits(t *testing.T) {
+	records := map[string][]DifferentialRecord{"neo4j": {
+		dispatchRead(fanoutImageIndex, fanoutParams, 0),
+		dispatchRead(fanoutImageDesc, fanoutParams, 3),
+	}}
+	report := ComputeStatementCoverage(dispatchManifest(), records)
+	if failures := report.Failures(); len(failures) != 0 {
+		t.Fatalf("Failures() = %v, want none: the fan-out returned rows via a sibling label", failures)
+	}
+	misses := report.ByBackend["neo4j"].DispatchMisses
+	if len(misses) != 1 || misses[0] != fanoutImageIndex {
+		t.Fatalf("DispatchMisses = %v, want only %q", misses, fanoutImageIndex)
+	}
+}
+
+// TestStatementCoveragePerLabelFanoutAllMissFailsOnceWithoutExemption: when
+// no label of the fan-out ever returns rows, the grouped read is still an
+// always-empty read, reported once under its unlabeled text.
+func TestStatementCoveragePerLabelFanoutAllMissFailsOnceWithoutExemption(t *testing.T) {
+	records := map[string][]DifferentialRecord{"neo4j": {
+		dispatchRead(fanoutImageIndex, fanoutParams, 0),
+		dispatchRead(fanoutImageDesc, fanoutParams, 0),
+	}}
+	failures := ComputeStatementCoverage(dispatchManifest(), records).Failures()
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, fanoutUnlabeled)
+	if len(failures) != 1 {
+		t.Fatalf("Failures() = %v, want exactly one fan-out family failure", failures)
+	}
+}

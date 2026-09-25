@@ -7,9 +7,9 @@ import "regexp"
 
 // singleLabelAnchor matches a read whose leading pattern is one variable
 // bound to exactly one label and nothing else: `MATCH (n:Label) `. That is
-// the per-label probe shape a label-dispatch read renders once per
-// candidate label. Inline property maps, label disjunctions, and later
-// patterns are deliberately out of scope.
+// the per-label probe shape a label-dispatch or per-label fan-out read
+// renders once per candidate label. Inline property maps, label
+// disjunctions, and later patterns are deliberately out of scope.
 var singleLabelAnchor = regexp.MustCompile(`^MATCH \((\w+):(\w+)\) `)
 
 // unlabeledAnchorText returns text with its leading single-label anchor
@@ -21,22 +21,35 @@ func unlabeledAnchorText(text string) string {
 }
 
 // labelDispatchFamilies maps every read text that the recordings prove is
-// one member of a label-dispatch read to that read's family key, its
-// unlabeled anchor text.
+// one member of a same-parameter sibling read to that read's family key,
+// its unlabeled anchor text. The "dispatch" in the name (and in the
+// DispatchMisses field and the dispatch-miss report line) is the motivating
+// case, not the only shape the rule groups.
 //
-// A label-dispatch read (issue #7006) resolves one bound id by issuing one
-// single-label MATCH per candidate label, most-likely-first, and stops at
-// the first row; on the pinned NornicDB build a label disjunction silently
-// matches zero rows, so the per-label split is the only labeled anchor that
-// resolves ids on both backends. For any one id, every label tried before
-// the owning label misses by construction, so judging each label text as
-// its own read would call those structural misses always-empty.
+// The motivating case is a label-dispatch read (issue #7006): it resolves
+// one bound id by issuing one single-label MATCH per candidate label,
+// most-likely-first, and stops at the first row; on the pinned NornicDB
+// build a label disjunction silently matches zero rows, so the per-label
+// split is the only labeled anchor that resolves ids on both backends. For
+// any one id, every label tried before the owning label misses by
+// construction, so judging each label text as its own read would call those
+// structural misses always-empty.
 //
 // Membership is proven from the recordings, never declared: two or more
 // distinct texts that share an unlabeled anchor text AND were executed with
-// byte-identical parameters are one lookup dispatched across labels. Reads
-// that differ only in their anchor label but never shared parameters stay
-// independent and are judged on their own text.
+// byte-identical parameters form one family. Besides the first-hit-wins
+// dispatch, the same evidence also groups independent per-label fan-out
+// reads that share parameters and merge every label's rows, probing all
+// labels with no stop at a first hit (fetchOCIImagesByDigest in
+// query/impact/trace_deployment_oci.go and
+// resourceInvestigationSelectorCandidates in
+// query/impact/resource_investigation_selector.go). Their non-owning-label
+// misses are expected, so they are judged once and their misses stay
+// advisory. That carries the same masking trade-off as a dispatch: a fan-out
+// member broken on every execution stays green while a sibling returns rows,
+// visible only as an advisory miss. Reads that differ only in their anchor
+// label but never shared parameters stay independent and are judged on
+// their own text.
 func labelDispatchFamilies(records []DifferentialRecord) map[string]string {
 	type call struct {
 		family     string
