@@ -57,7 +57,7 @@ func TestSemanticModuleCasesAreInTheCorpora(t *testing.T) {
 
 // TestSemanticModuleAbsentFileReadWantsNoRows pins the decided outcome: a row
 // whose File is absent creates no Module. An empty non-nil WantRows is what
-// makes RunReadCorpus require zero rows; nil would disable the check. The
+// makes RunReadCorpus require zero rows; nil would disable the check.
 // Neither backend may override the correct outcome.
 func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	t.Parallel()

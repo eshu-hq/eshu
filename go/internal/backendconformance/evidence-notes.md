@@ -39,10 +39,23 @@ zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
 first drain took 127 seconds against the gate's 75-second advisory baseline,
 and maintenance drains took 81 seconds against 25. The production Module
 statement retains the File-first shape after the named File-gated label set.
-The commits after this measured source change only this evidence note.
-This run does not establish the timing warnings' cause or an end-to-end
-no-regression claim. The full NornicDB/Neo4j differential remains separate
-integration proof.
+Subsequent edits change evidence wording and comments only; the production
+writer is the one exercised by this run. The 75- and 25-second advisory
+baselines were captured on Apple Silicon and cannot be compared as same-host
+regressions against this Linux run.
+
+For a same-host check, four serial B-7 runs alternated changed, unchanged,
+changed, unchanged at source commits `ab43a9cb`, `3cf0b6bf`, `34867ec`, and
+`3cf0b6bf`. Each used the same 31-repository cassette, pinned NornicDB image,
+query profile, and fresh Compose volumes. Every run finished with 570 passes,
+zero required failures, and two advisory timing warnings. The unchanged-base
+first drains were 187 and 187 seconds (median 187); changed-writer first drains
+were 127 and 129 seconds (median 128). Unchanged-base maintenance drains were
+145 and 83 seconds (median 114); changed-writer maintenance drains were 81 and
+81 seconds (median 81). This small comparison finds no B-7 drain regression
+from the Module change on this host. Maintenance variability and the query's
+measured per-batch cost rule out a general end-to-end speedup claim. The full
+NornicDB/Neo4j differential remains separate integration proof.
 
 Performance Evidence: before implementation, an isolated scratch HTTP
 `tx/commit` shim extracted the exact production Module template and compared
