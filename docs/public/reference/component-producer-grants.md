@@ -174,10 +174,17 @@ nothing.
 | Span event | `component.producer_grant.decision` on the active span | the four labels plus `eshu.producer_grant.producer_id` and `eshu.producer_grant.version` |
 | Log line | `producer grant denied` (WARN) / `producer grant allowed` (INFO) | `producer_grant.*` keys |
 
-`stage` is where the decision was made: `install` (`eshu component install`),
-`readback` (registry readback, including the worker's activation selection),
-`activation` (`eshu component enable` and extension-host construction), and
-`emission` (the recheck on every extension result).
+`stage` is where the decision was made:
+
+| Stage | Decision site | Emitted by a shipped binary today |
+| --- | --- | --- |
+| `install` | `eshu component install` | No (the CLI has no observer) |
+| `readback` | Registry readback, including the worker's activation selection | Worker only |
+| `activation` | `eshu component enable` and extension-host construction | Extension host only; `enable` is not emitted |
+| `emission` | The recheck on every extension result | Worker |
+
+An `allow` means the grant covers the kind, not that the install or result was
+accepted; a later check can still fail it.
 
 `reason` is `granted` for an allow and exactly one closed deny reason:
 
@@ -207,5 +214,4 @@ counter.
 
 Performance: the recheck adds one nil-check when no observer is configured and
 one pre-built-attribute counter add (one 16-byte SDK allocation) per distinct
-core kind per result when it is; see the No-Regression evidence in the #6726
-change for the before/after microbenchmark.
+core kind per result when it is.

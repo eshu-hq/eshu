@@ -26,12 +26,16 @@ issuing and revoking grants.
 
 ## Stages
 
-| Stage | Decision site |
-| --- | --- |
-| `install` | `eshu component install` (`Registry.Install`). |
-| `readback` | Registry readback, including the worker's activation selection. |
-| `activation` | `eshu component enable` (`Registry.Enable`) and extension-host construction (`NewSource`). |
-| `emission` | The recheck against the live grants on every extension result. |
+| Stage | Decision site | Emitted by a shipped binary today |
+| --- | --- | --- |
+| `install` | `eshu component install` (`Registry.Install`). | No. The CLI has no observer; the outcome is in command output and exit status. |
+| `readback` | Registry readback, including the worker's activation selection. | Yes, by `collector-component-extension`. The coordinator and API readbacks attach no observer. |
+| `activation` | `eshu component enable` (`Registry.Enable`) and extension-host construction (`NewSource`). | Extension-host construction: yes. `eshu component enable`: no (no observer in the CLI). |
+| `emission` | The recheck against the live grants on every extension result. | Yes, by `collector-component-extension`. |
+
+An `allow` means the grant covers the kind. It does not mean the install or
+result was accepted: a later check (identity, fencing, payload schema, fact-kind
+collision) can still fail it.
 
 ## Reasons
 
@@ -63,7 +67,8 @@ result. A denial still fails the result closed exactly as before (terminal
 names why emissions are being rejected. `revoked` and `expired` mean a grant
 lifecycle action, `scope_mismatch` and `schema_not_covered` mean a grant that no
 longer matches the manifest, and `grants_unreadable` means the registry could
-not be read.
+not be read. The deny log line carries only the closed reason, never the read
+error or a path; inspect the registry home directly to find the cause.
 
 The worker (`collector-component-extension`) wires readback, activation, and
 emission. The CLI, coordinator, and API construct registries without an
