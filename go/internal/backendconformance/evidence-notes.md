@@ -76,7 +76,7 @@ existing string equality with set membership over the same ten semantic labels.
 Twelve interleaved one-million-lookup pairs, alternating first mover, measured
 8.868 ms median for equality and 29.559 ms for set membership: about 21 ns
 extra per label check in statement construction. This isolated result is not a
-corpus-stage timing claim; the current-base B-7 run above proves completion.
+corpus-stage timing claim; the branch-base B-7 run above proves completion.
 
 No-Observability-Change: Module writes retain the existing statement label,
 summary, graph-write duration and failure telemetry. The conformance test logs
