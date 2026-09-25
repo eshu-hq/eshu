@@ -42,5 +42,17 @@ Tests in `bootstrap_projector_claim_conflict_test.go`:
 - `TestDrainProjectorWorkItemLogsClaimConflict`: `failure_class` and `worker_id`.
 - `TestBuildBootstrapProjectorWiresQueueInstruments`.
 
-Performance impact: none on the happy path; the loop runs one extra `errors.Is`
-only when Claim returns an error.
+No-Regression Evidence: the happy path is unchanged. `claimProjectorWork`
+returns on the first Claim call when it succeeds, with no timer allocated and no
+extra Claim round trip; the conflict branch runs only after a Claim error.
+`go test ./cmd/bootstrap-index/... ./internal/projector/... -count=1` and
+`go test -race ./cmd/bootstrap-index -count=1` pass, including the existing
+drain, isolation, and pipelined tests.
+
+Observability Evidence: a conflicting claim now logs
+`failure_class=projector_claim_conflict` with `worker_id` and
+`phase=projection`, and the queue counter
+`eshu_dp_queue_claim_conflict_retries_total{queue=projector,failure_class}`
+increments per retried attempt. An operator sees a burst of bootstrap claim
+conflicts on the metric and joins the exhausted-retry log lines by
+`failure_class`, instead of a bootstrap-index exit with no queue signal.
