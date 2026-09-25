@@ -16,6 +16,7 @@ import {
   mcpToolsList,
 } from "./authMcpE2EJsonRpc.ts";
 import { countGovernanceAuditEvents, pollForNewGovernanceAuditEvent } from "./authMcpE2EPsql.ts";
+import { assertEmptyGrantRepositoryList } from "./authMcpE2ERepositoryRows.ts";
 
 export interface ShapeAContext {
   readonly browser: Browser;
@@ -127,18 +128,10 @@ async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): 
   if (call.httpStatus !== 200) {
     throw new Error(`tools/call list_indexed_repositories expected 200, got ${call.httpStatus}: ${call.bodyText}`);
   }
-  const parsed = extractToolCallStructuredContent(call) as {
-    repositories?: readonly { id?: string }[];
-    total?: number;
-  };
-  const rows = parsed.repositories ?? [];
-  if (rows.length !== 0) {
-    throw new Error(
-      `scope-escalation: the scoped personal token (empty repo grant) saw ${rows.length} repository row(s) ` +
-        `despite an empty grant — the seeded node must be filtered out. ids: ${JSON.stringify(rows.map((r) => r.id))}`,
-    );
-  }
-  return `${toolsArray.length} tools listed; scoped personal token (empty grant) correctly saw 0 of the seeded graph (total=${parsed.total ?? 0})`;
+  // The payload is the truth envelope: the list is at structuredContent.data.
+  // assertEmptyGrantRepositoryList reads it there and fails closed on any other
+  // shape (a top-level read finds no rows on every response and cannot fail).
+  return `${toolsArray.length} tools listed; ${assertEmptyGrantRepositoryList(extractToolCallStructuredContent(call), "scoped personal token")}`;
 }
 
 // scopedReadAllowedFilter names the async allowed-read audit event shape A's
