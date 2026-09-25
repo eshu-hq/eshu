@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/engine"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 )
 
 func TestConvertAnswerPreservesExplicitPrimaryPacketSelection(t *testing.T) {
@@ -16,7 +16,7 @@ func TestConvertAnswerPreservesExplicitPrimaryPacketSelection(t *testing.T) {
 	primaryIndex := 1
 	converted := convertAnswer(engine.Answer{
 		PrimaryPacketIndex: &primaryIndex,
-		Packets: []query.AnswerPacket{
+		Packets: []ask.AnswerPacket{
 			{PrimaryTool: "list_collectors"},
 			{PrimaryTool: "list_indexed_repositories"},
 		},

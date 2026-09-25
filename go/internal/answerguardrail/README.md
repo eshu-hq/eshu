@@ -103,7 +103,7 @@ their own logs, status, responses, or scorecards.
   6.5x it prevents — so re-run `BenchmarkUnsafeStringHonestCorpus` if a gate
   changes.
 - The password scan is one `FindAllStringSubmatch` pass, and that is also a
-  performance contract. Nothing caps the string reaching it: `ask_sse.go`
+  performance contract. Nothing caps the string reaching it: `ask/sse.go`
   screens the whole joined model answer, and `answerquality` screens evidence
   values taken from indexed repository content. An earlier version restarted the
   regex at each value it classified, which cost 713ms on a 32KB run of

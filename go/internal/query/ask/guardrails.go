@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
-// ask_guardrails.go — runtime guardrail helpers for POST /api/v0/ask.
+// guardrails.go — runtime guardrail helpers for POST /api/v0/ask.
 //
 // These functions are pure helpers called from buildAskResponse in
-// ask_handler.go. They enforce citation-coverage and publish-safety invariants
+// ask/handler.go. They enforce citation-coverage and publish-safety invariants
 // on the assembled askResponse before it is sent to the caller.
 
 import (

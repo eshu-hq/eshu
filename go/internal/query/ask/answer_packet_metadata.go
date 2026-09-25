@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
-// attachPreChangeImpactPacket attaches the pre-change answer packet to an
+// AttachPreChangeImpactPacket attaches the pre-change answer packet to an
 // already-built impact payload. It is the production implementation behind
 // impact.AttachPreChangeImpactPacket (wired in family_impact_shim.go); the
-// split mirrors attachDeveloperChangePlanPacket because packet composition
-// names the root AnswerPacket cluster, which cannot cross into the impact
+// split mirrors AttachDeveloperChangePlanPacket because packet composition
+// names the ask AnswerPacket cluster, which cannot cross into the impact
 // subpackage. See #6060.
-func attachPreChangeImpactPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
+func AttachPreChangeImpactPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
 	metadata, _ := answer.AnswerMetadataFromData(data)
 	envelope := &querycontract.ResponseEnvelope{Data: data, Truth: truth, Error: nil}
 	data["answer_packet"] = NewAnswerPacketFromMetadata(AnswerPacketInput{
@@ -30,12 +30,12 @@ func attachPreChangeImpactPacket(data map[string]any, summary string, truth *que
 	return data
 }
 
-// attachDeveloperChangePlanPacket attaches the developer-change-plan answer
-// packet to an already-built plan payload. It lives in root (not in the
-// impact subpackage) because packet composition names the root AnswerPacket
+// AttachDeveloperChangePlanPacket attaches the developer-change-plan answer
+// packet to an already-built plan payload. It lives in ask (not in the
+// impact subpackage) because packet composition names the ask AnswerPacket
 // cluster, which cannot cross into that package. The plan summary stays
 // caller-built alongside the payload. See #6060.
-func attachDeveloperChangePlanPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
+func AttachDeveloperChangePlanPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
 	metadata, _ := answer.AnswerMetadataFromData(data)
 	envelope := &querycontract.ResponseEnvelope{Data: data, Truth: truth, Error: nil}
 	data["answer_packet"] = NewAnswerPacketFromMetadata(AnswerPacketInput{
@@ -53,7 +53,7 @@ func attachDeveloperChangePlanPacket(data map[string]any, summary string, truth 
 // NewAnswerPacketFromMetadata composes an AnswerPacket from normalized
 // AnswerMetadata. The metadata fills the packet's evidence, missing-evidence,
 // limitation, truncation, and follow-up slots without route-specific parsing.
-func NewAnswerPacketFromMetadata(in AnswerPacketInput, metadata AnswerMetadata) AnswerPacket {
+func NewAnswerPacketFromMetadata(in AnswerPacketInput, metadata answer.AnswerMetadata) AnswerPacket {
 	metadata = metadata.WithDefaults()
 	if len(in.EvidenceHandles) == 0 {
 		in.EvidenceHandles = citationHandlesFromMetadata(metadata.EvidenceHandles)
@@ -68,7 +68,7 @@ func NewAnswerPacketFromMetadata(in AnswerPacketInput, metadata AnswerMetadata) 
 		in.RecommendedNextCalls = metadata.RecommendedNextCalls
 	}
 	in.Truncated = in.Truncated || metadata.Truncated
-	if len(in.EvidenceHandles) == 0 && (len(metadata.MissingEvidence) > 0 || BoolVal(metadata.Coverage, "empty")) {
+	if len(in.EvidenceHandles) == 0 && (len(metadata.MissingEvidence) > 0 || querycontract.BoolVal(metadata.Coverage, "empty")) {
 		in.NoEvidence = true
 	}
 	return NewAnswerPacket(in)
@@ -81,14 +81,14 @@ func citationHandlesFromMetadata(rows []map[string]any) []evidence.EvidenceCitat
 	handles := make([]evidence.EvidenceCitationHandle, 0, len(rows))
 	for _, row := range rows {
 		handle := evidence.EvidenceCitationHandle{
-			Kind:           StringVal(row, "kind"),
-			RepoID:         StringVal(row, "repo_id"),
-			RelativePath:   StringVal(row, "relative_path"),
-			EntityID:       StringVal(row, "entity_id"),
-			EvidenceFamily: StringVal(row, "evidence_family"),
-			Reason:         StringVal(row, "reason"),
-			StartLine:      IntVal(row, "start_line"),
-			EndLine:        IntVal(row, "end_line"),
+			Kind:           querycontract.StringVal(row, "kind"),
+			RepoID:         querycontract.StringVal(row, "repo_id"),
+			RelativePath:   querycontract.StringVal(row, "relative_path"),
+			EntityID:       querycontract.StringVal(row, "entity_id"),
+			EvidenceFamily: querycontract.StringVal(row, "evidence_family"),
+			Reason:         querycontract.StringVal(row, "reason"),
+			StartLine:      querycontract.IntVal(row, "start_line"),
+			EndLine:        querycontract.IntVal(row, "end_line"),
 		}
 		if handle.Kind == "" {
 			if handle.EntityID != "" {
@@ -112,14 +112,14 @@ func missingCitationHandlesFromMetadata(rows []map[string]any) []evidence.Eviden
 	handles := make([]evidence.EvidenceCitationHandle, 0, len(rows))
 	for _, row := range rows {
 		handle := evidence.EvidenceCitationHandle{
-			Kind:           StringVal(row, "kind"),
-			RepoID:         StringVal(row, "repo_id"),
-			RelativePath:   StringVal(row, "relative_path"),
-			EntityID:       StringVal(row, "entity_id"),
-			EvidenceFamily: querycontract.FirstNonEmptyString(StringVal(row, "evidence_family"), StringVal(row, "slot")),
-			Reason:         StringVal(row, "reason"),
-			StartLine:      IntVal(row, "start_line"),
-			EndLine:        IntVal(row, "end_line"),
+			Kind:           querycontract.StringVal(row, "kind"),
+			RepoID:         querycontract.StringVal(row, "repo_id"),
+			RelativePath:   querycontract.StringVal(row, "relative_path"),
+			EntityID:       querycontract.StringVal(row, "entity_id"),
+			EvidenceFamily: querycontract.FirstNonEmptyString(querycontract.StringVal(row, "evidence_family"), querycontract.StringVal(row, "slot")),
+			Reason:         querycontract.StringVal(row, "reason"),
+			StartLine:      querycontract.IntVal(row, "start_line"),
+			EndLine:        querycontract.IntVal(row, "end_line"),
 		}
 		if handle.Kind == "" {
 			switch {
@@ -145,11 +145,11 @@ func limitationStringsFromMetadata(rows []map[string]any) []string {
 	}
 	values := make([]string, 0, len(rows))
 	for _, row := range rows {
-		reason := StringVal(row, "reason")
+		reason := querycontract.StringVal(row, "reason")
 		if reason == "" {
-			reason = StringVal(row, "kind")
+			reason = querycontract.StringVal(row, "kind")
 		}
-		values = appendReason(values, reason)
+		values = AppendReason(values, reason)
 	}
 	return values
 }

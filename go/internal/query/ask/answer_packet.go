@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -77,14 +77,14 @@ func NewAnswerPacketFromCitations(in AnswerPacketInput, citation evidence.Eviden
 // envelope without duplicating the mapping. The implementation moved to
 // querycontract for #6060 and on to querycontract/answer for #6597; this
 // wrapper keeps root callers unchanged.
-func ClassifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
+func ClassifyAnswerTruth(truth *querycontract.TruthEnvelope) AnswerTruthClass {
 	return answer.ClassifyAnswerTruth(truth)
 }
 
-// appendReason forwards to querycontract.AppendReason. The implementation
+// AppendReason forwards to querycontract.AppendReason. The implementation
 // moved to querycontract for #6060; this wrapper keeps root callers
 // unchanged.
-func appendReason(reasons []string, reason string) []string {
+func AppendReason(reasons []string, reason string) []string {
 	return querycontract.AppendReason(reasons, reason)
 }
 

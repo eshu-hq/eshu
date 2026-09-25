@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"fmt"
@@ -71,10 +71,10 @@ type AskStreamEvent struct {
 	TraceEntry *AskTraceEntry
 }
 
-// Asker is the minimal interface AskHandler requires. Implementations convert
+// Asker is the minimal interface Handler requires. Implementations convert
 // an HTTP request + question into an AskAnswer using the engine. The interface
 // lives in this package so cmd/api can implement it without creating a cycle:
-// the implementation imports ask/engine; ask_handler.go does not.
+// the implementation imports ask/engine; handler.go does not.
 type Asker interface {
 	Ask(r *http.Request, question string) (AskAnswer, error)
 	// AskStream drives a streaming Ask session, calling emit for each
@@ -91,7 +91,7 @@ type Asker interface {
 // the synchronous Ask path rather than returning an error to the client.
 var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 
-// AskHandler handles POST /api/v0/ask.
+// Handler handles POST /api/v0/ask.
 //
 // The handler is default-off: if no Asker is configured (nil), every request
 // returns a bounded 503 JSON payload with state "unavailable". Callers MUST
@@ -117,7 +117,7 @@ var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 // Leak safety: the handler never echoes provider error bodies, raw prompts,
 // credential values, or engine internals. Engine errors are logged at WARN and
 // map to a 503 with a static message.
-type AskHandler struct {
+type Handler struct {
 	// Asker is the engine seam. nil means the handler is disabled.
 	Asker  Asker
 	Logger *slog.Logger
@@ -195,11 +195,11 @@ type askUnavailableResponse struct {
 }
 
 // Mount registers the ask route on mux.
-func (h *AskHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)
 }
 
-func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleAsk(w http.ResponseWriter, r *http.Request) {
 	if !auth.AllowsPermissionFeature(r.Context(), auth.PermissionFeatureAskSearch) {
 		querycontract.WritePermissionDenied(w, "ask_search.ask")
 		return
@@ -217,7 +217,7 @@ func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
 
 	// Default-off: no asker means the feature is disabled.
 	if h.Asker == nil {
-		WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
+		querycontract.WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
 			State:  "unavailable",
 			Reason: "ask is not enabled; set ESHU_ASK_ENABLED=true and configure an agent_reasoning provider profile",
 		})
@@ -225,8 +225,8 @@ func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req askRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteJSON(w, http.StatusBadRequest, map[string]string{
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error":  "bad_request",
 			"detail": "invalid JSON body",
 		})
@@ -234,7 +234,7 @@ func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.TrimSpace(req.Question) == "" {
-		WriteJSON(w, http.StatusBadRequest, map[string]string{
+		querycontract.WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error":  "bad_request",
 			"detail": "question is required and must not be empty",
 		})
@@ -248,7 +248,7 @@ func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
 			logger = slog.Default()
 		}
 		logger.Warn("ask engine error", "err_type", "engine_failure")
-		WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
+		querycontract.WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
 			State:  "unavailable",
 			Reason: "ask engine encountered an error; see operator logs",
 		})
@@ -256,7 +256,7 @@ func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := buildAskResponse(ans, req.Question, req.Format)
-	WriteJSON(w, http.StatusOK, resp)
+	querycontract.WriteJSON(w, http.StatusOK, resp)
 }
 
 // buildAskResponse maps an AskAnswer to the wire response shape. It is a pure

@@ -3,14 +3,8 @@
 
 package contract
 
-const askNaturalLanguageAnswerCapability = "ask.natural_language_answer"
+import "github.com/eshu-hq/eshu/go/internal/query/ask"
 
 func init() {
-	register(askNaturalLanguageAnswerCapability, capabilitySupport{
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-		RequiredProfile:       ProfileLocalLightweight,
-	})
+	register(askNaturalLanguageAnswerCapability, ask.Support())
 }

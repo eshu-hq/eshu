@@ -870,7 +870,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Search hybrid degradation | go/internal/query/semanticsearch/semantic_search_telemetry.go | `eshu_dp_search_hybrid_degraded_total` | query search |
 | Semantic-search canonical scope resolution | go/internal/query/semanticsearch/semantic_search_scope.go | `postgres.query` span and `eshu_dp_postgres_query_duration_seconds` with `store=semantic_search_scope` | query search |
 | Component extensions | go/internal/query/component_extensions.go:149 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query extensions |
-| Ask (CLI/MCP) | go/internal/query/ask_handler.go:159 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query ask |
+| Ask (CLI/MCP) | go/internal/query/ask/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query ask |
 | Capabilities | go/internal/query/capability/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query capabilities |
 | Code (search, structure, dead-code, call-graph) | go/internal/query/codequery/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`; call-graph metrics also attach `eshu.query.call_graph.metric_type`, `edge_scan_limit`, `expanded_edge_count`, `scan_overflow`, `expanded_node_count`, `result_count`, and `truncated` to `query.call_graph.metrics` | query code |
 | Content (files, entities, search) | go/internal/query/contentread/content_handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query content |

@@ -489,8 +489,8 @@ made the round-three scan re-run the regex over the whole remaining string once
 per assignment.
 
 Nothing caps the input that reaches this rule.
-`go/internal/query/ask_sse.go:171-177` screens `strings.Join(deltas, "")` — the
-entire model answer as one string. `ask_guardrails.go:119,181` screen the summary
+`go/internal/query/ask/sse.go` screens `strings.Join(deltas, "")` — the
+entire model answer as one string. `ask/guardrails.go` screens the summary
 and limitations, also uncapped. `answerquality/score_publish_safety.go:28`
 screens evidence values taken from indexed repository content.
 

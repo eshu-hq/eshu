@@ -15,16 +15,16 @@ root](6642-query-move-cost.md#what-stays-at-root) + 21 in [The alias ledger](664
 `semantic_evidence.go`, which is split rather than moved, = 277.** No file
 appears twice and none is unaccounted for.
 
-#### `query/ask/` — 6 non-test, 4 test files
+#### `query/ask/` — 5 non-test, 10 test files (1 stays: `ask_permission_authz_test.go`)
 
 | current | new | test files carried |
 | --- | --- | --- |
 | `answer_packet.go` | `ask/answer_packet.go` | `answer_packet_test.go` |
 | `answer_packet_metadata.go` | `ask/answer_packet_metadata.go` | — |
-| `answer_packet_routes.go` | `ask/answer_packet_routes.go` | — |
-| `ask_guardrails.go` | `ask/guardrails.go` | — |
-| `ask_handler.go` | `ask/handler.go` | `ask_handler_test.go` |
-| `ask_sse.go` | `ask/sse.go` | `ask_sse_stream_test.go` +1 more |
+| `answer_packet_routes.go` | already gone (#6597) | — |
+| `ask_guardrails.go` | `ask/guardrails.go` | `substance_guardrail_test.go` |
+| `ask_handler.go` | `ask/handler.go` | `handler_test.go`, `response_test.go`, `facet_test.go`, `aggregate_result_test.go` |
+| `ask_sse.go` | `ask/sse.go` | `sse_test.go`, `sse_stream_test.go`, `sse_metrics_middleware_test.go`, `publish_safety_shape_test.go` |
 
 #### `query/auth/` — 8 non-test, 39 test files
 

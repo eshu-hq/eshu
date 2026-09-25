@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
@@ -72,7 +72,7 @@ func TestAskDoesNotPublishADerivedSummaryCarryingACredentialOrAddress(t *testing
 			t.Parallel()
 
 			summary := "The graph backend is reachable at " + carrier + " for this service."
-			h := &AskHandler{Asker: &fakeAsker{answer: supportedPacketWithSummary(summary)}}
+			h := &Handler{Asker: &fakeAsker{answer: supportedPacketWithSummary(summary)}}
 			w := postAsk(h, `{"question":"where does the graph backend live?"}`)
 
 			if w.Code != http.StatusOK {
@@ -102,7 +102,7 @@ func TestAskPublishesAnHonestDerivedSummary(t *testing.T) {
 	t.Parallel()
 
 	const summary = "checkout-api is deployed to production via Helm from repo:demo/service."
-	h := &AskHandler{Asker: &fakeAsker{answer: supportedPacketWithSummary(summary)}}
+	h := &Handler{Asker: &fakeAsker{answer: supportedPacketWithSummary(summary)}}
 	w := postAsk(h, `{"question":"where is checkout-api deployed?"}`)
 
 	var resp askResponse
@@ -137,7 +137,7 @@ func TestAskScrubsALimitationCarryingACredentialOrAddress(t *testing.T) {
 					Supported:  true,
 				}},
 			}
-			h := &AskHandler{Asker: &fakeAsker{answer: ans}}
+			h := &Handler{Asker: &fakeAsker{answer: ans}}
 			w := postAsk(h, `{"question":"is the graph backend up?"}`)
 
 			if strings.Contains(w.Body.String(), carrier) {

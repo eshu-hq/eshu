@@ -36,30 +36,30 @@ enforces that behavior.
 `TestMCPServerAskDefaultOffNoProfileConfigured` and
 `TestMCPServerAskResponseBodyContainsUnavailableState` (proves the deployed MCP wiring returns
 `unavailable` without a configured provider profile), and
-`go/internal/query/ask_handler_test.go`: `TestAskHandler_Disabled` and
+`go/internal/query/ask/handler_test.go`: `TestAskHandler_Disabled` and
 `TestAskHandler_DisabledNoEngineConstruction` (proves the HTTP route never constructs the engine
 when disabled). Reproduce:
 
 ```bash
 cd go && go test ./cmd/mcp-server -run TestMCPServerAsk -count=1
-cd go && go test ./internal/query -run TestAskHandler_Disabled -count=1
+cd go && go test ./internal/query/ask -run TestAskHandler_Disabled -count=1
 ```
 
-**Local response-contract coverage when enabled** — `go/internal/query/ask_handler_test.go`:
+**Local response-contract coverage when enabled** — `go/internal/query/ask/handler_test.go`:
 `TestBuildAskResponse_TruthClassFromPrimary`, `TestBuildAskResponse_LeakSafety` (no raw
 provider prompt/response leakage), `TestBuildAskResponse_SuppressesUnsafeNarratedOutput`, and
-`go/internal/query/ask_response_test.go`: `TestAskHandler_SuccessResponseShape` and
+`go/internal/query/ask/response_test.go`: `TestAskHandler_SuccessResponseShape` and
 `TestAskHandler_PartialAnswer`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run "TestBuildAskResponse|TestAskHandler_SuccessResponseShape|TestAskHandler_PartialAnswer" -count=1
+cd go && go test ./internal/query/ask -run "TestBuildAskResponse|TestAskHandler_SuccessResponseShape|TestAskHandler_PartialAnswer" -count=1
 ```
 
-**Engine failure handling** — `go/internal/query/ask_handler_test.go`:
+**Engine failure handling** — `go/internal/query/ask/handler_test.go`:
 `TestAskHandler_EngineError_Returns503`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestAskHandler_EngineError_Returns503 -count=1
+cd go && go test ./internal/query/ask -run TestAskHandler_EngineError_Returns503 -count=1
 ```
 
 **MCP tool registration** — `go/internal/mcp/ask/tools_test.go`:

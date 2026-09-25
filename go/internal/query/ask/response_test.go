@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 func TestAskHandler_SuccessResponseShape(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:       "You have 3 services.",
@@ -56,7 +56,7 @@ func TestAskHandler_SuccessResponseShape(t *testing.T) {
 func TestAskHandler_NoNarration_ProseEmpty(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "",
@@ -82,7 +82,7 @@ func TestAskHandler_NoNarration_ProseEmpty(t *testing.T) {
 func TestAskHandler_PartialAnswer(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Partial: true,

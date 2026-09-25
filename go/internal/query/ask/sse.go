@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // acceptsSSE reports whether the request's Accept header indicates the caller
@@ -60,10 +61,10 @@ type tokenEventPayload struct {
 // individually and as a concatenated string before emission. Provider bodies,
 // prompts, raw provider deltas, raw engine internals, and credentials are never
 // written to the stream.
-func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	// Default-off: respond with the standard 503 JSON before opening a stream.
 	if h.Asker == nil {
-		WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
+		querycontract.WriteJSON(w, http.StatusServiceUnavailable, askUnavailableResponse{
 			State:  "unavailable",
 			Reason: "ask is not enabled; set ESHU_ASK_ENABLED=true and configure an agent_reasoning provider profile",
 		})
@@ -71,8 +72,8 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req askRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteJSON(w, http.StatusBadRequest, map[string]string{
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error":  "bad_request",
 			"detail": "invalid JSON body",
 		})
@@ -80,7 +81,7 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.TrimSpace(req.Question) == "" {
-		WriteJSON(w, http.StatusBadRequest, map[string]string{
+		querycontract.WriteJSON(w, http.StatusBadRequest, map[string]string{
 			"error":  "bad_request",
 			"detail": "question is required and must not be empty",
 		})
@@ -90,7 +91,7 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	// Verify the ResponseWriter supports flushing before committing SSE headers.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		WriteJSON(w, http.StatusInternalServerError, map[string]string{
+		querycontract.WriteJSON(w, http.StatusInternalServerError, map[string]string{
 			"error":  "internal_error",
 			"detail": "streaming not supported by this server configuration",
 		})
@@ -180,7 +181,7 @@ func askStreamTokenDeltasAreSafe(deltas []string) bool {
 // handleAskSSESync is the synchronous fallback for handleAskSSE when the
 // adapter does not support streaming. It emits "trace", "answer", and "done"
 // events (no "token" events).
-func (h *AskHandler) handleAskSSESync(
+func (h *Handler) handleAskSSESync(
 	w http.ResponseWriter,
 	r *http.Request,
 	req askRequest,

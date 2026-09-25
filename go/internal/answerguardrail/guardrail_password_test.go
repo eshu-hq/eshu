@@ -148,7 +148,7 @@ func BenchmarkUnsafeStringPasswordGateOpen(b *testing.B) {
 //
 // A scan that re-ran the regex from each assignment's value instead of
 // continuing past the match cost 3.34ms here at 4KB and 12.3s at 128KB. The
-// input reaching this rule is not capped -- ask_sse.go screens the whole joined
+// input reaching this rule is not capped -- ask/sse.go screens the whole joined
 // model answer, and answerquality screens evidence values taken from indexed
 // repository content -- so growth is the property worth pinning, not the fixed
 // cost.

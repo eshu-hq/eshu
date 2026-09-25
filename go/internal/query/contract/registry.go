@@ -4,6 +4,7 @@
 package contract
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/query/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
@@ -73,6 +74,7 @@ const (
 	CapabilityInvestigationWorkflows             = "query.investigation_workflows"
 	admissionDecisionCapability                  = "admission_decisions.list"
 	answerNarrationStatusCapability              = "answer_narration.status"
+	askNaturalLanguageAnswerCapability           = ask.Capability
 	cicdRunCorrelationAggregateCapability        = "ci_cd.run_correlations.aggregate"
 	cicdRunCorrelationsCapability                = "ci_cd.run_correlations.list"
 	cloudInventoryReadbackCapability             = "cloud_inventory.readback.list"

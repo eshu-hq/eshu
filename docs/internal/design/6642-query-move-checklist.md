@@ -49,6 +49,7 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | `metrics/` (`handler.go`, `prometheus.go`, `request.go`) | 3, +1 alias | [#7075](https://github.com/eshu-hq/eshu/pull/7075) | **merged** `152d58562` | 263 |
 | `compare/` (`handler.go`, `evidence.go`, `story.go`) | 3, +1 alias | [#7079](https://github.com/eshu-hq/eshu/pull/7079) | **merged** `09fcb92b2` | 261 |
 | `cicd/` (`handler.go`, `evidence_summary.go`, `run_correlations.go`, `run_correlation_aggregates.go`, `run_correlation_aggregates_handler.go`) | 5, +1 alias, −1 deleted selector forwarder | this PR | open | 256 |
+| `ask/` (`handler.go`, `guardrails.go`, `sse.go`, `answer_packet.go`, `answer_packet_metadata.go`) | 5, +1 alias | this PR | open | 252 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -435,3 +436,23 @@ are Postgres reads, not graph reads: nothing here registers in
 `internal/queryplan`.
 
 No-Observability-Change: no span, metric or log change.
+
+## Performance and observability evidence for the `ask` leaf
+
+No-Regression Evidence: `ask_handler.go`, `ask_guardrails.go`, `ask_sse.go`,
+`answer_packet.go` and `answer_packet_metadata.go` move to `ask/` (as
+`handler.go`, `guardrails.go`, `sse.go`, `answer_packet.go`,
+`answer_packet_metadata.go`); `AskHandler` de-stutters to `ask.Handler` and
+the two packet-composition helpers export as `ask.Attach*` for the impact
+shim. Root-local helpers qualify to their canonical homes
+(`querycontract.WriteJSON`/`ReadJSON`, row readers, truth envelope,
+`answer.AnswerMetadata`); `internal/askwiring` names `ask.*` directly.
+`ask_permission_authz_test.go` stays in root (auth middleware interplay),
+reworked onto `Mount` with a local asker stub. The metrics-middleware SSE
+regression moves with the family onto `metrics.RequestMiddleware`. Routes,
+validation, guardrails, packet shapes, and the capability row (derived truth
+on every profile down to local-lightweight) are unchanged; nothing here
+registers in `internal/queryplan`.
+
+No-Observability-Change: no span, metric or log change; the engine-failure
+WARN logs move with the handler byte-identical.

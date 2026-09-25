@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -37,8 +38,8 @@ func init() {
 	impact.DefaultCodeSurface = NewChangeSurfaceCodeBackend()
 	impact.DefaultTraceContext = NewDeploymentTraceContext()
 	impact.DefaultPathProbe = NewImpactPathProbeBackend()
-	impact.AttachDeveloperChangePlanPacket = attachDeveloperChangePlanPacket
-	impact.AttachPreChangeImpactPacket = attachPreChangeImpactPacket
+	impact.AttachDeveloperChangePlanPacket = ask.AttachDeveloperChangePlanPacket
+	impact.AttachPreChangeImpactPacket = ask.AttachPreChangeImpactPacket
 }
 
 // uniqueStrings drops duplicates preserving order. Its home is impact/; this
