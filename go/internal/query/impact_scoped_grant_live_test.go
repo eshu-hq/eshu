@@ -200,12 +200,10 @@ func TestLiveImpactScopedGrantTwoTenant(t *testing.T) {
 	if !strings.Contains(sharedBody, lt("wi-b")) {
 		t.Fatalf("shared-key explain wl-a1 -> wl-a2 does not cross wi-b: %s", sharedBody)
 	}
-	// The exposure walk (buildExposurePathCypher) returns no rows on the pinned
-	// NornicDB even for a shared-key caller: a bare second MATCH filtered by
-	// `type(sinkRel) IN $sink_rels` matches nothing, and CALLS*0.. never yields
-	// the zero-length path (#7177). On Neo4j the walk works and the end-to-end
-	// sink assertion below runs; on NornicDB the proof judges each sink and
-	// chain class through the live ownership statements instead.
+	// On Neo4j the exposure walk returns paths and the end-to-end sink
+	// assertion below runs. The pinned NornicDB build returned no walk rows
+	// (NornicDB-only); there the per-class ownership judgement below is the
+	// proof.
 	_, sharedBody, _ = post(nil, "/api/v0/impact/trace-exposure-path", `{"source_entity_id":"$Pfn-a","max_depth":3}`)
 	exposureWalkWorks := strings.Contains(sharedBody, lt("sh-a"))
 	t.Logf("shared-key exposure walk returns paths on this engine: %v", exposureWalkWorks)

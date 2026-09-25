@@ -210,22 +210,20 @@ concurrent statements per request would triple backend concurrency for no
 bounded-latency gain. The classes run in sequence within one request, and
 requests stay concurrent. No write, lock, or shared state is involved.
 
-## A Backend Gap Found On The Way: The Exposure Walk Returns Nothing On NornicDB
+## Exposure Walk: Proven End To End On Neo4j
 
-On the pinned NornicDB build, `buildExposurePathCypher` returns no rows for any
-caller, shared key included. `MATCH (reached {id:'x'}) MATCH
-(reached)-[sinkRel]->(sinkNode) WHERE type(sinkRel) IN $rels` returns 0 rows.
-The inline typed pattern `-[:EXECUTES_SHELL]->` returns the row.
-`-[:CALLS*0..3]->` never yields the zero-length path, and it reports the
-1-hop node at length 0. This predates this change and is tracked as #7177.
+On Neo4j (`neo4j:2026-community`), `TestLiveImpactScopedGrantTwoTenant`
+proves the scoped exposure filter end to end. The shared-key walk reaches the
+fixture sinks. Both scoped callers (1-id and 130-id grants) get exactly
+`[cr-a, sh-a]`, with no repo-b identifier in the body.
 
-On Neo4j (`neo4j:2026-community`) the walk returns paths. There,
-`TestLiveImpactScopedGrantTwoTenant` proves the scoped exposure filter end to
-end: the shared-key walk reaches the fixture sinks, and both scoped callers
-get exactly `[cr-a, sh-a]` with no repo-b identifier. On NornicDB the scoped
-exposure filter is proven per class only, through the live ownership
-statements, and has no live end-to-end path until #7177 lands. The public
-docs (`http-api.md` and the exposure OpenAPI description) say the same.
+Historical, NornicDB only, observed on the pinned NornicDB build before the
+2026-09-25 Neo4j rule: `buildExposurePathCypher` returned no rows for any
+caller there. `MATCH (reached {id:'x'}) MATCH (reached)-[sinkRel]->(sinkNode)
+WHERE type(sinkRel) IN $rels` returned 0 rows, and `-[:CALLS*0..3]->` never
+yielded the zero-length path. On that backend the scoped exposure filter was
+proven per node class through the live ownership statements instead. These
+behaviors are NornicDB-only and do not reproduce on Neo4j.
 
 ## RED / GREEN
 

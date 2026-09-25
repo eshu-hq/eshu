@@ -210,10 +210,8 @@ page rather than as one query predicate (#5167):
   routes.
 - The exposure route always withholds `SecretsIAMSecretMetadataPath` and
   `CidrBlock` sinks from scoped callers and names them in
-  `coverage.unresolved_reason`. On the default NornicDB backend the exposure
-  walk currently returns no paths for any caller (#7177). The scoped exposure
-  filter is proven end to end on Neo4j and per node class on NornicDB until
-  #7177 lands.
+  `coverage.unresolved_reason`. The scoped exposure filter is proven end to
+  end on Neo4j.
 - Every scoped response carries `scoped: true` and a static
   `withheld_sections` list. Both are present whether or not anything was
   withheld.
