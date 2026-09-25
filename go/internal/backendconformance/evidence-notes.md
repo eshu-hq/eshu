@@ -29,16 +29,16 @@ both pinned backends: absent File 0 rows, present File 1 contained uid-bearing
 row, canonical import 1 uid-NULL row. The full live conformance test passed
 on each backend, including its other read cases. This is the intended graph
 truth delta. On source commit
-`7befec8026e1dacd5793fd17482b3f5317e1b00c` (base
-`9e597b8cd7225fa35d610f2c866211375e365e54`),
+`ab43a9cb58ce11e68f86e20f06f22750ee063d93` (base
+`3cf0b6bfca7e113d365a17ec025e6b4003803506`),
 `scripts/verify-golden-corpus-gate.sh` passed on the pinned
 NornicDB image over 31 staged repositories and all 39 launched cassette scope
 generations: 570 pass, 0 required-fail, 2 advisory timing warnings; terminal
 fact residual, required intents, completion events and dead letters were all
 zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
-first drain took 132 seconds against the gate's 75-second advisory baseline,
-and maintenance drains took 82 seconds against 25. The production Module
-statement source was blob `905f218de8bb7b8b0c06b01fdf5942111bdf3ed4`.
+first drain took 127 seconds against the gate's 75-second advisory baseline,
+and maintenance drains took 81 seconds against 25. The production Module
+statement retains the File-first shape after the named File-gated label set.
 The commits after this measured source change only this evidence note.
 This run does not establish the timing warnings' cause or an end-to-end
 no-regression claim. The full NornicDB/Neo4j differential remains separate
@@ -70,6 +70,13 @@ NornicDB's response contained no plan tree. The HTTP timings carry its cost
 comparison. The per-batch NornicDB regression is a known correctness cost;
 whole-pipeline impact requires a bounded rebuilt-binary replay and measured
 Module row count before making an end-to-end performance claim.
+
+Before naming the File-gated label set, a scratch Go lookup shim compared the
+existing string equality with set membership over the same ten semantic labels.
+Twelve interleaved one-million-lookup pairs, alternating first mover, measured
+8.868 ms median for equality and 29.559 ms for set membership: about 21 ns
+extra per label check in statement construction. This isolated result is not a
+corpus-stage timing claim; the current-base B-7 run above proves completion.
 
 No-Observability-Change: Module writes retain the existing statement label,
 summary, graph-write duration and failure telemetry. The conformance test logs
