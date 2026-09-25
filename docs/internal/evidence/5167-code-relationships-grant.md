@@ -175,27 +175,50 @@ The real-middleware round trip is
 `TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware`, which
 iterates `scopedTokenAdvertisedRoutes` and now includes this route.
 
-Performance Evidence: route-level medians of 25 warm runs through
-`CodeHandler.Mount` (`TestLiveCodeRelationshipsGrantTiming`) on the fixture
-above, on a shared host with load average 67–89. "Before" is the unscoped
-request, whose statements are byte-identical to the ones every caller ran before
-this change, because grant text renders only for a scoped caller. "After" is the
-scoped request.
+Performance Evidence: route-level timings through `CodeHandler.Mount`
+(`TestLiveCodeRelationshipsGrantTiming`) on the fixture above, uncached.
 
-| Backend | Anchor | Before median | After median |
-| --- | --- | --- | --- |
-| NornicDB | function, all types, both directions | 23.6 / 23.1 / 39.7 ms | 26.7 / 23.6 / 38.9 ms |
-| NornicDB | hub, outgoing CALLS | 34.8 / 41.3 / 45.0 ms | 24.5 / 29.4 / 23.8 ms |
-| Neo4j | function, all types, both directions | 13.0 ms | 12.2 ms |
-| Neo4j | hub, outgoing CALLS | 68.2 ms | 13.8 ms |
+The pinned NornicDB keeps a server-side read result cache keyed on (statement
+text, parameters), so repeating one request measures cache hits. An earlier
+draft of this section reported 25 warm repeats of the same request; those were
+cache hits and are withdrawn. `relLiveNonceReader` now adds a fresh, unused
+`cache_nonce` parameter to every statement. Before and after runs are
+interleaved (the order alternates every iteration), 11 runs each, two
+repetitions per backend, on a shared host at load average 84–110.
 
-Three NornicDB runs show no measurable change on the ordinary anchor. The deltas
-are +3.1, +0.5 and −0.8 ms, inside run-to-run noise. The hub gets faster because
-the bound read returns 40 rows instead of 500 (NornicDB) or 1240 (Neo4j). For a
-scoped caller the row ceiling (`RowLimit` 500, fetch 501) now counts granted rows
-only. The anchor keeps its `{uid: $entity_id}` label-property seek on both
-backends, and the added predicate evaluates only on the anchor's
-already-expanded neighbours.
+"Before" is the unscoped request. Its statements are byte-identical to the ones
+every caller, scoped or not, ran before this change, because grant text renders
+only for a scoped caller. "After" is the scoped request. The statement counts
+are per request.
+
+| Backend | Anchor | Statements | Before median (uncached) | After median (uncached) |
+| --- | --- | ---: | ---: | ---: |
+| NornicDB | function, all types, both directions | 12 | 31.6 / 83.6 ms | 36.7 / 77.6 ms |
+| NornicDB | hub, outgoing CALLS | 7 | 120.8 / 129.3 ms | 208.8 / 213.6 ms |
+| Neo4j | function, all types, both directions | 1 | 16.3 / 15.4 ms | 15.9 / 16.7 ms |
+| Neo4j | hub, outgoing CALLS | 1 | 69.2 / 66.5 ms | 12.2 / 15.5 ms |
+
+For contrast, the same runs with the nonce off (`ESHU_REL_TIMING_NO_NONCE=1`)
+put the NornicDB hub at 30.3 / 24.2 ms before and 16.7 / 11.0 ms after. That is
+what the cache hides, and why the withdrawn numbers showed the hub getting
+faster.
+
+What the uncached numbers say:
+
+- NornicDB, ordinary anchor: no measurable change. The two repetitions move in
+  opposite directions (+5.1 ms, −6.0 ms), inside this host's run-to-run spread.
+- NornicDB, hub: the scoped read is about 1.7× slower, roughly +85 ms at 1240
+  neighbours. This is the cost of correctness, not a regression to tune away.
+  The old read returned 500 rows, every one of them from the ungranted
+  repository and none of the 40 granted ones, so it answered faster by
+  answering wrongly. To find the granted neighbours, the bound read and its two
+  bound enrichment reads must evaluate the grant against every neighbour of the
+  hub. The enrichment bind stays: removing it drops the repository metadata of
+  all 40 granted rows (the mutation check above).
+- Neo4j: the one-statement read is unchanged for the ordinary anchor and about
+  5× faster on the hub. `collect(DISTINCT ...)` now aggregates 40 neighbour
+  maps instead of 1240.
+- Only scoped callers pay the hub cost. Unscoped statements are unchanged.
 
 No-Observability-Change: no metric instrument, metric label, span, log event,
 queue stage, worker knob or schema phase changes. The route's existing HTTP

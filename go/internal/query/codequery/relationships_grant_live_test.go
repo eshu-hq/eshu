@@ -38,6 +38,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -308,23 +309,68 @@ func TestLiveCodeRelationshipsGrant(t *testing.T) {
 	})
 }
 
+// relLiveNonceReader adds a unique, unused cache_nonce parameter to every
+// statement. The pinned NornicDB keeps a server-side read result cache keyed
+// on (statement text, parameters), so repeating one request measures cache
+// hits, not the statements; a fresh nonce per statement defeats it. It also
+// counts statements so a timing line can say how many reads it covers.
+//
+// ESHU_REL_TIMING_NO_NONCE=1 turns the nonce off, to show what the cache hides.
+type relLiveNonceReader struct {
+	inner      GraphQuery
+	disabled   bool
+	nonce      atomic.Int64
+	statements atomic.Int64
+}
+
+func (r *relLiveNonceReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	r.statements.Add(1)
+	withNonce := make(map[string]any, len(params)+1)
+	for k, v := range params {
+		withNonce[k] = v
+	}
+	if !r.disabled {
+		withNonce["cache_nonce"] = r.nonce.Add(1)
+	}
+	return r.inner.Run(ctx, cypher, withNonce)
+}
+
+func (r *relLiveNonceReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	rows, err := r.Run(ctx, cypher, params)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
+}
+
 // TestLiveCodeRelationshipsGrantTiming measures the route end to end for the
 // two anchors that bound the cost: an ordinary function (all types, both
 // directions) and the 1240-neighbour hub. "before" is the unscoped request:
 // for NornicDB and Neo4j alike its statements are byte-identical to the ones
 // every caller -- scoped or not -- ran before #5167, because the grant text
 // renders only for a scoped caller. "after" is the scoped request, which runs
-// the grant-bound statements. Medians of relLiveTimingRuns warm runs.
+// the grant-bound statements. Every statement carries a fresh cache_nonce
+// (relLiveNonceReader), before and after runs are interleaved, and the
+// median of relLiveTimingRuns uncached runs is reported.
 func TestLiveCodeRelationshipsGrantTiming(t *testing.T) {
 	backend, database := relLiveBackend(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	driver := openLiveClauseDriver(ctx, t)
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedRelLiveGraph(ctx, t, driver, database)
-	handler := &CodeHandler{Neo4j: newLiveNornicDBReader(driver, database), Profile: ProfileLocalAuthoritative, GraphBackend: backend}
+	reader := &relLiveNonceReader{
+		inner:    newLiveNornicDBReader(driver, database),
+		disabled: os.Getenv("ESHU_REL_TIMING_NO_NONCE") == "1",
+	}
+	handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative, GraphBackend: backend}
 	scoped := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	const relLiveTimingRuns = 25
+	const relLiveTimingRuns = 11
+	type mode struct {
+		name string
+		auth *AuthContext
+	}
+	modes := []mode{{"before_unscoped", nil}, {"after_scoped", &scoped}}
 	for _, anchor := range []struct {
 		name string
 		body map[string]any
@@ -332,20 +378,26 @@ func TestLiveCodeRelationshipsGrantTiming(t *testing.T) {
 		{"function_all_types", map[string]any{"entity_id": liveClauseAnchorUID}},
 		{"hub_outgoing_calls", map[string]any{"entity_id": relLiveHubUID, "direction": "outgoing", "relationship_type": "CALLS"}},
 	} {
-		for _, mode := range []struct {
-			name string
-			auth *AuthContext
-		}{{"before_unscoped", nil}, {"after_scoped", &scoped}} {
-			samples := make([]time.Duration, 0, relLiveTimingRuns)
-			relLiveData(t, relLiveServe(t, handler, anchor.body, mode.auth)) // warm
-			for i := 0; i < relLiveTimingRuns; i++ {
-				start := time.Now()
-				relLiveData(t, relLiveServe(t, handler, anchor.body, mode.auth))
-				samples = append(samples, time.Since(start))
+		samples := map[string][]time.Duration{}
+		statements := map[string]int64{}
+		for i := 0; i < relLiveTimingRuns; i++ {
+			order := modes
+			if i%2 == 1 {
+				order = []mode{modes[1], modes[0]}
 			}
-			sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
-			t.Logf("TIMING backend=%s anchor=%s mode=%s runs=%d median=%s p90=%s",
-				backend, anchor.name, mode.name, relLiveTimingRuns, samples[len(samples)/2], samples[len(samples)*9/10])
+			for _, m := range order {
+				before := reader.statements.Load()
+				start := time.Now()
+				relLiveData(t, relLiveServe(t, handler, anchor.body, m.auth))
+				samples[m.name] = append(samples[m.name], time.Since(start))
+				statements[m.name] = reader.statements.Load() - before
+			}
+		}
+		for _, m := range modes {
+			got := samples[m.name]
+			sort.Slice(got, func(i, j int) bool { return got[i] < got[j] })
+			t.Logf("TIMING backend=%s anchor=%s mode=%s nonce=%v runs=%d statements=%d median=%s min=%s max=%s",
+				backend, anchor.name, m.name, !reader.disabled, len(got), statements[m.name], got[len(got)/2], got[0], got[len(got)-1])
 		}
 	}
 }
