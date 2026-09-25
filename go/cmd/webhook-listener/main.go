@@ -25,6 +25,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -114,7 +115,7 @@ func run(parent context.Context) error {
 			return err
 		}
 	}
-	var gcpFreshnessStore *postgres.GCPFreshnessStore
+	var gcpFreshnessStore *gcpfreshnessstore.GCPFreshnessStore
 	var oidcValidator gcpPushOIDCValidator
 	if gcpFreshnessConfigured(cfg) {
 		gcpFreshnessDB := &postgres.InstrumentedDB{
@@ -123,7 +124,7 @@ func run(parent context.Context) error {
 			Instruments: instruments,
 			StoreName:   "gcp_freshness_triggers",
 		}
-		gcpFreshnessStore = postgres.NewGCPFreshnessStore(gcpFreshnessDB)
+		gcpFreshnessStore = gcpfreshnessstore.NewGCPFreshnessStore(gcpFreshnessDB)
 		if err := gcpFreshnessStore.EnsureSchema(parent); err != nil {
 			return err
 		}

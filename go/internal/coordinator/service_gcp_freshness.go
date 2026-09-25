@@ -49,7 +49,7 @@ const (
 
 // GCPFreshnessTriggerStore is the durable trigger queue surface used by the
 // workflow coordinator handoff loop. It mirrors AWSFreshnessTriggerStore; the
-// concrete Postgres implementation is postgres.GCPFreshnessStore (#4300).
+// concrete Postgres implementation is gcpfreshnessstore.GCPFreshnessStore (#4300).
 type GCPFreshnessTriggerStore interface {
 	// ClaimQueuedTriggers atomically flips up to limit 'queued' rows to
 	// 'claimed', stamping a claim_expires_at lease (claimedAt+leaseDuration) so
