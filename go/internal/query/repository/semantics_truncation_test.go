@@ -83,3 +83,14 @@ func TestLoadRepositorySemanticOverviewReportsTruncationAtCap(t *testing.T) {
 		})
 	}
 }
+
+// TestSemanticReadTruncatedReasonNamesTheLimit pins the wire-visible reason to
+// the cap it reports, so changing RepositorySemanticEntityLimit without the
+// reason (or the reverse) fails here instead of shipping a reason that lies.
+func TestSemanticReadTruncatedReasonNamesTheLimit(t *testing.T) {
+	t.Parallel()
+	want := fmt.Sprintf("repository_semantic_read_truncated_at_%d", querycontract.RepositorySemanticEntityLimit)
+	if SemanticReadTruncatedReason != want {
+		t.Fatalf("SemanticReadTruncatedReason = %q, want %q (drifted from RepositorySemanticEntityLimit)", SemanticReadTruncatedReason, want)
+	}
+}
