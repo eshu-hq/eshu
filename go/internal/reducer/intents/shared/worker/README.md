@@ -104,9 +104,15 @@ first, then makes one bounded lookup over the distinct generation ids of the
 BLOCKED rows only (skipped when nothing is blocked) and moves the blocked rows
 whose scope generation is `superseded` and has no in-flight producer into
 `StaleIDs`, out of `BlockedRows`. The reader reports a generation only when no
-`fact_work_items` row of it can still publish the prerequisite phase: a reducer
-item that is `claimed`/`running` (re-claimed when its lease expires) or a
-projector item that is `pending`/`retrying`/`claimed`/`running`. Both reducer
+`fact_work_items` row of it and no `graph_projection_phase_repair_queue` row of
+it can still publish the prerequisite phase: a reducer item that is
+`claimed`/`running` (re-claimed when its lease expires), a projector item that is
+`pending`/`retrying`/`claimed`/`running`, or a live phase-repair row (a failed
+phase publish awaiting `repair.Repairer`). After the lookup, readiness is re-read
+for only the rows about to drain (`drainSupersededBlockedRows`), so a producer
+that published between the first readiness read and the lookup keeps its row: it
+projects instead of draining. The re-check is one extra bounded round trip, only
+when there are rows to drain. Both reducer
 claim statements supersede unleased older-generation reducer rows instead of
 claiming them, so superseded with no in-flight producer means the phase row is
 never published and the gate would block those rows forever. A producer already
@@ -132,9 +138,13 @@ without the port keeps the old behavior; a lookup error fails the selection.
 stale count that came from this drain. Because the drained rows leave
 `BlockedRows`, `blocked_count` and `blocked_intent_wait_seconds` describe only
 generations that are not superseded, so a large blocked wait is a real
-prerequisite-phase stall. The SQL does not yet enforce that `superseded` is
-terminal on every writer; that gap is tracked in #7130 and is the residual path
-that can still lose a drained edge.
+prerequisite-phase stall; a row deferred for an in-flight producer stays in those
+metrics. Accepted residuals that can still lose a drained edge: a reducer claim
+whose snapshot predates the successor's activation committing after the lookup
+(one claim statement, delta successor only); admin projector replay of a
+superseded generation, which has no generation fence (#7130); and Ack
+re-activating a superseded generation, because the SQL does not enforce that
+`superseded` is terminal on every writer (#7130).
 
 **The repo-wide-retract fence only engages for the fenced domain set**
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without

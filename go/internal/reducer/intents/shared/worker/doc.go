@@ -44,19 +44,25 @@
 // implemented, [SelectPartitionBatch] drains, as stale (#7121), only the
 // intents the readiness gate blocks whose scope generation is superseded and
 // has no in-flight producer: the reader reports a generation only when no work
-// item of that generation can still publish the prerequisite phase row, so the
-// phase never publishes. A producer already running when the successor
-// activated (reducer claimed/running, or a projector pending/retrying/claimed/
-// running item) defers the drain to a later pass: if it publishes the row is
-// ready and projects, if it ends without publishing the row drains. This holds
+// item or durable phase-repair row of that generation can still publish the
+// prerequisite phase row, so the phase never publishes. A producer already
+// running when the successor activated (reducer claimed/running, a projector
+// pending/retrying/claimed/running item, or a live graph_projection_phase_repair_queue
+// row) defers the drain to a later pass: if it publishes the row is ready and
+// projects, if it ends without publishing the row drains. Readiness is re-read
+// for the rows about to drain after the lookup, so a producer that publishes
+// between the first readiness read and the lookup keeps its row. This holds
 // for every gated domain the shared runner serves, by [ReadinessPhase]:
 // runs_in and handles_route (workload_materialization), invokes_cloud_action,
 // inheritance_edges, sql_relationships, shell_exec and rationale_edges
 // (canonical_nodes), documentation_edges (semantic_nodes); code_calls selects
 // through its own runner and is not drained. Ready and terminal rows on a
 // superseded generation are not drained and still project, because a delta
-// successor generation would never re-emit their edge (#7130 tracks the SQL
-// terminality gap, the residual path that can still lose an edge). The subset is reported as
+// successor generation would never re-emit their edge. Accepted residuals that
+// can still lose an edge, tracked in #7130 except the first: a reducer claim whose
+// snapshot predates the successor's activation committing after the lookup,
+// admin projector replay of a superseded generation, and Ack re-activating a
+// superseded generation. Deferred rows stay in the blocked metrics. The subset is reported as
 // [PartitionBatchResult].SupersededGenerationCount and
 // [PartitionProcessResult].SupersededGenerationIntents, and recorded on
 // eshu_dp_shared_projection_stale_intents_total with reason

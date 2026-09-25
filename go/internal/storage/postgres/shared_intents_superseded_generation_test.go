@@ -7,13 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -127,20 +124,14 @@ func TestSupersededGenerationIDsPropagatesQueryError(t *testing.T) {
 
 // TestSupersededGenerationIDsAgainstPostgres proves the predicate on real data:
 // a superseded generation is returned; active, pending, failed, and an id that
-// is not a scope generation (a relationship-generation id) are not. Set
+// is not a scope generation (a relationship-generation id) are not. It
+// bootstraps its own schema, so a bare disposable Postgres is enough. Set
 // ESHU_SUPERSEDED_GENERATION_PROOF_DSN to run it; skipped otherwise.
 func TestSupersededGenerationIDsAgainstPostgres(t *testing.T) {
-	dsn := os.Getenv("ESHU_SUPERSEDED_GENERATION_PROOF_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_SUPERSEDED_GENERATION_PROOF_DSN to run the superseded-generation lookup proof")
-	}
-	conn, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	conn := openSupersededProofSchema(t, ctx, "eshu_7121_lookup")
 
-	ctx := context.Background()
 	scopeID := "superseded-proof:" + time.Now().UTC().Format("20060102150405.000000000")
 	now := time.Now().UTC()
 	if _, err := conn.ExecContext(ctx, `INSERT INTO ingestion_scopes

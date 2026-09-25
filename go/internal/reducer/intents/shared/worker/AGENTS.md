@@ -27,9 +27,14 @@ to BLOCKED rows in `SelectPartitionBatch` (#7121).** A generation superseded
 before its prerequisite-phase producer ran, with no in-flight producer, never
 publishes its phase row, so its blocked rows wait forever. A producer already
 in flight when the successor activated can still publish: the reader must
-report only generations with no claimed/running reducer item and no
-pending/retrying/claimed/running projector item, so an in-flight producer
-defers the drain (a delta successor never re-emits an untouched file's edge).
+report only generations with no claimed/running reducer item, no
+pending/retrying/claimed/running projector item, and no live
+`graph_projection_phase_repair_queue` row, so an in-flight producer defers the
+drain (a delta successor never re-emits an untouched file's edge). Keep the
+readiness re-read for the rows about to drain (`drainSupersededBlockedRows`)
+after the lookup: readiness read before the lookup is stale for a producer that
+published and acked in between. Do not describe the drain as never losing an
+edge; the accepted residuals are listed in the evidence note.
 The rule covers every `ReadinessPhase` domain `SelectPartitionBatch` serves. Ready and terminal rows on a superseded generation
 must keep projecting: a delta successor never re-emits an untouched file's
 edge, so draining a ready row is permanent edge loss. Key the lookup on the

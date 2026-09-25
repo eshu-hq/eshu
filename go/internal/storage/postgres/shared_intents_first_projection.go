@@ -103,14 +103,27 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 //     instead of claimed. Only claimed/running rows survive that sweep, and the
 //     candidate set re-claims them when their lease expires, so claimed/running
 //     counts as in flight whatever claim_until says.
+//
 //   - Projector stage (canonical_nodes for the code-call, inheritance, sql,
 //     shell and rationale edge domains): the projector claim supersedes only
 //     rows of pending/failed generations that have a newer projector sibling,
 //     so a pending or retrying projector row of an already-superseded
 //     generation is still claimable and counts as in flight too.
 //
+//   - Durable phase-repair queue (graph_projection_phase_repair_queue): a failed
+//     phase publish, in the reducer or the projector, enqueues a row and returns
+//     the error, so the work item that owned the publish is failed, retried, or
+//     superseded while the row survives. repair.Repairer.RunOnce later publishes
+//     the phase for that exact generation (workload_materialization/service_uid
+//     never checks the accepted generation, runner.go repairNeedsAcceptedGeneration).
+//     A row is live until the runner deletes it after publishing, after finding
+//     the phase already ready, or as stale (acceptance moved on); the queue has
+//     no terminal or abandoned state, so any row for the generation counts as
+//     an in-flight producer. The primary key's scope_id prefix serves the probe
+//     and the table only holds failed publishes.
+//
 // fact_work_items_scope_generation_idx (scope_id, generation_id, status,
-// updated_at) makes the NOT EXISTS an index probe. A deferred generation is
+// updated_at) makes the first NOT EXISTS an index probe. A deferred generation is
 // re-checked on the next selection pass, so it drains once the producer
 // finishes without publishing (its lease expired and the sweep superseded it)
 // and stays ready-and-projected when it did publish. The one path that can
@@ -137,10 +150,17 @@ WHERE g.generation_id = ANY($1::text[])
         OR (w.stage = 'projector' AND w.status IN ('pending', 'retrying', 'claimed', 'running'))
       )
   )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM graph_projection_phase_repair_queue AS r
+    WHERE r.scope_id = g.scope_id
+      AND r.generation_id = g.generation_id
+  )
 `
 
 // SupersededGenerationIDs returns the subset of generationIDs whose scope
-// generation is superseded and has no in-flight producer work item (see
+// generation is superseded and has no in-flight producer (a work item or a
+// live phase-repair row; see
 // supersededGenerationIDsSQL). The shared projection worker uses it to drain
 // readiness-blocked intents whose generation will never publish the
 // prerequisite phase row (#7121); a superseded generation with a claimed or

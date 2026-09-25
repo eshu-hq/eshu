@@ -203,15 +203,25 @@ func SelectPartitionBatch(
 		// scope generation is superseded with no in-flight producer (#7121): that
 		// phase row never publishes. The reader omits a superseded generation
 		// while its producer is still running, so an in-flight producer defers the
-		// drain to a later pass instead of losing the edge. Ready
-		// and terminal rows on a superseded generation keep projecting, because a
-		// delta successor would never re-emit their edge. The lookup is one
-		// bounded round trip over the blocked rows' generation ids and is skipped
-		// when nothing is blocked.
-		blockedRows, generationSupersededIDs, err := splitSupersededGenerationRows(ctx, reader, blockedRows)
+		// drain to a later pass instead of losing the edge. Readiness is re-read
+		// for the rows about to drain, after the lookup, so a producer that
+		// published between the first readiness read and the lookup keeps its row
+		// (it projects). Ready and terminal rows on a superseded generation keep
+		// projecting, because a delta successor would never re-emit their edge.
+		// The lookup is one bounded round trip over the blocked rows' generation
+		// ids and is skipped when nothing is blocked; the re-check adds one more
+		// only when there are rows to drain.
+		drain, err := drainSupersededBlockedRows(
+			ctx, reader, domain, blockedRows,
+			readinessLookup, readinessPrefetch, endpointPresence,
+		)
 		if err != nil {
 			return PartitionBatchResult{}, err
 		}
+		blockedRows = drain.Blocked
+		generationSupersededIDs := drain.DrainedIDs
+		readyRows = append(readyRows, drain.Ready...)
+		terminalRows = append(terminalRows, drain.Terminal...)
 		staleIDs := make([]string, 0, len(mismatchIDs)+len(generationSupersededIDs))
 		staleIDs = append(staleIDs, mismatchIDs...)
 		staleIDs = append(staleIDs, generationSupersededIDs...)

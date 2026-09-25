@@ -58,8 +58,9 @@ Blocked-on-a-superseded-generation does not by itself mean "will never
 publish": a producer already running when the successor activated can still
 publish the phase row afterwards, after which the row is ready and must project
 (review N1). The lookup therefore returns a superseded generation only when no
-`fact_work_items` row of that `(scope_id, generation_id)` can still publish.
-"Superseded AND no in-flight producer" means the phase never publishes, from
+`fact_work_items` row of that `(scope_id, generation_id)`, and no durable phase
+repair row of it, can still publish. "Superseded AND no in-flight producer"
+means the phase never publishes, from
 these claim rules:
 
 - Reducer stage: both reducer claim statements (`claimReducerWorkQuery`,
@@ -80,11 +81,43 @@ these claim rules:
   (`projector_queue_claim_sql.go`), so a `pending` or `retrying` projector row
   of an already-superseded generation is still claimable and counts as in flight
   together with `claimed`/`running`.
+- Durable phase-repair queue (`graph_projection_phase_repair_queue`, review N2):
+  a failed phase publish, in the reducer (`gpphase.PublishPhaseStatesWithRepair`)
+  or the projector (`projector/runtime/phase.go`), enqueues a repair row and
+  returns the error, so the work item that owned the publish is failed, retried
+  or superseded while the row survives. `repair.Repairer.RunOnce` later
+  publishes the phase for that exact generation; for `workload_materialization`
+  on `service_uid` it never checks the accepted generation
+  (`repairNeedsAcceptedGeneration`). The queue has no terminal or abandoned
+  state: a row is live until the runner deletes it after publishing, after
+  finding the phase already ready, or as stale (acceptance moved on). Any row of
+  the `(scope_id, generation_id)` therefore counts as in flight. The primary key
+  `(scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace,
+  phase)` leads with `scope_id`, so the probe on `(scope_id, generation_id)` is a
+  primary-key index-only scan that applies both columns as index conditions
+  within that one scope's key range (the queue only holds failed publishes); no
+  new index (measurement under Performance Evidence).
 
 A deferred generation is re-checked on every selection pass: when the producer
 publishes, the row is ready and projects; when its lease expires and the sweep
 supersedes it (or it finishes without publishing), the generation is reported and
-the blocked row drains. Deferral costs one more pass, never an edge.
+the blocked row drains. A deferred row stays counted in `blocked_count` and
+`blocked_intent_wait_seconds`, so a producer that never finishes shows up as a
+growing blocked wait next to the existing queue-age and expired-claim signals;
+the lookup does not separately report why a row was deferred, and that would
+need a second query, so no `deferred` counter was added.
+
+### Readiness is re-read after the lookup
+
+Readiness is read before the superseded lookup. A producer that publishes the
+phase row and acks between the two reads would leave a now-ready row in the
+blocked set, and the lookup would then find no in-flight producer and drain it
+(review N3). `drainSupersededBlockedRows` therefore re-reads readiness (the same
+lookup or prefetch) for only the rows the lookup named drainable, after the
+lookup: a producer that is not in flight at the lookup has already published, so
+a read taken after it is final for that producer. Rows that turned ready or
+terminal project; only rows still blocked drain. The re-check is one extra
+bounded round trip and runs only when the lookup returned rows to drain.
 
 The guard applies to every gated domain `SelectPartitionBatch` serves
 (`worker.ReadinessPhase`), not only `runs_in`/`handles_route`:
@@ -99,13 +132,32 @@ The guard applies to every gated domain `SelectPartitionBatch` serves
 runner (`code/call/projection/selection.go`), not `SelectPartitionBatch`, so it
 is not drained.
 
-Residual, not closed by this change (#7130): the SQL does not enforce that
-`superseded` is terminal on every writer. If Ack re-activated a superseded
-generation between the lookup and the drain, or if the scope's
-`active_generation_id` does not point at a newer generation (so the reducer
-sweep does not apply), the invariant above does not hold and a drained blocked
-intent could be lost. The in-flight guard closes the producer-in-flight window;
-#7130 owns the terminality gap.
+Residuals, accepted and not closed by this change. The guard closes the
+in-flight producer window for the producers enumerated above (reducer
+claimed/running, projector pending/retrying/claimed/running, live phase-repair
+rows) with readiness re-read after the lookup. It does not claim that an edge
+can never be lost:
+
+- A reducer claim whose statement snapshot predates the successor's activation
+  commit can commit its claim after the lookup. The window is one claim
+  statement (milliseconds) and matters only for a delta successor; no read
+  ordering in the drain closes it. The same holds for a projector whose
+  heartbeat supersede of a pending generation lands as a context cancel after
+  the lookup.
+- Admin projector replay (#7130): replaying a `dead_letter`/`failed` projector
+  row of a superseded generation returns it to `pending`; the projector claim has
+  no superseded-generation filter, so it can run and publish `canonical_nodes`
+  after a drain. Replay has no generation fence. Reducer replay is not a hole:
+  the replayed row is `pending` and the next claim statement supersedes it.
+- Ack re-activation (#7130): the SQL does not enforce that `superseded` is
+  terminal on every writer. If Ack re-activated a superseded generation between
+  the lookup and the drain, or if the scope's `active_generation_id` does not
+  point at a newer generation (so the reducer sweep does not apply), the
+  invariant above does not hold and a drained blocked intent could be lost.
+
+#7130 owns the terminality and replay-fence gaps. The claim of this change is
+that a superseded generation is drained only when every enumerated producer is
+absent and readiness is still blocked after the lookup.
 
 Drained rows count as progress in the scan-widening loop, so a window made only
 of superseded blocked rows returns a batch instead of widening the scan toward
@@ -119,9 +171,9 @@ nothing and keep today's behavior. A reader without the port keeps the old
 behavior byte for byte; a lookup error fails the selection. The code_calls and
 repo_dependency runners do not go through `SelectPartitionBatch` and are not
 touched. The SQL does not enforce that `superseded` is terminal on every writer;
-that gap is tracked in #7130: if Ack re-activated a superseded generation, its
-drained blocked intents would be lost. No occurrence has been observed; this
-drain does not widen that gap because ready rows are untouched.
+that gap is tracked in #7130 with the residuals listed above. No occurrence has
+been observed; this drain does not widen that gap because ready rows are
+untouched.
 
 Conflict domain: read-only lookup plus the existing `MarkIntentsCompleted`
 drain of the same `intent_id` rows; no new lock, lease, or worker. Partition
@@ -147,7 +199,17 @@ generation_id = g.generation_id`, 64 loops, 4 rows removed by filter per probe),
 custom plan `Buffers: shared hit=422 read=32`, `Execution Time: 1.104 ms`;
 `force_generic_plan` `Buffers: shared hit=454`, `Execution Time: 0.350 ms`. The
 NOT EXISTS is an index probe on the existing `(scope_id, generation_id, status,
-updated_at)` index (migration 005); no new index. Expected backlog effect (not yet measured on ops-qa): the drain stops the
+updated_at)` index (migration 005); no new index. Phase-repair guard (review N2): same
+lookup with the second `NOT EXISTS` on `graph_projection_phase_repair_queue`,
+local `postgres:16`, 20,000 scopes, 40,000 generations (20,000 superseded),
+80,000 `fact_work_items`, 5,000 repair rows (the queue only holds failed
+publishes, so this is a deliberately large case), fresh `ANALYZE`, PREPARE with
+`force_generic_plan`. 200 ids: `Index Only Scan using
+graph_projection_phase_repair_queue_pkey`, `Index Cond: scope_id = g.scope_id AND
+generation_id = g.generation_id`, 200 loops, `Buffers: shared hit=1012`,
+`Execution Time: 1.332 ms`; 1,000 ids: `shared hit=5022`, `Execution Time:
+3.657 ms`; 200 ids with no repair rows: `Execution Time: 0.585 ms`. About 3 us per
+probe, served by the primary key; no new index. Expected backlog effect (not yet measured on ops-qa): the drain stops the
 permanent rescan of the 128 + 128 orphaned pending rows on every partition cycle.
 
 Observability Evidence: `eshu_dp_shared_projection_stale_intents_total` gains a
