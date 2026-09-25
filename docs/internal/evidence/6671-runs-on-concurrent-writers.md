@@ -5,9 +5,8 @@ Issue #6671 reported two problems. The two RUNS_ON writers could both create the
 the second copy. #6634 has since merged keyed canonical identity:
 `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)` in both writers.
 This note reconciles the issue's three acceptance items against that merge. The
-live proof runs on Neo4j (measured 2026-09-25). An earlier NornicDB run is kept
-as a labelled secondary note, because that is where the lost-update defect
-#7175 was observed.
+live proof runs on Neo4j (measured 2026-09-25). A short NornicDB note at the
+end is labelled secondary.
 
 ## Backend under test
 
@@ -54,19 +53,22 @@ Performance Evidence: runs against the Neo4j pin above.
 
 | Run | Writer text | Arm | Trials | Pairs with >1 edge | Workload tuple kept | Elapsed | Slowest trial |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| N1 multiplicity test | keyed | barrier | 300 | 0 | 0 | 43.5s | 7.24s |
-| N1 multiplicity test | keyed | sequential | 300 | 0 | 0 | 24.9s | 1.26s |
+| N1 multiplicity test | keyed | barrier | 300 | 0 | not checked | 43.5s | 7.24s |
+| N1 multiplicity test | keyed | sequential | 300 | 0 | not checked | 24.9s | 1.26s |
 | N2 tuple test | keyed | barrier | 300 | 0 | 0 | 10.4s | 0.99s |
 | N2 tuple test | keyed | sequential | 300 | 0 | 0 | 33.5s | 1.24s |
 | N3 scratch, driver DEBUG log | keyed | barrier | 300 | 0 | 0 | 27.9s | 3.43s |
 | N4 scratch, driver DEBUG log | bare (pre-#6634) | barrier | 300 | 0 | 0 | 1m45s | 9.31s |
-| N5 both tests, default floor | keyed | barrier | 60 + 60 | 0 | 0 | 3.4s, 5.0s | 1.53s |
-| N5 both tests, default floor | keyed | sequential | 60 + 60 | 0 | 0 | 5.3s, 2.3s | 1.73s |
+| N5 both tests, default floor | keyed | barrier | 60 + 60 | 0 | 0 (tuple test's 60) | 3.4s, 5.0s | 1.53s |
+| N5 both tests, default floor | keyed | sequential | 60 + 60 | 0 | 0 (tuple test's 60) | 5.3s, 2.3s | 1.73s |
 
 Totals on Neo4j:
 
-- Keyed text: 1,020 barrier trials and 720 sequential trials, with 0 duplicate
-  edges and 0 lost tuples.
+- Keyed text, multiplicity: 1,020 barrier trials and 720 sequential trials,
+  with 0 duplicate edges.
+- Keyed text, tuple: 660 barrier trials (N2, N3, N5) and 360 sequential
+  trials (N2, N5) checked which tuple won, with 0 lost tuples. The
+  multiplicity test does not check the tuple.
 - Bare-MERGE text: 300 barrier trials, with 0 duplicate edges and 0 lost
   tuples.
 
@@ -95,16 +97,15 @@ a NornicDB behavior. The test is therefore a forward regression guard, not a
 demonstrated pre-fix failure. CI does not enforce it until a lane runs
 `scheduled` rows (see CI coverage).
 
-## #7175 — the lost cross-repo tuple does not reproduce on Neo4j
+## The cross-repo tuple wins on Neo4j
 
-No Neo4j barrier trial ended with the workload tuple: 0 of 1,020 keyed and 0 of
-300 bare. #7175 was observed only on NornicDB (see the secondary note below).
-Its body should say it is backend-specific. On Neo4j the tuple test is green.
-
-The accuracy consequence still applies wherever the defect occurs.
+No Neo4j barrier trial that checked the tuple ended with the workload tuple:
+0 of 660 keyed and 0 of 300 bare. The #6634 claim that cross-repo wins in every
+ordering therefore stands on Neo4j. The tuple test hard-fails if that ever
+changes. A lost cross-repo tuple would be an accuracy defect:
 `RetractRepoRunsOnEdgesCypher` deletes only edges whose `evidence_source` is
-`resolver/cross-repo`. A workload-stamped edge left by a lost update is
-therefore not reaped when the cross-repo evidence goes away.
+`resolver/cross-repo`, so a workload-stamped edge would not be reaped when the
+cross-repo evidence goes away.
 
 ## A2 — the Ifá assertion must see an unstamped duplicate
 
@@ -159,28 +160,16 @@ barrier trial produced an edge with an empty `evidence_source`, and the
 multiplicity test asserts that. The explanation rests on measured behavior; no
 one traced a root cause in NornicDB source.
 
-## Secondary note: NornicDB measurements
+## Secondary note: NornicDB
 
-These runs were measured before the owner directive to prove graph behavior on
-Neo4j. They are kept because #7175 was observed here. They used
-`ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`
-(`fix-500-e022384c`). Its source commit contains NornicDB#357: the compare
-`145ed4156...e022384c` reports ahead 98, behind 0.
+Before the owner directive to prove graph behavior on Neo4j, these tests also
+ran on `ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`.
 
-| Writer text | Barrier trials | Duplicates | Workload tuple kept |
-| --- | --- | --- | --- |
-| keyed | 450 | 0 | 1 (run 1, trial 2) |
-| bare scratch | 360 | 0 | 1 (a 60-trial run, trial 16) |
-
-- Sequential controls: 0 violations throughout.
-- Conflicts: every NornicDB barrier trial hit one
-  `Neo.TransientError.Transaction.Outdated` on a deterministic
-  `nornic:merge-<hash>` edge. That was measured 60 of 60 on the keyed text and
-  300 of 300 on the bare text.
-- Retry cost: the driver's `ExecuteWrite` retried after about 1.9s, so a
-  NornicDB barrier trial took about 2s.
-- Lost update: it needs an interleaving that escapes the conflict check. That
-  cause is a theory tracked in #7175.
+- Duplicates: 0 in 450 keyed and 360 bare barrier trials.
+- Conflicts: every barrier trial paid one
+  `Neo.TransientError.Transaction.Outdated` retry, about 2s each.
+- Lost tuple: 2 barrier trials kept the workload tuple. That was observed on
+  NornicDB and not reproduced on Neo4j, and #7175 is closed.
 
 ## Observability
 

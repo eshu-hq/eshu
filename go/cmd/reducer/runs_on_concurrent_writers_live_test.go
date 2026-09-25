@@ -74,11 +74,10 @@ func TestRunsOnConcurrentWritersOneEdgePerPairLive(t *testing.T) {
 // preserves it when the workload writer commits second, so every pair must end
 // with the cross-repo tuple.
 //
-// On Neo4j (the proof backend) it held in 300 barrier trials. On the pinned
-// NornicDB image a rare barrier trial ended with the workload tuple (#7175, see
-// docs/internal/evidence/6671-runs-on-concurrent-writers.md). It hard-fails on
-// purpose; a lost cross-repo tuple is not reaped by RetractRepoRunsOnEdgesCypher,
-// so it is an accuracy defect, not noise to log.
+// It holds on Neo4j, the proof backend (see
+// docs/internal/evidence/6671-runs-on-concurrent-writers.md). It hard-fails
+// because a lost cross-repo tuple is not reaped by RetractRepoRunsOnEdgesCypher,
+// so it would be an accuracy defect, not noise to log.
 func TestRunsOnConcurrentWritersCrossRepoTupleWinsLive(t *testing.T) {
 	runner, trials := openRunsOnRaceBackend(t)
 	for _, mode := range runsOnRaceModes {
