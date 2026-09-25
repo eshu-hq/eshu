@@ -30,7 +30,10 @@ one bounded label:
 
 - `domain` identifies the guarded shared projection domain (`handles_route`,
   `runs_in`, `deployable_unit_edges`, plus `workload_materialization`
-  counted by the deployment-source target guard).
+  counted by the deployment-source target guard, whose deferral carries the
+  non-counting failure class
+  `workload_materialization_deployment_source_target_not_ready` so it never
+  dead-letters, #6759).
 
 Read it alongside the `shared edge batch target absent, deferring batch`
 WARN, which carries the evidence source and one sample intent id —

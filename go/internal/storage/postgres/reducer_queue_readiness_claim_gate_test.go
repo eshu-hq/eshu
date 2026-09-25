@@ -208,6 +208,11 @@ var readinessClassOwningDomain = map[string]string{
 	// workload materialization input loader. Placed on that domain explicitly
 	// for the same naming reason.
 	reducer.WorkloadMaterializationResolutionNotReadyFailureClass: string(reducer.DomainWorkloadMaterialization),
+	// #6759: the deployment-source write guard defers the same domain when the
+	// deploy Repository node is not yet committed. The node belongs to another
+	// scope's repo_dependency write, so no claim-time row keyed on this
+	// intent's own payload can express it.
+	reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass: string(reducer.DomainWorkloadMaterialization),
 	// #6785: cross-scope waits inside handlers that already carry their own
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so

@@ -25,6 +25,20 @@ type GraphExistenceProber interface {
 	ProbeGraphExists(ctx context.Context, cypher string, params map[string]any) (bool, error)
 }
 
+// WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass classifies
+// a workload materialization pass deferred because a deployment-source target
+// (the WorkloadInstance or the deployment Repository node) is not yet in the
+// graph.
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the deploy
+// Repository node is committed by another scope's repo_dependency write with
+// no happens-before against this pass, so the miss is a timing state. Counting
+// it toward MaxAttempts dead-lettered the intent whenever that lane ran slow,
+// and the succeeded-only reopen path never reopens a dead letter (#6759).
+const WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass = "workload_materialization_deployment_source_target_not_ready"
+
 // deploymentSourceTargetMissingError fails a materialization pass whose
 // deployment-source targets are absent from the graph. Retryable() keeps the
 // intent queued: the deployment Repository node is committed by another
@@ -48,6 +62,12 @@ func (e *deploymentSourceTargetMissingError) Error() string {
 
 // Retryable opts the miss into bounded queue retries.
 func (e *deploymentSourceTargetMissingError) Retryable() bool { return true }
+
+// FailureClass tags the miss with the non-counting readiness class so the
+// queue defers it without spending the retry budget.
+func (e *deploymentSourceTargetMissingError) FailureClass() string {
+	return WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass
+}
 
 // buildDeploymentSourceTargetProbe returns the existence probe for one
 // deployment-source batch: one inline-anchored MATCH per distinct
