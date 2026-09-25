@@ -312,7 +312,7 @@
 // received_at order, records handed-off rows or failed rows with failed_at,
 // and preserves merged pull-request provenance without making repository or
 // graph freshness claims.
-// IncidentFreshnessStore persists PagerDuty and Jira webhook wake-ups in
+// incidentfreshnessstore.IncidentFreshnessStore persists PagerDuty and Jira webhook wake-ups in
 // incident_freshness_triggers, coalesces duplicate source events by
 // freshness_key, claims queued rows with FOR UPDATE SKIP LOCKED, and records
 // coordinator handoff or failure without storing provider payloads or emitting

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package incidentfreshnessstore
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -35,8 +36,8 @@ func TestIncidentFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 
 	receivedAt := time.Date(2026, time.May, 31, 18, 0, 0, 0, time.UTC)
 	trigger := testIncidentFreshnessTrigger(receivedAt)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{incidentFreshnessTriggerRow(trigger, webhook.TriggerStatusQueued, receivedAt)},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{incidentFreshnessTriggerRow(trigger, webhook.TriggerStatusQueued, receivedAt)},
 	}
 	store := NewIncidentFreshnessStore(db)
 
@@ -50,7 +51,7 @@ func TestIncidentFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 	if stored.TriggerID == "" || stored.DeliveryKey == "" || stored.FreshnessKey == "" {
 		t.Fatalf("stored trigger missing durable keys: %#v", stored)
 	}
-	if got, want := len(db.queries), 1; got != want {
+	if got, want := len(db.Queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 	for _, want := range []string{
@@ -59,8 +60,8 @@ func TestIncidentFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 		"WHEN incident_freshness_triggers.status = 'claimed'",
 		"duplicate_count = incident_freshness_triggers.duplicate_count + 1",
 	} {
-		if !strings.Contains(db.queries[0].query, want) {
-			t.Fatalf("query missing %q: %s", want, db.queries[0].query)
+		if !strings.Contains(db.Queries[0].Query, want) {
+			t.Fatalf("query missing %q: %s", want, db.Queries[0].Query)
 		}
 	}
 }
@@ -70,8 +71,8 @@ func TestIncidentFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 
 	now := time.Date(2026, time.May, 31, 18, 0, 0, 0, time.UTC)
 	trigger := testIncidentFreshnessTrigger(now)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{incidentFreshnessTriggerRow(trigger, webhook.TriggerStatusClaimed, now)},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{incidentFreshnessTriggerRow(trigger, webhook.TriggerStatusClaimed, now)},
 	}
 	store := NewIncidentFreshnessStore(db)
 
@@ -86,8 +87,8 @@ func TestIncidentFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 		t.Fatalf("Status = %q, want %q", triggers[0].Status, webhook.TriggerStatusClaimed)
 	}
 	for _, want := range []string{"FOR UPDATE SKIP LOCKED", "status = 'queued'"} {
-		if !strings.Contains(db.queries[0].query, want) {
-			t.Fatalf("claim query missing %q: %s", want, db.queries[0].query)
+		if !strings.Contains(db.Queries[0].Query, want) {
+			t.Fatalf("claim query missing %q: %s", want, db.Queries[0].Query)
 		}
 	}
 }
@@ -107,12 +108,12 @@ func incidentFreshnessTriggerRow(
 	trigger webhook.IncidentFreshnessTrigger,
 	status webhook.TriggerStatus,
 	now time.Time,
-) queueFakeRows {
+) fake.Rows {
 	stored, err := webhook.NewStoredIncidentFreshnessTrigger(trigger, now)
 	if err != nil {
 		panic(err)
 	}
-	return queueFakeRows{rows: [][]any{{
+	return fake.Rows{Data: [][]any{{
 		stored.TriggerID,
 		stored.DeliveryKey,
 		stored.FreshnessKey,
