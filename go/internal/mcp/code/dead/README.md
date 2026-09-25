@@ -51,11 +51,14 @@ API request duration and error metrics (`request.go` in
   required`). The scan and investigate handlers accept one and widen to every
   repository the caller's scope grants, which is why `repo_id` still travels
   as an explicit empty string rather than being dropped.
-- `limit` defaults to 100 here, the same value the handlers substitute for
-  any limit at or below zero before clamping anything above 500 down to 500
+- `limit` defaults to 25 here (`defaultLimit`), and the schema advertises the
+  same constant. The value is sized to the MCP response budget: 100 candidate
+  rows exceeded it on most measured repositories (#7168). It is deliberately
+  lower than the handlers' own default of 100, which they substitute for any
+  limit at or below zero before clamping anything above 500 down to 500
   (`deadCodeDefaultLimit` and `deadCodeMaxLimit` in query's
-  `code_dead_code.go`), so the dispatcher's default is indistinguishable from
-  an omitted limit at the handler and no limit value can 400. `offset`
+  `code_dead_code.go`); an omitted MCP limit reaches the handler as 25, never
+  as its 100, and no limit value can 400. `offset`
   defaults to 0, and unlike `limit` the investigate handler REJECTS rather than
   clamps it: `normalizeDeadCodeInvestigationRequest` returns an error for a
   negative offset and for one above `deadCodeInvestigationMaxOffset`, so either

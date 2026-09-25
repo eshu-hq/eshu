@@ -176,6 +176,26 @@ dead_code:
 
 Request-level decorator exclusions also set `analysis.user_overrides_applied`.
 
+## Response Bounds
+
+The three MCP tools default `limit` to `25`, not `100`. A `limit` of `100`
+produced replies over the MCP response budget on most measured repositories,
+and `candidate_buckets` was 80-93% of those replies. The MCP default is
+independent of the HTTP defaults: an HTTP caller has no byte budget, so
+`POST /api/v0/code/dead-code` and its siblings keep their own default of `100`
+(maximum `500`). Raise `limit` on the MCP tools only when the reply still fits
+the budget, and page `investigate_dead_code` with `offset` and `next_offset`.
+
+The `suppressed` bucket, the modeled roots the default policy excluded, is
+bounded by the smaller of `limit` and `50` on both the investigation and the
+cross-repo routes. `suppressed_limit` reports that bound, and
+`suppressed_truncated` is `true` when rows were dropped, so a short bucket is
+never mistaken for the whole set.
+
+The cross-repo route has no `offset`; it is limit-only. To see more of a large
+producer repository, narrow it with a `language` or `consumer_repo_ids`
+selector instead of paging.
+
 ## Fixture Contract
 
 Dead-code exactness is language scoped. Parser fixtures prove syntax

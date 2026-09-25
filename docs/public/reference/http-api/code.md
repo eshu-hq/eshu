@@ -372,7 +372,8 @@ admitted by a fallback the bound could not evaluate in its new position.
 `POST /api/v0/code/dead-code/investigate` is the normal prompt-facing dead-code
 route. It returns coverage, language maturity, exactness blockers,
 cleanup-ready and ambiguous buckets, suppressed modeled roots, source handles,
-recommended next calls, paging, and truncation state.
+recommended next calls, paging, and truncation state. MCP defaults and bounds:
+[Response Bounds](../dead-code-reachability-spec.md#response-bounds).
 
 `POST /api/v0/code/dead-code` is the lower-level candidate scan. `repo_id`,
 `language`, and `candidate_kind` are optional; `limit` defaults to `100` and is
@@ -384,8 +385,8 @@ unsupported values return `400` instead of silently scanning functions.
 Both routes remain `derived` until the broader framework, public API,
 reflection, and user-configured root registry from
 [Dead-Code Reachability Spec](../dead-code-reachability-spec.md) is complete.
-Language-specific root and blocker details belong in that spec and the OpenAPI
-description, not in this route map.
+Language-specific root and blocker details live in that spec and the OpenAPI
+description.
 
 ## Complexity, Quality, And Language Queries
 
