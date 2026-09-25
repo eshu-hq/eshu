@@ -149,6 +149,23 @@ GROUP BY producer_domain
 HAVING COUNT(*) > 0
 `
 
+// projectorScopesWithMultipleLiveLeasesQuery counts projector scopes that hold
+// more than one unexpired claimed or running lease at $1 (#7115). The claim's
+// scope fence keeps this at zero. It reads live leases only, so an expired
+// lease awaiting reclaim beside a live one does not count.
+const projectorScopesWithMultipleLiveLeasesQuery = `
+SELECT COUNT(*) AS count
+FROM (
+    SELECT scope_id
+    FROM fact_work_items
+    WHERE stage = 'projector'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+    GROUP BY scope_id
+    HAVING COUNT(*) > 1
+) AS overlapping
+`
+
 // QueueObserverStore implements telemetry.QueueObserver by querying the
 // fact_work_items table for live queue depth and oldest-item age per stage.
 type QueueObserverStore struct {
@@ -262,6 +279,31 @@ func (s *QueueObserverStore) SourceQueueDepths(ctx context.Context) (map[string]
 	}
 
 	return result, nil
+}
+
+// ProjectorScopesWithMultipleLiveLeases returns how many scopes hold more than
+// one unexpired claimed or running projector lease. It implements
+// telemetry.ProjectorLeaseInvariantObserver; any nonzero value means two
+// workers are projecting one scope at once (#7115).
+func (s *QueueObserverStore) ProjectorScopesWithMultipleLiveLeases(ctx context.Context) (int64, error) {
+	if s.queryer == nil {
+		return 0, fmt.Errorf("queue observer queryer is required")
+	}
+	rows, err := s.queryer.QueryContext(ctx, projectorScopesWithMultipleLiveLeasesQuery, s.now())
+	if err != nil {
+		return 0, fmt.Errorf("projector scopes with multiple live leases: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var count int64
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return 0, fmt.Errorf("projector scopes with multiple live leases scan: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("projector scopes with multiple live leases: %w", err)
+	}
+	return count, nil
 }
 
 // ReducerGraphWriteTimeoutDepth returns the number of reducer work items that

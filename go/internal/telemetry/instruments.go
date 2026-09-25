@@ -34,6 +34,18 @@ type SourceQueueObserver interface {
 	SourceQueueOldestAge(ctx context.Context) (map[string]map[string]float64, error)
 }
 
+// ProjectorLeaseInvariantObserver reports the projector one-live-lease-per-scope
+// invariant (#7115). A QueueObserver that also implements it gets the
+// eshu_dp_projector_scopes_multiple_live_leases gauge on the same collection
+// cadence as the queue depth gauges.
+type ProjectorLeaseInvariantObserver interface {
+	// ProjectorScopesWithMultipleLiveLeases returns how many scopes currently
+	// hold more than one unexpired claimed or running projector lease. The
+	// projector claim's scope fence keeps this at zero; any other value means
+	// two workers are projecting the same scope at once.
+	ProjectorScopesWithMultipleLiveLeases(ctx context.Context) (int64, error)
+}
+
 // WorkflowFamilyQueueDepthObserver provides outstanding claim-aware collector
 // queue depth grouped by collector family and status, backing the per-family
 // queue-depth gauge. Keys: collector_kind -> source_system -> status -> count.
@@ -1781,6 +1793,12 @@ type Instruments struct {
 	GraphOrphanNodes       metric.Int64ObservableGauge
 	AWSClaimConcurrency    metric.Int64ObservableGauge
 	ActiveGenerationsByAge metric.Int64ObservableGauge
+
+	// ProjectorScopesMultipleLiveLeases reports how many scopes hold more than
+	// one unexpired projector lease (#7115). It is an invariant gauge: any
+	// value above zero means the scope claim fence was bypassed.
+	ProjectorScopesMultipleLiveLeases metric.Int64ObservableGauge
+
 	// PoisonDeadLetterScopes and PoisonDeadLetterItems report the current
 	// dead-letter/poison class size (#4740): fact_work_items rows whose status
 	// is 'dead_letter' with no strictly-newer scope_generations row for the same
@@ -5484,6 +5502,24 @@ func RegisterObservableGauges(
 			)
 			if err != nil {
 				return fmt.Errorf("register SourceQueueOldestAge gauge: %w", err)
+			}
+		}
+
+		if leaseObs, ok := queueObs.(ProjectorLeaseInvariantObserver); ok {
+			inst.ProjectorScopesMultipleLiveLeases, err = meter.Int64ObservableGauge(
+				"eshu_dp_projector_scopes_multiple_live_leases",
+				metric.WithDescription("Projector scopes holding more than one unexpired claimed or running lease; the invariant is zero"),
+				metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+					count, err := leaseObs.ProjectorScopesWithMultipleLiveLeases(ctx)
+					if err != nil {
+						return err
+					}
+					o.Observe(count)
+					return nil
+				}),
+			)
+			if err != nil {
+				return fmt.Errorf("register ProjectorScopesMultipleLiveLeases gauge: %w", err)
 			}
 		}
 	}
