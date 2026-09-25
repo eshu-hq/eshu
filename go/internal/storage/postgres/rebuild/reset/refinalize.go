@@ -15,6 +15,7 @@ package reset
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
@@ -216,34 +217,73 @@ func (e *InflightReducersError) Error() string {
 // generation mid-refinalize could then leave the enqueue rebuilding G1 while
 // a reset cleared G2.
 //
+// The same statement classifies every scope it considered but could not cover,
+// so the returned SkippedScopes describes exactly the snapshot the Generations
+// came from. For an explicit scope list it also reports, as unknown_scope, each
+// named id that has no ingestion_scopes row.
+//
 // It takes no row locks: a concurrent activation wins and falls outside this
 // refinalize, which is cheaper than putting an ingester behind a rebuild.
 func ReadAffectedGenerations(
 	ctx context.Context,
 	q Queryer,
 	filter recovery.RefinalizeFilter,
-) (Generations, error) {
+) (Generations, recovery.SkippedScopes, error) {
 	query, args := AffectedGenerationsQuery(filter)
 
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
-		return Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
+		return Generations{}, recovery.SkippedScopes{}, fmt.Errorf("refinalize affected generations: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	var generations Generations
+	skipped := recovery.SkippedScopes{
+		ByReason: make(map[string]int),
+		Samples:  make(map[string][]string),
+	}
+	seen := make(map[string]struct{})
 	for rows.Next() {
-		var scopeID, generationID string
-		if scanErr := rows.Scan(&scopeID, &generationID); scanErr != nil {
-			return Generations{}, fmt.Errorf("refinalize affected generations: %w", scanErr)
+		var scopeID, generationID, skipReason string
+		if scanErr := rows.Scan(&scopeID, &generationID, &skipReason); scanErr != nil {
+			return Generations{}, recovery.SkippedScopes{}, fmt.Errorf("refinalize affected generations: %w", scanErr)
+		}
+		seen[scopeID] = struct{}{}
+		if skipReason != "" {
+			skipped.Add(skipReason, scopeID)
+			continue
 		}
 		generations.Append(scopeID, generationID)
 	}
 	if err := rows.Err(); err != nil {
-		return Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
+		return Generations{}, recovery.SkippedScopes{}, fmt.Errorf("refinalize affected generations: %w", err)
 	}
 
-	return generations, nil
+	if !filter.AllScopes {
+		for _, scopeID := range uniqueSorted(filter.ScopeIDs) {
+			if _, ok := seen[scopeID]; !ok {
+				skipped.Add(recovery.SkipReasonUnknownScope, scopeID)
+			}
+		}
+	}
+
+	return generations, skipped, nil
+}
+
+// uniqueSorted returns the distinct values of ids in ascending order, so the
+// unknown-scope report is deterministic and a scope named twice counts once.
+func uniqueSorted(ids []string) []string {
+	unique := make([]string, 0, len(ids))
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	sort.Strings(unique)
+	return unique
 }
 
 // EnqueueProjectorWork runs the projector re-enqueue and returns the scope

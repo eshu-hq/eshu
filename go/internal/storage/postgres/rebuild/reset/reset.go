@@ -21,9 +21,9 @@ type Execer interface {
 }
 
 // AffectedGenerationsTemplate reads the (scope_id, generation_id) pairs one
-// refinalize covers. The caller runs it once, at the top of the refinalize
-// transaction, and every later statement binds the rows it returned instead of
-// re-deriving them.
+// refinalize covers, and classifies every scope it considered but cannot cover.
+// The caller runs it once, at the top of the refinalize transaction, and every
+// later statement binds the rows it returned instead of re-deriving them.
 //
 // That is the whole point of reading it separately. A transaction Postgres
 // starts at the default READ COMMITTED isolation gives each statement its own
@@ -34,15 +34,69 @@ type Execer interface {
 // and no lock on ingestion_scopes, so an activation racing a rebuild is delayed
 // by nothing and simply lands outside this refinalize.
 //
+// Two kinds of scope are covered (#7116):
+//
+//   - an active scope, through its active generation; and
+//   - a failed scope with no active generation, through its newest generation
+//     that is not superseded, when that generation is itself failed.
+//
+// The second is the scope a projector gave up on. After a graph-backend swap it
+// is absent from the new graph, and the failure says nothing about the new
+// backend, so the rebuild re-projects it; a successful projector ack then
+// activates the generation and the scope. A failed scope whose newest
+// non-superseded generation is pending is left to that generation's own
+// projector work rather than queued twice.
+//
+// Every other scope comes back with an empty generation_id and a skip_reason, in
+// the same statement and therefore the same snapshot, so the operator's report
+// of what was left out cannot disagree with what was put in. The skip reasons
+// are the recovery.SkipReason* values.
+//
+// The lateral lookup is gated on the outer row being a failed scope with no
+// active generation, so an active scope costs no scope_generations probe. For
+// a failed scope it reads scope_generations_scope_latest_lookup_idx in
+// (ingested_at DESC, generation_id DESC) order and stops at the first
+// generation that is not superseded.
+//
 // The %s is the scope predicate: empty for the all-scopes disaster-recovery
 // path, `AND scope.scope_id = ANY($N)` for an explicit scope list.
 const AffectedGenerationsTemplate = `
-SELECT scope.scope_id, scope.active_generation_id
-FROM ingestion_scopes AS scope
-WHERE scope.active_generation_id IS NOT NULL
-  AND scope.status = 'active'
-  %s
-ORDER BY scope.scope_id
+SELECT candidate.scope_id,
+       COALESCE(candidate.generation_id, '') AS generation_id,
+       CASE
+         WHEN candidate.generation_id IS NOT NULL THEN ''
+         WHEN candidate.status = 'failed' AND candidate.active_generation_id IS NULL THEN
+           CASE
+             WHEN candidate.newest_generation_id IS NULL THEN '` + recovery.SkipReasonNoRecoverableGeneration + `'
+             ELSE '` + recovery.SkipReasonNewestGenerationNotFailed + `'
+           END
+         ELSE '` + recovery.SkipReasonNoActiveGeneration + `'
+       END AS skip_reason
+FROM (
+  SELECT scope.scope_id,
+         scope.status,
+         scope.active_generation_id,
+         newest.generation_id AS newest_generation_id,
+         CASE
+           WHEN scope.status = 'active' AND scope.active_generation_id IS NOT NULL
+             THEN scope.active_generation_id
+           WHEN newest.status = 'failed' THEN newest.generation_id
+         END AS generation_id
+  FROM ingestion_scopes AS scope
+  LEFT JOIN LATERAL (
+    SELECT g.generation_id, g.status
+    FROM scope_generations AS g
+    WHERE scope.status = 'failed'
+      AND scope.active_generation_id IS NULL
+      AND g.scope_id = scope.scope_id
+      AND g.status <> 'superseded'
+    ORDER BY g.ingested_at DESC, g.generation_id DESC
+    LIMIT 1
+  ) AS newest ON TRUE
+  WHERE TRUE
+    %s
+) AS candidate
+ORDER BY candidate.scope_id
 `
 
 // affectedPairs renders the materialized generation set as a two-array unnest,

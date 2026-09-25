@@ -21,11 +21,23 @@ import (
 // affected, so the retirement count is nonzero and the post-Apply fence check
 // short-circuits without a fourth read, exactly as production does when the
 // retirement guard did not trip.
+//
+// The generation read returns (scope_id, generation_id, skip_reason). A
+// two-column pair row is a covered scope, so it gains the empty skip_reason the
+// production statement returns for one; a three-column row is passed through
+// untouched so a test can seed a skipped scope.
 func refinalizeFakeDB(pairs [][]any, enqueued [][]any) *fakeBeginnerExecQueryer {
+	generationRows := make([][]any, 0, len(pairs))
+	for _, row := range pairs {
+		if len(row) == 2 {
+			row = append(append([]any{}, row...), "")
+		}
+		generationRows = append(generationRows, row)
+	}
 	return &fakeBeginnerExecQueryer{
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{
-				{rows: pairs},
+				{rows: generationRows},
 				{rows: [][]any{{0}}},
 				{rows: [][]any{{0}}},
 				{rows: enqueued},
@@ -66,9 +78,18 @@ func TestRecoveryStoreRefinalizeScopeProjectionsAllScopes(t *testing.T) {
 	if strings.Contains(selectQuery, "scope.scope_id = ANY(") {
 		t.Fatalf("all-scopes refinalize kept the scope predicate, which matches nothing on an empty array: %s", selectQuery)
 	}
-	if !strings.Contains(selectQuery, "scope.active_generation_id IS NOT NULL") ||
-		!strings.Contains(selectQuery, "scope.status = 'active'") {
-		t.Fatalf("all-scopes refinalize dropped the active-scope guards: %s", selectQuery)
+	// The selection still covers an active scope through its active generation,
+	// and now also a failed scope through its newest failed generation (#7116).
+	// Losing either arm silently shrinks the rebuild.
+	for _, want := range []string{
+		"scope.status = 'active' AND scope.active_generation_id IS NOT NULL",
+		"scope.status = 'failed'",
+		"g.status <> 'superseded'",
+		"newest.status = 'failed'",
+	} {
+		if !strings.Contains(selectQuery, want) {
+			t.Fatalf("all-scopes refinalize selection lost %q: %s", want, selectQuery)
+		}
 	}
 	if got, want := len(db.queries[0].args), 0; got != want {
 		t.Fatalf("all-scopes generation read arg count = %d, want %d", got, want)

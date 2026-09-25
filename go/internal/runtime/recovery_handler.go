@@ -145,6 +145,10 @@ type refinalizeResponse struct {
 	SharedIntentsReopened  int      `json:"shared_intents_reopened"`
 	ReadinessPhasesCleared int      `json:"readiness_phases_cleared"`
 	GenerationsRetired     int      `json:"generations_retired"`
+
+	// SkippedScopes reports the scopes the refinalize considered but did not
+	// re-enqueue, by reason (#7116), so a partial rebuild is visible.
+	SkippedScopes recovery.SkippedScopesReport `json:"skipped_scopes"`
 }
 
 // handleRefinalize re-enqueues projector work for the specified scopes.
@@ -179,6 +183,7 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 		SharedIntentsReopened:  result.SharedIntentsReopened,
 		ReadinessPhasesCleared: result.ReadinessPhasesCleared,
 		GenerationsRetired:     result.GenerationsRetired,
+		SkippedScopes:          result.Skipped.Report(),
 	})
 }
 

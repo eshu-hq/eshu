@@ -43,7 +43,13 @@
 ## When you change the scope guards
 
 `AffectedGenerationsTemplate` is the only statement in a refinalize that reads
-`ingestion_scopes`, so it is the only place the scope guards live. The projector
+`ingestion_scopes`, so it is the only place the scope guards live. It covers an
+active scope through its active generation and a failed scope with no active
+generation through its newest non-superseded generation when that generation is
+failed (#7116), and it returns every other scope with a `skip_reason` from the
+closed `recovery.SkipReason*` set. Keep the covered set and the skip report in
+that one statement: a second read would let the report disagree with the set the
+enqueue and resets bound. The projector
 re-enqueue, the drain poll, and the four resets (all in this package; the
 transaction owner in `../recovery.go` only orchestrates) bind the `Generations`
 it returned. Change a guard and every statement follows, because none of them

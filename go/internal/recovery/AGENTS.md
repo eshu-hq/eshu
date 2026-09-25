@@ -70,7 +70,7 @@
   This package must not open connections or run SQL directly.
 
 - **Accidental unbounded refinalize** — pass explicit `ScopeIDs` unless the
-  caller genuinely means every active scope, and then say so with `AllScopes`.
+  caller genuinely means every recoverable (active or failed) scope, and then say so with `AllScopes`.
   Never treat an empty `ScopeIDs` as "all": `RefinalizeFilter.Validate` rejects
   it, and the caller should carry the same guard so the intent is readable at
   the call site.

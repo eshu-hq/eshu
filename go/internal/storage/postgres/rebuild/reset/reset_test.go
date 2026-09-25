@@ -35,12 +35,13 @@ func TestAffectedGenerationsQueryAllScopesDropsTheClauseEntirely(t *testing.T) {
 			"passing an empty array is the silent no-op this guard exists to prevent", args)
 	}
 	for _, want := range []string{
-		"scope.active_generation_id IS NOT NULL",
-		"scope.status = 'active'",
+		"scope.status = 'active' AND scope.active_generation_id IS NOT NULL",
+		"scope.status = 'failed'",
+		"g.status <> 'superseded'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("AffectedGenerationsQuery(AllScopes) dropped %q, so it would re-drive retired "+
-				"or generation-less scopes:\n%s", want, query)
+				"scopes or skip failed ones:\n%s", want, query)
 		}
 	}
 }

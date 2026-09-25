@@ -345,6 +345,7 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.reportRefinalizeOutcome(r.Context(), "refinalize", "scope_ids", result)
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status":                   "accepted",
 		"enqueued":                 result.Enqueued,
@@ -353,6 +354,7 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		"shared_intents_reopened":  result.SharedIntentsReopened,
 		"readiness_phases_cleared": result.ReadinessPhasesCleared,
 		"generations_retired":      result.GenerationsRetired,
+		"skipped_scopes":           skippedScopesResponse(result.Skipped),
 	})
 }
 

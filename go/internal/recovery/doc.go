@@ -10,10 +10,14 @@
 // dead-letter backlog drain that defaults to the transient retry_exhausted
 // bucket, refuses manual-review (poison) classes sourced from the projector
 // triage, and reports backlog depth before replaying so an operator can watch
-// progress; Refinalize re-enqueues projector work so active generations are
-// projected again, for an explicit list of scopes or — with
-// RefinalizeFilter.AllScopes — for every active scope, which is how the graph is
-// rebuilt from preserved Postgres facts after a restore. Refinalize also clears
+// progress; Refinalize re-enqueues projector work so generations are projected
+// again, for an explicit list of scopes or — with RefinalizeFilter.AllScopes —
+// for every recoverable scope, which is how the graph is rebuilt from preserved
+// Postgres facts after a restore or a graph-backend swap. An active scope is
+// re-enqueued through its active generation and a failed scope with no active
+// generation through its newest failed generation (#7116). RefinalizeResult.Skipped
+// reports, by closed reason, each scope considered but not re-enqueued, so a
+// partial rebuild is visible. Refinalize also clears
 // the downstream dedup state for exactly those generations — succeeded reducer
 // work, completed shared projection intents, and graph projection phase rows —
 // because all four outlive a graph wipe and would otherwise tell the pipeline

@@ -71,7 +71,8 @@ backend, or any network connection directly.
 - `DrainResult` — outcome of a drain: `Stage`, `Replayed`,
   `BacklogDepthBefore`, `WorkItemIDs`.
 - `RefinalizeFilter` — filter for scope re-projection: `ScopeIDs` (a non-empty
-  list) or `AllScopes` (every active scope holding an active generation).
+  list) or `AllScopes` (every recoverable scope: active with an active generation, or
+  failed with a newest non-superseded generation).
   Exactly one of the two.
 - `RefinalizeResult` — outcome of a refinalize call: `Enqueued` count,
   `ScopeIDs`, plus the four rebuild-reset counts `ReducerWorkDeleted`,

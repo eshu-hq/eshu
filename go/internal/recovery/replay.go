@@ -179,8 +179,10 @@ type RefinalizeFilter struct {
 	// set.
 	ScopeIDs []string
 
-	// AllScopes re-enqueues every active scope that has an active generation,
-	// with no scope list. It exists for disaster recovery: after a Postgres
+	// AllScopes re-enqueues every recoverable scope, with no scope list: each
+	// active scope through its active generation, and each failed scope with no
+	// active generation through its newest failed generation (#7116). It exists
+	// for disaster recovery: after a Postgres
 	// restore the operator rebuilding the graph from preserved facts does not
 	// know the scope IDs, and hand-enumerating them is the step that makes a
 	// 3 AM rebuild unusable.
@@ -201,14 +203,14 @@ func (f RefinalizeFilter) Validate() error {
 		if len(f.ScopeIDs) > 0 {
 			return errors.New(
 				"refinalize filter cannot set all_scopes together with scope_ids: " +
-					"pick every active scope or a named list, not both",
+					"pick every recoverable scope or a named list, not both",
 			)
 		}
 		return nil
 	}
 
 	if len(f.ScopeIDs) == 0 {
-		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every active scope")
+		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every recoverable scope")
 	}
 
 	return nil
@@ -251,6 +253,10 @@ type RefinalizeResult struct {
 	// current truth. Resolution re-activates each generation on resolving
 	// from the preserved facts.
 	GenerationsRetired int
+
+	// Skipped reports the scopes the refinalize considered but did not
+	// re-enqueue, by reason, so a partial rebuild is visible to the operator.
+	Skipped SkippedScopes
 }
 
 // CollectorGenerationReplayFilter constrains collector generation commit
