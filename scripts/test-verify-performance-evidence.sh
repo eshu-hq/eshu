@@ -479,4 +479,11 @@ expect_fail "${last_line_repo}"
 # 500-line cap.
 "${repo_root}/scripts/test-verify-performance-evidence-merge-base.sh"
 
+# Regression (eshu-hq/eshu#7134): an explicit base SHA that is absent from a
+# shallow PR-merge checkout (main moved before the job started) must resolve
+# to HEAD^1 on a pull_request event, be fetched otherwise, and fail with an
+# actionable message when unfetchable -- never die with `bad object`. Split
+# into its own file to keep this one under the repo's 500-line cap.
+"${repo_root}/scripts/test-verify-performance-evidence-missing-base.sh"
+
 printf 'verify-performance-evidence tests passed\n'
