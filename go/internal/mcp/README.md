@@ -286,7 +286,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:207`):
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
 | `list_documentation_findings` | GET | `/api/v0/documentation/findings` with scope, repo, target, and service filters |
-| `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters |
+| `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters; reads the active generation unless `generation_id` names another |
 | `list_semantic_documentation_observations` | GET | `/api/v0/semantic/documentation-observations` with scope, source, provider, prompt, freshness, policy, and admission filters |
 | `list_semantic_code_hints` | GET | `/api/v0/semantic/code-hints` with repo, path, entity, provider, prompt, freshness, policy, and corroboration filters |
 | `search_semantic_context` | POST | `/api/v0/search/semantic` with repository id, query, mode, limit, timeout, optional service/workload/environment anchors, and source-kind filters |

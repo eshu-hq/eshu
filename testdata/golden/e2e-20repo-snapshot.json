@@ -6060,6 +6060,7 @@
         "required_response_fields": [
           "count",
           "facts",
+          "generation_binding",
           "limit",
           "missing_evidence",
           "states",
@@ -8324,10 +8325,11 @@
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
-        "description": "Documentation source facts; confirms the documentation read surface is queryable.",
+        "description": "Documentation source facts; confirms the documentation read surface is queryable and labels the active-generation binding.",
         "required_response_fields": [
           "facts",
-          "count"
+          "count",
+          "generation_binding"
         ],
         "results_field": "facts",
         "minimum_results": 12
