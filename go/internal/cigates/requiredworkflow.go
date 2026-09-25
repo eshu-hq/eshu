@@ -112,6 +112,9 @@ func validateBlockingWorkflowSources(
 			))
 			continue
 		}
+		if mergeGroupErr := validateBlockingWorkflowMergeGroup(check, gate.CI.Workflow, raw); mergeGroupErr != nil {
+			errs = append(errs, mergeGroupErr)
+		}
 		name := strings.TrimSpace(identity.Name)
 		if name == "" || !slicesContain(sources, name) {
 			errs = append(errs, fmt.Errorf(

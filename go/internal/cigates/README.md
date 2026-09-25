@@ -39,7 +39,12 @@ The top-level `required_status_checks` manifest mirrors the contexts expected in
 the effective `main` ruleset. Exactly one entry sets
 `aggregates_blocking_gates: true` and names its trusted `source_workflow`.
 Matrix jobs declare their concrete API-visible check names in `ci.check_names`;
-the aggregate never relies on a prefix match.
+the aggregate never relies on a prefix match. `main` merges through a merge
+queue, so validation also requires every blocking gate's workflow to declare a
+`merge_group` trigger. Without one, a queue entry that selects the gate waits
+out its timeout on a check that never appears. The rule follows from the
+`blocking` flag rather than an exception list: a workflow that must not run on
+the queue has to stop being blocking.
 
 ## Selector semantics
 

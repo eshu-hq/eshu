@@ -20,6 +20,10 @@ name: Read API Latency Gate
 # gate must be green on a tree that contains it before this row is required.
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [ main ]
   pull_request:
@@ -68,7 +72,7 @@ on:
     # docs/internal/evidence/6797-read-api-work-metric-shim.md.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

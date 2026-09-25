@@ -46,6 +46,10 @@ name: Security Scan
 # GHCR.
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   pull_request:
   push:
     branches:
@@ -76,7 +80,7 @@ on:
 # triggering run's head_sha gives each shipped digest its own group; PRs and
 # branch/tag pushes fall back to github.ref.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -101,8 +105,13 @@ jobs:
         with:
           fetch-depth: 2
 
+      # merge_group: skip the diff and let every selected job run, as
+      # test.yml's changes job does (#5814). Downstream `if:`s already run
+      # unconditionally on any non-pull_request event, and required-gates.yml
+      # decides which of those results a queue entry needs.
       - name: Filter changed paths
         id: filter
+        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           # Without this line the whole filter below is decorative. dorny

@@ -7,14 +7,16 @@ check_ci_gate_workflow_shapes() {
 	local mirrored_scripts mirrored_count mirrored_script
 
 	# dorny/paths-filter needs pull-request read permission, matrix context is
-	# invalid at jobs.<job_id>.if, and main pushes retain the all-gates backstop.
+	# invalid at jobs.<job_id>.if, and main pushes and merge-queue entries both
+	# retain the all-gates backstop (required-gates.yml selects a queue entry's
+	# gates from its own diff, so every gate it can select must have run).
 	[[ -f "${static_contract_workflow}" ]] || fail "missing ${static_contract_workflow}"
 	require "paths-filter PR permission" "pull-requests: read" "${static_contract_workflow}"
 	if rg --quiet '^    if:.*matrix\.' "${static_contract_workflow}"; then
 		fail "static-contract-gates.yml must not use matrix context in jobs.<job_id>.if"
 	fi
-	require "main-push all-gates selector" \
-		'[[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]' \
+	require "main-push and merge-group all-gates selector" \
+		'[[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "merge_group" || "${selected}" == "true" ]]' \
 		"${static_contract_workflow}"
 	require "selected gate matrix" \
 		"fromJSON(needs.changes.outputs.matrix)" \

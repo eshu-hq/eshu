@@ -254,6 +254,13 @@ type workflowRunConclusion struct {
 // in-flight leaves the gate pending, which publishes nothing at all. None of
 // the three can turn a skipped gate green.
 func workflowRunConclusions(ctx context.Context, runner ghRunner, repo, headSHA string) (runConclusions, error) {
+	return workflowRunConclusionsForEvent(ctx, runner, repo, headSHA, eventPullRequest)
+}
+
+// workflowRunConclusionsForEvent is workflowRunConclusions for the runs of one
+// triggering event. A merge-group aggregate must read merge_group runs: a
+// cancelled pull_request run on the same SHA says nothing about the merge.
+func workflowRunConclusionsForEvent(ctx context.Context, runner ghRunner, repo, headSHA, event string) (runConclusions, error) {
 	endpoint := "repos/" + repo + "/actions/runs?per_page=100&head_sha=" + url.QueryEscape(headSHA)
 	output, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
 	if err != nil {
@@ -268,7 +275,7 @@ func workflowRunConclusions(ctx context.Context, runner ghRunner, repo, headSHA 
 	conclusions := make(runConclusions)
 	for _, page := range pages {
 		for _, run := range page.WorkflowRuns {
-			if run.Event != "pull_request" {
+			if run.Event != event {
 				continue
 			}
 			// Newest-first, so the first run seen for a name wins; a later

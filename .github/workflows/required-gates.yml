@@ -47,7 +47,11 @@ permissions:
 
 jobs:
   aggregate:
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' }}
+    # pull_request aggregates a PR head; merge_group aggregates a merge-queue
+    # entry's commit (workflow_run.head_sha is the gh-readonly-queue commit).
+    # Both publish required-gates-complete on that exact SHA, which is what
+    # the ruleset's required status and the merge queue both read.
+    if: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'merge_group') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -81,8 +85,12 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      # A merge group has no pull request of its own (it may carry several),
+      # so identity resolution is pull_request-only; the await step below
+      # diffs a merge group against the default branch instead.
       - name: Resolve pull request identity
         id: pr
+        if: ${{ github.event.workflow_run.event == 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -115,6 +123,8 @@ jobs:
           GOCACHE: ${{ runner.temp }}/go-build-required-gates
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          BASE_REF: ${{ github.event.repository.default_branch }}
         working-directory: go
         run: |
           # BUILD FIRST, then execute. `go run` does NOT propagate the compiled
@@ -127,12 +137,21 @@ jobs:
           # everything `error` -- reintroducing the #6075 bug under a
           # different status.
           go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates
+          # A merge-queue entry is aggregated by its commit: changed paths from
+          # a three-dot compare against the default branch, check rows from
+          # the commit's merge_group runs. A pull request keeps the PR-head
+          # path (pull-files list + `gh pr checks` + head re-verification).
+          if [[ "${RUN_EVENT}" == "merge_group" ]]; then
+            target=(--event merge_group --base-ref "${BASE_REF}")
+          else
+            target=(--event pull_request --pr "${PR_NUMBER}")
+          fi
           set +e
           "${RUNNER_TEMP}/ci-gates-bin" await \
             --registry ../specs/ci-gates.v1.yaml \
             --repo-root .. \
             --repo "${GITHUB_REPOSITORY}" \
-            --pr "${PR_NUMBER}" \
+            "${target[@]}" \
             --head-sha "${HEAD_SHA}" \
             --poll-interval 30s \
             --timeout 55m

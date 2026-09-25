@@ -7,6 +7,10 @@ name: Golden Corpus Gate
 # changes that can silently break end-to-end behaviour.
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [ main ]
   pull_request:
@@ -186,7 +190,7 @@ on:
       - '.github/workflows/golden-corpus-gate.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least privilege: the gate only checks out and reads the repo.

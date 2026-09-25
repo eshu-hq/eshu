@@ -17,8 +17,20 @@ require_workflow_pattern() {
 }
 
 require_workflow_pattern \
-	"IMAGE_PLATFORMS: \${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}" \
-	'docker publish workflow must limit pull_request image builds to linux/amd64'
+	"IMAGE_PLATFORMS: \${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}" \
+	'docker publish workflow must limit pull_request and merge_group image builds to linux/amd64'
+
+# A merge-queue entry is a pre-merge build like a pull request: it must never
+# push, sign, attest, or publish. Every publication guard therefore excludes
+# both events; a guard that names only pull_request would publish the image
+# and chart from a gh-readonly-queue/* commit that may never reach main.
+require_workflow_pattern \
+	"push: \${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}" \
+	'docker publish build step must not push from pull_request or merge_group'
+if rg -n -- "github.event_name != 'pull_request'\s*(\}\})?\s*$" "$workflow" >&2; then
+	printf '%s\n' 'docker publish workflow has a publication guard that does not exclude merge_group (lines above)' >&2
+	exit 1
+fi
 
 require_workflow_pattern \
 	'platforms: ${{ env.IMAGE_PLATFORMS }}' \

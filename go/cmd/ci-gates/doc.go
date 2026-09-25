@@ -8,7 +8,7 @@
 //
 //	ci-gates select   — print or explain which gates match the changed paths
 //	ci-gates run      — execute the selected gates and report PASS/FAIL/SKIP
-//	ci-gates await    — wait for exact blocking checks on an exact PR head
+//	ci-gates await    — wait for exact blocking checks on a PR head or merge-queue commit
 //	ci-gates contexts — print the required-status context manifest
 //	ci-gates audit-scripts — inventory tracked shell scripts and reference evidence
 //	ci-gates validate — verify that every registry entry's script and workflow exist
@@ -42,7 +42,10 @@
 // it publishes `error`. A gate GitHub skipped for its own reasons is NOT in
 // that set and still publishes `failure`; separating the two is the one thing
 // await needs the `actions: read` scope for, and a failed lookup keeps the
-// skip a failure. Contexts exposes the repository-owned required-status manifest,
+// skip a failure. With --event merge_group, Await instead aggregates a
+// merge-queue commit: changed paths from a three-dot compare against
+// --base-ref, and check rows from that commit's merge_group runs only.
+// Contexts exposes the repository-owned required-status manifest,
 // including pinned GitHub App integration IDs for live ruleset verification.
 //
 // # select

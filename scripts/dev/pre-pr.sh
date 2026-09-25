@@ -368,11 +368,12 @@ if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-pr: failures above — fix before pushing (CI runs the same gates).\033[0m\n'
 else
 	# No per-SHA push stamp is written any more (removed: a rebase or amend
-	# always invalidated it, and GitHub's main ruleset does not require
-	# up-to-date branches, so the rebase-and-rerun loop it forced was
-	# self-imposed). scripts/dev/pre-push.sh is the fast local floor every push
-	# now runs instead; CI's required-gates-complete aggregate stays the
-	# blocking authority for everything this local run cannot reach.
+	# always invalidated it, and the rebase-and-rerun loop it forced was
+	# self-imposed). main merges through a merge queue that tests each exact
+	# merge commit (merge_group), so branches need not be up to date either.
+	# scripts/dev/pre-push.sh is the fast local floor every push now runs
+	# instead; CI's required-gates-complete aggregate stays the blocking
+	# authority for everything this local run cannot reach.
 	printf '\n\033[32mpre-pr: all local gates passed'
 	[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
 	[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"
