@@ -19,7 +19,7 @@ init. Importing this package for its side effect adds the scanner builder for
 
 ## Tests
 
-- `bind_test.go` verifies `runtime.LookupBuilder(aws.ServiceVPC)`
+- `register_test.go` verifies `runtime.LookupBuilder(aws.ServiceVPC)`
   returns a non-nil builder after the package is imported.
 
 ## Related docs

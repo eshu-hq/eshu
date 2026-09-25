@@ -28,7 +28,7 @@
   default would silently change live deployments. `-config` is required in
   fixture mode and rejected in claimed-live and record modes.
 - Keep `buildClaimedService` untouched by record mode. `buildRecordSource`
-  must stay the same `awsruntime.ClaimedSource` literal with `Limiter`,
+  must stay the same `runtime.ClaimedSource` literal with `Limiter`,
   `Checkpoints`, `ScanStatus` and the factory's `Checkpoints` nil;
   `TestRecordSourceIsClaimedLiveWiringMinusStores` pins that.
 - Record mode always pseudonymizes (`RequirePseudonymization`), reads

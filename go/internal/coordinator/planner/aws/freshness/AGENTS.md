@@ -44,9 +44,9 @@ retries, and telemetry changes belong in the parent
 (`service_aws_freshness.go`).
 
 Adding a new AWS service kind: register it under
-`internal/collector/awscloud/service/<service>/runtimebind` and in the
-`awsruntime/bindings` aggregator. Nothing here needs to change —
-`normalizeList` asks `awsruntime.SupportsServiceKind`.
+`internal/collector/cloud/aws/service/<service>/bind` and in the
+`runtime/bindings` aggregator. Nothing here needs to change —
+`normalizeList` asks `runtime.SupportsServiceKind`.
 
 ## Failure modes
 

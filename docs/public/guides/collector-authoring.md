@@ -148,12 +148,12 @@ Every relationship a scanner emits must carry a `target_type` that names a
 resource family Eshu can resolve, or the edge dangles and never joins its
 target node. The dominant historical scanner defect was an empty `target_type`,
 a `target_type` that is not a real resource family, or an ARN-keyed target keyed
-by a bare name. The `internal/collector/awscloud/internal/relguard` test-support
+by a bare name. The `internal/collector/cloud/aws/internal/relguard` test-support
 package mechanizes the contract so it is no longer a per-PR review burden:
 
 - A repo-level static guard (`TestLiveScannerTreeHasNoGraphJoinDefects`) AST-walks
   the scanner tree and fails when any statically resolvable `target_type` literal
-  is empty or is neither a declared `awscloud.ResourceType*` constant value nor a
+  is empty or is neither a declared `aws.ResourceType*` constant value nor a
   documented `relguard.KnownTargetTypeAllowlist` entry.
 - A runtime helper, `relguard.AssertObservations(t, observations...)`, that a
   scanner test calls to enforce the same contract on the data-dependent

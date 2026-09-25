@@ -18,7 +18,7 @@ var ErrStaleFence = errors.New("ci/cd run watermark stale fence")
 // Key identifies one polled GitHub Actions target: the ingestion scope and
 // repository the ghactionsruntime source fetches a bounded run window for.
 // One Key maps to exactly one watermark row; there is no sub-resource
-// dimension the way awscloud/checkpoint.Key has ResourceParent, because a
+// dimension the way cloud/aws/checkpoint.Key has ResourceParent, because a
 // GitHub Actions target has exactly one runs listing to track.
 type Key struct {
 	ScopeID    string

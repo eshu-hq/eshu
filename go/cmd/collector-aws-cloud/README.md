@@ -28,7 +28,7 @@ eshu-collector-aws-cloud -mode fixture \
   the shared ingestion store, credential-free.
 - **`record`** is the one-shot credentialed fixture run (#6965 Phase 3): it
   walks every configured `(account_id, region, service_kind)` tuple through
-  the production credential and scanner path (`awsruntime.RecordSource` over
+  the production credential and scanner path (`runtime.RecordSource` over
   the same `ClaimedSource` wiring as claimed-live, minus the Postgres-backed
   limiter, pagination checkpoints and scan status), pseudonymizes every
   identifier, and writes a canonical cassette to `-cassette-file`. No

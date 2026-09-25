@@ -4,7 +4,7 @@
 
 1. `README.md` - package purpose and invariants.
 2. `register.go` - the `runtime.Register` call.
-3. `bind_test.go` - the registration-resolves proof.
+3. `register_test.go` - the registration-resolves proof.
 4. `../README.md` - Amplify scanner contract.
 5. `../../../runtime/README.md` - registry and runtime surface.
 6. `docs/public/guides/collector-authoring.md` - AWS scanner registration

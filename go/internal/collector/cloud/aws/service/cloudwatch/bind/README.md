@@ -11,7 +11,7 @@ without it.
 
 ## Tests
 
-- `bind_test.go` asserts `runtime.LookupBuilder(aws.ServiceCloudWatch)`
+- `register_test.go` asserts `runtime.LookupBuilder(aws.ServiceCloudWatch)`
   returns a non-nil builder after the package is imported.
 - It also asserts the builder returns a typed error when `RedactionKey` is
   zero.

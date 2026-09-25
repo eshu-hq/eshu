@@ -19,8 +19,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -115,14 +115,14 @@ func TestRecordSourceIsClaimedLiveWiringMinusStores(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildClaimedService: %v", err)
 	}
-	liveSource, ok := live.Source.(awsruntime.ClaimedSource)
+	liveSource, ok := live.Source.(runtime.ClaimedSource)
 	if !ok {
 		t.Fatalf("live source is %T", live.Source)
 	}
 	liveSource.Limiter = nil
 	liveSource.Checkpoints = nil
 	liveSource.ScanStatus = nil
-	factory, ok := liveSource.Scanners.(awsruntime.DefaultScannerFactory)
+	factory, ok := liveSource.Scanners.(runtime.DefaultScannerFactory)
 	if !ok {
 		t.Fatalf("live scanner factory is %T", liveSource.Scanners)
 	}
@@ -141,7 +141,7 @@ func (fakeLease) Release() error { return nil }
 
 type fakeCredentials struct{}
 
-func (fakeCredentials) Acquire(context.Context, awsruntime.Target, time.Time) (awsruntime.CredentialLease, error) {
+func (fakeCredentials) Acquire(context.Context, runtime.Target, time.Time) (runtime.CredentialLease, error) {
 	return fakeLease{}, nil
 }
 
@@ -149,20 +149,20 @@ func (fakeCredentials) Acquire(context.Context, awsruntime.Target, time.Time) (a
 // builders for whichever service is claimed, with raw synthetic identifiers.
 type fakeScanners struct{}
 
-func (fakeScanners) Scanner(_ context.Context, target awsruntime.Target, boundary awscloud.Boundary, _ awsruntime.CredentialLease) (awsruntime.ServiceScanner, error) {
+func (fakeScanners) Scanner(_ context.Context, target runtime.Target, boundary aws.Boundary, _ runtime.CredentialLease) (runtime.ServiceScanner, error) {
 	return fakeScanner{target: target, boundary: boundary}, nil
 }
 
 type fakeScanner struct {
-	target   awsruntime.Target
-	boundary awscloud.Boundary
+	target   runtime.Target
+	boundary aws.Boundary
 }
 
-func (s fakeScanner) Scan(_ context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s fakeScanner) Scan(_ context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	switch s.target.ServiceKind {
-	case awscloud.ServiceECR:
+	case aws.ServiceECR:
 		repoARN := "arn:aws:ecr:us-east-1:" + recordAccount + ":repository/" + recordRepo
-		resource, err := awscloud.NewResourceEnvelope(awscloud.ResourceObservation{
+		resource, err := aws.NewResourceEnvelope(aws.ResourceObservation{
 			Boundary: boundary, ARN: repoARN, ResourceID: repoARN, ResourceType: "ecr.repository", Name: recordRepo,
 			Attributes: map[string]any{
 				"uri":                  recordAccount + ".dkr.ecr.us-east-1.amazonaws.com/" + recordRepo,
@@ -177,7 +177,7 @@ func (s fakeScanner) Scan(_ context.Context, boundary awscloud.Boundary) ([]fact
 		return []facts.Envelope{resource}, nil
 	default:
 		roleARN := "arn:aws:iam::" + recordAccount + ":role/orders-deployer"
-		resource, err := awscloud.NewResourceEnvelope(awscloud.ResourceObservation{
+		resource, err := aws.NewResourceEnvelope(aws.ResourceObservation{
 			Boundary: boundary, ARN: roleARN, ResourceID: roleARN, ResourceType: "aws_iam_role", Name: "orders-deployer",
 			Attributes: map[string]any{"path": "/service-role/"},
 			SourceURI:  "aws://iam/" + recordAccount + "/role/orders-deployer",
@@ -186,7 +186,7 @@ func (s fakeScanner) Scan(_ context.Context, boundary awscloud.Boundary) ([]fact
 			return nil, err
 		}
 		policyARN := "arn:aws:iam::" + recordAccount + ":policy/orders-deploy-policy"
-		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
+		relationship, err := aws.NewRelationshipEnvelope(aws.RelationshipObservation{
 			Boundary: boundary, RelationshipType: "iam_role_attaches_policy", SourceResourceID: roleARN, SourceARN: roleARN,
 			TargetResourceID: policyARN, TargetARN: policyARN, TargetType: "aws_iam_policy",
 			SourceURI: "aws://iam/" + recordAccount + "/role/orders-deployer/policies",

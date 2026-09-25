@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/recordpolicy"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -50,7 +50,7 @@ func runRecord(
 
 // buildRecordSource is the claimed-live source wiring without its three
 // Postgres-backed collaborators (limiter, pagination checkpoints, scan
-// status), all of which awsruntime.ClaimedSource tolerates as nil. It shares
+// status), all of which runtime.ClaimedSource tolerates as nil. It shares
 // buildClaimedService's credential provider and scanner factory so a
 // recording exercises the production scan path; the test
 // TestRecordSourceIsClaimedLiveWiringMinusStores pins the two together.
@@ -58,11 +58,11 @@ func buildRecordSource(
 	config runtimeConfig,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-) *awsruntime.RecordSource {
-	return &awsruntime.RecordSource{Claimed: awsruntime.ClaimedSource{
+) *runtime.RecordSource {
+	return &runtime.RecordSource{Claimed: runtime.ClaimedSource{
 		Config:      config.AWS,
-		Credentials: awsruntime.SDKCredentialProvider{},
-		Scanners: awsruntime.DefaultScannerFactory{
+		Credentials: runtime.SDKCredentialProvider{},
+		Scanners: runtime.DefaultScannerFactory{
 			Tracer:       tracer,
 			Instruments:  instruments,
 			RedactionKey: config.AWSRedactionKey,

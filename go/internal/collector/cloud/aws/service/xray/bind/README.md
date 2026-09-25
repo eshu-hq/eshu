@@ -10,6 +10,6 @@ emits no secret-shaped fields, so it builds without an `ESHU_AWS_REDACTION_KEY`.
 
 ## Tests
 
-- `bind_test.go` asserts `runtime.LookupBuilder(aws.ServiceXRay)`
+- `register_test.go` asserts `runtime.LookupBuilder(aws.ServiceXRay)`
   returns a non-nil builder after the package is imported, and that the builder
   succeeds without a redaction key.

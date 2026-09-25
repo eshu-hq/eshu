@@ -238,7 +238,7 @@ queue gate, graph schema, or row shape. `go test ./internal/reducer/iamcan -run
 -count=1` covers boundary allow, missing allow, explicit Deny, missing document,
 conditioned allow, NotResource, duplicate evidence, boundary statement without
 attachment, no-boundary identity scope, and fact-kind loading. `go test
-./internal/collector/awscloud/service/iam/awssdk -run
+./internal/collector/cloud/aws/service/iam/sdk -run
 'PermissionBoundary|BoundedManagedPolicyStatements' -count=1` covers one-document
 boundary fetch plus the existing attached-policy cap. The after measurement is
 focused reducer/collector proof because the change is in-memory extraction and
