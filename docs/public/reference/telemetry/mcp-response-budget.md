@@ -8,7 +8,7 @@ visible before a caller hits it.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `eshu_dp_mcp_response_bytes` | histogram (`By`) | `tool` | Serialized response size the guard measured, recorded for every budgeted response. Buckets run from 1 KiB to 1 MiB, with resolution around the 256 KiB budget. |
+| `eshu_dp_mcp_response_bytes` | histogram (`By`) | `tool` | Serialized response size the guard measured, recorded for every budgeted response; 0 when the response cannot be marshalled. Buckets run from 1 KiB to 1 MiB, with resolution around the 256 KiB budget. |
 | `eshu_dp_mcp_response_over_budget_total` | counter | `tool` | Responses replaced by the `mcp_response_over_budget` envelope. |
 
 `tool` is a registered MCP tool name, resolved before the guard runs, so its
