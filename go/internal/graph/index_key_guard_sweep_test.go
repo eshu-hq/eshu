@@ -18,29 +18,28 @@ import (
 )
 
 // sweepDirs are the production trees, relative to the go/ module root, whose
-// non-test Go string literals can carry graph write Cypher.
+// non-test Go string literals can carry graph write Cypher. The sweep covers
+// deployed write paths only; sweepSkipsDir removes the cmd tools that are not
+// deployed.
 var sweepDirs = []string{"internal/storage", "internal/reducer", "internal/projector", "internal/collector", "cmd"}
 
-// sweepAllow lists literals the sweep does not require the guard to read. An
-// entry matches by file suffix and a substring of the normalized literal, so a
-// moved line does not break it, and it must still match something: a stale
-// entry fails the test. Relationship-only writes and label templates need no
-// entry; the sweep classifies them (see sweepWritesIndexedLabel).
 // sweepMinCandidates is the floor on indexed-write literals the sweep must
 // examine; the tree held 94 when it was written.
 const sweepMinCandidates = 60
 
-var sweepAllow = []struct{ file, contains, reason string }{
-	{
-		file:     "cmd/read-api-latency-gate/seed_graph.go",
-		contains: "UNWIND $rows AS row CREATE (n:%s { %s })",
-		reason:   "the read-API latency gate seeds a throwaway perf graph with generated short synthetic values; it is not a collector write path",
-	},
-	{
-		file:     "internal/storage/cypher/tfstate_canonical_writer_retract.go",
-		contains: "SET r:TerraformStateResource REMOVE r:TerraformResource",
-		reason:   "a label migration: it moves an existing node between labels and writes no property value, so there is no new indexed value to measure",
-	},
+// sweepSkipsDir reports whether rel, a directory relative to the go/ module
+// root, is a cmd gate tool: a command named *-gate or *-gates is a test or
+// benchmark harness that seeds a throwaway store to verify the platform (the
+// read-API latency gate, the golden corpus gate). It is not a deployed write
+// path, so the sweep does not read its literals. The rule is the repository's
+// gate naming convention, not a list of files, so a new gate needs no entry and
+// a service that is not named as a gate is always scanned.
+func sweepSkipsDir(rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	if len(parts) < 2 || parts[0] != "cmd" {
+		return false
+	}
+	return strings.HasSuffix(parts[1], "-gate") || strings.HasSuffix(parts[1], "-gates")
 }
 
 var (
@@ -52,7 +51,7 @@ var (
 	sweepLabelToken   = regexp.MustCompile("[^:]:\\s*`?(\\w+)`?")
 	sweepNested       = regexp.MustCompile(`\{[^{}]*\}|\[[^\[\]]*\]`)
 	sweepRelVar       = regexp.MustCompile(`\[\s*([^\s:\]{]+)\s*[:\]{]`)
-	sweepSetTarget    = regexp.MustCompile(`(?:^|,)\s*([^\s.,=+:]+)\s*(?:\.\w+\s*\+?=|\+?=|:)`)
+	sweepSetTarget    = regexp.MustCompile(`(?:^|,)\s*([^\s.,=+:]+)\s*(?:\.\w+\s*\+?=|\+?=)`)
 )
 
 // sweepWritesIndexedLabel reports whether the literal writes a node of a
@@ -60,7 +59,10 @@ var (
 // a variable MATCHed as one. It reads the text with its own regexes rather
 // than the analyzer's, so a shape the analyzer misses still counts. A
 // relationship-only MERGE over MATCHed endpoints names no schema label in a
-// write clause and SETs only relationship variables, so it does not count.
+// write clause and SETs only relationship variables, so it does not count. A
+// SET that only adds a label, or a REMOVE, assigns no property value: there is
+// no new indexed value to measure, so a label-only migration does not count
+// either. Only SET var.prop = value, SET var = map, and SET var += map count.
 // Format verbs are filled with a schema label, the shape every %s label
 // template takes.
 func sweepWritesIndexedLabel(text string) bool {
@@ -121,10 +123,10 @@ func (f sweepFinding) String() string { return fmt.Sprintf("%s: %s: %q", f.file,
 
 // sweepIndexedWrites parses every non-test Go file under root/dirs and returns
 // the string literals that write a schema-indexed label but are not fully
-// read by the guard, plus the allowlist entries that matched nothing. A
+// read by the guard, and the number of indexed-write literals it examined. A
 // literal built from package-level string constants (Base + "\nMERGE ...") is
 // folded first, so the sweep reads the whole statement the executor sees.
-func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sweepFinding, stale []string, candidates int) {
+func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sweepFinding, candidates int) {
 	t.Helper()
 	type parsedFile struct {
 		rel  string
@@ -135,10 +137,13 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 	var files []parsedFile
 	for _, dir := range dirs {
 		err := filepath.Walk(filepath.Join(root, dir), func(path string, info os.FileInfo, err error) error {
+			rel, _ := filepath.Rel(root, path)
+			if err == nil && info.IsDir() && sweepSkipsDir(rel) {
+				return filepath.SkipDir
+			}
 			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return err
 			}
-			rel, _ := filepath.Rel(root, path)
 			fset := token.NewFileSet()
 			file, perr := parser.ParseFile(fset, path, nil, 0)
 			if perr != nil {
@@ -179,7 +184,6 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 		}
 	}
 
-	used := make([]bool, len(sweepAllow))
 	for _, pf := range files {
 		ast.Inspect(pf.file, func(n ast.Node) bool {
 			if _, isIdent := n.(*ast.Ident); isIdent {
@@ -204,30 +208,16 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 			if problem == "" {
 				return false
 			}
-			normalized := strings.Join(strings.Fields(text), " ")
-			allowed := false
-			for i, a := range sweepAllow {
-				if strings.HasSuffix(pf.rel, a.file) && strings.Contains(normalized, a.contains) {
-					used[i], allowed = true, true
-				}
+			head := strings.Join(strings.Fields(text), " ")
+			if len(head) > 160 {
+				head = head[:160]
 			}
-			if !allowed {
-				head := normalized
-				if len(head) > 160 {
-					head = head[:160]
-				}
-				findings = append(findings, sweepFinding{file: fmt.Sprintf("%s:%d", pf.rel, pf.fset.Position(n.Pos()).Line), head: head, problem: problem})
-			}
+			findings = append(findings, sweepFinding{file: fmt.Sprintf("%s:%d", pf.rel, pf.fset.Position(n.Pos()).Line), head: head, problem: problem})
 			return false
 		})
 	}
-	for i, a := range sweepAllow {
-		if !used[i] {
-			stale = append(stale, a.file+" "+a.contains)
-		}
-	}
 	sort.Slice(findings, func(i, j int) bool { return findings[i].file < findings[j].file })
-	return findings, stale, candidates
+	return findings, candidates
 }
 
 // foldStringLiteral returns the value of a string literal, a package-level
@@ -279,7 +269,7 @@ func foldStringLiteral(n ast.Node, resolve func(string) (string, bool)) (string,
 // so a new writer shape the analyzer cannot read fails here instead of
 // reviving the oversized-key failure on Neo4j with no signal.
 func TestProductionCypherLiteralsAreGuarded(t *testing.T) {
-	findings, stale, candidates := sweepIndexedWrites(t, filepath.Join("..", ".."), sweepDirs)
+	findings, candidates := sweepIndexedWrites(t, filepath.Join("..", ".."), sweepDirs)
 	// The reviewed tree has well over sweepMinCandidates indexed writers; a
 	// far smaller count means the sweep stopped reading them (wrong root,
 	// changed layout), which would make a clean result vacuous.
@@ -289,9 +279,6 @@ func TestProductionCypherLiteralsAreGuarded(t *testing.T) {
 	t.Logf("sweep examined %d indexed-write literals", candidates)
 	for _, f := range findings {
 		t.Errorf("unguarded indexed write: %s", f)
-	}
-	for _, s := range stale {
-		t.Errorf("stale sweepAllow entry matches no literal: %s", s)
 	}
 }
 
@@ -317,7 +304,7 @@ func TestSweepFlagsSeededViolations(t *testing.T) {
 	write("relationship.go", "UNWIND $rows AS row\nMATCH (p:Directory {path: row.parent})\nMATCH (d:Directory {path: row.path})\nMERGE (p)-[rel:CONTAINS]->(d)\nSET rel.generation_id = row.generation_id")
 	write("ddl.go", "CREATE CONSTRAINT module_name IF NOT EXISTS FOR (m:Module) REQUIRE m.name IS UNIQUE")
 
-	findings, _, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
+	findings, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
 	got := map[string]bool{}
 	for _, f := range findings {
 		got[filepath.Base(strings.SplitN(f.file, ":", 2)[0])] = true
@@ -358,7 +345,7 @@ func TestSweepReadsJoinedLabelTemplateWhole(t *testing.T) {
 
 	write("joined_literals_bad.go", "var q = strings.Join([]string{\"UNWIND $rows AS row\", \"UNWIND row.params AS p\", \"MERGE (x:Parameter {name: p.name, path: row.file_path, function_line_number: 1})\"}, \"\\n\")")
 
-	findings, _, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
+	findings, _ := sweepIndexedWrites(t, root, []string{"internal/storage"})
 	got := map[string]bool{}
 	for _, f := range findings {
 		got[filepath.Base(strings.SplitN(f.file, ":", 2)[0])] = true
