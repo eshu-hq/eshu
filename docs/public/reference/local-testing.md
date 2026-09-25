@@ -242,7 +242,7 @@ gates its changed paths select:
   sharded `go-race` lanes (`test.yml`), the two-OS binary build (`build.yml`),
   the Go-source security scanners (`govulncheck`/`gosec`/`nancy` in
   `security-scan.yml`), the Go MCP drift jobs (`mcp-tool-count`/`mcp-test-suite`),
-  end-to-end tests, and macOS CI all **skip a docs-only PR** — one whose every
+  and end-to-end tests all **skip a docs-only PR** — one whose every
   changed file is under `docs/**`, a root-level `*.md`, `mkdocs.yml`, or
   `.agents/**`. `build.yml` skips via a `pull_request` `paths-ignore`; the mixed
   workflows (`test.yml`, `security-scan.yml`, `mcp-schema-drift.yml`) skip
@@ -250,9 +250,9 @@ gates its changed paths select:
   bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown),
   so `go/**/*.md` still counts as code; `.agents/**` is negated explicitly
   (#5818). Any PR mixing docs with code runs the full set. `main`, the nightly
-  schedule, and tag pushes run everything unconditionally. The repository's
-  required-status manifest keeps the two existing umbrellas:
-  `go-core-complete` (**compilation gate** — whole-module
+  schedule, and tag pushes run everything unconditionally. macOS CI is
+  nightly/dispatch-only, non-blocking (`macos-build`). The manifest keeps two
+  umbrellas: `go-core-complete` (**compilation gate** — whole-module
   `cd go && go build ./...` plus lint/fmt, catching a merge result that does not
   compile though every PR was green, #5814) and `go-race-complete` (**race gate**
   over the sharded `go test -race` matrix). Each stays green when its own lane
