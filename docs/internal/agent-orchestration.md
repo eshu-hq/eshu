@@ -205,6 +205,13 @@ load the skill explicitly. Check `/tasks` for the running role and model when
 the chosen model matters. A resumed teammate may also lose a project role's
 definition until the agent file's folder is trusted.
 
+For an active Claude `/goal`, the `Agent` PreToolUse hook removes an unrequested
+model override from a named Eshu role call. The role's frontmatter then selects
+the manifest model. If the owner's goal names a Claude model, the hook leaves
+model selection to the coordinator; unknown or unnamed agent types are also
+untouched. The goal hook still provides phase hints, so the coordinator must
+select the named role for this guard to apply.
+
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |

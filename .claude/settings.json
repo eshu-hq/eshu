@@ -2,6 +2,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}; [ -f \"$r/scripts/goal-role-router.py\" ] || exit 0; command -v python3 >/dev/null 2>&1 || exit 0; python3 \"$r/scripts/goal-role-router.py\" claude-dispatch",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Edit|MultiEdit|Write",
         "hooks": [
           {
