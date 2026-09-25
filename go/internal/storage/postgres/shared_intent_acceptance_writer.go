@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -74,8 +75,8 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for _, repoKey := range sortedUniqueRepoKeys(repoLockKeys) {
-		if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
+	for _, repoKey := range lockstore.SortedUniqueRepoKeys(repoLockKeys) {
+		if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
 			return fmt.Errorf("lock repo-dependency acceptance unit %q: %w", repoKey, err)
 		}
 	}

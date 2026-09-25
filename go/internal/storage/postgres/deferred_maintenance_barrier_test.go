@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -53,10 +54,10 @@ func TestIngestionStoreCommitScopeGenerationTakesSharedMaintenanceBarrier(t *tes
 	if !strings.Contains(first.query, "hashtext") {
 		t.Fatalf("first transaction exec = %q, want repo-partitioned shared barrier", first.query)
 	}
-	if got, want := first.args[0], deferredMaintenanceLockNamespace; got != want {
+	if got, want := first.args[0], lockstore.DeferredMaintenanceLockNamespace; got != want {
 		t.Fatalf("shared barrier namespace = %v, want %v", got, want)
 	}
-	if got, want := first.args[1], deferredMaintenanceRepoLockKey(scopeValue); got != want {
+	if got, want := first.args[1], lockstore.DeferredMaintenanceRepoLockKey(scopeValue); got != want {
 		t.Fatalf("shared barrier repo key = %v, want %v", got, want)
 	}
 }
@@ -108,10 +109,10 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 	if !strings.Contains(first.query, "hashtext") {
 		t.Fatalf("first transaction exec = %q, want repo-partitioned exclusive barrier", first.query)
 	}
-	if got, want := first.args[0], deferredMaintenanceLockNamespace; got != want {
+	if got, want := first.args[0], lockstore.DeferredMaintenanceLockNamespace; got != want {
 		t.Fatalf("exclusive barrier namespace = %v, want %v", got, want)
 	}
-	if got, want := first.args[1], deferredMaintenanceRepoLockKeyFromID("repo-infra"); got != want {
+	if got, want := first.args[1], lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-infra"); got != want {
 		t.Fatalf("exclusive barrier repo key = %v, want %v", got, want)
 	}
 	if !tx.committed {

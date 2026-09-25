@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -139,7 +140,7 @@ func buildBootstrapProjector(
 		IntentWriter:                  reducerQueue,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),
-		PackageRegistryIdentityLocker: postgres.PackageRegistryIdentityLocker{DB: instrumentedDB},
+		PackageRegistryIdentityLocker: lockstore.PackageRegistryIdentityLocker{DB: instrumentedDB},
 		Tracer:                        tracer,
 		Instruments:                   instruments,
 		Logger:                        logger,

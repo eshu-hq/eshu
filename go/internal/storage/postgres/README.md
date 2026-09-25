@@ -271,7 +271,7 @@ spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
   active generations under the lock, writes their evidence and readiness, and
   commits to release the locks before the next batch. Normal source generation
   commits take the matching shared lock for only their own repository partition
-  (see `deferred_maintenance_lock.go`). Every reopen this pass owes —
+  (see `lock/deferred_maintenance.go`). Every reopen this pass owes —
   `deployment_mapping`, `code_import_repo_edge`, and the cross-scope correlation
   domains — runs in ONE transaction of its own
   (`reopenMaintenanceWorkItemsInTransaction`), and the barrier-completion marker

@@ -16,6 +16,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // stubGraphExecutor is a no-op executor for tests that do not exercise graph writes.
@@ -238,8 +239,8 @@ func TestPlatformGraphLockerForReducerUsesTransactionalDB(t *testing.T) {
 	if locker == nil {
 		t.Fatal("platformGraphLockerForReducer() = nil, want locker")
 	}
-	if _, ok := locker.(postgres.PlatformGraphLocker); !ok {
-		t.Fatalf("platformGraphLockerForReducer() type = %T, want postgres.PlatformGraphLocker", locker)
+	if _, ok := locker.(lockstore.PlatformGraphLocker); !ok {
+		t.Fatalf("platformGraphLockerForReducer() type = %T, want lockstore.PlatformGraphLocker", locker)
 	}
 }
 

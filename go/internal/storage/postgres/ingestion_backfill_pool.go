@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -206,13 +207,13 @@ const (
 //     single partition it observed under that batch's lock. No repository
 //     appears in two partitions' lock sets.
 //   - Each fan-in transaction acquires its repositories' advisory locks through
-//     acquireDeferredMaintenanceRepoExclusiveLocks, which sorts the keys, so
+//     lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks, which sorts the keys, so
 //     every caller in the system takes locks in the same global order.
 //   - The fan-in runs only after wg.Wait() in runDeferredBackfillBatches, so it
 //     never overlaps a batch transaction of the same pass.
 //   - Sorted acquisition of a consistent global order cannot deadlock against a
 //     concurrent ingestion commit (which takes the same keys through
-//     deferredMaintenanceRepoLockKey) or against another maintenance pass.
+//     lockstore.DeferredMaintenanceRepoLockKey) or against another maintenance pass.
 //   - Each fan-in transaction holds exactly one pooled connection and never
 //     nests a second acquisition, so a worker count above the pool size
 //     throttles on Begin rather than deadlocking.
@@ -397,9 +398,9 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 
 	lockKeys := make([]string, 0, len(repoIDs))
 	for _, repoID := range repoIDs {
-		lockKeys = append(lockKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
+		lockKeys = append(lockKeys, lockstore.DeferredMaintenanceRepoLockKeyFromID(repoID))
 	}
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
 		return deferredFanInOutcome{}, fmt.Errorf("acquire deferred backfill readiness locks: %w", err)
 	}
 

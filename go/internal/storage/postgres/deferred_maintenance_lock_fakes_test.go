@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // advisoryLockManager simulates Postgres transaction-level advisory lock
@@ -77,11 +78,11 @@ type advisoryLockTx struct {
 
 func (tx *advisoryLockTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch query {
-	case deferredMaintenancePartitionedExclusiveLockSQL:
+	case lockstore.DeferredMaintenancePartitionedExclusiveLockSQL:
 		key := args[1].(string)
 		tx.mgr.acquireExclusive(key)
 		tx.exclusiveHeld = append(tx.exclusiveHeld, key)
-	case deferredMaintenancePartitionedSharedLockSQL:
+	case lockstore.DeferredMaintenancePartitionedSharedLockSQL:
 		key := args[1].(string)
 		tx.mgr.acquireShared(key)
 		tx.sharedHeld = append(tx.sharedHeld, key)
@@ -195,7 +196,7 @@ type lockAwareMaintenanceTx struct {
 }
 
 func (tx *lockAwareMaintenanceTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	if query == deferredMaintenancePartitionedExclusiveLockSQL {
+	if query == lockstore.DeferredMaintenancePartitionedExclusiveLockSQL {
 		key := args[1].(string)
 		tx.database.mgr.acquireExclusive(key)
 		tx.exclusiveHeld = append(tx.exclusiveHeld, key)
@@ -218,7 +219,7 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 	case strings.Contains(query, "fact_kind = 'repository'") && !tx.gensServed:
 		tx.gensServed = true
 		// This per-batch active-generations reload runs AFTER the batch has
-		// acquired all its exclusive locks (acquireDeferredMaintenanceRepoExclusiveLocks
+		// acquired all its exclusive locks (lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks
 		// precedes it in writeDeferredBackfillBatch), so every concurrent batch's
 		// locks are counted into peakHeld before any batch is allowed past the
 		// barrier to commit and release. This forces the deterministic concurrent

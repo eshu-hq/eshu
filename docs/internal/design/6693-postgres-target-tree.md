@@ -300,8 +300,8 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 373 | it only needs its own package and packages below it |
-| external test package (`package x_test`) | 137 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
+| in-package test | 372 | it only needs its own package and packages below it |
+| external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 88 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 40 | it reads private symbols of two or more future packages |
 | stays in root | 75 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
@@ -356,7 +356,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 18. [x] `freshness/aws/` (3 files)
 19. [x] `freshness/gcp/` (3 files)
 20. [x] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
-21. [ ] `lock/` (3 files; after `scope/`)
+21. [x] `lock/` (3 files; after `scope/`)
 22. [ ] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker)
 23. [ ] `crossplane/` (5 files)
 24. [ ] `search/document/` (6 files)

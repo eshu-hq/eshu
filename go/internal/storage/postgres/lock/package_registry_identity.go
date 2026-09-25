@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package lockstore
 
 import (
 	"context"
@@ -62,7 +62,7 @@ func (l PackageRegistryIdentityLocker) WithPackageRegistryIdentityLocks(
 	start := time.Now()
 	sampleKey := int64(0)
 	for index, packageID := range lockIDs {
-		key := packageRegistryIdentityAdvisoryLockKey(packageID)
+		key := PackageRegistryIdentityAdvisoryLockKey(packageID)
 		if index == 0 {
 			sampleKey = key
 		}
@@ -110,7 +110,7 @@ func uniqueSortedPackageRegistryIdentityIDs(packageIDs []string) []string {
 	return result
 }
 
-func packageRegistryIdentityAdvisoryLockKey(packageID string) int64 {
+func PackageRegistryIdentityAdvisoryLockKey(packageID string) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(packageRegistryIdentityAdvisoryLockPrefix))
 	_, _ = h.Write([]byte(strings.TrimSpace(packageID)))

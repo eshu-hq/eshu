@@ -461,7 +461,7 @@ No-Regression Evidence: `go test ./internal/projector -run
 package-registry rows are present and that every Postgres-backed projector
 runtime wires the durable locker.
 
-Observability Evidence: `go/internal/storage/postgres.PackageRegistryIdentityLocker`
+Observability Evidence: `go/internal/storage/postgres/lock.PackageRegistryIdentityLocker`
 logs `package registry identity advisory locks acquired` with
 `package_uid_count`, `lock_key_sample`, and `wait_s` when lock acquisition exceeds
 100ms; existing projector `canonical_write` stage metrics and NornicDB retry

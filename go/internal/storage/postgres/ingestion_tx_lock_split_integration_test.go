@@ -5,13 +5,13 @@ package postgres
 
 // Two-sided proof for issue #4451 (§ T8): CommitScopeGeneration used to hold
 // the per-repo deferred-maintenance shared advisory barrier
-// (acquireDeferredMaintenanceRepoSharedLock, ingestion.go) from before the
+// (lockstore.AcquireDeferredMaintenanceRepoSharedLock, ingestion.go) from before the
 // atomic scope/generation/fact commit through the per-commit new-repository
 // relationship backfill (backfillRelationshipEvidenceForNewRepositories,
 // ingestion_backfill_per_commit.go) — a corpus-anchor read plus in-memory
 // DiscoverEvidence pass — all inside ONE transaction. A concurrent same-repo
 // deferred-maintenance exclusive-lock batch
-// (acquireDeferredMaintenanceRepoExclusiveLocks) had to wait for the whole
+// (lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks) had to wait for the whole
 // backfill, not just the atomic commit, during large batch discovery.
 //
 // The fix moves the backfill into its own short transaction

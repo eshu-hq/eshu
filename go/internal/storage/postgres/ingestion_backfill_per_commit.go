@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -30,7 +31,7 @@ import (
 // so a same-repo deferred-maintenance batch now waits at most for whichever of
 // the two short critical sections (the atomic commit or this backfill) it
 // overlaps, never both combined. Lock ordering is unchanged (same
-// deferredMaintenanceRepoLockKey), so this introduces no new deadlock class:
+// lockstore.DeferredMaintenanceRepoLockKey), so this introduces no new deadlock class:
 // see TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks.
 //
 // Errors are logged, never returned: the generation this call enriches is
@@ -108,7 +109,7 @@ func (s IngestionStore) commitPostCommitRelationshipBackfillTx(
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, lockstore.DeferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package lockstore_test
 
 import (
 	"context"
@@ -9,19 +9,24 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 func TestSharedIntentAcceptanceWriterUpsertIntentsUsesTransactionWhenAvailable(t *testing.T) {
 	t.Parallel()
 
 	database := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -76,7 +81,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsFallsBackWithoutTransactions(t
 	t.Parallel()
 
 	database := &sharedIntentAcceptanceWriterNoTxDB{}
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -110,7 +115,7 @@ func TestSharedIntentAcceptanceWriterRejectsRepoDependencyWithoutTransaction(t *
 	t.Parallel()
 
 	database := &sharedIntentAcceptanceWriterNoTxDB{}
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "intent-repo-dependency",
@@ -142,7 +147,7 @@ func TestSharedIntentAcceptanceWriterLocksDistinctRepoDependenciesInSortedOrder(
 	t.Parallel()
 
 	database := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	rows := []reducer.SharedProjectionIntentRow{
 		sharedIntentAcceptanceWriterRow("intent-b", reducer.DomainRepoDependency, "repository:repo-b", now),
@@ -173,14 +178,14 @@ func TestSharedIntentAcceptanceWriterPreservesDisjointRepoConcurrency(t *testing
 
 	mgr := newAdvisoryLockManager()
 	holder := &advisoryLockTx{mgr: mgr}
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(
 		context.Background(), holder, []string{"repository:repo-a"},
 	); err != nil {
 		t.Fatalf("hold repo-a acceptance gate: %v", err)
 	}
 
 	database := &sharedIntentAcceptanceWriterLockDB{mgr: mgr}
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	sameRepoDone := make(chan error, 1)
 	go func() {
@@ -240,7 +245,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMissingAcceptanceIdenti
 	t.Parallel()
 
 	database := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 
 	rows := []reducer.SharedProjectionIntentRow{
 		{
@@ -270,7 +275,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptan
 	t.Parallel()
 
 	database := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -317,7 +322,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRollsBackWhenAcceptanceWriteFa
 
 	database := newSharedIntentAcceptanceWriterDB()
 	database.tx = &sharedIntentAcceptanceWriterTx{failAcceptanceWrite: true}
-	writer := NewSharedIntentAcceptanceWriter(database)
+	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -373,7 +378,7 @@ func (database *sharedIntentAcceptanceWriterDB) Begin(context.Context) (db.Trans
 
 func (database *sharedIntentAcceptanceWriterDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
 	database.execs = append(database.execs, query)
-	return sharedIntentResult{}, nil
+	return fake.Result{}, nil
 }
 
 func (database *sharedIntentAcceptanceWriterDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -393,7 +398,7 @@ type sharedIntentAcceptanceWriterTx struct {
 
 func (tx *sharedIntentAcceptanceWriterTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
-	case query == deferredMaintenancePartitionedSharedLockSQL:
+	case query == lockstore.DeferredMaintenancePartitionedSharedLockSQL:
 		repoKey, ok := args[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("repo lock key = %T, want string", args[1])
@@ -412,7 +417,7 @@ func (tx *sharedIntentAcceptanceWriterTx) ExecContext(_ context.Context, query s
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
-	return sharedIntentResult{}, nil
+	return fake.Result{}, nil
 }
 
 func (tx *sharedIntentAcceptanceWriterTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -447,11 +452,108 @@ func (database *sharedIntentAcceptanceWriterNoTxDB) ExecContext(_ context.Contex
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
-	return sharedIntentResult{}, nil
+	return fake.Result{}, nil
 }
 
 func (database *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
+}
+
+// advisoryLockManager copy: this file's lock-ordering proofs need the same
+// in-memory advisory-lock simulator that root's
+// deferred_maintenance_lock_fakes_test.go defines for the staying deferred
+// concurrency proofs. Go test-only symbols do not cross package boundaries,
+// so this copy lives with its only other consumer (mirroring the proof-DB
+// helper copies the freshness leaves keep per consumer).
+
+// advisoryLockManager simulates Postgres transaction-level advisory lock
+// semantics for the deferred-maintenance partition keys: many holders may share
+// one key, an exclusive request blocks until no shared or exclusive holder
+// remains on that key, and disjoint keys never contend. It lets the concurrency
+// proofs run deterministically without a live database.
+type advisoryLockManager struct {
+	mu        sync.Mutex
+	cond      *sync.Cond
+	exclusive map[string]bool
+	shared    map[string]int
+}
+
+func newAdvisoryLockManager() *advisoryLockManager {
+	m := &advisoryLockManager{
+		exclusive: make(map[string]bool),
+		shared:    make(map[string]int),
+	}
+	m.cond = sync.NewCond(&m.mu)
+	return m
+}
+
+func (m *advisoryLockManager) acquireExclusive(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for m.exclusive[key] || m.shared[key] > 0 {
+		m.cond.Wait()
+	}
+	m.exclusive[key] = true
+}
+
+func (m *advisoryLockManager) acquireShared(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for m.exclusive[key] {
+		m.cond.Wait()
+	}
+	m.shared[key]++
+}
+
+func (m *advisoryLockManager) release(exclusiveKeys, sharedKeys []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, key := range exclusiveKeys {
+		delete(m.exclusive, key)
+	}
+	for _, key := range sharedKeys {
+		if m.shared[key] > 0 {
+			m.shared[key]--
+		}
+	}
+	m.cond.Broadcast()
+}
+
+// advisoryLockTx is a fake transaction that routes the partitioned advisory lock
+// SQL into the simulated lock manager and records the keys it holds so they can
+// be released on commit/rollback.
+type advisoryLockTx struct {
+	mgr           *advisoryLockManager
+	exclusiveHeld []string
+	sharedHeld    []string
+}
+
+func (tx *advisoryLockTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	switch query {
+	case lockstore.DeferredMaintenancePartitionedExclusiveLockSQL:
+		key := args[1].(string)
+		tx.mgr.acquireExclusive(key)
+		tx.exclusiveHeld = append(tx.exclusiveHeld, key)
+	case lockstore.DeferredMaintenancePartitionedSharedLockSQL:
+		key := args[1].(string)
+		tx.mgr.acquireShared(key)
+		tx.sharedHeld = append(tx.sharedHeld, key)
+	}
+	return fake.Result{}, nil
+}
+
+func (tx *advisoryLockTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return &fake.Rows{}, nil
+}
+
+func (tx *advisoryLockTx) Commit() error {
+	tx.mgr.release(tx.exclusiveHeld, tx.sharedHeld)
+	return nil
+}
+
+func (tx *advisoryLockTx) Rollback() error {
+	tx.mgr.release(tx.exclusiveHeld, tx.sharedHeld)
+	return nil
 }
 
 type sharedIntentAcceptanceWriterLockDB struct {
@@ -481,12 +583,12 @@ func (tx *sharedIntentAcceptanceWriterLockTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	if query == deferredMaintenancePartitionedSharedLockSQL {
+	if query == lockstore.DeferredMaintenancePartitionedSharedLockSQL {
 		return tx.advisoryLockTx.ExecContext(ctx, query, args...)
 	}
 	if strings.Contains(query, "INSERT INTO shared_projection_intents") ||
 		strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	}
 	return nil, fmt.Errorf("unexpected exec query: %s", query)
 }

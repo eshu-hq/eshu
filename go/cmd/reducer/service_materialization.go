@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // platformGraphLockerForReducer builds the Postgres-backed platform graph lock
@@ -17,7 +18,7 @@ func platformGraphLockerForReducer(database db.ExecQueryer) reducer.PlatformGrap
 	if beginner == nil {
 		return nil
 	}
-	return postgres.PlatformGraphLocker{DB: beginner}
+	return lockstore.PlatformGraphLocker{DB: beginner}
 }
 
 // reducerBeginner adapts the shared reducer database into the transaction beginner
