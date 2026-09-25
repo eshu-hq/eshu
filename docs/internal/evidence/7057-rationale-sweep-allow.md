@@ -37,3 +37,11 @@ No-Observability-Change: test-only change; no metric, span, log field, worker, q
 allowlist above no longer matched an unresolved write and caused the sweep's
 stale-entry check to fail. The follow-up removes that entry; the complete
 statement remains in the sweep and its indexed `Rationale.uid` write is guarded.
+
+## Superseded: no allowlist
+
+The `sweepAllow` list is gone entirely (#7058). Its last two entries are now
+sweep rules: a label-only SET/REMOVE statement is classified as a non-value
+write, and `cmd/*-gate` and `cmd/*-gates` tools are not scanned. Seeded tests in
+`index_key_guard_sweep_scope_test.go` pin each rule and the neighbours that are
+still flagged. This note is history; no allowlist exists to add to.

@@ -78,8 +78,11 @@ them on `eshu_dp_graph_index_key_guard_unanalyzed_total` and logs one WARN per
 distinct statement. `TestProductionCypherLiteralsAreGuarded` parses the
 production Go string literals under `internal/storage`, `internal/reducer`,
 `internal/projector`, `internal/collector`, and `cmd`, and fails when one
-writes a schema-indexed label the guard does not fully read; its `sweepAllow`
-list carries each exception with a reason.
+writes a schema-indexed label the guard does not fully read. It keeps no
+exception list: it classifies relationship-only writes, label-only SET/REMOVE
+migrations, and `%s` label templates itself, and it skips `cmd/*-gate` and
+`cmd/*-gates` tools, which seed throwaway stores and are not deployed write
+paths.
 
 ## Ownership boundary
 

@@ -222,10 +222,13 @@ analyzer's, so a shape the analyzer misses still counts. A literal that writes
 a schema-indexed label must get a guard plan with no unanalyzed report.
 Relationship-only MERGEs over MATCHed endpoints name no schema label in a write
 clause and SET only relationship variables, so the sweep classifies them out
-without a list. Two literals are on the explicit allowlist with reasons: the
-read-API latency gate's synthetic seeder, and the tfstate label migration that
-writes no value. The sweep examined 94 indexed-write literals on the tree it
-was written against and fails below 60, so a moved tree cannot pass it
+without a list. A statement whose only writes add or remove labels (the
+tfstate label migration) assigns no property value, so the sweep classifies it
+out the same way. The sweep reads deployed write paths only: it skips `cmd`
+tools named `*-gate` or `*-gates` (the read-API latency gate seeds a synthetic
+graph), by the gate naming convention and not a file list. No allowlist
+exists. The sweep examined 94 indexed-write literals on the tree it was last
+checked against and fails below 60, so a moved tree cannot pass it
 vacuously. `TestSweepFlagsSeededViolations` plants a nested-`UNWIND` writer and
 an accented-variable writer in a scratch tree and requires both to be found,
 while recognized shapes, relationship-only MERGEs, `%s` templates and DDL stay

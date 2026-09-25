@@ -30,9 +30,10 @@
   `UnanalyzedIndexWrites` reports schema-indexed labels written in an unread
   shape, and `TestProductionCypherLiteralsAreGuarded` fails when a production
   writer takes one. When you add a writer shape, extend the analyzer with a
-  RED test first; add a `sweepAllow` entry only for a literal that writes no
-  measurable value, with the reason. Do not claim the guard covers every
-  possible Cypher shape.
+  RED test first. The sweep has no exception list; teach it the shape (as it
+  does for relationship-only and label-only writes) or scope the tree it reads
+  (`cmd/*-gate` and `cmd/*-gates` tools are skipped), and seed a RED/GREEN
+  pair. Do not claim the guard covers every possible Cypher shape.
 - **Never truncate or hash an indexed value to fit** — `GuardIndexKeyWrites`
   drops the row so the graph holds no corrupted identity. `MaxIndexKeyBytes`
   is measured against the pinned Neo4j; re-measure before raising it.
