@@ -1,0 +1,23 @@
+go/internal/query/language/ownership_live_test.go
+  s_b0d7e3abc26c5a::t_a299360e0aa676 115-127
+  s_b0d7e3abc26c5a::t_fdf36fc6c3e022 10-11,27,29-38,40,51,56-66,69,78-86,97-114
+  s_b0d7e3abc26c5a::t_cddc9858cc4cb3 128
+docs/internal/evidence/6703-directory-file-ownership.md
+  s_b0d7e3abc26c5a::t_638f9c59c8ec1d 42-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cdb307c34aa9b38f9230f1ed7c55b6b313c6909b",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
