@@ -1809,6 +1809,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/service_materialization_scope_replay_live_test.go
+    tag: integration
+    class: scheduled
+    reason: seeded isolated-schema Postgres proof (#6475); timing recorded in docs/internal/evidence/6475-service-lineage-scope.md; promote to blocking after a green run in the scheduled lane
+  - file: go/internal/storage/postgres/service_materialization_scope_writer_live_test.go
+    tag: integration
+    class: scheduled
+    reason: seeded isolated-schema Postgres proof (#6475); timing recorded in docs/internal/evidence/6475-service-lineage-scope.md; promote to blocking after a green run in the scheduled lane
   - file: go/internal/storage/postgres/shared_intents_generation_pending_index_live_test.go
     tag: ~
     class: scheduled

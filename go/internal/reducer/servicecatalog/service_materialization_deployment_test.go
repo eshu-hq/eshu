@@ -126,6 +126,7 @@ func TestServiceMaterializationWriterCommitsDeploymentFamily(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-checkout",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
@@ -171,6 +172,7 @@ func TestServiceMaterializationWriterTombstonesRetiredDeployment(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Deployment: []ServiceDeploymentEvidence{
 			{Identity: "keep", Payload: map[string]any{"relationship_type": "DEPLOYS_FROM"}},
@@ -319,6 +321,7 @@ func TestServiceMaterializationDeploymentChangeFlipsGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:    "scope-test",
 		ServiceID:  "svc-a",
 		Deployment: []ServiceDeploymentEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -327,6 +330,7 @@ func TestServiceMaterializationDeploymentChangeFlipsGeneration(t *testing.T) {
 	}
 	// Identical deployment evidence is a no-op.
 	same, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:    "scope-test",
 		ServiceID:  "svc-a",
 		Deployment: []ServiceDeploymentEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -338,6 +342,7 @@ func TestServiceMaterializationDeploymentChangeFlipsGeneration(t *testing.T) {
 	}
 	// A changed deployment payload must flip the generation.
 	changed, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:    "scope-test",
 		ServiceID:  "svc-a",
 		Deployment: []ServiceDeploymentEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.9}}},
 	})

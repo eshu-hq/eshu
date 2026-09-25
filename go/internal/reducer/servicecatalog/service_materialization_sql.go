@@ -19,6 +19,7 @@ package servicecatalog
 //	$7 status
 //	$8 activated_at
 //	$9 payload (jsonb)
+//	$10 scope_id (the writing intent's ingestion scope, #6475)
 const insertServiceMaterializationGenerationQuery = `
 INSERT INTO service_materialization_generations (
     generation_id,
@@ -29,30 +30,35 @@ INSERT INTO service_materialization_generations (
     ingested_at,
     status,
     activated_at,
-    payload
+    payload,
+    scope_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb
+    $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10
 )
 ON CONFLICT (generation_id) DO NOTHING
 `
 
 // supersedePriorServiceGenerationQuery retires the prior active generation for a
-// service when a new active generation is committed. It excludes the new
-// generation so the freshly inserted active row is never superseded, and returns
-// the superseded generation id (or no row when the service had no prior active
-// generation). The partial unique index keeps at most one active row per
-// service, so this updates at most one row.
+// service within the writing intent's ingestion scope when a new active
+// generation is committed. It excludes the new generation so the freshly
+// inserted active row is never superseded, and returns the superseded generation
+// id (or no row when the scope had no prior active generation for the service).
+// The partial unique index keeps at most one active row per (scope_id,
+// service_id), so this updates at most one row. The scope_id equality never
+// matches a NULL (unattributed legacy) row, so those are never superseded.
 //
 // Parameter order:
 //
 //	$1 service_id
 //	$2 new_generation_id (excluded from supersession)
 //	$3 superseded_at
+//	$4 scope_id
 const supersedePriorServiceGenerationQuery = `
 UPDATE service_materialization_generations
 SET status = 'superseded',
     superseded_at = $3
 WHERE service_id = $1
+  AND scope_id = $4
   AND status = 'active'
   AND generation_id <> $2
 RETURNING generation_id
@@ -61,19 +67,21 @@ RETURNING generation_id
 // activateServiceGenerationQuery promotes the freshly inserted pending
 // generation to active. It runs after the prior active generation is superseded,
 // so the single-active-per-service partial unique index is satisfied. It scopes
-// by both service_id and generation_id so it only ever activates the generation
-// this commit just inserted.
+// by service_id, scope_id, and generation_id so it only ever activates the
+// generation this commit just inserted.
 //
 // Parameter order:
 //
 //	$1 service_id
 //	$2 generation_id
 //	$3 activated_at
+//	$4 scope_id
 const activateServiceGenerationQuery = `
 UPDATE service_materialization_generations
 SET status = 'active',
     activated_at = $3
 WHERE service_id = $1
+  AND scope_id = $4
   AND generation_id = $2
   AND status = 'pending'
 `

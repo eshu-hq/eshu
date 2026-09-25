@@ -381,8 +381,10 @@ versioned per-service materialization snapshot with a generation-independent
 per-evidence diff key:
 
 - `service_materialization_generations` is the per-service generation lineage
-  (one active generation per `service_id`, enforced by a partial unique index,
-  exactly like `scope_generations`). The reducer commits a new generation on each
+  (one active generation per ingestion scope and `service_id`, enforced by a
+  partial unique index on `(scope_id, service_id)`; `scope_id` is the scope of
+  the reducer intent that wrote the generation, so two scopes that correlate
+  one service id keep separate lineages, issue #6475). The reducer commits a new generation on each
   service re-materialization; an identical re-materialization is a no-op.
 - `service_evidence_snapshots` holds generation-stable evidence rows keyed by a
   generation-independent `service_evidence_key` (for example

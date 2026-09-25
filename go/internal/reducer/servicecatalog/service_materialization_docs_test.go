@@ -145,6 +145,7 @@ func TestServiceMaterializationWriterCommitsDocsFamily(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-app",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
@@ -190,6 +191,7 @@ func TestServiceMaterializationWriterTombstonesRetiredDoc(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Docs: []ServiceDocumentationEvidence{
 			{Identity: "keep", Payload: map[string]any{"fact_kind": "x"}},
@@ -217,6 +219,7 @@ func TestServiceMaterializationDocsChangeFlipsGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Docs:      []ServiceDocumentationEvidence{{Identity: "rec-1", Payload: map[string]any{"observation_hash": "h1"}}},
 	})
@@ -225,6 +228,7 @@ func TestServiceMaterializationDocsChangeFlipsGeneration(t *testing.T) {
 	}
 	// Identical docs evidence is a no-op (anti-churn across re-materializations).
 	same, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Docs:      []ServiceDocumentationEvidence{{Identity: "rec-1", Payload: map[string]any{"observation_hash": "h1"}}},
 	})
@@ -236,6 +240,7 @@ func TestServiceMaterializationDocsChangeFlipsGeneration(t *testing.T) {
 	}
 	// A changed docs payload must flip the generation.
 	changed, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Docs:      []ServiceDocumentationEvidence{{Identity: "rec-1", Payload: map[string]any{"observation_hash": "h2"}}},
 	})

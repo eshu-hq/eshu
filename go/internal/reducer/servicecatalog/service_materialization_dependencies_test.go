@@ -153,6 +153,7 @@ func TestServiceMaterializationWriterCommitsDependenciesFamily(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-app",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
@@ -198,6 +199,7 @@ func TestServiceMaterializationWriterTombstonesRetiredDependency(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Dependencies: []ServiceDependencyEvidence{
 			{Identity: "keep", Payload: map[string]any{"relationship_type": "DEPENDS_ON"}},
@@ -225,6 +227,7 @@ func TestServiceMaterializationDependencyChangeFlipsGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:      "scope-test",
 		ServiceID:    "svc-a",
 		Dependencies: []ServiceDependencyEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -233,6 +236,7 @@ func TestServiceMaterializationDependencyChangeFlipsGeneration(t *testing.T) {
 	}
 	// Identical dependency evidence is a no-op.
 	same, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:      "scope-test",
 		ServiceID:    "svc-a",
 		Dependencies: []ServiceDependencyEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -244,6 +248,7 @@ func TestServiceMaterializationDependencyChangeFlipsGeneration(t *testing.T) {
 	}
 	// A changed dependency payload must flip the generation.
 	changed, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:      "scope-test",
 		ServiceID:    "svc-a",
 		Dependencies: []ServiceDependencyEvidence{{Identity: "rel-1", Payload: map[string]any{"confidence": 0.9}}},
 	})
