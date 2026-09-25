@@ -13,11 +13,16 @@ ruleset="${tmp_dir}/ruleset.json"
 
 printf '%s\n' '[{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]' >"${expected}"
 
+# main merges through a merge queue (#7111): the queue builds and tests the
+# exact merge, so the required-status rule may stay non-strict and every
+# fixture carries a merge_queue rule unless a case removes it.
+merge_queue_rule='{"type":"merge_queue","parameters":{"check_response_timeout_minutes":120,"grouping_strategy":"ALLGREEN","max_entries_to_build":4,"max_entries_to_merge":4,"merge_method":"SQUASH","min_entries_to_merge":1,"min_entries_to_merge_wait_minutes":5}}'
+
 write_effective() {
 	local strict="$1"
 	local checks="$2"
-	printf '[{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":%s,"required_status_checks":%s}}]\n' \
-		"${strict}" "${checks}" >"${effective}"
+	printf '[{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":%s,"required_status_checks":%s}},%s]\n' \
+		"${strict}" "${checks}" "${merge_queue_rule}" >"${effective}"
 }
 
 run_verifier() {
@@ -39,8 +44,8 @@ write_ruleset() {
 	local enforcement="$1"
 	local bypass_actors="$2"
 	local includes="$3"
-	printf '{"id":19745843,"name":"main protection","target":"branch","enforcement":"%s","bypass_actors":%s,"conditions":{"ref_name":{"include":%s,"exclude":[]}},"rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"required_status_checks":[{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]}}]}\n' \
-		"${enforcement}" "${bypass_actors}" "${includes}" >"${ruleset}"
+	printf '{"id":19745843,"name":"main protection","target":"branch","enforcement":"%s","bypass_actors":%s,"conditions":{"ref_name":{"include":%s,"exclude":[]}},"rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":false,"required_status_checks":[{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]}},%s]}\n' \
+		"${enforcement}" "${bypass_actors}" "${includes}" "${merge_queue_rule}" >"${ruleset}"
 }
 
 write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
@@ -66,11 +71,45 @@ if run_verifier >/dev/null 2>&1; then
 fi
 write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
 
-jq '(.rules[] | select(.type == "required_status_checks").parameters.strict_required_status_checks_policy) = false' \
-	"${ruleset}" >"${tmp_dir}/ruleset-with-non-strict-owner.json"
-mv "${tmp_dir}/ruleset-with-non-strict-owner.json" "${ruleset}"
+# The queue tests the merge, so strict is an owner preference, not policy.
+jq '(.rules[] | select(.type == "required_status_checks").parameters.strict_required_status_checks_policy) = true' \
+	"${ruleset}" >"${tmp_dir}/ruleset-with-strict-owner.json"
+mv "${tmp_dir}/ruleset-with-strict-owner.json" "${ruleset}"
+run_verifier >/dev/null
+write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
+
+# Rules only ever add restrictions, so an extra one (the live ruleset carries
+# copilot_code_review) must not fail the audit; the 30/30 scheduled reds
+# before this change were that exact-set comparison, not a policy gap.
+jq '.rules += [{"type":"copilot_code_review","parameters":{"review_on_push":true}}]' \
+	"${ruleset}" >"${tmp_dir}/ruleset-with-extra-rule.json"
+mv "${tmp_dir}/ruleset-with-extra-rule.json" "${ruleset}"
+run_verifier >/dev/null
+write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
+
+jq '.rules |= map(select(.type != "merge_queue"))' \
+	"${ruleset}" >"${tmp_dir}/ruleset-without-merge-queue.json"
+mv "${tmp_dir}/ruleset-without-merge-queue.json" "${ruleset}"
 if run_verifier >/dev/null 2>&1; then
-	echo "expected a non-strict owning required-status rule to fail" >&2
+	echo "expected an owning ruleset without a merge_queue rule to fail" >&2
+	exit 1
+fi
+write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
+
+jq '.rules |= map(select(.type != "deletion"))' \
+	"${ruleset}" >"${tmp_dir}/ruleset-without-deletion.json"
+mv "${tmp_dir}/ruleset-without-deletion.json" "${ruleset}"
+if run_verifier >/dev/null 2>&1; then
+	echo "expected an owning ruleset without the deletion rule to fail" >&2
+	exit 1
+fi
+write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
+
+jq '(.rules[] | select(.type == "merge_queue").parameters.check_response_timeout_minutes) = 30' \
+	"${ruleset}" >"${tmp_dir}/ruleset-with-short-queue-timeout.json"
+mv "${tmp_dir}/ruleset-with-short-queue-timeout.json" "${ruleset}"
+if run_verifier >/dev/null 2>&1; then
+	echo "expected a merge-queue status timeout shorter than the aggregator's wait to fail" >&2
 	exit 1
 fi
 write_ruleset active '[]' '["~DEFAULT_BRANCH"]'
@@ -88,10 +127,7 @@ if run_verifier >/dev/null 2>&1; then
 fi
 
 write_effective false '[{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]'
-if run_verifier >/dev/null 2>&1; then
-	echo "expected a non-strict required-status rule to fail" >&2
-	exit 1
-fi
+run_verifier >/dev/null
 
 write_effective true '[{"context":"extra","integration_id":15368},{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]'
 if run_verifier >/dev/null 2>&1; then
@@ -100,10 +136,10 @@ if run_verifier >/dev/null 2>&1; then
 fi
 
 write_effective true '[{"context":"go-core-complete","integration_id":15368},{"context":"required-gates-complete","integration_id":15368}]'
-jq '. + [{"type":"merge_queue","parameters":{}}]' "${effective}" >"${tmp_dir}/merge-queue.json"
-mv "${tmp_dir}/merge-queue.json" "${effective}"
+jq 'map(select(.type != "merge_queue"))' "${effective}" >"${tmp_dir}/no-merge-queue.json"
+mv "${tmp_dir}/no-merge-queue.json" "${effective}"
 if run_verifier >/dev/null 2>&1; then
-	echo "expected an unsupported merge-queue rule to fail" >&2
+	echo "expected effective rules without a merge queue to fail" >&2
 	exit 1
 fi
 

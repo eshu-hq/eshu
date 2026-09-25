@@ -12,8 +12,9 @@ name: macOS CI
 # required-gates.yml no longer waits on this workflow.
 on:
   schedule:
-    # 07:23 UTC = 03:23 US Eastern, off-peak for the shared macOS runner pool
-    # and away from the :00/:30 marks when scheduled runs are delayed.
+    # 07:23 UTC (03:23 US Eastern during daylight time), off-peak for the
+    # shared macOS runner pool and away from the :00/:30 marks when
+    # scheduled runs are delayed.
     - cron: "23 7 * * *"
   workflow_dispatch:
 

@@ -5,14 +5,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,15 +23,20 @@ func runAwait(args []string) error {
 	registry := fs.String("registry", "", "path to ci-gates.v1.yaml registry")
 	repoRoot := fs.String("repo-root", "", "repository root containing workflow files")
 	repo := fs.String("repo", "", "GitHub repository in owner/name form")
-	pr := fs.Int("pr", 0, "pull request number")
-	headSHA := fs.String("head-sha", "", "exact pull request head SHA for this workflow run")
+	pr := fs.Int("pr", 0, "pull request number (pull_request event only)")
+	headSHA := fs.String("head-sha", "", "exact pull request head or merge-group commit SHA for this workflow run")
+	event := fs.String("event", eventPullRequest, "triggering event of the checks to aggregate: pull_request or merge_group")
+	baseRef := fs.String("base-ref", "main", "merge_group only: base branch the merge group's changed paths are diffed against (three-dot)")
 	pollInterval := fs.Duration("poll-interval", 30*time.Second, "interval between GitHub check-rollup reads")
 	timeout := fs.Duration("timeout", 55*time.Minute, "maximum time to wait for selected blocking checks")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *registry == "" || *repo == "" || *pr <= 0 || strings.TrimSpace(*headSHA) == "" {
-		return fmt.Errorf("--registry, --repo, --pr, and --head-sha are required")
+	if *registry == "" || *repo == "" || strings.TrimSpace(*headSHA) == "" {
+		return fmt.Errorf("--registry, --repo, and --head-sha are required")
+	}
+	if err := validateAwaitTarget(*event, *pr, *baseRef); err != nil {
+		return err
 	}
 	root, err := resolveRepoRoot(*repoRoot)
 	if err != nil {
@@ -50,6 +53,9 @@ func runAwait(args []string) error {
 	runner := execGHRunner{}
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
+	if *event == eventMergeGroup {
+		return runAwaitMergeGroup(ctx, runner, reg, root, *repo, *baseRef, *headSHA, *pollInterval)
+	}
 	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
 		return err
 	}
@@ -57,28 +63,39 @@ func runAwait(args []string) error {
 	if err != nil {
 		return err
 	}
-	var required []cigates.RequiredGate
+	resolved, err := selectRequiredGates(reg, root, paths, truncated)
+	if err != nil {
+		return err
+	}
+	if err := awaitPRRequiredChecks(ctx, runner, *repo, *pr, *headSHA, resolved, *pollInterval, os.Stdout); err != nil {
+		return err
+	}
+	return verifyPRHead(ctx, runner, *repo, *pr, *headSHA)
+}
+
+// selectRequiredGates resolves the blocking gates for a changed-path set to
+// their workflow jobs. A truncated path list selects every blocking gate:
+// over-selection fails closed in the safe direction (extra gates must pass)
+// while a partial path list would silently under-select.
+func selectRequiredGates(reg *cigates.Registry, root string, paths []string, truncated bool) ([]resolvedRequiredGate, error) {
+	var (
+		required []cigates.RequiredGate
+		err      error
+	)
 	if truncated {
-		// The pull-files endpoint caps at 3000 entries, so the path list
-		// is partial. Select every blocking gate: over-selection fails
-		// closed in the safe direction (extra gates run) while a partial
-		// path list would silently under-select.
 		required, err = reg.AllBlockingGates()
 	} else {
 		required, err = reg.RequiredGates(paths)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resolved, err := resolveRequiredGateWorkflows(root, required)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d blocking workflow job(s) for %d changed path(s) (truncated=%v)\n", len(resolved), len(paths), truncated)
-	if err := awaitPRRequiredChecks(ctx, runner, *repo, *pr, *headSHA, resolved, *pollInterval, os.Stdout); err != nil {
-		return err
-	}
-	return verifyPRHead(ctx, runner, *repo, *pr, *headSHA)
+	return resolved, nil
 }
 
 type ghRunner interface {
@@ -97,6 +114,9 @@ type resolvedRequiredGate struct {
 	WorkflowName string
 	Job          string
 	GateIDs      []string
+	// Event is the triggering event whose check rows may satisfy this gate.
+	// Empty means pull_request, the original and default aggregation mode.
+	Event string
 }
 
 type checkRollup struct {
@@ -262,9 +282,13 @@ func evaluateRequiredChecks(
 }
 
 func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRollup {
+	wantEvent := gate.Event
+	if wantEvent == "" {
+		wantEvent = eventPullRequest
+	}
 	var exact []checkRollup
 	for _, check := range checks {
-		if check.Workflow != gate.WorkflowName || check.Event != "pull_request" {
+		if check.Workflow != gate.WorkflowName || check.Event != wantEvent {
 			continue
 		}
 		if check.Name == gate.Job {
@@ -283,96 +307,35 @@ func findingFor(gate resolvedRequiredGate, state string) requiredCheckFinding {
 	}
 }
 
-// changedPathsForPR returns the PR's changed paths and whether the listing
-// was truncated. The pull-files endpoint caps at 3000 entries: when the
-// returned count differs from changedFiles the path list is partial, so the
-// caller must select every blocking gate instead of path-matching.
-func changedPathsForPR(ctx context.Context, runner ghRunner, repo string, pr int) (paths []string, truncated bool, err error) {
-	endpoint := "repos/" + repo + "/pulls/" + strconv.Itoa(pr) + "/files"
-	output, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
-	if err != nil {
-		return nil, false, fmt.Errorf("list changed files for PR #%d: %w", pr, err)
-	}
-	var pages [][]struct {
-		Filename         string `json:"filename"`
-		PreviousFilename string `json:"previous_filename"`
-	}
-	if err := json.Unmarshal(output, &pages); err != nil {
-		return nil, false, fmt.Errorf("decode changed files for PR #%d: %w", pr, err)
-	}
-	seen := make(map[string]struct{})
-	fileCount := 0
-	appendPath := func(path string) {
-		path = strings.TrimSpace(path)
-		if path == "" {
-			return
-		}
-		if _, duplicate := seen[path]; duplicate {
-			return
-		}
-		seen[path] = struct{}{}
-		paths = append(paths, path)
-	}
-	for _, page := range pages {
-		for _, file := range page {
-			fileCount++
-			appendPath(file.Filename)
-			appendPath(file.PreviousFilename)
-		}
-	}
-	countOutput, err := runner.Run(
-		ctx,
-		"pr", "view", strconv.Itoa(pr),
-		"--repo", repo,
-		"--json", "changedFiles",
-		"--jq", ".changedFiles",
-	)
-	if err != nil {
-		return nil, false, fmt.Errorf("read changed-file count for PR #%d: %w", pr, err)
-	}
-	expectedCount, err := strconv.Atoi(strings.TrimSpace(string(countOutput)))
-	if err != nil {
-		return nil, false, fmt.Errorf("decode changed-file count for PR #%d: %w", pr, err)
-	}
-	if fileCount != expectedCount {
-		// Truncated listing: the partial path list is still returned
-		// for logging, but truncated=true tells the caller to select
-		// every blocking gate instead of path-matching.
-		return paths, true, nil
-	}
-	if len(paths) == 0 {
-		return nil, false, fmt.Errorf("PR #%d has no changed file paths", pr)
-	}
-	return paths, false, nil
-}
-
-// Per-commit union is deliberately not a fallback here: single-commit file
-// lists cap at 300 entries, so the union is partial too (see
-// TestChangedPathsForPR_ReportsTruncationOnCappedFilesResponse).
-func verifyPRHead(ctx context.Context, runner ghRunner, repo string, pr int, expected string) error {
-	output, err := runner.Run(
-		ctx,
-		"pr", "view", strconv.Itoa(pr),
-		"--repo", repo,
-		"--json", "headRefOid",
-		"--jq", ".headRefOid",
-	)
-	if err != nil {
-		return fmt.Errorf("read PR #%d head: %w", pr, err)
-	}
-	actual := strings.TrimSpace(string(output))
-	if actual != expected {
-		return fmt.Errorf("PR #%d head changed while aggregating checks: got %s, want %s", pr, actual, expected)
-	}
-	return nil
-}
-
+// awaitPRRequiredChecks waits for the selected gates' pull_request check rows
+// on a PR head, read through `gh pr checks`.
 func awaitPRRequiredChecks(
 	ctx context.Context,
 	runner ghRunner,
 	repo string,
 	pr int,
 	headSHA string,
+	required []resolvedRequiredGate,
+	pollInterval time.Duration,
+	out io.Writer,
+) error {
+	readChecks := func(ctx context.Context) ([]checkRollup, error) {
+		return readPRChecks(ctx, runner, repo, pr)
+	}
+	return awaitRequiredChecks(ctx, runner, repo, headSHA, eventPullRequest, readChecks, required, pollInterval, out)
+}
+
+// awaitRequiredChecks polls readChecks until every selected gate reaches a
+// verdict, the context ends, or one fails. event scopes the workflow-run
+// conclusions consulted for SKIPPED and MISSING gates to the same event the
+// check rows came from.
+func awaitRequiredChecks(
+	ctx context.Context,
+	runner ghRunner,
+	repo string,
+	headSHA string,
+	event string,
+	readChecks func(context.Context) ([]checkRollup, error),
 	required []resolvedRequiredGate,
 	pollInterval time.Duration,
 	out io.Writer,
@@ -392,7 +355,7 @@ func awaitPRRequiredChecks(
 		maxWaitInterval = pollInterval
 	}
 	for {
-		checks, err := readPRChecks(ctx, runner, repo, pr)
+		checks, err := readChecks(ctx)
 		if err != nil {
 			return err
 		}
@@ -407,7 +370,7 @@ func awaitPRRequiredChecks(
 		// it did -- degraded to the old behaviour, never to a pass.
 		var runs runConclusions
 		if needsRunConclusions(required, checks) {
-			runs, err = workflowRunConclusions(ctx, runner, repo, headSHA)
+			runs, err = workflowRunConclusionsForEvent(ctx, runner, repo, headSHA, event)
 			if err != nil {
 				_, _ = fmt.Fprintf(out,
 					"required-gates: could not read workflow run conclusions (%v); "+
@@ -457,26 +420,6 @@ func awaitPRRequiredChecks(
 			}
 		}
 	}
-}
-
-func readPRChecks(ctx context.Context, runner ghRunner, repo string, pr int) ([]checkRollup, error) {
-	output, commandErr := runner.Run(
-		ctx,
-		"pr", "checks", strconv.Itoa(pr),
-		"--repo", repo,
-		"--json", "name,state,bucket,workflow,event",
-	)
-	var checks []checkRollup
-	if err := json.Unmarshal(output, &checks); err != nil {
-		if commandErr != nil {
-			return nil, fmt.Errorf("read PR #%d checks: %w", pr, commandErr)
-		}
-		return nil, fmt.Errorf("decode PR #%d checks: %w", pr, err)
-	}
-	// `gh pr checks` intentionally exits 8 while checks are pending and 1 when
-	// a check is red. The JSON is still authoritative in both cases, so a valid
-	// payload is evaluated instead of treating those status exits as API errors.
-	return checks, nil
 }
 
 func formatFindings(findings []requiredCheckFinding) string {

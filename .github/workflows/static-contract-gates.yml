@@ -4,13 +4,17 @@ name: Static Contract Gates
 # matrix. PR selection mirrors specs/ci-gates.v1.yaml; pushes to main select every
 # gate. Entries share one checkout and tool setup while retaining stable names.
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   pull_request:
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -54,8 +58,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+      # merge_group: skip the diff and select every gate, exactly as push
+      # does below. required-gates.yml selects which of them a queue entry
+      # needs from its own three-dot diff against main, so every gate it can
+      # select must have run.
       - name: Filter changed paths against gate triggers
         id: filter
+        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           # On push (no base), dorny treats everything as changed → all gates run.
@@ -436,7 +445,7 @@ jobs:
               run_gate=false
             fi
 
-            if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
+            if [[ "${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "merge_group" || "${selected}" == "true" ]]; then
               local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
               if [[ -n "${matrix_items}" ]]; then
                 matrix_items="${matrix_items},${item}"
@@ -485,7 +494,10 @@ jobs:
   gate:
     name: ${{ matrix.display }}
     needs: changes
-    if: ${{ needs.changes.outputs.any == 'true' }}
+    # merge_group lists every gate in the matrix (see append_gate), so `any`
+    # is true there; the explicit arm lets ci-gates validate prove this job
+    # always runs on a queue entry.
+    if: ${{ github.event_name == 'merge_group' || needs.changes.outputs.any == 'true' }}
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
     strategy:

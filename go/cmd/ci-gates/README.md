@@ -175,6 +175,31 @@ teaches people to read a red required status as noise. Once every selected gate
 is terminal and at least one never produced a verdict, await exits 13 and the
 publisher posts `error` naming the re-run.
 
+`main` merges through a GitHub merge queue, so the publisher also aggregates
+queue entries. A merge group has no pull request of its own (it can carry
+several), so it is addressed by its commit:
+
+```bash
+ci-gates await \
+  --registry specs/ci-gates.v1.yaml \
+  --repo-root /trusted/default-branch/checkout \
+  --repo eshu-hq/eshu \
+  --event merge_group \
+  --base-ref main \
+  --head-sha <merge-group-commit>
+```
+
+Changed paths come from a three-dot compare of `--base-ref` against the group
+commit, which also covers queued PRs ahead of this one; a compare at the API's
+300-file cap selects every blocking gate, which is safe only because
+`ci-gates validate` requires every blocking job to run (never be SKIPPED) on
+`merge_group`. Check rows are the commit's check
+runs, joined to the newest `merge_group` workflow run per workflow name, and
+only `merge_group` rows (and `merge_group` run conclusions) can satisfy a gate:
+a green pull-request row tested the PR head, not the merge. There is no head
+re-verification; a queue commit never moves. `--event` defaults to
+`pull_request`, which requires `--pr`; `merge_group` rejects `--pr`.
+
 Four shapes qualify, and they cost different things to recognise:
 
 - **Cancelled**, detected from either `state=CANCELLED` or `bucket=cancel`,

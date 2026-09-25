@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 # Compares the registry's required contexts with GitHub's effective branch rules.
+#
+# Policy (#7111): main merges through a GitHub merge queue. The queue builds
+# and tests the exact merge commit, and required-gates.yml aggregates its
+# merge_group runs, so a pull request never has to be re-run just because main
+# moved: strict_required_status_checks_policy is the owner's choice and is not
+# asserted. What is asserted:
+#   - the owning ruleset is active on the default branch, has no bypass
+#     actors, and carries at least deletion, non_fast_forward, one
+#     required_status_checks rule, and a merge_queue rule (rules only add
+#     restrictions, so extra rule types such as copilot_code_review pass);
+#   - its merge_queue waits at least ESHU_MIN_MERGE_QUEUE_TIMEOUT_MINUTES
+#     (default 60) for status checks, so the queue cannot drop an entry
+#     before required-gates-complete can conclude;
+#   - the effective rules for the branch enable the merge queue and require
+#     exactly the registry's contexts.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -10,6 +25,7 @@ ruleset_id="${ESHU_RULESET_ID:-19745843}"
 ruleset_name="${ESHU_RULESET_NAME:-main protection}"
 require_visible_bypass_actors="${ESHU_REQUIRE_VISIBLE_BYPASS_ACTORS:-true}"
 branch="${ESHU_RULESET_BRANCH:-main}"
+min_queue_timeout="${ESHU_MIN_MERGE_QUEUE_TIMEOUT_MINUTES:-60}"
 repo="${GITHUB_REPOSITORY:-eshu-hq/eshu}"
 
 if [[ "${require_visible_bypass_actors}" != "true" && "${require_visible_bypass_actors}" != "false" ]]; then
@@ -61,7 +77,7 @@ if ! jq -e \
     and ((.bypass_actors // []) == [])
     and .conditions.ref_name.include == ["~DEFAULT_BRANCH"]
     and .conditions.ref_name.exclude == []
-    and ([.rules[].type] | sort) == ["deletion", "non_fast_forward", "required_status_checks"]
+    and ([.rules[].type] | contains(["deletion", "non_fast_forward", "required_status_checks", "merge_queue"]))
 ' "${tmp_dir}/ruleset-source.json" >/dev/null; then
 	echo "ruleset ${ruleset_id} (${ruleset_name}) does not match the expected active default-branch required-status policy" >&2
 	exit 1
@@ -70,9 +86,17 @@ fi
 if ! jq -e '
   [.rules[] | select(.type == "required_status_checks")] as $rules
   | ($rules | length) == 1
-    and $rules[0].parameters.strict_required_status_checks_policy == true
 ' "${tmp_dir}/ruleset-source.json" >/dev/null; then
-	echo "ruleset ${ruleset_id} (${ruleset_name}) does not own one strict required-status rule" >&2
+	echo "ruleset ${ruleset_id} (${ruleset_name}) does not own exactly one required-status rule" >&2
+	exit 1
+fi
+
+if ! jq -e --argjson min "${min_queue_timeout}" '
+  [.rules[] | select(.type == "merge_queue")] as $queues
+  | ($queues | length) == 1
+    and (($queues[0].parameters.check_response_timeout_minutes // 0) >= $min)
+' "${tmp_dir}/ruleset-source.json" >/dev/null; then
+	echo "ruleset ${ruleset_id} (${ruleset_name}) does not own one merge_queue rule waiting at least ${min_queue_timeout} minutes for status checks" >&2
 	exit 1
 fi
 
@@ -90,17 +114,14 @@ if ! cmp -s "${tmp_dir}/expected.json" "${tmp_dir}/owner-actual.json"; then
 	exit 1
 fi
 
-if jq -e 'any(.[]; .type == "merge_queue")' "${tmp_dir}/effective-source.json" >/dev/null; then
-	echo "effective rules for ${branch} enable merge queue, but required-gates-complete does not yet evaluate merge_group heads" >&2
+if ! jq -e 'any(.[]; .type == "merge_queue")' "${tmp_dir}/effective-source.json" >/dev/null; then
+	echo "effective rules for ${branch} do not enable the merge queue; merges would land untested against the base they land on" >&2
 	exit 1
 fi
 
-if ! jq -e '
-  [.[] | select(.type == "required_status_checks")] as $rules
-  | ($rules | length) > 0
-    and ($rules | all(.parameters.strict_required_status_checks_policy == true))
-' "${tmp_dir}/effective-source.json" >/dev/null; then
-	echo "effective rules for ${branch} do not have strict required-status enforcement" >&2
+if ! jq -e '[.[] | select(.type == "required_status_checks")] | length > 0' \
+	"${tmp_dir}/effective-source.json" >/dev/null; then
+	echo "effective rules for ${branch} have no required-status rule" >&2
 	exit 1
 fi
 

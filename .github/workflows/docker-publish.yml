@@ -1,6 +1,10 @@
 name: Publish Image and Helm Chart
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   push:
     branches:
       - main
@@ -40,7 +44,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   CHART_PATH: deploy/helm/eshu
   CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/charts
-  IMAGE_PLATFORMS: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+  IMAGE_PLATFORMS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
 
 jobs:
   changes:
@@ -69,9 +73,20 @@ jobs:
             exit 0
           fi
 
+          # merge_group is a pre-merge build: it diffs against the merge base
+          # with main (a superset of what required-gates.yml selects for the
+          # same entry, since main only moves forward while the entry waits)
+          # and, matching the PR lane's `on.paths` and the registry's
+          # docker-image-* triggers, does not rebuild the image for go/**.
+          # The push lane keeps go/** as the post-merge backstop.
+          merge_group_lane=false
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             base_sha="${{ github.event.pull_request.base.sha }}"
             head_sha="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "merge_group" ]]; then
+            merge_group_lane=true
+            head_sha="${GITHUB_SHA}"
+            base_sha="$(git merge-base origin/main "${head_sha}")"
           else
             base_sha="${{ github.event.before }}"
             head_sha="${GITHUB_SHA}"
@@ -84,8 +99,13 @@ jobs:
           chart=false
           while IFS= read -r path; do
             case "${path}" in
-              Dockerfile|.dockerignore|go/*)
+              Dockerfile|.dockerignore)
                 image=true
+                ;;
+              go/*)
+                if [[ "${merge_group_lane}" == "false" ]]; then
+                  image=true
+                fi
                 ;;
               deploy/helm/*)
                 chart=true
@@ -104,7 +124,14 @@ jobs:
 
   build-and-push-image:
     needs: changes
-    if: needs.changes.outputs.image == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
     permissions:
@@ -115,13 +142,15 @@ jobs:
 
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
+        if: env.LANE_APPLIES == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -129,6 +158,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
+        if: env.LANE_APPLIES == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -143,10 +173,12 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Compute source date epoch
+        if: env.LANE_APPLIES == 'true'
         id: epoch
         run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
       - name: Pin deterministic labels
+        if: env.LANE_APPLIES == 'true'
         id: labels
         run: |
           CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
@@ -155,12 +187,13 @@ jobs:
           { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
 
       - name: Build and push Docker image
+        if: env.LANE_APPLIES == 'true'
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
           build-args: |
             ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
@@ -172,7 +205,7 @@ jobs:
           platforms: ${{ env.IMAGE_PLATFORMS }}
 
       - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: actions/attest-build-provenance@v1
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -180,17 +213,17 @@ jobs:
           push-to-registry: true
 
       - name: Install cosign
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: sigstore/cosign-installer@v4.1.0
 
       - name: Sign Docker image
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         env:
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE_REF}"
 
       - name: Verify Docker image signature
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         env:
           CERTIFICATE_IDENTITY: https://github.com/${{ github.workflow_ref }}
           IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
@@ -200,11 +233,11 @@ jobs:
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 
       - name: Prepare release metadata output
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         run: mkdir -p dist
 
       - name: Generate image SBOM
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: anchore/sbom-action@v0
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
@@ -215,7 +248,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate SBOM attestation
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: actions/attest@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -225,7 +258,7 @@ jobs:
           create-storage-record: false
 
       - name: Verify image attestations
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
           OCI_IMAGE_REF: oci://${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
@@ -240,23 +273,34 @@ jobs:
     needs:
       - changes
       - build-and-push-image
-    if: needs.changes.outputs.image == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
+        if: env.LANE_APPLIES == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Compute source date epoch
+        if: env.LANE_APPLIES == 'true'
         id: epoch
         run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
       - name: Build image (first)
+        if: env.LANE_APPLIES == 'true'
         run: |
           docker buildx build \
             --platform linux/amd64 \
@@ -268,6 +312,7 @@ jobs:
             .
 
       - name: Build image (second, no cache)
+        if: env.LANE_APPLIES == 'true'
         run: |
           docker buildx build \
             --platform linux/amd64 \
@@ -279,6 +324,7 @@ jobs:
             .
 
       - name: Compare builds
+        if: env.LANE_APPLIES == 'true'
         run: |
           (cd /tmp/out1 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out1.sha256
           (cd /tmp/out2 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out2.sha256
@@ -338,7 +384,14 @@ jobs:
 
   package-and-push-chart:
     needs: changes
-    if: needs.changes.outputs.chart == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.chart }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -347,9 +400,11 @@ jobs:
 
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Helm
+        if: env.LANE_APPLIES == 'true'
         uses: azure/setup-helm@v5.0.0
         with:
           # Pinned: setup-helm installs latest by default, and a newer helm
@@ -359,15 +414,17 @@ jobs:
           version: v4.2.3
 
       - name: Lint Helm chart
+        if: env.LANE_APPLIES == 'true'
         run: helm lint ${{ env.CHART_PATH }}
 
       - name: Package Helm chart
+        if: env.LANE_APPLIES == 'true'
         run: |
           mkdir -p dist
           helm package ${{ env.CHART_PATH }} --destination dist
 
       - name: Push Helm chart to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         run: |
           helm registry login ${{ env.REGISTRY }} \
             --username "${{ github.actor }}" \

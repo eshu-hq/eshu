@@ -64,6 +64,7 @@ func checkRequiredStatusWorkflows(repoRoot string, reg *Registry) []error {
 		errs = append(errs, validateTrustedAggregator(check, raw, workflow.Concurrency, workflow.Permissions, job)...)
 		errs = append(errs, validateSourceWorkflow(repoRoot, check)...)
 		errs = append(errs, validateBlockingWorkflowSources(repoRoot, check, raw, reg)...)
+		errs = append(errs, validateBlockingJobsRunOnMergeGroup(repoRoot, check, reg)...)
 	}
 	return errs
 }
@@ -111,6 +112,9 @@ func validateBlockingWorkflowSources(
 				parseErr,
 			))
 			continue
+		}
+		if mergeGroupErr := validateBlockingWorkflowMergeGroup(check, gate.CI.Workflow, raw); mergeGroupErr != nil {
+			errs = append(errs, mergeGroupErr)
 		}
 		name := strings.TrimSpace(identity.Name)
 		if name == "" || !slicesContain(sources, name) {

@@ -1,6 +1,10 @@
 name: Product Claim Ledger
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   pull_request:
     paths:
       - README.md

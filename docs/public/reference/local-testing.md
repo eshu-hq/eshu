@@ -312,15 +312,15 @@ gates its changed paths select:
   `go-race-complete`, then adds `required-gates-complete` only after its trusted
   publisher is present on the default branch. The scheduled/manual live
   verifier checks that the named owning ruleset is active and scoped to the
-  default branch, proves that ruleset itself owns the exact strict context and
+  default branch, proves that ruleset itself owns the exact context and
   integration-ID manifest, then makes the same comparison against GitHub's
   effective `main` rules. It fails on a missing, extra, or differently owned
   context. GitHub hides bypass actors from the read-only scheduled token, so
   the scheduled audit does not claim to prove their absence; an
   admin-authenticated invocation requires the field and verifies that it is
-  empty. The verifier also fails if a merge-queue rule appears: the current
-  publisher evaluates pull-request heads, so `merge_group` support must land
-  before merge queue is enabled.
+  empty. `main` merges through a merge queue: the verifier requires a
+  `merge_queue` rule waiting at least 60 minutes, and the publisher aggregates
+  `merge_group` runs on the queue commit, so strict mode is not required.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
 - **CI-only / release-only:** PR image-build, reproducibility, and Helm-package

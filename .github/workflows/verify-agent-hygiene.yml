@@ -9,13 +9,17 @@ name: Verify Agent Hygiene
 # with --no-verify; this workflow is the enforcement.
 
 on:
+  # Merge-queue entries (#7111): every job runs, publication stays off, and
+  # required-gates.yml aggregates the merge_group check rows.
+  merge_group:
+    types: [checks_requested]
   pull_request:
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -96,11 +100,15 @@ jobs:
 
       - name: No filename or directory stutter in added/renamed paths
         run: |
-          # PRs scan the base..head range; direct pushes scan everything
+          # PRs scan the base..head range; merge-queue entries scan from
+          # their merge base with main; direct pushes scan everything
           # pushed (before..sha). A recreated ref has no before SHA, so the
           # HEAD~1 fallback covers only the tip there.
           if [ -n "${{ github.base_ref }}" ]; then
             range="origin/${{ github.base_ref }}"
+          elif [ "${{ github.event_name }}" = "merge_group" ]; then
+            # A queue entry has no before SHA; scan what it adds over main.
+            range="$(git merge-base origin/main HEAD)"
           elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
             range="HEAD~1"
           else
