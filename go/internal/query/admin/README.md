@@ -6,7 +6,7 @@ replay events, projection decisions, and input-invalid facts.
 
 Layout:
 
-- `handler.go`, `facts.go`, `replay.go`, `generations.go`,
+- `handler.go`, `facts.go`, `replay.go`, `replay_explicit.go`, `generations.go`,
   `deadletters.go`, `inputinvalid.go`, `safety.go` — the `Handler` type,
   its routes, the `Store` port, the shared row/filter models, and the
   replay-safety set.

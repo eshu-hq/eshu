@@ -230,7 +230,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Replay failed work items",
-        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again.",
+        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set, whether they arrive as the failure_class selector or as explicit work_item_ids. A 200 with replayed_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again.",
         "requestBody": {
           "required": true,
           "content": {
@@ -258,7 +258,36 @@ const Admin = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Replay requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different parameters"},
-          "422": {"description": "Refused: unsafe failure class without force"},
+          "422": {
+            "description": "Refused without force: the failure_class selector, or at least one explicit work_item_ids row, is in an unsafe or manual-review failure class. A request naming such ids is refused whole, nothing is replayed, the idempotency_key is not consumed, and refused_work_items lists only the offending ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status", "reason", "detail"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["refused"]},
+                    "reason": {"type": "string"},
+                    "detail": {"type": "string"},
+                    "failure_class": {"type": "string", "description": "Present when the failure_class selector itself was refused."},
+                    "refused_work_items": {
+                      "type": "array",
+                      "description": "Present when explicit work_item_ids were refused; sorted by work_item_id.",
+                      "items": {
+                        "type": "object",
+                        "required": ["work_item_id", "failure_class", "reason"],
+                        "properties": {
+                          "work_item_id": {"type": "string"},
+                          "failure_class": {"type": "string"},
+                          "reason": {"type": "string", "description": "Operator guidance for the class."}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

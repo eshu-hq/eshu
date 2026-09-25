@@ -127,9 +127,11 @@ Dead-letter counts are rising in the operator read model
 
     Replay requires an explicit `reason`, an `idempotency_key` (so retries and
     concurrent delivery never double-replay), and an admin (all-scopes) token.
-    Non-retryable (`input_invalid`) and quarantined (`unsafe_payload`) classes are
-    excluded from broad replays and return `422` on an explicit target unless you
-    set `force=true` after fixing the cause. A duplicate key returns the prior
+    The `input_invalid`, `unsafe_payload`, `projection_bug`, and
+    `resource_exhausted` classes are excluded from broad replays and return `422`
+    on an explicit `failure_class` or `work_item_ids` target unless you set
+    `force=true` after fixing the cause
+    ([refusal contract](../reference/http-api/admin-replay-refusals.md)). A duplicate key returns the prior
     outcome (`duplicate=true`); a reused key with different parameters, or one
     whose replay is in progress, returns `409`. The CLI mirrors this:
     `eshu admin facts replay --reason "<why>" --failure-class timeout`. Every

@@ -58,6 +58,10 @@ type stubAdminStore struct {
 	replayed         []WorkItem
 	replayErr        error
 	replayFilter     ReplayWorkItemFilter
+	unsafeTargets    []UnsafeReplayTarget
+	unsafeTargetsErr error
+	unsafeFilter     UnsafeReplayTargetFilter
+	unsafeCalls      int
 	claim            ReplayIdempotencyClaim
 	claimErr         error
 	claimKey         string
@@ -104,6 +108,12 @@ func (s *stubAdminStore) SkipRepositoryWorkItems(_ context.Context, _ string, _ 
 func (s *stubAdminStore) ReplayFailedWorkItems(_ context.Context, f ReplayWorkItemFilter) ([]WorkItem, error) {
 	s.replayFilter = f
 	return s.replayed, s.replayErr
+}
+
+func (s *stubAdminStore) UnsafeReplayTargets(_ context.Context, f UnsafeReplayTargetFilter) ([]UnsafeReplayTarget, error) {
+	s.unsafeCalls++
+	s.unsafeFilter = f
+	return s.unsafeTargets, s.unsafeTargetsErr
 }
 
 func (s *stubAdminStore) ClaimReplayIdempotency(_ context.Context, key, _ string, _ time.Time) (ReplayIdempotencyClaim, error) {

@@ -86,6 +86,13 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Refuse explicit work_item_ids that resolve to unsafe or manual-review rows
+	// (#7120): the store-side exclusion would otherwise skip them and answer
+	// 200 with replayed_count 0.
+	if h.refuseUnsafeExplicitReplay(w, r, req, authCtx, correlationID) {
+		return
+	}
+
 	fingerprint := replayRequestFingerprint(req.WorkItemIDs, req.ScopeID, req.Stage, req.FailureClass, req.limit(), req.Force)
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {

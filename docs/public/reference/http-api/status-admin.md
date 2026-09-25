@@ -705,8 +705,8 @@ mount it only where durable queue mutation is allowed. Skip dead-letters at most
   scoped/limited token is refused with `403`.
 - **Unsafe classes are refused.** Terminal items whose `failure_class` is
   non-retryable (`input_invalid`) or quarantined (`unsafe_payload`) are excluded
-  from broad replays, and an explicit unsafe-class request returns `422` with
-  actionable guidance unless `force=true` is set after addressing the cause.
+  from broad replays; an unsafe `failure_class` or unsafe `work_item_ids` request
+  returns `422` unless `force=true` ([refusal contract](admin-replay-refusals.md)).
 - **Concurrent and duplicate delivery are handled.** The `idempotency_key` is
   recorded in the durable `admin_replay_requests` ledger whose primary key
   serializes concurrent requests: exactly one request runs the replay, and a
