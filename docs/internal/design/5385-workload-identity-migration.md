@@ -149,9 +149,23 @@ current pin.
    still produces one node and the counters fire. What it **cannot** prove:
    the `SAME_NAME` writer and the handle ladder, because under the old key
    there is only one node with a name. Those are proved in step 9.
-2. **Hold the claim domains** in §4: every row marked `claim`, which
-   includes `code_call_materialization`, `code_import_repo_edge`, and
-   `package_source_correlation`, the emitters of the side-runner rows. The
+2. **Hold the claim domains** in §4: every row marked `claim`, plus every
+   emitter of a side-runner row: `code_call_materialization` (rows 4 and 5),
+   and `code_import_repo_edge`, `package_source_correlation`, and
+   `deployment_mapping` (row 6). `deployment_mapping` is in the set for two
+   reasons. `CrossRepoRelationshipHandler`
+   (`go/internal/reducer/crossrepo/cross_repo_resolution.go`, wired under
+   `DomainDeploymentMapping` in `go/internal/reducer/defaults_domain_catalog.go`)
+   emits `repo_dependency` intents through `IntentWriter.UpsertIntents`,
+   including the `RUNS_ON`-typed rows built by the `relationships.RelRunsOn`
+   branch of `buildResolvedEdgeIntentRows`
+   (`go/internal/reducer/crossrepo/cross_repo_intent_row.go`), so the step 3
+   drain of `repo_dependency` cannot settle while it is claimable. And
+   `PlatformMaterializationHandler` in the same domain requeues workload
+   materialization through `WorkloadMaterializationReplayer` whenever the
+   cross-repo resolution wrote anything
+   (`go/internal/reducer/platformfam/platform_materialization.go`), so an
+   unheld `deployment_mapping` re-drives row 1 during the hold. The
    mechanism is lane reconfiguration, not a pause switch:
    `ESHU_REDUCER_CLAIM_DOMAINS` (`loadReducerClaimDomains` in
    `go/cmd/reducer/config.go`) sets `ReducerQueue.ClaimDomains`, an
@@ -162,8 +176,9 @@ current pin.
    domains; releasing, in step 7, means restoring the list. The include-list
    reaches nothing else. The two side runners (§4) are goroutines of every
    reducer process, take no domain list, and floor their worker count at one
-   (`LoadConfig` in `go/internal/reducer/intents/shared/worker/config.go`
-   rejects zero; `loadRepoDependencyProjectionWorkers` in
+   (`intFromEnvDefault` in `go/internal/reducer/intents/shared/worker/config.go`
+   ignores a zero or negative value and falls back to the default, so the
+   count cannot be set below one; `loadRepoDependencyProjectionWorkers` in
    `go/cmd/reducer/config_projection.go` accepts only 1, 2, or 4), so no
    configuration holds them. They go quiet by construction instead: both
    select only `shared_projection_intents` rows with `completed_at IS NULL`
@@ -202,10 +217,23 @@ current pin.
    so it never executes under the old key; update the pinned-format tests
    deliberately. This is the only irreversible edit in the sequence, and it is
    a code roll.
-7. **Reopen and re-run every domain in §4 with one request.** Restore the
-   lane lists from step 2, then `POST /api/v0/admin/recover-generations` with
+7. **Reopen and re-run every domain in §4 with one request.** With the step 2
+   lanes still held, `POST /api/v0/admin/recover-generations` with
    `all_scopes: true`, a `reason`, and a fresh `idempotency_key` (admin token;
-   `recoverGenerationsRequest` in `go/internal/query/admin/generations.go`).
+   `recoverGenerationsRequest` in `go/internal/query/admin/generations.go`),
+   and restore the lane lists from step 2 only after the request returns 200.
+   The order matters: `RefinalizeScopeProjections` calls
+   `WaitForReducerDrain` (`go/internal/storage/postgres/rebuild/reset/refinalize.go`,
+   bounded by `DefaultRefinalizeDrainTimeout`, five minutes) on the very
+   generations it is about to reset, and lanes restored first would claim the
+   backlog that accumulated during the hold, hold live leases on those
+   generations, and can turn the request into a drain-timeout error that needs
+   a fresh `idempotency_key`. Restoring after the 200 also starts the §4 order
+   from a clean queue. Read `skipped` in the response (`RefinalizeResult.Skipped`
+   in `go/internal/recovery/replay.go`, reported by reason since #7156): a scope
+   the request could not re-enqueue lost its `Workload` nodes in step 5 and
+   stays empty until it is re-projected by hand, and the step 9 count assertion
+   would only catch that after the irreversible flip.
    This is the rebuild-from-facts path
    (`docs/public/operate/graph-rebuild-from-facts.md`):
    `RecoveryStore.RefinalizeScopeProjections`
@@ -237,9 +265,20 @@ current pin.
    zero, two nodes, one `SAME_NAME` edge, per-family edge counts equal to the
    pre-cutover baseline on the collision-free corpus.
 
-**Rollback.** Roll the old binary and issue the step 7 `recover-generations`
-request again with a fresh `idempotency_key`: the old key regenerates the old
-nodes and edges from facts. Of the Postgres rows retired
+**Rollback.** Rollback repeats steps 2, 3, and 5 before the old binary writes
+anything; it does not assume they carry over. After step 9 the graph holds
+new-shape `Workload`, `WorkloadInstance`, and `Endpoint` nodes with their
+`SAME_NAME`, `USES`, and `DOCUMENTS` edges, and the old binary's writers
+`MERGE` on the old ids and never delete or touch a new-shape node, so rolling
+the binary and re-materializing on its own would recreate exactly the
+coexistence window this section rejects. In order: hold the step 2 set again
+(the lanes were restored in step 7); drain both queues as in step 3;
+`DETACH DELETE` the three labels as in step 5 and verify the settled count
+reads zero; roll the old binary (the cascade needs no rollback of its own,
+because the old binary does not ship it); then, with the lanes still held,
+issue the step 7 `recover-generations` request again with a fresh
+`idempotency_key`, restore the lane lists after the 200, and the old key
+regenerates the old nodes and edges from facts. Of the Postgres rows retired
 in step 4, `service_evidence_key` rows **regenerate** from facts when the
 service-catalog runtime domain re-runs; the search handles do not regenerate
 from any §4 domain — `eshu_search_index_documents` is **reindexed** by
@@ -301,7 +340,7 @@ the operator issues:
 | 3 | `code_call_materialization` (claim; the emitter of rows 4 and 5: `materialization.Handler` in `go/internal/reducer/code/call/materialization/handler.go` appends `BuildIntentRows` and calls `IntentWriter.UpsertIntents`) | none of its own; its Cypher is rows 4 and 5 | see rows 4 and 5 |
 | 4 | `handles_route` (side runner `worker.Runner`; presence-gated on `api_endpoint_repo_path`; #6184 probe) | `go/internal/storage/cypher/canonical_handles_route_edges.go` | `HANDLES_ROUTE` |
 | 5 | `runs_in` (side runner `worker.Runner`; presence-gated on `repo_workload`; #6184 probe) | `go/internal/storage/cypher/canonical_runs_in_edges.go` | `RUNS_IN` |
-| 6 | `repo_dependency` (side runner `RepoDependencyProjectionRunner`; emitted by the `code_import_repo_edge` and `package_source_correlation` claim domains through `RepoDependencyIntentWriter.UpsertIntents` in `code_import_repo_edge_handler.go` and `packages/correlation/source_handler.go`; the producer of its `RUNS_ON` rows is open, probe P7) | `go/internal/storage/cypher/canonical_relationships.go` | `RUNS_ON` (writer leg) |
+| 6 | `repo_dependency` (side runner `RepoDependencyProjectionRunner`; emitted by three claim domains through `RepoDependencyIntentWriter.UpsertIntents`: `code_import_repo_edge` (`code_import_repo_edge_handler.go`) and `package_source_correlation` (`packages/correlation/source_handler.go`), whose rows are all `DEPENDS_ON`, and `deployment_mapping`, whose `CrossRepoRelationshipHandler` emits the `RUNS_ON`-typed rows from the `RelRunsOn` branch of `buildResolvedEdgeIntentRows` in `crossrepo/cross_repo_intent_row.go`, from candidates that `go/internal/relationships/yaml_iac_evidence.go` produces; whether that leg is populated on the 908-repo store is probe P7) | `go/internal/storage/cypher/canonical_relationships.go` | `RUNS_ON` (writer leg) |
 | 7 | `documentation_materialization` (claim; writes the `documentation_edges` family inline through `EdgeWriter.WriteEdges` in `documentation_edge_materialization.go`; no queued row; no #6184 probe, §7) | `go/internal/storage/cypher/canonical_documentation_edges.go` | `DOCUMENTS` |
 | 8 | `workload_cloud_relationship_materialization` (claim) | `go/internal/storage/cypher/workload_cloud_relationship_writer.go`, `go/internal/reducer/workloadinstance/lookup.go`; gate `go/internal/ifa/materializededges/workload_cloud_relationship.go` (asserts by id; outside the search) | `USES` |
 | 9 | service-catalog correlation (claim domain `service_catalog_correlation`; its runtime family is `GraphServiceRuntimeInstanceLoader`, wired in `go/cmd/reducer/main.go` and gated on `ServiceMaterializationWriter` in `go/internal/reducer/defaults_additive_domains.go`) | `go/internal/reducer/service_runtime_instance_lookup.go` (outside the search) | `service_evidence_key` rows |
@@ -353,12 +392,12 @@ run; each records a ledger row when it does.
 | Probe | What it settles | Pass shape |
 | --- | --- | --- |
 | P1 | Relationship `DELETE` effectiveness on `fix-500-e022384c` for all six shapes the pr290 ledger row measured (bare `DELETE`, `RetractSingleRepoRunsOnEdgesCypher`, `DEFINES`, `DEPENDS_ON`, `RUNS_IN`, `DOCUMENTS`) plus the cloud-`USES` scope-wide retract (`RetractWorkloadCloudRelationshipEdgesCypher` as `commitEdges` dispatches it in `workload_cloud_relationship_materialization.go`), Neo4j control, settling loop. Until it runs, both documents say "unverified on the current pin". | 1 → 0 on both backends; if any shape is inert, the stale-`USES` hazard is recorded as open on the issue or the writer retracts by node |
-| P2 | `PROFILE` of the Go-paired `SAME_NAME` `MERGE` (compatibility doc §1.3) against the rejected inline-plus-`WHERE` shape, and of one handle lookup, with the `workload_name` index present | the paired shape seeks the index and writes the expected rows; the rejected shape is recorded as the pitfall predicts |
+| P2 | `PROFILE` of the Go-paired `SAME_NAME` `MERGE` (compatibility doc §1.3) against the rejected inline-plus-`WHERE` shape, and of one handle lookup, with the `workload_name` index present. Also `PROFILE` of the §2 cascade shape, `MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id MATCH (n:<Label> {repo_id: r.id}) DETACH DELETE n`, once per label against a seeded retired repository: it is a new hot-path graph write whose correlated property match feeds a `DETACH DELETE`, and the grouped-`DETACH DELETE` under-apply that `docs/public/reference/nornicdb-pitfalls.md` records as a v1.1.11 defect must be shown absent on the current pin, so the shape is measured before it ships rather than left to T4 | the paired shape seeks the index and writes the expected rows; the rejected shape is recorded as the pitfall predicts; the cascade seeks `workload_repo_id` and `workload_instance_repo_id`, deletes exactly the retired repository's nodes on both backends, and its `Endpoint`-leg cost feeds the P3 index decision |
 | P3 | `DETACH DELETE` of the three labels plus the step 7 `recover-generations` re-run: wall time on the 908-repo store at the current pin, with the §4 per-family count assertion on the result. The rebuild runbook's latest measured clean run (`docs/public/operate/graph-rebuild-from-facts.md`, "What the rebuild does not restore") came back short one `WorkloadInstance`, its `Platform`, and four relationships, which is inside the labels this cutover deletes and is unexplained | exact seconds and a human duration, with the stated bound; every family count equal, or the delta root-caused before the live run |
 | P4 | Re-prove the `FetchWorkloadRuntimeTopology` pin (`go/internal/query/entity/workload_runtime_topology.go`; `go/internal/queryplan/testdata/hot-cypher.yaml`, whose caveats retain the #5272 "about 75 times slower" repository-first finding and the Neo4j-only `NodeIndexSeek` proof) under the new `workload_id` values | pin updated; the `WorkloadInstance.workload_id` anchor still seeks; the 75x finding re-measured, not assumed |
 | P5 | The two-repository Odù from the compatibility doc §2.4 on the new key | one `RUNS_ON` per instance, zero duplicate `Endpoint` nodes, one `SAME_NAME` edge, zero handle edges, per-family counts equal |
 | P6 | `SAME_NAME` concurrent-`MERGE` contention: two workers writing the same ordered pair, at least 20 trials on the current pin, settled reads, retry observed | exactly one edge after every trial and an idempotent retry. **Gates the edge-versus-query-time choice:** duplicates in any trial make `SAME_NAME` gauge-only, with siblings computed at query time from the `workload_name` index under the grant filter |
-| P7 | Which producer emits a `RUNS_ON`-typed `repo_dependency` intent. The writer leg exists (`repoDependencyRunsOnRows` in `go/internal/reducer/repo_dependency_projection_replay.go`; the `RunsOn` branch of `buildRowMap` in `go/internal/storage/cypher/edge/writer/writer.go`), but both emitters in the tree (`code_import_repo_edge.go`, `packages/correlation/consumption_repo_edge.go`) set `relationship_type` to `DEPENDS_ON`, and no other producer was found at `2ae147cf9`; this is not settled from code | `SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'repo_dependency' AND payload->>'relationship_type' = 'RUNS_ON'` on the 908-repo store. Zero: §4 row 6 is a dead leg and `RUNS_ON` belongs to row 1 alone. Non-zero: name the producer and add it to the held set in step 2 |
+| P7 | Whether the `RUNS_ON` leg of §4 row 6 is populated on a real store. The producer is settled from code: `CrossRepoRelationshipHandler` (`deployment_mapping`) emits it through the `relationships.RelRunsOn` branch of `buildResolvedEdgeIntentRows` (`go/internal/reducer/crossrepo/cross_repo_intent_row.go`), from candidates that `go/internal/relationships/yaml_iac_evidence.go` produces, and the writer leg is `repoDependencyRunsOnRows` in `go/internal/reducer/repo_dependency_projection_replay.go` plus the `RunsOn` branch of `buildRowMap` in `go/internal/storage/cypher/edge/writer/writer.go`; the other two emitters (`code_import_repo_edge.go`, `packages/correlation/consumption_repo_edge.go`) set `relationship_type` to `DEPENDS_ON` only. What code cannot say is whether any corpus exercises the leg | `SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'repo_dependency' AND payload->>'relationship_type' = 'RUNS_ON'` on the 908-repo store. Zero: the leg is dormant on that corpus and its `RUNS_ON` count comes from row 1 alone; `deployment_mapping` stays in the step 2 hold regardless, because the emitter is live code. Non-zero: the §4 per-family `RUNS_ON` assertion includes those rows, and P5 asserts them separately from row 1's |
 
 Required tests, each RED before its change and GREEN after:
 
