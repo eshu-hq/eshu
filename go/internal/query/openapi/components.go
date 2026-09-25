@@ -156,7 +156,7 @@ const components = `  "components": {
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional parser metadata enriched from the Go content pipeline for graph-backed entity results."
+            "description": "Optional parser metadata enriched from the Go content pipeline for graph-backed entity results. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."
           },
           "repo_id": {"type": "string"},
           "repo_name": {"type": "string"}
@@ -300,7 +300,7 @@ const components = `  "components": {
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Language- and entity-specific parser metadata preserved from the Go content pipeline."
+            "description": "Language- and entity-specific parser metadata preserved from the Go content pipeline. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."
           }
         }
       },
@@ -349,7 +349,7 @@ const components = `  "components": {
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional parser metadata returned on content-backed fallback results."
+            "description": "Optional parser metadata returned on content-backed fallback results. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."
           },
           "repo_id": {"type": "string"},
           "repo_name": {"type": "string"}
@@ -394,7 +394,7 @@ const components = `  "components": {
           "match_kind": {"type": "string", "enum": ["exact", "fuzzy"]},
           "rank": {"type": "integer"},
           "source_handle": {"type": "object", "additionalProperties": true},
-          "metadata": {"type": "object", "additionalProperties": true},
+          "metadata": {"type": "object", "additionalProperties": true, "description": "Parser metadata for the entity. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."},
           "semantic_summary": {"type": "string"},
           "semantic_profile": {"type": "object", "additionalProperties": true}
         }
