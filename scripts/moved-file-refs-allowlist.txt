@@ -288,3 +288,15 @@ scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_j
 # querycontract/entity/repo_identity.go; repointing would misstate what #6060
 # promoted.
 docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal/query/querycontract/entity_repo_identity.go
+
+# #6693 step 22 scope/completion: dated #5709/#6488 evidence notes that record
+# the cross-scope completion and quiescence files at their root paths, as the
+# tree stood when those investigations ran. Repointing would falsify the
+# record of where that code lived. The live pointers are
+# go/internal/storage/postgres/scope/completion/fanout.go,
+# producer_readiness.go, quiescence.go, and quiescence_live_test.go.
+docs/internal/evidence/5709-cross-scope-readiness-floor.md:go/internal/storage/postgres/cross_scope_completion_fanout.go
+docs/internal/evidence/6488-ack-fanout-lock-order.md:go/internal/storage/postgres/cross_scope_completion_fanout.go
+docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/cross_scope_producer_readiness.go
+docs/internal/evidence/5709-cross-scope-readiness-floor.md:go/internal/storage/postgres/scope_quiescence.go
+docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/scope_quiescence_live_test.go

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 func TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive(t *testing.T) {
@@ -29,7 +30,7 @@ func TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive(t *testing.T)
 		t, ctx, db, reducer.DomainContainerImageIdentity,
 		"claimed", "expired-owner", now.Add(-time.Second), 7, now,
 	)
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return now }
 
 	lease, ok, err := store.Claim(ctx, "takeover-owner", time.Minute)
@@ -45,10 +46,10 @@ func TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive(t *testing.T)
 		LeaseOwner:     "expired-owner",
 		ClaimEpoch:     7,
 	}
-	if err := store.Heartbeat(ctx, stale, time.Minute); !errors.Is(err, ErrCrossScopeCompletionClaimRejected) {
+	if err := store.Heartbeat(ctx, stale, time.Minute); !errors.Is(err, completionstore.ErrCrossScopeCompletionClaimRejected) {
 		t.Fatalf("stale heartbeat error = %v, want claim rejected", err)
 	}
-	if _, err := store.Fanout(ctx, stale, 1); !errors.Is(err, ErrCrossScopeCompletionClaimRejected) {
+	if _, err := store.Fanout(ctx, stale, 1); !errors.Is(err, completionstore.ErrCrossScopeCompletionClaimRejected) {
 		t.Fatalf("stale fanout error = %v, want claim rejected", err)
 	}
 
@@ -82,7 +83,7 @@ func TestCrossScopeCompletionConcurrentClaimHasOneLiveOwnerPerDomain(t *testing.
 		go func(worker int) {
 			defer wg.Done()
 			<-start
-			store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+			store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 			store.Now = func() time.Time { return now }
 			_, ok, err := store.Claim(ctx, fmt.Sprintf("claim-worker-%d", worker), time.Minute)
 			results <- ok
@@ -115,7 +116,7 @@ func TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive(t *testing.T)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	base := time.Now().UTC().Add(-time.Minute)
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return base }
 	insertCrossScopeCompletionEvent(
 		t, ctx, db, reducer.DomainContainerImageIdentity,
@@ -130,9 +131,9 @@ func TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive(t *testing.T)
 		}
 		insertCrossScopeCompletionEvent(
 			t, ctx, db, reducer.DomainContainerImageIdentity,
-			"pending", "", time.Time{}, 0, store.now(),
+			"pending", "", time.Time{}, 0, store.Now(),
 		)
-		visibleAt := store.now().Add(30 * time.Second)
+		visibleAt := store.Now().Add(30 * time.Second)
 		if err := store.Retry(ctx, lease, errors.New("synthetic bounded retry"), visibleAt); err != nil {
 			t.Fatalf("merge bounded retry %d: %v", attempt, err)
 		}
@@ -198,7 +199,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_cross_scope_schedule()
 		t.Fatalf("install synthetic schedule rejection: %v", err)
 	}
 
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return now }
 	lease, ok, err := store.Claim(ctx, leaseOwner, time.Minute)
 	if err != nil || !ok {

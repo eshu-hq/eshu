@@ -181,8 +181,8 @@ aliases for every symbol this package took over, under their EXACT original
 root spelling, so none of the 92-plus existing call sites in
 `ci_cd_run_correlation.go`, `evidence_load.go`,
 `registry_additive_domains.go`, and the storage layer's
-`internal/storage/postgres/cross_scope_completion_fanout.go` and
-`cross_scope_producer_readiness.go` (which reference `reducer.CrossScopeCompletionEdges`,
+`internal/storage/postgres/scope/completion/fanout.go` and
+`producer_readiness.go` (which reference `reducer.CrossScopeCompletionEdges`,
 `reducer.CrossScopeProducerReadinessByDomain`, and
 `reducer.CrossScopeProducerNotReadyFailureClass`) changed. They are function
 statements, never function-valued variables, so they stay inlinable on the

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package completionstore
 
 import (
 	"context"
@@ -11,7 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-const fanoutCrossScopeCompletionQuery = `
+// FanoutCrossScopeCompletionQuery claims one cross-scope completion event
+// and fans it out to eligible consumers. Exported for the staying root plan
+// tests, which EXPLAIN the shipped query rather than a copy.
+const FanoutCrossScopeCompletionQuery = `
 WITH lease AS MATERIALIZED (
     SELECT event_id, producer_domain
     FROM cross_scope_completion_events
@@ -160,7 +163,7 @@ func (s *CrossScopeCompletionStore) Fanout(
 	}
 	rows, err := s.database.QueryContext(
 		ctx,
-		fanoutCrossScopeCompletionQuery,
+		FanoutCrossScopeCompletionQuery,
 		s.now(),
 		lease.EventID,
 		lease.ProducerDomain,

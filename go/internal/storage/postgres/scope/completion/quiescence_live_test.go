@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package completionstore
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // producerScopeQuiescenceLiveDB opens the live database for this proof, skipping
@@ -27,6 +29,36 @@ func producerScopeQuiescenceLiveDB(t *testing.T) (*sql.DB, context.Context) {
 		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres #5709 producer-scope quiescence proof")
 	}
 	return awsCloudRuntimeDriftAdmissionLiveDB(t)
+}
+
+// Twin of aws_cloud_runtime_drift_admission_live_helpers_test.go (root): Go
+// test-only symbols do not cross package boundaries, so the moved quiescence
+// test keeps its own copy. Keep the two copies behavior-identical (only the
+// postgres. qualifier differs).
+func awsCloudRuntimeDriftAdmissionLiveDB(t *testing.T) (*sql.DB, context.Context) {
+	t.Helper()
+
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres aws_cloud_runtime_drift #5848 proofs")
+	}
+
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	schemaCtx, cancelSchema := context.WithTimeout(context.Background(), 5*time.Minute)
+	err = postgres.ApplyBootstrap(schemaCtx, postgres.SQLDB{DB: sqlDB})
+	cancelSchema()
+	if err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+	return sqlDB, ctx
 }
 
 // TestProducerScopeQuiescenceLive runs the probe against a real Postgres, which
@@ -51,7 +83,7 @@ func producerScopeQuiescenceLiveDB(t *testing.T) (*sql.DB, context.Context) {
 //	  go test ./internal/storage/postgres -run ProducerScopeQuiescenceLive -count=1 -v
 func TestProducerScopeQuiescenceLive(t *testing.T) {
 	sqlDB, ctx := producerScopeQuiescenceLiveDB(t)
-	db := SQLDB{DB: sqlDB}
+	db := postgres.SQLDB{DB: sqlDB}
 	now := time.Now().UTC()
 
 	// The collector kind is unique per run so a shared database (this suite's
@@ -187,5 +219,35 @@ func seedProducerScopeQuiescenceWorkItem(
 		workItemID, scopeID, generationID, stage, status, now,
 	); err != nil {
 		t.Fatalf("seed fact_work_items %s: %v", workItemID, err)
+	}
+}
+
+// Twin of aws_cloud_runtime_drift_admission_live_helpers_test.go (root): Go
+// test-only symbols do not cross package boundaries, so the moved quiescence
+// test keeps its own copy. Keep the two copies byte-identical.
+func seedAWSCloudRuntimeDriftGeneration(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	generationID string,
+	scopeID string,
+	status string,
+	now time.Time,
+) {
+	t.Helper()
+
+	var activatedAt any
+	if status == "active" {
+		activatedAt = now
+	}
+	if _, err := db.ExecContext(
+		ctx, `
+		INSERT INTO scope_generations
+		  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		VALUES ($1, $2, 'manual', $3, $3, $4, $5)
+		ON CONFLICT (generation_id) DO UPDATE SET status = EXCLUDED.status, activated_at = EXCLUDED.activated_at`,
+		generationID, scopeID, now, status, activatedAt,
+	); err != nil {
+		t.Fatalf("seed scope_generations %s: %v", generationID, err)
 	}
 }

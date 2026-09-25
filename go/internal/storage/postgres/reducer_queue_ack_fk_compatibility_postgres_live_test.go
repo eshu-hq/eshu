@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 // A real audit FK holds KEY SHARE on the work row until commit. Completing a
@@ -70,7 +71,7 @@ SELECT EXISTS (
 			}
 			if variant.fanout {
 				event := insertCrossScopeCompletionEvent(t, ctx, db, reducer.DomainCICDRunCorrelation, "claimed", "fk-fanout", now.Add(time.Hour), 1, now)
-				store := NewCrossScopeCompletionStore(worker)
+				store := completionstore.NewCrossScopeCompletionStore(worker)
 				store.Now = func() time.Time { return now }
 				result, err := store.Fanout(ctx, reducer.CrossScopeCompletionLease{EventID: event, ProducerDomain: reducer.DomainCICDRunCorrelation, LeaseOwner: "fk-fanout", ClaimEpoch: 1}, 1)
 				if err != nil {

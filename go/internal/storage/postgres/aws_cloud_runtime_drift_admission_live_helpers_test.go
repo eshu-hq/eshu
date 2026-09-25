@@ -22,6 +22,9 @@ import (
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run 'AWSCloudRuntimeDrift.*Live' -count=1 -v
 
+// Twin copies of this helper and seedAWSCloudRuntimeDriftGeneration below live in
+// scope/completion/quiescence_live_test.go (Go test-only symbols do not cross
+// package boundaries); keep each pair behavior-identical.
 // awsCloudRuntimeDriftAdmissionLiveDB opens the DSN-gated database and applies
 // the bootstrap schema, skipping the whole test when no DSN is configured.
 // Mirrors containerImageIdentityFenceLiveDB's split-budget rationale: schema

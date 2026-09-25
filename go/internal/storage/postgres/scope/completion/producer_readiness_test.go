@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package completionstore
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
@@ -64,7 +65,7 @@ func (q *quiescenceQueryerStub) QueryContext(_ context.Context, query string, ar
 			rows = append(rows, []any{registered.scopeID, registered.quiescent})
 		}
 	}
-	return &fakeRows{rows: rows}, nil
+	return &fake.Rows{Data: rows}, nil
 }
 
 // quiescentScopes is shorthand for a kind whose registered scopes have all

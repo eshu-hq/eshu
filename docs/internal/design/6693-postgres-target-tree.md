@@ -357,7 +357,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 19. [x] `freshness/gcp/` (3 files)
 20. [x] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
 21. [x] `lock/` (3 files; after `scope/`)
-22. [ ] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker)
+22. [x] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker; the 3 harness/queue-bound tests defer to `container/image/` and `queue/reducer/`)
 23. [ ] `crossplane/` (5 files)
 24. [ ] `search/document/` (6 files)
 25. [ ] `container/image/` (7 files)
@@ -431,7 +431,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `code/reachability/` | 3 | 3 | ok |
 | `code/taint/` | 2 | 2 | ok |
 | `collector/` | 4 | 2 | ok |
-| `container/image/` | 7 | 9 | ok |
+| `container/image/` | 7 | 11 | ok |
 | `content/` | 13 | 15 | ok |
 | `crossplane/` | 5 | 5 | ok |
 | `db/` | 3 | 2 | ok |
@@ -466,11 +466,11 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `maintenance/` | 1 | 1 | ok |
 | `queue/` | 2 | 1 | ok |
 | `queue/projector/` | 7 | 19 | ok |
-| `queue/reducer/` | 13 | 99 | ok |
+| `queue/reducer/` | 13 | 100 | ok |
 | `recovery/` | 1 | 7 | ok |
 | `relationship/` | 6 | 9 | ok |
 | `scope/` | 2 | 2 | ok |
-| `scope/completion/` | 4 | 6 | ok |
+| `scope/completion/` | 4 | 3 | ok |
 | `search/document/` | 6 | 7 | ok |
 | `search/index/` | 1 | 2 | ok |
 | `search/vector/` | 10 | 19 | ok |

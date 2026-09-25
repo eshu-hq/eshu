@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
 func TestCrossScopeCompletionEventAfterFanoutSnapshotRemainsPendingLive(t *testing.T) {
@@ -41,7 +42,7 @@ UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
 		t, ctx, db, reducer.DomainContainerImageIdentity,
 		"pending", "", time.Time{}, 0, now.Add(-time.Second),
 	)
-	store := NewCrossScopeCompletionStore(SQLDB{DB: db})
+	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return now }
 	lease, ok, err := store.Claim(ctx, owner, time.Minute)
 	if err != nil || !ok {
