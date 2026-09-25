@@ -257,6 +257,22 @@ func TestSummarizePlainToolTextIndexStatus(t *testing.T) {
 	}
 }
 
+func TestSummarizePlainToolTextIndexStatusScoped(t *testing.T) {
+	value := map[string]any{
+		"scoped":             true,
+		"repository_count":   float64(3),
+		"completeness_state": "scoped_repository_count_only",
+		"withheld_sections":  []any{"status", "queue"},
+	}
+
+	got := summarizePlainToolText("get_index_status", value)
+	for _, want := range []string{"scoped", "3 repositories", "withheld"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("scoped index status summary %q missing %q", got, want)
+		}
+	}
+}
+
 func TestSummarizePlainToolTextHostedReadiness(t *testing.T) {
 	value := map[string]any{
 		"state":           "not_ready",

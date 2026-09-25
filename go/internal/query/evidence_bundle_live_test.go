@@ -254,9 +254,10 @@ func TestEvidenceHandlerLiveBundleFlagsTruncatedDomainBacklogs(t *testing.T) {
 // handler path -- the real EvidenceHandler mounted on a real mux, wrapped by
 // the real AuthMiddlewareWithScopedTokens -- not an interface mock over the
 // allowlist matcher. The bundle composes stack-wide status data (repository
-// count, queue, every domain's backlog, every collector), the same data GET
-// /api/v0/status/index and GET /api/v0/status/pipeline already refuse scoped
-// tokens for, so a scoped bearer token must never reach the handler.
+// count, queue, every domain's backlog, every collector), the full report GET
+// /api/v0/status/index withholds from scoped callers (#5167) and GET
+// /api/v0/status/pipeline refuses them, so a scoped bearer token must never
+// reach the handler.
 func TestAuthMiddlewareWithScopedTokensRejectsEvidenceBundleRoute(t *testing.T) {
 	t.Parallel()
 

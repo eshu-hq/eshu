@@ -147,6 +147,9 @@ func summarizeIndexStatus(data map[string]any) string {
 	}
 	state := query.StringVal(data, "status")
 	if state == "" {
+		if query.BoolVal(data, "scoped") {
+			return summarizeScopedIndexStatus(data)
+		}
 		return ""
 	}
 	summary := "index status: " + clampField(state)
@@ -157,6 +160,22 @@ func summarizeIndexStatus(data map[string]any) string {
 		}
 	}
 	return summary
+}
+
+// summarizeScopedIndexStatus renders the scoped index-status shape (#5167): a
+// grant-bound repository count and the disclosure that the deployment-wide
+// sections were withheld, so a caller does not read the absent status as an
+// unknown health.
+func summarizeScopedIndexStatus(data map[string]any) string {
+	count := query.IntVal(data, "repository_count")
+	noun := "repositories"
+	if count == 1 {
+		noun = "repository"
+	}
+	return fmt.Sprintf(
+		"index status (scoped): %d %s in your grant; deployment-wide health, queue, and coordinator sections are withheld",
+		count, noun,
+	)
 }
 
 // summarizeHostedReadiness renders the hosted readiness result and first

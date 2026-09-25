@@ -13,8 +13,9 @@ import (
 // TestOpenAPISpecIncludesLiveEvidenceBundle proves GET /api/v0/evidence/bundle
 // (#4045) is documented in the served OpenAPI spec, and that it deliberately
 // carries neither tenant-scope marker: the bundle is stack-wide, the same
-// posture as its two stack-wide source routes GET /api/v0/status/index and
-// GET /api/v0/status/pipeline.
+// posture as its stack-wide source route GET /api/v0/status/pipeline and the
+// full-report shape of GET /api/v0/status/index (a scoped caller of that route
+// gets only a grant-bound repository count, #5167).
 func TestOpenAPISpecIncludesLiveEvidenceBundle(t *testing.T) {
 	t.Parallel()
 

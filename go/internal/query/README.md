@@ -216,7 +216,7 @@ that typed report into an `evidencebundle.LiveSnapshot`; it never re-derives
 bundle is stack-wide -- none of the composed data carries a repository or
 tenant selector -- so the route carries no `x-scoped-token-support` marker and
 is absent from `scopedHTTPRouteSupportsTenantFilter`, the same posture as its
-two stack-wide source routes; a scoped-bearer-token caller is always rejected
+full-report source routes; a scoped-bearer-token caller is always rejected
 by `AuthMiddleware` before the handler runs. A browser-session caller's
 admission is policy-dependent, not a flat reject: off the allowlist, as here,
 `browserSessionRouteDenialReason` admits only a tenant-bound all-scopes

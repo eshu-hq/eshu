@@ -40,7 +40,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_index_status",
-			Description: "Return the latest checkpointed index status. Scoped (personal-token) callers are refused with a 403: this stack-wide summary carries no per-tenant selector (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
+			Description: "Return the latest checkpointed index status. Shared-key callers get the full deployment-wide report. Scoped (personal-token) callers get only repository_count, counted over their granted repositories, plus scoped=true, completeness_state=scoped_repository_count_only, and a withheld_sections list naming the deployment-wide sections they do not receive (status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, terraform_state): those are process-global and cannot be attributed to a grant. A scoped caller with no granted repositories gets a count of 0. Use the shared ESHU_API_KEY for the full report.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},

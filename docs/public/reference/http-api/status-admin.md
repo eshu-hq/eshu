@@ -72,7 +72,7 @@ public query API status.
 
 ## Index Status
 
-- `GET /api/v0/status/index` returns the current checkpoint summary.
+- `GET /api/v0/status/index` returns the current checkpoint summary; scoped callers get [a grant-bound count](index-status.md).
 - `GET /api/v0/index-status` returns the same checkpoint summary.
 - `GET /api/v0/status/hosted-readiness` returns a fail-closed hosted operator
   report with JSON by default and a human summary when `?format=text`.

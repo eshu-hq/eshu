@@ -221,8 +221,9 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Returns the index status summary. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization sections are stack-wide aggregates with no caller grant to intersect, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger until a scoped payload shape is settled.",
+        "description": "Returns the index status summary. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed or unavailable graph count returns 500 or 503 rather than 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403.",
         "operationId": "getIndexStatus",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Index status",
@@ -232,6 +233,9 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "status": {"type": "string"},
+                    "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
+                    "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},
+                    "withheld_sections": {"type": "array", "items": {"type": "string"}, "description": "Present only on the scoped shape: the deployment-wide sections not returned."},
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
@@ -338,8 +342,9 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Legacy compatibility alias for the Go-owned index status summary. It shares the handler with GET /api/v0/status/index and refuses scoped tokens (all-scope bearer tokens included) and browser sessions other than a tenant-bound all-scope console session with a 403, for the same reason: the report is deployment-wide, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Legacy compatibility alias for the Go-owned index status summary; it shares the handler with GET /api/v0/status/index. Scoped tokens are admitted and receive a scoped shape instead of the deployment-wide report: only version, scoped=true, repository_count (counted over the caller's granted repositories and ingestion scopes inside the graph query, never an unfiltered count), completeness_state=scoped_repository_count_only, and withheld_sections naming status, reasons, queue, queue_blockages, coordinator, scope_activity, aws_materialization, semantic_extraction, and terraform_state. Those sections are process-global and cannot be attributed to a grant, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id), a raw scope id, so they are withheld rather than redacted and the status snapshot is not read for a scoped caller. A scoped caller with no granted repository or ingestion scope receives repository_count 0 without a graph query. A failed or unavailable graph count returns 500 or 503 rather than 0. Callers holding the shared key receive the full report unchanged. A hosted BrowserSessionRoutePolicy that refuses all-scope callers on grant-bound routes refuses them here with a 403.",
         "operationId": "getIndexStatusLegacy",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Index status",
@@ -349,6 +354,9 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "status": {"type": "string"},
+                    "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
+                    "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},
+                    "withheld_sections": {"type": "array", "items": {"type": "string"}, "description": "Present only on the scoped shape: the deployment-wide sections not returned."},
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
