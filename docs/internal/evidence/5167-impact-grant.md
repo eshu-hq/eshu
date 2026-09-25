@@ -31,6 +31,12 @@ closed and check every node of the bounded page, per class, in the new
   same `nil` an unknown anchor resolves to. The response is byte-identical to
   the unknown-anchor one and no traversal runs. `ResolveAnchor` resolves by id
   or name across 14 labels; without this rule it would be an existence oracle.
+- A scoped caller's anchor resolves to every candidate carrying the id or name
+  (`deployment.ResolveImpactAnchorCandidates`: `ORDER BY id, label` on the
+  RETURN clause, `LIMIT 32`, then sorted and deduplicated in Go). One ownership
+  `Check` judges them, and the first owned candidate is the anchor. A name two
+  tenants share can no longer resolve to the foreign node and hide the
+  caller's own node. The unscoped resolve keeps its `LIMIT 1`.
 - An empty grant makes no graph call.
 - `truncated` (or `coverage.truncated`) is computed from the raw row count
   before the Go filter, following the #6548 `...RowsInGrant` precedent.
@@ -47,9 +53,26 @@ closed and check every node of the bounded page, per class, in the new
   always withheld and named in `coverage.unresolved_reason`.
 - Every scoped response carries `scoped: true` and a static
   `withheld_sections` list. Neither says whether anything was withheld.
-- Unscoped callers get the pre-change Cypher and responses. The only
-  unscoped-visible change is two extra projected columns, `uid` and
-  `repo_id`, on the anchor-resolve `CALL {}` branches.
+- Unscoped callers get the pre-change Cypher and responses. The
+  unscoped-visible changes are two extra projected columns, `uid` and
+  `repo_id`, on the anchor-resolve `CALL {}` branches, and the P3-2 decode
+  change under Known Residuals.
+
+## Known Residuals
+
+- Unscoped decode (review P3-2). `impactNodeIdentityList` now keeps an
+  undecodable `nodes(path)` element as a zero identity instead of skipping it,
+  so the explain route's hop pairing stays aligned. `PathHasNodes` needs an
+  id, uid, or labels. This changes unscoped output only for elements the
+  decoder cannot read.
+- Scope-only grants (review P3-3). Grants are matched on repository ids. A
+  token holding only ingestion scope ids sees empty answers on these three
+  routes, which fails closed as the other impact routes do. `http-api.md`
+  states it.
+- Timing (review P3-4). An ungranted anchor costs one ownership statement
+  (milliseconds) more than an unknown one. Response bytes are identical (T1).
+- A scoped name with more than 32 carriers is judged over the first 32 in id
+  order. A caller whose own node sorts later sees it as unknown.
 
 ## Where The Design Changed, And The Measurements That Changed It
 
@@ -124,9 +147,12 @@ The rules are:
   key. A chunk that reaches it leaves its unadmitted keys unchecked.
 - Unchecked keys are ungranted, and the verdict reports `Capped`, so the route
   reports `truncated: true`.
-- Worst case: 4500 keys × ~0.15 ms ≈ 0.7 s. The 10 s graph-read deadline
+- At fan-in ~1: 4500 keys × ~0.15 ms ≈ 0.7 s. The 10 s graph-read deadline
   (`neo4j_read_policy.go`) applies per statement, and each chunk statement
   measured ~6 ms.
+- `RowLimit` caps the rows a chunk returns, not the owner edges the engine
+  expands before `DISTINCT`, `ORDER BY`, and `LIMIT`. So the fan-in-1 figure
+  is not a worst case. See the hub measurement below.
 
 T7 (`TestLiveImpactOwnershipCapAndDeadline`) ran at a 1000-id grant over
 6144 statement-checked keys:
@@ -136,24 +162,62 @@ T7 (`TestLiveImpactOwnershipCapAndDeadline`) ran at a 1000-id grant over
   0.745 s.
 - A page of exactly 4500 keys was not capped.
 
+### Hub fan-in (review finding B3)
+
+`TestLiveImpactOwnershipHubFanIn` seeds 50 hub CloudResources, each `USES`d
+by 2000 WorkloadInstances owned by 2000 distinct repositories, plus 4450
+fan-in-1 CloudResources. It runs the shipped `CloudResourceOwnerCypher` on the
+50 hub keys with a unique `$nonce` per run, then runs a 4500-key page holding
+the 50 hubs through `Checker.Check` with rotated key order. The grant is the
+repository that sorts last, so every hub's granted owner falls past
+`RowLimit`.
+
+| Backend | One 50-hub chunk, n=9 | 4500-key page with the hubs, n=9 | Hubs admitted |
+| --- | --- | --- | --- |
+| `neo4j:2026-community` (fresh container, hub fixture only) | median 0.036 s, max 0.428 s (cold first run) | median 0.736 s, max 1.359 s | 0 of 50, `Capped` every run |
+| `neo4j:2026-community` (same container, full live suite loaded) | median 0.021 s, max 0.078 s | median 2.000 s, max 2.576 s | 0 of 50, `Capped` every run |
+| pinned NornicDB `fix-500-e022384c` | 12.340, 12.785, 13.826, 13.937, 14.167, 14.654 s (n=6, then stopped) | not measured | not measured |
+
+The NornicDB runs happened before the owner moved live timing to Neo4j
+(2026-09-25) and were stopped at n=6. They are NornicDB-only and are recorded
+as observed, not as a Neo4j result.
+
+What this shows:
+
+- On Neo4j the worst case measured, 2.58 s for a full page of hubs, is inside
+  the 10 s graph-read deadline. The bound holds without a statement change.
+- On the pinned NornicDB build one hub chunk exceeds the 10 s deadline. A
+  hub-heavy page there fails the request closed with a graph-read deadline
+  error. It never returns a partial or widened answer. This is recorded as a
+  NornicDB-specific cost and was not redesigned here. Proving a redesign would
+  need NornicDB timing, which the owner rule now excludes.
+- The admit decision stays correct at a hub. A granted owner past `RowLimit`
+  leaves the key unchecked, so ungranted with `Capped`, and the route reports
+  `truncated`. It is never admitted (0 of 50 on every run). The hermetic
+  `TestCheckRowLimitLeavesChunkUndecidedAndCapped` guards the same branch.
+
 Running the class statements concurrently was not measured and is not done.
 At ~0.3 s per class there is nothing to recover inside the deadline, and three
 concurrent statements per request would triple backend concurrency for no
 bounded-latency gain. The classes run in sequence within one request, and
 requests stay concurrent. No write, lock, or shared state is involved.
 
-## A Backend Gap Found On The Way: The Exposure Walk Returns Nothing
+## A Backend Gap Found On The Way: The Exposure Walk Returns Nothing On NornicDB
 
-On the pinned NornicDB build, `buildExposurePathCypher` returns no rows even
-for a shared-key caller. `MATCH (reached {id:'x'}) MATCH
+On the pinned NornicDB build, `buildExposurePathCypher` returns no rows for any
+caller, shared key included. `MATCH (reached {id:'x'}) MATCH
 (reached)-[sinkRel]->(sinkNode) WHERE type(sinkRel) IN $rels` returns 0 rows.
 The inline typed pattern `-[:EXECUTES_SHELL]->` returns the row.
 `-[:CALLS*0..3]->` never yields the zero-length path, and it reports the
-1-hop node at length 0. This predates this change and was reported on #5167.
+1-hop node at length 0. This predates this change and is tracked as #7177.
 
-Consequently the scoped exposure filter is proven with unit fakes (X2–X6) and,
-on the live engine, by judging each sink and chain class through the live
-ownership statements. The walk itself is not re-shaped here.
+On Neo4j (`neo4j:2026-community`) the walk returns paths. There,
+`TestLiveImpactScopedGrantTwoTenant` proves the scoped exposure filter end to
+end: the shared-key walk reaches the fixture sinks, and both scoped callers
+get exactly `[cr-a, sh-a]` with no repo-b identifier. On NornicDB the scoped
+exposure filter is proven per class only, through the live ownership
+statements, and has no live end-to-end path until #7177 lands. The public
+docs (`http-api.md` and the exposure OpenAPI description) say the same.
 
 ## RED / GREEN
 
@@ -173,6 +237,10 @@ Every leak class was run RED on the unchanged handlers and then GREEN.
 | X1 `TestScopedTraceExposurePathForeignSourceIsNotFound` | `fn-b` by id walked | not found, 0 walks |
 | X2–X5 `...FiltersPaths` | 6 sinks incl. cr-b, sh-shared, cidr | `[cr-a sh-a]`, reason names both withheld classes |
 | X6 `...TruncatedFromRawCount` | 25 foreign-interior paths returned | 0 paths, `truncated: true` |
+| D1 `TestScopedTraceResourceToCodeSharedNameResolvesGrantedNode` (a name two tenants share, foreign row first) | `start = {id: shared-handler}`: the caller's own node rendered as unknown (run on `d7f1e0276`) | repo-a's `fn-dup-2` on 20/20 runs, one traversal anchored on it |
+| D1 `...UngrantedOnlyNameIsUnknown` | (guard) | byte-identical to an unknown name, 0 traversals |
+| B1 `TestScopedTraceExposurePathCountsWithheldSinkClass` | `withheld_sink_class = 0`, the CidrBlock sink counted as `ungranted_node` | `withheld_sink_class = 1`, `ungranted_node = 3` |
+| P3-1 `TestExposureOwnershipNodesReadsNestedProperties` | nested-`properties` node decoded to an empty id (fix reverse-applied) | id and repo_id decoded |
 | Real middleware `TestAuthMiddlewareWithScopedTokensAdmitsImpactPathRoutes` | 403 on all three (run on `origin/main`) | handler reached; no repo-b identifier in any body |
 
 The live runs (`ESHU_OCI_PROVE_LIVE=1`, pinned image
@@ -184,13 +252,38 @@ docker-compose env, fresh container per measurement run) are:
 - `TestLiveImpactOwnershipStatementCost`.
 - `TestLiveImpactOwnershipCapAndDeadline` (T7).
 - `TestLiveImpactOwnershipGrantFilterVariant` (the rejected variant).
-- `TestLiveByIdImpactAnchorReads`, which is unchanged and still green.
+- `TestLiveByIdImpactAnchorReads`, which is unchanged. It hard-codes the
+  NornicDB database name `nornic`, so it does not run against Neo4j.
+- `TestLiveImpactOwnershipHubFanIn` (B3, above).
+- `TestLiveImpactScopedAnchorSharedName` (D1). Two tenants' CloudResources
+  share a name, and repo-b's node sorts first by id. On 20 of 20 runs a scoped
+  repo-a caller anchors on repo-a's node through the real handler and the live
+  ownership statement. A name only repo-b carries renders as unknown.
 
-Performance Evidence: impact scoped ownership check (impact/ownership) on the pinned NornicDB image, uncached, fixture of 256 repositories, 2048 CloudResources, 2048 TerraformStateResources, 2048 rescued WorkloadInstances, and 22048 TerraformResources, with indexes as shipped by graph.EnsureSchemaWithBackend (nornicdb_cloud_resource_uid_lookup, terraform_state_resource_uid_unique, nornicdb_workload_instance_id_lookup; TerraformResource.repo_id unindexed). Before, the grant-anchored A1/R1b/R2 shapes at grant 128 and 2000 keys took 7.754 s, 6.385 s, and 32.433 s unchunked, and R2 took 105.577 s in chunks of 500. After, the grant-free owner projections at chunk 50, keyed node first, returning DISTINCT uid and repo_id with ORDER BY uid, repo_id and LIMIT 800, take 0.29-0.33 s per class for 2048 keys at grant 8, 128, and 1000, with 0 misjudged keys. A 6144-key page at a 1000-id grant is capped at 4500 checked keys and finishes in 0.745 s. The scoped trace-resource-to-code traversal is the existing statement plus a terminal-repository grant in its anchoring WHERE and a nodes(path) projection. Unscoped statements are unchanged apart from two projected columns on the anchor-resolve CALL branches.
+The #5167 review round re-ran the whole live suite on `neo4j:2026-community`
+(`ESHU_LIVE_GRAPH_BACKEND=neo4j`), per the owner's 2026-09-25 rule that live
+tests and timings use Neo4j. Every test above passed there except
+`TestLiveByIdImpactAnchorReads` (the database name). Shipped-statement cost
+on Neo4j: 0.10–0.35 s per 2048 keys per class at grant 8, 128, and 1000, with
+0 misjudged keys. The capped 6144-key page took 0.252 s.
+
+Performance Evidence: impact scoped ownership check (impact/ownership) on the pinned NornicDB image, uncached, fixture of 256 repositories, 2048 CloudResources, 2048 TerraformStateResources, 2048 rescued WorkloadInstances, and 22048 TerraformResources, with indexes as shipped by graph.EnsureSchemaWithBackend (nornicdb_cloud_resource_uid_lookup, terraform_state_resource_uid_unique, nornicdb_workload_instance_id_lookup; TerraformResource.repo_id unindexed). Before, the grant-anchored A1/R1b/R2 shapes at grant 128 and 2000 keys took 7.754 s, 6.385 s, and 32.433 s unchunked, and R2 took 105.577 s in chunks of 500. After, the grant-free owner projections at chunk 50, keyed node first, returning DISTINCT uid and repo_id with ORDER BY uid, repo_id and LIMIT 800, take 0.29-0.33 s per class for 2048 keys at grant 8, 128, and 1000, with 0 misjudged keys. A 6144-key page at a 1000-id grant is capped at 4500 checked keys and finishes in 0.745 s. Those figures are at fan-in about 1. Hub fan-in (50 CloudResources x 2000 owners, n=9, unique nonce): on neo4j:2026-community one 50-hub chunk takes a median of 0.021-0.036 s and a 4500-key page holding the hubs a median of 0.74-2.0 s (max 2.58 s). On the pinned NornicDB build one hub chunk took 12.3-14.7 s (n=6). That exceeds the 10 s per-statement deadline, and the request fails closed. The scoped anchor candidate resolve is the existing CALL{UNION} with ORDER BY id, label and LIMIT 32 on its RETURN clause, and it runs for scoped callers only. The scoped trace-resource-to-code traversal is the existing statement plus a terminal-repository grant in its anchoring WHERE and a nodes(path) projection. Unscoped statements are unchanged apart from two projected columns on the anchor-resolve CALL branches.
 
 Observability Evidence: eshu_dp_query_impact_scoped_paths_withheld_total{route,reason} counts paths or answers withheld, where reason is ungranted_node, unchecked_over_cap, withheld_sink_class, or anchor_ungranted. eshu_dp_query_impact_ownership_check_duration_seconds{route,node_label,outcome} times every ownership chunk statement. A Warn log "impact ownership check capped" carries route, grant_size, and checked_key_cap when a page exceeds the budget. Both metrics are registered in go/internal/telemetry/instruments.go and have a coverage row in docs/public/observability/telemetry-coverage.md.
 
 ## Reproduce
+
+The review round ran the same suite on Neo4j:
+
+```bash
+docker run -d --name neo4j-impact2 -p 17998:7687 -e NEO4J_AUTH=none neo4j:2026-community
+cd go
+ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:17998 \
+  go test ./internal/query -run 'TestLiveImpact' -count=1 -v
+docker rm -f neo4j-impact2
+```
+
+The original NornicDB runs:
 
 ```bash
 docker run -d --name nornic-5167impact --platform linux/amd64 -p 17998:7687 -p 17999:7474 \

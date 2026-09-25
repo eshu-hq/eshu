@@ -131,8 +131,8 @@ func seedLiveTwoTenantFixture(t *testing.T, ctx context.Context, reader impactLi
 }
 
 // TestLiveImpactScopedGrantTwoTenant drives the three shipped handlers against
-// a live NornicDB two-tenant fixture as a scoped repo-a caller (with a 1-id and
-// a 130-id grant) and as a shared-key caller. Fakes cannot prove the grant
+// a live two-tenant fixture (Neo4j or NornicDB) as a scoped repo-a caller
+// (with a 1-id and a 130-id grant) and as a shared-key caller. Fakes cannot prove the grant
 // predicates, so this is the backend proof for #5167 (T1-T3, T5, T6, E1-E4,
 // X2-X5 on the real engine).
 //
@@ -203,9 +203,9 @@ func TestLiveImpactScopedGrantTwoTenant(t *testing.T) {
 	// The exposure walk (buildExposurePathCypher) returns no rows on the pinned
 	// NornicDB even for a shared-key caller: a bare second MATCH filtered by
 	// `type(sinkRel) IN $sink_rels` matches nothing, and CALLS*0.. never yields
-	// the zero-length path. That is a pre-existing backend gap (reported on
-	// #5167), so the live exposure proof below judges each sink and chain class
-	// through the live ownership statements instead of an end-to-end path.
+	// the zero-length path (#7177). On Neo4j the walk works and the end-to-end
+	// sink assertion below runs; on NornicDB the proof judges each sink and
+	// chain class through the live ownership statements instead.
 	_, sharedBody, _ = post(nil, "/api/v0/impact/trace-exposure-path", `{"source_entity_id":"$Pfn-a","max_depth":3}`)
 	exposureWalkWorks := strings.Contains(sharedBody, lt("sh-a"))
 	t.Logf("shared-key exposure walk returns paths on this engine: %v", exposureWalkWorks)

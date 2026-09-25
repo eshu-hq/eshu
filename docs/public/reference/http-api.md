@@ -201,10 +201,19 @@ page rather than as one query predicate (#5167):
   raw row count before the filter, so a scoped page can hold fewer than `limit`
   paths. It is also true when the page held more nodes to check than the
   per-request ownership budget allows: 4500 distinct statement-checked keys,
-  whatever the grant size. Nodes past that budget count as not owned.
+  whatever the grant size. Nodes past that budget count as not owned, and so
+  does a widely shared `CloudResource`, `WorkloadInstance`, or
+  `TerraformStateResource` whose granted owner falls past the 800 owner rows
+  read per 50-node chunk.
+- Grants are matched on repository ids. A token whose grant holds only
+  ingestion scope ids, and no repository id, sees empty answers on these three
+  routes.
 - The exposure route always withholds `SecretsIAMSecretMetadataPath` and
   `CidrBlock` sinks from scoped callers and names them in
-  `coverage.unresolved_reason`.
+  `coverage.unresolved_reason`. On the default NornicDB backend the exposure
+  walk currently returns no paths for any caller (#7177). The scoped exposure
+  filter is proven end to end on Neo4j and per node class on NornicDB until
+  #7177 lands.
 - Every scoped response carries `scoped: true` and a static
   `withheld_sections` list. Both are present whether or not anything was
   withheld.
