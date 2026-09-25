@@ -5,3 +5,7 @@
 
 [features]
 hooks = true
+
+# Project roles use the native collaboration tools for peer messaging.
+[agents]
+enabled = true

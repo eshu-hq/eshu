@@ -185,6 +185,18 @@ supplies any command output their proof needs.
 `scripts/agent-roles.py check` is part of `verify-agent-canon.sh`, so a stale
 binding fails locally and in CI.
 
+Every role can exchange task messages with its coordinator or named peers when
+its harness exposes native agent messaging. This is separate from dispatch:
+leaf roles still do not spawn agents, and a peer message cannot grant user
+approval or change permissions. Claude's read-role tool allowlist includes
+`SendMessage`; its write role inherits that tool while denying `Agent`.
+Codex enables its native multi-agent tools in `.codex/config.toml`; the
+collaboration runtime supplies messaging to spawned roles, including read-only
+ones. Standalone `codex-exec` sessions have no parent peer roster. Muse's
+headless role launcher also has no in-process teammate roster; a Muse session
+can use `muse session-message` only when it knows a target session. The shared
+messaging instruction applies when a role has a reachable coordinator or peer.
+
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
