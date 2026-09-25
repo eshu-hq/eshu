@@ -6,8 +6,11 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -116,11 +119,70 @@ func upsertSharedIntentArtifacts(
 	}
 
 	start := time.Now()
-	if err := NewSharedProjectionAcceptanceStore(database).Upsert(ctx, acceptanceRows); err != nil {
+	stale, err := NewSharedProjectionAcceptanceStore(database).UpsertReportingStale(ctx, acceptanceRows)
+	if err != nil {
 		return fmt.Errorf("upsert shared projection acceptance: %w", err)
 	}
 	recordSharedAcceptanceUpsertMetrics(ctx, instruments, len(acceptanceRows), time.Since(start))
+	recordSharedAcceptanceStaleWrites(ctx, instruments, intentRows, stale)
 	return nil
+}
+
+// recordSharedAcceptanceStaleWrites counts acceptance rows the advance-only
+// guard skipped (#6679), labeled by projection domain, and emits one bounded
+// WARN line per write call naming the first skipped key and the total. The
+// skip itself is correct behavior — the newer generation was kept — so the
+// transaction still commits; the signal exists so operators can see
+// out-of-order acceptance writers.
+func recordSharedAcceptanceStaleWrites(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	intentRows []reducer.SharedProjectionIntentRow,
+	stale []SharedProjectionAcceptance,
+) {
+	if len(stale) == 0 {
+		return
+	}
+	if instruments != nil {
+		domainByKey := make(map[reducer.SharedProjectionAcceptanceKey]string, len(intentRows))
+		for _, row := range intentRows {
+			key, ok := sharedProjectionAcceptanceKey(row)
+			if !ok {
+				continue
+			}
+			if _, seen := domainByKey[key]; !seen {
+				domainByKey[key] = row.ProjectionDomain
+			}
+		}
+		countByDomain := make(map[string]int64, 1)
+		for _, row := range stale {
+			domain := domainByKey[reducer.SharedProjectionAcceptanceKey{
+				ScopeID:          row.ScopeID,
+				AcceptanceUnitID: row.AcceptanceUnitID,
+				SourceRunID:      row.SourceRunID,
+			}]
+			countByDomain[domain]++
+		}
+		for domain, count := range countByDomain {
+			instruments.SharedAcceptanceStaleWrites.Add(
+				ctx,
+				count,
+				metric.WithAttributes(telemetry.AttrDomain(domain)),
+			)
+		}
+	}
+
+	first := stale[0]
+	slog.WarnContext(
+		ctx,
+		"shared acceptance stale write skipped; stored generation is newer",
+		slog.String(telemetry.LogKeyAcceptanceScopeID, first.ScopeID),
+		slog.String(telemetry.LogKeyAcceptanceUnitID, first.AcceptanceUnitID),
+		slog.String(telemetry.LogKeyAcceptanceSourceRunID, first.SourceRunID),
+		slog.String(telemetry.LogKeyAcceptanceGenerationID, first.GenerationID),
+		telemetry.AcceptanceStaleCountAttr(len(stale)),
+		telemetry.PhaseAttr(telemetry.PhaseShared),
+	)
 }
 
 func buildSharedProjectionAcceptanceRows(

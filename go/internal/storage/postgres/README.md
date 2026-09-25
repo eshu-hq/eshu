@@ -556,7 +556,11 @@ Primary groups:
 - Graph projection phase, shared projection intent, acceptance, freshness, and
   readiness helpers used by reducer domains. Exact intent retries preserve
   completion; the repo-refresh history lookup includes `generation_id` so a
-  reused source run cannot open a later generation's fence.
+  reused source run cannot open a later generation's fence. Acceptance rows
+  are advance-only (#6679): an upsert carrying a generation older than the
+  stored one by `scope_generations (observed_at, generation_id)` is skipped and
+  counted in `eshu_dp_shared_acceptance_stale_writes_total`, while a
+  same-generation retry still refreshes the row.
 - Hosted isolation and dashboard auth stores, including tenant/workspace
   grants, scoped API tokens, browser sessions, OIDC login state and group-role
   mappings, and dormant identity subject tables.

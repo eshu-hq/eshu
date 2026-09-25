@@ -194,7 +194,13 @@ type Instruments struct {
 	SharedProjectionIntentsCompleted metric.Int64Counter
 	SharedAcceptanceUpserts          metric.Int64Counter
 	SharedAcceptanceLookupErrors     metric.Int64Counter
-	SharedProjectionStaleIntents     metric.Int64Counter
+	// SharedAcceptanceStaleWrites counts shared-projection acceptance writes
+	// the advance-only upsert guard rejected because the stored row already
+	// carries a newer generation (#6679). Labeled by domain only (the bounded
+	// reducer domain set). A non-zero rate means out-of-order or late
+	// acceptance writers are racing; each skip kept the newer generation.
+	SharedAcceptanceStaleWrites  metric.Int64Counter
+	SharedProjectionStaleIntents metric.Int64Counter
 	// SharedProjectionPartitionHeartbeatMissed counts shared-projection
 	// partition lease heartbeat failures (#4449). Labeled by domain only (a
 	// bounded closed set). A non-zero rate means a slow partition cycle's
@@ -2017,6 +2023,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedAcceptanceLookupErrors counter: %w", err)
+	}
+
+	inst.SharedAcceptanceStaleWrites, err = meter.Int64Counter(
+		"eshu_dp_shared_acceptance_stale_writes_total",
+		metric.WithDescription("Total shared acceptance writes skipped because the stored row already carries a newer generation, labeled by domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedAcceptanceStaleWrites counter: %w", err)
 	}
 
 	inst.SharedProjectionStaleIntents, err = meter.Int64Counter(

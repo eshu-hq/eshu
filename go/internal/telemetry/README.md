@@ -119,6 +119,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `SharedProjectionLeaseQuarantines` | `eshu_dp_shared_projection_lease_quarantines_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
+| `SharedAcceptanceStaleWrites` | `eshu_dp_shared_acceptance_stale_writes_total` |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |

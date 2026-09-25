@@ -39,11 +39,34 @@ INSERT INTO shared_projection_acceptance (
     scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at
 ) VALUES `
 
+// upsertSharedProjectionAcceptanceBatchSuffix makes the acceptance row
+// advance-only (#6679). The DO UPDATE fires only when the incoming generation
+// equals the stored one (an idempotent retry that refreshes accepted_at and
+// updated_at) or sorts strictly after it by scope_generations
+// (observed_at, generation_id) — the same total order priorGenerationIDSQL
+// uses. A stale write, including one whose stored or incoming generation row
+// is not visible to the statement snapshot, leaves the row untouched and is
+// omitted from RETURNING, which is how callers count and log stale writes.
+//
+// Under READ COMMITTED a conflicting writer blocks on the row lock and then
+// evaluates this WHERE against the newest committed row version, so the guard
+// needs no extra locking to hold across concurrent out-of-order writers.
 const upsertSharedProjectionAcceptanceBatchSuffix = `
 ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE
 SET generation_id = EXCLUDED.generation_id,
     accepted_at = EXCLUDED.accepted_at,
     updated_at = EXCLUDED.updated_at
+WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
+   OR EXISTS (
+       SELECT 1
+       FROM scope_generations AS incoming
+       JOIN scope_generations AS stored
+         ON stored.generation_id = shared_projection_acceptance.generation_id
+       WHERE incoming.generation_id = EXCLUDED.generation_id
+         AND (incoming.observed_at, incoming.generation_id)
+             > (stored.observed_at, stored.generation_id)
+   )
+RETURNING scope_id, acceptance_unit_id, source_run_id
 `
 
 const lookupSharedProjectionAcceptanceSQL = `
@@ -98,23 +121,35 @@ func (s *SharedProjectionAcceptanceStore) EnsureSchema(ctx context.Context) erro
 	return err
 }
 
-// Upsert writes bounded-unit acceptance rows in batches.
+// Upsert writes bounded-unit acceptance rows in batches. Rows whose
+// generation sorts before the stored generation are skipped (see
+// UpsertReportingStale); callers that need that signal use UpsertReportingStale.
 func (s *SharedProjectionAcceptanceStore) Upsert(ctx context.Context, rows []SharedProjectionAcceptance) error {
-	if len(rows) == 0 {
-		return nil
-	}
+	_, err := s.UpsertReportingStale(ctx, rows)
+	return err
+}
 
+// UpsertReportingStale writes bounded-unit acceptance rows in batches and
+// returns the rows the advance-only guard rejected because the stored row
+// already carries a newer generation. A same-generation retry is applied (it
+// refreshes accepted_at and updated_at) and is never reported as stale.
+// Input rows must carry unique (scope, unit, run) keys, which
+// buildSharedProjectionAcceptanceRows guarantees; a duplicate key inside one
+// batch is rejected by PostgreSQL (SQLSTATE 21000).
+func (s *SharedProjectionAcceptanceStore) UpsertReportingStale(
+	ctx context.Context,
+	rows []SharedProjectionAcceptance,
+) ([]SharedProjectionAcceptance, error) {
+	var stale []SharedProjectionAcceptance
 	for i := 0; i < len(rows); i += sharedProjectionAcceptanceBatchSize {
-		end := i + sharedProjectionAcceptanceBatchSize
-		if end > len(rows) {
-			end = len(rows)
+		end := min(i+sharedProjectionAcceptanceBatchSize, len(rows))
+		batchStale, err := upsertSharedProjectionAcceptanceBatch(ctx, s.database, rows[i:end])
+		if err != nil {
+			return stale, err
 		}
-		if err := upsertSharedProjectionAcceptanceBatch(ctx, s.database, rows[i:end]); err != nil {
-			return err
-		}
+		stale = append(stale, batchStale...)
 	}
-
-	return nil
+	return stale, nil
 }
 
 // Lookup returns the accepted generation for one exact bounded-unit key.
@@ -203,9 +238,16 @@ func (s *SharedProjectionAcceptanceStore) LookupByAcceptanceUnit(ctx context.Con
 	return generationID, true, rows.Err()
 }
 
-func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.ExecQueryer, batch []SharedProjectionAcceptance) error {
+// upsertSharedProjectionAcceptanceBatch writes one batch and returns the
+// submitted rows the advance-only guard skipped, derived by subtracting the
+// RETURNING keys (inserted or updated rows) from the submitted keys.
+func upsertSharedProjectionAcceptanceBatch(
+	ctx context.Context,
+	database db.ExecQueryer,
+	batch []SharedProjectionAcceptance,
+) ([]SharedProjectionAcceptance, error) {
 	if len(batch) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	args := make([]any, 0, len(batch)*acceptanceColumnsPerRow)
@@ -233,9 +275,41 @@ func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.Exec
 	}
 
 	query := upsertSharedProjectionAcceptanceBatchPrefix + values.String() + upsertSharedProjectionAcceptanceBatchSuffix
-	if _, err := database.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("upsert shared projection acceptance batch (%d rows): %w", len(batch), err)
+	result, err := database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("upsert shared projection acceptance batch (%d rows): %w", len(batch), err)
+	}
+	defer func() { _ = result.Close() }()
+
+	applied := make(map[sharedProjectionAcceptanceRowKey]struct{}, len(batch))
+	for result.Next() {
+		var key sharedProjectionAcceptanceRowKey
+		if err := result.Scan(&key.scopeID, &key.acceptanceUnitID, &key.sourceRunID); err != nil {
+			return nil, fmt.Errorf("scan shared projection acceptance upsert result: %w", err)
+		}
+		applied[key] = struct{}{}
+	}
+	if err := result.Err(); err != nil {
+		return nil, fmt.Errorf("iterate shared projection acceptance upsert result (%d rows): %w", len(batch), err)
 	}
 
-	return nil
+	var stale []SharedProjectionAcceptance
+	for _, row := range batch {
+		key := sharedProjectionAcceptanceRowKey{
+			scopeID:          row.ScopeID,
+			acceptanceUnitID: row.AcceptanceUnitID,
+			sourceRunID:      row.SourceRunID,
+		}
+		if _, ok := applied[key]; !ok {
+			stale = append(stale, row)
+		}
+	}
+	return stale, nil
+}
+
+// sharedProjectionAcceptanceRowKey is the acceptance primary key.
+type sharedProjectionAcceptanceRowKey struct {
+	scopeID          string
+	acceptanceUnitID string
+	sourceRunID      string
 }

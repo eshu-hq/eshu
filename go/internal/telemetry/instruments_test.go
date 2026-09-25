@@ -33,6 +33,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.SharedProjectionCycles, "SharedProjectionCycles counter should be registered")
 	assert.NotNil(t, inst.SharedAcceptanceUpserts, "SharedAcceptanceUpserts counter should be registered")
 	assert.NotNil(t, inst.SharedAcceptanceLookupErrors, "SharedAcceptanceLookupErrors counter should be registered")
+	assert.NotNil(t, inst.SharedAcceptanceStaleWrites, "SharedAcceptanceStaleWrites counter should be registered")
 	assert.NotNil(t, inst.SharedProjectionStaleIntents, "SharedProjectionStaleIntents counter should be registered")
 	assert.NotNil(t, inst.GenerationRetentionPruned, "GenerationRetentionPruned counter should be registered")
 	assert.NotNil(t, inst.GenerationRetentionRowsPruned, "GenerationRetentionRowsPruned counter should be registered")
