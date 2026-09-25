@@ -172,10 +172,14 @@ curl -fsS -X POST \
       }'
 ```
 
-`all_scopes` re-enqueues projector work for every active scope that holds an
-active generation. It exists because after a restore nobody has a scope list to
-type, and it is the difference between a command you can run at 3 AM and an
-afternoon of copying scope ids out of `psql`.
+`all_scopes` re-enqueues projector work for every recoverable scope: each active
+scope through its active generation, and each failed scope through its newest
+failed generation. A scope whose last projection attempt failed on the old graph
+backend (a write timeout, for example) has no active generation, and the new
+backend has not seen that failure, so the rebuild includes it. It exists because
+after a restore nobody has a scope list to type, and it is the difference
+between a command you can run at 3 AM and an afternoon of copying scope ids out
+of `psql`.
 
 The response tells you how much work was queued:
 
@@ -197,7 +201,7 @@ lease, leave the workers stopped, wait for that lease to expire, and retry with
 a fresh `idempotency_key`; the failed key remains recorded as in progress so a
 retry cannot re-drive the transaction ambiguously.
 
-`enqueued` is the number of active scopes queued, and `scope_ids` lists them
+`enqueued` is the number of scopes queued, and `scope_ids` lists them
 (truncated above). Both come from a real run against the Compose fixture corpus,
 so expect a much larger number on a real deployment.
 
@@ -212,6 +216,23 @@ key, the API generates one on first start and persists it under `ESHU_HOME`:
 ESHU_API_KEY=$(docker compose exec -T eshu \
   sh -lc 'sed -n "s/^ESHU_API_KEY=//p" /data/.eshu/.env')
 ```
+
+The response also carries `skipped_scopes`: the scopes the rebuild considered and
+left out, with `total`, exact `by_reason` counts, and up to 10 `sample_scope_ids`
+per reason (ascending). It is always present, with empty objects when nothing
+was skipped. Read it before you call the rebuild complete; `total: 0` means every
+scope in `ingestion_scopes` was queued. The reasons:
+
+| Reason | Meaning |
+| --- | --- |
+| `no_recoverable_generation` | Failed scope whose generations are all superseded. Nothing in Postgres can be projected; the repository needs a new collection. |
+| `newest_generation_not_failed` | Failed scope whose newest non-superseded generation is pending. That generation has its own projector work, so the rebuild does not queue it twice. |
+| `no_active_generation` | Scope that is neither active nor failed, such as a first generation still pending. Its own projector work activates it. |
+| `unknown_scope` | A named `scope_ids` entry with no `ingestion_scopes` row. Named requests only. |
+
+The same counts are logged as `recover-generations completed` (Warn when
+anything was skipped) and counted in `eshu_dp_recovery_scopes_skipped_total`.
+An idempotent retry (`duplicate: true`) does not repeat the report.
 
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
 `shared_intents_reopened`, `readiness_phases_cleared`, and `generations_retired`

@@ -407,9 +407,9 @@ func TestRecoveryStoreCountDeadLetterBacklogPropagatesQueryError(t *testing.T) {
 func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	t.Parallel()
 
-	// scope-3 is named by the caller but absent from the generation read: a scope
-	// with no active generation is filtered out by the read, and the enqueue only
-	// ever sees what the read returned.
+	// scope-3 is named by the caller but absent from the generation read, so it
+	// has no ingestion_scopes row: the enqueue only ever sees what the read
+	// returned, and the result reports scope-3 as an unknown scope.
 	db := refinalizeFakeDB(
 		[][]any{{"scope-1", "gen-1"}, {"scope-2", "gen-2"}},
 		[][]any{{"scope-1"}, {"scope-2"}},
@@ -431,6 +431,10 @@ func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	}
 	if result.ScopeIDs[0] != "scope-1" || result.ScopeIDs[1] != "scope-2" {
 		t.Fatalf("result.ScopeIDs = %v, want [scope-1, scope-2]", result.ScopeIDs)
+	}
+
+	if got := result.Skipped.ByReason[recovery.SkipReasonUnknownScope]; got != 1 {
+		t.Fatalf("result.Skipped.ByReason[unknown_scope] = %d, want 1 (scope-3); Skipped = %+v", got, result.Skipped)
 	}
 
 	if len(db.queries) != 4 {

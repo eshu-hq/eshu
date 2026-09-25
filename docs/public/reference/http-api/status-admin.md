@@ -645,8 +645,8 @@ console or API defect.
 
 ## Durable Admin Controls
 
-- `POST /api/v0/admin/refinalize` re-enqueues active scope generations for
-  projection through the durable Go work queue.
+- `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
+  through the durable Go work queue and reports `skipped_scopes` (see below).
 - `POST /api/v0/admin/reindex` persists an asynchronous reindex request. The
   API process does not run the full reindex inline.
 - `POST /api/v0/admin/recover-generations` is the operator escape hatch for
@@ -654,12 +654,11 @@ console or API defect.
   canonical-nodes-committed. It durably re-enqueues projector work for the named
   scopes (re-driving reduce -> readiness -> projection over existing facts, no
   re-clone) and records the action in the durable `admin_replay_requests` ledger.
-  Send `{"all_scopes": true}` instead of `scope_ids` to re-enqueue every active
-  scope holding an active generation. That is the disaster-recovery mode: after
+  Send `{"all_scopes": true}` instead of `scope_ids` to re-enqueue every
+  recoverable scope: active, or failed with a failed generation (#7116). That is the disaster-recovery mode: after
   restoring Postgres, an operator rebuilding the graph from preserved facts has
   no scope list. Sending both is rejected, and one idempotency key cannot cover
-  both modes. Procedure:
-  [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
+  both modes. Procedure: [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
 
   Alongside `status`, `enqueued`, and `scope_ids`, the response reports what the
   call cleared so the re-projection can rebuild the whole graph rather than only
@@ -673,11 +672,12 @@ console or API defect.
   facts](../../operate/graph-rebuild-from-facts.md)). These diagnostic counts
   may be zero with no prior state; unexpected all-zero resets need graph checks.
 
-  A retry that returns `duplicate: true` does not carry those four counters.
-  The `admin_replay_requests` ledger persists the enqueue outcome and not the
-  reset counts, so a repeat of an idempotency key that already completed can
-  report what was re-enqueued but not what was cleared. If the original
-  response was lost, read the effect from the queue instead: pending
+  `skipped_scopes` (`total`, `by_reason`, `sample_scope_ids`; always present)
+  lists scopes not re-enqueued, by reason; see [Rebuild the graph from
+  facts](../../operate/graph-rebuild-from-facts.md). A retry returning
+  `duplicate: true` carries neither the four counters nor `skipped_scopes`: the
+  `admin_replay_requests` ledger stores only the enqueue outcome. If the
+  original response was lost, read the effect from the queue instead: pending
   `projector` rows in `fact_work_items`, and `shared_projection_intents` with
   `completed_at IS NULL`.
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
@@ -750,7 +750,7 @@ arrives to supersede it. Two mechanisms protect against this:
   Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation
   deadline, max recover attempts, batch limit). It is enabled by default.
 - **Operator escape hatch.** `POST /api/v0/admin/recover-generations` re-drives a
-  named set of wedged scopes on demand, or every active scope with
+  named set of wedged scopes on demand, or every recoverable scope with
   `all_scopes: true`. Like replay it requires an explicit `reason` and an
   `idempotency_key`; requires an admin (all-scopes) token; records the action in
   the durable `admin_replay_requests` ledger; and returns the prior outcome

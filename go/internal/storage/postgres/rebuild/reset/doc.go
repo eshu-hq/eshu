@@ -5,7 +5,8 @@
 // a graph rebuild-from-facts at source-local structure (#4594).
 //
 // Eshu's graph is a projection: throw it away, keep Postgres, and a refinalize
-// replays every active generation to rebuild it. That worked for source-local
+// replays every recoverable generation to rebuild it: each active scope's active
+// generation, and each failed scope's newest failed generation (#7116). That worked for source-local
 // structure and stopped there, because four pieces of Postgres state outlive a
 // graph wipe and each one tells the pipeline the work is already done.
 //
@@ -37,7 +38,9 @@
 // EnqueueProjectorWork, AcquireReducerClaimFence, and AssertRetirementFenced in
 // refinalize.go — is part of the same contract: the caller runs the sequence in
 // its transaction around Apply, so every statement binds the one generation set
-// read first. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
+// read first. That one read also classifies every scope it could not cover
+// (recovery.SkipReason*), so the skipped-scope report describes the same
+// snapshot as the covered set. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
 // SELECT FOR UPDATE used by exact-claim relationship publication for only the
 // final recheck, retirement, and commit window (#6184 P1 review).
 //

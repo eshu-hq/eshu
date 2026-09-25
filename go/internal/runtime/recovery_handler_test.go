@@ -201,6 +201,45 @@ func TestRecoveryHandlerRefinalizeReturnsEnqueuedScopes(t *testing.T) {
 	}
 }
 
+// TestRecoveryHandlerRefinalizeReportsSkippedScopes carries the #7116 skipped
+// report on the runtime admin surface: a rebuild that left a scope out must say
+// so, and must say "nothing skipped" with an object, not a null.
+func TestRecoveryHandlerRefinalizeReportsSkippedScopes(t *testing.T) {
+	t.Parallel()
+
+	var skipped recovery.SkippedScopes
+	skipped.Add(recovery.SkipReasonNoRecoverableGeneration, "s3")
+	store := &fakeRecoveryStore{
+		refinalizeResult: recovery.RefinalizeResult{Enqueued: 1, ScopeIDs: []string{"s1"}, Skipped: skipped},
+	}
+	handler := mustNewRecoveryHandler(t, store)
+
+	recorder := httptest.NewRecorder()
+	handler.handleRefinalize(recorder, httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+		bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1", "s3"}}))))
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+
+	var resp refinalizeResponse
+	mustUnmarshal(t, recorder.Body.Bytes(), &resp)
+	if got, want := resp.SkippedScopes.Total, 1; got != want {
+		t.Fatalf("skipped_scopes.total = %d, want %d", got, want)
+	}
+	if got := resp.SkippedScopes.ByReason[recovery.SkipReasonNoRecoverableGeneration]; got != 1 {
+		t.Fatalf("skipped_scopes.by_reason[no_recoverable_generation] = %d, want 1", got)
+	}
+
+	empty := &fakeRecoveryStore{refinalizeResult: recovery.RefinalizeResult{Enqueued: 1, ScopeIDs: []string{"s1"}}}
+	recorder = httptest.NewRecorder()
+	mustNewRecoveryHandler(t, empty).handleRefinalize(recorder, httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+		bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1"}}))))
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"by_reason":{}`)) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"sample_scope_ids":{}`)) {
+		t.Fatalf("empty report must encode objects, not null: %s", recorder.Body.String())
+	}
+}
+
 func TestRecoveryHandlerRefinalizeRejectsEmptyScopeIDs(t *testing.T) {
 	t.Parallel()
 

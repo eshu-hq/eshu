@@ -231,7 +231,10 @@ and `limit`. The response includes `status`, `stage`, `replayed`, and
 `POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
 response includes `status`, `enqueued`, and `scope_ids`, plus
 `reducer_work_deleted`, `shared_intents_reopened`,
-`readiness_phases_cleared`, and `generations_retired`.
+`readiness_phases_cleared`, and `generations_retired`, plus `skipped_scopes`
+(`total`, `by_reason`, `sample_scope_ids`) for any named scope it considered but
+did not re-enqueue. An active scope is re-enqueued through its active generation
+and a failed scope through its newest failed generation.
 
 Those four counts are not bookkeeping. Re-enqueueing a scope's projector work
 alone rebuilds only what the projector owns; the reducer domains behind it stay

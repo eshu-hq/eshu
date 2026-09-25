@@ -128,6 +128,11 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", authCtx, correlationID)
+	mode := "scope_ids"
+	if req.AllScopes {
+		mode = "all_scopes"
+	}
+	h.reportRefinalizeOutcome(r.Context(), "recover-generations", mode, result)
 	// The four reset counts are the operator's evidence that this rebuild will
 	// restore the whole graph rather than only its source-local layer. Without
 	// them, a rebuild that re-queues every scope and still comes back short looks
@@ -140,6 +145,7 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		"shared_intents_reopened":  result.SharedIntentsReopened,
 		"readiness_phases_cleared": result.ReadinessPhasesCleared,
 		"generations_retired":      result.GenerationsRetired,
+		"skipped_scopes":           skippedScopesResponse(result.Skipped),
 		"idempotency_key":          req.IdempotencyKey,
 		"duplicate":                false,
 	})

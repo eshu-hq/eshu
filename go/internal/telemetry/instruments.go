@@ -724,6 +724,14 @@ type Instruments struct {
 	// reads (issue #4630). Labels: reason (a bounded enum: "timeout" or
 	// "store_error").
 	QueryInputInvalidFactsErrors metric.Int64Counter
+	// RecoveryScopesSkipped counts scopes an operator refinalize
+	// (POST /api/v0/admin/recover-generations, POST /api/v0/admin/refinalize)
+	// considered but did not re-enqueue, so a partial graph rebuild is visible
+	// on a dashboard and not only in the HTTP response (issue #7116). Labels:
+	// reason, the closed recovery.SkipReason* set (no_recoverable_generation,
+	// newest_generation_not_failed, no_active_generation, unknown_scope). Never
+	// carries scope ids.
+	RecoveryScopesSkipped metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -3393,6 +3401,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryInputInvalidFactsErrors counter: %w", err)
+	}
+
+	inst.RecoveryScopesSkipped, err = meter.Int64Counter(
+		"eshu_dp_recovery_scopes_skipped_total",
+		metric.WithDescription("Total scopes an operator refinalize considered but did not re-enqueue, by reason (no_recoverable_generation/newest_generation_not_failed/no_active_generation/unknown_scope)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RecoveryScopesSkipped counter: %w", err)
 	}
 
 	inst.QueryScopeGrantInlineCapped, err = meter.Int64Counter(

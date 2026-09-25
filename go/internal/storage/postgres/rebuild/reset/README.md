@@ -36,15 +36,21 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
 ## Exported surface
 
 - `AffectedGenerationsQuery(filter) (string, []any)` — the read that materializes
-  the `(scope_id, generation_id)` set one refinalize covers. The caller runs it
-  once, first, inside its transaction.
+  the `(scope_id, generation_id)` set one refinalize covers: an active scope
+  through its active generation, and a failed scope with no active generation
+  through its newest failed generation (#7116). It also classifies every scope it
+  could not cover with a `skip_reason`. The caller runs it once, first, inside
+  its transaction.
 - `Generations` — that set, held as two index-aligned arrays. Build it with
   `Append`; `Args` hands it to a statement.
 - `ApplyPreRetirement(ctx, tx, generations) (Counts, error)` and
   `RetireResolutionGenerations(ctx, tx, generations) (int, error)` — run the
   reset steps inside the caller's fenced transaction, against the same bound
   generation set.
-- `ReadAffectedGenerations`, `WaitForReducerDrain`,
+- `ReadAffectedGenerations` returns the `Generations` set plus a
+  `recovery.SkippedScopes` report built from the same statement; a named scope id
+  with no `ingestion_scopes` row is reported as `unknown_scope`.
+- `WaitForReducerDrain`,
   `EnqueueProjectorWork`, `AcquireReducerClaimFence`, and
   `AssertRetirementFenced` — the ordered coordination the caller runs in its
   transaction around `Apply`: read the set once, wait out in-flight reducer

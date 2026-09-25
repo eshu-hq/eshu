@@ -347,8 +347,11 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 }
 
 // RefinalizeScopeProjections re-enqueues projector work by inserting new pending
-// work items for active scope generations: for the given scope IDs, or for every
-// active scope when the filter sets AllScopes.
+// work items: for the given scope IDs, or for every recoverable scope when the
+// filter sets AllScopes. An active scope is re-enqueued through its active
+// generation; a failed scope with no active generation through its newest
+// failed generation (#7116). Scopes it cannot re-enqueue are reported by reason
+// in the result's Skipped field rather than dropped silently.
 //
 // It also clears the downstream dedup state that would otherwise stop the
 // re-projection at source-local structure; the reset subpackage says
@@ -391,7 +394,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	// its exact queue claim (#6184 P1 review).
 	rq := resetQueryer{Transaction: tx}
 
-	generations, err := reset.ReadAffectedGenerations(ctx, rq, filter)
+	generations, skipped, err := reset.ReadAffectedGenerations(ctx, rq, filter)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
@@ -436,5 +439,6 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		SharedIntentsReopened:  counts.SharedIntentsReopened,
 		ReadinessPhasesCleared: counts.ReadinessPhasesCleared,
 		GenerationsRetired:     counts.GenerationsRetired,
+		Skipped:                skipped,
 	}, nil
 }

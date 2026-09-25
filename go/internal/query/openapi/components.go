@@ -35,6 +35,24 @@ const components = `  "components": {
       }
     },
     "schemas": {
+      "SkippedScopesReport": {
+        "type": "object",
+        "description": "Scopes a refinalize (POST /api/v0/admin/recover-generations, POST /api/v0/admin/refinalize) considered but did not re-enqueue, by reason. Always present in a performed recovery, with empty objects when nothing was skipped, so a partial graph rebuild is visible to the operator (#7116).",
+        "required": ["total", "by_reason", "sample_scope_ids"],
+        "properties": {
+          "total": {"type": "integer", "description": "Scopes skipped across every reason."},
+          "by_reason": {
+            "type": "object",
+            "description": "Exact skip count per reason. Reasons: no_recoverable_generation (failed scope with no non-superseded generation; only a fresh collection heals it), newest_generation_not_failed (failed scope whose newest non-superseded generation is pending and carries its own projector work), no_active_generation (scope neither active nor failed, for example a first generation still pending), unknown_scope (a named scope id with no ingestion_scopes row).",
+            "additionalProperties": {"type": "integer"}
+          },
+          "sample_scope_ids": {
+            "type": "object",
+            "description": "Up to 10 skipped scope ids per reason, ascending, so an operator can find the scopes to look at without an unbounded response.",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      },
       "InvestigationEvidencePacket": {
         "type": "object",
         "description": "Portable investigation_evidence_packet.v2 artifact. The packet separates source facts, reducer decisions, graph/query answers, missing evidence, reproduce handles, bounds, redaction, and validation state.",
