@@ -591,6 +591,14 @@ type Instruments struct {
 	ValueFlowRefreshGateEvaluations metric.Int64Counter
 	SBOMAttestationAttachments      metric.Int64Counter
 	SupplyChainImpactFindings       metric.Int64Counter
+	// SupplyChainImpactFindingsRetracted counts prior supply-chain impact
+	// finding rows a reducer pass tombstoned because its complete finding set
+	// for the (scope, generation) no longer derives them (#6831) -- for
+	// example a repo-less finding superseded once repository anchoring
+	// evidence arrived. Label: domain (supply_chain_impact). A sustained
+	// nonzero rate on a steady corpus means passes disagree about the same
+	// generation's evidence and is worth a look.
+	SupplyChainImpactFindingsRetracted metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -3073,6 +3081,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFindings counter: %w", err)
+	}
+
+	inst.SupplyChainImpactFindingsRetracted, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_findings_retracted_total",
+		metric.WithDescription("Total superseded supply-chain impact finding rows tombstoned by a reducer pass whose complete finding set no longer derives them, by reducer domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactFindingsRetracted counter: %w", err)
 	}
 
 	inst.SupplyChainSuppressionDecisions, err = meter.Int64Counter(

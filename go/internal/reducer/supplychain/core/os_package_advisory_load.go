@@ -42,7 +42,9 @@ type osPackageAdvisoryFactLoader interface {
 // number of installed-package observations cannot turn one intent's evidence
 // load into an unbounded read. Matches the postgres advisory-target reader's
 // own max clamp (maxOwnedPackageDependencyTargetLimit,
-// internal/storage/postgres/owned_package_targets.go).
+// internal/storage/postgres/owned_package_targets.go). The stage requests one
+// target past this cap as a probe, and reaching past it marks the pass's
+// evidence partial so the writer retracts nothing (#6831).
 const maxSupplyChainImpactOSPackageAdvisoryTargets = 500
 
 // loadSupplyChainImpactOSPackageAdvisoryFacts loads vulnerability.os_package
@@ -61,20 +63,35 @@ const maxSupplyChainImpactOSPackageAdvisoryTargets = 500
 func (h SupplyChainImpactHandler) loadSupplyChainImpactOSPackageAdvisoryFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, int, error) {
+) ([]facts.Envelope, int, bool, error) {
 	loader, ok := h.FactLoader.(osPackageAdvisoryFactLoader)
 	if !ok {
-		return nil, 0, nil
+		return nil, 0, false, nil
 	}
 	ecosystems := supplyChainImpactOSPackageAdvisoryEcosystems(envelopes)
 	if len(ecosystems) == 0 {
-		return nil, 0, nil
+		return nil, 0, false, nil
 	}
-	loaded, skipped, err := loader.ListOSPackageAdvisoryFactEnvelopes(ctx, ecosystems, maxSupplyChainImpactOSPackageAdvisoryTargets)
+	// Ask for one target beyond the cap. The reader orders by fact id with no
+	// rotation, so a full page cannot tell "exactly the cap" from "more than the
+	// cap"; the extra row can. Reaching past the cap means this pass did not see
+	// every installed target, so the evidence is partial and the writer must not
+	// retract findings for targets it never reached (#6831). Rows the reader
+	// skipped for missing fields consumed the limit too, so they count.
+	loaded, skipped, err := loader.ListOSPackageAdvisoryFactEnvelopes(ctx, ecosystems, maxSupplyChainImpactOSPackageAdvisoryTargets+1)
 	if err != nil {
-		return nil, 0, factload.ClassifyFactLoadError(err)
+		return nil, 0, false, factload.ClassifyFactLoadError(err)
 	}
-	return loaded, skipped, nil
+	truncated := false
+	if len(loaded)+skipped > maxSupplyChainImpactOSPackageAdvisoryTargets {
+		truncated = true
+		// Keep the load at the documented cap: the overflow target is only the
+		// probe that proved more exist.
+		if keep := maxSupplyChainImpactOSPackageAdvisoryTargets - skipped; keep < len(loaded) {
+			loaded = loaded[:max(keep, 0)]
+		}
+	}
+	return loaded, skipped, truncated, nil
 }
 
 // supplyChainImpactOSPackageAdvisoryEcosystems returns the distinct,

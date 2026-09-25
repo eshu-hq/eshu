@@ -72,12 +72,21 @@ type SupplyChainImpactWrite struct {
 	SourceSystem string
 	Cause        string
 	Findings     []SupplyChainImpactFinding
+	// PartialEvidence marks a pass whose active-evidence expansion was
+	// truncated. Its finding set is not the complete truth for the
+	// (scope, generation), so the writer upserts it but retracts nothing:
+	// hiding a finding because a bounded load did not reach it would trade a
+	// stale row for a missing one (#6831).
+	PartialEvidence bool
 }
 
 // SupplyChainImpactWriteResult summarizes durable impact publication.
 type SupplyChainImpactWriteResult struct {
 	CanonicalWrites int
 	FactsWritten    int
+	// FactsRetracted counts prior finding rows of the same (scope, generation)
+	// this pass tombstoned because it no longer derives them (#6831).
+	FactsRetracted  int
 	EvidenceSummary string
 }
 
@@ -197,6 +206,9 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		Findings:     findings,
+		// A truncated evidence load is not the complete finding set, so
+		// the writer must not retract rows it did not reach (#6831).
+		PartialEvidence: loaded.activeEvidenceTruncated,
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
@@ -205,6 +217,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
+	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
 	timing.emitCountersDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
 
@@ -233,6 +246,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}
+	subSignals["findings_retracted"] = float64(writeResult.FactsRetracted)
 	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          reducercontract.DomainSupplyChainImpact,

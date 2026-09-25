@@ -177,7 +177,7 @@ func TestPostgresSupplyChainImpactWriterSerializesProvenancePayload(t *testing.T
 	now := time.Date(2026, 5, 24, 16, 0, 0, 0, time.UTC)
 	db := &testutil.FakeExecer{}
 	writer := PostgresSupplyChainImpactWriter{
-		DB:  db,
+		DB:  newFakeImpactBeginner(db),
 		Now: func() time.Time { return now },
 	}
 

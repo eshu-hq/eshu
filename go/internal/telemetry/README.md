@@ -232,6 +232,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `SecretsIAMPostureObservations` | `eshu_dp_secrets_iam_posture_observations_total` (labels: bounded `risk_type`, `severity`) |
 | `SBOMAttestationAttachments` | `eshu_dp_sbom_attestation_attachments_total` |
 | `SupplyChainImpactFindings` | `eshu_dp_supply_chain_impact_findings_total` |
+| `SupplyChainImpactFindingsRetracted` | `eshu_dp_supply_chain_impact_findings_retracted_total` (superseded finding rows tombstoned by a replace-set pass, #6831; label: `domain`) |
 | `SupplyChainSuppressionDecisions` | `eshu_dp_supply_chain_suppression_decisions_total` (per-finding VEX/operator-policy suppression outcomes, labels: `domain`, `outcome` in active/not_affected/accepted_risk/false_positive/ignored/expired/provider_dismissed/scope_mismatch) |
 | `SupplyChainRemediationDecisions` | `eshu_dp_supply_chain_remediation_decisions_total` (per-finding advisory-only safe-upgrade decisions, labels: `domain`, `outcome` in exact/partial/unknown, `reason` in direct_upgrade_allowed/direct_range_blocked/transitive_parent_upgrade_required/no_patched_version/multiple_patched_branches/package_manager_unsupported/manifest_range_missing/manifest_range_malformed/installed_version_missing/installed_version_malformed) |
 | `ConfluenceHTTPRequests` | `eshu_dp_confluence_http_requests_total` |

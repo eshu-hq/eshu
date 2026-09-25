@@ -23,8 +23,13 @@ const supplyChainImpactFactKind = facts.ReducerSupplyChainImpactFindingFactKind
 
 // PostgresSupplyChainImpactWriter stores reducer-owned vulnerability impact
 // findings in the shared fact store.
+//
+// DB is transaction-capable (#6831), not a bare execer: each pass's finding
+// set is the complete truth for its (scope, generation), so the upsert and the
+// retraction of findings the pass no longer derives must commit together,
+// under a lock on that (scope, generation) conflict domain.
 type PostgresSupplyChainImpactWriter struct {
-	DB  factwrite.Execer
+	DB  SupplyChainImpactBeginner
 	Now func() time.Time
 }
 
@@ -67,16 +72,19 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			Payload:          string(payloadJSON),
 		})
 	}
-	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
-	// round-trips rather than one ExecContext per finding.
-	if err := factwrite.BatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
-		return SupplyChainImpactWriteResult{}, fmt.Errorf("write supply chain impact fact: %w", err)
+	retracted, err := runSupplyChainImpactTx(ctx, w.DB, write, rows)
+	if err != nil {
+		return SupplyChainImpactWriteResult{}, err
 	}
 	canonicalWrites := supplyChainImpactCanonicalWrites(write.Findings)
 	return SupplyChainImpactWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten:    len(write.Findings),
-		EvidenceSummary: fmt.Sprintf("wrote supply chain impact findings=%d canonical_writes=%d", len(write.Findings), canonicalWrites),
+		FactsRetracted:  retracted,
+		EvidenceSummary: fmt.Sprintf(
+			"wrote supply chain impact findings=%d canonical_writes=%d retracted=%d",
+			len(write.Findings), canonicalWrites, retracted,
+		),
 	}, nil
 }
 

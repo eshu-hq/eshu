@@ -225,6 +225,7 @@ remain available for exact scope/generation diagnosis.
 | `eshu_dp_search_decay_policy_applications_total` | counter | Search decay scoring decisions by policy id, evidence class, and outcome. |
 | `eshu_dp_sbom_attestation_attachments_total` | counter | SBOM and attestation attachment decisions by reducer domain and outcome. |
 | `eshu_dp_supply_chain_impact_findings_total` | counter | Supply-chain impact findings by reducer domain and outcome. |
+| `eshu_dp_supply_chain_impact_findings_retracted_total` | counter | Superseded supply-chain impact finding rows a reducer pass tombstoned because its complete finding set for the (scope, generation) no longer derives them, by reducer domain. |
 
 Package names, image digests, run IDs, commit SHAs, environment names, and
 artifact identifiers stay in logs, traces, or durable facts.

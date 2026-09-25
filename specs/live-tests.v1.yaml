@@ -1686,6 +1686,18 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)
+  - file: go/internal/storage/postgres/supply_chain_impact_replace_set_helpers_live_test.go
+    tag: ~
+    class: scheduled
+    reason: helper-only file for the #6831 replace-set live proofs; rides with supply_chain_impact_replace_set_live_test.go in the scheduled lane
+  - file: go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled

@@ -19,7 +19,7 @@ package.
 
 ## Files
 
-70 non-test files: 63 `impact*`/`*.go` short names (impact builders,
+72 non-test files: 65 `impact*`/`*.go` short names (impact builders,
 ecosystem matchers, reachability, anchoring, writers), 4 suppression-story
 files (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`), 3
 `go_reachability*` (Go
@@ -31,6 +31,7 @@ the directory name.
 | `impact.go` | `SupplyChainImpactHandler`, finding pipeline |
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
+| `writer_retract.go` | Replace-set transaction (#6831): per-(scope, generation) advisory lock, upsert, tombstone of superseded findings |
 | `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
 | `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
 | `go_reachability*.go` | Go module/call reachability classification |
@@ -42,7 +43,20 @@ the directory name.
   `BuildSupplyChainImpactRemediation`, `BuildVulnerabilitySuppressions`,
   `EvaluateSupplyChainSuppression`, `ClassifyGoVulnerabilityReachability`.
 - Handler/writers: `SupplyChainImpactHandler`, `SupplyChainImpactWriter`,
-  `PostgresSupplyChainImpactWriter`, `SupplyChainImpactWinnersMaintainer`.
+  `PostgresSupplyChainImpactWriter`, `SupplyChainImpactWinnersMaintainer`,
+  `SupplyChainImpactBeginner`/`SupplyChainImpactTx` (the writer's
+  transaction seam).
+
+## Write contract
+
+Each pass's finding set is the complete truth for its `(scope, generation)`.
+`PostgresSupplyChainImpactWriter` upserts it and tombstones (never deletes)
+every other active finding row of that `(scope, generation)` in one
+transaction, behind a `pg_advisory_xact_lock` on that pair, so a superseded
+finding -- for example a repo-less row replaced once repository anchoring
+arrived -- stops being served (#6831). A pass whose evidence load hit a cap
+(`SupplyChainImpactWrite.PartialEvidence`) upserts only. Evidence and
+measurements: `docs/internal/evidence/6831-supply-chain-impact-replace-set.md`.
 - Types: `SupplyChainImpactFinding`, `SupplyChainImpactFactFilter`,
   `SupplyChainImpactWrite`, `SupplyChainImpactWriteResult`,
   `SupplyChainSuppressionDecision`, `SupplyChainSuppressionState`,
