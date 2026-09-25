@@ -231,7 +231,12 @@ scope in `ingestion_scopes` was queued. The reasons:
 | `unknown_scope` | A named `scope_ids` entry with no `ingestion_scopes` row. Named requests only. |
 
 The same counts are logged as `recover-generations completed` (Warn when
-anything was skipped) and counted in `eshu_dp_recovery_scopes_skipped_total`.
+anything was skipped) and counted in `eshu_dp_recovery_scopes_skipped_total`. The governance audit event
+(`admin_recovery_action`) records a rebuild that skipped scopes with reason code
+`recover_generations_accepted_partial`, and a complete one with
+`recover_generations_accepted`, so a partial rebuild stays distinguishable in the
+durable audit ledger after logs rotate. The audit event carries no counts; the
+response body and the log line do.
 An idempotent retry (`duplicate: true`) does not repeat the report.
 
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,

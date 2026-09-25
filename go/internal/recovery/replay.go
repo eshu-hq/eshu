@@ -203,14 +203,14 @@ func (f RefinalizeFilter) Validate() error {
 		if len(f.ScopeIDs) > 0 {
 			return errors.New(
 				"refinalize filter cannot set all_scopes together with scope_ids: " +
-					"pick every active scope or a named list, not both",
+					"pick every recoverable scope or a named list, not both",
 			)
 		}
 		return nil
 	}
 
 	if len(f.ScopeIDs) == 0 {
-		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every active scope")
+		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every recoverable scope")
 	}
 
 	return nil

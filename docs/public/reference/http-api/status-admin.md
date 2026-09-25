@@ -814,8 +814,8 @@ fresh/aging/stuck age bucket; `stuck` is the wedged-generation alarm signal),
 `eshu_dp_generation_liveness_failures_total` (by bounded reason), plus structured
 logs `generation liveness recovery cycle completed` / `... failed` with the
 `reduction` phase attribute. The `recover-generations` endpoint records a
-governance `admin_recovery_action` audit event and writes the
-`admin_replay_requests` ledger.
+governance `admin_recovery_action` audit event (`recover_generations_accepted_partial`
+when scopes were skipped) and writes the `admin_replay_requests` ledger.
 
 Operational verification (requires a live cluster, not runnable here): capture
 `scope_generations` status counts (active/superseded/pending/completed) and

@@ -74,11 +74,11 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 	correlationID := audit.SafeCorrelationID(audit.CorrelationID(r))
 
 	if req.AllScopes && len(req.ScopeIDs) > 0 {
-		querycontract.WriteError(w, http.StatusBadRequest, "all_scopes cannot be combined with scope_ids: rebuild every active scope or name a list, not both")
+		querycontract.WriteError(w, http.StatusBadRequest, "all_scopes cannot be combined with scope_ids: rebuild every recoverable scope or name a list, not both")
 		return
 	}
 	if !req.AllScopes && len(req.ScopeIDs) == 0 {
-		querycontract.WriteError(w, http.StatusBadRequest, "scope_ids is required and must name at least one wedged scope, or set all_scopes to rebuild every active scope from preserved facts")
+		querycontract.WriteError(w, http.StatusBadRequest, "scope_ids is required and must name at least one wedged scope, or set all_scopes to rebuild every recoverable (active or failed) scope from preserved facts")
 		return
 	}
 	if req.Reason == "" {
@@ -127,7 +127,14 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", authCtx, correlationID)
+	// A rebuild that left scopes out is still an accepted request, but the audit
+	// ledger outlives logs and counters, so it records the partial outcome under
+	// its own reason code. Event has no free-form field to carry the counts.
+	acceptedReason := "recover_generations_accepted"
+	if result.Skipped.Total() > 0 {
+		acceptedReason = "recover_generations_accepted_partial"
+	}
+	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, acceptedReason, authCtx, correlationID)
 	mode := "scope_ids"
 	if req.AllScopes {
 		mode = "all_scopes"

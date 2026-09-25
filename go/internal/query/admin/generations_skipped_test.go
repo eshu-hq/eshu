@@ -14,6 +14,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -190,5 +192,60 @@ func TestAdminHandler_RecoverGenerations_EmitsSkippedScopeSignals(t *testing.T) 
 	}
 	if got[recovery.SkipReasonNoRecoverableGeneration] != 2 || got[recovery.SkipReasonUnknownScope] != 1 || len(got) != 2 {
 		t.Fatalf("eshu_dp_recovery_scopes_skipped_total by reason = %v, want no_recoverable_generation=2 unknown_scope=1", got)
+	}
+}
+
+// TestAdminHandler_RecoverGenerations_AuditDistinguishesPartialRebuild is the
+// #7116 durable-record contract. The governance audit ledger is what survives a
+// log rotation, so a rebuild that left scopes out must not be recorded under
+// the same reason code as a complete one. Event carries no free-form field, so
+// the reason code is the only place the partial outcome can live.
+func TestAdminHandler_RecoverGenerations_AuditDistinguishesPartialRebuild(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     recovery.RefinalizeResult
+		wantReason string
+	}{
+		{
+			name:       "skipped scopes are recorded as partial",
+			result:     skippedResult(),
+			wantReason: "recover_generations_accepted_partial",
+		},
+		{
+			name: "nothing skipped keeps the complete reason",
+			result: recovery.RefinalizeResult{
+				Enqueued: 1,
+				ScopeIDs: []string{"scope-1"},
+			},
+			wantReason: "recover_generations_accepted",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			audit := &testutil.FakeGovernanceAuditAppender{}
+			h := &Handler{
+				Recovery: &stubRecoveryHandler{refinalizeResult: tt.result},
+				Store:    &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}},
+				Audit:    audit,
+			}
+			w := postJSON(newAdminMux(h), "/api/v0/admin/recover-generations", map[string]any{
+				"all_scopes":      true,
+				"reason":          "graph rebuild after backend swap",
+				"idempotency_key": "audit-partial-" + tt.wantReason,
+			})
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+			}
+			if len(audit.Events) != 1 {
+				t.Fatalf("audit events = %d, want 1: %+v", len(audit.Events), audit.Events)
+			}
+			if got := audit.Events[0].ReasonCode; got != tt.wantReason {
+				t.Fatalf("audit reason code = %q, want %q", got, tt.wantReason)
+			}
+			if got := audit.Events[0].Decision; got != governanceaudit.DecisionAllowed {
+				t.Fatalf("audit decision = %q, want allowed: a partial rebuild is still an accepted one", got)
+			}
+			assertAuditValid(t, audit.Events)
+		})
 	}
 }
