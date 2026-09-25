@@ -58,7 +58,7 @@ func (c Checker) FilterPaths(ctx context.Context, access querycontract.Repositor
 			result.Keep[i] = true
 			continue
 		}
-		withheld[verdict.withholdReason(path)]++
+		withheld[c.withholdReason(verdict, path)]++
 	}
 	for reason, n := range withheld {
 		RecordWithheld(ctx, c.Instruments, c.Route, reason, n)
@@ -66,9 +66,14 @@ func (c Checker) FilterPaths(ctx context.Context, access querycontract.Repositor
 	return result, nil
 }
 
-// withholdReason names why a path was withheld: a key the budget left
-// unchecked, or a node the grant does not own.
-func (v Verdict) withholdReason(path []Node) string {
+// withholdReason names why a path was withheld: on the exposure route, a
+// sink whose class no grant can own (WithheldSinkLabels); otherwise a key the
+// budget left unchecked, or a node the grant does not own. The sink class
+// wins because such a path is withheld whatever the budget decided.
+func (c Checker) withholdReason(v Verdict, path []Node) string {
+	if c.Route == RouteTraceExposurePath && len(path) > 0 && hasWithheldSinkLabel(path[len(path)-1].Labels) {
+		return ReasonWithheldSinkClass
+	}
 	for _, node := range path {
 		if v.Admits(node) {
 			continue
@@ -79,4 +84,16 @@ func (v Verdict) withholdReason(path []Node) string {
 		}
 	}
 	return ReasonUngrantedNode
+}
+
+// hasWithheldSinkLabel reports whether labels hold one of WithheldSinkLabels.
+func hasWithheldSinkLabel(labels []string) bool {
+	for _, label := range labels {
+		for _, withheld := range WithheldSinkLabels {
+			if label == withheld {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -215,7 +215,7 @@ func TestCheckCapLeavesTailUngrantedAndCapped(t *testing.T) {
 	if !filter.Capped || filter.Kept() != limit || !filter.Keep[0] || filter.Keep[len(nodes)-1] || filter.Keep[len(nodes)] {
 		t.Fatalf("FilterPaths kept %d (capped=%v), want the first %d kept, the tail and the empty path withheld", filter.Kept(), filter.Capped, limit)
 	}
-	if got := verdict.withholdReason([]Node{nodes[len(nodes)-1]}); got != ReasonUncheckedOverCap {
+	if got := (Checker{}).withholdReason(verdict, []Node{nodes[len(nodes)-1]}); got != ReasonUncheckedOverCap {
 		t.Fatalf("withhold reason = %q, want %q", got, ReasonUncheckedOverCap)
 	}
 }
@@ -260,7 +260,7 @@ func TestCheckRowLimitLeavesChunkUndecidedAndCapped(t *testing.T) {
 	if !verdict.Capped() || verdict.Admits(nodes[0]) || verdict.Admits(nodes[1]) {
 		t.Fatal("a chunk that hit RowLimit before any granted owner must leave its keys ungranted and the verdict capped")
 	}
-	if got := verdict.withholdReason(nodes[:1]); got != ReasonUncheckedOverCap {
+	if got := (Checker{}).withholdReason(verdict, nodes[:1]); got != ReasonUncheckedOverCap {
 		t.Fatalf("withhold reason = %q, want %q", got, ReasonUncheckedOverCap)
 	}
 }
@@ -280,4 +280,27 @@ func (g *fanInGraph) Run(_ context.Context, _ string, params map[string]any) ([]
 
 func (g *fanInGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
 	return nil, nil
+}
+
+// B1: on the exposure route a path whose sink is a withheld sink class is
+// withheld_sink_class, even past an unowned interior; on another route the
+// same path is ungranted_node, and an owned-sink exposure path with an
+// unowned interior stays ungranted_node.
+func TestWithholdReasonNamesWithheldSinkClassOnExposureRoute(t *testing.T) {
+	t.Parallel()
+	verdict := Verdict{access: grantA(), admitted: map[Class]map[string]struct{}{}}
+	foreign := Node{ID: "fn-b", RepoID: "repo-b", Labels: []string{"Function"}}
+	for _, label := range WithheldSinkLabels {
+		path := []Node{foreign, {ID: "sink-1", Labels: []string{label}}}
+		if got := (Checker{Route: RouteTraceExposurePath}).withholdReason(verdict, path); got != ReasonWithheldSinkClass {
+			t.Errorf("%s sink on exposure route: reason = %q, want %q", label, got, ReasonWithheldSinkClass)
+		}
+		if got := (Checker{Route: RouteTraceResourceToCode}).withholdReason(verdict, path); got != ReasonUngrantedNode {
+			t.Errorf("%s node on trace route: reason = %q, want %q", label, got, ReasonUngrantedNode)
+		}
+	}
+	owned := []Node{foreign, {ID: "fn-a", RepoID: "repo-a", Labels: []string{"Function"}}}
+	if got := (Checker{Route: RouteTraceExposurePath}).withholdReason(verdict, owned); got != ReasonUngrantedNode {
+		t.Errorf("owned sink, foreign interior: reason = %q, want %q", got, ReasonUngrantedNode)
+	}
 }
