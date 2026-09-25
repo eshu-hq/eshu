@@ -45,10 +45,12 @@ binding the repository list count already uses. An empty grant answers 0 without
 a graph call. A failed count is a 500 and an unconfigured graph a 503; zero is a
 valid, materially different answer for a scoped caller, so it is never the
 fallback. Shared-key callers reach `getIndexStatus` unchanged. An all-scope
-bearer or session is now admitted wherever `ESHU_GOVERNANCE_MODE` admits
-all-scope callers on grant-bound routes (local and hosted single-tenant) and
-reads the full deployment-wide report there; before this change it got a 403 in
-every mode. `hosted_multi_tenant` still refuses it.
+bearer token is now admitted wherever `ESHU_GOVERNANCE_MODE` admits a
+tenant-bound all-scope caller on grant-bound routes (unset, `local_no_policy`,
+`hosted_single_tenant`) and reads the full deployment-wide report there; before
+this change it got a 403 in every mode. A tenant-bound all-scope console session
+was already admitted to that report in the same modes and is unchanged.
+`hosted_multi_tenant` and an unrecognized mode refuse both.
 
 ## The five promotion steps
 
