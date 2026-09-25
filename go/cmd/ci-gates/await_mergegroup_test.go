@@ -294,3 +294,25 @@ func TestWorkflowRunConclusionsForMergeGroupReadsOnlyMergeGroupRuns(t *testing.T
 		t.Error("a cancelled pull_request run says nothing about the merge group and must be ignored")
 	}
 }
+
+func TestWorkflowRunConclusionsPicksTheNewestRunByIDNotListOrder(t *testing.T) {
+	t.Parallel()
+
+	// A re-run attempt listed after the cancelled first attempt: list order
+	// must not decide which run speaks for the workflow.
+	runner := &endpointRunner{routes: map[string]string{"actions/runs?": `[{"workflow_runs":[
+		{"id":900,"name":"Build Test","event":"merge_group","conclusion":"cancelled"},
+		{"id":901,"name":"Build Test","event":"merge_group","conclusion":null}
+	]}]`}}
+
+	got, err := workflowRunConclusionsForEvent(context.Background(), runner, "eshu-hq/eshu", headSHAFixture, eventMergeGroup)
+	if err != nil {
+		t.Fatalf("workflowRunConclusionsForEvent: %v", err)
+	}
+	if got.cancelled("Build Test") {
+		t.Error("the older cancelled run (id 900) must not speak for the workflow")
+	}
+	if conclusion, ok := got["Build Test"]; !ok || conclusion != "" {
+		t.Errorf("conclusion = %q, present %v; want the newest run (id 901) in flight", conclusion, ok)
+	}
+}

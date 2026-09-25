@@ -135,8 +135,8 @@ func isNotAGateResult(check checkRollup, runs runConclusions) bool {
 // isAwaitingRunConclusion reports whether a SKIPPED check cannot be classified
 // yet because the workflow run that owns it is still executing.
 //
-// This is the re-run window. GitHub returns runs newest-first, so once a
-// cancelled workflow is re-run the newest run for that name is the replacement,
+// This is the re-run window. Once a cancelled workflow is re-run, the run with
+// the highest ID for that name is the replacement,
 // and it carries `conclusion: null` until it finishes -- while the check rollup
 // still reports the cancelled run's SKIPPED job, because the replacement's
 // check runs have not landed in it. required-gates.yml triggers the aggregate
@@ -226,6 +226,7 @@ func needsRunConclusions(required []resolvedRequiredGate, checks []checkRollup) 
 
 // workflowRunConclusion is the slice of a workflow run this command reads.
 type workflowRunConclusion struct {
+	ID         int64  `json:"id"`
 	Name       string `json:"name"`
 	Event      string `json:"event"`
 	Conclusion string `json:"conclusion"`
@@ -238,9 +239,9 @@ type workflowRunConclusion struct {
 // declares in .github/workflows/required-gates.yml; no new token scope and no
 // repository secret is involved.
 //
-// GitHub returns runs newest-first, and gh's own rollup keeps the most
-// recently started check for a name, so taking the first run seen per workflow
-// name matches the row the rollup reported. A re-run therefore replaces the
+// gh's own rollup keeps the most recently started check for a name, so the
+// run with the highest ID per workflow name matches the row the rollup
+// reported. List order is not relied on. A re-run therefore replaces the
 // cancelled run's conclusion, which is what should happen: once the workflow
 // has been re-run, its skipped jobs are no longer cancellation artifacts. While
 // that replacement is still executing its conclusion is empty rather than
@@ -273,16 +274,19 @@ func workflowRunConclusionsForEvent(ctx context.Context, runner ghRunner, repo, 
 		return nil, fmt.Errorf("decode workflow runs for %s: %w", headSHA, err)
 	}
 	conclusions := make(runConclusions)
+	newestID := make(map[string]int64)
 	for _, page := range pages {
 		for _, run := range page.WorkflowRuns {
 			if run.Event != event {
 				continue
 			}
-			// Newest-first, so the first run seen for a name wins; a later
-			// page repeating the name is an older attempt.
-			if _, seen := conclusions[run.Name]; seen {
+			// The highest run ID is the newest attempt. The listing's order
+			// is not a contract, so it must not pick the run; this matches
+			// readMergeGroupChecks so both readers agree on one run.
+			if current, seen := newestID[run.Name]; seen && run.ID <= current {
 				continue
 			}
+			newestID[run.Name] = run.ID
 			// GitHub sends `conclusion: null` for a run that has not
 			// finished, which decodes to the empty string -- the in-flight
 			// state runConclusions.inFlight reads.
