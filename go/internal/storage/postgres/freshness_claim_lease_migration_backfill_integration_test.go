@@ -5,6 +5,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -14,7 +16,46 @@ import (
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 )
+
+// freshnessClaimLeaseProofDSNEnv gates the integration proof below against a
+// real Postgres instance. It is skipped otherwise so the normal unit gate is
+// unaffected. #6693 step 19 moved the GCP claim-lease test (with its own
+// copy of this helper pair) out of root; this copy stays in root for the
+// cross-family migration-backfill proof since Go test-only symbols do not
+// cross package boundaries. It needs "database/sql", "fmt", and "time",
+// already imported above.
+const freshnessClaimLeaseProofDSNEnv = "ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN"
+
+// freshnessLeaseProofDB opens an isolated-schema connection against dsn so
+// this proof's rows never collide with another integration test's fixtures
+// sharing the same database. The pool is capped at one connection: SET
+// search_path is session-scoped (mirroring provisionLivenessSchema's
+// sweepDB.SetMaxOpenConns(1) pattern in
+// generation_liveness_write_time_race_test.go).
+func freshnessLeaseProofDB(t *testing.T, dsn string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open proof connection: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	db.SetMaxOpenConns(1)
+
+	ctx := context.Background()
+	schemaName := fmt.Sprintf("freshness_claim_lease_proof_%d", time.Now().UnixNano())
+	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		t.Fatalf("create proof schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+	})
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	return db
+}
 
 // preClaimLeaseAWSFreshnessTriggersSQL is migration 020's table shape,
 // predating #4576's claim_expires_at/claim_fencing_token columns. It seeds a
@@ -187,7 +228,7 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 		t.Fatalf("reclaimedAWS[0].Status = %q, want %q", reclaimedAWS[0].Status, awsfreshness.TriggerStatusQueued)
 	}
 
-	gcpStore := NewGCPFreshnessStore(SQLDB{DB: db})
+	gcpStore := gcpfreshnessstore.NewGCPFreshnessStore(SQLDB{DB: db})
 	reclaimedGCP, err := gcpStore.ReapExpiredTriggerClaims(ctx, now, 50)
 	if err != nil {
 		t.Fatalf("ReapExpiredTriggerClaims(gcp) error = %v", err)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package gcpfreshnessstore_test
 
 import (
 	"context"
@@ -16,17 +16,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 )
 
-// freshnessClaimLeaseProofDSNEnv gates this suite (and
-// freshness_claim_lease_migration_backfill_integration_test.go) against a
-// real Postgres instance. It is skipped otherwise so the normal unit gate is
-// unaffected, mirroring the sibling generation-liveness/reducer-queue
-// integration proofs in this package. #6693 moved the AWS freshness store's
-// own copy of this helper to
-// go/internal/storage/postgres/freshness/aws/claim_lease_integration_test.go;
-// this copy stays in root for the GCP and cross-family migration-backfill
-// proofs that have not moved yet.
+// freshnessClaimLeaseProofDSNEnv gates this suite against a real Postgres
+// instance. It is skipped otherwise so the normal unit gate is unaffected,
+// mirroring the sibling generation-liveness/reducer-queue integration
+// proofs. #6693 step 19 moved this file (with its helper copy) out of root;
+// freshness_claim_lease_migration_backfill_integration_test.go keeps its own
+// copy in root since Go test-only symbols do not cross package boundaries.
 const freshnessClaimLeaseProofDSNEnv = "ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN"
 
 // freshnessLeaseProofDB opens an isolated-schema connection against dsn so
@@ -70,7 +70,7 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewGCPFreshnessStore(SQLDB{DB: db})
+	store := gcpfreshnessstore.NewGCPFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
@@ -148,7 +148,7 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewGCPFreshnessStore(SQLDB{DB: db})
+	store := gcpfreshnessstore.NewGCPFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
@@ -220,7 +220,7 @@ func TestGCPFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 	}
 
 	db := freshnessLeaseProofDB(t, dsn)
-	store := NewGCPFreshnessStore(SQLDB{DB: db})
+	store := gcpfreshnessstore.NewGCPFreshnessStore(postgres.SQLDB{DB: db})
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		t.Fatalf("EnsureSchema() error = %v", err)
 	}
