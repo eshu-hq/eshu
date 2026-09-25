@@ -483,7 +483,8 @@ handles. The response carries the resolved `scope_id`, `scope_kind`,
 `unchanged`, `retired`, and `superseded`, plus bounded `samples`
 (`stable_fact_key`, `fact_kind`) per classification and a per-classification
 `truncated` flag. `added` is a key new in the current generation; `updated` is a
-key in both whose SHA-256 payload digest multiset differs; `unchanged` is a key
+key in both whose SHA-256 payload digest multiset differs (`content_entity.indexed_at` is
+ignored and `reducer_*` facts are excluded; see the freshness model); `unchanged` is a key
 in both with an identical payload digest multiset; `retired` is a key tombstoned in the current generation;
 `superseded` is a key dropped entirely on generation rollover. Retired and
 superseded are never collapsed into `unchanged`.

@@ -105,12 +105,41 @@ ORDER BY generation_observed_at DESC
 LIMIT 1
 `
 
+// changedSincePayloadDigestInput is the value every changed-since payload digest
+// hashes. It is the fact payload, except that content_entity rows drop
+// indexed_at: the git collector stamps every content_entity payload with the
+// snapshot time (go/internal/collector/git/content/envelopes.go, the
+// "indexed_at" field of ContentEntityFactEnvelope), so an unchanged entity
+// re-indexed on a new run would otherwise differ from its prior copy and report
+// updated. Nothing reads the field back. Existing generations keep it forever,
+// so the diff normalizes it at read time; only content_entity is normalized
+// because no other kind carries a per-run timestamp of this shape. This is data
+// normalization of a known collector field, not an allowlist.
+const changedSincePayloadDigestInput = `CASE WHEN fact_kind = 'content_entity' THEN payload - 'indexed_at' ELSE payload END`
+
+// reducerDerivedFactKindLikePattern matches every reducer-derived fact kind:
+// the reducer writes its materialized output into the source generation after
+// that generation activates, under a "reducer_" kind prefix. The underscore is
+// escaped so a kind that merely starts with "reducer" does not match. Shared by
+// the changed-since diff and the collector evidence summary so both classify
+// reducer output by the same shape.
+const reducerDerivedFactKindLikePattern = `'reducer\_%'`
+
+// changedSinceExcludeReducerDerivedKinds keeps reducer-derived rows out of a
+// changed-since scan. They exist only in generations the reducer has processed,
+// so their presence tracks reducer scheduling, not repository change, and the
+// route's truth envelope promises persisted fact truth rather than correlation
+// output.
+const changedSinceExcludeReducerDerivedKinds = `fact_kind NOT LIKE ` + reducerDerivedFactKindLikePattern
+
 // changedSinceClassificationCTEs classifies one scope across two generations.
 // A single payload per key uses one SHA-256 digest. Equal minimum digests from
 // duplicate-key groups need a sorted multiset comparison: a changed non-minimum
 // payload or duplicate multiplicity must not disappear into "unchanged".
 // Only those ambiguous keys pay for the second scan and sorted digest arrays.
 // Category and tombstone precedence match the original changed-since contract.
+// Digests hash changedSincePayloadDigestInput and every scan excludes
+// reducer-derived kinds (#7127).
 //
 // Parameter order: $1 scope_id, $2 prior generation, $3 current generation.
 const changedSinceClassificationCTEs = `
@@ -124,9 +153,10 @@ WITH prior_keys AS (
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
         COUNT(*) AS row_count,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS single_payload_hash
+        MIN(sha256(convert_to((` + changedSincePayloadDigestInput + `)::text, 'UTF8'))) AS single_payload_hash
     FROM fact_records
     WHERE scope_id = $1 AND generation_id = $2 AND is_tombstone = FALSE
+      AND ` + changedSinceExcludeReducerDerivedKinds + `
     GROUP BY fact_category, stable_fact_key
 ),
 current_active_keys AS (
@@ -139,9 +169,10 @@ current_active_keys AS (
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
         COUNT(*) AS row_count,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS single_payload_hash
+        MIN(sha256(convert_to((` + changedSincePayloadDigestInput + `)::text, 'UTF8'))) AS single_payload_hash
     FROM fact_records
     WHERE scope_id = $1 AND generation_id = $3 AND is_tombstone = FALSE
+      AND ` + changedSinceExcludeReducerDerivedKinds + `
     GROUP BY fact_category, stable_fact_key
 ),
 current_tombstones AS (
@@ -155,6 +186,7 @@ current_tombstones AS (
         MIN(fact_kind) AS fact_kind
     FROM fact_records
     WHERE scope_id = $1 AND generation_id = $3 AND is_tombstone = TRUE
+      AND ` + changedSinceExcludeReducerDerivedKinds + `
     GROUP BY fact_category, stable_fact_key
 ),
 initial_classified AS MATERIALIZED (
@@ -186,7 +218,7 @@ suspect_keys AS MATERIALIZED (
 ),
 prior_duplicate_rows AS MATERIALIZED (
     SELECT suspect.fact_category, fact.stable_fact_key,
-        sha256(convert_to(fact.payload::text, 'UTF8')) AS payload_hash
+        sha256(convert_to((` + changedSincePayloadDigestInput + `)::text, 'UTF8')) AS payload_hash
     FROM fact_records AS fact
     JOIN suspect_keys AS suspect
         ON suspect.stable_fact_key = fact.stable_fact_key
@@ -196,10 +228,11 @@ prior_duplicate_rows AS MATERIALIZED (
            ELSE 'facts'
        END
     WHERE fact.scope_id = $1 AND fact.generation_id = $2 AND fact.is_tombstone = FALSE
+      AND ` + changedSinceExcludeReducerDerivedKinds + `
 ),
 current_duplicate_rows AS MATERIALIZED (
     SELECT suspect.fact_category, fact.stable_fact_key,
-        sha256(convert_to(fact.payload::text, 'UTF8')) AS payload_hash
+        sha256(convert_to((` + changedSincePayloadDigestInput + `)::text, 'UTF8')) AS payload_hash
     FROM fact_records AS fact
     JOIN suspect_keys AS suspect
         ON suspect.stable_fact_key = fact.stable_fact_key
@@ -209,6 +242,7 @@ current_duplicate_rows AS MATERIALIZED (
            ELSE 'facts'
        END
     WHERE fact.scope_id = $1 AND fact.generation_id = $3 AND fact.is_tombstone = FALSE
+      AND ` + changedSinceExcludeReducerDerivedKinds + `
 ),
 prior_duplicate_hashes AS (
     SELECT fact_category, stable_fact_key,

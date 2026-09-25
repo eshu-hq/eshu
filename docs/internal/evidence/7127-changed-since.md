@@ -45,3 +45,41 @@ per request (scope, prior generation, one diff).
 Observability Evidence: no runtime signal changes. The route keeps the
 `query.freshness_changed_since` span and the shared Postgres query metrics; a
 single statement makes their duration the whole diff cost.
+
+## PR-2: indexed_at and reducer-derived facts (intended delta)
+
+Change: the digest input drops `indexed_at` for `content_entity` rows
+(`changedSincePayloadDigestInput`) and every `fact_records` scan in the CTE
+excludes `fact_kind LIKE 'reducer\_%'` (`changedSinceExcludeReducerDerivedKinds`).
+The escaped pattern is shared with `collector_evidence_summary.go`, whose
+unescaped `reducer_%` also matched a kind such as `reducerX`. Rows are NOT
+equal to PR-1 by design: today's rows report every content entity as `updated`
+and every reducer-written fact as `added`.
+
+Accuracy proof, RED first: on the unmodified statement the new live tests failed
+(`content_entities` counts `{Updated:3}` against `{Updated:1 Unchanged:2}`;
+`facts` counts `{Added:3 Updated:1 Unchanged:1 Retired:1}` against
+`{Added:1 Unchanged:1}`); with the constants wired in they pass. They also pin
+that a real content-entity change still reports `updated`, that only
+`content_entity` is normalized (`indexed_at` on a `file` still counts), that a
+duplicate-row multiset that differs only in `indexed_at` is `unchanged`, and that
+a `reducerX` kind is not excluded. The `repository` fact's `source_run_id`
+change is asserted as `updated` (documented, not normalized).
+
+Fixture result (same 2.2M-row scope, sample limit 26): content_entities
+`updated 970 / unchanged 96,030`; facts `added 800 / retired 320 / superseded 800
+/ unchanged 201,980 / updated 1,101`; files `unchanged 5,000`. These equal the
+planted truth from the #7127 ruling: 1% real entity change, reducer rows
+excluded, indexed_at churn ignored.
+
+Performance Evidence: normalization adds a `payload - 'indexed_at'` on
+content_entity rows and drops reducer rows before the scan. Interleaved,
+alternating first mover, four rounds on the same fixture, `EXPLAIN ANALYZE`
+execution time: PR-1 statement median 9.02 s (11.69, 7.68, 9.25, 8.79), PR-2
+statement median 9.57 s (8.05, 7.42, 14.39, 11.08). The difference is inside
+run-to-run noise on a shared laptop (a separate un-interleaved run took 22.6 s
+under machine load, which is why only the interleaved medians count); this is
+no-regression evidence, not a speedup claim.
+
+No-Observability-Change: no runtime signal changes; the route keeps its span and
+the shared Postgres query metrics.
