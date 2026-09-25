@@ -1,0 +1,21 @@
+go/internal/backendconformance/evidence-notes.md
+  s_9dfb32458dfa10::t_42eb40e436ed53 42-58
+go/internal/backendconformance/corpus_semantic_module_test.go
+  s_9dfb32458dfa10::t_94c25028c4db93 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8158a4fb1ec224680143234a3cad3f416bf4bc52",
+  "prompts": {},
+  "sessions": {
+    "s_9dfb32458dfa10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d984-da12-7ad1-8a0c-1b335f5e8d81",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
