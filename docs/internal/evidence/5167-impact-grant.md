@@ -77,7 +77,10 @@ closed and check every node of the bounded page, per class, in the new
 ## Where The Design Changed, And The Measurements That Changed It
 
 Three points of the decided design did not hold on the code or the pinned
-NornicDB build. Each change was measured before it was adopted.
+NornicDB build. Each change was measured before it was adopted. The
+measurements in this section are historical and NornicDB-only. They ran on the
+pinned NornicDB build before the owner's 2026-09-25 rule moved live tests and
+timings to Neo4j. The Budget section below carries the current Neo4j figures.
 
 1. **WorkloadInstance carries no `uid`.** `canonicalWorkloadInstanceUpsertCypher`
    (`go/internal/storage/cypher/canonical.go`) merges on `id` and sets no
@@ -135,9 +138,12 @@ hits the build's read-result cache, is 2048 keys per class at chunk 50:
 
 ## Budget
 
-Cost is about 0.15 ms per statement-checked key plus owner fan-in,
-independent of grant size, so the cap does not need to depend on the grant.
-The rules are:
+The figures in this section were measured on Neo4j (`neo4j:2026-community`),
+the live test backend since the owner's 2026-09-25 rule. Cost follows the
+number of statement-checked keys and their owner fan-in, independent of grant
+size, so the cap does not need to depend on the grant. On Neo4j the shipped
+statements take 0.10–0.35 s per 2048 keys per class at grant 8, 128, and 1000,
+with 0 misjudged keys. The rules are:
 
 - `ChunkSize = 50`.
 - `MaxCheckedKeys = 4500` distinct statement-checked keys per request. This is
@@ -147,9 +153,8 @@ The rules are:
   key. A chunk that reaches it leaves its unadmitted keys unchecked.
 - Unchecked keys are ungranted, and the verdict reports `Capped`, so the route
   reports `truncated: true`.
-- At fan-in ~1: 4500 keys × ~0.15 ms ≈ 0.7 s. The 10 s graph-read deadline
-  (`neo4j_read_policy.go`) applies per statement, and each chunk statement
-  measured ~6 ms.
+- The 10 s graph-read deadline (`neo4j_read_policy.go`) applies per
+  statement.
 - `RowLimit` caps the rows a chunk returns, not the owner edges the engine
   expands before `DISTINCT`, `ORDER BY`, and `LIMIT`. So the fan-in-1 figure
   is not a worst case. See the hub measurement below.
@@ -159,8 +164,12 @@ T7 (`TestLiveImpactOwnershipCapAndDeadline`) ran at a 1000-id grant over
 
 - 4500 keys were checked and all judged owned, which is correct for this
   grant. The other 1644 were withheld. `Capped` was true. The check took
-  0.745 s.
+  0.252 s on Neo4j.
 - A page of exactly 4500 keys was not capped.
+
+Historical, NornicDB only, before the Neo4j rule: the same page took 0.745 s,
+and fan-in-1 cost was about 0.15 ms per key (0.29–0.33 s per 2048 keys per
+class, about 0.7 s at the cap).
 
 ### Hub fan-in (review finding B3)
 
@@ -176,28 +185,27 @@ repository that sorts last, so every hub's granted owner falls past
 | --- | --- | --- | --- |
 | `neo4j:2026-community` (fresh container, hub fixture only) | median 0.036 s, max 0.428 s (cold first run) | median 0.736 s, max 1.359 s | 0 of 50, `Capped` every run |
 | `neo4j:2026-community` (same container, full live suite loaded) | median 0.021 s, max 0.078 s | median 2.000 s, max 2.576 s | 0 of 50, `Capped` every run |
-| pinned NornicDB `fix-500-e022384c` | 12.340, 12.785, 13.826, 13.937, 14.167, 14.654 s (n=6, then stopped) | not measured | not measured |
+| historical: pinned NornicDB `fix-500-e022384c` | 12.340, 12.785, 13.826, 13.937, 14.167, 14.654 s (n=6, then stopped) | not measured | not measured |
 
-The NornicDB runs happened before the owner moved live timing to Neo4j
-(2026-09-25) and were stopped at n=6. They are NornicDB-only and are recorded
-as observed, not as a Neo4j result.
+The NornicDB row is historical. It was measured before the owner moved live
+timing to Neo4j on 2026-09-25, and the run was stopped at n=6. The row is
+NornicDB-only and is kept as observed, not as a Neo4j result.
 
 What this shows:
 
 - On Neo4j the worst case measured, 2.58 s for a full page of hubs, is inside
   the 10 s graph-read deadline. The bound holds without a statement change.
-- On the pinned NornicDB build one hub chunk exceeds the 10 s deadline. A
-  hub-heavy page there fails the request closed with a graph-read deadline
-  error. It never returns a partial or widened answer. This is recorded as a
-  NornicDB-specific cost and was not redesigned here. Proving a redesign would
-  need NornicDB timing, which the owner rule now excludes.
+- Historical, NornicDB only: one hub chunk exceeded the 10 s deadline on the
+  pinned build. On that backend a hub-heavy page fails the request closed with
+  a graph-read deadline error. It never returns a partial or widened answer
+  and never admits a node. The statements are not changed for it.
 - The admit decision stays correct at a hub. A granted owner past `RowLimit`
   leaves the key unchecked, so ungranted with `Capped`, and the route reports
   `truncated`. It is never admitted (0 of 50 on every run). The hermetic
   `TestCheckRowLimitLeavesChunkUndecidedAndCapped` guards the same branch.
 
 Running the class statements concurrently was not measured and is not done.
-At ~0.3 s per class there is nothing to recover inside the deadline, and three
+At 0.10–0.35 s per class there is nothing to recover inside the deadline, and three
 concurrent statements per request would triple backend concurrency for no
 bounded-latency gain. The classes run in sequence within one request, and
 requests stay concurrent. No write, lock, or shared state is involved.
@@ -267,7 +275,7 @@ tests and timings use Neo4j. Every test above passed there except
 on Neo4j: 0.10–0.35 s per 2048 keys per class at grant 8, 128, and 1000, with
 0 misjudged keys. The capped 6144-key page took 0.252 s.
 
-Performance Evidence: impact scoped ownership check (impact/ownership) on the pinned NornicDB image, uncached, fixture of 256 repositories, 2048 CloudResources, 2048 TerraformStateResources, 2048 rescued WorkloadInstances, and 22048 TerraformResources, with indexes as shipped by graph.EnsureSchemaWithBackend (nornicdb_cloud_resource_uid_lookup, terraform_state_resource_uid_unique, nornicdb_workload_instance_id_lookup; TerraformResource.repo_id unindexed). Before, the grant-anchored A1/R1b/R2 shapes at grant 128 and 2000 keys took 7.754 s, 6.385 s, and 32.433 s unchunked, and R2 took 105.577 s in chunks of 500. After, the grant-free owner projections at chunk 50, keyed node first, returning DISTINCT uid and repo_id with ORDER BY uid, repo_id and LIMIT 800, take 0.29-0.33 s per class for 2048 keys at grant 8, 128, and 1000, with 0 misjudged keys. A 6144-key page at a 1000-id grant is capped at 4500 checked keys and finishes in 0.745 s. Those figures are at fan-in about 1. Hub fan-in (50 CloudResources x 2000 owners, n=9, unique nonce): on neo4j:2026-community one 50-hub chunk takes a median of 0.021-0.036 s and a 4500-key page holding the hubs a median of 0.74-2.0 s (max 2.58 s). On the pinned NornicDB build one hub chunk took 12.3-14.7 s (n=6). That exceeds the 10 s per-statement deadline, and the request fails closed. The scoped anchor candidate resolve is the existing CALL{UNION} with ORDER BY id, label and LIMIT 32 on its RETURN clause, and it runs for scoped callers only. The scoped trace-resource-to-code traversal is the existing statement plus a terminal-repository grant in its anchoring WHERE and a nodes(path) projection. Unscoped statements are unchanged apart from two projected columns on the anchor-resolve CALL branches.
+Performance Evidence: impact scoped ownership check (impact/ownership), measured on neo4j:2026-community, uncached with a unique nonce per run, through ownership.Checker. The fixture has 256 repositories, 2048 CloudResources, 2048 TerraformStateResources, 2048 rescued WorkloadInstances and 22048 TerraformResources, with indexes as shipped by graph.EnsureSchemaWithBackend (backend neo4j). The shipped grant-free owner projections run at chunk 50, keyed node first, returning DISTINCT uid and repo_id with ORDER BY uid, repo_id and LIMIT 800. They take 0.10-0.35 s per class for 2048 keys at grant 8, 128 and 1000, with 0 misjudged keys. A 6144-key page at a 1000-id grant is capped at 4500 checked keys and finishes in 0.252 s. Hub fan-in (50 CloudResources x 2000 owners, n=9): one 50-hub chunk has a median of 0.036 s (max 0.428 s cold); a 4500-key page holding the hubs has a median of 0.736 s (max 1.359 s), and with the whole live suite's fixtures loaded a median of 2.000 s (max 2.576 s). No hub whose granted owner the row cap cut was admitted. The scoped anchor candidate resolve is the existing CALL{UNION} with ORDER BY id, label and LIMIT 32 on its RETURN clause, and it runs for scoped callers only. The scoped trace-resource-to-code traversal is the existing statement plus a terminal-repository grant in its anchoring WHERE and a nodes(path) projection. Unscoped statements are unchanged apart from two projected columns on the anchor-resolve CALL branches. Historical, NornicDB only, measured on the pinned image before the 2026-09-25 Neo4j rule: the grant-anchored A1/R1b/R2 shapes at grant 128 and 2000 keys took 7.754 s, 6.385 s and 32.433 s unchunked (R2 took 105.577 s in chunks of 500); the shipped projections took 0.29-0.33 s per class and 0.745 s for the capped page; and one 50-hub chunk took 12.3-14.7 s (n=6), past the 10 s per-statement deadline, where the request fails closed and admits nothing.
 
 Observability Evidence: eshu_dp_query_impact_scoped_paths_withheld_total{route,reason} counts paths or answers withheld, where reason is ungranted_node, unchecked_over_cap, withheld_sink_class, or anchor_ungranted. eshu_dp_query_impact_ownership_check_duration_seconds{route,node_label,outcome} times every ownership chunk statement. A Warn log "impact ownership check capped" carries route, grant_size, and checked_key_cap when a page exceeds the budget. Both metrics are registered in go/internal/telemetry/instruments.go and have a coverage row in docs/public/observability/telemetry-coverage.md.
 
@@ -283,7 +291,7 @@ ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localh
 docker rm -f neo4j-impact2
 ```
 
-The original NornicDB runs:
+The historical NornicDB runs (before the 2026-09-25 Neo4j rule):
 
 ```bash
 docker run -d --name nornic-5167impact --platform linux/amd64 -p 17998:7687 -p 17999:7474 \

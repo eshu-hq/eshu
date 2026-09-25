@@ -4,9 +4,31 @@
 package ownership
 
 // Ownership budget. The owner statements (statements.go) are grant-free, so
-// their cost depends on the number of checked keys and the owner rows they
-// match, not on the caller's grant size. Measured on the pinned NornicDB build
-// (docs/internal/evidence/5167-impact-grant.md), uncached:
+// their cost depends on the number of checked keys and their owner fan-in, not
+// on the caller's grant size. Live measurements run on Neo4j
+// (neo4j:2026-community), the owner-mandated test backend since 2026-09-25;
+// see docs/internal/evidence/5167-impact-grant.md.
+//
+// Measured on Neo4j, through Checker, uncached (a unique $nonce per run):
+//
+//   - fan-in ~1: 0.10-0.35 s per 2048 keys per class at grant 8, 128, and
+//     1000, 0 misjudged keys; a 6144-key page capped at MaxCheckedKeys takes
+//     0.252 s.
+//   - hub fan-in (TestLiveImpactOwnershipHubFanIn: 50 CloudResources of 2000
+//     owners each, n=9): one 50-hub chunk, median 0.036 s, max 0.428 s (cold);
+//     a 4500-key page holding the 50 hubs, median 0.736 s, max 1.359 s (with
+//     the whole live suite's fixtures loaded: median 2.000 s, max 2.576 s).
+//
+// So the worst case measured stays inside the 10 s per-statement graph-read
+// deadline. RowLimit bounds the rows a chunk returns, not the owner edges the
+// engine expands before DISTINCT, ORDER BY, and LIMIT, so a hub costs its whole
+// fan-in; a hub whose granted owner sorts past RowLimit is left unchecked
+// (ungranted, and the caller reports truncated), never admitted.
+//
+// Historical, NornicDB only (measured on the pinned NornicDB build before the
+// 2026-09-25 Neo4j rule; not re-measured): the chunk sweep that set ChunkSize
+// (per-chunk cost grows with the square of the chunk; a 2000-key statement
+// took ~6 s) was
 //
 //	chunk   CloudResource  WorkloadInstance  TerraformStateResource   (2048 keys each)
 //	   50        0.247 s           0.241 s                 0.244 s
@@ -14,32 +36,10 @@ package ownership
 //	  250        0.788 s           0.845 s                 0.818 s
 //	  500        1.502 s           1.592 s                 1.546 s
 //
-// Per-chunk cost grows with the square of the chunk (a 2000-key statement
-// took ~6 s), so ChunkSize is 50. The shipped statements (with ORDER BY and
-// LIMIT $row_limit), measured through Checker at grant 8, 128, and 1000, take
-// 0.29-0.33 s per 2048 keys per class on NornicDB (0.10-0.35 s on Neo4j 2026):
-// ~0.15 ms per key at fan-in ~1, whatever the grant.
-//
-// MaxCheckedKeys bounds the distinct statement-checked keys one request sends
-// across all classes: at fan-in ~1 (one owner per key) that is ~0.7 s on
-// NornicDB, and 0.25 s for a capped 6144-key page on Neo4j 2026 community.
-//
-// RowLimit bounds the rows a chunk returns, not the owner edges the engine
-// expands before DISTINCT, ORDER BY, and LIMIT, so a widely shared node (a
-// hub: a shared VPC, KMS key, or role) costs its whole fan-in. Measured by
-// TestLiveImpactOwnershipHubFanIn with 50 hub CloudResources of 2000 owners
-// each, a unique $nonce per run, n=9 per figure:
-//
-//	backend              one 50-hub chunk          4500-key page holding the 50 hubs
-//	Neo4j 2026           0.021-0.036 s median,     0.74-2.0 s median, 2.58 s max
-//	                     0.43 s max (cold)
-//	NornicDB (pinned)    12.3-14.7 s (n=6)         not measured
-//
-// On Neo4j the worst case stays inside the 10 s graph-read deadline. On the
-// pinned NornicDB build one hub chunk exceeds it, so a hub-heavy page there
-// fails closed with a graph-read deadline error, never a partial answer. In
-// either case a hub whose granted owner sorts past RowLimit is left unchecked:
-// ungranted, and the caller reports truncated.
+// the shipped statements took 0.29-0.33 s per 2048 keys per class (~0.7 s at
+// the cap, fan-in ~1), and one 50-hub chunk took 12.3-14.7 s (n=6), over the
+// 10 s deadline, so on that backend a hub-heavy page fails closed with a
+// graph-read deadline error and admits nothing.
 //
 // The cap is at least the largest page any route builds
 // (trace-resource-to-code: 201 rows x up to 21 nodes = 4221), so an ordinary

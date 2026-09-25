@@ -34,16 +34,18 @@ The three statements are grant-free owner projections, anchored on the page's
 own keys (`WHERE n.<key> IN $uids`, keyed node first) and returning each key's
 owning repository id; the grant is applied in Go. Their cost therefore depends
 on the number of checked keys and their owner fan-in, not on the caller's
-grant size: about 0.15 ms per key at fan-in ~1 and `ChunkSize` 50.
-`RowLimit` bounds the rows a chunk returns, not the owner edges expanded
-before `LIMIT`, so a hub node costs its whole fan-in: 50 hubs of 2000 owners
-take ~0.03 s per chunk on Neo4j 2026 but 12-15 s on the pinned NornicDB build,
-over the 10 s graph-read deadline (the request then fails closed). A hub whose
-granted owner sorts past `RowLimit` is unchecked, so ungranted and truncated. Per-chunk cost grows
-with the square of the key list, so chunks stay small. `MaxCheckedKeys` (4500)
-caps the distinct statement-checked keys per request, and `RowLimit` (800)
-caps one chunk's owner rows; the cap is at least the
-largest page a route builds, so an ordinary page is never capped. Keys past it
+grant size. On Neo4j (the live test backend) a class costs 0.10-0.35 s per
+2048 keys at fan-in ~1 and `ChunkSize` 50. `RowLimit` bounds the rows a chunk
+returns, not the owner edges expanded before `LIMIT`, so a hub node costs its
+whole fan-in: 50 hubs of 2000 owners take 0.036 s median per chunk, and a
+4500-key page holding them 0.736 s median (1.36 s max). A hub whose granted
+owner sorts past `RowLimit` is unchecked, so ungranted and truncated. Earlier
+NornicDB-only measurements (historical) are kept in `budget.go` and the
+evidence doc; there a hub chunk exceeded the 10 s deadline and the request
+fails closed. Per-chunk cost grows with the square of the key list, so chunks
+stay small. `MaxCheckedKeys` (4500) caps the distinct statement-checked keys
+per request, and `RowLimit` (800) caps one chunk's owner rows; the cap is at
+least the largest page a route builds, so an ordinary page is never capped. Keys past it
 are ungranted and the response reports `truncated`. The measurements, and the
 grant-anchored shapes they ruled out, are in
 `docs/internal/evidence/5167-impact-grant.md`.
