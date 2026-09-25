@@ -54,6 +54,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte(serviceLineageScopeRequiredEnv+": \"1\"")) {
 		t.Fatalf("%s must set %s=1 so the service lineage scope proofs cannot skip in CI", workflowPath, serviceLineageScopeRequiredEnv)
 	}
+	// #6809: a skip is a failure in this lane for the migrated-schema retention
+	// proof, so a renamed DSN variable cannot silently disable it.
+	if !bytes.Contains(workflow, []byte(generationRetentionMigratedSchemaRequiredEnv+": \"1\"")) {
+		t.Fatalf("%s must set %s=1 so the migrated-schema retention proof cannot skip in CI", workflowPath, generationRetentionMigratedSchemaRequiredEnv)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -131,6 +136,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestServiceMaterializationActiveIndexReplayConvergesLive",
 		"TestServiceMaterializationWriterKeepsScopedLineagesLive",
 		"TestServiceChangedSinceResolvePicksAttributedNewestActiveLive",
+		// #6809: the generation retention statements must prepare and run
+		// against the real migrated schema, not a hand-written fixture.
+		"TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive",
+		"TestGenerationRetentionPrunesMigratedSchemaLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

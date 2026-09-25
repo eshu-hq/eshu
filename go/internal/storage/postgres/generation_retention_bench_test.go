@@ -21,7 +21,7 @@ func BenchmarkGenerationRetentionStoreLargeFixture(b *testing.B) {
 		"shared_projection_acceptance":        3,
 		"graph_projection_phase_state":        3,
 		"graph_projection_phase_repair_queue": 1,
-		"iac_reachability":                    5,
+		"iac_reachability_rows":               5,
 		"shared_projection_intents":           4,
 	})
 	policy := GenerationRetentionPolicy{

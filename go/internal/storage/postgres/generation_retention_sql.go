@@ -169,7 +169,7 @@ LEFT JOIN graph_projection_phase_repair_queue AS row
   ON candidate.generation_id = row.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
-SELECT candidate.generation_id, 'iac_reachability' AS table_name, COUNT(row.generation_id) AS row_count
+SELECT candidate.generation_id, 'iac_reachability_rows' AS table_name, COUNT(row.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN iac_reachability_rows AS row
   ON candidate.generation_id = row.generation_id

@@ -92,6 +92,7 @@ jobs:
           ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF: "1"
           ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF: "1"
+          ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF: "1"
         # TestReducerContentionGate* covers the claim/lease/fencing invariants and
         # the claim-batch latency guard (#4704); TestClaimBatchRankOnceRewrite runs
         # the #4703 rank-once candidate-set+order differential (0/0) against real
@@ -167,6 +168,14 @@ jobs:
         # Only real READ COMMITTED row-lock rechecks and snapshots reproduce
         # them. ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF makes an unset DSN fail
         # these tests here instead of skipping them.
+        # TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive and
+        # TestGenerationRetentionPrunesMigratedSchemaLive (#6809) apply the real
+        # bootstrap migrations to a private schema, prepare every generation
+        # retention statement, and run a full prune with asserted row counts. A
+        # hand-written fixture schema hid a missing table and a missing column
+        # from the retention row-count query, so only the migrated schema can
+        # catch that drift. ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF makes an
+        # unset DSN fail these tests here instead of skipping them.
         # The projector and generation-liveness proofs (#6738) run against the
         # same isolated PostgreSQL service; each test creates a private schema.
         # TestServiceMaterializationActiveIndexReplayConvergesLive,
@@ -186,7 +195,7 @@ jobs:
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
         # the hermetic guard that keeps every live PostgreSQL proof above, and
         # the DSNs they need, inside the -run filter below.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive)' -race -count=1 -timeout 300s -v
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive)' -race -count=1 -timeout 300s -v
       - name: Run story target-support semantics proof
         working-directory: go
         env:

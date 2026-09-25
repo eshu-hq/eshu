@@ -1533,6 +1533,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/generation_retention_migrated_schema_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
   - file: go/internal/storage/postgres/graph/owner/backfill_live_test.go
     tag: ~
     class: scheduled

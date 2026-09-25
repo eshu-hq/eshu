@@ -144,10 +144,31 @@ counted `content_file_references.reference_id`. Neither exists in the bootstrap
 migrations, which create `iac_reachability_rows` and no `reference_id` column,
 so every retention batch with candidates failed at its row count. #6809 fixed
 the query (it joins `iac_reachability_rows` and counts `ref.repo_id`) and the
-probe now runs on a bootstrapped database without a skip. The probe analyzes its
-bulk-seeded tables first: on a fresh database the content_entities prune planned
-before autovacuum statistics existed and did not finish inside the test
-deadline.
+probe now runs on a bootstrapped database without a skip.
+
+The lock-hold table above was measured before this fix, on the patched view and
+surrogate column, and before the probe analyzed its seed. It was not re-measured
+on the fixed statement.
+
+Plan cliff behind the added `ANALYZE` (Postgres 18, 10 superseded generations of
+5,000 `content_entity` facts and 5,000 `content_entities` rows each, autovacuum
+off, `EXPLAIN (ANALYZE, BUFFERS)` of `pruneContentEntitiesForGenerationsQuery`
+rolled back):
+
+- With no planner statistics (`reltuples = -1` on both tables) the planner
+  estimated 3 candidate rows and chose a Nested Loop Anti Join whose inner side
+  is a Bitmap Heap Scan of `fact_records retained` with no Materialize. The
+  scan was estimated at 55 rows and rescanned once per candidate row. The
+  statement was cancelled by a 150s `statement_timeout` without finishing.
+- After `ANALYZE fact_records, content_entities` the planner estimated 49,501
+  candidates, hash-joined them, and put a Materialize over the retained scan
+  (`loops=50000`, one scan of 1,352 buffers). Execution time was 428.8ms.
+
+That is a real plan cliff on the production statement, not only a probe
+artifact: retention that runs right after a bulk ingest and before autovacuum
+analyzes `fact_records` and `content_entities` can plan the cold shape. The
+probe analyzes its seed to match a production table with statistics; the
+statement itself is unchanged here and needs its own follow-up.
 
 ## Concurrency
 

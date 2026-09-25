@@ -15,6 +15,10 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// generationRetentionMigratedSchemaRequiredEnv turns a missing DSN into a
+// failure. CI lanes that enroll these proofs set it to "1".
+const generationRetentionMigratedSchemaRequiredEnv = "ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF"
+
 // generationRetentionMigratedSchemaStatements lists every SQL statement owned
 // by generation_retention_sql.go. Each one is prepared against the migrated
 // schema so a table or column that drifts from the migrations fails here
@@ -32,14 +36,22 @@ var generationRetentionMigratedSchemaStatements = map[string]string{
 }
 
 // openGenerationRetentionMigratedSchema applies the real bootstrap migrations
-// to an isolated schema of the database named by ESHU_POSTGRES_TEST_DSN, or
-// skips. It never uses a hand-written schema, so the retention SQL is proven
+// to an isolated schema of the database named by ESHU_POSTGRES_TEST_DSN or
+// ESHU_POSTGRES_DSN, or skips. It never uses a hand-written schema, so the retention SQL is proven
 // against the tables and columns production actually has.
 func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the migrated-schema retention proof")
+		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	}
+	if dsn == "" {
+		// The reducer contention gate sets the require flag so a renamed DSN
+		// variable fails the lane instead of skipping the proof there.
+		if os.Getenv(generationRetentionMigratedSchemaRequiredEnv) == "1" {
+			t.Fatalf("%s=1 but neither ESHU_POSTGRES_TEST_DSN nor ESHU_POSTGRES_DSN is set", generationRetentionMigratedSchemaRequiredEnv)
+		}
+		t.Skip("set ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN to run the migrated-schema retention proof")
 	}
 	admin, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -115,7 +127,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"shared_projection_acceptance":        1,
 		"graph_projection_phase_state":        0,
 		"graph_projection_phase_repair_queue": 0,
-		"iac_reachability":                    2,
+		"iac_reachability_rows":               2,
 		"shared_projection_intents":           1,
 		"content_file_references":             2,
 		"content_entities":                    1,
