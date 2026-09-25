@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package admissionstore
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 type admissionDecisionTestDB struct {
@@ -59,7 +60,7 @@ func (database *admissionDecisionTestDB) ExecContext(_ context.Context, query st
 		mustUnmarshalAdmissionDecisionTestJSON(args[19], &decision.CanonicalWrite)
 		mustUnmarshalAdmissionDecisionTestJSON(args[20], &decision.RecommendedAction)
 		database.decisions[decision.DecisionID] = decision
-		return result{}, nil
+		return fake.Result{}, nil
 
 	case strings.Contains(query, "INSERT INTO admission_decision_evidence"):
 		row := AdmissionDecisionEvidence{
@@ -71,10 +72,10 @@ func (database *admissionDecisionTestDB) ExecContext(_ context.Context, query st
 		}
 		mustUnmarshalAdmissionDecisionTestJSON(args[4], &row.Detail)
 		database.evidence[row.EvidenceID] = row
-		return result{}, nil
+		return fake.Result{}, nil
 
 	case strings.Contains(query, "CREATE TABLE"):
-		return result{}, nil
+		return fake.Result{}, nil
 
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)

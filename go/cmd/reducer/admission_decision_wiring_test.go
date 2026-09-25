@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/admission"
 )
 
 func TestPostgresAdmissionDecisionMappingPreservesSharedPayload(t *testing.T) {
@@ -48,8 +48,8 @@ func TestPostgresAdmissionDecisionMappingPreservesSharedPayload(t *testing.T) {
 		UpdatedAt:         now,
 	})
 
-	if got.State != postgres.AdmissionDecisionStateAdmitted {
-		t.Fatalf("State = %q, want %q", got.State, postgres.AdmissionDecisionStateAdmitted)
+	if got.State != admissionstore.AdmissionDecisionStateAdmitted {
+		t.Fatalf("State = %q, want %q", got.State, admissionstore.AdmissionDecisionStateAdmitted)
 	}
 	if got.CanonicalWrite.TargetKind != reducer.DomainDeployableUnitEdges {
 		t.Fatalf("TargetKind = %q, want %q", got.CanonicalWrite.TargetKind, reducer.DomainDeployableUnitEdges)

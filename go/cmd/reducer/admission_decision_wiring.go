@@ -10,16 +10,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/admission"
 )
 
 type postgresAdmissionDecisionWriter struct {
-	store *postgres.AdmissionDecisionStore
+	store *admissionstore.AdmissionDecisionStore
 }
 
 func newAdmissionDecisionWriter(database db.ExecQueryer) postgresAdmissionDecisionWriter {
 	return postgresAdmissionDecisionWriter{
-		store: postgres.NewAdmissionDecisionStore(database),
+		store: admissionstore.NewAdmissionDecisionStore(database),
 	}
 }
 
@@ -44,11 +44,11 @@ func (w postgresAdmissionDecisionWriter) WriteAdmissionDecisions(
 	return nil
 }
 
-func postgresAdmissionDecision(decision admissiondecision.AdmissionDecision) postgres.AdmissionDecision {
-	return postgres.AdmissionDecision{
+func postgresAdmissionDecision(decision admissiondecision.AdmissionDecision) admissionstore.AdmissionDecision {
+	return admissionstore.AdmissionDecision{
 		DecisionID:          decision.DecisionID,
 		Domain:              decision.Domain,
-		State:               postgres.AdmissionDecisionState(decision.State),
+		State:               admissionstore.AdmissionDecisionState(decision.State),
 		DomainState:         decision.DomainState,
 		ScopeID:             decision.ScopeID,
 		GenerationID:        decision.GenerationID,
@@ -65,14 +65,14 @@ func postgresAdmissionDecision(decision admissiondecision.AdmissionDecision) pos
 		SourceHandles:       postgresAdmissionSourceHandles(decision.SourceHandles),
 		RedactionState:      decision.RedactionState,
 		RedactionReason:     decision.RedactionReason,
-		CanonicalWrite: postgres.AdmissionDecisionCanonicalWrite{
+		CanonicalWrite: admissionstore.AdmissionDecisionCanonicalWrite{
 			Eligible:      decision.CanonicalWrite.Eligible,
 			Written:       decision.CanonicalWrite.Written,
 			TargetKind:    decision.CanonicalWrite.TargetKind,
 			TargetID:      decision.CanonicalWrite.TargetID,
 			SkippedReason: decision.CanonicalWrite.SkippedReason,
 		},
-		RecommendedAction: postgres.AdmissionDecisionNextAction{
+		RecommendedAction: admissionstore.AdmissionDecisionNextAction{
 			Action: decision.RecommendedAction.Action,
 			Reason: decision.RecommendedAction.Reason,
 			Owner:  decision.RecommendedAction.Owner,
@@ -85,10 +85,10 @@ func postgresAdmissionDecision(decision admissiondecision.AdmissionDecision) pos
 
 func postgresAdmissionSourceHandles(
 	handles []admissiondecision.AdmissionDecisionSourceHandle,
-) []postgres.AdmissionDecisionSourceHandle {
-	out := make([]postgres.AdmissionDecisionSourceHandle, 0, len(handles))
+) []admissionstore.AdmissionDecisionSourceHandle {
+	out := make([]admissionstore.AdmissionDecisionSourceHandle, 0, len(handles))
 	for _, handle := range handles {
-		out = append(out, postgres.AdmissionDecisionSourceHandle{
+		out = append(out, admissionstore.AdmissionDecisionSourceHandle{
 			Kind:    handle.Kind,
 			ID:      handle.ID,
 			ScopeID: handle.ScopeID,
@@ -99,10 +99,10 @@ func postgresAdmissionSourceHandles(
 
 func postgresAdmissionEvidence(
 	rows []admissiondecision.AdmissionDecisionEvidence,
-) []postgres.AdmissionDecisionEvidence {
-	out := make([]postgres.AdmissionDecisionEvidence, 0, len(rows))
+) []admissionstore.AdmissionDecisionEvidence {
+	out := make([]admissionstore.AdmissionDecisionEvidence, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, postgres.AdmissionDecisionEvidence{
+		out = append(out, admissionstore.AdmissionDecisionEvidence{
 			EvidenceID:   row.EvidenceID,
 			DecisionID:   row.DecisionID,
 			SourceHandle: row.SourceHandle,
