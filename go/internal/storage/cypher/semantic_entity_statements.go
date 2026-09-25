@@ -281,10 +281,15 @@ func semanticEntityBatchedPropertiesUpsertCypher(label string) string {
 		"MERGE (f)-[:CONTAINS]->(n)"
 }
 
+// semanticEntityFileGatedLabels names semantic labels whose uid merge requires
+// an existing File. A canonical importer for one of these labels can otherwise
+// bind an uncontained uid-bearing node instead of creating its own node.
+var semanticEntityFileGatedLabels = map[string]struct{}{
+	"Module": {},
+}
+
 func semanticEntityMergeFirstRowsUpsertCypher(label, cypher string) string {
-	// A Module without its File must not exist: canonical imports MERGE by
-	// (name, lang) and would otherwise bind the stray uid-bearing node.
-	if label == "Module" {
+	if _, fileGated := semanticEntityFileGatedLabels[label]; fileGated {
 		return cypher
 	}
 	const unwindLine = "UNWIND $rows AS row\n"
