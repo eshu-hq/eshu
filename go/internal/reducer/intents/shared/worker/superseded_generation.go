@@ -41,7 +41,7 @@ import (
 // generation": a pending generation's intents are selectable before it
 // activates, so "not active" would race with activation and drop live work.
 // scope_generations.status = 'superseded' is terminal by the domain model
-// (scope.allowedGenerationTransitions, go/internal/scope/scope.go:196). The SQL
+// (scope.allowedGenerationTransitions in go/internal/scope). The SQL
 // does not yet enforce that terminality on every writer; that gap is tracked in
 // #7130.
 type SupersededGenerationReader interface {
