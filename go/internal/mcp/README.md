@@ -158,8 +158,8 @@ Observability Evidence: every budget hit emits the structured log event
 fields (3 AM operable), mirroring the dispatch-deadline `mcp tool dispatch context
 ended` precedent. The budget accounting is also returned in-band in the
 `error.details` block, so callers see why a response was refused and how to narrow
-it. This package declares no metric instruments, consistent with the existing MCP
-dispatch observability surface.
+it. Per-tool `eshu_dp_mcp_response_bytes` and `eshu_dp_mcp_response_over_budget_total`
+make it visible first (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
 
 ## Tool groups
 
@@ -555,7 +555,7 @@ through the global meter). No direct dependency on storage drivers or facts.
 
 ## Telemetry
 
-This package declares one metric: `eshu_dp_mcp_transport_auth_denied_total`,
+This package declares three metrics: the two budget metrics above and `eshu_dp_mcp_transport_auth_denied_total`,
 a counter labeled by `mcp_method` (`initialize`, `tools/list`, `tools/call`,
 `ping`, `sse`, `mcp_message`, `other`, `unknown`) and `reason`
 (`unauthenticated`, `session_principal_mismatch`, and `route_policy` — a governance mode refusing an all-scope credential at the handshake, which is a configured refusal, not a credential to reset), registered through the

@@ -4,9 +4,15 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -46,9 +52,11 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		return result
 	}
 	size := estimateResponseBytes(result)
+	recordResponseBytes(toolName, size)
 	if size <= budget {
 		return result
 	}
+	recordResponseOverBudget(toolName)
 	if logger != nil {
 		logger.Warn(
 			"mcp tool response over budget",
@@ -137,4 +145,84 @@ func responseBudgetGuidance() string {
 	return "response exceeded the MCP response budget; lower limit, add repo_id/scope filters, " +
 		"request a single relationship_type or direction, set a smaller token_budget where supported, " +
 		"then drill in via the returned handles instead of fetching the whole result at once"
+}
+
+// dispatchBudgetMeterName scopes the lazily registered budget instruments to
+// this package. Like the transport-auth counter, they record through the global
+// meter provider cmd/mcp-server installs, because this package does not build a
+// telemetry.Instruments value.
+const dispatchBudgetMeterName = "eshu/go/internal/mcp"
+
+// responseBytesBuckets span the 256 KiB dispatch budget in bytes. A tool whose
+// p95 climbs toward the top bucket is heading for mcp_response_over_budget
+// before any caller sees the error.
+var responseBytesBuckets = []float64{
+	1024, 4096, 16384, 32768, 65536, 98304, 131072, 196608, 262144, 524288, 1048576,
+}
+
+// dispatchBudgetInstruments holds the per-tool response-size histogram and the
+// over-budget counter. Fields stay nil when registration fails (for example
+// before a meter provider is installed); callers nil-check before recording.
+type dispatchBudgetInstruments struct {
+	bytes      metric.Int64Histogram
+	overBudget metric.Int64Counter
+}
+
+var (
+	dispatchBudgetOnce sync.Once
+	dispatchBudgetInst *dispatchBudgetInstruments
+)
+
+// dispatchBudgetMetrics returns the process-wide budget instruments,
+// registering them once against the global meter.
+func dispatchBudgetMetrics() *dispatchBudgetInstruments {
+	dispatchBudgetOnce.Do(func() {
+		meter := otel.Meter(dispatchBudgetMeterName)
+		inst := &dispatchBudgetInstruments{}
+		if hist, err := meter.Int64Histogram(
+			"eshu_dp_mcp_response_bytes",
+			metric.WithDescription("Serialized MCP tools/call response size in bytes (both wire copies, as the dispatch budget counts them), labeled by tool, recorded for every response the budget guard sizes"),
+			metric.WithUnit("By"),
+			metric.WithExplicitBucketBoundaries(responseBytesBuckets...),
+		); err == nil {
+			inst.bytes = hist
+		}
+		if counter, err := meter.Int64Counter(
+			"eshu_dp_mcp_response_over_budget_total",
+			metric.WithDescription("MCP tool responses replaced by the mcp_response_over_budget error envelope, labeled by tool, so an operator sees which tool defaults exceed the response budget"),
+		); err == nil {
+			inst.overBudget = counter
+		}
+		dispatchBudgetInst = inst
+	})
+	return dispatchBudgetInst
+}
+
+// resetDispatchBudgetMetricsForTest rebinds the lazily registered instruments so
+// a test can register them against its own meter provider.
+func resetDispatchBudgetMetricsForTest() {
+	dispatchBudgetOnce = sync.Once{}
+	dispatchBudgetInst = nil
+}
+
+// toolAttr labels a budget sample with the tool name. The name is a registered
+// tool (resolveRoute has already succeeded), so the label set is bounded by the
+// tool catalog.
+func toolAttr(toolName string) attribute.KeyValue {
+	return attribute.String("tool", toolName)
+}
+
+// recordResponseBytes records one sized response for toolName.
+func recordResponseBytes(toolName string, size int) {
+	if inst := dispatchBudgetMetrics(); inst.bytes != nil {
+		inst.bytes.Record(context.Background(), int64(size), metric.WithAttributes(toolAttr(toolName)))
+	}
+}
+
+// recordResponseOverBudget counts one response replaced by the over-budget
+// envelope for toolName.
+func recordResponseOverBudget(toolName string) {
+	if inst := dispatchBudgetMetrics(); inst.overBudget != nil {
+		inst.overBudget.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+	}
 }
