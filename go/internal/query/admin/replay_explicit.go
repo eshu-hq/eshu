@@ -35,6 +35,7 @@ func (h *Handler) refuseUnsafeExplicitReplay(
 		WorkItemIDs:          req.WorkItemIDs,
 		ScopeID:              req.ScopeID,
 		Stage:                req.Stage,
+		FailureClass:         req.FailureClass,
 		UnsafeFailureClasses: unsafeReplayFailureClassList(),
 	})
 	if err != nil {

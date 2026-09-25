@@ -48,8 +48,12 @@ replay the rest; they do not name specific rows.
   refused.** They are simply not replayed. A `200` with `replayed_count: 0`
   therefore means nothing matched, never that matched rows were skipped.
 - **`force=true` skips the check.** The named rows replay as before.
-- **The check honors `scope_id` and `stage`.** An id outside the requested scope
-  or stage is not a match and does not cause a refusal.
+- **The check honors `scope_id`, `stage`, and `failure_class`.** An id outside the
+  requested scope, stage, or failure class is not a match and does not cause a
+  refusal, because the check selects the same rows the replay would.
+- **The check runs before the idempotency claim.** A retry of a key whose rows
+  have since re-dead-lettered into a refused class gets a `422`, not the stored
+  outcome of the earlier request.
 
 A refusal writes an `admin_recovery_action` governance audit event with reason
 code `replay_refused_unsafe_work_items` (`replay_refused_unsafe_class` for the

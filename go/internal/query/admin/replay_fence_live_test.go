@@ -109,6 +109,18 @@ INSERT INTO fact_work_items (
 	}); err != nil || len(wrongStage) != 0 {
 		t.Fatalf("stage-mismatched unsafe read = %+v, %v; want none", wrongStage, err)
 	}
+	// Predicate parity with the replay: failure_class narrows the read too, so a
+	// projection_bug id is not an unsafe target of a transient_error selector.
+	if narrowed, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
+		WorkItemIDs: replayIDs, FailureClass: "transient_error", UnsafeFailureClasses: []string{"projection_bug"},
+	}); err != nil || len(narrowed) != 0 {
+		t.Fatalf("failure_class-narrowed unsafe read = %+v, %v; want none", narrowed, err)
+	}
+	if matching, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
+		WorkItemIDs: replayIDs, FailureClass: "projection_bug", UnsafeFailureClasses: []string{"projection_bug"},
+	}); err != nil || len(matching) != 4 {
+		t.Fatalf("failure_class-matching unsafe read = %+v, %v; want four", matching, err)
+	}
 	if safeOnly, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
 		WorkItemIDs: replayIDs, UnsafeFailureClasses: []string{"input_invalid"},
 	}); err != nil || len(safeOnly) != 0 {

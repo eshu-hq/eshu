@@ -187,3 +187,29 @@ func TestReplayUnsafeTargetReadErrorFailsClosedBeforeClaim(t *testing.T) {
 		t.Fatalf("read failure must not claim the idempotency key")
 	}
 }
+
+// TestReplayExplicitIDsWithFailureClassSelectorCarriesClassToRead proves the
+// pre-read applies the same failure_class predicate as the replay UPDATE: a
+// projection_bug id is not a candidate when the request also selects
+// failure_class=transient_error, so it must not cause a false 422.
+func TestReplayExplicitIDsWithFailureClassSelectorCarriesClassToRead(t *testing.T) {
+	store := &stubAdminStore{
+		claim:    ReplayIdempotencyClaim{Claimed: true},
+		replayed: []WorkItem{{WorkItemID: "wi-transient"}},
+		// The real store applies the failure_class predicate, so the
+		// projection_bug id is not returned; the stub returns nothing.
+	}
+	h := &Handler{Store: store, Audit: &testutil.FakeGovernanceAuditAppender{}}
+	rec := postReplay(t, h, map[string]any{
+		"work_item_ids":   []string{"wi-poison", "wi-transient"},
+		"failure_class":   "transient_error",
+		"reason":          "backend recovered",
+		"idempotency_key": "k-class",
+	}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if store.unsafeFilter.FailureClass != "transient_error" {
+		t.Fatalf("unsafe read FailureClass = %q, want transient_error", store.unsafeFilter.FailureClass)
+	}
+}

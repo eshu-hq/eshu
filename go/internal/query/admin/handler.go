@@ -213,6 +213,10 @@ type UnsafeReplayTargetFilter struct {
 	WorkItemIDs []string
 	ScopeID     string
 	Stage       string
+	// FailureClass is the request's failure_class selector. The replay ANDs it
+	// with the id list, so the read must too or it would refuse rows the replay
+	// would never select.
+	FailureClass string
 	// UnsafeFailureClasses is the set of failure classes that must not be
 	// replayed without force.
 	UnsafeFailureClasses []string

@@ -66,6 +66,10 @@ WHERE status IN ('dead_letter', 'failed')
 		args = append(args, value)
 		_, _ = fmt.Fprintf(&builder, "  AND stage = $%d\n", len(args))
 	}
+	if value := strings.TrimSpace(f.FailureClass); value != "" {
+		args = append(args, value)
+		_, _ = fmt.Fprintf(&builder, "  AND failure_class = $%d\n", len(args))
+	}
 	builder.WriteString("ORDER BY work_item_id ASC\n")
 	return builder.String(), args
 }

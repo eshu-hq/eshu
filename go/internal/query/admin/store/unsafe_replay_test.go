@@ -75,3 +75,23 @@ func TestUnsafeReplayTargetsOmitsOptionalPredicatesAndSkipsEmptyInput(t *testing
 		t.Fatalf("empty filter must not query: got=%v err=%v query=%q", got, err, database.query)
 	}
 }
+
+func TestUnsafeReplayTargetsQueryAppliesFailureClassSelector(t *testing.T) {
+	t.Parallel()
+
+	database := &recordingAdminExecQueryer{rows: &testutil.ScriptedRows{}}
+	store := &postgresStore{database: database}
+	if _, err := store.UnsafeReplayTargets(context.Background(), admin.UnsafeReplayTargetFilter{
+		WorkItemIDs:          []string{"wi-a"},
+		FailureClass:         "transient_error",
+		UnsafeFailureClasses: []string{"projection_bug"},
+	}); err != nil {
+		t.Fatalf("UnsafeReplayTargets() error = %v", err)
+	}
+	if !strings.Contains(database.query, "AND failure_class = $3") {
+		t.Fatalf("query missing failure_class selector predicate:\n%s", database.query)
+	}
+	if got, want := maxPlaceholderIndex(database.query), len(database.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d", got, want)
+	}
+}
