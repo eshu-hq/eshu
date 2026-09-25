@@ -69,7 +69,9 @@ func SchemaIndexKeys() ([]IndexKey, error) {
 	keys := make([]IndexKey, 0, len(statements))
 	var errs []error
 	for _, stmt := range statements {
-		if isFulltextSchemaStatement(stmt) {
+		// DROP statements retire an older constraint (#7095); they create no
+		// key to bound.
+		if isFulltextSchemaStatement(stmt) || strings.HasPrefix(stmt, "DROP ") {
 			continue
 		}
 		key, err := parseSchemaIndexKey(stmt)

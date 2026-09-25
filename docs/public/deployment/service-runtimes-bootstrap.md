@@ -134,6 +134,17 @@ changes may declare older writer fingerprints compatible in the marker row.
 Destructive schema changes leave the list empty so stale pods refuse before
 runtime graph writes fail.
 
+On Neo4j, the graph schema bootstrap also drops constraints that later releases
+retire. `DROP CONSTRAINT ... IF EXISTS` runs before every other statement. The
+first retired set (#7095) covers `tf_module_unique`, `helm_chart_unique`,
+`helm_values_unique`, `kustomize_unique`, and `tg_config_unique`. Their keys
+were narrower than the canonical `uid` identity, so the delta that moved a block
+failed with `ConstraintValidationFailed`. That bootstrap is not reversible by
+redeploying an older release. The old bootstrap tries to re-create those
+constraints over the new `path` indexes, gets `IndexAlreadyExists`, and the
+strict bootstrap fails. Drop `kustomize_overlay_path`, `helm_values_path`, and
+`terragrunt_config_path` before a rollback.
+
 That startup check decides whether a writer may **start**. A writer already past
 it keeps writing unless something checks again, and with
 `schemaBootstrap.useHelmHooks=true` the bootstrap Job records the new marker

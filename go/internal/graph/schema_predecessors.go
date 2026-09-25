@@ -25,3 +25,13 @@ const (
 // (neo4jUIDLookupIndexes), so the NornicDB fingerprint does not move and needs
 // no predecessor.
 const graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint = "9041fb74aae9f09afe78b4dacbd7b4b64a619e172ac0a107ec45dcea8f566717"
+
+// graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint is the Neo4j digest
+// immediately before #7095 retired the uniqueness constraints narrower than the
+// canonical uid identity (the #7057 tip above). The bump lists it as
+// compatible: it drops constraints and adds three non-unique path indexes, and
+// changes no MERGE or MATCH identity, so a writer on the previous schema writes
+// exactly the same graph against the new one -- and no longer dead-letters a
+// moved block. The change is Neo4j-only (neo4jRetiredUniqueConstraints), so
+// the NornicDB fingerprint does not move and needs no predecessor.
+const graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint = "dc9d1cfb57e5cc89f89f6af0cdd8b39842241badf6856742c4b290dbeb986b74"

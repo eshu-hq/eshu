@@ -34,6 +34,9 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 			len(uidConstraintLabels)+
 			len(schemaPerformanceIndexes)+
 			len(schemaFulltextIndexes))
+	if dialect.retireNarrowUIDConstraints {
+		stmts = append(stmts, neo4jRetiredConstraintDrops()...)
+	}
 	for _, cypher := range schemaConstraints {
 		if cypher = dialect.constraint(cypher); cypher != "" {
 			stmts = append(stmts, cypher)
@@ -42,6 +45,9 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 	stmts = append(stmts, schemaPerformanceIndexes...)
 	if dialect.includeNeo4jUIDLookupIndexes {
 		stmts = append(stmts, neo4jUIDLookupIndexes...)
+	}
+	if dialect.retireNarrowUIDConstraints {
+		stmts = append(stmts, neo4jRetiredConstraintPathIndexes...)
 	}
 	if dialect.includeMergeLookupIndexes {
 		stmts = append(stmts, nornicDBMergeLookupIndexes...)

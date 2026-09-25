@@ -351,6 +351,19 @@ knob was added.
   `Class`, the projector derives `uid` from the same `(repo, path, type, name,
   line)` tuple before graph write, and NornicDB enforces the generated `uid`
   constraint plus lookup index. Neo4j keeps the direct composite constraint.
+- A uniqueness key on a uid-MERGEd canonical label must be `{uid}` or a
+  superset of the uid identity `(name, path, line_number)`. The canonical
+  writer upserts a moved block's new uid before `entity_retract` deletes the
+  old node, so a narrower key fails the delta with
+  `ConstraintValidationFailed` (#7095). Neo4j therefore drops
+  `tf_module_unique`, `helm_chart_unique`, `helm_values_unique`,
+  `kustomize_unique`, and `tg_config_unique` at bootstrap
+  (`schema_retired_constraints.go`) and adds non-unique `path` indexes for the
+  three path-keyed labels, which the delta retract seeks.
+  `TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity` guards the rule.
+  An older release's bootstrap cannot re-create those constraints once the
+  path index exists (`IndexAlreadyExists`), so a rollback past this change
+  logs those statements as failed and the strict bootstrap stops.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.

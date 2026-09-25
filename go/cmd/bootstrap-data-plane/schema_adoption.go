@@ -97,7 +97,11 @@ func adoptExistingGraphSchema(
 		return false, nil, fmt.Errorf("inspect graph schema for adoption: %w", err)
 	}
 	missing := missingGraphSchemaObjectNames(expectedNames, actualNames)
-	if len(missing) > 0 {
+	retired, err := presentRetiredGraphSchemaObjectNames(app.Backend, actualNames)
+	if err != nil {
+		return false, nil, err
+	}
+	if len(missing) > 0 || len(retired) > 0 {
 		if logger != nil {
 			logger.Info(
 				"graph schema adoption incomplete",
@@ -108,6 +112,8 @@ func adoptExistingGraphSchema(
 				"actual_schema_objects", len(actualNames),
 				"missing_schema_objects", len(missing),
 				"first_missing_schema_objects", firstStrings(missing, 10),
+				"retired_schema_objects_present", len(retired),
+				"first_retired_schema_objects_present", firstStrings(retired, 10),
 			)
 		}
 		return false, actualNames, nil
@@ -153,6 +159,9 @@ func expectedGraphSchemaObjectNames(backend graph.SchemaBackend) (map[string]str
 	}
 	names := make(map[string]struct{}, len(statements))
 	for _, statement := range statements {
+		if _, ok := graphSchemaDropObjectName(statement); ok {
+			continue
+		}
 		name, err := graphSchemaObjectName(statement)
 		if err != nil {
 			return nil, err
@@ -160,6 +169,29 @@ func expectedGraphSchemaObjectNames(backend graph.SchemaBackend) (map[string]str
 		names[name] = struct{}{}
 	}
 	return names, nil
+}
+
+// presentRetiredGraphSchemaObjectNames returns, sorted, the objects the
+// backend's schema drops (#7095) that the graph still has. Such a store is not
+// the current schema even when no expected object is missing, so adoption must
+// fall through to apply and run the drops.
+func presentRetiredGraphSchemaObjectNames(backend graph.SchemaBackend, actual map[string]struct{}) ([]string, error) {
+	statements, err := graph.SchemaStatementsForBackend(backend)
+	if err != nil {
+		return nil, err
+	}
+	var present []string
+	for _, statement := range statements {
+		name, ok := graphSchemaDropObjectName(statement)
+		if !ok {
+			continue
+		}
+		if _, exists := actual[name]; exists {
+			present = append(present, name)
+		}
+	}
+	sort.Strings(present)
+	return present, nil
 }
 
 func graphSchemaObjectName(statement string) (string, error) {
@@ -180,6 +212,22 @@ func graphSchemaObjectName(statement string) (string, error) {
 		return fields[2], nil
 	default:
 		return "", fmt.Errorf("cannot adopt unsupported graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+	}
+}
+
+// graphSchemaDropObjectName returns the object a `DROP CONSTRAINT|INDEX <name>
+// IF EXISTS` statement retires. A drop names an object the current schema must
+// not have, so it is never an expected object and never skipped as present.
+func graphSchemaDropObjectName(statement string) (string, bool) {
+	fields := strings.Fields(statement)
+	if len(fields) < 3 || !strings.EqualFold(fields[0], "DROP") {
+		return "", false
+	}
+	switch strings.ToUpper(fields[1]) {
+	case "CONSTRAINT", "INDEX":
+		return fields[2], true
+	default:
+		return "", false
 	}
 }
 

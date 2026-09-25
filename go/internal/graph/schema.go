@@ -68,6 +68,9 @@ type schemaDialect struct {
 	includeMergeLookupIndexes bool
 	// includeNeo4jUIDLookupIndexes adds neo4jUIDLookupIndexes (#7057).
 	includeNeo4jUIDLookupIndexes bool
+	// retireNarrowUIDConstraints drops neo4jRetiredUniqueConstraints before
+	// any other statement and adds their path read indexes (#7095).
+	retireNarrowUIDConstraints bool
 }
 
 func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
@@ -81,6 +84,7 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 			backend:                      normalized,
 			constraint:                   neo4jSchemaConstraint,
 			includeNeo4jUIDLookupIndexes: true,
+			retireNarrowUIDConstraints:   true,
 		}, nil
 	case SchemaBackendNornicDB:
 		return schemaDialect{
@@ -105,6 +109,9 @@ func normalizeSchemaBackend(backend SchemaBackend) (SchemaBackend, error) {
 }
 
 func neo4jSchemaConstraint(cypher string) string {
+	if isNeo4jRetiredConstraint(cypher) {
+		return ""
+	}
 	return cypher
 }
 
