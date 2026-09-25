@@ -812,6 +812,22 @@ type Instruments struct {
 	// first lookup followed by an admitted second one is a successful
 	// request, not a denial (#6786 review).
 	QueryScopedGrantDenied metric.Int64Counter
+	// QueryImpactScopedPathsWithheld counts traversal paths (or whole
+	// answers) the #5167 impact routes withheld from a scoped caller because a
+	// node on them is not owned by the caller's grant (impact/ownership).
+	// Labels: route (the three POST /api/v0/impact/{trace-resource-to-code,
+	// explain-dependency-path, trace-exposure-path} patterns) and reason
+	// (ungranted_node, unchecked_over_cap, withheld_sink_class,
+	// anchor_ungranted). A rising unchecked_over_cap rate is the 3 AM signal
+	// that pages are larger than the ownership budget at the callers' grant
+	// sizes, so answers come back truncated.
+	QueryImpactScopedPathsWithheld metric.Int64Counter
+	// QueryImpactOwnershipCheckDuration observes one impact ownership
+	// statement's wall time (one chunk of at most 500 keys), labelled by route,
+	// node_label (WorkloadInstance, CloudResource, TerraformStateResource) and
+	// outcome (ok, error). It is the per-class cost the ownership budget in
+	// impact/ownership/budget.go is sized from.
+	QueryImpactOwnershipCheckDuration metric.Float64Histogram
 	// QueryScopeGrantInlineCapped counts scoped-token reads whose grant set
 	// overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
 	// currently 128), so the USES and/or DEFINES-collision admission families
@@ -3547,6 +3563,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryScopedGrantDenied counter: %w", err)
+	}
+
+	inst.QueryImpactScopedPathsWithheld, err = meter.Int64Counter(
+		"eshu_dp_query_impact_scoped_paths_withheld_total",
+		metric.WithDescription(
+			"Total impact traversal paths or answers withheld from a scoped caller because a node is outside the grant, "+
+				"by route and reason (ungranted_node, unchecked_over_cap, withheld_sink_class, anchor_ungranted)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryImpactScopedPathsWithheld counter: %w", err)
+	}
+
+	inst.QueryImpactOwnershipCheckDuration, err = meter.Float64Histogram(
+		"eshu_dp_query_impact_ownership_check_duration_seconds",
+		metric.WithDescription("Wall time of one impact scoped-grant ownership statement chunk, by route, node_label, and outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryImpactOwnershipCheckDuration histogram: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

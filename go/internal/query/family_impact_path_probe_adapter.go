@@ -48,7 +48,17 @@ func (impactPathProbeBackend) DependencyHops(nodesRaw, relsRaw any) []map[string
 
 // PathHasNodes implements impact.PathProbeBackend.
 func (impactPathProbeBackend) PathHasNodes(nodesRaw any) bool {
-	return len(impactNodeIdentityList(nodesRaw)) > 0
+	for _, node := range impactNodeIdentityList(nodesRaw) {
+		if node.ID != "" || node.UID != "" || len(node.Labels) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// PathNodes implements impact.PathProbeBackend.
+func (impactPathProbeBackend) PathNodes(nodesRaw any) []deployment.ImpactNodeIdentity {
+	return impactNodeIdentityList(nodesRaw)
 }
 
 // ResourceInvestigationHops implements impact.PathProbeBackend.

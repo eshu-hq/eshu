@@ -168,9 +168,41 @@ console session is still admitted only where the modes above admit it:
 | --- | --- |
 | `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
 | `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
-| `POST /api/v0/impact/trace-resource-to-code` | The anchor and the infrastructure hops it walks through carry no `repo_id` property. The walk itself is bounded: `max_depth` clamped to 1-20, at most 200 rows. |
-| `POST /api/v0/impact/explain-dependency-path` | Same missing `repo_id` on the anchors and hops along the path. Bounded to one `shortestPath` of at most 8 hops. |
-| `POST /api/v0/impact/trace-exposure-path` | The sink end of the path lands on cloud nodes carrying no `repo_id`. Bounded to `max_depth` 1-10 and at most 25 paths. |
+
+### Scoped callers on the impact path routes
+
+`POST /api/v0/impact/trace-resource-to-code`,
+`POST /api/v0/impact/explain-dependency-path`, and
+`POST /api/v0/impact/trace-exposure-path` walk through nodes that carry no
+`repo_id`, so a scoped caller's grant is applied node by node over the bounded
+page rather than as one query predicate (#5167):
+
+- A `Repository` is owned when its id is granted. A `Workload`,
+  `WorkloadInstance`, `TerraformResource`, `TerraformModule`,
+  `KubernetesWorkload`, `Function`, `SqlTable`, or `ShellCommand` is owned when
+  its `repo_id` is granted; a `WorkloadInstance` is also owned when it has a
+  `DEPLOYMENT_SOURCE` edge to a granted repository. A `CloudResource` is owned
+  when a granted `WorkloadInstance` `USES` it, and a `TerraformStateResource`
+  when a granted `TerraformResource` `MATCHES_STATE` it. Every other class
+  (`Platform`, `Endpoint`, `CloudAction`, `EvidenceArtifact`, `TerraformOutput`,
+  `DataAsset`, `CidrBlock`, `SecretsIAMSecretMetadataPath`, and a
+  `CloudResource` no granted instance uses) is not owned.
+- A path that crosses any node the grant does not own is dropped whole, never
+  shortened or redacted.
+- An ungranted start, source, or endpoint renders exactly as an unknown one and
+  runs no traversal. An empty grant returns the empty answer without a graph
+  read.
+- `truncated` (`coverage.truncated` on the exposure route) is computed from the
+  raw row count before the filter, so a scoped page can hold fewer than `limit`
+  paths. It is also true when the page held more nodes to check than the
+  per-request ownership budget allows: 4500 distinct statement-checked keys,
+  whatever the grant size. Nodes past that budget count as not owned.
+- The exposure route always withholds `SecretsIAMSecretMetadataPath` and
+  `CidrBlock` sinks from scoped callers and names them in
+  `coverage.unresolved_reason`.
+- Every scoped response carries `scoped: true` and a static
+  `withheld_sections` list. Both are present whether or not anything was
+  withheld.
 
 `GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are
 grant-filtered routes of this kind (#5167). A restricted scoped caller does not

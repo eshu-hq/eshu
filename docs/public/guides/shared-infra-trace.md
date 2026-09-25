@@ -39,6 +39,12 @@ POST /api/v0/impact/trace-resource-to-code
 This follows Terraform, configuration, workload usage, and repository evidence
 when those paths have been indexed.
 
+With a scoped (personal) token you see only the paths your grant owns end to
+end. A path through another tenant's workload, resource, or code is dropped
+whole, not shortened. A start your grant does not own looks unknown. A
+`truncated: true` page can therefore hold fewer than `limit` paths. See
+[Scoped callers on the impact path routes](../reference/http-api.md#scoped-callers-on-the-impact-path-routes).
+
 ## 3. Inspect A Workload
 
 Canonical workload view:
@@ -87,6 +93,9 @@ POST /api/v0/impact/explain-dependency-path
 ```
 
 Use this when you need the source evidence behind one dependency claim.
+With a scoped token, both endpoints and every node between them must belong to
+your grant. If any node does not, the response carries no path, exactly as
+when no path exists.
 
 ## Related Docs
 

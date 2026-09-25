@@ -12,8 +12,9 @@ const Exposure = `
       "post": {
         "tags": ["impact"],
         "summary": "Trace code-to-cloud exposure path",
-        "description": "Traces bounded reachability from an internet-exposed handler source through CALLS edges (and, when materialized, code-to-cloud bridge edges) to a cloud sink from the curated catalog. Findings are derived (symbol-level reachability, not value-flow) and use the conservative truth-state vocabulary (exact/partial/ambiguous/unresolved). Never fabricates a path: when a bridge edge is not materialized the cloud-sink segment is reported unresolved. The walk is bounded: max_depth defaults to 5 and is clamped to 1-10, and at most 25 paths are returned. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the sink end of the path lands on cloud nodes that carry no repo_id property, so a repository grant has nothing to bind to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Traces bounded reachability from an internet-exposed handler source through CALLS edges (and, when materialized, code-to-cloud bridge edges) to a cloud sink from the curated catalog. Findings are derived (symbol-level reachability, not value-flow) and use the conservative truth-state vocabulary (exact/partial/ambiguous/unresolved). Never fabricates a path: when a bridge edge is not materialized the cloud-sink segment is reported unresolved. The walk is bounded: max_depth defaults to 5 and is clamped to 1-10, and at most 25 paths are returned. Scoped tokens receive the same shape filtered to their grant (#5167): the source handler must live in a granted repository (a foreign source, by id or by name, renders as not found and is never walked); every chain Function must carry a granted repo_id; a SqlTable or ShellCommand sink must carry a granted repo_id (a shared-uid ShellCommand last written by another tenant is dropped); a CloudResource sink must be USED by a granted WorkloadInstance; and SecretsIAMSecretMetadataPath and CidrBlock sinks are always withheld, which coverage.unresolved_reason names on every scoped response. A path failing any check is dropped whole. coverage.truncated is computed from the raw row count before the filter, and is also true when the ownership budget left nodes unchecked. The 403 remains for browser sessions refused by policy.",
         "operationId": "traceExposurePath",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -40,6 +41,8 @@ const Exposure = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "scoped": {"type": "boolean", "description": "Present and true only for a scoped caller: the response is filtered to the caller's grant."},
+                    "withheld_sections": {"type": "array", "items": {"type": "string"}, "description": "Scoped callers only. Static per route, returned whether or not anything was withheld: paths_through_ungranted_nodes (a path crossing any node the grant does not own is dropped whole) and, for exposure, unowned_sink_classes."},
                     "source": {"type": "object"},
                     "source_kind": {"type": "string"},
                     "exposure_rank": {"type": "string", "enum": ["internet_exposed", "network_reachable", "internal"]},

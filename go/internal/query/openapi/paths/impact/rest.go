@@ -336,8 +336,9 @@ const Rest = `
       "post": {
         "tags": ["impact"],
         "summary": "Trace resource to code",
-        "description": "Traces a resource back to its source code repositories. The walk is bounded: max_depth defaults to 8 and is clamped to 1-20, and at most 200 rows are returned. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the anchor and the infrastructure hops it walks through carry no repo_id property, so a repository grant has nothing to bind to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Traces a resource back to its source code repositories. The walk is bounded: max_depth defaults to 8 and is clamped to 1-20, and at most 200 rows are returned. Scoped tokens receive the same shape filtered to their grant (#5167): the terminal repository must be granted; every interior node must be owned (a Repository by id; a Workload, WorkloadInstance, TerraformResource, TerraformModule, KubernetesWorkload, Function, SqlTable, or ShellCommand by repo_id; a WorkloadInstance also through DEPLOYMENT_SOURCE to a granted repository; a CloudResource through USES from a granted WorkloadInstance; a TerraformStateResource through MATCHES_STATE from a granted TerraformResource); any other node class is ungranted, and a path crossing an ungranted node is dropped whole. An ungranted start renders exactly like an unknown one, and an empty grant returns no paths without a graph read. truncated is computed from the raw row count before the filter, so a scoped page can hold fewer than limit paths with truncated true; it is also true when the page held more checked nodes than the per-request ownership budget (4500 distinct statement-checked keys per request, whatever the grant size), because unchecked nodes are treated as ungranted. The 403 remains for browser sessions refused by policy.",
         "operationId": "traceResourceToCode",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -365,6 +366,8 @@ const Rest = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "scoped": {"type": "boolean", "description": "Present and true only for a scoped caller: the response is filtered to the caller's grant."},
+                    "withheld_sections": {"type": "array", "items": {"type": "string"}, "description": "Scoped callers only. Static per route, returned whether or not anything was withheld: paths_through_ungranted_nodes (a path crossing any node the grant does not own is dropped whole) and, for exposure, unowned_sink_classes."},
                     "start": {"type": "object"},
                     "paths": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"},
@@ -386,8 +389,9 @@ const Rest = `
       "post": {
         "tags": ["impact"],
         "summary": "Explain dependency path",
-        "description": "Finds and explains the shortest path between two entities. The walk is bounded: one shortestPath of at most 8 hops. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the anchors and the infrastructure hops on the path carry no repo_id property, so a repository grant has nothing to bind to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Finds and explains the shortest path between two entities. The walk is bounded: one shortestPath of at most 8 hops. Scoped tokens receive the same shape filtered to their grant (#5167): both endpoints must be owned by the grant (the same per-class rule as trace-resource-to-code) before any shortestPath runs, otherwise the response is the same 404 an unknown endpoint gets; and when any node on the shortest path is not owned, the response carries no path, depth, confidence, or reason, exactly as when no path exists. The 403 remains for browser sessions refused by policy.",
         "operationId": "explainDependencyPath",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -414,6 +418,8 @@ const Rest = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "scoped": {"type": "boolean", "description": "Present and true only for a scoped caller: the response is filtered to the caller's grant."},
+                    "withheld_sections": {"type": "array", "items": {"type": "string"}, "description": "Scoped callers only. Static per route, returned whether or not anything was withheld: paths_through_ungranted_nodes (a path crossing any node the grant does not own is dropped whole) and, for exposure, unowned_sink_classes."},
                     "source": {"type": "object"},
                     "target": {"type": "object"},
                     "path": {"type": "object"},

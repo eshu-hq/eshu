@@ -291,6 +291,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
 | `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, entity/workload_lookup.go, deployment/workload_selection.go; `grant_denied` counts once per request, only when no lookup admitted a workload) |
+| `QueryImpactScopedPathsWithheld`, `QueryImpactOwnershipCheckDuration` | `eshu_dp_query_impact_scoped_paths_withheld_total` (labels: `route`, `reason` = `ungranted_node` \| `unchecked_over_cap` \| `withheld_sink_class` \| `anchor_ungranted`) and `eshu_dp_query_impact_ownership_check_duration_seconds` (labels: `route`, `node_label`, `outcome`; one ownership statement chunk); #5167 impact/ownership |
 | `InfraInventoryReads` | `eshu_dp_infra_inventory_reads_total` |
 | `InfraInventoryDerives` | `eshu_dp_infra_inventory_derives_total` |
 | `InfraInventoryBackfillRuns` | `eshu_dp_infra_inventory_backfill_runs_total` |

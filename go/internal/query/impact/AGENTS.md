@@ -13,7 +13,12 @@
   import here cycles, including from `_test.go` files in this package. The
   external `impact_test` package (`defaults_test.go`) is the only
   exception: nothing imports it, so it may wire root constructors.
-- Import `deployment`, never the reverse.
+- Import `deployment`, never the reverse. `ownership` (the #5167 scoped
+  per-node ownership check) imports `deployment` and is imported by this
+  package; it must never import `impact`. Scoped behavior of the three impact
+  path routes lives there; keep handler.go under the 500-line cap by adding
+  helpers to `ownership`, not here (this directory sits at the 40-file
+  dirgate cap).
 - Family capability rows live in `capabilities.go` and register through
   `querycontract.RegisterCapabilities` in this package's `init`. Do not
   re-add them to the root matrix: duplicate initialization is a contract

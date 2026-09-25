@@ -41,6 +41,8 @@ func (stubImpactPathProbe) DependencyHops(_, _ any) []map[string]any {
 
 func (stubImpactPathProbe) PathHasNodes(any) bool { return false }
 
+func (stubImpactPathProbe) PathNodes(any) []deployment.ImpactNodeIdentity { return nil }
+
 func (stubImpactPathProbe) ResourceInvestigationHops(any) []map[string]any {
 	return []map[string]any{}
 }

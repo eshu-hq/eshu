@@ -86,28 +86,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	// scopes. Promoting it means disclosing that a package whose fact carries
 	// no visibility stays hidden from a scoped caller.
 	"POST /api/v0/code/bundles": {},
-	// #5167 W3 flagged (NOT allowlisted, still pending). All three walks are
-	// bounded today, contrary to what this comment used to claim:
-	// traceResourceToCode (impact/handler.go) clamps max_depth to 1..20 (default 8)
-	// and caps rows through normalizeImpactListLimit (impact/bounds.go,
-	// default 50, max 200); explainDependencyPath (impact/handler.go) is one
-	// shortestPath of at most 8 hops; trace-exposure-path clamps depth through
-	// clampExposureDepth (exposure_path.go, default 5, max 10) and returns at
-	// most exposurePathResultLimit (25) paths. What keeps them pending is the
-	// grant, not the bound. Each route resolves an arbitrary anchor across
-	// many labels (impactAnchorLabelDisjunction) and walks through
-	// infrastructure hops that carry no repo_id property --
-	// cloud_resource_node_writer.go sets none on a CloudResource node -- so
-	// the anchoring-MATCH grant shape #6553 landed for
-	// /code/relationships/story and /code/call-chain has nothing to bind to
-	// here. Promotion needs a Go-side per-node ownership check and a product
-	// decision about a node that cannot be bound at all, and the #6060 lane B
-	// move of impact.go, impact_anchor_resolve.go and exposure_path.go out of
-	// this package is in flight over the same files. See
-	// auth_scoped_routes_impact.go's doc comment.
-	"POST /api/v0/impact/explain-dependency-path": {},
-	"POST /api/v0/impact/trace-exposure-path":     {},
-	"POST /api/v0/impact/trace-resource-to-code":  {},
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:

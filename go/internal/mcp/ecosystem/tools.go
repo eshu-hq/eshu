@@ -287,7 +287,7 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "trace_resource_to_code",
-			Description: "Trace an infrastructure resource back to the code and repositories that own or configure it. Scoped (personal-token) callers are refused with a 403: reachable node types mostly carry no repo_id, so the traversal cannot be bound to the caller's repository grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
+			Description: "Trace an infrastructure resource back to the code and repositories that own or configure it. Scoped (personal-token) callers get only paths whose terminal repository and every interior node their grant owns; a path through any other node is dropped whole, an ungranted start looks unknown, and truncated counts the raw page (#5167). The response then carries scoped: true and withheld_sections.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -317,7 +317,7 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "explain_dependency_path",
-			Description: "Explain the dependency path between two canonical entities. Scoped (personal-token) callers are refused with a 403: reachable node types mostly carry no repo_id, so the traversal cannot be bound to the caller's repository grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
+			Description: "Explain the dependency path between two canonical entities. Scoped (personal-token) callers must own both endpoints (otherwise the answer is not found) and every node on the path (otherwise no path is returned, exactly as when none exists) (#5167). The response then carries scoped: true and withheld_sections.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
