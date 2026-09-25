@@ -8,7 +8,7 @@
 #
 # The suite is split in two halves:
 #   1. core        -- the nudge itself, the budget, and every fail-open path.
-#   2. blocked     -- the BLOCKED: escape and its liveness witness.
+#   2. blocked     -- the BLOCKED: escape, which needs a live watcher.
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -116,8 +116,19 @@ fi
 printf 'Do the thing.\n' >"${goal}"
 check "a plain goal still blocks (control)" block "$(run "$(payload c1)")"
 
+# A reason alone no longer ends the turn. The owner's rule is that nothing
+# stops for them: an agent that cannot settle a question escalates it to an
+# arbiter model and keeps going, and an agent waiting on outside work names a
+# live watcher that will wake it. A bare claim is refused and says so.
 printf 'BLOCKED: waiting on CI runners\nDo the thing.\n' >"${goal}"
-check "BLOCKED with a reason allows the stop" allow "$(run "$(payload b1)")"
+b1_out="$(run "$(payload b1)")"
+check "BLOCKED with a reason but no watcher still blocks" block "${b1_out}"
+if printf '%s' "${b1_out}" | rg -i 'arbiter' >/dev/null &&
+	printf '%s' "${b1_out}" | rg 'WATCH=' >/dev/null; then
+	ok "the bare-BLOCKED refusal points at arbiter escalation and WATCH="
+else
+	no "the bare-BLOCKED refusal points at arbiter escalation and WATCH="
+fi
 
 printf 'BLOCKED:\nDo the thing.\n' >"${goal}"
 check "BLOCKED with an empty reason still blocks" block "$(run "$(payload b2)")"

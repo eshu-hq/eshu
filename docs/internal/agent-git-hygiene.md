@@ -1,7 +1,6 @@
 # Agent Git And Worktree Hygiene
 
-Detail for the git, worktree, and push rules listed in the root `CLAUDE.md` /
-`AGENTS.md`. Those files carry the trigger — the sentence that tells you a rule
+Detail for the git, worktree, and push rules listed in the root `AGENTS.md`. Those files carry the trigger — the sentence that tells you a rule
 applies. This file carries the reasoning and the incident behind each one, which
 you only need once you know it applies.
 
@@ -53,9 +52,10 @@ lane actually exercises them).
 ## Verify `pwd` before any edit
 
 Run `pwd` and confirm it is the intended feature worktree, not the main checkout,
-before any Edit or Write. If an edit lands in the wrong path, stop immediately,
-report it, and let the owner decide how to recover rather than trying to
-untangle it silently.
+before any Edit or Write. If an edit lands in the wrong path, stop editing there,
+report the affected paths, and recover without discarding work you did not
+author. Escalate the recovery plan to an arbiter model when it is not obvious;
+never untangle it silently.
 
 ## Mutating commands belong in a worktree
 
@@ -66,9 +66,10 @@ diagnostic or investigative purposes.
 The main checkout must stay a clean fast-forward of `origin/main` between merges.
 A dirty main checkout confuses the next agent and makes the owner's own
 uncommitted work look like an agent's. If a diagnostic mutation has already
-leaked in, stop and report the affected paths. Preserve the diff and let the
-owner choose recovery; do not silently restore files that may include another
-contributor's work. Apply the agreed recovery in the intended worktree.
+leaked in, stop and report the affected paths. Preserve the diff, choose the recovery with
+an arbiter model when it is not obvious, and do not silently restore files that
+may include another contributor's work. Apply the recovery in the intended
+worktree.
 
 ## Never `git stash` across concurrent worktrees
 

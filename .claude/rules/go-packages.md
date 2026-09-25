@@ -7,13 +7,10 @@ paths:
 
 **Load `golang-engineering`.**
 
-**Read the `AGENTS.md` in the directory you are editing.** This is the rule that
-matters most here, because Claude Code cannot see those files on its own: it
-reads `CLAUDE.md`, not `AGENTS.md`, and this repository carries a scoped
-`AGENTS.md` in every Go package directory under `go/`. Codex loads the one for
-the directory it is working in; Claude does not. If you are editing
-`go/internal/reducer/foo.go`, `go/internal/reducer/AGENTS.md` is written for you
-and you have not read it.
+**Follow the `AGENTS.md` in the directory you are editing.** Every Go package
+directory under `go/` carries one. Claude Code loads it when it reads a file in
+that directory, so read the file before editing it; an edit made from a search
+hit alone never loads `go/internal/reducer/AGENTS.md` for `foo.go`.
 
 Its siblings serve different audiences and are worth the read for different
 reasons: `doc.go` is the godoc contract, `README.md` is the human architecture

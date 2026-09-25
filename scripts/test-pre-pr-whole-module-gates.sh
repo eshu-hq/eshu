@@ -10,7 +10,6 @@ fast_runner="${repo_root}/tests/run_tests.sh"
 parser_agent_guidance="${repo_root}/go/internal/parser/AGENTS.md"
 canonical_parser_test_docs=(
 	"${repo_root}/AGENTS.md"
-	"${repo_root}/CLAUDE.md"
 	"${repo_root}/CONTRIBUTING.md"
 	"${repo_root}/docs/public/contributing-language-support.md"
 	"${repo_root}/docs/public/guides/fixture-ecosystems.md"

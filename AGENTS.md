@@ -5,9 +5,9 @@ chain, infrastructure, and runtime into one queryable, evidence-backed source of
 truth for CLI, MCP, and HTTP API workflows. Treat it as a production data
 platform, not a script collection.
 
-This file defines the shared rules for agents working in Eshu. Keep `AGENTS.md`
-and `CLAUDE.md` byte-identical. Detailed rules apply to their named surfaces;
-load the relevant sections when the task needs them.
+This file defines the shared rules for agents working in Eshu. Claude Code
+reads it natively; do not add a `CLAUDE.md`, which would hide every scoped
+`AGENTS.md` from Claude. Load the sections the task needs.
 
 ## Mandatory Startup
 
@@ -19,14 +19,19 @@ contracts; [Agent Orchestration Model](docs/internal/agent-orchestration.md)
 applies when delegating work. A prose correction does not require a runtime
 architecture tour.
 
-Resolve uncertainty from source, docs, or a bounded experiment when possible.
-Ask when missing ownership, design intent, acceptance criteria, or authorization
-cannot be established from the task and available evidence.
+Resolve uncertainty from source, docs, or a bounded experiment. When those
+cannot settle it -- including unclear ownership, design intent, acceptance
+criteria, or authorization -- escalate to an arbiter model (the deepest research
+tier available, such as Fable) with the raw observations, act on its verdict,
+and record the decision in the goal file or PR. Do not stop to ask the owner.
 
 Complete the authorized work through relevant validation and fixes. A first
 implementation is not completion when the task includes a working result or a
-PR. Continue reversible local work without repeatedly asking for approval;
-report a concrete blocker when further progress needs user action.
+PR. End a turn only when the whole job is verified complete, when waiting on
+outside work behind a live watcher (`BLOCKED: <reason> WATCH=<pid>`), or when
+the owner orders a stop. A hard question, a failed attempt, a progress report,
+or an irreversible next act is not a stopping point. Report actual state;
+anything not checked is NOT_CHECKED.
 
 ## Mandatory Pre-PR Code Review
 
@@ -125,25 +130,23 @@ git, worktree, stash, or push action; it carries the wrong-worktree recovery
 procedure and the incident behind each rule below.
 
 - If an edit lands outside the intended feature worktree, agents MUST stop
-  immediately, report it, and let the owner decide the recovery. MUST NOT
-  self-recover silently.
+  editing there, report the paths, and recover without discarding others' work
+  (arbiter model for a non-obvious plan). MUST NOT recover silently.
 
 - MUST use `rg` for all text searches. NEVER use `grep`.
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
 - Use local docs to establish the relevant contract; read source or external
   documentation as needed to settle the task's actual uncertainty.
-- Research questions under settled design intent are work to complete. Use a
-  bounded specialist when that adds useful expertise; ask the owner only for
-  decisions or information the evidence cannot settle. The detailed guidance
-  is [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
-- Honor authorization already supplied in the conversation for the named acts.
-  A request to create a PR includes its necessary branch push, not permission
-  to merge or deploy. Ask before external mutations outside that authorization,
-  destructive deletion, production data changes, or changing the golden
-  standard without explicit approval. Scope approval is not permission to
-  perform unrelated acts. Harnesses may persist the owner's grant through
-  `CONSENT: <acts>`, `CONSENT: all`, or `CLAUDE_GOAL_CONSENT` per
-  [Agent Hooks](docs/internal/agent-hooks.md); never invent or expand a grant.
+- Research and design questions are work to complete. When evidence cannot
+  settle one, escalate it to an arbiter model, not to the owner. The detailed
+  guidance is [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
+- The active goal authorizes the acts needed to complete it. Before an
+  irreversible act -- merge, deploy, external mutation, destructive deletion,
+  production data change, or changing the golden standard -- get an arbiter
+  model's review, then do it and name it in the report. Scope approval is not
+  permission to perform unrelated acts. `CONSENT: <acts>` and
+  `CLAUDE_GOAL_CONSENT` per [Agent Hooks](docs/internal/agent-hooks.md) record
+  grants; never invent or expand one.
 - Bug fixes require a failing regression test before the fix. New behavior
   needs tests of its contract; refactors need proof that the existing contract
   is preserved. Choose checks that exercise the behavior, not tests that merely

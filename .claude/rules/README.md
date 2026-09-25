@@ -6,20 +6,20 @@ paths:
 # Path-scoped rules for Claude Code
 
 <!-- This file carries a `paths:` glob on purpose. A rule with no `paths:` field
-loads unconditionally at launch, at the same priority as the root CLAUDE.md, so an
+loads unconditionally at launch, at the same priority as the root AGENTS.md, so an
 un-scoped README here would spend context in every session to explain a directory
 most sessions never touch. Scoped to the rules themselves, it loads exactly when
 someone edits one. -->
 
-Claude Code reads `CLAUDE.md`, not `AGENTS.md`. This repository carries over a
-thousand per-directory `AGENTS.md` files under `go/`, and Claude loads
-**none** of them. Codex does, because it resolves instructions per directory.
-That asymmetry is what this directory closes.
+Claude Code reads `AGENTS.md` natively (v2.1.277+) because the repository has no
+`CLAUDE.md`; a subdirectory's `AGENTS.md` loads when Claude reads a file there.
+These rules add what `AGENTS.md` does not carry: which project skill to load for
+the file Claude just opened.
 
 Each file here declares a `paths:` glob in YAML frontmatter. Claude Code loads
 the rule when it **reads a file matching that glob** — not on every tool use, and
 not at launch. A rule with no `paths:` field loads unconditionally at launch with
-the same priority as the root `CLAUDE.md`; nothing here should do that, because
+the same priority as the root `AGENTS.md`; nothing here should do that, because
 that is what the root canon is for.
 
 ## What belongs here, and what does not
@@ -28,7 +28,7 @@ These files are a **routing layer**. They answer one question: *given the file
 Claude just opened, which project skill must be loaded and which scoped document
 must be read?*
 
-They MUST NOT restate rules from `CLAUDE.md`. Two files stating the same rule in
+They MUST NOT restate rules from `AGENTS.md`. Two files stating the same rule in
 different words is not redundancy, it is a contradiction waiting to happen —
 Claude Code's own guidance is that conflicting instructions get resolved
 arbitrarily. The canon states the rule once; a rule here points at the skill that

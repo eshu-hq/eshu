@@ -15,7 +15,7 @@ A `/goal` prompt for a long drive is five slots, nothing else:
 
 A goal must NOT restate proof lists, gate names, tool names, model names,
 polling cadences, or restack/trap lore. All of that already lives in
-`CLAUDE.md`, this skill, and the reference docs it points at; copying it into
+`AGENTS.md`, this skill, and the reference docs it points at; copying it into
 the goal text is exactly the repeated-prompt problem this contract exists to
 end, and a paraphrase of a rule drifts from the rule the moment either one
 changes.
@@ -99,8 +99,7 @@ around the metadata-strip loop (`.claude/hooks/goal-continue.sh:225-257`) and
 both stop treating lines as metadata at the first ordinary line
 and read everything after that as the objective, verbatim. A `CONSENT:` line
 placed after the objective text is therefore body text, not a grant — it is
-never parsed, never lifts "you need consent" as a stop reason, and never
-appears in the per-turn restatement.
+never parsed and never appears in the per-turn restatement.
 
 Fable reproduced this live: submitting a goal with a trailing `CONSENT:` line
 left the grant unread by both hooks, while a separate `/goal consent push,

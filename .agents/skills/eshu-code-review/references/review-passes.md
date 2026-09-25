@@ -11,7 +11,7 @@ Before reviewing behavior, prove the review is pointed at the right work:
 - changed files are limited to the intended issue/PR scope;
 - no sibling PR rollback, unrelated deletion, generated-output churn, or
   accidental main-checkout mutation slipped in;
-- root `AGENTS.md` and `CLAUDE.md` remain in lockstep when either changes;
+- no `CLAUDE.md` is added anywhere; root `AGENTS.md` is the only canon;
 - `.codex/skills` and `.claude/skills` discovery links exist for project
   skills that must be visible to both harnesses.
 
@@ -38,7 +38,7 @@ Review for production operation and delivery safety:
   artifacts, and rerun/idempotency of generators;
 - private data, secrets, hostnames, IPs, credentials, internal URLs, employer
   identifiers, and AI attribution;
-- docs, package docs, root `AGENTS.md`/`CLAUDE.md` lockstep, `.codex/skills`
+- docs, package docs, root `AGENTS.md` (no `CLAUDE.md`), `.codex/skills`
   and `.claude/skills` discovery, hooks, pre-commit, pre-push, and GHA parity;
 - follow-on validation needs when the PR cannot honestly prove a separate runtime,
   backend-version, cassette, full-corpus, or performance condition.

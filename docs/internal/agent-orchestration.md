@@ -395,7 +395,7 @@ There is one deliberate exception, governed by a single rule:
 CI already hammers `rg`-not-`grep`, the 500-line cap, formatting, tests, root
 canon, skill discovery, and attribution, so those need no inline repetition.
 Push target/transport, worktree discipline, external writes, and
-ask-when-unclear remain worth inlining because a wrong action happens before
+escalate-when-unclear remain worth inlining because a wrong action happens before
 CI can reject it.
 
 The same test decides what belongs in a harness hook. A hook fires on an action,

@@ -10,7 +10,7 @@ the same drift signal. Two paths feed it:
 - **Claude Code:** the PostToolUse hook at `.claude/hooks/eshu-doc-staleness.sh`
   fires after each `Edit` or `Write` and runs `scripts/check-docs-stale.sh`
   against the changed file.
-- **Codex (and any other tool):** the `AGENTS.md` / `CLAUDE.md`
+- **Codex (and any other tool):** the `AGENTS.md`
   "Doc-keeper workflow" section instructs the agent to run
   `scripts/check-docs-stale.sh` after Go edits before wrapping up. The same
   script powers an optional git pre-commit hook.

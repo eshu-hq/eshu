@@ -55,9 +55,9 @@ fixture_consumer_dirs() {
 	if printf '%s\n' "${all}" | rg -q '^testdata/golden/'; then
 		printf './cmd/golden-corpus-gate\n'
 	fi
-	# CLAUDE.md and AGENTS.md are read by TestRepositoryDocumentationStandardsAreEnforced,
-	# which asserts both that they stay byte-identical and that specific rules are
-	# still present. A canon-only edit changes no Go package, so without this the
+	# AGENTS.md is read by TestRepositoryDocumentationStandardsAreEnforced, which
+	# asserts specific rules are still present and that no root CLAUDE.md (which
+	# would hide AGENTS.md from Claude Code) has been added back. A canon-only edit changes no Go package, so without this the
 	# focused test step selects nothing and the first failure is in CI -- which is
 	# how a reword of two rules reached CI red on #5903.
 	if printf '%s\n' "${all}" | rg -q '^(CLAUDE|AGENTS)\.md$'; then

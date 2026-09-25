@@ -84,7 +84,7 @@ The verdict is `blocked` when any of these are true:
   issue, owner agreement quoted in the PR), named with its severity-table
   category, and never silently dropped;
 - generated artifacts or cassettes changed without source-of-truth proof;
-- root `AGENTS.md` and `CLAUDE.md` drift;
+- a `CLAUDE.md` added back (it hides `AGENTS.md` from Claude Code);
 - public text contains private data, credentials, internal identifiers, or AI attribution;
 - review comments exist on the latest head and are unresolved;
 - CI/check evidence does not match the changed surface.

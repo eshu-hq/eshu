@@ -69,7 +69,7 @@ For `fact_work_items`, reducer/shared projection queues, and liveness queries:
 - prevent recovery loops from consuming attempt budgets while a recovery row is
   already pending, claimed, running, retrying, or successfully completed
 - never serialize workers or reduce batch size as the fix; see root
-  [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+  [Serialization Is Not A Fix](../../../AGENTS.md#serialization-is-not-a-fix)
   for the only accepted exceptions and their proof bar
 
 ## Postgres Versus Graph Time

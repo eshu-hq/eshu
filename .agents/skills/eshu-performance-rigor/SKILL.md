@@ -14,7 +14,7 @@ bottleneck is unknown; routine test execution alone does not need diagnosis.
 Accuracy comes first, performance second, and concurrency third. A faster wrong
 answer, unsafe claim, incomplete drain, hidden fallback, or serialized
 workaround is a failure — see root
-[Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix).
+[Serialization Is Not A Fix](../../../AGENTS.md#serialization-is-not-a-fix).
 Do not raise worker defaults without safe conflict-domain and backend-headroom
 evidence.
 
@@ -23,7 +23,7 @@ correctness invariant or intended delta, expected cardinality and worst-case
 partition, baseline/known-normal band, minimum worthwhile improvement, stop
 threshold, required proof, and production diagnostic signal. This skill is the
 proof ladder for root
-[Prove-The-Theory-First](../../../CLAUDE.md#mandatory-prove-the-theory-first):
+[Prove-The-Theory-First](../../../AGENTS.md#mandatory-prove-the-theory-first):
 prove the theory with the cheapest representative shim before implementing or
 dispatching it.
 

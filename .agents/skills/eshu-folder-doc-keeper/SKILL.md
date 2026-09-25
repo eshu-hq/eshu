@@ -22,7 +22,7 @@ package source to support each claim; keep discovery within that directory
 (`rg --max-depth 1`) so subpackages do not contaminate its documented surface.
 Rewrite only affected sections and preserve human-authored content elsewhere.
 Use `eshu-humanizer` for the prose pass. Reduce unsupported claims rather than
-inventing facts; ask only when an unresolved decision affects the requested docs.
+inventing facts; take an unresolved decision to an arbiter model.
 
 Read [workflows](references/workflows.md) for stale-marker processing or new
 package scaffolding. Read [templates](references/templates.md) when creating
