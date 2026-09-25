@@ -15,7 +15,7 @@ A `/goal` prompt for a long drive is five slots, nothing else:
 
 A goal must NOT restate proof lists, gate names, tool names, model names,
 polling cadences, or restack/trap lore. All of that already lives in
-`CLAUDE.md`, this skill, and the reference docs it points at; copying it into
+`AGENTS.md`, this skill, and the reference docs it points at; copying it into
 the goal text is exactly the repeated-prompt problem this contract exists to
 end, and a paraphrase of a rule drifts from the rule the moment either one
 changes.
@@ -75,15 +75,15 @@ endpoint: issues <list> closed per eshu-issue-driver Completion Evidence.
 lane: <what this drive owns, or "per the claim comments on #N">.
 decision pointers: <comment ids or a design doc>.
 machine constraints: <...>.
-Stop only when Completion Evidence is met, an owner decision is needed (post
-it on the issue and stop), or nothing local clears a blocker. Consent: push,
-pr-open.
+Stop only when Completion Evidence is met or you are waiting on outside work
+behind a live watcher. Escalate an open decision or blocker to an arbiter
+model, act on its verdict, and post it on the issue. Consent: push, pr-open.
 ```
 
 **Muse** — "Goal set — " plus the Codex text above, verbatim.
 
-Ask only for an act not already authorized; never write a consent grant on
-the owner's behalf. Grant only the acts you mean. **Add `merge`** if you want
+An act not already granted gets an arbiter model's review, not a question;
+never write a consent grant on the owner's behalf. Grant only the acts you mean. **Add `merge`** if you want
 the drive to land the PR unattended — left out of the template deliberately,
 because a merge is the least reversible act in the canon's list and the one
 nobody reviews afterwards, and a copy-pasted default is not the place to
@@ -99,8 +99,7 @@ around the metadata-strip loop (`.claude/hooks/goal-continue.sh:225-257`) and
 both stop treating lines as metadata at the first ordinary line
 and read everything after that as the objective, verbatim. A `CONSENT:` line
 placed after the objective text is therefore body text, not a grant — it is
-never parsed, never lifts "you need consent" as a stop reason, and never
-appears in the per-turn restatement.
+never parsed and never appears in the per-turn restatement.
 
 Fable reproduced this live: submitting a goal with a trailing `CONSENT:` line
 left the grant unread by both hooks, while a separate `/goal consent push,

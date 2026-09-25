@@ -37,7 +37,7 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 
 | Hook | Stage | Mirrors CI gate |
 | --- | --- | --- |
-| `agent-canon` | commit | `verify-agent-hygiene.yml` — AGENTS.md and CLAUDE.md must stay byte-identical |
+| `agent-canon` | commit | `verify-agent-hygiene.yml` — AGENTS.md is the only agent canon; any CLAUDE.md is refused |
 | `no-ai-attribution-content` | commit | `verify-agent-hygiene.yml` — no AI-attribution markers in staged content |
 | `no-ai-attribution-message` | commit-msg | `verify-agent-hygiene.yml` — no AI-attribution markers in the commit message |
 | trailing-whitespace, end-of-file-fixer, merge-conflict, check-yaml | commit | `git diff --check`, basic hygiene |

@@ -7,7 +7,7 @@ Triggers: disk pressure, `git worktree list` grown long, trees that look
 abandoned, or the user asking to clean up.
 
 Contents: [Steps](#steps), [Reply](#reply),
-[Red flags: stop and ask](#red-flags-stop-and-ask), [Never](#never).
+[Red flags: hold it back](#red-flags-hold-it-back), [Never](#never).
 
 ## Steps
 
@@ -92,7 +92,7 @@ Your report must contain:
   N uncommitted files
 - background processes stopped
 
-## Red flags: stop and ask
+## Red flags: hold it back
 
 - The tree has tracked uncommitted changes.
 - The branch has commits that are not on `origin/main`.
@@ -103,8 +103,8 @@ Your report must contain:
 - The path came from your memory of the layout rather than from
   `git worktree list`.
 
-Any one of these means the tree stays until a human says otherwise. A worktree
-left standing costs disk. A worktree deleted wrongly costs work that has no
+Any one of these means the tree stays: list it in the report with its reason
+and keep working. A worktree left standing costs disk. A worktree deleted wrongly costs work that has no
 backup.
 
 ## Never

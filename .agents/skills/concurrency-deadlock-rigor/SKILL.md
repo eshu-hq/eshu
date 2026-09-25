@@ -8,7 +8,7 @@ description: Use when changing Eshu workers, leases, retries, claim or lock orde
 Use this skill when correctness depends on ordering, isolation, coordination, or
 shared-state access. Do not change concurrent behavior from intuition. A
 queue/lease/claim change is in scope for root
-[Prove-The-Theory-First](../../../CLAUDE.md#mandatory-prove-the-theory-first):
+[Prove-The-Theory-First](../../../AGENTS.md#mandatory-prove-the-theory-first):
 prove the theory with the cheapest shim before implementing or dispatching it.
 
 Add `eshu-performance-rigor` when changing concurrency to improve throughput,
@@ -48,7 +48,7 @@ Before proposing or implementing a non-trivial change, MUST identify:
    timeouts, and more retries are diagnostics or temporary mitigations, never a
    shipped fix for a non-idempotent write, `MERGE` race, or uniqueness
    conflict — see root
-   [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+   [Serialization Is Not A Fix](../../../AGENTS.md#serialization-is-not-a-fix)
    for the accepted exceptions and their proof bar.
 
 ## Replay And Retry Matrix

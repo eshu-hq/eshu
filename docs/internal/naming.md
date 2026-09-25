@@ -66,5 +66,5 @@ refactored today.
 5. **Refactors must leave names better than they found them.** When moving
    code, apply all four rules to every touched path — do not carry a glued or
    stuttering name into its new home. A move that preserves unreadable names
-   is not done. If the right name is unclear, ask the owner; never guess and
-   never assume the old name was right.
+   is not done. If the right name is unclear, escalate to an arbiter model; never
+   guess and never assume the old name was right.

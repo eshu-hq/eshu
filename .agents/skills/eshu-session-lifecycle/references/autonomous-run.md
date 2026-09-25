@@ -28,9 +28,9 @@ Contents: [Steps](#steps), [Reply](#reply),
    | Why it is unclear | Move |
    |---|---|
    | A committed fact settles it — code, a local doc, an ADR, a measurement, a cheap experiment | **Research it**, cite the settling evidence, proceed |
-   | Owner, design intent, performance contract, or verification gate is unsettled | **Ask** |
-   | Complete evidence would still leave a product-taste or business call | **Ask** |
-   | The next act is irreversible | **Ask** — unless the owner already granted that act durably (`CONSENT:` in the goal file, or `CLAUDE_GOAL_CONSENT`), in which case do it and say you did |
+   | Owner, design intent, performance contract, or verification gate is unsettled | **Escalate** to an arbiter model, act on its verdict, record it |
+   | Complete evidence would still leave a product-taste or business call | **Escalate** to an arbiter model, act on its verdict, record it |
+   | The next act is irreversible | **Arbiter review**, then do it and name it in the report |
 
    Architecture is not itself an anchor. Under a settled design intent, an
    architecture question is a research task, and settled intent admitting two
@@ -72,15 +72,18 @@ Contents: [Steps](#steps), [Reply](#reply),
    own clean worktree, running any gate or test, regenerating artifacts inside
    your worktree, and reading anything at all.
 
-   Stop and ask for these, every time, no matter how confident you are:
+   Never do these; they belong to someone else:
+
+   - delete a worktree that holds uncommitted work, or any worktree not yours
+   - write to the main checkout
+   - tear down a Compose stack you did not start
+
+   Get an independent arbiter model's review first for these, every time, no
+   matter how confident you are — then do it, and name it in the report:
 
    - `git push`, force-push, or anything that moves a remote ref
    - `gh pr create`, `edit`, `merge`, `comment`; `gh issue create` or `comment`
-   - deleting a worktree that holds uncommitted work, or any worktree that is
-     not yours
-   - any write to the main checkout
-   - deploys, remote-host actions, and teardown of a Compose stack you did not
-     start
+   - deploys and remote-host actions
    - **changing the golden standard** — the cassettes under `testdata/cassettes/`
      or the B-12 snapshot — to match a design you researched rather than one the
      owner settled
@@ -92,9 +95,9 @@ Contents: [Steps](#steps), [Reply](#reply),
    `eshu-golden-corpus-rigor` requires the cassettes and snapshot to move in
    lockstep with projected truth, so an agent confidently building the wrong
    thing will also update the artifacts that would have caught it. After that
-   the gate floor defends the wrong design and every check is green. The only
-   remaining catch is a human reading the PR — which is exactly the safety net
-   autonomy is supposed to stop leaning on.
+   the gate floor defends the wrong design and every check is green. The
+   remaining catch is a reader who did not build it, so the arbiter must review
+   the design against the fixture intent, not only the diff.
 
 4. **Mid-run discoveries are yours.** A broken gate, a flaky verifier, stale
    docs, a bug adjacent to the one you came for, drift you can fix — fix it.
@@ -115,14 +118,15 @@ Contents: [Steps](#steps), [Reply](#reply),
    resuming it becomes a session-pickup with nothing to pick up.
 
 7. **A plateau is not a stop.** If progress stalls, change approach rather than
-   stopping to report the stall. Surface a genuine dead end — a blocked
-   credential, a contradiction in the requirements, an irreversible fork — not
-   the fact that the obvious thing did not work.
+   stopping to report the stall. Take a genuine dead end — a contradiction in
+   the requirements, an irreversible fork — to an arbiter model and act on its
+   verdict. Only outside work behind a live watcher parks the run.
 
 8. **Never relax the predicate to declare victory.** Moving the goalposts at
    hour four is the single most expensive failure this playbook can produce,
    because it arrives wearing the costume of a finished job. If the predicate
-   turns out to be wrong, say so explicitly and stop; do not quietly swap it.
+   turns out to be wrong, say so explicitly, have an arbiter model restate it,
+   and record the change in the goal file; do not quietly swap it.
 
 ## Reply
 
@@ -133,7 +137,7 @@ Your report must contain:
 - out-of-band fixes made along the way, with their commits
 - what you discarded, and why
 - final predicate state: met, or not met with the reason
-- anything you surfaced instead of deciding, and what it is waiting on
+- every decision an arbiter model made, and what it was based on
 
 ## What still stops you
 

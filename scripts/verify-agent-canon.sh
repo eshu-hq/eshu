@@ -2,13 +2,14 @@
 #
 # verify-agent-canon.sh — fail if shared agent guidance drifts or conflicts.
 #
-# AGENTS.md and CLAUDE.md MUST stay byte-identical: AGENTS.md is read by Codex
-# and opencode, CLAUDE.md by Claude Code, and the repo rule requires the two to
-# be in lockstep so every harness sees the same rules. This parity was enforced
-# only by a local pre-commit hook (bypassable with --no-verify); this script is
-# the CI gate so a drifted commit cannot merge.
+# AGENTS.md is the one root canon. Claude Code reads it natively (v2.1.277+),
+# as Codex and opencode do. Any CLAUDE.md -- root, .claude/, or nested -- makes
+# Claude read CLAUDE.md INSTEAD for that directory and everything below it,
+# which silently hid all ~1,200 scoped go/**/AGENTS.md files from Claude while a
+# byte-identical root copy was required. So a CLAUDE.md is refused outright.
+# Local pre-commit hooks mirror this; this script is the CI gate.
 #
-# Exit 0 when identical; non-zero with a unified diff on drift.
+# Exit 0 when the canon is clean; non-zero naming the offending file otherwise.
 set -euo pipefail
 
 repo_root="${ESHU_AGENT_CANON_REPO_ROOT:-}"
@@ -20,27 +21,23 @@ if [ -z "$repo_root" ]; then
 fi
 
 agents="$repo_root/AGENTS.md"
-claude="$repo_root/CLAUDE.md"
-
-missing=0
-for f in "$agents" "$claude"; do
-  if [ ! -f "$f" ]; then
-    printf 'verify-agent-canon: missing required file %s\n' "$f" >&2
-    missing=1
-  fi
-done
-[ "$missing" -eq 0 ] || exit 1
-
-diff_out="$(diff -u "$agents" "$claude" 2>&1 || true)"
-if [ -n "$diff_out" ]; then
-  printf 'verify-agent-canon: AGENTS.md and CLAUDE.md have drifted.\n' >&2
-  printf 'They MUST be byte-identical (the root agent canon is shared across harnesses).\n\n' >&2
-  printf '%s\n\n' "$diff_out" >&2
-  printf 'Fix: make both files identical, then re-run.\n' >&2
+if [ ! -f "$agents" ]; then
+  printf 'verify-agent-canon: missing required file %s\n' "$agents" >&2
   exit 1
 fi
 
-printf 'verify-agent-canon: AGENTS.md and CLAUDE.md are byte-identical.\n'
+# --hidden reaches .claude/CLAUDE.md; ignore rules keep local worktrees and
+# untracked personal files (CLAUDE.local.md) out of the scan.
+shadows="$(cd "$repo_root" && rg --files --hidden -g 'CLAUDE.md' -g '!.git' 2>/dev/null || true)"
+if [ -n "$shadows" ]; then
+  printf 'verify-agent-canon: CLAUDE.md files found:\n%s\n\n' "$shadows" >&2
+  printf 'Claude Code reads AGENTS.md natively; a CLAUDE.md makes it read that file\n' >&2
+  printf 'INSTEAD and hides every AGENTS.md at or below its directory.\n' >&2
+  printf 'Fix: move the content into AGENTS.md and delete the CLAUDE.md.\n' >&2
+  exit 1
+fi
+
+printf 'verify-agent-canon: AGENTS.md is the only agent canon (no CLAUDE.md).\n'
 
 if [ -z "${ESHU_AGENT_CANON_REPO_ROOT:-}" ]; then
   if [ ! -f "$repo_root/.agents/roles.json" ] || [ ! -f "$repo_root/scripts/agent-roles.py" ]; then
@@ -217,7 +214,6 @@ fi
 # and which must itself be run with -U.
 canon_rule_files=(
   "$repo_root/AGENTS.md"
-  "$repo_root/CLAUDE.md"
   "$repo_root/docs/public/reference/local-testing.md"
   "$repo_root/docs/public/guides/run-the-proof-suite.md"
   "$repo_root/docs/internal/agent-orchestration.md"

@@ -19,13 +19,36 @@ canon="$repo_root/scripts/verify-agent-canon.sh"
 attr="$repo_root/scripts/verify-no-ai-attribution.sh"
 
 # --- verify-agent-canon ---
+# AGENTS.md is the only root canon. Claude Code reads it natively, and any
+# CLAUDE.md (root, .claude/, or nested) makes Claude read CLAUDE.md INSTEAD,
+# hiding every scoped AGENTS.md below it.
 mkdir -p "$tmp/good"
 printf 'shared canon\n' >"$tmp/good/AGENTS.md"
-printf 'shared canon\n' >"$tmp/good/CLAUDE.md"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/good" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes when AGENTS.md == CLAUDE.md"
+  ok "agent-canon passes with AGENTS.md and no CLAUDE.md"
 else
-  no "agent-canon should pass when identical"
+  no "agent-canon should pass with AGENTS.md and no CLAUDE.md"
+fi
+
+for shadow in CLAUDE.md .claude/CLAUDE.md go/internal/x/CLAUDE.md; do
+  d="$tmp/shadow-${shadow//\//_}"
+  mkdir -p "$d/$(dirname "$shadow")"
+  printf 'canon\n' >"$d/AGENTS.md"
+  printf 'canon\n' >"$d/$shadow"
+  if ESHU_AGENT_CANON_REPO_ROOT="$d" "$canon" >"$d.out" 2>&1; then
+    no "agent-canon should fail when $shadow exists"
+  elif rg -q 'CLAUDE.md' "$d.out"; then
+    ok "agent-canon fails when $shadow exists and names it"
+  else
+    no "agent-canon failed on $shadow without naming it"
+  fi
+done
+
+mkdir -p "$tmp/no-agents"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/no-agents" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when AGENTS.md is missing"
+else
+  ok "agent-canon fails when AGENTS.md is missing"
 fi
 
 # Exercise the real-root branch, which fixture overrides skip. A stub role
@@ -33,7 +56,6 @@ fi
 mkdir -p "$tmp/role-gate/scripts" "$tmp/role-gate/.agents"
 cp "$canon" "$tmp/role-gate/scripts/verify-agent-canon.sh"
 printf 'shared canon\n' >"$tmp/role-gate/AGENTS.md"
-printf 'shared canon\n' >"$tmp/role-gate/CLAUDE.md"
 printf '{}\n' >"$tmp/role-gate/.agents/roles.json"
 cat >"$tmp/role-gate/scripts/agent-roles.py" <<'ROLE_GENERATOR'
 import sys
@@ -52,15 +74,6 @@ else
   no "agent-canon failed before checking role bindings"
 fi
 
-mkdir -p "$tmp/bad"
-printf 'one\n' >"$tmp/bad/AGENTS.md"
-printf 'two\n' >"$tmp/bad/CLAUDE.md"
-if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bad" "$canon" >/dev/null 2>&1; then
-  no "agent-canon should fail on drift"
-else
-  ok "agent-canon fails when the two files drift"
-fi
-
 # Skill frontmatter must stay valid YAML. An unquoted description containing
 # ": " is a mapping error; six skills shipped that shape once and no gate
 # noticed, so a strict loader could drop them.
@@ -68,7 +81,6 @@ make_skill_fixture() {
   local root="$1" desc="$2"
   mkdir -p "$root/.agents/skills/demo-skill" "$root/.claude/skills" "$root/.codex/skills"
   printf 'canon\n' >"$root/AGENTS.md"
-  printf 'canon\n' >"$root/CLAUDE.md"
   printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.agents/skills/demo-skill/SKILL.md"
   ln -s ../../.agents/skills/demo-skill "$root/.claude/skills/demo-skill"
   ln -s ../../.agents/skills/demo-skill "$root/.codex/skills/demo-skill"
@@ -94,7 +106,6 @@ fi
 # would pass while the bug it targets sits in the tree.
 mkdir -p "$tmp/bar-ok"
 printf 'canon\n' >"$tmp/bar-ok/AGENTS.md"
-printf 'canon\n' >"$tmp/bar-ok/CLAUDE.md"
 printf 'Ready means P0=0, P1=0, P2-blocking=0 with every deferred P2 tracked\nin a linked issue with the owner agreement quoted.\n' \
   >"$tmp/bar-ok/local-testing-stub.md"
 mkdir -p "$tmp/bar-ok/docs/public/reference"
@@ -107,7 +118,6 @@ fi
 
 mkdir -p "$tmp/bar-wrap-a/docs/public/reference"
 printf 'canon\n' >"$tmp/bar-wrap-a/AGENTS.md"
-printf 'canon\n' >"$tmp/bar-wrap-a/CLAUDE.md"
 printf 'Ready means every deferred P2 tracked\nand named, the gate is complete.\n' \
   >"$tmp/bar-wrap-a/docs/public/reference/local-testing.md"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-wrap-a" "$canon" >/dev/null 2>&1; then
@@ -118,7 +128,6 @@ fi
 
 mkdir -p "$tmp/bar-wrap-b/docs/public/reference"
 printf 'canon\n' >"$tmp/bar-wrap-b/AGENTS.md"
-printf 'canon\n' >"$tmp/bar-wrap-b/CLAUDE.md"
 printf 'Ready means every deferred P2 tracked and\nnamed, and the owner able to see why.\n' \
   >"$tmp/bar-wrap-b/docs/public/reference/local-testing.md"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-wrap-b" "$canon" >/dev/null 2>&1; then
@@ -129,7 +138,6 @@ fi
 
 mkdir -p "$tmp/bar-canon-p1/docs/public/reference"
 printf 'canon\n' >"$tmp/bar-canon-p1/AGENTS.md"
-printf 'canon\n' >"$tmp/bar-canon-p1/CLAUDE.md"
 printf 'a preliminary full review with zero\nP0/P1/P2 findings, run make pre-pr once.\n' \
   >"$tmp/bar-canon-p1/docs/public/reference/local-testing.md"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-canon-p1" "$canon" >/dev/null 2>&1; then
@@ -178,7 +186,6 @@ mkdir -p "$tmp/skill-links/.agents/skills/example" \
   "$tmp/skill-links/.codex/skills"
 write_nudge_fixture "$tmp/skill-links"
 printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
-printf 'shared canon\n' >"$tmp/skill-links/CLAUDE.md"
 printf '%s\n' '---' 'name: example' 'description: example' '---' \
   >"$tmp/skill-links/.agents/skills/example/SKILL.md"
 ln -s ../../.agents/skills/example "$tmp/skill-links/.claude/skills/example"
@@ -224,7 +231,6 @@ mkdir -p "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/perf-contract/.codex/skills"
 write_nudge_fixture "$tmp/perf-contract"
 printf 'shared canon\n' >"$tmp/perf-contract/AGENTS.md"
-printf 'shared canon\n' >"$tmp/perf-contract/CLAUDE.md"
 printf '%s\n' '---' 'name: eshu-performance-rigor' 'description: incomplete' '---' \
   >"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md"
 printf '# Performance Run Manifest\n' \
@@ -293,7 +299,6 @@ mv "$tmp/perf-contract/performance-skill.saved" \
 
 mkdir -p "$tmp/opencode-conflict/.opencode/agent"
 printf 'shared canon\n' >"$tmp/opencode-conflict/AGENTS.md"
-printf 'shared canon\n' >"$tmp/opencode-conflict/CLAUDE.md"
 printf '%s\n' 'Push over HTTPS and always use --no-verify.' \
   >"$tmp/opencode-conflict/.opencode/agent/develop-eshu.md"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/opencode-conflict" "$canon" >/dev/null 2>&1; then
@@ -366,7 +371,6 @@ fi
 mkdir -p "$tmp/nudge/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/nudge/.claude/skills" "$tmp/nudge/.codex/skills"
 printf 'shared canon\n' >"$tmp/nudge/AGENTS.md"
-printf 'shared canon\n' >"$tmp/nudge/CLAUDE.md"
 cat >"$tmp/nudge/.agents/skills/eshu-performance-rigor/SKILL.md" <<'NUDGE_PERF_SKILL'
 ---
 name: eshu-performance-rigor

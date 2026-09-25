@@ -60,25 +60,24 @@ else
 	ok "CONSENT: all removes the generic consent stop reason"
 fi
 
-# Control: with no consent declared the bullet must survive untouched. Without
-# this, a bug that always drops the bullet would look like a pass above.
+# Nothing stops for the owner's consent any more: the owner retired that
+# reason. With or without a CONSENT line the refusal must not offer it.
 printf 'Plain goal, nobody consented to anything.\n' >"${goal}"
 plain="$(run "$(payload k3)")"
-if printf '%s' "${plain}" | rg -i 'you need consent for an irreversible act' >/dev/null; then
-	ok "with no CONSENT the consent stop reason is still offered"
+check "a plain goal with no CONSENT still blocks" block "${plain}"
+if printf '%s' "${plain}" | rg -i 'you need consent' >/dev/null; then
+	no "with no CONSENT the refusal offers no consent stop reason"
 else
-	no "with no CONSENT the consent stop reason is still offered"
+	ok "with no CONSENT the refusal offers no consent stop reason"
+fi
+if printf '%s' "${plain}" | rg -i 'arbiter' >/dev/null; then
+	ok "the plain refusal names arbiter escalation instead of asking the owner"
+else
+	no "the plain refusal names arbiter escalation instead of asking the owner"
 fi
 
-# An empty claim grants nothing. The agent writes this file, so `CONSENT:` with
-# no acts after it must fail closed exactly like `BLOCKED:` with no reason.
 printf 'CONSENT:\nDo the thing.\n' >"${goal}"
-empty="$(run "$(payload k4)")"
-if printf '%s' "${empty}" | rg -i 'you need consent for an irreversible act' >/dev/null; then
-	ok "an empty CONSENT: grants nothing"
-else
-	no "an empty CONSENT: grants nothing"
-fi
+check "an empty CONSENT: still blocks" block "$(run "$(payload k4)")"
 
 # The env form is for a launcher that already knows what the run is allowed to
 # do, without writing it into a file another session shares.
@@ -96,8 +95,12 @@ fi
 printf 'CONSENT: push\nDONE\nFinished.\n' >"${goal}"
 check "DONE beneath a CONSENT line allows the stop" allow "$(run "$(payload k6)")"
 
-printf 'CONSENT: push\nBLOCKED: waiting on a human reviewer\nMore work.\n' >"${goal}"
-check "BLOCKED beneath a CONSENT line allows the stop" allow "$(run "$(payload k7)")"
+sleep 300 &
+k7_pid=$!
+printf 'CONSENT: push\nBLOCKED: waiting on CI WATCH=%s\nMore work.\n' "${k7_pid}" >"${goal}"
+check "BLOCKED with a live watcher beneath a CONSENT line allows the stop" allow "$(run "$(payload k7)")"
+kill "${k7_pid}" 2>/dev/null
+wait "${k7_pid}" 2>/dev/null
 
 # ── 4. concurrent sessions in one checkout ─────────────────────────────────
 #

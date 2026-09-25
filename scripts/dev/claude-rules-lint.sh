@@ -15,7 +15,7 @@
 # Two checks, both cheap:
 #
 #   1. Every rule declares a `paths:` field. A rule without one loads
-#      unconditionally at launch at the same priority as .claude/CLAUDE.md,
+#      unconditionally at launch at the same priority as the root AGENTS.md,
 #      which is what the root canon is for. Un-scoped rules here are always a
 #      mistake, and an expensive one -- they spend context in every session.
 #   2. Every declared glob matches at least one tracked file.

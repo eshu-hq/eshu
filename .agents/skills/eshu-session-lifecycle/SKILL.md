@@ -56,7 +56,7 @@ Judge liveness from something that moves for a reason:
 - a task the harness still reports as running,
 - the user telling you.
 
-When those disagree, the answer is "assume alive" and ask.
+When those disagree, the answer is "assume alive": leave it and keep working.
 
 ## Common mistakes
 

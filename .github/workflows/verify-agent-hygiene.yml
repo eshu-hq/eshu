@@ -1,7 +1,7 @@
 name: Verify Agent Hygiene
 
 # The non-bypassable gate for shared agent guidance:
-#   1. AGENTS.md and CLAUDE.md must stay byte-identical (the shared agent canon).
+#   1. AGENTS.md is the only agent canon; any CLAUDE.md is refused (it hides AGENTS.md).
 #   2. No AI attribution in commit messages or added content.
 #   3. Every repository skill is discoverable by Claude and Codex.
 #   4. OpenCode role shims do not override the root Git policy.

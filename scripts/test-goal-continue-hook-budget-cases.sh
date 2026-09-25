@@ -148,27 +148,19 @@ fi
 # Three defects found by execution, not by reading. Each case below is the
 # probe that found one.
 
-# A substring test read "install deps" as blanket consent, because it contains
-# "all". Every value in between the two the suite happened to test -- `all` and
-# `push` -- was undefended, and the discriminator has to be whole tokens.
-for narrow in 'install deps' 'call the API' 'allow push' 'fallback to compose' 'recall the baseline'; do
-	printf 'CONSENT: %s\nDo the work.\n' "${narrow}" >"${goal}"
-	nout="$(run "$(payload "narrow-${narrow%% *}")")"
-	if printf '%s' "${nout}" | rg -qi 'you need consent for an irreversible act'; then
-		ok "CONSENT: ${narrow} narrows rather than going blanket"
+# Consent used to narrow or retire an "irreversible act" stop reason, and a
+# substring test once read "install deps" as blanket because it contains "all".
+# The owner retired that stop reason outright, so no CONSENT value -- narrow,
+# blanket, or one that merely contains "all" -- may bring it back, and the acts
+# must still be echoed verbatim.
+for grant in 'install deps' 'call the API' 'allow push' 'all' '*' 'push, all' 'ALL'; do
+	printf 'CONSENT: %s\nDo the work.\n' "${grant}" >"${goal}"
+	gout="$(run "$(payload "grant-${grant%% *}")")"
+	if printf '%s' "${gout}" | rg -qi 'you need consent' ||
+		! printf '%s' "${gout}" | rg -qiF "granted for: ${grant}"; then
+		no "CONSENT: ${grant} is echoed and offers no consent stop"
 	else
-		no "CONSENT: ${narrow} narrows rather than going blanket"
-	fi
-done
-
-# The blanket forms must still be blanket, including inside a list.
-for blanket in 'all' '*' 'push, all' 'ALL'; do
-	printf 'CONSENT: %s\nDo the work.\n' "${blanket}" >"${goal}"
-	bout="$(run "$(payload "blanket-${blanket}")")"
-	if printf '%s' "${bout}" | rg -qi 'you need consent for an irreversible act'; then
-		no "CONSENT: ${blanket} is still blanket"
-	else
-		ok "CONSENT: ${blanket} is still blanket"
+		ok "CONSENT: ${grant} is echoed and offers no consent stop"
 	fi
 done
 

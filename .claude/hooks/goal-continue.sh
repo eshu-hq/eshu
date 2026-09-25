@@ -16,14 +16,17 @@
 # Escape hatches, in order of precedence:
 #   - no goal file, or an empty one              -> stop allowed
 #   - goal file whose first line starts DONE     -> stop allowed
-#   - first line `BLOCKED: <reason>`             -> stop allowed (see below)
+#   - first line `BLOCKED: ... WATCH=<live pid>` -> stop allowed (see below)
+#   - first line `BLOCKED: <reason>`, no WATCH   -> stop REFUSED, escalate
 #   - first line `BLOCKED: ... WATCH=<dead pid>` -> stop REFUSED
 #   - CLAUDE_GOAL_OFF=1                          -> stop allowed
 #   - budget spent for this prompt_id            -> stop allowed
 #
 # Not an escape, but the same file: `CONSENT: <acts>` (or CLAUDE_GOAL_CONSENT)
-# records a permission the owner has already given, and REMOVES "I need consent
-# for that" as a reason to stop for the acts it names.
+# records a permission the owner has already given, and is echoed back so the
+# agent does not forget it. Needing consent is not a reason to stop at all: the
+# owner retired it, along with asking the owner anything. A question the agent
+# cannot settle goes to an arbiter model, not to a stopped turn.
 #
 # Tests: scripts/test-goal-continue-hook.sh -- run it after any edit here, and
 # read its own tally rather than trusting a count written down elsewhere. A
@@ -265,19 +268,22 @@ fi
 
 apply_session_header || exit 0
 
-# BLOCKED: <reason> releases the stop when the work is genuinely waiting on
-# something outside this machine -- a CI run, a remote queue, another person.
-# Without it the hook nags for local action that does not exist, which teaches
-# the agent to treat the nudge as noise.
+# BLOCKED: releases the stop only while a named watcher is alive -- a CI run, a
+# remote queue, anything outside this machine that will wake the agent when it
+# moves. Without it the hook nags for local action that does not exist, which
+# teaches the agent to treat the nudge as noise.
 #
 # The agent writes this file, so a bare claim would be a self-issued permission
-# slip. Two things keep it honest:
+# slip, and "blocked" was the escape agents reached for when a question got
+# hard: the owner woke up to a stopped session waiting on an answer a research
+# model could have given. So:
 #
-#   1. The reason must be non-empty, and it is echoed to stderr so the owner
-#      reads the exact claim rather than just seeing the turn end.
-#   2. `WATCH=<pid>` is checked. If the named waiter is DEAD the stop is
-#      REFUSED -- a dead watcher means nothing will wake the agent, so waiting
-#      is the bug rather than the excuse. Naming a live one is the strong form.
+#   1. `WATCH=<pid>` is required and checked. A live waiter allows the stop. A
+#      DEAD one refuses it -- nothing would wake the agent, so waiting is the
+#      bug rather than the excuse.
+#   2. A reason with no WATCH is refused and the agent is told to escalate the
+#      question to an arbiter model and act on its verdict.
+#   3. Every claim is echoed to stderr so the owner reads the exact words.
 case "${first_line}" in
 	BLOCKED:*|blocked:*)
 		blocked_reason="${first_line#*:}"
@@ -290,7 +296,11 @@ case "${first_line}" in
 					watch_pid="${watch_pid%%[![:digit:]]*}"
 					;;
 			esac
-			if [ -n "${watch_pid}" ] && ! kill -0 "${watch_pid}" 2>/dev/null; then
+			if [ -z "${watch_pid}" ]; then
+				printf 'goal-continue: BLOCKED with no WATCH refused, escalate instead: %s\n' \
+					"${blocked_reason}" >&2
+				bare_blocked="${blocked_reason}"
+			elif ! kill -0 "${watch_pid}" 2>/dev/null; then
 				printf 'goal-continue: BLOCKED claims watcher pid %s, which is not running.\n' \
 					"${watch_pid}" >&2
 				dead_watcher="${watch_pid}"
@@ -388,7 +398,7 @@ if [ "${count}" -ge "${MAX_NUDGES}" ]; then
 	# clean finish; nobody could tell the two apart afterwards.
 	printf 'goal-continue: stop allowed after %s stops with no progress. The goal is still open and the owner is now the one who has to answer.\n' \
 		"${count}" >&2
-	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, put BLOCKED: <reason> there instead. Either would have ended the turn cleanly without an interruption.\n' \
+	printf 'goal-continue: if the work is finished, put DONE on the first line of %s. If it is waiting on something outside this machine, arm a watcher and put BLOCKED: <reason> WATCH=<pid> there instead. Either would have ended the turn cleanly without an interruption.\n' \
 		"${goal_file}" >&2
 	printf '%s %s' "${count}" "${new_offset}" >"${counter}" 2>/dev/null || true
 	exit 0
@@ -412,21 +422,20 @@ final_warning=""
 if [ "${remaining}" -le 0 ]; then
 	final_warning="
 
-This is your LAST continuation for this message: the next stop will be allowed and the owner will have to answer. If the work is done, put DONE on the first line of ${goal_file}. If it is waiting on something outside this machine, put BLOCKED: <reason> there. Do not simply stop and leave it open."
+This is your LAST continuation for this message: the next stop will be allowed and the owner will have to answer. If the work is done, put DONE on the first line of ${goal_file}. If it is waiting on something outside this machine, arm a watcher and put BLOCKED: <reason> WATCH=<pid> there. If a question is holding you, escalate it to an arbiter model now. Do not simply stop and leave it open."
 fi
 
 if [ -n "${dead_watcher:-}" ]; then
 	reason_head="Your goal file claims BLOCKED with WATCH=${dead_watcher}, but that watcher process is NOT running. Nothing will wake you, so waiting is not an option -- re-arm the watcher or do the work now."
+elif [ -n "${bare_blocked:-}" ]; then
+	reason_head="Your goal file claims BLOCKED (${bare_blocked}) but names no watcher, so nothing will wake you and nobody is coming to answer. Blocked is not a reason to stop: escalate the question to an arbiter model now, or, if you are waiting on outside work, arm a watcher and name it with WATCH=<pid>."
 else
 	reason_head="You are stopping with an active goal still open. Do not end the turn on a status report."
 fi
 
-# The consent bullet is the one line of the refusal that changes with what the
-# owner already granted. Blanket consent retires it; a named list narrows it to
-# everything NOT on that list; no consent leaves it as it was.
+# Consent is echoed, never offered as a reason to stop. The owner retired that
+# reason: an irreversible act inside the goal is authorized by the goal.
 consent_note=""
-consent_bullet="
-  - you need consent for an irreversible act (push, merge, deploy, delete, data mutation, anything outward-facing)"
 if [ -n "${consent}" ]; then
 	printf 'goal-continue: consent honoured, not asking again for: %s\n' \
 		"${consent}" >&2
@@ -434,32 +443,6 @@ if [ -n "${consent}" ]; then
 
 OWNER CONSENT ALREADY GRANTED for: ${consent}
 Do those yourself now. Stopping to ask again for something on that list is not a valid stop -- the owner already answered."
-	# Whole tokens, split on commas. A substring test read `install deps` as
-	# blanket consent -- it contains "all" -- and silently retired the entire
-	# irreversible-act stop reason, delete and deploy included. So do "call",
-	# "allow", "fallback" and "recall".
-	consent_blanket=0
-	consent_ifs="${IFS-}"
-	IFS=','
-	# Globbing off around the split: the token being tested for is `*`, and an
-	# unquoted expansion of it would be replaced by the filenames in the
-	# working directory before the comparison ever ran.
-	set -f
-	for consent_tok in ${consent}; do
-		consent_tok="$(printf '%s' "${consent_tok}" |
-			tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-		case "${consent_tok}" in
-			all|'*') consent_blanket=1 ;;
-		esac
-	done
-	set +f
-	IFS="${consent_ifs}"
-	if [ "${consent_blanket}" -eq 1 ]; then
-		consent_bullet=""
-	else
-		consent_bullet="
-  - you need consent for an irreversible act NOT on the granted list above"
-	fi
 fi
 
 reason="${reason_head}
@@ -467,11 +450,11 @@ reason="${reason_head}
 ACTIVE GOAL (${goal_file}):
 ${goal}${consent_note}
 
-Continue it now. Take the next concrete action yourself rather than describing what could be done, and do not ask the owner a question that the code, a local doc, or a cheap experiment can settle.
+Continue it now. Take the next concrete action yourself rather than describing what could be done. Do not ask the owner and do not stop on a question: if the code, a local doc, or a cheap experiment cannot settle it, escalate it to an arbiter model (the Agent tool, deepest research tier available) with the raw observations rather than your hypothesis, then act on its verdict.
 
 Stop for real only when one of these is true, and say which:
-  - the goal is met -- then put DONE on the first line of ${goal_file}${consent_bullet}
-  - you are blocked on something no action of yours can clear -- name it exactly
+  - the goal is met -- then put DONE on the first line of ${goal_file}
+  - you are waiting on outside work with a live watcher that will wake you -- put BLOCKED: <reason> WATCH=<pid> on the first line
 
 Continuations left for this message: ${remaining}.${final_warning}"
 

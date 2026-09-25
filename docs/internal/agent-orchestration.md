@@ -34,12 +34,14 @@ the codebase.
 | Layer | Artifact | Property |
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
-| **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
+| **Shared brain** | `AGENTS.md`, `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
 | **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
-Claude reads `CLAUDE.md`; Codex and opencode read `AGENTS.md` (plus opencode's
-`instructions` array); per-directory `AGENTS.md` files scope rules for Codex.
+Claude Code, Codex, and opencode all read `AGENTS.md` (plus opencode's
+`instructions` array); per-directory `AGENTS.md` files scope rules for Codex
+and for Claude Code. There is no `CLAUDE.md`: it would make Claude read it
+instead of every `AGENTS.md`, and `scripts/verify-agent-canon.sh` refuses one.
 Skills are symlinked into `.claude/skills/` and `.codex/skills/`, pointed at
 by opencode's `skills.paths`, and discovered directly by Muse from `.agents/skills/`.
 
@@ -383,7 +385,7 @@ OpenCode Git-policy contradictions. The mandatory independent
 
 ## Where rules live
 
-Rules live **once**, in `AGENTS.md` (mirrored byte-identical to `CLAUDE.md`).
+Rules live **once**, in `AGENTS.md`.
 Agent files do **not** restate the rulebook — that is the drift hazard, and it
 multiplies with every new agent.
 
@@ -395,7 +397,7 @@ There is one deliberate exception, governed by a single rule:
 CI already hammers `rg`-not-`grep`, the 500-line cap, formatting, tests, root
 canon, skill discovery, and attribution, so those need no inline repetition.
 Push target/transport, worktree discipline, external writes, and
-ask-when-unclear remain worth inlining because a wrong action happens before
+escalate-when-unclear remain worth inlining because a wrong action happens before
 CI can reject it.
 
 The same test decides what belongs in a harness hook. A hook fires on an action,
@@ -418,7 +420,7 @@ for a branch that has already survived design review. The order is:
    severity-table category.
 3. Capture a `ci-gates review-attest` receipt for the clean preliminary review.
 4. Only when the branch is otherwise ready to push, run `make pre-push` once
-   (add `make pre-pr` for the risky change classes in CLAUDE.md).
+   (add `make pre-pr` for the risky change classes in `AGENTS.md`).
 5. Verify the receipt against the exact post-preflight inputs. A match replaces
    a duplicate full semantic review. Any changed base, diff, worktree, claims,
    packet, or verdict invalidates it and restarts the affected proof and review.
@@ -445,7 +447,8 @@ brain and the same gate floor:
   shims. Tracked shims do not pin personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
   `.codex/agents/*.toml`, `.codex/hooks.json`.
-- **Claude Code** — `CLAUDE.md`, `.claude/skills/`, `.claude/agents/*.md`.
+- **Claude Code** — root + per-directory `AGENTS.md`, `.claude/skills/`,
+  `.claude/agents/*.md`.
 - **Muse Code** — `AGENTS.md`, project skills in `.agents/skills/`, and
   `python3 scripts/agent-roles.py muse-exec ROLE 'task'` for model and permission
   routing. `--dry-run` prints the resolved invocation without starting a model.

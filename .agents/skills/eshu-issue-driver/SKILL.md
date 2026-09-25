@@ -20,7 +20,7 @@ affected flow, then present a numbered execution order.
 
 Read-only exploration may proceed within the authorized scope. Continue to
 implementation when scope and acceptance criteria are clear and already
-authorized; ask only for unresolved decisions or work outside that scope.
+authorized; take unresolved decisions to an arbiter model instead of asking.
 Do not introduce a second plan approval after the user has authorized the work.
 Check open PRs and recent commits for the same root cause before claiming a leaf.
 Respect existing ownership; do not take over an active peer PR without assignment.

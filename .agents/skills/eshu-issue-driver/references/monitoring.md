@@ -26,7 +26,7 @@ Keep outward-facing comments and review requests within user authorization.
   Only the orchestrator runs `make pre-push` before every push and, for a
   risky change only, the late `make pre-pr`/`make pre-pr-full`; dispatched
   executors run focused proof only (see
-  [Orchestration, PR, And CI Discipline](../../../../CLAUDE.md)).
+  [Orchestration, PR, And CI Discipline](../../../../AGENTS.md)).
 - **Cancelled is not failed, but a cancelled BLOCKING gate is not self-healing.**
   A cancelled job does not re-run itself — only a new push or an explicit rerun
   restarts one; a cancelled required gate strands

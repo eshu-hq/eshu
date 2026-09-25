@@ -203,9 +203,15 @@ func TestRepositoryDocumentationStandardsAreEnforced(t *testing.T) {
 	}
 
 	agents := readRepositoryFile(t, root, "AGENTS.md")
-	claude := readRepositoryFile(t, root, "CLAUDE.md")
-	if agents != claude {
-		t.Fatal("AGENTS.md and CLAUDE.md diverged; agent standards must stay in lockstep")
+	// AGENTS.md is the only root canon. Claude Code reads it natively, and a
+	// root CLAUDE.md would make Claude read that file instead, hiding every
+	// scoped AGENTS.md under go/.
+	for _, shadow := range []string{"CLAUDE.md", filepath.Join(".claude", "CLAUDE.md")} {
+		if _, err := os.Stat(filepath.Join(root, shadow)); err == nil {
+			t.Fatalf("%s exists; AGENTS.md is the only agent canon and %s hides it from Claude Code", shadow, shadow)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat %s: %v", shadow, err)
+		}
 	}
 	// Match on the substantive clause, not the sentence-initial verb. These
 	// rules get restated as obligations over time ("Document every ..." becomes

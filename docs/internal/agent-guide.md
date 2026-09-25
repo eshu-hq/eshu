@@ -1,7 +1,7 @@
 # Agent Engineering Guide
 
-This maintainer-only guide expands the mandatory root `AGENTS.md` and
-`CLAUDE.md` rules. Keep root guidance mirrored; put detailed workflow guidance
+This maintainer-only guide expands the mandatory root `AGENTS.md` rules, the
+only root canon (there is no `CLAUDE.md`). Put detailed workflow guidance
 here or in scoped package docs.
 
 The rules for a touched surface are mandatory. Read the relevant sections when
@@ -180,7 +180,7 @@ historical incidents.
 
 ### Prove The Theory First
 
-The root `AGENTS.md`/`CLAUDE.md` mandates proving a performance or behavior
+The root `AGENTS.md` mandates proving a performance or behavior
 theory with the cheapest possible shim, against representative data, BEFORE
 writing the real change or dispatching an executor to build it — see that
 gate's text for scope (hot-path Cypher/graph writes, Postgres SQL, schema
@@ -274,14 +274,14 @@ full-package build caught it.
 ### Delegate An Undecided Design, Do Not Escalate It
 
 Establish ownership, design intent, performance contract, and verification
-requirements from the task and available evidence. Ask if those remain
-unsettled; dispatching another agent cannot authorize an unowned decision.
+requirements from the task and available evidence. What evidence cannot settle,
+including a product or business trade-off, goes to an arbiter model (the
+deepest research tier per [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools)),
+not to the owner. Act on its verdict and record it in the goal file or PR.
 
-Once those are settled, remaining technical uncertainty is a research task.
-Investigate directly or use a bounded specialist when independent reasoning
-would help resolve contradictory evidence. Select capability through the active
-runtime per [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools).
-Product and business trade-offs that evidence cannot settle go to the owner.
+Remaining technical uncertainty is a research task. Investigate directly or use
+a bounded specialist when independent reasoning would help resolve
+contradictory evidence.
 
 Give it the symptom and raw observations, never your hypothesis. Twice in one
 session a Deep-tier investigation rejected the framing it was handed and found

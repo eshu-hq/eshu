@@ -112,7 +112,7 @@ worked good/bad evidence text is in
 - Batch rows with `UNWIND $rows AS row`; keep batch size tied to transaction and lock behavior.
 - Watch chunk duration slope as the graph grows. Stable batch size with rising duration often means lookup or relationship-existence checks are scanning despite an indexed-looking Cypher shape.
 - Make retries safe through idempotent keys and deterministic relationship identity — see root
-  [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+  [Serialization Is Not A Fix](../../../AGENTS.md#serialization-is-not-a-fix)
   before reaching for fewer workers or smaller batches.
 - Avoid writing from a broad read result unless the read side is bounded and measured.
 - Verify duplicate input rows do not create duplicate relationships or excess writes.
@@ -124,4 +124,4 @@ patching contract: [backend-notes.md](references/backend-notes.md).
 
 ## Response Discipline
 
-When proposing or implementing Cypher, include the intended anchor, expected cardinality, required index or constraint, backend-specific concern, and verification plan. If any of those are unknown and materially affect correctness or performance, stop and ask instead of guessing.
+When proposing or implementing Cypher, include the intended anchor, expected cardinality, required index or constraint, backend-specific concern, and verification plan. If any of those are unknown and materially affect correctness or performance, measure them (`PROFILE`/`EXPLAIN`, a scratch query) or escalate to an arbiter model instead of guessing.

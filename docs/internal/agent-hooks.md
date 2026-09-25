@@ -146,10 +146,11 @@ remembered the rule.
 It reads `.claude/active-goal.<session_id>` (or `$CLAUDE_GOAL_FILE`, the shared
 `.claude/active-goal`, or `~/.claude/active-goal`) and, if that file names
 unfinished work, returns
-`{"decision":"block","reason":...}` with the goal text and the legitimate
-reasons to stop: the goal is met, an irreversible act needs consent the owner
-has not already given, or the work is blocked on something no local action
-clears. Under blanket consent the middle one is dropped and two remain.
+`{"decision":"block","reason":...}` with the goal text and the only two
+legitimate reasons to stop: the goal is met, or the work is waiting on outside
+work behind a live watcher. A question the agent cannot settle is not one: the
+refusal tells it to escalate to an arbiter model and act on the verdict. The
+owner retired "an irreversible act needs consent" as a stop reason outright.
 
 The design problem is that **the agent writes the goal file**. Every escape has
 to survive that:
@@ -157,11 +158,11 @@ to survive that:
 | Escape | Why it is safe to trust |
 |---|---|
 | `DONE` on the first line | Checkable against the work itself. |
-| `BLOCKED: <reason>` | The reason is echoed to stderr, so the owner reads the exact claim rather than only seeing the turn end. |
 | `BLOCKED: … WATCH=<pid>` | The hook verifies the process is alive. **A dead watcher REFUSES the stop** — nothing would wake the agent, so waiting is the bug rather than the excuse. |
+| `BLOCKED: <reason>`, no `WATCH` | **Refused.** "Blocked" was where agents parked a hard question overnight; the refusal sends it to an arbiter model. The claim is still echoed to stderr. |
 | `CLAUDE_GOAL_OFF=1` | Owner-side, not agent-side. |
 | budget | A bounded number of NO-PROGRESS continuations per `prompt_id` (`CLAUDE_GOAL_MAX_NUDGES`, default 3). Real work resets it, so only stops that made no tool calls spend it. A new owner message resets it too. |
-| `CONSENT: <acts>` | Not an escape — it does not end a turn. It removes "I need consent for that" as a reason to stop, for the acts it names. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
+| `CONSENT: <acts>` | Not an escape — it does not end a turn. It records a grant so the refusal can repeat it. Nothing verifies who wrote it, which is why every honoured grant is echoed to stderr with its acts. |
 
 ### Consent the owner already gave
 
@@ -182,16 +183,10 @@ file belongs to another session, and when it resolves to the machine-wide
 concurrent session in every other worktree. A consent that silently goes
 nowhere is the very loop this feature closes. Both hooks read it: the refusal and the
 per-turn restatement each name the granted acts and say that asking again for
-one of them is not a reason to stop. `CONSENT: all` retires the bullet
-outright; a named list narrows it to everything not on the list.
-
-Blanket is a whole token, split on commas — `all` or `*`, not a substring. The
-first version tested `case … in *all*`, which read `CONSENT: install deps` as
-blanket consent and silently retired the entire irreversible-act stop reason,
-delete and deploy included. `call`, `allow`, `fallback` and `recall` all did
-the same. Leading whitespace is stripped on both sides, because the producer
-used `.lstrip()` and the consumer did not, and one indented line meant two
-different things to the two halves of the same feature.
+one of them is not a reason to stop. Consent no longer narrows any stop reason
+— the owner retired the irreversible-act reason, so irreversible acts go to an
+arbiter model's review instead of the owner. Leading whitespace is stripped on
+both sides, because the producer used `.lstrip()` and the consumer did not.
 
 Be exact about what this is. The agent writes the goal file, so an agent can
 write itself a `CONSENT:` line, and **that line is not checked by anything** —
@@ -279,7 +274,7 @@ blocked once this turn", discarded — and that is the first place to look.
 When the budget does release a turn, the owner is about to be interrupted, so
 the hook says why on stderr and names the two escapes that would have avoided
 it. The last continuation warns as well, giving the agent one chance to write
-`DONE` or `BLOCKED: <reason>` itself. Most releases happen because an agent
+`DONE` or `BLOCKED: <reason> WATCH=<pid>` itself. Most releases happen because an agent
 that is finished, or waiting, never says so — and the owner pays for that.
 
 ### The two hooks must decide alike

@@ -18,7 +18,7 @@ turn after context compaction.
    another agent's active surface. The GitHub account is shared, so
    `--author` proves nothing about who is driving a PR. Ownership evidence is a
    local worktree and branch you can point at. If the only evidence is a remote
-   branch, treat the tree as live and ask before editing it.
+   branch, treat the tree as live and do not edit it; start your own worktree.
 
 3. **Refresh the base before continuing work.** Fetch and compare the intended
    base with the current branch. Inspect the handoff and working tree before
