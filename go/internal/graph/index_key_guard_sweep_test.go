@@ -41,6 +41,11 @@ var sweepAllow = []struct{ file, contains, reason string }{
 		contains: "SET r:TerraformStateResource REMOVE r:TerraformResource",
 		reason:   "a label migration: it moves an existing node between labels and writes no property value, so there is no new indexed value to measure",
 	},
+	{
+		file:     "internal/storage/cypher/canonical_rationale_edges.go",
+		contains: "MERGE (rationale:Rationale {uid: row.rationale_uid})",
+		reason:   "a multi-part template: the UNWIND row binding lives in a sibling string part, so the sweep reads this fragment without row context; the executed whole statement analyzes clean and runtime measurement sees real rows",
+	},
 }
 
 var (
