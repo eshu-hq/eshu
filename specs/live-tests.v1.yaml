@@ -341,6 +341,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_fingerprint_metadata_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost (~60s, dominated by disposable-database migrations) — promote to blocking with timing evidence
   - file: go/internal/query/documentation_finding_aggregate_plan_live_test.go
     tag: ~
     class: scheduled
