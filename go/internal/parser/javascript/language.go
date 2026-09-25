@@ -255,6 +255,15 @@ func Parse(
 				annotateJavaScriptResolvedImport(item, tsConfigImports)
 				appendBucket(payload, "imports", item)
 			}
+			for _, item := range exportImportEqualsEntries(node, parents, source, outputLanguage) {
+				annotateJavaScriptResolvedImport(item, tsConfigImports)
+				appendBucket(payload, "imports", item)
+			}
+		case "labeled_statement", "ERROR":
+			for _, item := range syntax.ReExportAttributeEntries(node, source, outputLanguage) {
+				annotateJavaScriptResolvedImport(item, tsConfigImports)
+				appendBucket(payload, "imports", item)
+			}
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
 			name := syntax.CallName(functionNode, source)

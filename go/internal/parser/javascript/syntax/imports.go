@@ -4,6 +4,7 @@
 package syntax
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -18,7 +19,10 @@ func ImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[str
 	sourceNode := node.ChildByFieldName("source")
 	moduleSource := strings.Trim(shared.NodeText(sourceNode, source), `"'`)
 	if strings.TrimSpace(moduleSource) == "" {
-		return nil
+		// TypeScript import-equals (`import x = require("./x")`) carries
+		// its specifier on the import_require_clause child instead of the
+		// statement's source field (issue #7059).
+		return importEqualsEntries(node, source, lang)
 	}
 
 	importNode := node.ChildByFieldName("import")
@@ -75,6 +79,75 @@ func ImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[str
 		})
 	}
 	return items
+}
+
+// importEqualsEntries returns the require row for a TypeScript import-equals
+// statement (`import x = require("./x")`). The grammar models the binding as
+// an import_require_clause child whose source field holds the specifier, so
+// this runs only when the statement itself has no source field. It returns
+// nil for the entity-name form (`import x = A.B`), which names a value rather
+// than a module and carries no string specifier.
+func importEqualsEntries(
+	node *tree_sitter.Node,
+	source []byte,
+	lang string,
+) []map[string]any {
+	if node == nil || node.Kind() != "import_statement" {
+		return nil
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "import_require_clause" {
+			continue
+		}
+		if item := importRequireClauseEntry(&child, source, lang); item != nil {
+			return []map[string]any{item}
+		}
+	}
+	return nil
+}
+
+// importRequireClauseEntry renders one import_require_clause
+// (`x = require("./x")`) as a require import row, mirroring the
+// `const x = require("./x")` row shape so downstream source-based consumers
+// treat both spellings of the same call identically.
+func importRequireClauseEntry(
+	clause *tree_sitter.Node,
+	source []byte,
+	lang string,
+) map[string]any {
+	sourceNode := clause.ChildByFieldName("source")
+	if sourceNode == nil || sourceNode.Kind() != "string" {
+		return nil
+	}
+	moduleSource := strings.Trim(strings.TrimSpace(shared.NodeText(sourceNode, source)), `"'`)
+	if moduleSource == "" {
+		return nil
+	}
+	var alias string
+	clauseCursor := clause.Walk()
+	defer clauseCursor.Close()
+	for _, child := range clause.NamedChildren(clauseCursor) {
+		child := child
+		if child.Kind() == "identifier" {
+			alias = strings.TrimSpace(shared.NodeText(&child, source))
+			break
+		}
+	}
+	if alias == "" {
+		return nil
+	}
+	return map[string]any{
+		"name":             "*",
+		"alias":            alias,
+		"source":           moduleSource,
+		"import_type":      "require",
+		"full_import_name": fmt.Sprintf("import %s = require(%q)", alias, moduleSource),
+		"line_number":      shared.NodeLine(clause),
+		"lang":             lang,
+	}
 }
 
 func importEntriesFromClause(
