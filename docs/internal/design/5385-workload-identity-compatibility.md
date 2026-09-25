@@ -42,11 +42,13 @@ break and no in-place rewrite. It is **not** honoured as no key change.
 **Options offered to the owner, as the arbiter framed them.**
 
 (a) **Re-key both nodes and keep `workload:<name>` as a resolved handle.**
-52 golden literals move (32 `"workload:` and 6 `"workload-instance:`
-occurrences in `testdata/golden/e2e-20repo-snapshot.json`, plus 14
-`"workload:` occurrences across 5 cassette files under `testdata/cassettes/`,
-counted with `rg -c` at `2ae147cf9`). This adds the handle ladder (1.4), an
-SDK minor bump (2.2), and a search reindex.
+52 golden `rg -c` matches at `2ae147cf9`, of which 51 move: 32 `"workload:`
+and 6 `"workload-instance:` occurrences in
+`testdata/golden/e2e-20repo-snapshot.json`, plus 14 `"workload:` occurrences
+across 5 cassette files under `testdata/cassettes/`, one of which is a
+`workload_object_id` value that keys a `KubernetesWorkload` and stays (2.1).
+This adds the handle ladder (1.4), an SDK minor bump (2.2), and a search
+reindex.
 
 (b) **Option D: the hub stays name-keyed and the instance becomes
 repo-owned.** About 6 literals move and there is no ladder, but the hub
@@ -63,7 +65,7 @@ nothing to connect. A third shape, name-only plus the query-time guards
 alone, moves 0 literals and repairs nothing at write time.
 
 **Recommendation and recorded decision: (a).** It deviates literally from
-rationale point 2 of the 2026-09-08 note (the 52-literal count), because (b)
+rationale point 2 of the 2026-09-08 note (51 of the 52 literals), because (b)
 deviates from point 3 and from the "per-repo Workload nodes" clause, and
 accuracy outranks compatibility. **Re-confirmed by the owner on 2026-09-25
 with Option D in view**, after the (b) column above was presented as written.
@@ -165,8 +167,13 @@ theory until measured: probe P2 in the migration doc runs `PROFILE` on the
 paired shape against the rejected one before the writer is built.
 
 **Concurrency.** Reducer claims are partitioned by scope (`scope_id` and
-`conflict_domain` on `fact_work_items`), so the workload materializer's only
-cross-scope `MERGE` is this one: two scopes materializing same-named
+`conflict_domain` on `fact_work_items`), so this is the workload
+materializer's second cross-scope `MERGE`. The first is
+`MERGE (p:Platform {id: row.platform_id})` (`batchRuntimePlatformNodeUpsertCypher`
+in `workload_materializer.go`), whose UNIQUE-conflict retry is already tested
+in `go/internal/storage/cypher/retrying_executor_platform_unique_test.go`
+(`TestRetryingExecutorConvergesConcurrentTypedPlatformCommitUniqueConflict`);
+`SAME_NAME` follows that precedent. Two scopes materializing same-named
 workloads concurrently can both attempt the same ordered pair. That is a
 commit-time UNIQUE conflict on a `MERGE`-shaped group, which
 `graphWriteRetryReasonUniqueConflict` in
@@ -252,7 +259,8 @@ emits it, and no collector needs to know it.
 | `vulnerability.suppression` | `workload_id`, nested in `Scope` beside `repository_id` (`suppression.go`) | Only when the scope also sets `repository_id` | `go/internal/reducer/supplychain/core/decode.go`; stored by `vulnerability_suppression_store.go` |
 | `reducer_supply_chain_impact_finding` (reducer-owned) | `workload_ids`, `repository_id` (`findings.go`) | Yes | search, MCP, console; the two GIN-indexed columns (migration doc §7) |
 | Envelope | `scope_id` (`envelope.go`) | Indirectly: a scope maps to one or more repositories via `ScopeRepositoryReader.ListScopeRepositoryIDs` (`go/internal/reducer/crossrepo/cross_repo_resolution_ownership.go`) | every handler |
-| `k8s_workload_identity_use` | `workload_object_id` | n/a | **not affected**: keys `KubernetesWorkload` by object uid, never `Workload.id` |
+| `documentation_entity_mention` | `candidate_refs[0].id` with kind `workload` (`sdk/go/factschema/documentation/v1/entity_mention.go`) | No: the id is whatever the extractor resolved; `go/internal/doctruth/extractor.go` builds it from a supplied known-entity catalog | `documentation_edge_materialization.go` → exact `MATCH (target:Workload {id: row.target_entity_id})` in `BatchCanonicalDocumentationWorkloadEdgeCypher`; after the re-key a handle-form id writes no edge, silently, unless routed through the ladder (migration doc §7) |
+| `k8s_workload_identity_use` | `workload_object_id` | n/a | **not affected**: keys `KubernetesWorkload` by object uid, never `Workload.id`. Its cassette literal `"workload_object_id": "workload:claim-honesty-demo"` (`testdata/cassettes/kuberneteslive/supply-chain-demo.json`) is the one `rg -c` match in the 52 that does not move |
 
 Nothing in-tree writes the AWS or service-catalog `workload_id` today (key doc
 §6a), so the real-world population of legacy handles is unknown from inside
@@ -344,6 +352,7 @@ doc T3):
 | `vulnerability.suppression.Scope.workload_id` | applies to that node's findings | applies | **does not apply** to either; a suppression must never silence findings in another tenant; counted |
 | `service_catalog.repository_link` / `entity` `workload_id` | links that node | links | no link; `workload_handle_ambiguous` |
 | AWS `workload_id` / `workload_ids` | `USES` edge to that node's instances | edge | no edge; `workload_handle_ambiguous` |
+| documentation `candidate_refs[0].id` | `DOCUMENTS` edge to that node | edge | no edge; `workload_handle_ambiguous` |
 
 A new collector emitting the full id resolves at rung 1 and is unaffected by
 any name coincidence.
@@ -391,7 +400,7 @@ arbiter check that confirmed D1–D3, kept D4 with a corrected justification
 
 | # | Decision | Rationale retained |
 | --- | --- | --- |
-| D1 | **Option (a): re-key both nodes with a readable composite; keep `workload:<name>` as a resolved handle.** Rejected: option (b) Option D / `WorkloadGroup`; name-only plus query guards. Re-confirmed 2026-09-25 with Option D in view. | Section 0. There is no per-repo node without a per-repo key; (b) leaves the hub a permanent cross-tenant edge surface with last-writer properties and permanent family-5 under-authorization; accuracy outranks compatibility, so the 52-literal deviation from rationale point 2 is accepted. |
+| D1 | **Option (a): re-key both nodes with a readable composite; keep `workload:<name>` as a resolved handle.** Rejected: option (b) Option D / `WorkloadGroup`; name-only plus query guards. Re-confirmed 2026-09-25 with Option D in view. | Section 0. There is no per-repo node without a per-repo key; (b) leaves the hub a permanent cross-tenant edge surface with last-writer properties and permanent family-5 under-authorization; accuracy outranks compatibility, so the 51-literal deviation from rationale point 2 is accepted. |
 | D1a | Readable composite, not an opaque digest. | Section 1.1: ids appear in URLs and responses; no fixed-segment parser exists; parsing is prohibited and a colon in a name or environment is rejected and counted. |
 | D2 | **Hide an ungranted `SAME_NAME` sibling, not even a count.** | Section 1.3: cross-tenant existence is itself a leak; `/catalog` counts admitted siblings only. |
 | D3 | **Fail closed on an ambiguous legacy handle**, everywhere: an ambiguous API response with candidate `repo_id`s; `workload_handle_ambiguous` in the reducer. Never last-writer, never highest-confidence. | Sections 1.4 and 2.3. The coupling — handles work only while the name is unique — is the intended price. |
@@ -399,6 +408,7 @@ arbiter check that confirmed D1–D3, kept D4 with a corrected justification
 | Q5 (recorded, owner may revise on the PR) | SDK change is a **Minor** bump: additive optional `workload_repository_id`, widened `workload_id` value set, legacy handles still accepted; `workload_ids` Minor with the 2.2 justification. Two requirements ride with it: the repo-scoped fixture is the **primary** valid fixture and the SDK doc comment marks handle-only as legacy (2.4); the reducer's `ambiguous` outcome is **alertable**, with the handle and candidate `repo_id`s logged, not only counted (2.3). | Refusing legacy handles would be Major with a shim and would break collectors that are correct today. Ambiguity couples tenants only for non-repository scopes with handle-only facts (1.4). |
 | Q7 (recorded, owner may revise on the PR) | `reducer_workload_identity` `entity_keys` stay legacy-keyed in Postgres; the graph handle is derived at repo-aware read/output seams, with identity-only fallback and supply-chain normalization changing in the same stack. | Already recorded on the issue; a Postgres rewrite buys nothing the seam derivation does not. |
 | Q8 (recorded, owner may revise on the PR) | `Workload.repo_id` stays authoritative for ownership. | Single-owner by construction after the flip; makes the #5384 direct-ownership family exact and lets the `DEFINES`-collision family retire later. |
+| Colon rejection (recorded, owner may revise on the PR) | A workload name or environment containing `:` is rejected at the constructor and counted under `colon_in_name` / `colon_in_environment` (1.1); the row is dropped, never re-encoded. | Nothing parses the key, but colon-free segments keep the readable composite unambiguous to a human reader. Observed population is 0 of 12 names and 0 of 22 fixture directories at `2ae147cf9`. The owner has not answered this point on the issue, so it is the design's recommendation, recorded here so the PR review can overturn it. |
 
 ## 4. What was checked for this document
 

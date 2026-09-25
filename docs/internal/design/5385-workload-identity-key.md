@@ -1452,7 +1452,7 @@ schema-risk change with cassette and B-12 impact.
 | Query-plan gate | `fetchWorkloadRuntimeTopology` is pinned by `source_sha256` with `WorkloadInstance.workload_id` as a required anchor and a retained 75x-regression caveat. Re-proving it is **not** trivial and was unpriced until now. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
 | RUNS_ON scoping | Small once the key is decided; cannot land before it. |
-| Golden regeneration | 39 identifier values across the snapshot and one cassette, plus 7 prose mentions a human updates. |
+| Golden regeneration | 52 `rg -c` matches, 51 of which move, across the snapshot and five cassettes (migration doc §7), plus 7 prose mentions a human updates. |
 | Retract/rebuild proof | Live replay-tier retract coverage per edge family. Moderate. |
 | Collision telemetry | Small. |
 | Consumer breakage | **The largest item.** Public API path/body params, MCP selectors, the Console's bookmarkable URLs, persisted search handles, and provider-asserted ids in the SDK fact contract. Section 6a. |
@@ -1482,7 +1482,7 @@ now rather than later, and `WorkloadCandidate.RepoID` as the key (#6179);
 question 3 was answered on the issue afterwards. A later owner note
 (2026-09-08) added explicit `SAME_NAME` correlation edges and asked for no
 identity migration; the companion document reconciles that note with the
-per-repo key this design proposes and carries the remaining owner questions.
+per-repo key this design proposes; its §3 records D1–D4, so none stay open.
 
 `mutations.go` has since been deleted from the tree, so section 2's account of
 it is historical. No production code has been written for this issue.

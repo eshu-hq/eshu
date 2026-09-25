@@ -45,18 +45,74 @@ the workload id, and **no Endpoint retract exists** — an endpoint left behind
 under the old digest would be an orphan that nothing ever reaps. `SAME_NAME`
 edges need no entry: they are removed with their endpoints.
 
-**Cascade on repository cleanup.** Two Cypher templates remove a repository
-node, both dispatched from `canonical_node_writer_phases.go`:
-`canonicalNodeRepositoryIDCleanupCypher` (lookup by id) and
-`canonicalNodeRepositoryPathCleanupCypher` (lookup by path where the id
-differs — the shape a rename or re-onboarding produces, because
-`CanonicalRepositoryID` mints a **new** `repo_id` for the new identity). Under
-per-repo keys, both must also `DETACH DELETE` the `Workload`,
-`WorkloadInstance`, and `Endpoint` nodes whose `repo_id` matches the removed
-repository; otherwise a rename leaves a full set of orphaned per-repo nodes
-under the retired id, with their `SAME_NAME` edges still pointing at live
-nodes. Today's shared node survives repository cleanup on purpose; tomorrow's
-owned nodes must not.
+**Every production writer anchored on `:Endpoint`** (the §4 search, filtered
+to `Endpoint`): the node `MERGE` and both `EXPOSES_ENDPOINT` templates in
+`go/internal/reducer/workload_materializer.go` (workload materialization), and
+`BatchCanonicalHandlesRouteEdgeUpsertCypher` in
+`go/internal/storage/cypher/canonical_handles_route_edges.go`, which `MATCH`es
+`(e:Endpoint {repo_id: row.repo_id, path: row.path})` and is dispatched by the
+`handles_route` domain from
+`go/internal/reducer/code/call/materialization/routes.go`. `HANDLES_ROUTE` is
+anchored by `(repo_id, path)`, not by the id that moves, so it is deleted with
+the node and comes back only if `handles_route` is re-enqueued; it is row 2 of
+§4. The Postgres presence rows that gate it and `runs_in`
+(`graph_endpoint_presence` keyspaces `api_endpoint_repo_path` and
+`repo_workload`, keyed by `(repo_id, path)` and by `repo_id`) do not move and
+survive the wipe; the #6184 write-target probe in
+`go/internal/storage/cypher/edge/writer/unroutable.go` defers a batch whose
+node is absent instead of completing it, so between steps 5 and 7 those edges
+are deferred, not lost. Every other `:Endpoint` pattern in production Go is a
+query reader (`go/internal/query/codequery/route_handlers.go`, `outlier.go`,
+`repository/api_surface.go`, `impact/contract.go`) and is consumer impact, not
+a writer.
+
+**Cascade on repository cleanup — scoped to retirement, never to
+regeneration.** `buildRepositoryCleanupStatements`
+(`go/internal/storage/cypher/canonical_node_writer_phases.go`) dispatches two
+templates on **every** generation of an existing repository that is neither
+`FirstGeneration` nor `DeltaProjection`:
+`canonicalNodeRepositoryIDCleanupCypher` (`MATCH (r:Repository {id: $repo_id})
+DETACH DELETE r`) and `canonicalNodeRepositoryPathCleanupCypher`
+(`MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id DETACH DELETE r`).
+The id template is the ordinary regeneration path: it drops the repository
+node, the upsert that follows recreates it, and the generation's own phases
+and domains rewrite its edges. Cascading there would delete the repository's
+`Workload`, `WorkloadInstance`, and `Endpoint` nodes on every regeneration,
+and with them every edge written by a domain that does not re-run for that
+generation — `USES` from an AWS scope, `DOCUMENTS` from a documentation scope —
+until that scope happened to re-materialize. That is a loss, not cleanup, so
+the id template stays as it is.
+
+Only the path template knows a retired identity: the `r.id` values it matches
+belong to a repository whose path was re-onboarded under a new `repo_id`
+(`CanonicalRepositoryID` mints a new one for the new identity), which is the
+rename case. The cascade runs on that condition and nothing else, as a read
+followed by a delete so it never depends on cross-statement read-your-writes
+inside one phase: first `MATCH (r:Repository {path: $path}) WHERE r.id <>
+$repo_id RETURN r.id`, then, for each of the three labels,
+`UNWIND $retired_ids AS rid MATCH (n:<Label> {repo_id: rid}) DETACH DELETE n`.
+`Workload.repo_id` and `WorkloadInstance.repo_id` are indexed
+(`workload_repo_id`, `workload_instance_repo_id` in
+`go/internal/graph/schema_tables_indexes.go`); `Endpoint` has only its `id`
+index, so the `Endpoint` leg is a label scan until an `Endpoint.repo_id` index
+is measured under probe P3. A repository dropped from its scope without a path
+conflict has no projector signal today (`rg -i 'repositor(y|ies)[_ ]?(removed|
+retired|retire|deleted)'` over `go/internal/projector`, `go/internal/reducer`,
+and `go/internal/storage/cypher` matches nothing); its owned nodes stay, as the
+shared node stays today, and an explicit removal signal is a follow-up on the
+issue, not part of this cutover. Without the cascade a rename would leave a
+full set of orphaned per-repo nodes under the retired id, with their
+`SAME_NAME` edges still pointing at live nodes.
+
+The cascade cannot land under the old key. With a name-only id a colliding
+workload is one shared node whose `repo_id` is the last writer's, so a
+`repo_id`-scoped delete would remove the other repository's node — the
+`mutations.go` hazard the issue already retracted. It therefore ships in step
+6 with the constructors, in the same binary, and never runs while the old key
+is emitted. Replaying the affected domains per generation instead was
+rejected: claims are partitioned by scope, so a repository's generation cannot
+re-enqueue another scope's `USES` or `DOCUMENTS` writer without a new
+cross-scope enqueue mechanism, and the retirement-scoped cascade needs none.
 
 ## 3. Ordered cutover (Decision D4: one-shot, drained)
 
@@ -74,14 +130,21 @@ current pin.
 1. **Land the code with the old key still emitted**: handle ladder in query
    and MCP, `SAME_NAME` writer, `scope_id`/`generation_id` stamps, the SDK
    minor bump with fixtures, the reducer resolution step and the
-   `workload_handle_ambiguous` skip, telemetry (§8), the read-side
-   conversions, and the repository-cleanup cascade. What this step can prove:
+   `workload_handle_ambiguous` skip, telemetry (§8), and the read-side
+   conversions. The repository-cleanup cascade is **not** in this step: under
+   the old key it would delete a colliding sibling (§2). What this step can prove:
    the collision detectors, because a two-repository Odù under the old key
    still produces one node and the counters fire. What it **cannot** prove:
    the `SAME_NAME` writer and the handle ladder, because under the old key
    there is only one node with a name. Those are proved in step 9.
-2. **Hold claims** for every domain in §4 (the reducer's claim SQL is
-   partitioned by domain, so this is a per-domain pause, not a global stop).
+2. **Hold claims** for every domain in §4. The mechanism is lane
+   reconfiguration, not a pause switch: `ESHU_REDUCER_CLAIM_DOMAINS`
+   (`loadReducerClaimDomains` in `go/cmd/reducer/config.go`) sets
+   `ReducerQueue.ClaimDomains`, an **include-list** that `claimDomainFilters`
+   (`go/internal/storage/postgres/reducer_queue_helpers.go`) applies to the
+   claim SQL, and a lane with it unset claims every domain. Holding means
+   restarting every reducer lane with an explicit list that omits the §4
+   domains; releasing, in step 7, means restoring the list.
 3. **Drain** in-flight work for those domains, including the service-catalog
    runtime domain, whose `service_evidence_key` embeds the instance id.
    **Read outage note:** while drained and until step 8 completes, every
@@ -101,12 +164,17 @@ current pin.
    Not by old id — an edge that escaped an id-anchored delete would stay
    forever. Verify with a settled count read (the ledger rows record the
    stale-read trap on this backend).
-6. **Flip the constructors** in `go/internal/workloadid` and roll the binary;
-   update the pinned-format tests deliberately. This is the only irreversible
-   edit in the sequence, and it is a code roll.
+6. **Flip the constructors** in `go/internal/workloadid` and roll the binary,
+   with the retirement-scoped repository-cleanup cascade (§2) in the same roll
+   so it never executes under the old key; update the pinned-format tests
+   deliberately. This is the only irreversible edit in the sequence, and it is
+   a code roll.
 7. **Re-enqueue every domain in §4** for every scope, in the order given
    there, so each edge writer finds its new anchor. Old-shape ids never
-   coexist with new-shape ids in the graph.
+   coexist with new-shape ids in the graph. The `handles_route` and `runs_in`
+   presence rows survived step 5, so their batches are held by the #6184
+   probe until workload materialization has recommitted the nodes (§2); that
+   is why that domain is first.
 8. **Regenerate the golden artifacts** (§7), re-prove the
    `FetchWorkloadRuntimeTopology` plan pin (probe P4), and reindex search.
 9. **Run the two-repository Odù against the new key** (probe P5): counters at
@@ -114,42 +182,66 @@ current pin.
    pre-cutover baseline on the collision-free corpus.
 
 **Rollback.** Roll the old binary and re-enqueue the same domains: the old key
-regenerates the old nodes and edges from facts, and the Postgres rows retired
-in step 4 regenerate from the same facts. The delete in step 5 is not the
-point of no return; facts are. Rollback after step 8 additionally reverts the
-golden regeneration and the search reindex.
+regenerates the old nodes and edges from facts. Of the Postgres rows retired
+in step 4, `service_evidence_key` rows **regenerate** from facts when the
+service-catalog runtime domain re-runs; the search handles do not regenerate
+from any §4 domain — `eshu_search_index_documents` is **reindexed** by
+re-enqueuing `eshu_search_document` (§4 row 10), the same reindex as step 8,
+under the old binary. The delete in step 5 is not the point of no return;
+facts are. Rollback after step 8 additionally reverts the golden regeneration.
 
-Steps 1 is its own PR; 2–9 are one PR with one operator runbook and one stated
+Step 1 is its own PR; 2–9 are one PR with one operator runbook and one stated
 time bound.
 
 ## 4. Writers to re-enqueue, and the per-family count assertion
 
-The delete set (§2) and the re-enqueue set are derived from the 14 production
-files that anchor a `MATCH` on `:Workload` or `:WorkloadInstance` at
-`2ae147cf9`, grouped by the reducer domain that dispatches them, in
-re-enqueue order:
+The delete set (§2) and the re-enqueue set are derived from the production
+files whose Cypher binds a `Workload`, `WorkloadInstance`, or `Endpoint` node
+pattern, at `2ae147cf9`:
 
-| Order | Domain | Anchoring files | Families |
+```sh
+rg -l --type go -g '!*_test.go' -g '!go/internal/query/**' \
+  -g '!go/internal/backendconformance/**' \
+  -e '^\s*(UNWIND .*)?(OPTIONAL )?(MATCH|MERGE) .*\(\w*:(Workload|WorkloadInstance|Endpoint)\b' \
+  go/internal go/cmd
+```
+
+It lists 14 files. `go/internal/query` is excluded because its readers are
+consumers (§7), and `backendconformance` because it is a test corpus. Two
+readers build their pattern with `fmt.Sprintf` and are outside the search, so
+they are named by hand: the #6184 write-target probe in
+`go/internal/storage/cypher/edge/writer/unroutable.go` and the Ifá gate in row
+7. The files group by the reducer domain that dispatches them
+(`go/internal/reducer/contract/domain.go` constant values), in re-enqueue
+order:
+
+| Order | Domain | Files from the search | Families |
 | --- | --- | --- | --- |
-| 1 | workload materialization | `go/internal/reducer/workload_materializer.go`, `workload_materialization_repo_phase.go`, `workload_materializer_retract_instances.go`, `go/internal/storage/cypher/canonical.go` | `DEFINES`, `INSTANCE_OF`, `EXPOSES_ENDPOINT`, `DEPLOYMENT_SOURCE`, `DEPENDS_ON`, `SAME_NAME` |
-| 2 | repo dependency / `RUNS_ON` | `go/internal/storage/cypher/canonical_relationships.go`, `go/internal/storage/cypher/edge/writer/unroutable.go` | `RUNS_ON` |
-| 3 | `DomainRunsIn` | `go/internal/storage/cypher/canonical_runs_in_edges.go` | `RUNS_IN` |
-| 4 | `DomainDocumentationMaterialization` | `go/internal/storage/cypher/canonical_documentation_edges.go` | `DOCUMENTS` |
-| 5 | cloud `USES` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go`, `go/internal/reducer/workloadinstance/lookup.go`, `go/internal/ifa/materializededges/workload_cloud_relationship.go` (gate) | `USES` |
-| 6 | service-catalog runtime | `go/internal/reducer/service_runtime_instance_lookup.go` | `service_evidence_key` rows |
-| 7 | value-flow chain | `go/internal/reducer/code/value/cloud_sink_loader.go`, `go/internal/reducer/code/value/affected/gate.go` | `INVOKES_CLOUD_ACTION` / `RUNS_IN` consumers |
+| 1 | `workload_materialization` | `go/internal/reducer/workload_materializer.go`, `workload_materialization_repo_phase.go`, `workload_materializer_retract_instances.go`, `go/cmd/reducer/workload_instance_retraction_lookup.go` (retract reader), `go/internal/storage/cypher/canonical.go` | `Workload`, `WorkloadInstance`, `Endpoint`, `Platform` nodes; `DEFINES`, `INSTANCE_OF`, `EXPOSES_ENDPOINT`, `DEPLOYMENT_SOURCE`, `SAME_NAME` |
+| 2 | `handles_route` (dispatched from `go/internal/reducer/code/call/materialization/routes.go`; presence-gated on `api_endpoint_repo_path`) | `go/internal/storage/cypher/canonical_handles_route_edges.go` | `HANDLES_ROUTE` |
+| 3 | `runs_in` (presence-gated on `repo_workload`) | `go/internal/storage/cypher/canonical_runs_in_edges.go` | `RUNS_IN` |
+| 4 | `repo_dependency` | `go/internal/storage/cypher/canonical_relationships.go` | `RUNS_ON` |
+| 5 | `workload_dependency` | `go/internal/storage/cypher/canonical.go` (`BatchCanonicalWorkloadDependencyUpsertCypher`), `go/cmd/reducer/workload_dependency_lookup.go` (retract reader) | `DEPENDS_ON` |
+| 6 | `documentation_materialization` | `go/internal/storage/cypher/canonical_documentation_edges.go` | `DOCUMENTS` |
+| 7 | `workload_cloud_relationship_materialization` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go`, `go/internal/reducer/workloadinstance/lookup.go`; gate `go/internal/ifa/materializededges/workload_cloud_relationship.go` (asserts by id; outside the search) | `USES` |
+| 8 | service-catalog runtime (`GraphServiceRuntimeInstanceLoader`, wired in `go/cmd/reducer/main.go`) | `go/internal/reducer/service_runtime_instance_lookup.go` | `service_evidence_key` rows |
+| 9 | `code_value_flow_refresh` | `go/internal/reducer/code/value/cloud_sink_loader.go`, `go/internal/reducer/code/value/affected/gate.go` | `INVOKES_CLOUD_ACTION` / `RUNS_IN` readers |
+| 10 | `eshu_search_document` | none (Postgres, not Cypher): `GraphHandle{Kind: "workload"}` in `go/internal/searchdocs/semantic_context.go` | `eshu_search_index_documents` handles — the step 8 reindex |
 
-The list is derived from the tree, not from memory, and the re-key PR re-runs
-the search. It is still not self-proving: **the only proof the list is
+Row 1 must complete before rows 2 and 3, whose presence gates and the #6184
+probe bind against the recommitted nodes (§2); the rest follow in the listed
+order. The list is derived from the tree by the command above, and the re-key
+PR re-runs it. It is still not self-proving: **the only proof the list is
 complete is the per-family count assertion below.**
 
 **Per-family count assertion** (in the Odù and the runbook): before step 5 and
-after step 9, on the collision-free golden corpus, the counts of `RUNS_IN`,
-`DOCUMENTS`, `INSTANCE_OF`, `RUNS_ON`, `USES`, `DEPLOYMENT_SOURCE`,
-`DEPENDS_ON`, and `EXPOSES_ENDPOINT` edges must be equal, and `Workload`,
-`WorkloadInstance`, and `Endpoint` node counts must be equal. Any drift means
-a writer was missed or over-reached; the equality is the proof the re-key
-changed identity and nothing else.
+after step 9, on the collision-free golden corpus, the counts of
+`HANDLES_ROUTE`, `RUNS_IN`, `DOCUMENTS`, `INSTANCE_OF`, `RUNS_ON`, `USES`,
+`DEPLOYMENT_SOURCE`, `DEPENDS_ON`, and `EXPOSES_ENDPOINT` edges must be equal,
+`SAME_NAME` must read zero both times, and `Workload`, `WorkloadInstance`,
+and `Endpoint` node counts must be equal. Any drift means a writer was missed
+or over-reached; the equality is the proof the re-key changed identity and
+nothing else.
 
 ## 5. How RUNS_ON and cloud USES scope after the re-key
 
@@ -192,8 +284,8 @@ Required tests, each RED before its change and GREEN after:
 | --- | --- |
 | T1 scoped-token isolation | A token granted only `alpha` reading `/catalog`, the entity map, and the change surface for `checkout` sees `same_name_siblings` = 0 and no `beta` `repo_id` anywhere in the response body. Requires an audit of every untyped or variable-length traversal that starts at `Workload` (`-[*]-`, `-[]-`, `-[:A|B]-` lists) so none can reach a sibling without the grant predicate. |
 | T2 concurrent writers | The P6 shape as a permanent RED/GREEN: two scopes materializing same-named workloads concurrently on a live backend end with exactly one `SAME_NAME` edge for the pair, asserted by a settled read; the UNIQUE-conflict retry is observed, not assumed. |
-| T3 matching semantics | For suppression, service-catalog links, and AWS attributes: full id resolves; unique handle resolves; a handle spanning two repositories applies to neither, links nothing, writes no edge, and is counted. |
-| T4 repository cleanup cascade | Removing or renaming a repository deletes its owned `Workload`, `WorkloadInstance`, and `Endpoint` nodes through both cleanup templates; the sibling's nodes and its other `SAME_NAME` edges survive. |
+| T3 matching semantics | For suppression, service-catalog links, AWS attributes, and documentation mentions (`target_entity_id`): full id resolves; unique handle resolves; a handle spanning two repositories applies to neither, links nothing, writes no edge, and is counted. |
+| T4 repository cleanup cascade | **Retirement case:** re-onboarding a repository's path under a new `repo_id` (the path-conflict template) deletes the owned `Workload`, `WorkloadInstance`, and `Endpoint` nodes under the retired id; the sibling's nodes and its other `SAME_NAME` edges survive. **Regeneration case:** the same repository regenerates (a non-first, non-delta generation, so `canonicalNodeRepositoryIDCleanupCypher` runs) and its `Workload` nodes survive together with a `USES` edge written by an AWS-scope generation and a `DOCUMENTS` edge written by a documentation-scope generation; only `DEFINES` is dropped and rewritten. Both asserted by settled reads on the live backend. |
 | T5 handle ladder | Exact id, unique handle, ambiguous handle with candidates, miss — across API, MCP, and reducer, one test table. |
 
 ## 7. Consumer impact
@@ -206,11 +298,12 @@ Required tests, each RED before its change and GREEN after:
 | `/catalog` read model (`go/internal/query/repository/catalog.go`, `content_reader_repository_catalog.go`, `repository_read_model_summary.go`) | merges rows by bare name; summary counts by name | key by `(repo_id, name)`; `same_name_siblings` counts admitted siblings only (D2) |
 | supply-chain impact path and runtime context (`go/internal/query/supply/chain/impact/path.go`, `supply/chain/impact/runtime_context_store.go`) | carry `workload_ids` and resolve them to nodes | ladder on read |
 | `reducer_supply_chain_impact_finding.workload_ids` readers using jsonb containment (`fact.payload->'workload_ids' ? $selector` in `go/internal/query/sbom_attestation_attachments.go`, `sbom_attestation_attachment_aggregates.go`, `supply/chain/advisory/evidence_sql.go`; the `supply_chain_impact_canonical_winners.workload_ids` GIN column read by `supply_chain_impact_canonical_winners_store.go`) | a selector holding an old handle matches nothing once rows regenerate | route the selector through the ladder before the SQL: resolve to full ids, then contain on those; an ambiguous handle fails closed |
+| Documentation mentions: `BatchCanonicalDocumentationWorkloadEdgeCypher` (`go/internal/storage/cypher/canonical_documentation_edges.go`), fed by `CandidateRefs[0].ID` in `go/internal/reducer/documentation_edge_materialization.go` | exact `MATCH (target:Workload {id: row.target_entity_id})`; after the re-key a handle-form id matches nothing and the `MERGE` writes no edge, silently — this domain has no #6184 probe | resolve `target_entity_id` through the ladder before the write: full id or unique handle → `DOCUMENTS` edge; ambiguous → skipped as `workload_handle_ambiguous`, counted on `surface="reducer"`; the in-tree extractor's known-entity catalog (`go/internal/doctruth/extractor.go`) is fed full ids (T3) |
 | Ifá materialized-edge gate (`go/internal/ifa/materializededges/workload_cloud_relationship.go`) | asserts `USES` endpoints by workload id | regenerate with the Odù |
 | MCP `service/context` selectors | first-colon cut | handle forwarded whole; ambiguity surfaces in the `truth` envelope |
 | Console (`ExplorerPage.tsx`, `eshuGraphDeploymentModel.ts`, `VulnerabilitiesReachable.tsx`, `ImpactDeploymentSummary.tsx`, `ExposureServiceSelector.tsx`) | build, display, bookmark, or prompt for handles | unchanged code; new ambiguity state in the selector UI |
 | CLI `eshu report --scope workload:<name>` | label parser | unchanged: it takes the handle |
-| Cassettes | 14 `"workload:` literals in 5 files under `testdata/cassettes/` (`awscloud`, `workloaddependency`, `kuberneteslive`, `repodependency`, `symbolruntime`), no instance literals — `rg -c` at `2ae147cf9`; the key doc's §3.3 count predates four of those files | regenerate in the migration PR per `eshu-golden-corpus-rigor` |
+| Cassettes | 14 `"workload:` matches in 5 files under `testdata/cassettes/` (`awscloud`, `workloaddependency`, `kuberneteslive`, `repodependency`, `symbolruntime`), no instance literals — `rg -c` at `2ae147cf9`; 13 are `Workload` ids and move, and one (`"workload_object_id": "workload:claim-honesty-demo"` in `kuberneteslive/supply-chain-demo.json`) keys a `KubernetesWorkload` and stays; the key doc's §3.3 count predates four of those files | regenerate the 13 in the migration PR per `eshu-golden-corpus-rigor` |
 | B-12 snapshot `testdata/golden/e2e-20repo-snapshot.json` | 32 `"workload:` occurrences over 5 names and 6 `"workload-instance:` over 2 ids, including asserted `workload.id` / `left.instance.id` values | regenerate; the corpus has no collisions, so node and edge counts must be unchanged (§4) |
 | #5384 / #5167 query-time predicates | family 1 (direct `repo_id`) becomes exact; family 5 (`DEFINES`-collision inline-map, the family list in `go/internal/query/infra_scope.go`) becomes structurally unreachable | keep family 5 as a fail-closed guard until the collision counters have read zero for one release, then retire it with its own RED/GREEN |
 | `get_service_changed_since` | `service_evidence_key` embeds the instance id | one generation of retired-plus-added rows, announced in the runbook; never collapsed into unchanged |
