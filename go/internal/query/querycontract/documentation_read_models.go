@@ -82,10 +82,66 @@ type DocumentationFactFilter struct {
 	AllowedRepositoryIDs []string
 }
 
+// Documentation fact generation binding modes. A listing that names no
+// generation binds to the scope's active generation; a listing that names one
+// reads exactly that generation, whatever its lifecycle status.
+const (
+	// DocumentationFactBindingActive marks a read bound to the active
+	// generation of each scope (#7128).
+	DocumentationFactBindingActive = "active"
+	// DocumentationFactBindingExplicit marks a read of the generation the
+	// caller named through generation_id.
+	DocumentationFactBindingExplicit = "explicit"
+)
+
+// Documentation fact empty-page reasons. They explain a zero-row page from the
+// scope's own state and are surfaced as `states` entries by the handler.
+const (
+	// DocumentationFactEmptyScopeNotFound means no ingestion scope has the
+	// requested scope_id.
+	DocumentationFactEmptyScopeNotFound = "scope_not_found"
+	// DocumentationFactEmptyNoActiveGeneration means the scope exists but has
+	// no active generation, so no facts are current truth.
+	DocumentationFactEmptyNoActiveGeneration = "no_active_generation"
+	// DocumentationFactEmptyNoRows means the scope has an active generation
+	// that simply holds no matching documentation facts.
+	DocumentationFactEmptyNoRows = "no_rows"
+)
+
+// DocumentationFactGenerationBinding labels which generation a documentation
+// fact page was read from. The handler adds the Mode from the request filter;
+// the store supplies the rest from what it observed.
+type DocumentationFactGenerationBinding struct {
+	// GenerationID is the generation the page was bound to. It is empty when a
+	// read spans the active generation of many scopes, or when the scope has no
+	// active generation.
+	GenerationID string
+	// IsActive reports whether the bound generation is the scope's active
+	// generation, mirroring is_active on the freshness generations route.
+	IsActive bool
+}
+
+// DocumentationFactFreshness is the freshness the store proved for a page. A
+// zero State means the store made no claim and the handler keeps the envelope's
+// default. Cause must be a member of the closed FreshnessCause set and is only
+// attached by the handler when the state is not fresh.
+type DocumentationFactFreshness struct {
+	State  FreshnessState
+	Cause  FreshnessCause
+	Detail string
+}
+
 // DocumentationFactListReadModel is one page of documentation facts.
+//
+// Binding, Freshness, and EmptyReason describe the generation the page was read
+// from (#7128). EmptyReason is set only for a zero-row page whose cause the
+// store could prove; it is one of the DocumentationFactEmpty* constants.
 type DocumentationFactListReadModel struct {
-	Facts      []map[string]any
-	NextCursor string
+	Facts       []map[string]any
+	NextCursor  string
+	Binding     DocumentationFactGenerationBinding
+	Freshness   DocumentationFactFreshness
+	EmptyReason string
 }
 
 // DocumentationEvidencePacketReadModel carries one documentation evidence

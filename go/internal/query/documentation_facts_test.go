@@ -407,10 +407,14 @@ func TestContentReaderDocumentationFactsSearchesLinkTargetURI(t *testing.T) {
 func TestContentReaderDocumentationFactsReturnsEmptyForNoMatch(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
-		columns: []string{"payload"},
-		rows:    nil,
-	}})
+	// The empty scope page runs one scope-state lookup to explain itself (#7128).
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{columns: []string{"payload"}, rows: nil},
+		{
+			columns: []string{"status", "active_generation_id"},
+			rows:    [][]driver.Value{{"active", "gen-1"}},
+		},
+	})
 	reader := NewContentReader(db)
 
 	got, err := reader.DocumentationFacts(t.Context(), documentationFactFilter{

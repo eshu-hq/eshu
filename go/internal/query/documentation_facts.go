@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -27,6 +29,64 @@ type (
 	documentationFactFilter        = querycontract.DocumentationFactFilter
 	documentationFactListReadModel = querycontract.DocumentationFactListReadModel
 )
+
+// Documentation fact reads bind to a generation (#7128). The default read
+// serves the scope's active generation: superseded generations stop being
+// current truth the moment a newer one activates and retention prunes them, so
+// serving them under an exact/fresh envelope returns retention-dependent
+// results. A caller that names generation_id keeps the exact read it always had
+// and gets it labelled instead.
+const (
+	// documentationFactBindingActiveScope is a scope_id read bound to that
+	// scope's active generation through a scalar subquery.
+	documentationFactBindingActiveScope = "active_scope"
+	// documentationFactBindingActiveJoin is an anchor-only read bound to each
+	// scope's active generation through ingestion_scopes.
+	documentationFactBindingActiveJoin = "active_join"
+	// documentationFactBindingExplicit is a read of the generation the caller
+	// named.
+	documentationFactBindingExplicit = "explicit"
+
+	// documentationGenerationBindingAttr is the bounded span attribute carrying
+	// the binding kind on the query.documentation_facts handler span.
+	documentationGenerationBindingAttr = "eshu.documentation.generation_binding"
+)
+
+// documentationFactGenerationBindingKind names how a facts read is bound to a
+// generation. The SQL builder, the read model, and the handler telemetry all
+// call it, so the three can never disagree about the mode.
+func documentationFactGenerationBindingKind(filter documentationFactFilter) string {
+	if strings.TrimSpace(filter.GenerationID) != "" {
+		return documentationFactBindingExplicit
+	}
+	if strings.TrimSpace(filter.ScopeID) != "" {
+		return documentationFactBindingActiveScope
+	}
+	return documentationFactBindingActiveJoin
+}
+
+// documentationFactBindingMode maps a binding kind to the response mode.
+func documentationFactBindingMode(kind string) string {
+	if kind == documentationFactBindingExplicit {
+		return querycontract.DocumentationFactBindingExplicit
+	}
+	return querycontract.DocumentationFactBindingActive
+}
+
+// documentationFactReadIsKindOnly reports whether a read carries no payload,
+// target, or text filter and no scoped-token predicate, so its only selectivity
+// is the fact kind and the observed_at order. Such a read is served by an
+// ordered scan of the documentation_source partial index that stops after
+// LIMIT rows; binding it with a join would replace that early stop with a sort
+// of every row of the kind.
+func documentationFactReadIsKindOnly(filter documentationFactFilter) bool {
+	return len(querycontract.DocumentationTargetRefsFromFactFilter(filter)) == 0 &&
+		strings.TrimSpace(filter.SourceID) == "" &&
+		strings.TrimSpace(filter.DocumentID) == "" &&
+		strings.TrimSpace(filter.SectionID) == "" &&
+		strings.TrimSpace(filter.Query) == "" &&
+		!documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
+}
 
 func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -52,14 +112,11 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	span.SetAttributes(attribute.String(documentationGenerationBindingAttr, documentationFactGenerationBindingKind(filter)))
 	filter, ok = documentationFactFilterWithRepositoryAccess(r.Context(), filter)
 	if !ok {
-		WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(documentationFactListReadModel{}, page), BuildTruthEnvelope(
-			h.profile(),
-			documentationFactsCapability,
-			TruthBasisSemanticFacts,
-			"resolved from durable collected documentation facts",
-		))
+		empty := documentationFactListReadModel{}
+		WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(empty, page, filter), documentationFactsTruth(h.profile(), empty))
 		return
 	}
 	store, ok := h.documentationStore(w, r)
@@ -71,12 +128,30 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 		writeDocumentationInternalError(w, r)
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(readModel, page), BuildTruthEnvelope(
-		h.profile(),
+	WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(readModel, page, filter), documentationFactsTruth(h.profile(), readModel))
+}
+
+// documentationFactsTruth builds the truth envelope for one facts page. The
+// store proves the generation lifecycle behind the page, so a page read from a
+// superseded, pending, or unknown generation, or from a scope with no active
+// generation, is not reported as fresh (#7128).
+func documentationFactsTruth(profile QueryProfile, readModel documentationFactListReadModel) *TruthEnvelope {
+	truth := BuildTruthEnvelope(
+		profile,
 		documentationFactsCapability,
 		TruthBasisSemanticFacts,
 		"resolved from durable collected documentation facts",
-	))
+	)
+	freshness := readModel.Freshness
+	if freshness.State == "" || freshness.State == querycontract.FreshnessFresh {
+		return truth
+	}
+	truth.Freshness.State = freshness.State
+	truth.Freshness.Detail = freshness.Detail
+	if freshness.Cause != "" {
+		WithFreshnessCause(truth, freshness.Cause)
+	}
+	return truth
 }
 
 func documentationFactRequestFilter(
@@ -166,7 +241,11 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 	}
 }
 
-func documentationFactsResponse(readModel documentationFactListReadModel, page documentationPage) map[string]any {
+func documentationFactsResponse(
+	readModel documentationFactListReadModel,
+	page documentationPage,
+	filter documentationFactFilter,
+) map[string]any {
 	facts := readModel.Facts
 	if facts == nil {
 		facts = []map[string]any{}
@@ -179,7 +258,12 @@ func documentationFactsResponse(readModel documentationFactListReadModel, page d
 		"limit":            page.limit,
 		"truncated":        nextCursor != "",
 		"missing_evidence": missingEvidence,
-		"states":           documentationFactListStates(missingEvidence),
+		"states":           documentationFactListStates(missingEvidence, readModel.EmptyReason),
+		"generation_binding": map[string]any{
+			"mode":          documentationFactBindingMode(documentationFactGenerationBindingKind(filter)),
+			"generation_id": readModel.Binding.GenerationID,
+			"is_active":     readModel.Binding.IsActive,
+		},
 	}
 	if nextCursor != "" {
 		body["next_cursor"] = nextCursor
@@ -187,9 +271,16 @@ func documentationFactsResponse(readModel documentationFactListReadModel, page d
 	return body
 }
 
-func documentationFactListStates(missingEvidence bool) []string {
-	if missingEvidence {
-		return []string{"no_documentation_facts"}
+// documentationFactListStates lists why a page is empty. The two scope states
+// are appended only when the store proved them from the scope's own row.
+func documentationFactListStates(missingEvidence bool, emptyReason string) []string {
+	if !missingEvidence {
+		return []string{}
 	}
-	return []string{}
+	states := []string{"no_documentation_facts"}
+	switch emptyReason {
+	case querycontract.DocumentationFactEmptyScopeNotFound, querycontract.DocumentationFactEmptyNoActiveGeneration:
+		states = append(states, emptyReason)
+	}
+	return states
 }

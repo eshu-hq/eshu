@@ -239,7 +239,7 @@ const Routes = `
         "parameters": [
           {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "semantic_observation", "documentation_observation", "semantic_documentation_observation", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate", "semantic.documentation_observation"]}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector scope identifier"},
-          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector generation identifier"},
+          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector generation identifier. When omitted, the read is bound to the active generation of the scope (of each scope, for anchor-only reads), so superseded generations are not returned as current facts. When set, that exact generation is read even if it is superseded; generation_binding and truth.freshness label it. generation_id alone is not an anchor."},
           {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository target reference to match in documentation mention, claim, or finding payload refs"},
           {"name": "target_kind", "in": "query", "schema": {"type": "string"}, "description": "Target reference kind such as repository or service"},
           {"name": "target_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical target reference id to match in documentation payload refs"},
@@ -250,7 +250,7 @@ const Routes = `
           {"name": "q", "in": "query", "schema": {"type": "string"}, "description": "Case-insensitive search over source display name, document title, section heading, section content, and documentation link target URI"},
           {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
-          {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}
+          {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor. The cursor names no generation, so a cursor issued before a new generation activates pages over the newer active generation and can repeat or skip a row at the page boundary."}
         ],
         "responses": {
           "200": {
@@ -282,10 +282,11 @@ const Routes = `
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "missing_evidence": {"type": "boolean", "description": "True when the scoped request was valid but returned no documentation facts."},
-                    "states": {"type": "array", "items": {"type": "string"}, "description": "Bounded read states such as no_documentation_facts."},
+                    "states": {"type": "array", "items": {"type": "string"}, "description": "Bounded read states: no_documentation_facts for an empty page, plus scope_not_found when no scope has the requested scope_id, or no_active_generation when the scope exists but has no active generation (a default read never falls back to another generation)."},
+                    "generation_binding": {"type": "object", "description": "Which generation this page was read from. mode is active when generation_id was omitted and explicit when it was set. generation_id is the bound generation, empty when the read spans the active generation of several scopes or the scope has no active generation. is_active mirrors is_active on GET /api/v0/freshness/generations.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
                     "next_cursor": {"type": "string", "description": "Cursor to pass as cursor when truncated is true."}
                   },
-                  "required": ["facts", "count", "limit", "truncated", "missing_evidence", "states"]
+                  "required": ["facts", "count", "limit", "truncated", "missing_evidence", "states", "generation_binding"]
                 }
               }
             }
