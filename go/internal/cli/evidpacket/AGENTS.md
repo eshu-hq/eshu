@@ -151,35 +151,32 @@
   `TestReadBenchmarkWrapsStdinFailure` for the stdin one. Reword either and its
   test fails, turning `go test ./internal/cli/evidpacket` red.
 
-  Two required checks on `main` go red with it:
+  One required check on `main` goes red with it: `go-race-complete`, the
+  umbrella over the sharded race job. Each shard runs `go test -race` on its
+  slice of `go list ./...`, so the union covers this package
+  (`.github/workflows/test.yml`, job `go-race`, step `Run Go tests with race
+  detector`). Cite it by that stable anchor rather than by line number: an
+  insertion above shifts every line below it, and nothing in this repo checks a
+  `file:line` reference into `specs/`, into a workflow, or into a script.
 
-  - `go-race-complete`, the umbrella over the sharded race job. Each shard runs
-    `go test -race` on its slice of `go list ./...`, so the union covers this
-    package (`.github/workflows/test.yml`, job `go-race`, step `Run Go tests
-    with race detector`).
-  - `required-gates-complete`, which aggregates every path-selected blocking
-    gate. The `macos-build` gate in `specs/ci-gates.v1.yaml` is `blocking: true`
-    and triggers on `go/**`; its job runs `go test ./... -count=1` with
-    `working-directory: go` (`.github/workflows/macos.yml`, step `Run Go
-    tests`). Cite both by a stable anchor rather than by line number:
-    `rg -n 'id: macos-build' specs/ci-gates.v1.yaml` finds the gate block, and
-    the step `name:` finds the job's test step. An insertion above shifts every
-    line below it, and nothing in this repo checks a `file:line` reference into
-    `specs/`, into a workflow, or into a script.
-
-  Both context names come from the repository's mirror of the `main` ruleset,
-  the `required_status_checks:` block at the top of
-  `specs/ci-gates.v1.yaml`. That mirror lists a third required context,
-  `go-core-complete`, which stays green: the `go-core` job behind it runs no
+  The context name comes from the repository's mirror of the `main` ruleset, the
+  `required_status_checks:` block at the top of `specs/ci-gates.v1.yaml`. That
+  mirror lists two more required contexts, neither of which covers this
+  package: `required-gates-complete` no longer waits on a macOS run, and
+  `go-core-complete` stays green because the `go-core` job behind it runs no
   `go test` against the `go/` module. Rewording both prefixes was run as a probe
   with `go test -overlay` over a scratch copy of `dogfood.go`: rc=1, and those
   two tests were the only failures. Rerun it that way rather than editing
   `dogfood.go` in place.
 
-  A third CI job runs this package's tests and is required by nothing:
-  `coverage-report` in `.github/workflows/code-coverage-report.yml`, which
-  reaches `go test ./...` through `scripts/generate-code-coverage-report.sh`
-  rather than a `go test` line of its own. Four review rounds missed it because
+  Two more CI jobs run this package's tests and are required by nothing. The
+  `macos` job in `.github/workflows/macos.yml` (step `Run Go tests`, `go test
+  ./... -count=1`) runs nightly and on `workflow_dispatch` only; its
+  `macos-build` gate in `specs/ci-gates.v1.yaml` is `blocking: false` and
+  `required-gates.yml` does not wait on it. The other is `coverage-report` in
+  `.github/workflows/code-coverage-report.yml`, which reaches `go test ./...`
+  through `scripts/generate-code-coverage-report.sh` rather than a `go test`
+  line of its own. Four review rounds missed it because
   they swept `.github/workflows/` and not the scripts those workflows call.
   README's "Which CI checks run these tests" carries the accounting and the two
   sweeps that produce it; run both before changing any count in either file.

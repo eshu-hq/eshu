@@ -1,28 +1,32 @@
 name: macOS CI
 
+# Nightly + on-demand only, and NOT a required check. It used to run on every
+# Go-touching pull request and push to main and was a blocking gate, but 0 of
+# the 29 macOS failures observed since 2026-09-21 were macOS-only (each also
+# failed on the Linux go-race lane) while the lane cost ~2,800 macOS-minutes a
+# day, so it added runner cost and queue latency without adding a merge signal.
+# The nightly run is the backstop for macOS-specific regressions (bash 3.2,
+# case-insensitive filesystem, CGO); a red run is a follow-up issue, not a
+# merge blocker. There is deliberately no pull_request, push, or merge_group
+# trigger; specs/ci-gates.v1.yaml records macos-build as blocking: false and
+# required-gates.yml no longer waits on this workflow.
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    # Path-filtered (#4218): the macOS build only needs to run on Go changes.
-    # main runs unconditionally above as the backstop.
-    paths:
-      - "go/**"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/macos.yml"
+  schedule:
+    # 07:23 UTC = 03:23 US Eastern, off-peak for the shared macOS runner pool
+    # and away from the :00/:30 marks when scheduled runs are delayed.
+    - cron: "23 7 * * *"
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   macos:
     runs-on: macos-latest
-    # 45, not 30: `go test ./...` on macos-latest now takes 25-28 minutes, so
-    # 30 cancelled 3 of the last 20 runs at exactly 30m on 2026-09-24 (PRs
-    # #7067 twice, #7071), turning this blocking gate into a coin flip on
-    # runner speed rather than a test signal.
+    # 45, not 30: `go test ./...` on macos-latest takes 25-28 minutes, so 30
+    # cancelled 3 of 20 runs at exactly 30m on 2026-09-24 (PRs #7067 twice,
+    # #7071) and made the lane a coin flip on runner speed, not a test signal.
     timeout-minutes: 45
 
     steps:

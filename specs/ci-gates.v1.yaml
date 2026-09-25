@@ -4430,11 +4430,17 @@ gates:
       - release_token
     ci_only_reason: "post-merge publication requires registry push credentials and cannot block its own merge"
 
+  # Non-blocking since the owner decision to move macOS CI to nightly +
+  # workflow_dispatch (macos.yml has no pull_request, push, or merge_group
+  # trigger). Evidence: of 29 macOS CI failures since 2026-09-21, 0 were
+  # macOS-only (each also failed on the Linux go-race lane), at ~2,800
+  # macOS-minutes/day. The triggers below keep the local path selection for
+  # `ci-gates select`; the row is not awaited by required-gates-complete.
   - id: macos-build
-    name: macOS build verification
+    name: macOS build verification (nightly)
     category: build
     tier: ci-heavy
-    blocking: true
+    blocking: false
     triggers:
       - "go/**"
       - "scripts/ci/go-mod-download-retry.sh"
@@ -4443,7 +4449,7 @@ gates:
       job: "macos"
     requirements:
       - go
-    ci_only_reason: "requires macOS hosted runner"
+    ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)"
 
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
 
