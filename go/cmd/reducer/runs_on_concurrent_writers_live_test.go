@@ -74,8 +74,8 @@ func TestRunsOnConcurrentWritersOneEdgePerPairLive(t *testing.T) {
 // preserves it when the workload writer commits second, so every pair must end
 // with the cross-repo tuple.
 //
-// This test is known to fail intermittently on the pinned NornicDB: a rare
-// barrier trial ends with the workload tuple (#7175, see
+// On Neo4j (the proof backend) it held in 300 barrier trials. On the pinned
+// NornicDB image a rare barrier trial ended with the workload tuple (#7175, see
 // docs/internal/evidence/6671-runs-on-concurrent-writers.md). It hard-fails on
 // purpose; a lost cross-repo tuple is not reaped by RetractRepoRunsOnEdgesCypher,
 // so it is an accuracy defect, not noise to log.
@@ -104,14 +104,21 @@ func TestRunsOnConcurrentWritersCrossRepoTupleWinsLive(t *testing.T) {
 	}
 }
 
-// openRunsOnRaceBackend opens the Bolt backend named by ESHU_CYPHER_BOLT_DSN
-// and resolves the trial count. ESHU_RUNS_ON_BARRIER_TRIALS raises the count for
-// soak runs; it cannot lower it below the #6671 floor.
+// openRunsOnRaceBackend opens the Bolt backend the live-backend runner names
+// (scripts/run-live-backend-tests.sh exports ESHU_NEO4J_URI and
+// ESHU_LIVE_GRAPH_DATABASE) and resolves the trial count. The primary proof
+// backend is Neo4j, so the database defaults to "neo4j".
+// ESHU_RUNS_ON_BARRIER_TRIALS raises the count for soak runs; it cannot lower
+// it below the #6671 floor.
 func openRunsOnRaceBackend(t *testing.T) (neo4jSessionRunner, int) {
 	t.Helper()
-	uri := strings.TrimSpace(os.Getenv("ESHU_CYPHER_BOLT_DSN"))
+	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
 	if uri == "" {
-		t.Skip("ESHU_CYPHER_BOLT_DSN not set; skipping isolated Bolt graph test")
+		t.Skip("ESHU_NEO4J_URI not set; skipping the live Neo4j RUNS_ON race test")
+	}
+	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	if database == "" {
+		database = "neo4j"
 	}
 	trials := runsOnBarrierDefaultTrials
 	if raw := strings.TrimSpace(os.Getenv("ESHU_RUNS_ON_BARRIER_TRIALS")); raw != "" {
@@ -131,7 +138,7 @@ func openRunsOnRaceBackend(t *testing.T) (neo4jSessionRunner, int) {
 	if err := driver.VerifyConnectivity(ctx); err != nil {
 		t.Fatalf("verify Bolt connectivity: %v", err)
 	}
-	return neo4jSessionRunner{Driver: driver, DatabaseName: "nornic", TxTimeout: 30 * time.Second}, trials
+	return neo4jSessionRunner{Driver: driver, DatabaseName: database, TxTimeout: 30 * time.Second}, trials
 }
 
 // raceRunsOnWriters seeds trials fresh pairs, drives both production writers
@@ -197,9 +204,9 @@ func raceRunsOnWriters(t *testing.T, runner neo4jSessionRunner, writers cypherRu
 			slowest = took
 		}
 	}
-	// A barrier trial that collides costs one driver-level managed transaction
-	// retry (Neo.TransientError.Transaction.Outdated on the shared edge), so
-	// slowest_trial shows the retry backoff an overlap pays.
+	// slowest_trial shows what an overlap costs: a lock wait on Neo4j, or one
+	// driver-level managed-transaction retry on NornicDB
+	// (Neo.TransientError.Transaction.Outdated on the shared edge).
 	t.Logf("%s: trials=%d elapsed=%s slowest_trial=%s", mode, len(pairs), time.Since(started), slowest)
 
 	results := make([][]map[string]any, len(pairs))

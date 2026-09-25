@@ -122,14 +122,15 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/cmd/reducer/runs_on_concurrent_writers_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged #6671 barrier proof gated by env Skip (ESHU_NEO4J_URI); on neo4j:2026-community 300 barrier plus 300 sequential trials take ~86s for TestRunsOnConcurrentWritersOneEdgePerPairLive and ~47s for TestRunsOnConcurrentWritersCrossRepoTupleWinsLive, both green; the tuple test fails intermittently only on NornicDB (#7175) — promote to ci with timing evidence at the 60-trial default
+    backends: neo4j
   - file: go/cmd/reducer/runs_on_pair_isolation_nornicdb_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/cmd/reducer/runs_on_concurrent_writers_nornicdb_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged #6671 barrier proof gated by env Skip, ~2s per concurrent trial (60 trials ~2m per test on the fix-500 pin); TestRunsOnConcurrentWritersOneEdgePerPairLive (multiplicity) is promotable to ci on its own, TestRunsOnConcurrentWritersCrossRepoTupleWinsLive (tuple) fails intermittently on the open lost-update defect #7175 — promote each once a scheduled or ci lane runs it
   - file: go/cmd/reducer/workload_dependency_lookup_nornicdb_live_test.go
     tag: ~
     class: scheduled

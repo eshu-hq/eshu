@@ -36,7 +36,7 @@ no `identity_key`; a pair can hold more than one. The two paths are:
 | `WorkloadMaterializer` | Legacy unkeyed cleanup, keyed `MERGE`, then conditional complete-tuple `SET`, all for the same `instance_id`/`platform_id` chunk. The Platform node upsert precedes this group. | Stamp workload provenance only if the keyed edge has no source or already has the workload source. Preserve a cross-repo tuple. |
 | `EdgeWriter` for cross-repo RUNS_ON | Legacy unkeyed cleanup and keyed `MERGE`/complete-tuple `SET` for the same `repo_id`/`platform_id` chunks. Other domain routes and evidence-artifact MERGEs can share the containing group. | Cross-repo provenance overwrites the full tuple, so it wins in either writer order. |
 
-Measured exception: see [6671-runs-on-concurrent-writers.md](../evidence/6671-runs-on-concurrent-writers.md) (#7175). A rare concurrent-overlap trial ended with the workload tuple.
+Measured exception: see [6671-runs-on-concurrent-writers.md](../evidence/6671-runs-on-concurrent-writers.md) (#7175). On the pinned NornicDB image a rare concurrent-overlap trial ended with the workload tuple; 1,020 keyed and 300 bare barrier trials on Neo4j did not reproduce it.
 
 `reducerCypherExecutor.ExecuteCypherGroup` currently maps the workload group to
 `cypher.Statement` values marked `OperationCanonicalUpsert`; `EdgeWriter` also
