@@ -199,11 +199,14 @@ concurrency proof beyond the plan check is claimed.
   6, 15, and 30 with a cold call, and with the section filter and scoped-token
   predicate (the ops-qa SSO session expired during the work; the local
   PostgreSQL 16 plan proof above covers plan shape, not the ops-qa cache state).
-- NOT_CHECKED: the golden-corpus gate on Neo4j (`neo4j:2026-community`); see the
-  handoff for its status. A first attempt started on NornicDB and was stopped
-  and discarded under the owner's Neo4j-only directive. No graph-backed
-  evidence in this note came from NornicDB; every measurement above is
-  PostgreSQL only.
+- Golden-corpus gate: run on Neo4j (`neo4j:2026-community`,
+  `ESHU_GRAPH_BACKEND=neo4j`) at the final tree and passed: 567 pass, 0
+  required-fail, 5 advisory-warn (phase wall-time bands only, on a machine under
+  heavy load from other sessions). Its documentation facts query shapes now
+  require `generation_binding`. A first attempt started on NornicDB and was
+  stopped and discarded under the owner's Neo4j-only directive. No graph-backed
+  evidence here came from NornicDB; every measurement in this note is PostgreSQL
+  only.
 - The 26-39 s cold-call outlier from the diagnosis was inferred to be cold cache
   on a fixed 74,000-buffer scan and was not reproduced. After the change the
   read touches under 40 buffers locally, so a cold read is bounded by tens of
