@@ -40,6 +40,9 @@ export interface SweepPolicy {
 // tool" from any other permission_denied.
 export const routeDeniedMessage = "scoped authorization is not yet enabled for this route";
 
+// ASK_DEFAULT_OFF is the outcome name for the ask route's default-off answer.
+export const ASK_DEFAULT_OFF = "ask_default_off";
+
 // ROUTE_DENIED is the outcome name for a route-policy refusal.
 export const ROUTE_DENIED = "route_denied_403";
 
@@ -97,6 +100,13 @@ export function classifyToolCallOutcome(result: McpJsonRpcResult): { outcome: st
   // not found" handled above. Only the JSON shape counts as an answer.
   if (status === "404" && /"error"\s*:\s*"Not Found"/.test(text)) {
     return { outcome: "not_found", detail: truncate(text) };
+  }
+  // ask's default-off answer is a 503 whose body says ask is not enabled
+  // (askUnavailableResponse in go/internal/query/ask_handler.go). A 503 from a
+  // broken backend or a failed engine carries a different reason, so it stays
+  // http_503 and fails the sweep instead of passing as "default-off".
+  if (status === "503" && /"state"\s*:\s*"unavailable"/.test(text) && /ask is not enabled/.test(text)) {
+    return { outcome: ASK_DEFAULT_OFF, detail: truncate(text) };
   }
   return { outcome: status ? `http_${status}` : "tool_error", detail: truncate(text) };
 }
@@ -224,4 +234,55 @@ export function compileDisclosurePattern(policy: Pick<SweepPolicy, "disclosurePa
         `(flags ${JSON.stringify(policy.disclosureFlags)}): ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+}
+
+// SeedIds are the seeded subjects the sweep substitutes for placeholders.
+export interface SeedIds {
+  readonly granted: string;
+  readonly ungranted: string;
+  readonly scope: string;
+  readonly stateScope: string;
+}
+
+// AllScopeControl is the all-scope replay of one tolerant row.
+export interface AllScopeControl {
+  readonly method: string;
+  readonly path: string;
+  readonly body: Record<string, unknown> | undefined;
+}
+
+// allScopeControlFor decides whether a row needs an all-scope control and, when
+// it does, builds the replay. A tolerant allowlisted row that passed the GRANTED
+// repository and answered not_found cannot, from the scoped answer alone, be
+// told apart from a grant filter that wrongly hid the granted repository; the
+// same call through the all-scope session must answer the same not-found to
+// prove the fixture (not the grant) is missing the subject. It returns
+// undefined for a row that answered anything but not_found, is not
+// allowlisted, does not accept not_found, or does not name the granted
+// repository.
+export function allScopeControlFor(
+  row: SweepPolicyRow,
+  actual: string,
+  ids: SeedIds,
+): AllScopeControl | undefined {
+  if (row.class !== "allowlisted" || actual !== "not_found" || !row.accept.includes("not_found")) {
+    return undefined;
+  }
+  const args = substituteSeedIds(row.arguments, ids) as Record<string, unknown>;
+  if (!JSON.stringify(args).includes(JSON.stringify(ids.granted).slice(1, -1))) {
+    return undefined;
+  }
+  const path = substituteSeedIds(row.path, ids) as string;
+  return { method: row.method, path, body: row.method === "GET" ? undefined : args };
+}
+
+// judgeAllScopeControl accepts the control only when the all-scope session gets
+// the same typed not-found (HTTP 404 with the handler's "Not Found" body, not
+// the mux's unmounted-route page). A 200 means the grant, not the fixture,
+// hid the subject.
+export function judgeAllScopeControl(status: number, text: string): { pass: boolean; detail: string } {
+  if (status === 404 && /"error"\s*:\s*"Not Found"/.test(text) && !/page not found/i.test(text)) {
+    return { pass: true, detail: "all-scope session answered the same typed not-found" };
+  }
+  return { pass: false, detail: `all-scope session answered ${status}, not the typed 404 not-found: ${truncate(text)}` };
 }

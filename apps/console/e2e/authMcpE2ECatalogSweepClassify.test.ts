@@ -10,10 +10,13 @@ import { describe, expect, it } from "vitest";
 
 import type { McpJsonRpcResult } from "./authMcpE2EJsonRpc.ts";
 import {
+  ASK_DEFAULT_OFF,
   ROUTE_DENIED,
+  allScopeControlFor,
   classifyToolCallOutcome,
   compileDisclosurePattern,
   coverageProblems,
+  judgeAllScopeControl,
   judgeRow,
   renderSweepTable,
   routeDeniedMessage,
@@ -129,5 +132,41 @@ describe("the disclosure pattern the Go test emits", () => {
     expect(re.test("Refused with a 403 for scoped tokens")).toBe(true);
     expect(re.test("Shared-key callers only")).toBe(true);
     expect(re.test("Runs a Cypher query")).toBe(false);
+  });
+});
+
+describe("ask default-off classification", () => {
+  const off = 'HTTP 503: {"state":"unavailable","reason":"ask is not enabled; set ESHU_ASK_ENABLED=true and configure an agent_reasoning provider profile"}';
+  it("names the default-off 503 ask_default_off", () => {
+    expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: off }] })).outcome).toBe(ASK_DEFAULT_OFF);
+  });
+  it("keeps a genuine backend or engine 503 as http_503 so it fails the sweep", () => {
+    const engine = 'HTTP 503: {"state":"unavailable","reason":"ask engine encountered an error; see operator logs"}';
+    expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: engine }] })).outcome).toBe("http_503");
+    expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: "HTTP 503: upstream connect error" }] })).outcome).toBe("http_503");
+  });
+});
+
+describe("all-scope control for a tolerant row that names the granted repository", () => {
+  const ids = { granted: "g-repo", ungranted: "u-repo", scope: "s", stateScope: "t" };
+  const tolerant: SweepPolicyRow = {
+    tool: "get_file_content", label: "default", method: "POST", path: "/api/v0/content/files/read", class: "allowlisted",
+    arguments: { repo_id: "$REPO", relative_path: "README.md" }, accept: ["ok", "not_found"], acceptReason: "relative_path README.md is not seeded",
+  };
+  it("replays the substituted call for a not_found on the granted repository", () => {
+    expect(allScopeControlFor(tolerant, "not_found", ids)).toEqual({
+      method: "POST", path: "/api/v0/content/files/read", body: { repo_id: "g-repo", relative_path: "README.md" },
+    });
+  });
+  it("needs no control when the row answered ok, or names no granted repository, or is a ledger row", () => {
+    expect(allScopeControlFor(tolerant, "ok", ids)).toBeUndefined();
+    expect(allScopeControlFor({ ...tolerant, arguments: { entity_id: "sweep-seed-missing" } }, "not_found", ids)).toBeUndefined();
+    expect(allScopeControlFor({ ...tolerant, class: "shared_key_only" }, "not_found", ids)).toBeUndefined();
+    expect(allScopeControlFor({ ...tolerant, accept: ["ok"] }, "not_found", ids)).toBeUndefined();
+  });
+  it("passes only when the all-scope session answers the same typed 404", () => {
+    expect(judgeAllScopeControl(404, '{"detail":"file not found","error":"Not Found"}').pass).toBe(true);
+    expect(judgeAllScopeControl(200, '{"content":"x"}').pass).toBe(false);
+    expect(judgeAllScopeControl(404, "404 page not found").pass).toBe(false);
   });
 });

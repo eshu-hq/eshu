@@ -26,9 +26,11 @@ import type { Page } from "playwright";
 import { apiFetchInPage } from "./authE2EOidcFlow.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import {
+  allScopeControlFor,
   classifyToolCallOutcome,
   compileDisclosurePattern,
   coverageProblems,
+  judgeAllScopeControl,
   judgeRow,
   renderSweepTable,
   substituteSeedIds,
@@ -169,6 +171,7 @@ async function listTools(ctx: CatalogSweepContext, token: string): Promise<Liste
 async function sweepEveryTool(
   ctx: CatalogSweepContext,
   token: string,
+  adminPage: Page,
   policy: SweepPolicy,
   listed: readonly ListedTool[],
 ): Promise<string> {
@@ -183,14 +186,30 @@ async function sweepEveryTool(
   const disclosure = compileDisclosurePattern(policy);
   const ids = { granted: SEEDED_REPOSITORY_ID, ungranted: UNGRANTED_REPOSITORY_ID, scope: sweepScopeId, stateScope: stateScopeId };
   const results: SweepRowResult[] = [];
+  const controls: string[] = [];
   for (const row of policy.rows) {
     const args = substituteSeedIds(row.arguments, ids) as Record<string, unknown>;
     const call = await mcpToolsCall(ctx.mcpBase, row.tool, args, token);
-    results.push(judgeRow(row, classifyToolCallOutcome(call), descriptions.get(row.tool) ?? "", disclosure));
+    const outcome = classifyToolCallOutcome(call);
+    let result = judgeRow(row, outcome, descriptions.get(row.tool) ?? "", disclosure);
+    // A tolerant row that named the GRANTED repository and answered not_found
+    // is replayed through the all-scope session: the same typed 404 there
+    // proves the fixture lacks the subject, not that the grant hid it.
+    const control = allScopeControlFor(row, outcome.outcome, ids);
+    if (control !== undefined && result.pass) {
+      const replay = await apiFetchInPage(adminPage, control.method, control.path, control.body);
+      const verdict = judgeAllScopeControl(replay.status, replay.text);
+      controls.push(`${row.tool}[${row.label}] ${control.method} ${control.path}: scoped=not_found all-scope=${replay.status} ${verdict.pass ? "SAME" : "DIFFERENT"}`);
+      if (!verdict.pass) {
+        result = { ...result, pass: false, detail: `all-scope control failed: ${verdict.detail}` };
+      }
+    }
+    results.push(result);
   }
   const table = renderSweepTable(results);
-  process.stdout.write(`\n${table}\n\n`);
-  await writeFile(resolve(ctx.artifactsDir, "auth-mcp-e2e-catalog-sweep.txt"), `${table}\n`, "utf8");
+  const controlBlock = controls.length === 0 ? "" : `\nall-scope controls (granted-repository not_found rows):\n  ${controls.join("\n  ")}\n`;
+  process.stdout.write(`\n${table}\n${controlBlock}\n`);
+  await writeFile(resolve(ctx.artifactsDir, "auth-mcp-e2e-catalog-sweep.txt"), `${table}\n${controlBlock}`, "utf8");
   await writeFile(
     resolve(ctx.artifactsDir, "auth-mcp-e2e-catalog-sweep.json"),
     JSON.stringify({ tools: listed.length, calls: results.length, results }, null, 2),
@@ -206,7 +225,7 @@ async function sweepEveryTool(
   const strict = results.length - ledger - tolerant;
   return (
     `${listed.length} tools listed; ${results.length}/${results.length} calls passed: ${strict} allowlisted calls proved success ("ok"), ` +
-    `${tolerant} proved only that the route is mounted and the grant admitted the call (an unseeded subject answered a typed not-found, or the stack profile gates the tool), ` +
+    `${tolerant} proved only that the route is mounted and not refused by the route policy (an unseeded subject answered a typed not-found, or the stack profile gates the tool; ${controls.length} granted-repository not-found rows also matched an all-scope control), ` +
     `${ledger} ledger/shared-key routes refused with a disclosed 403`
   );
 }
@@ -330,6 +349,6 @@ export async function runCatalogSweep(step: AuthE2EStep, adminPage: Page, ctx: C
   if (listed.length === 0) {
     return;
   }
-  await step("catalog-sweep_every_tool_matches_route_policy", () => sweepEveryTool(ctx, token, loaded, listed));
+  await step("catalog-sweep_every_tool_matches_route_policy", () => sweepEveryTool(ctx, token, adminPage, loaded, listed));
   await step("catalog-sweep_negative_control_ungranted_repo_unreadable", () => assertNegativeControl(ctx, token, adminPage, loaded));
 }
