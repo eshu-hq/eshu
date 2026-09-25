@@ -353,6 +353,25 @@ rg --quiet --fixed-strings 'alternative identifier no longer detects its planted
 	|| fail "the uncompilable-identifier control went red for another reason than rg exit 2: $(cat "${scratch}/nopipefail-broken-identifier.out")"
 printf 'no-pipefail caller: clean controls pass; uncompilable ipv4 and identifier patterns fail with rg exit 2\n'
 
+# A runner without ripgrep must fail closed AND say so. It used to report
+# "alternative ipv4 no longer detects its planted sample (rg exit 127)", which
+# sends the reader to hunt for a deleted pattern when the job only lacks a
+# tool: the advisory coverage job on main failed that way for days (#7111).
+# The scrubbed PATH keeps every tool the library needs except rg.
+norg_bin="${scratch}/norg-bin"
+mkdir -p "${norg_bin}"
+for tool in mktemp rm cat tr sed head tail wc sort awk env dirname basename printf; do
+	tool_path="$(command -v "${tool}" 2>/dev/null || true)"
+	[[ "${tool_path}" == /* ]] && ln -sf "${tool_path}" "${norg_bin}/${tool}"
+done
+rc=0
+PATH="${norg_bin}" run_controls_without_pipefail "${lib}" "${scratch}/norg.out" rc
+[[ "${rc}" -ne 0 ]] \
+	|| fail "the controls passed with no rg on PATH; the scan would report every cassette clean"
+rg --quiet --fixed-strings 'rg (ripgrep) is required and was not found on PATH' "${scratch}/norg.out" \
+	|| fail "a missing rg must be named as the cause: $(cat "${scratch}/norg.out")"
+printf 'missing rg: controls fail closed and name the missing tool\n'
+
 # GREEN: the real gate over the committed tree, including the format go test.
 green_out="${scratch}/green.out"
 rc=0
