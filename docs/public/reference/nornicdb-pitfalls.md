@@ -490,7 +490,7 @@ boundary has moved and the shapes above need re-measuring rather than a quick
 edit. See `docs/internal/evidence/5167-code-family-batch-1.md` for the
 before/after and the fan-in timing.
 
-## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
+## Pitfall (Older Pin Only): `OPTIONAL MATCH` + Aggregate Collapsed Every Zero-Match Group Into One Row
 
 ### Observed shape
 

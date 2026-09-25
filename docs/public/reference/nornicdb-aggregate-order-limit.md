@@ -1,7 +1,7 @@
 # NornicDB: `ORDER BY`/`LIMIT` After An Aggregate Is Silently Ignored
 
 This page re-measures the "`OPTIONAL MATCH` + Aggregate" pitfall in
-[NornicDB Pitfalls](nornicdb-pitfalls.md#pitfall-optional-match-aggregate-collapses-every-zero-match-group-into-one-row)
+[NornicDB Pitfalls](nornicdb-pitfalls.md#pitfall-older-pin-only-optional-match-aggregate-collapsed-every-zero-match-group-into-one-row)
 on the current compose pin and records a different defect the same statement
 shape hits.
 
