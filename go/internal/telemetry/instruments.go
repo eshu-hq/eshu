@@ -4262,10 +4262,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CanonicalWriteDuration histogram: %w", err)
 	}
 
+	// Second-scale boundaries, 1 ms to 30 s: a claim is a Postgres round trip
+	// (measured mean ~0.4 s on ops-qa) that can stretch under lock contention.
+	// The OTEL default set is millisecond-scaled (0, 5, 10 ... 10000) and put
+	// every claim in the first non-zero bucket (#7084).
+	claimDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	inst.QueueClaimDuration, err = meter.Float64Histogram(
 		"eshu_dp_queue_claim_duration_seconds",
 		metric.WithDescription("Queue work item claim duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(claimDurationBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueueClaimDuration histogram: %w", err)
@@ -4414,6 +4420,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_shared_acceptance_upsert_duration_seconds",
 		metric.WithDescription("Shared acceptance upsert duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(claimDurationBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedAcceptanceUpsertDuration histogram: %w", err)
@@ -4479,6 +4486,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_documentation_drift_generation_duration_seconds",
 		metric.WithDescription("Duration of documentation drift finding generation"),
 		metric.WithUnit("s"),
+		// Range not measured; broad 1 ms to 60 s seconds set (#7084).
+		metric.WithExplicitBucketBoundaries(sharedProjectionProcessingBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DocumentationDriftGenerationDuration histogram: %w", err)
@@ -5187,6 +5196,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.IdentityCacheReloadDuration, err = meter.Float64Histogram(
 		"eshu_dp_identity_cache_reload_duration_seconds",
 		metric.WithDescription("Duration of identity-fact cache reloads"),
+		metric.WithUnit("s"),
+		// A reload reads the full identity-fact set, so it runs longer than a claim.
+		metric.WithExplicitBucketBoundaries(0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheReloadDuration histogram: %w", err)
@@ -5195,6 +5207,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.IdentityCacheProbeDuration, err = meter.Float64Histogram(
 		"eshu_dp_identity_cache_probe_duration_seconds",
 		metric.WithDescription("Duration of identity-fact epoch probe queries"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(claimDurationBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheProbeDuration histogram: %w", err)

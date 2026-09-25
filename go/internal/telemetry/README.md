@@ -335,12 +335,12 @@ module prefixes across generations.
 | `ScannerWorkerCPUSeconds` | `eshu_dp_scanner_worker_cpu_seconds` | 0.01–1800 s |
 | `ScannerWorkerMemoryBytes` | `eshu_dp_scanner_worker_memory_bytes` (Int64) | 1 MiB–16 GiB |
 | `ConfluenceFetchDuration` | `eshu_dp_confluence_fetch_duration_seconds` | 0.01–60 s |
-| `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
-| `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
+| `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | 0.005–30 s |
+| `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | 0.1–300 s |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
-| `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
+| `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | 0.001–120 s |
 | `ProjectorAckWaitDuration` | `eshu_dp_projector_ack_wait_seconds` | 1–600 s |
-| `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
+| `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | 0.05–900 s |
 | `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
 | `GCPMaterializationDuration` | `eshu_dp_gcp_materialization_duration_seconds` | 0.001–21600 s |
@@ -349,7 +349,7 @@ module prefixes across generations.
 | `GenerationRetentionOldestEligibleAge` | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | 1h–90d |
 | `CanonicalWriteDuration` | `eshu_dp_canonical_write_duration_seconds` | 0.01–60 s |
 | `CanonicalProjectionDuration` | `eshu_dp_canonical_projection_duration_seconds` | 0.01–60 s |
-| `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | default |
+| `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | 0.001–30 s |
 | `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–2.5 s |
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
 | `StatusSnapshotReadDuration` | `eshu_dp_status_snapshot_read_duration_seconds` | 0.001–10 s; `read` (closed reader set), `outcome` |
@@ -357,12 +357,12 @@ module prefixes across generations.
 | `RelationshipBreakdownQueued` | `eshu_dp_relationship_breakdown_queued` (Int64 UpDownCounter) | current waiters; no labels |
 | `RelationshipBreakdownInFlight` | `eshu_dp_relationship_breakdown_in_flight` (Int64 UpDownCounter) | current permit holders; no labels |
 | `Neo4jBatchSize` | `eshu_dp_neo4j_batch_size` | 1–1000 rows |
-| `SharedAcceptanceUpsertDuration` | `eshu_dp_shared_acceptance_upsert_duration_seconds` | default |
-| `SharedAcceptanceLookupDuration` | `eshu_dp_shared_acceptance_lookup_duration_seconds` | default |
+| `SharedAcceptanceUpsertDuration` | `eshu_dp_shared_acceptance_upsert_duration_seconds` | 0.001–30 s |
+| `SharedAcceptanceLookupDuration` | `eshu_dp_shared_acceptance_lookup_duration_seconds` | 0.001–30 s |
 | `SharedProjectionIntentWaitDuration` | `eshu_dp_shared_projection_intent_wait_seconds` | 0.001–21600 s |
 | `SharedProjectionProcessingDuration` | `eshu_dp_shared_projection_processing_seconds` | 0.001–60 s |
 | `SharedProjectionStepDuration` | `eshu_dp_shared_projection_step_seconds` | 0.001–60 s |
-| `DocumentationDriftGenerationDuration` | `eshu_dp_documentation_drift_generation_duration_seconds` | default |
+| `DocumentationDriftGenerationDuration` | `eshu_dp_documentation_drift_generation_duration_seconds` | 0.001–60 s |
 | `SharedEdgeWriteGroupDuration` | `eshu_dp_shared_edge_write_group_duration_seconds` | 0.001–60 s |
 | `SharedEdgeWriteGroupStatementCount` | `eshu_dp_shared_edge_write_group_statement_count` (Int64) | 1–128 stmts |
 | `CodeCallEdgeDuration` | `eshu_dp_code_call_edge_batch_duration_seconds` | 0.001–5 s |
