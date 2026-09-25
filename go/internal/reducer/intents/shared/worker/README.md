@@ -41,7 +41,8 @@ See [doc.go](doc.go) for the full list. The headline entry points are
 `LoadConfig`. This package's own exported names drop the Shared/SharedProjection
 prefix that stuttered against its own `intents/shared/worker` path (issue
 #6061's naming pass): `Runner`, `RunnerConfig`, `LoadConfig`, `IntentReader`,
-`PartitionCandidateReader`, `UnhashedCandidateReader`, `RefreshFenceLookup`,
+`PartitionCandidateReader`, `UnhashedCandidateReader`,
+`SupersededGenerationReader`, `RefreshFenceLookup`,
 `ReadinessPhase`, `Domains`, `AcceptanceTelemetry`, `AcceptanceLookupEvent`,
 `RecordStepDurations`, `MaxIntentWaitSeconds`, `DefaultPollInterval`,
 `DefaultLeaseOwnerPrefix`, `ReadinessKeyspace`, and
@@ -79,6 +80,8 @@ Registers no instruments of its own; it records through the
 `SharedProjectionPartitionHeartbeatMissed`, `SharedAcceptanceLookupDuration`,
 `SharedAcceptanceLookupErrors`, `SharedProjectionStaleIntents`), unchanged by
 this move since the instruments followed their call sites.
+`SharedProjectionStaleIntents` carries a closed `reason` attribute:
+`acceptance_mismatch` or `generation_superseded` (#7121).
 
 ## Gotchas / invariants
 
@@ -93,6 +96,24 @@ call uses the pre-heartbeat context, not the heartbeat-derived one
 `stopHeartbeat` cancels — releasing through the cancelled context silently
 fails and leaves the lease held until its own TTL. See the inline comment on
 `ProcessPartitionOnce` before reordering this.
+
+**Superseded-generation intents drain before readiness (#7121).** When the
+`IntentReader` also implements `SupersededGenerationReader`,
+`SelectPartitionBatch` makes one bounded lookup over the batch's distinct
+generation ids and drains every intent whose scope generation is
+`superseded` through `StaleIDs`, before the acceptance filter and the
+readiness gate. Such an intent's `workload_materialization` phase row is never
+published, so the gate would block it forever. The predicate is the terminal
+`superseded` status, not "not the active generation": a pending generation's
+intents are selectable before it activates and must not be dropped. A reader
+without the port keeps the old behavior; a lookup error fails the selection.
+`PartitionBatchResult.SupersededGenerationCount` and
+`PartitionProcessResult.SupersededGenerationIntents` carry the subset of the
+stale count that came from this drain. Because those rows never reach the
+gate, `blocked_count` and `blocked_intent_wait_seconds` describe only
+generations that are not superseded, so a large blocked wait is a real
+prerequisite-phase stall. The SQL does not yet enforce that `superseded` is
+terminal on every writer; that gap is tracked in #TBD.
 
 **The repo-wide-retract fence only engages for the fenced domain set**
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without

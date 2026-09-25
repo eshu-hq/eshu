@@ -72,7 +72,37 @@ func (t AcceptanceTelemetry) RecordLookup(ctx context.Context, event AcceptanceL
 	)
 }
 
+// Stale-intent reasons recorded on eshu_dp_shared_projection_stale_intents_total
+// as the closed "reason" attribute. acceptance_mismatch is the intent's
+// generation differing from the accepted generation for its acceptance key;
+// generation_superseded is the intent's scope generation being terminally
+// superseded (#7121), which no phase row will ever unblock.
+const (
+	StaleReasonAcceptanceMismatch   = "acceptance_mismatch"
+	StaleReasonGenerationSuperseded = "generation_superseded"
+)
+
+// RecordStaleIntents records stale intents drained because the accepted
+// generation for their acceptance key differs from the intent's generation.
 func (t AcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner string, domain string, staleCount int) {
+	t.recordStale(ctx, runner, domain, StaleReasonAcceptanceMismatch, "shared acceptance filtered stale intents", staleCount)
+}
+
+// RecordSupersededGenerationIntents records intents drained because their scope
+// generation is superseded (#7121). The reason attribute keeps them apart from
+// acceptance mismatches so operators can tell orphan cleanup from churn.
+func (t AcceptanceTelemetry) RecordSupersededGenerationIntents(ctx context.Context, runner string, domain string, count int) {
+	t.recordStale(ctx, runner, domain, StaleReasonGenerationSuperseded, "shared projection drained intents of superseded generations", count)
+}
+
+func (t AcceptanceTelemetry) recordStale(
+	ctx context.Context,
+	runner string,
+	domain string,
+	reason string,
+	message string,
+	staleCount int,
+) {
 	if staleCount <= 0 {
 		return
 	}
@@ -84,6 +114,7 @@ func (t AcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner stri
 			metric.WithAttributes(
 				telemetry.AttrDomain(domain),
 				telemetry.AttrRunner(runner),
+				telemetry.AttrReason(reason),
 			),
 		)
 	}
@@ -94,9 +125,10 @@ func (t AcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner stri
 
 	t.Logger.InfoContext(
 		ctx,
-		"shared acceptance filtered stale intents",
+		message,
 		slog.String("runner", runner),
 		log.Domain(domain),
+		slog.String("stale_reason", reason),
 		telemetry.AcceptanceStaleCountAttr(staleCount),
 		telemetry.PhaseAttr(telemetry.PhaseShared),
 	)

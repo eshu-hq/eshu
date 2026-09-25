@@ -74,3 +74,54 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 	}
 	return exists, sqlRows.Err()
 }
+
+// supersededGenerationIDsSQL returns which of the batch's generation ids are
+// superseded scope generations. generation_id is scope_generations' primary
+// key, so the ANY() probe is a bounded primary-key lookup over at most the
+// distinct generations of one selection window, one round trip per pass.
+//
+// It keys on the terminal 'superseded' status, not on "generation_id is not
+// ingestion_scopes.active_generation_id": a pending generation's shared
+// intents are selectable before it activates, so "not active" would race with
+// activation and drop live work. Ids that are not scope generations (for
+// example repo_dependency resolver relationship-generation ids) match nothing
+// and stay selectable.
+const supersededGenerationIDsSQL = `
+SELECT generation_id
+FROM scope_generations
+WHERE generation_id = ANY($1::text[])
+  AND status = 'superseded'
+`
+
+// SupersededGenerationIDs returns the subset of generationIDs whose scope
+// generation is superseded. The shared projection worker uses it to drain
+// intents whose generation will never publish the prerequisite phase row
+// (#7121). An empty input performs no query; a query error is returned so the
+// caller fails the selection instead of guessing.
+func (s *SharedIntentStore) SupersededGenerationIDs(
+	ctx context.Context,
+	generationIDs []string,
+) (map[string]struct{}, error) {
+	if len(generationIDs) == 0 {
+		return nil, nil
+	}
+
+	sqlRows, err := s.database.QueryContext(ctx, supersededGenerationIDsSQL, generationIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query superseded generations: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	superseded := make(map[string]struct{})
+	for sqlRows.Next() {
+		var generationID string
+		if err := sqlRows.Scan(&generationID); err != nil {
+			return nil, fmt.Errorf("scan superseded generation: %w", err)
+		}
+		superseded[generationID] = struct{}{}
+	}
+	if err := sqlRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate superseded generations: %w", err)
+	}
+	return superseded, nil
+}

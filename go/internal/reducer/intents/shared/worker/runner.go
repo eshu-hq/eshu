@@ -319,11 +319,22 @@ func (r *Runner) processPartitionWithTelemetry(
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
-	acceptanceTelemetry.RecordStaleIntents(ctx, "shared_projection", domain, result.StaleIntents)
+	acceptanceTelemetry.RecordStaleIntents(
+		ctx, "shared_projection", domain, result.StaleIntents-result.SupersededGenerationIntents,
+	)
+	acceptanceTelemetry.RecordSupersededGenerationIntents(
+		ctx, "shared_projection", domain, result.SupersededGenerationIntents,
+	)
 	if result.BlockedReadiness > 0 && r.Logger != nil {
+		// blocked_count covers only intents whose scope generation is not
+		// superseded: superseded generations drain as stale before the readiness
+		// gate runs (#7121), so a persistently large blocked_intent_wait_seconds
+		// is a real prerequisite-phase stall, not orphaned work.
+		readinessPhase, _ := ReadinessPhase(domain)
 		r.Logger.InfoContext(
 			ctx,
-			"shared projection skipped intents until semantic readiness is committed",
+			"shared projection skipped intents until their prerequisite graph phase is committed",
+			slog.String("readiness_phase", string(readinessPhase)),
 			log.Domain(domain),
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),

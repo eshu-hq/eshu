@@ -22,6 +22,14 @@ repo-wide-retract fence must follow the root `AGENTS.md`'s "Change reducer
 queue claim semantics" section: prove idempotency under duplicate claim or
 partial failure.
 
+**Keep the superseded-generation drain ahead of the acceptance and readiness
+filters in `SelectPartitionBatch` (#7121).** A superseded generation's phase
+row never publishes, so a row left for the readiness gate blocks forever.
+Key it on the terminal `superseded` status only, never on "not the scope's
+active generation" (that races activation). The port is optional: a nil or
+non-implementing reader must stay byte-identical, and a lookup error must
+fail the selection rather than drop or keep rows.
+
 **Do not reorder the heartbeat stop before the lease release in
 `ProcessPartitionOnce`.** `stopHeartbeat()` must run first, and
 `ReleasePartitionLease` must use the pre-heartbeat context (`releaseCtx`),

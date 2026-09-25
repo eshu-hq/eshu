@@ -38,6 +38,18 @@
 // internal/cpubudget, internal/telemetry, and the standard library — and it
 // must never import the reducer root.
 //
+// # Superseded generations
+//
+// [SupersededGenerationReader] is an optional port on the [IntentReader]. When
+// implemented, [SelectPartitionBatch] drains every intent whose scope
+// generation is superseded as stale (#7121) before the acceptance and
+// readiness filters, because such an intent's prerequisite phase row is never
+// published. The subset is reported as
+// [PartitionBatchResult].SupersededGenerationCount and
+// [PartitionProcessResult].SupersededGenerationIntents, and recorded on
+// eshu_dp_shared_projection_stale_intents_total with reason
+// generation_superseded ([StaleReasonGenerationSuperseded]).
+//
 // # Who calls this package
 //
 // The code-call projection runner (code/call/projection) imports this
