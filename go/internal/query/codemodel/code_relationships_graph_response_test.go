@@ -19,8 +19,8 @@ import (
 func TestRelationshipGraphRowCypherUsesBareEntityScan(t *testing.T) {
 	t.Parallel()
 
-	cypher := RelationshipGraphRowCypher("e.id = $entity_id")
-	if got, want := cypher, RelationshipGraphRowCypherAnchored("MATCH (e)", "e.id = $entity_id"); got != want {
+	cypher := RelationshipGraphRowCypher("e.id = $entity_id", querycontract.RepositoryAccessFilter{AllScopes: true})
+	if got, want := cypher, RelationshipGraphRowCypherAnchored("MATCH (e)", "e.id = $entity_id", querycontract.RepositoryAccessFilter{AllScopes: true}); got != want {
 		t.Fatalf("RelationshipGraphRowCypher diverged from RelationshipGraphRowCypherAnchored(\"MATCH (e)\", ...):\ngot:\n%s\nwant:\n%s", got, want)
 	}
 	if got := cypher; !strings.Contains(got, "MATCH (e) WHERE e.id = $entity_id") {
@@ -48,7 +48,7 @@ func TestBuildTransitiveRelationshipRowsCypherMatchesBFSRule(t *testing.T) {
 			name := fmt.Sprintf("%s/%s", backend, direction)
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				cypher, _ := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, backend)
+				cypher, _ := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, backend, querycontract.RepositoryAccessFilter{AllScopes: true})
 				if !strings.Contains(cypher, "min(length(path))") {
 					t.Fatalf("%s: cypher does not aggregate to the shortest depth:\n%s", name, cypher)
 				}
@@ -59,7 +59,7 @@ func TestBuildTransitiveRelationshipRowsCypherMatchesBFSRule(t *testing.T) {
 		}
 	}
 
-	outgoing, _ := BuildTransitiveRelationshipRowsCypher("entity-1", "outgoing", 4, querycontract.GraphBackendNeo4j)
+	outgoing, _ := BuildTransitiveRelationshipRowsCypher("entity-1", "outgoing", 4, querycontract.GraphBackendNeo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(outgoing, "WHERE target <> e") {
 		t.Fatalf("outgoing cypher does not exclude the start node:\n%s", outgoing)
 	}
@@ -67,7 +67,7 @@ func TestBuildTransitiveRelationshipRowsCypherMatchesBFSRule(t *testing.T) {
 		t.Fatalf("outgoing cypher lost its directed traversal:\n%s", outgoing)
 	}
 
-	incoming, _ := BuildTransitiveRelationshipRowsCypher("entity-1", "incoming", 4, querycontract.GraphBackendNeo4j)
+	incoming, _ := BuildTransitiveRelationshipRowsCypher("entity-1", "incoming", 4, querycontract.GraphBackendNeo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(incoming, "WHERE source <> e") {
 		t.Fatalf("incoming cypher does not exclude the start node:\n%s", incoming)
 	}
@@ -87,7 +87,7 @@ func TestRelationshipGraphRowCypherAnchoredUsesCallerMatchClause(t *testing.T) {
 	t.Parallel()
 
 	anchor := "MATCH (anchorRepo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(anchorFile:File)-[:CONTAINS]->(e)"
-	cypher := RelationshipGraphRowCypherAnchored(anchor, "e.name = $name")
+	cypher := RelationshipGraphRowCypherAnchored(anchor, "e.name = $name", querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if !strings.Contains(cypher, anchor+" WHERE e.name = $name") {
 		t.Fatalf("anchored cypher does not open with the caller's MATCH clause and predicate:\n%s", cypher)
@@ -114,7 +114,7 @@ func TestBuildTransitiveRelationshipRowsCypherNeo4jSeeksUID(t *testing.T) {
 
 	const anchor = "MATCH (e:Function|Class|Struct|Interface|TypeAlias|File {uid: $entity_id})"
 	for _, direction := range []string{"outgoing", "incoming"} {
-		cypher, params := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNeo4j)
+		cypher, params := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNeo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
 		if !strings.Contains(cypher, anchor) {
 			t.Errorf("%s: Neo4j anchor missing %q:\n%s", direction, anchor, cypher)
 		}
@@ -125,7 +125,7 @@ func TestBuildTransitiveRelationshipRowsCypherNeo4jSeeksUID(t *testing.T) {
 			t.Errorf("%s: params[entity_id] = %#v, want entity-1", direction, params["entity_id"])
 		}
 
-		nornic, _ := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNornicDB)
+		nornic, _ := BuildTransitiveRelationshipRowsCypher("entity-1", direction, 4, querycontract.GraphBackendNornicDB, querycontract.RepositoryAccessFilter{AllScopes: true})
 		if strings.Contains(nornic, anchor) || !strings.Contains(nornic, GraphEntityIDPredicate("e", "$entity_id")) {
 			t.Errorf("%s: NornicDB branch must keep its unlabeled anchor:\n%s", direction, nornic)
 		}

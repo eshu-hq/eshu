@@ -156,16 +156,16 @@ filters include `direction`, `relationship_type`, `transitive`, and
 `max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
 callers or callees; `max_depth` caps traversal.
 
-This route binds no grant, so scoped tokens are refused with a `403`, all-scope
-bearer tokens included, and so is every browser session except a tenant-bound
-all-scope console session under `local_no_policy`, `hosted_single_tenant`, or an
-unset `ESHU_GOVERNANCE_MODE` (`hosted_multi_tenant` and any unrecognized value
-refuse it too). It is where the `analyze_code_relationships` MCP tool sends its
+It is where the `analyze_code_relationships` MCP tool sends its
 `who_modifies`, `module_deps`, `variable_scope`, `find_complexity`,
-`find_functions_by_argument`, and `find_functions_by_decorator` query types; the
-relationship-story and call-chain query types go to the grant-bound routes below
-instead. Promotion applies the same anchoring-`MATCH` grant those routes carry
-(#5167).
+`find_functions_by_argument`, and `find_functions_by_decorator` query types.
+A scoped token reads only its granted repositories (#5167). An anchor outside
+the grant, by `entity_id` or by `name`, answers the unknown-entity `404`; a
+`name` without `repo_id` resolves among granted repositories only. Neighbours
+outside the grant or with no `repo_id` are omitted, before the per-direction row
+ceiling, and a transitive `CALLS` walk never passes through an ungranted node.
+An empty grant gets the `404` with no backend read; an ungranted `repo_id` gets
+`400`. Shared-key and admin callers read what they read before.
 
 `POST /api/v0/code/relationships/story` resolves one target first. If the target
 is ambiguous, it returns bounded candidates instead of guessing. It supports

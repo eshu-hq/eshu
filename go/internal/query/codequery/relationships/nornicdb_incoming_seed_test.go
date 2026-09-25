@@ -32,6 +32,7 @@ func TestNornicDBIncomingOneHopCypherSeedsExactTarget(t *testing.T) {
 				"CALLS",
 				"Function",
 				property,
+				querycontract.RepositoryAccessFilter{AllScopes: true},
 			)
 
 			wantMatch := "MATCH (e:Function {" + property + ": $entity_id})<-[rel:CALLS]-(source)"
@@ -185,6 +186,7 @@ func TestNornicDBIncomingOneHopRelationshipsPreservesRowBehavior(t *testing.T) {
 				"incoming",
 				"CALLS",
 				"Function",
+				querycontract.RepositoryAccessFilter{AllScopes: true},
 			)
 			if err != nil {
 				t.Fatalf("nornicDBOneHopRelationships() error = %v, want nil", err)
@@ -314,7 +316,7 @@ func TestNornicDBGraphLabelForContentEntityTypeStaysAlignedWithGraphLabels(t *te
 func TestNornicDBOneHopRelationshipsCypherUsesIndexedEntityLookup(t *testing.T) {
 	t.Parallel()
 
-	cypher, params := relationships.OneHopRelationshipsCypher("content-entity:handleRelationships", "outgoing", "CALLS", "Function", "uid")
+	cypher, params := relationships.OneHopRelationshipsCypher("content-entity:handleRelationships", "outgoing", "CALLS", "Function", "uid", querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if !strings.Contains(cypher, "MATCH (e:Function {uid: $entity_id})-[rel:CALLS]->(target)") {
 		t.Fatalf("cypher = %q, want single-match indexed outgoing relationship lookup", cypher)
@@ -361,6 +363,7 @@ func TestNornicDBOneHopRelationshipsFallsBackFromUIDToID(t *testing.T) {
 		"outgoing",
 		"CALLS",
 		"Function",
+		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
 	if err != nil {
 		t.Fatalf("nornicDBOneHopRelationships() error = %v, want nil", err)

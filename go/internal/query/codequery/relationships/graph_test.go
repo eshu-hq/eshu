@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -204,7 +206,7 @@ func TestHandleRelationshipsScopesExactNameLookupToRepoWhenProvided(t *testing.T
 func TestRelationshipGraphRowCypherAvoidsDuplicateRepoNameAndVariableReuse(t *testing.T) {
 	t.Parallel()
 
-	cypher := codemodel.RelationshipGraphRowCypher("e.id = $entity_id")
+	cypher := codemodel.RelationshipGraphRowCypher("e.id = $entity_id", querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if got, want := strings.Count(cypher, " as repo_name"), 1; got != want {
 		t.Fatalf("strings.Count(cypher, \" as repo_name\") = %d, want %d; cypher=%q", got, want, cypher)

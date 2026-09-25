@@ -17,6 +17,11 @@ import (
 // pre-move text. The transitive walk stays because it injects that
 // pinned read. Edit a pinned body only with a manifest update in the
 // same change; re-freezing a digest to match an edit is not a fix.
+//
+// #5167 edited the pinned body on purpose, and re-derived its digest in
+// the same change: each hop now binds the neighbour it reaches to the
+// caller's repository grant, so the breadth-first walk can never step
+// onto -- and therefore never through -- a node outside the grant.
 
 // nornicDBTransitiveRelationshipRows walks the CALLS frontier through
 // the relationships leaf, injecting the pinned one-hop read so the
@@ -28,24 +33,29 @@ func (h *CodeHandler) nornicDBTransitiveRelationshipRows(
 	direction string,
 	maxDepth int,
 ) ([]map[string]any, error) {
+	access := codeGrantAccessFilter(ctx)
 	return relationships.TransitiveRows(ctx, entityID, direction, maxDepth,
 		func(ctx context.Context, currentID string, direction string) ([]map[string]any, error) {
-			return h.nornicDBTransitiveOneHopRows(ctx, currentID, direction)
+			return h.nornicDBTransitiveOneHopRows(ctx, currentID, direction, access)
 		})
 }
 
-// nornicDBTransitiveOneHopRows reads one CALLS hop in one direction.
-// Pinned: byte-identical body (see the file comment).
+// nornicDBTransitiveOneHopRows reads one CALLS hop in one direction. For a
+// scoped caller the neighbour's repo_id is bound to the grant in the same
+// WHERE as the anchor, so a neighbour outside the grant (or with no
+// repo_id) is never returned and never joins the next frontier.
+// Pinned: see the file comment.
 func (h *CodeHandler) nornicDBTransitiveOneHopRows(
 	ctx context.Context,
 	entityID string,
 	direction string,
+	access repositoryAccessFilter,
 ) ([]map[string]any, error) {
-	params := map[string]any{"entity_id": entityID}
+	params := access.GraphParams(map[string]any{"entity_id": entityID})
 	if direction == "incoming" {
 		return h.Neo4j.Run(ctx, `
 		MATCH (source)-[:CALLS]->(target)
-		WHERE `+nornicDBEntityUIDPredicate("target", "$entity_id")+`
+		WHERE `+nornicDBEntityUIDPredicate("target", "$entity_id")+access.GraphPredicateOnProperty("source", "repo_id")+`
 		RETURN coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
 		       coalesce(target.id, target.uid) as target_id,
@@ -54,7 +64,7 @@ func (h *CodeHandler) nornicDBTransitiveOneHopRows(
 	}
 	return h.Neo4j.Run(ctx, `
 		MATCH (source)-[:CALLS]->(target)
-		WHERE `+nornicDBEntityUIDPredicate("source", "$entity_id")+`
+		WHERE `+nornicDBEntityUIDPredicate("source", "$entity_id")+access.GraphPredicateOnProperty("target", "repo_id")+`
 		RETURN coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
 		       coalesce(target.id, target.uid) as target_id,

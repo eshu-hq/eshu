@@ -89,20 +89,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	// scopes. Promoting it means disclosing that a package whose fact carries
 	// no visibility stays hidden from a scoped caller.
 	"POST /api/v0/code/bundles": {},
-	// #5167 compatibility fallback for the analyze_code_relationships MCP
-	// tool. That tool sends its relationship-story and call-chain query types
-	// to the two already-allowlisted routes; who_modifies, module_deps,
-	// variable_scope, find_complexity, find_functions_by_argument and
-	// find_functions_by_decorator fall through
-	// resolveAnalyzeCodeRelationshipsRequest
-	// (go/internal/mcp/relationships/code_routes.go) to this route instead,
-	// whose handler expands a resolved entity's neighbours with no grant to
-	// intersect. The promotion shape is the #6553 one -- the grant in each
-	// statement's own anchoring MATCH, on the entity node's repo_id, as
-	// scopedCodeGraphGrantRoute describes for /code/relationships/story --
-	// and it waits on the #6060 lane A move of code_relationships.go out of
-	// this package so the rewrite is not written twice.
-	"POST /api/v0/code/relationships": {},
 	// #5167 W3 flagged (NOT allowlisted, still pending). All three walks are
 	// bounded today, contrary to what this comment used to claim:
 	// traceResourceToCode (impact/handler.go) clamps max_depth to 1..20 (default 8)

@@ -279,6 +279,10 @@ tests:
     tag: live_nornicdb_convention_outlier
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/codequery/relationships_grant_live_test.go
+    tag: live_code_relationships_grant
+    class: scheduled
+    reason: "#5167 two-tenant grant proof for POST /api/v0/code/relationships on both backends (one-hop x 6 types, hub filter-before-limit, transitive, content fallback); local runs ~2s NornicDB / ~4s Neo4j on a seeded fixture — promote to blocking with repeated timing evidence"
   - file: go/internal/query/codequery/relationship_story_grant_clause_live_test.go
     tag: live_nornicdb_relationship_story
     class: scheduled
