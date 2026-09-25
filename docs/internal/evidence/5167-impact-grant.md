@@ -249,9 +249,10 @@ Every leak class was run RED on the unchanged handlers and then GREEN.
 | P3-1 `TestExposureOwnershipNodesReadsNestedProperties` | nested-`properties` node decoded to an empty id (fix reverse-applied) | id and repo_id decoded |
 | Real middleware `TestAuthMiddlewareWithScopedTokensAdmitsImpactPathRoutes` | 403 on all three (run on `origin/main`) | handler reached; no repo-b identifier in any body |
 
-The live runs (`ESHU_OCI_PROVE_LIVE=1`, pinned image
-`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`,
-docker-compose env, fresh container per measurement run) are:
+The live tests (`ESHU_OCI_PROVE_LIVE=1`) are listed below. The first ones ran
+on the pinned NornicDB image (historical, before the 2026-09-25 rule). The whole
+suite, including the hub and shared-name tests added in review, ran on
+`neo4j:2026-community`, as the next paragraph records:
 
 - `TestLiveImpactScopedGrantTwoTenant` (T6): 1-id and 130-id grants, with
   shared-key negative controls proving the leaks exist unfiltered.
