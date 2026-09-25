@@ -26,6 +26,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/incident"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
@@ -254,7 +255,7 @@ func codeReachabilityProjectionRunnerFor(
 	concurrency int,
 	logger *slog.Logger,
 ) *codeintel.CodeReachabilityProjectionRunner {
-	store := postgres.NewCodeReachabilityStore(database)
+	store := reachabilitystore.NewCodeReachabilityStore(database)
 	return &codeintel.CodeReachabilityProjectionRunner{
 		InputLoader: store,
 		RowWriter:   store,

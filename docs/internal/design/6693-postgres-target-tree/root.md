@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 114 test)
+### `root (stays)` (4 non-test, 115 test)
 
 ```text
 adapters.go -> adapters.go
@@ -23,6 +23,7 @@ cicd_run_watermark_schema_test.go -> cicd_run_watermark_schema_test.go   # asser
 cloud_resource_owner_page_index_live_test.go -> cloud_resource_owner_page_index_live_test.go
 cloud_resource_owner_page_index_schema_test.go -> cloud_resource_owner_page_index_schema_test.go
 code_reachability_index_replay_live_test.go -> code_reachability_index_replay_live_test.go   # spans root=100%; follows its private symbols, not its name
+code_reachability_upgrade_backfill_live_test.go -> code_reachability_upgrade_backfill_live_test.go   # defines testSuffix, shared by unrelated root live tests (recovery_refinalize_*, reducer_queue_workload_replay_live_test.go, repo_dependency_acceptance_gate_expiry_test.go, recovery_claim_token_fence_live_test.go)
 collector_evidence_summary_schema_test.go -> collector_evidence_summary_schema_test.go
 container_image_identity_ack_capability_live_helpers_test.go -> container_image_identity_ack_capability_live_helpers_test.go   # no production references
 container_image_identity_ack_capability_live_test.go -> container_image_identity_ack_capability_live_test.go   # follows its private symbols, not its name

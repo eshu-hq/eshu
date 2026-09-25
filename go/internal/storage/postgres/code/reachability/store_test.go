@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package reachabilitystore
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
@@ -307,7 +308,7 @@ func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query str
 				delete(database.rows, key)
 			}
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	case strings.Contains(query, "INSERT INTO code_reachability_rows"):
 		const columnsPerRow = 13
 		for i := 0; i < len(args); i += columnsPerRow {
@@ -336,7 +337,7 @@ func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query str
 			}
 			database.rows[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.RootEntityID, row.EntityID}, "|")] = row
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	case strings.Contains(query, "DELETE FROM code_root_verdicts"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
@@ -346,7 +347,7 @@ func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query str
 				delete(database.verdicts, key)
 			}
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	case strings.Contains(query, "INSERT INTO code_root_verdicts"):
 		const columnsPerRow = 9
 		for i := 0; i < len(args); i += columnsPerRow {
@@ -363,7 +364,7 @@ func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query str
 			}
 			database.verdicts[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.EntityID, row.RootKind}, "|")] = row
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	case strings.Contains(query, "INSERT INTO code_reachability_repository_watermarks"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
@@ -376,9 +377,9 @@ func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query str
 			Truncated:    truncated,
 			VerdictEpoch: verdictEpoch,
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}

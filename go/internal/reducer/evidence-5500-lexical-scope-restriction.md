@@ -211,9 +211,9 @@ but it changes NEITHER the `code_root_verdicts` schema NOR any node/edge
 identity: `CodeRootVerdictRow`'s key (scope/generation/repository/entity_id) is
 unchanged, no new column, no new graph label/edge type. This is exactly the
 case `CodeReachabilityVerdictSchemaEpoch`
-(`go/internal/storage/postgres/code_reachability.go`) exists for — bumped `1 ->
+(`go/internal/storage/postgres/code/reachability/store.go`) exists for — bumped `1 ->
 2`. The loader's `coalesce(reach_verdict_epoch, 0) < $2` disjunct
-(`code_reachability_loader.go`) re-schedules every already-indexed repository's
+(`go/internal/storage/postgres/code/reachability/loader.go`) re-schedules every already-indexed repository's
 watermark exactly once (self-extinguishing: the runner re-stamps the new epoch
 after the one re-projection, per the #5376 P1 upgrade-backfill loader-plan
 proof already recorded in `evidence-5376-code-root-verdicts.md`), so every

@@ -15,7 +15,8 @@ upsert, and the cleanup-finding reads (`ListCleanupFindings`,
 `ListLatestCleanupFindings`, `CountLatestCleanupFindings`,
 `HasLatestRows`) the query and MCP surfaces read through
 (`internal/query/iac`). It is distinct from code reachability
-(`CodeReachabilityStore`), a separate call-graph store family.
+(`reachabilitystore.CodeReachabilityStore`), a separate call-graph store
+family.
 
 The parent `postgres` package keeps `MaterializeIaCReachability`, the
 reducer-side computation that turns content-file evidence into

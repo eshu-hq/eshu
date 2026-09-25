@@ -137,11 +137,12 @@
 // projected document content hash. EshuSearchVectorPendingStore retains the
 // retired corpus-wide fact scan only as an equivalence-test reference; neither
 // store builds vectors itself.
-// CodeReachabilityStore persists reducer-materialized code reachable-set rows
-// keyed by active generation plus per-repository completion watermarks so
-// dead-code reads can use a standing lookup before falling back to completed
-// relationship intents, and empty reachable-set snapshots still make durable
-// progress.
+// reachabilitystore.CodeReachabilityStore (reachabilitystore child package,
+// internal/storage/postgres/code/reachability) persists reducer-materialized
+// code reachable-set rows keyed by active generation plus per-repository
+// completion watermarks so dead-code reads can use a standing lookup before
+// falling back to completed relationship intents, and empty reachable-set
+// snapshots still make durable progress.
 // FactStore.LoadIncidentRoutingRawEvidence serves the PagerDuty incident-routing
 // graph materialization domain by returning the raw incident and routing fact
 // envelopes undecoded (the reducer decodes them through the typed

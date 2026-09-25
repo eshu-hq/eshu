@@ -85,7 +85,7 @@ bare path, interpolated path, non-string `to:`),
 `TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept`
 (`internal/reducer/codeintel/code_root_verdicts_routes_test.go`), and
 `TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController`
-(`internal/storage/postgres/code_reachability_route_liveness_live_test.go`,
+(`internal/storage/postgres/code/reachability/store_route_liveness_live_test.go`,
 real Postgres, real production loader path).
 
 ### P1 fix (re-review of head 362556b02): same defect class, narrower trigger
@@ -223,7 +223,7 @@ nothing marks them stale. Without a bump, an already-indexed repo's unrouted
 controller actions would stay silently mis-confirmed forever (the loader's
 `reach_updated_at`/`completed_at` watermark check has no reason to re-fire
 once a repo is caught up). `CodeReachabilityVerdictSchemaEpoch` is bumped to
-**3** (`internal/storage/postgres/code_reachability.go`), reusing the
+**3** (`internal/storage/postgres/code/reachability/store.go`), reusing the
 identical #5376 P1 upgrade-backfill mechanism
 (`evidence-5376-code-root-verdicts.md`, "P1 upgrade-backfill (Option C)"): the
 pending-inputs loader re-schedules any repo whose watermark predates the
@@ -344,7 +344,7 @@ confirming theory #2's "IF" clause.
 
 ## Correctness proof (real Postgres, real production path)
 
-`internal/storage/postgres/code_reachability_route_liveness_live_test.go`
+`internal/storage/postgres/code/reachability/store_route_liveness_live_test.go`
 (`TestCodeReachabilityRailsRouteFactsLoaderRoundTrip`, requires
 `ESHU_POSTGRES_DSN`) seeds four repos through the real
 `fact_records`/`content_entities` schema and runs the ACTUAL production

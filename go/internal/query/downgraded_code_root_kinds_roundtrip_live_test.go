@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
 
 // TestDowngradedCodeRootKindsRoundTripLive is the #5376 P2 drift guard: it writes
@@ -81,7 +82,7 @@ func TestDowngradedCodeRootKindsRoundTripLive(t *testing.T) {
 	  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
 	  VALUES ($1,$2,'manual',$3,$3,'active',$3)`, generationID, scopeID, now)
 
-	store := storagepostgres.NewCodeReachabilityStore(storagepostgres.SQLDB{DB: db})
+	store := reachabilitystore.NewCodeReachabilityStore(storagepostgres.SQLDB{DB: db})
 	verdictRow := func(entityID, verdict, reason string) codeintel.CodeRootVerdictRow {
 		return codeintel.CodeRootVerdictRow{
 			ScopeID: scopeID, GenerationID: generationID, RepositoryID: repoID,

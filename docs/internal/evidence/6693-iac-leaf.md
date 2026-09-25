@@ -63,11 +63,12 @@ files are not importable, exported or not):
   that adapter reshapes.
 
 `decodeStringArrayJSON` was defined in the moved test file but also used by
-`code_reachability_test.go` (a different, unrelated store staying in root
-for now). Since Go cannot import one package's test files from another, the
-7-line helper is duplicated into `code_reachability_test.go` with a comment
-noting the duplication's origin, matching the precedent the `fake/` package's
-own README documents for pre-D6 test doubles.
+the code-reachability store's test file (moved in a later #6693 leaf to
+`internal/storage/postgres/code/reachability/store_test.go`). Since Go
+cannot import one package's test files from another, the 7-line helper is
+duplicated into that file with a comment noting the duplication's origin,
+matching the precedent the `fake/` package's own README documents for
+pre-D6 test doubles.
 
 ## Caller repoint
 
@@ -133,7 +134,8 @@ scripts/verify-performance-evidence.sh origin/main` are clean after commit;
 `git diff --check` is clean; `rg` for `iac_reachability.go` and
 `iac_reachability_test.go` outside `docs/internal/design` and
 `docs/internal/evidence` returns nothing (one hit, a provenance comment in
-`code_reachability_test.go`, was reworded to not spell the old filename).
+`internal/storage/postgres/code/reachability/store_test.go` (that leaf's
+new location), was reworded to not spell the old filename).
 
 ## No-Observability-Change
 
