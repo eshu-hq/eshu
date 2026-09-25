@@ -63,6 +63,11 @@ jobs:
       # coverage report" step, run 102179760337, all packages [setup failed]).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      # The full go test run includes tests that shell out to the committed
+      # cassette private-data gate, which needs ripgrep. Without it those
+      # tests fail closed and the report goes red on every main push (#7111).
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Generate advisory Go coverage report
         env:
           ESHU_CODE_COVERAGE_PROFILE_OUT: ${{ github.workspace }}/go-code-coverage.out
