@@ -153,11 +153,10 @@ func RelationshipGraphRowCypherFromAnchor(anchorClause string, access querycontr
 // every node on the path, not just its far end, must carry a granted
 // repo_id, so the walk never reaches a granted node THROUGH an ungranted
 // one -- the same answer the NornicDB breadth-first walk gives by binding
-// each hop. The NornicDB branch is not bound: the handler never sends it
-// (NornicDB answers transitive CALLS through
-// CodeHandler.nornicDBTransitiveRelationshipRows), and the pinned NornicDB
-// build does not evaluate a list-membership test inside all(...), so a
-// bound variant there would look filtered while returning every row.
+// each hop. On NornicDB all(...) filters nothing on the pinned build, so a
+// scoped NornicDB caller fails closed with an empty statement ("", nil); the
+// handler never sends this builder to NornicDB anyway (it walks per hop in
+// CodeHandler.nornicDBTransitiveRelationshipRows). Unscoped NornicDB is kept.
 func BuildTransitiveRelationshipRowsCypher(
 	entityID string,
 	direction string,
@@ -170,6 +169,9 @@ func BuildTransitiveRelationshipRowsCypher(
 	}
 	var cypher strings.Builder
 	if backend == querycontract.GraphBackendNornicDB {
+		if access.Scoped() {
+			return "", nil
+		}
 		if direction == "incoming" {
 			cypher.WriteString("\n\t\tMATCH (e)\n")
 			cypher.WriteString("\t\tWHERE ")

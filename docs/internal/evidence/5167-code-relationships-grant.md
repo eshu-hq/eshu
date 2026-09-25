@@ -171,6 +171,29 @@ The shared LIMIT is spent on ungranted neighbours and the granted rows lose
 their metadata. That is why the enrichment reads bind the grant even though the
 Go merge would never attach an ungranted row.
 
+The live proof is class `scheduled`, so hermetic tests pin the same clause
+positions on every PR run: each renders the shipped statement with a scoped
+filter and asserts that the grant sits in the anchoring MATCH or OPTIONAL MATCH
+WHERE, ahead of RETURN and LIMIT, that `$allowed_repository_ids` and
+`$allowed_scope_ids` are bound, and that an all-scope caller renders no grant.
+
+- `TestOneHopAndEnrichmentStatementsBindTheNeighbourGrant` covers the one-hop
+  read, out and in, and the far-file and far-repo enrichment.
+- `TestCodeRelationshipsGrantStatementsThroughTheHandler` covers the NornicDB
+  per-hop walk in both directions and the Neo4j row for the entity-id, name and
+  name+repo anchors, through the handler.
+- `TestRelationshipGraphRowCypherBindsAnchorAndNeighbours` and
+  `TestBuildTransitiveRelationshipRowsCypherGrant` cover the codemodel builders.
+  The latter includes the scoped-NornicDB fail-closed branch: the builder
+  returns an empty statement, because `all(...)` filters nothing there.
+
+Seeded mutations, each run RED and then GREEN on restore:
+
+- `NeighbourGrantWhere` returning "".
+- Only the enrichment bind removed.
+- The Neo4j anchor, target and source grants disabled.
+- The per-hop grant removed.
+
 The real-middleware round trip is
 `TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware`, which
 iterates `scopedTokenAdvertisedRoutes` and now includes this route.
