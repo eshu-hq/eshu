@@ -38,6 +38,10 @@ read and forwarders. The name-target resolver already lives in
 - The row ceiling (`RowLimit`) and its truncation flags are
   exact-truth load-bearing: never present a clipped set without the
   flags.
+  `FilterResponse` is where the handler's `outgoing_truncated` and
+  `incoming_truncated` are normalized to always-present booleans (#7151):
+  false for a direction the caller filtered out and for sources with no
+  row ceiling (Neo4j collect, transitive walk).
 - Cypher shape changes need backend-differential proof (NornicDB vs
   Neo4j row-set equivalence), not just unit tests.
 - This package never imports `codequery` or root `query`.

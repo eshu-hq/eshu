@@ -39,6 +39,9 @@ type contentRelationshipSet struct {
 	// kind=Deployment), so ORing both is safe and future-proof against that
 	// invariant changing.
 	scanTruncated bool
+	// outgoingTruncated and incomingTruncated are the per-direction halves
+	// of scanTruncated (#7151).
+	outgoingTruncated, incomingTruncated bool
 }
 
 func buildContentRelationshipSet(
@@ -58,9 +61,11 @@ func buildContentRelationshipSet(
 	}
 
 	return contentRelationshipSet{
-		incoming:      incoming,
-		outgoing:      outgoing,
-		scanTruncated: outgoingTruncated || incomingTruncated,
+		incoming:          incoming,
+		outgoing:          outgoing,
+		scanTruncated:     outgoingTruncated || incomingTruncated,
+		outgoingTruncated: outgoingTruncated,
+		incomingTruncated: incomingTruncated,
 	}, nil
 }
 

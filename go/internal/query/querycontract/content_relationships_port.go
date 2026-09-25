@@ -14,14 +14,19 @@ import (
 // (root's ContentRelationshipBuilder implementation) can copy one directly
 // into the other with no loss.
 //
-// ScanTruncated is carried even though today's sole caller (the code
-// family's content fallback) ignores it: root's entity route already
-// discloses it (entity/context_content.go), and a later fix needs the field
-// present on this port to close that gap. This PR does not change what the
-// code route returns.
+// ScanTruncated reports that a k8s SELECTS candidate scan overran its
+// ceiling: root's entity route discloses it (entity/context_content.go), and
+// the code relationships route reads its per-direction split,
+// OutgoingTruncated and IncomingTruncated, to set the response's
+// outgoing_truncated/incoming_truncated flags (#7151).
 type ContentRelationshipSet struct {
 	Incoming, Outgoing []map[string]any
 	ScanTruncated      bool
+	// OutgoingTruncated and IncomingTruncated split ScanTruncated by the
+	// direction whose candidate scan overran its ceiling, so the code
+	// relationships response can set outgoing_truncated/incoming_truncated
+	// (#7151). ScanTruncated is their OR.
+	OutgoingTruncated, IncomingTruncated bool
 }
 
 // ContentRelationshipBuilder builds an entity's content-derived incoming and

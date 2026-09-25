@@ -194,8 +194,8 @@ const Routes = `
                     "metadata": {"type": "object", "additionalProperties": true},
                     "outgoing": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
                     "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
-                    "outgoing_truncated": {"type": "boolean", "description": "True when the outgoing direct relationships exceeded the per-direction row ceiling and the returned set was clipped."},
-                    "incoming_truncated": {"type": "boolean", "description": "True when the incoming direct relationships exceeded the per-direction row ceiling and the returned set was clipped."}
+                    "outgoing_truncated": {"type": "boolean", "description": "Always present. True when more outgoing neighbours exist than were returned: the one-hop read hit the per-direction row ceiling (500 on NornicDB), or the content fallback's k8s SELECTS candidate scan overran its ceiling. False when nothing was clipped, when the direction filter excluded outgoing, and on the Neo4j and transitive paths, which have no row ceiling."},
+                    "incoming_truncated": {"type": "boolean", "description": "Always present. True when more incoming neighbours exist than were returned: the one-hop read hit the per-direction row ceiling (500 on NornicDB), or the content fallback's k8s SELECTS candidate scan overran its ceiling. False when nothing was clipped, when the direction filter excluded incoming, and on the Neo4j and transitive paths, which have no row ceiling."}
                   }
                 }
               }

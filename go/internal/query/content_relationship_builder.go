@@ -32,8 +32,10 @@ func (ContentIndexRelationshipBuilder) BuildContentRelationships(
 		return querycontract.ContentRelationshipSet{}, err
 	}
 	return querycontract.ContentRelationshipSet{
-		Incoming:      set.incoming,
-		Outgoing:      set.outgoing,
-		ScanTruncated: set.scanTruncated,
+		Incoming:          set.incoming,
+		Outgoing:          set.outgoing,
+		ScanTruncated:     set.scanTruncated,
+		OutgoingTruncated: set.outgoingTruncated,
+		IncomingTruncated: set.incomingTruncated,
 	}, nil
 }
