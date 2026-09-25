@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -114,8 +115,8 @@ class GoalRoleRouterTests(unittest.TestCase):
                 )
                 self.assertIn("debug-eshu", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
 
-    def test_codex_and_claude_wrappers_fail_quiet_outside_repo(self):
-        configs = (ROOT / ".codex/hooks.json", ROOT / ".claude/settings.json")
+    def test_prompt_wrappers_fail_quiet_outside_repo(self):
+        configs = (ROOT / ".codex/hooks.json", ROOT / ".claude/settings.json", ROOT / ".muse/hooks.json")
         with tempfile.TemporaryDirectory() as elsewhere:
             for config in configs:
                 with self.subTest(config=config):
@@ -129,6 +130,34 @@ class GoalRoleRouterTests(unittest.TestCase):
                     )
                     self.assertEqual(0, result.returncode)
                     self.assertEqual("", result.stdout)
+
+    def test_muse_wrapper_fails_quiet_without_router_or_python(self):
+        hooks = json.loads((ROOT / ".muse/hooks.json").read_text())["hooks"]["UserPromptSubmit"][0]["hooks"]
+        command = next(hook["command"] for hook in hooks if "goal-role-router.py" in hook["command"])
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            bin_dir = work / "bin"
+            bin_dir.mkdir()
+            fake_git = bin_dir / "git"
+            fake_git.write_text(f"#!/bin/sh\nprintf '%s\\n' '{work}'\n")
+            fake_git.chmod(0o755)
+            fake_python = bin_dir / "python3"
+            fake_python.symlink_to(sys.executable)
+            payload = json.dumps({"prompt": "/goal Diagnose with eshu-diagnostic-rigor"})
+            env = {**os.environ, "PATH": str(bin_dir)}
+            for case in ("missing router", "missing python"):
+                with self.subTest(case=case):
+                    if case == "missing python":
+                        fake_python.unlink()
+                        (work / "scripts").mkdir()
+                        (work / "scripts/goal-role-router.py").touch()
+                    result = subprocess.run(
+                        ["/bin/sh", "-c", command], input=payload,
+                        capture_output=True, text=True, cwd=work, env=env,
+                    )
+                    self.assertEqual(0, result.returncode)
+                    self.assertEqual("", result.stdout)
+                    self.assertEqual("", result.stderr)
 
     def test_prepared_goal_survives_refresh(self):
         with tempfile.TemporaryDirectory() as tmp:

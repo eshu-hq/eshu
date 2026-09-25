@@ -21,7 +21,7 @@
           },
           {
             "type": "command",
-            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec python3 \"$r/scripts/goal-role-router.py\" muse"
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; [ -f \"$r/scripts/goal-role-router.py\" ] || exit 0; command -v python3 >/dev/null 2>&1 || exit 0; exec python3 \"$r/scripts/goal-role-router.py\" muse"
           }
         ]
       }
