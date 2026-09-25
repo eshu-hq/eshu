@@ -14,6 +14,22 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 )
 
+// mustBootstrapSelector extracts the native repository selector from
+// bootstrap collector deps, failing the test when the wiring produces an
+// unexpected source or selector type.
+func mustBootstrapSelector(t *testing.T, deps collectorDeps) git.NativeRepositorySelector {
+	t.Helper()
+	source, ok := deps.source.(*git.GitSource)
+	if !ok {
+		t.Fatalf("buildBootstrapCollector() source type = %T, want *git.GitSource", deps.source)
+	}
+	selector, ok := source.Selector.(git.NativeRepositorySelector)
+	if !ok {
+		t.Fatalf("buildBootstrapCollector() selector type = %T, want git.NativeRepositorySelector", source.Selector)
+	}
+	return selector
+}
+
 // TestBuildBootstrapCollectorPassesLoggerToSelector proves the bootstrap
 // wiring exposes repository-selection progress (#6746): the native selector
 // must receive the bootstrap logger so its clone/fetch progress logs are
@@ -31,14 +47,7 @@ func TestBuildBootstrapCollectorPassesLoggerToSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
-	source, ok := deps.source.(*git.GitSource)
-	if !ok {
-		t.Fatalf("buildBootstrapCollector() source type = %T, want *git.GitSource", deps.source)
-	}
-	selector, ok := source.Selector.(git.NativeRepositorySelector)
-	if !ok {
-		t.Fatalf("buildBootstrapCollector() selector type = %T, want git.NativeRepositorySelector", source.Selector)
-	}
+	selector := mustBootstrapSelector(t, deps)
 	if selector.Logger != logger {
 		t.Fatal("buildBootstrapCollector() selector logger not wired, want bootstrap logger so selection progress is visible")
 	}
@@ -71,14 +80,7 @@ func TestBuildBootstrapCollectorSelectorEmitsSelectionProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
-	source, ok := deps.source.(*git.GitSource)
-	if !ok {
-		t.Fatalf("buildBootstrapCollector() source type = %T, want *git.GitSource", deps.source)
-	}
-	selector, ok := source.Selector.(git.NativeRepositorySelector)
-	if !ok {
-		t.Fatalf("buildBootstrapCollector() selector type = %T, want git.NativeRepositorySelector", source.Selector)
-	}
+	selector := mustBootstrapSelector(t, deps)
 	selector.DiscoverSelection = func(context.Context, git.RepoSyncConfig, string) (git.RepositorySelection, error) {
 		return git.RepositorySelection{RepositoryIDs: []string{"alpha", "beta"}}, nil
 	}
