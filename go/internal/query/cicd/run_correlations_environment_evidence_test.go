@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestCICDListRunCorrelationsExposesEnvironmentEvidence pins that the
 // environment_evidence key survives all the way to the wire.
 //
 // The handler builds its response with a direct struct conversion,
-// CICDRunCorrelationResult(row), so a field present on the row but missing from
+// querycontract.CICDRunCorrelationResult(row), so a field present on the row but missing from
 // the result type would not compile, while a field present on both but never
 // decoded from the payload would silently serialize as empty. #5426 branches on
 // this value to stop promoting deployed_image from a CI-declared environment
@@ -23,7 +25,7 @@ import (
 func TestCICDListRunCorrelationsExposesEnvironmentEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{rows: []CICDRunCorrelationRow{{
+	store := &recordingRunCorrelationStore{rows: []querycontract.CICDRunCorrelationRow{{
 		CorrelationID:       "fact-deploy-1",
 		Provider:            "github_actions",
 		RunID:               "5150",
@@ -33,7 +35,7 @@ func TestCICDListRunCorrelationsExposesEnvironmentEvidence(t *testing.T) {
 		EnvironmentEvidence: "deploy_event",
 		Outcome:             "exact",
 	}}}
-	handler := &CICDHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

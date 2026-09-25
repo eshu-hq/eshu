@@ -196,3 +196,25 @@ func equalPacketStringSlices(a []string, b []string) bool {
 	}
 	return true
 }
+
+// assertStringSet asserts a missing-evidence slice holds exactly the wanted
+// members, each once. It lived in ci_cd_evidence_summary_artifact_test.go
+// until the CI/CD family moved to internal/query/cicd (#6642); the
+// container-image and SBOM missing-evidence tests stay at root, so the helper
+// stays with them here beside equalPacketStringSlices. The leaf keeps its own
+// copy for the evidence-summary artifact tests that moved along.
+func assertStringSet(t *testing.T, got []string, want []string) {
+	t.Helper()
+	seen := make(map[string]int, len(got))
+	for _, item := range got {
+		seen[item]++
+	}
+	for _, item := range want {
+		if seen[item] != 1 {
+			t.Fatalf("missing evidence %q count = %d in %#v, want 1", item, seen[item], got)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("missing evidence = %#v, want %#v", got, want)
+	}
+}

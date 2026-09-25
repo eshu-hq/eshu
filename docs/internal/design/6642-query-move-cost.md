@@ -158,7 +158,7 @@ UNDECIDED. Counting who actually consumes each file's symbols settles all three:
 | --- | ---: | ---: | --- |
 | `repository_authz.go` | 4 (2 retire in PR 1) | **18** | `contract/` — shared vocabulary by any measure |
 | `repository_compat.go` | 7 | **5** — `content/read`, `content/relationship`, `entity/`, `contract/*`, `repository/` | `contract/` |
-| `repository_selector.go` | 1 | 1 (`cicd`) | `cicd/` |
+| `repository_selector.go` | 1 | 1 (`cicd`) | DELETED by the cicd PR — see the file-mapping doc: the family calls `selector.ResolveForRequestWithAccess` directly, leaving zero callers |
 | `code_seam.go` | 33 | **8** — `code/`, `content/read`, `impact/trace`, `language/`, `entity/`, `contract/*`, `auth/route`, `infra/summary` | `contract/code` |
 | `family_codeowners_shim.go` | 1 | 1 root + 2 external | `code/owners`; deletes in the alias sweep once `handler.go`'s field and the `cmd/api` and `cmd/mcp-server` call sites migrate to `codeowners.Handler` |
 | `family_impact_*.go`, `deployment_trace_support_helpers.go` | 31 | **0** for four of the five files | `impact/trace` |

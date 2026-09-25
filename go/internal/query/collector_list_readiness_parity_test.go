@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -80,8 +81,8 @@ func normalizeReadinessEnvelope(env map[string]any) map[string]any {
 }
 
 // TestCollectorListReadinessMatchesHub pins the two family-local copies of
-// the attach step -- root's attachCollectorListReadiness and the supplychain
-// hub's -- to identical envelopes over the shared probe matrix. Root's
+// the attach step -- the cicd family's and the supplychain hub's -- to
+// identical envelopes over the shared probe matrix. Root's
 // collector_list_readiness.go deliberately keeps request-time orchestration
 // out of the dependency-neutral leaf (prior review decision), so each family
 // owns its copy; this test is the drift tripwire (#6542 review). A nil store
@@ -115,26 +116,26 @@ func TestCollectorListReadinessMatchesHub(t *testing.T) {
 			hubEnv := serveCollectorReadinessPage(t, hubMux,
 				"/api/v0/supply-chain/sbom-attestations/attachments?limit=10&subject_digest=sha256:abc")
 
-			rootHandler := &CICDHandler{CollectorReadiness: tc.store}
-			rootMux := http.NewServeMux()
-			rootHandler.Mount(rootMux)
-			rootEnv := serveCollectorReadinessPage(t, rootMux,
+			cicdHandler := &cicd.Handler{CollectorReadiness: tc.store}
+			cicdMux := http.NewServeMux()
+			cicdHandler.Mount(cicdMux)
+			cicdEnv := serveCollectorReadinessPage(t, cicdMux,
 				"/api/v0/ci-cd/run-correlations?limit=10&repository_id=repo-1")
 
 			if tc.wantAbsent {
 				if hubEnv != nil {
 					t.Fatalf("hub envelope = %v, want absent for nil store", hubEnv)
 				}
-				if rootEnv != nil {
-					t.Fatalf("root envelope = %v, want absent for nil store", rootEnv)
+				if cicdEnv != nil {
+					t.Fatalf("cicd envelope = %v, want absent for nil store", cicdEnv)
 				}
 				return
 			}
-			if hubEnv == nil || rootEnv == nil {
-				t.Fatalf("hub envelope = %v, root envelope = %v, want both present", hubEnv, rootEnv)
+			if hubEnv == nil || cicdEnv == nil {
+				t.Fatalf("hub envelope = %v, cicd envelope = %v, want both present", hubEnv, cicdEnv)
 			}
-			if !reflect.DeepEqual(normalizeReadinessEnvelope(hubEnv), normalizeReadinessEnvelope(rootEnv)) {
-				t.Fatalf("readiness drift: hub = %v, root = %v", hubEnv, rootEnv)
+			if !reflect.DeepEqual(normalizeReadinessEnvelope(hubEnv), normalizeReadinessEnvelope(cicdEnv)) {
+				t.Fatalf("readiness drift: hub = %v, cicd = %v", hubEnv, cicdEnv)
 			}
 		})
 	}

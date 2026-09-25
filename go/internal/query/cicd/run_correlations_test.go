@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"context"
@@ -11,26 +11,30 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
-type recordingCICDRunCorrelationStore struct {
-	rows       []CICDRunCorrelationRow
-	lastFilter CICDRunCorrelationFilter
+type recordingRunCorrelationStore struct {
+	rows       []querycontract.CICDRunCorrelationRow
+	lastFilter querycontract.CICDRunCorrelationFilter
 }
 
 var errUnexpectedContentHydration = errors.New("unexpected workflow artifact content hydration")
 
-func (s *recordingCICDRunCorrelationStore) ListCICDRunCorrelations(
+func (s *recordingRunCorrelationStore) ListCICDRunCorrelations(
 	_ context.Context,
-	filter CICDRunCorrelationFilter,
-) ([]CICDRunCorrelationRow, error) {
+	filter querycontract.CICDRunCorrelationFilter,
+) ([]querycontract.CICDRunCorrelationRow, error) {
 	s.lastFilter = filter
 	// Filter by RepositoryID when set (simulating the real Postgres store's
 	// WHERE payload->>'repository_id' = $3 predicate). When the filter does
 	// not constrain RepositoryID, return all rows — matching the pre-existing
 	// behavior every existing test caller relies on.
 	if filter.RepositoryID != "" {
-		out := make([]CICDRunCorrelationRow, 0, len(s.rows))
+		out := make([]querycontract.CICDRunCorrelationRow, 0, len(s.rows))
 		for _, row := range s.rows {
 			if row.RepositoryID == filter.RepositoryID {
 				out = append(out, row)
@@ -38,11 +42,11 @@ func (s *recordingCICDRunCorrelationStore) ListCICDRunCorrelations(
 		}
 		return out, nil
 	}
-	return append([]CICDRunCorrelationRow(nil), s.rows...), nil
+	return append([]querycontract.CICDRunCorrelationRow(nil), s.rows...), nil
 }
 
 type workflowPathOnlyContentStore struct {
-	fakePortContentStore
+	content.FakePortContentStore
 	getFileContentCalls int
 }
 
@@ -50,7 +54,7 @@ func (s *workflowPathOnlyContentStore) GetFileContent(
 	context.Context,
 	string,
 	string,
-) (*FileContent, error) {
+) (*querycontract.FileContent, error) {
 	s.getFileContentCalls++
 	return nil, errUnexpectedContentHydration
 }
@@ -58,7 +62,7 @@ func (s *workflowPathOnlyContentStore) GetFileContent(
 func TestCICDListRunCorrelationsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{Correlations: &recordingCICDRunCorrelationStore{}}
+	handler := &Handler{Correlations: &recordingRunCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -84,8 +88,8 @@ func TestCICDListRunCorrelationsRequiresScopeAndLimit(t *testing.T) {
 func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{
-		rows: []CICDRunCorrelationRow{
+	store := &recordingRunCorrelationStore{
+		rows: []querycontract.CICDRunCorrelationRow{
 			{
 				CorrelationID:   "correlation-1",
 				Provider:        "github_actions",
@@ -101,7 +105,7 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 			{CorrelationID: "correlation-2", Provider: "github_actions", RunID: "run-2", RepositoryID: "repo-api"},
 		},
 	}
-	handler := &CICDHandler{Correlations: store}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -127,11 +131,11 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Correlations []CICDRunCorrelationResult `json:"correlations"`
-		Count        int                        `json:"count"`
-		Limit        int                        `json:"limit"`
-		Truncated    bool                       `json:"truncated"`
-		NextCursor   map[string]string          `json:"next_cursor"`
+		Correlations []querycontract.CICDRunCorrelationResult `json:"correlations"`
+		Count        int                                      `json:"count"`
+		Limit        int                                      `json:"limit"`
+		Truncated    bool                                     `json:"truncated"`
+		NextCursor   map[string]string                        `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -154,17 +158,17 @@ func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T
 	t.Parallel()
 
 	content := &workflowPathOnlyContentStore{
-		fakePortContentStore: fakePortContentStore{
-			repoFiles: []FileContent{{
+		FakePortContentStore: content.FakePortContentStore{
+			RepoFiles: []querycontract.FileContent{{
 				RepoID:       "repo://example/api",
 				RelativePath: ".github/workflows/deploy.yml",
 				ArtifactType: "github_actions_workflow",
 			}},
 		},
 	}
-	handler := &CICDHandler{
+	handler := &Handler{
 		Content:      content,
-		Correlations: &recordingCICDRunCorrelationStore{},
+		Correlations: &recordingRunCorrelationStore{},
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -185,7 +189,7 @@ func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T
 	}
 
 	var resp struct {
-		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+		EvidenceSummary artifacts.CicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -204,10 +208,10 @@ func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T
 func TestCICDListRunCorrelationsExplainsStaticWorkflowOnlyEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{}
-	handler := &CICDHandler{
-		Content: fakePortContentStore{
-			repoFiles: []FileContent{{
+	store := &recordingRunCorrelationStore{}
+	handler := &Handler{
+		Content: content.FakePortContentStore{
+			RepoFiles: []querycontract.FileContent{{
 				RepoID:       "repo://example/api",
 				RelativePath: ".github/workflows/deploy.yml",
 				ArtifactType: "github_actions_workflow",
@@ -240,8 +244,8 @@ jobs:
 	}
 
 	var resp struct {
-		Correlations    []CICDRunCorrelationResult        `json:"correlations"`
-		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+		Correlations    []querycontract.CICDRunCorrelationResult    `json:"correlations"`
+		EvidenceSummary artifacts.CicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -275,8 +279,8 @@ jobs:
 func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{
-		rows: []CICDRunCorrelationRow{{
+	store := &recordingRunCorrelationStore{
+		rows: []querycontract.CICDRunCorrelationRow{{
 			CorrelationID: "correlation-1",
 			RepositoryID:  "repo://example/api",
 			Provider:      "github_actions",
@@ -284,8 +288,8 @@ func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
 			Outcome:       "exact",
 		}},
 	}
-	handler := &CICDHandler{
-		Content:      fakePortContentStore{},
+	handler := &Handler{
+		Content:      content.FakePortContentStore{},
 		Correlations: store,
 	}
 	mux := http.NewServeMux()
@@ -304,8 +308,8 @@ func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
 	}
 
 	var resp struct {
-		Count           int                               `json:"count"`
-		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+		Count           int                                         `json:"count"`
+		EvidenceSummary artifacts.CicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -333,9 +337,9 @@ func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
 func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{}
-	handler := &CICDHandler{
-		Content:      fakePortContentStore{},
+	store := &recordingRunCorrelationStore{}
+	handler := &Handler{
+		Content:      content.FakePortContentStore{},
 		Correlations: store,
 	}
 	mux := http.NewServeMux()
@@ -354,7 +358,7 @@ func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
 	}
 
 	var resp struct {
-		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+		EvidenceSummary artifacts.CicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -379,8 +383,8 @@ func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
 func TestCICDListRunCorrelationsUsesImageRefAnchor(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{}
-	handler := &CICDHandler{Correlations: store}
+	store := &recordingRunCorrelationStore{}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -403,7 +407,7 @@ func TestCICDListRunCorrelationsUsesImageRefAnchor(t *testing.T) {
 func TestCICDListRunCorrelationsRequiresProviderForProviderRunID(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{Correlations: &recordingCICDRunCorrelationStore{}}
+	handler := &Handler{Correlations: &recordingRunCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -423,8 +427,8 @@ func TestCICDListRunCorrelationsRequiresProviderForProviderRunID(t *testing.T) {
 func TestCICDListRunCorrelationsPassesProviderRunDisambiguator(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingCICDRunCorrelationStore{}
-	handler := &CICDHandler{Correlations: store}
+	store := &recordingRunCorrelationStore{}
+	handler := &Handler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -447,31 +451,31 @@ func TestCICDListRunCorrelationsPassesProviderRunDisambiguator(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationQueryExcludesTombstones(t *testing.T) {
+func TestRunCorrelationQueryExcludesTombstones(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(listCICDRunCorrelationsQuery, "fact.is_tombstone = FALSE") {
-		t.Fatalf("listCICDRunCorrelationsQuery must exclude tombstone facts:\n%s", listCICDRunCorrelationsQuery)
+	if !strings.Contains(listRunCorrelationsQuery, "fact.is_tombstone = FALSE") {
+		t.Fatalf("listRunCorrelationsQuery must exclude tombstone facts:\n%s", listRunCorrelationsQuery)
 	}
 }
 
-func TestCICDRunCorrelationQueryFiltersProviderWithRunID(t *testing.T) {
+func TestRunCorrelationQueryFiltersProviderWithRunID(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
 		"fact.payload->>'provider' = $5",
 		"fact.payload->>'run_id' = $6",
 	} {
-		if !strings.Contains(listCICDRunCorrelationsQuery, want) {
-			t.Fatalf("listCICDRunCorrelationsQuery missing %q:\n%s", want, listCICDRunCorrelationsQuery)
+		if !strings.Contains(listRunCorrelationsQuery, want) {
+			t.Fatalf("listRunCorrelationsQuery missing %q:\n%s", want, listRunCorrelationsQuery)
 		}
 	}
 }
 
-func TestCICDRunCorrelationQueryFiltersImageRef(t *testing.T) {
+func TestRunCorrelationQueryFiltersImageRef(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(listCICDRunCorrelationsQuery, "fact.payload->>'image_ref' = $8") {
-		t.Fatalf("listCICDRunCorrelationsQuery must filter image_ref:\n%s", listCICDRunCorrelationsQuery)
+	if !strings.Contains(listRunCorrelationsQuery, "fact.payload->>'image_ref' = $8") {
+		t.Fatalf("listRunCorrelationsQuery must filter image_ref:\n%s", listRunCorrelationsQuery)
 	}
 }

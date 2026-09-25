@@ -16,8 +16,8 @@ import (
 // store, a response-body mutation), not contract, and that a family package
 // needing the readiness envelope calls querycontract.BuildCollectorListReadiness
 // itself and owns its own attach step (#6060). This file is this family's copy
-// of that step, kept byte-for-byte equivalent to root's so the response shape
-// does not change across the move.
+// of that step, kept byte-for-byte equivalent to its sibling family copies
+// (the root copy is deleted — no package-query handler uses it anymore).
 
 // attachCollectorListReadiness runs the configured probe for kind and, when a
 // store is wired, sets the "collector_readiness" key on body. A nil store

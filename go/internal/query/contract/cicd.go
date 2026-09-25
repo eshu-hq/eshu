@@ -3,19 +3,9 @@
 
 package contract
 
+import "github.com/eshu-hq/eshu/go/internal/query/cicd"
+
 func init() {
-	register(cicdRunCorrelationsCapability, capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
-	register(cicdRunCorrelationAggregateCapability, capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	})
+	register(cicdRunCorrelationsCapability, cicd.Support())
+	register(cicdRunCorrelationAggregateCapability, cicd.Support())
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"encoding/json"
@@ -15,25 +15,25 @@ import (
 // shape. countRunCorrelations is Postgres-backed, not graph-backed: its
 // repository_id filter resolves through
 // cicdRunCorrelationAggregateFilterFromRequest, which passes a literal nil
-// graph to resolveRepositorySelectorForRequestWithAccess, so there is no live
+// graph to selector.ResolveForRequestWithAccess, so there is no live
 // graph read on this route to sweep with the unavailable/deadline sentinels
 // the way the other four count handlers are (see
 // graph_read_error_*_test.go). This test exists to satisfy
 // scripts/verify-route-coverage.sh's CountRunCorrelations naming check; the
 // route's richer behavior is already covered by
-// TestCICDRunCorrelationAggregateCountReturnsRollups above.
+// TestRunCorrelationAggregateCountReturnsRollups above.
 func TestCountRunCorrelationsReturnsRollups(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{
-		count: CICDRunCorrelationAggregateCount{
+	store := &stubRunCorrelationAggregateStore{
+		count: RunCorrelationAggregateCount{
 			TotalCorrelations: 4,
 			ByOutcome:         map[string]int{"exact": 4},
 			ByEnvironment:     map[string]int{"production": 4},
 			ByProvider:        map[string]int{"github_actions": 4},
 		},
 	}
-	handler := &CICDHandler{Aggregates: store}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

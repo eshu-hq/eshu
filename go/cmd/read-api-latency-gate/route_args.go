@@ -34,7 +34,7 @@ var RepresentativeScopeID = fmt.Sprintf("seed-scope-%s-0000", scope.AllCollector
 var RouteQueryArgs = map[string]string{
 	// go/internal/query/admission_decisions.go
 	"GET /api/v0/evidence/admission-decisions": "scope_id=" + RepresentativeScopeID,
-	// go/internal/query/ci_cd.go
+	// go/internal/query/cicd/handler.go
 	"GET /api/v0/ci-cd/run-correlations": "scope_id=" + RepresentativeScopeID,
 	// go/internal/query/cloud_inventory_readback.go
 	"GET /api/v0/cloud/inventory": "scope_id=" + RepresentativeScopeID,

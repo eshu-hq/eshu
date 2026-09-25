@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package cicd
 
 import (
 	"context"
@@ -11,38 +11,38 @@ import (
 	"testing"
 )
 
-type stubCICDRunCorrelationAggregateStore struct {
-	count         CICDRunCorrelationAggregateCount
+type stubRunCorrelationAggregateStore struct {
+	count         RunCorrelationAggregateCount
 	countErr      error
-	inventory     []CICDRunCorrelationInventoryRow
+	inventory     []RunCorrelationInventoryRow
 	inventoryErr  error
-	lastFilter    CICDRunCorrelationAggregateFilter
-	lastDimension CICDRunCorrelationInventoryDimension
+	lastFilter    RunCorrelationAggregateFilter
+	lastDimension RunCorrelationInventoryDimension
 	lastLimit     int
 	lastOffset    int
 	countCalls    int
 	invCalls      int
 }
 
-func (s *stubCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
+func (s *stubRunCorrelationAggregateStore) CountRunCorrelations(
 	_ context.Context,
-	filter CICDRunCorrelationAggregateFilter,
-) (CICDRunCorrelationAggregateCount, error) {
+	filter RunCorrelationAggregateFilter,
+) (RunCorrelationAggregateCount, error) {
 	s.countCalls++
 	s.lastFilter = filter
 	if s.countErr != nil {
-		return CICDRunCorrelationAggregateCount{}, s.countErr
+		return RunCorrelationAggregateCount{}, s.countErr
 	}
 	return s.count, nil
 }
 
-func (s *stubCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
+func (s *stubRunCorrelationAggregateStore) RunCorrelationInventory(
 	_ context.Context,
-	filter CICDRunCorrelationAggregateFilter,
-	dim CICDRunCorrelationInventoryDimension,
+	filter RunCorrelationAggregateFilter,
+	dim RunCorrelationInventoryDimension,
 	limit int,
 	offset int,
-) ([]CICDRunCorrelationInventoryRow, error) {
+) ([]RunCorrelationInventoryRow, error) {
 	s.invCalls++
 	s.lastFilter = filter
 	s.lastDimension = dim
@@ -51,13 +51,13 @@ func (s *stubCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 	if s.inventoryErr != nil {
 		return nil, s.inventoryErr
 	}
-	return append([]CICDRunCorrelationInventoryRow(nil), s.inventory...), nil
+	return append([]RunCorrelationInventoryRow(nil), s.inventory...), nil
 }
 
-func TestCICDRunCorrelationAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {
+func TestRunCorrelationAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{}
+	handler := &Handler{}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -77,18 +77,18 @@ func TestCICDRunCorrelationAggregateRoutesReturn503WhenStoreMissing(t *testing.T
 	}
 }
 
-func TestCICDRunCorrelationAggregateCountReturnsRollups(t *testing.T) {
+func TestRunCorrelationAggregateCountReturnsRollups(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{
-		count: CICDRunCorrelationAggregateCount{
+	store := &stubRunCorrelationAggregateStore{
+		count: RunCorrelationAggregateCount{
 			TotalCorrelations: 15,
 			ByOutcome:         map[string]int{"exact": 10, "derived": 3, "ambiguous": 2},
 			ByEnvironment:     map[string]int{"production": 6, "staging": 5, "development": 4},
 			ByProvider:        map[string]int{"github_actions": 11, "gitlab": 4},
 		},
 	}
-	handler := &CICDHandler{Aggregates: store}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -132,11 +132,11 @@ func TestCICDRunCorrelationAggregateCountReturnsRollups(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationAggregateCountPassesImageRefFilter(t *testing.T) {
+func TestRunCorrelationAggregateCountPassesImageRefFilter(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -156,17 +156,17 @@ func TestCICDRunCorrelationAggregateCountPassesImageRefFilter(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
+func TestRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{
-		inventory: []CICDRunCorrelationInventoryRow{
-			{Dimension: CICDRunCorrelationInventoryByOutcome, Value: "exact", Count: 30},
-			{Dimension: CICDRunCorrelationInventoryByOutcome, Value: "derived", Count: 8},
-			{Dimension: CICDRunCorrelationInventoryByOutcome, Value: "ambiguous", Count: 2},
+	store := &stubRunCorrelationAggregateStore{
+		inventory: []RunCorrelationInventoryRow{
+			{Dimension: RunCorrelationInventoryByOutcome, Value: "exact", Count: 30},
+			{Dimension: RunCorrelationInventoryByOutcome, Value: "derived", Count: 8},
+			{Dimension: RunCorrelationInventoryByOutcome, Value: "ambiguous", Count: 2},
 		},
 	}
-	handler := &CICDHandler{Aggregates: store}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -177,7 +177,7 @@ func TestCICDRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if store.lastDimension != CICDRunCorrelationInventoryByOutcome {
+	if store.lastDimension != RunCorrelationInventoryByOutcome {
 		t.Fatalf("dimension = %q, want outcome", store.lastDimension)
 	}
 	if store.lastLimit != 11 {
@@ -202,11 +202,11 @@ func TestCICDRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryPassesImageRefFilter(t *testing.T) {
+func TestRunCorrelationAggregateInventoryPassesImageRefFilter(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -226,19 +226,19 @@ func TestCICDRunCorrelationAggregateInventoryPassesImageRefFilter(t *testing.T) 
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryReportsTruncated(t *testing.T) {
+func TestRunCorrelationAggregateInventoryReportsTruncated(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]CICDRunCorrelationInventoryRow, 6)
+	rows := make([]RunCorrelationInventoryRow, 6)
 	for i := range rows {
-		rows[i] = CICDRunCorrelationInventoryRow{
-			Dimension: CICDRunCorrelationInventoryByEnvironment,
+		rows[i] = RunCorrelationInventoryRow{
+			Dimension: RunCorrelationInventoryByEnvironment,
 			Value:     "env",
 			Count:     i,
 		}
 	}
-	store := &stubCICDRunCorrelationAggregateStore{inventory: rows}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{inventory: rows}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -268,11 +268,11 @@ func TestCICDRunCorrelationAggregateInventoryReportsTruncated(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationAggregateRejectsUnknownOutcome(t *testing.T) {
+func TestRunCorrelationAggregateRejectsUnknownOutcome(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -299,11 +299,11 @@ func TestCICDRunCorrelationAggregateRejectsUnknownOutcome(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryRejectsUnknownDimension(t *testing.T) {
+func TestRunCorrelationAggregateInventoryRejectsUnknownDimension(t *testing.T) {
 	t.Parallel()
 
-	store := &stubCICDRunCorrelationAggregateStore{}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -319,10 +319,10 @@ func TestCICDRunCorrelationAggregateInventoryRejectsUnknownDimension(t *testing.
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryRejectsOversizedLimit(t *testing.T) {
+func TestRunCorrelationAggregateInventoryRejectsOversizedLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{Aggregates: &stubCICDRunCorrelationAggregateStore{}}
+	handler := &Handler{Aggregates: &stubRunCorrelationAggregateStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -334,10 +334,10 @@ func TestCICDRunCorrelationAggregateInventoryRejectsOversizedLimit(t *testing.T)
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryRejectsNegativeOffset(t *testing.T) {
+func TestRunCorrelationAggregateInventoryRejectsNegativeOffset(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{Aggregates: &stubCICDRunCorrelationAggregateStore{}}
+	handler := &Handler{Aggregates: &stubRunCorrelationAggregateStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -349,10 +349,10 @@ func TestCICDRunCorrelationAggregateInventoryRejectsNegativeOffset(t *testing.T)
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryRejectsOversizedOffset(t *testing.T) {
+func TestRunCorrelationAggregateInventoryRejectsOversizedOffset(t *testing.T) {
 	t.Parallel()
 
-	handler := &CICDHandler{Aggregates: &stubCICDRunCorrelationAggregateStore{}}
+	handler := &Handler{Aggregates: &stubRunCorrelationAggregateStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -364,19 +364,19 @@ func TestCICDRunCorrelationAggregateInventoryRejectsOversizedOffset(t *testing.T
 	}
 }
 
-func TestCICDRunCorrelationAggregateInventoryNullsNextOffsetAtCeiling(t *testing.T) {
+func TestRunCorrelationAggregateInventoryNullsNextOffsetAtCeiling(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]CICDRunCorrelationInventoryRow, 6)
+	rows := make([]RunCorrelationInventoryRow, 6)
 	for i := range rows {
-		rows[i] = CICDRunCorrelationInventoryRow{
-			Dimension: CICDRunCorrelationInventoryByRepository,
+		rows[i] = RunCorrelationInventoryRow{
+			Dimension: RunCorrelationInventoryByRepository,
 			Value:     "repo",
 			Count:     i,
 		}
 	}
-	store := &stubCICDRunCorrelationAggregateStore{inventory: rows}
-	handler := &CICDHandler{Aggregates: store}
+	store := &stubRunCorrelationAggregateStore{inventory: rows}
+	handler := &Handler{Aggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -402,7 +402,7 @@ func TestCICDRunCorrelationAggregateInventoryNullsNextOffsetAtCeiling(t *testing
 	}
 }
 
-func TestNextCICDRunCorrelationAggregateOffsetBound(t *testing.T) {
+func TestNextRunCorrelationAggregateOffsetBound(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -421,23 +421,23 @@ func TestNextCICDRunCorrelationAggregateOffsetBound(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := nextCICDRunCorrelationAggregateOffset(tc.offset, tc.limit, tc.truncated)
+			got := nextRunCorrelationAggregateOffset(tc.offset, tc.limit, tc.truncated)
 			if got != tc.want {
-				t.Fatalf("nextCICDRunCorrelationAggregateOffset(%d, %d, %v) = %v, want %v",
+				t.Fatalf("nextRunCorrelationAggregateOffset(%d, %d, %v) = %v, want %v",
 					tc.offset, tc.limit, tc.truncated, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestCICDRunCorrelationInventoryGroupExpressionEnumIsClosed(t *testing.T) {
+func TestRunCorrelationInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 	t.Parallel()
 
-	cases := []CICDRunCorrelationInventoryDimension{
-		CICDRunCorrelationInventoryByOutcome,
-		CICDRunCorrelationInventoryByEnvironment,
-		CICDRunCorrelationInventoryByRepository,
-		CICDRunCorrelationInventoryByProvider,
+	cases := []RunCorrelationInventoryDimension{
+		RunCorrelationInventoryByOutcome,
+		RunCorrelationInventoryByEnvironment,
+		RunCorrelationInventoryByRepository,
+		RunCorrelationInventoryByProvider,
 	}
 	for _, dim := range cases {
 		if _, err := cicdRunCorrelationInventoryGroupExpression(dim); err != nil {

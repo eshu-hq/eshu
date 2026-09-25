@@ -241,60 +241,6 @@ func TestCICDRunCorrelationHandlerPassesScopedGrants(t *testing.T) {
 	}
 }
 
-func TestCICDRunCorrelationSQLAppliesScopedAuthorizationBeforeOrderAndGrouping(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name       string
-		query      string
-		beforeText string
-		repoParam  string
-		scopeParam string
-	}{
-		{
-			name:       "list",
-			query:      listCICDRunCorrelationsQuery,
-			beforeText: "ORDER BY",
-			repoParam:  "fact.payload->>'repository_id' = ANY($13::text[])",
-			scopeParam: "fact.scope_id = ANY($14::text[])",
-		},
-		{
-			name:       "total",
-			query:      cicdRunCorrelationAggregateTotalQuery,
-			beforeText: ";",
-			repoParam:  "fact.payload->>'repository_id' = ANY($9::text[])",
-			scopeParam: "fact.scope_id = ANY($10::text[])",
-		},
-		{
-			name:       "group",
-			query:      cicdRunCorrelationAggregateGroupQueryTemplate,
-			beforeText: "GROUP BY",
-			repoParam:  "fact.payload->>'repository_id' = ANY($9::text[])",
-			scopeParam: "fact.scope_id = ANY($10::text[])",
-		},
-		{
-			name:       "inventory",
-			query:      cicdRunCorrelationInventoryQueryTemplate,
-			beforeText: "GROUP BY",
-			repoParam:  "fact.payload->>'repository_id' = ANY($11::text[])",
-			scopeParam: "fact.scope_id = ANY($12::text[])",
-		},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			for _, want := range []string{tc.repoParam, tc.scopeParam} {
-				if !strings.Contains(tc.query, want) {
-					t.Fatalf("query missing %q:\n%s", want, tc.query)
-				}
-				if strings.Index(tc.query, want) > strings.Index(tc.query, tc.beforeText) {
-					t.Fatalf("authorization predicate %q appears after %s:\n%s", want, tc.beforeText, tc.query)
-				}
-			}
-		})
-	}
-}
-
 // TestAuthMiddlewareWithScopedTokensRejectsAdjacentCorrelationRoutes proves
 // scopedCICDRunCorrelationRoute's exact-path match doesn't over-match
 // prefix/typo-adjacent paths. GET /api/v0/kubernetes/correlations and
@@ -359,7 +305,7 @@ type failingCICDRunCorrelationAggregateStore struct {
 	inventoryCalled bool
 }
 
-func (s *failingCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
+func (s *failingCICDRunCorrelationAggregateStore) CountRunCorrelations(
 	context.Context,
 	CICDRunCorrelationAggregateFilter,
 ) (CICDRunCorrelationAggregateCount, error) {
@@ -367,7 +313,7 @@ func (s *failingCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 	return CICDRunCorrelationAggregateCount{}, errors.New("broad ci/cd run correlation count read")
 }
 
-func (s *failingCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
+func (s *failingCICDRunCorrelationAggregateStore) RunCorrelationInventory(
 	context.Context,
 	CICDRunCorrelationAggregateFilter,
 	CICDRunCorrelationInventoryDimension,

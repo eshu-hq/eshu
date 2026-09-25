@@ -128,7 +128,7 @@ path. It adds no graph write, queue, worker, reducer lane, runtime knob, metric
 instrument, or metric label; operators still diagnose these routes through the
 existing query spans, Postgres query duration metrics, truth envelopes, and
 HTTP status/error bodies.
-`CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
+`cicd.Handler` (`cicd/handler.go`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, image-reference, or environment anchor plus `limit`, and it
 keeps CI success, environment observations, and shell-only hints separate from
@@ -519,12 +519,12 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
-`CICDHandler` (`ci_cd.go`) also exposes cheap-summary aggregates over the
+`cicd.Handler` (`cicd/handler.go`) also exposes cheap-summary aggregates over the
 reducer-owned CI/CD run correlations through a separate Postgres aggregate
-read model (`ci_cd_run_correlation_aggregates.go`). `CountCICDRunCorrelations`
+read model (`cicd/run_correlation_aggregates.go`). `CountRunCorrelations`
 answers total / per-outcome / per-environment / per-provider questions over
 an optional scope, repository, commit, provider, artifact digest, image
-reference, environment, or outcome scope. `CICDRunCorrelationInventory` returns a
+reference, environment, or outcome scope. `RunCorrelationInventory` returns a
 paginated grouped count along one of the dimensions `outcome`, `environment`,
 `repository_id`, or `provider`. The aggregate replaces the page-and-iterate
 caller workflow for ecosystem-level questions like "how many runs ended in

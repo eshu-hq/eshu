@@ -47,7 +47,8 @@ Move-sequence rows 7-30 move one family out of the root package per PR. Root
 | `terraform/drift/` (`handler.go`, `config_state_evidence_access.go`) | 2, +1 alias | [#7055](https://github.com/eshu-hq/eshu/pull/7055) | **merged** `63613f158` | 267 |
 | `kubernetes/` (`handler.go`, `correlations.go`, `runtime_workload_store.go`) | 3, +1 alias | [#7072](https://github.com/eshu-hq/eshu/pull/7072) | **merged** `052054294` | 265 |
 | `metrics/` (`handler.go`, `prometheus.go`, `request.go`) | 3, +1 alias | [#7075](https://github.com/eshu-hq/eshu/pull/7075) | **merged** `152d58562` | 263 |
-| `compare/` (`handler.go`, `evidence.go`, `story.go`) | 3, +1 alias | this PR | open | 261 |
+| `compare/` (`handler.go`, `evidence.go`, `story.go`) | 3, +1 alias | [#7079](https://github.com/eshu-hq/eshu/pull/7079) | **merged** `09fcb92b2` | 261 |
+| `cicd/` (`handler.go`, `evidence_summary.go`, `run_correlations.go`, `run_correlation_aggregates.go`, `run_correlation_aggregates_handler.go`) | 5, +1 alias, −1 deleted selector forwarder | this PR | open | 256 |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
 `visualization` both use `EvidenceCitationHandle` as a field, parameter and
@@ -413,5 +414,24 @@ response shape are unchanged. The two reads were grandfathered `non_hot_reason`
 entries; the receiver rename changes their source digest, so they convert to
 typed `keyed_support` (`single_key`; `max_results` 201 and 1) and leave
 `grandfatheredNonHotSourceDigests`, as `internal/queryplan`'s rules require.
+
+No-Observability-Change: no span, metric or log change.
+
+## Performance and observability evidence for the `cicd` leaf
+
+No-Regression Evidence: `ci_cd.go`, `ci_cd_evidence_summary.go`,
+`ci_cd_run_correlation_aggregates.go`,
+`ci_cd_run_correlation_aggregates_handler.go` and `ci_cd_run_correlations.go`
+move to `cicd/`; both SQL query families, their parameters, the list bounds,
+the grant handling, the evidence summary assembly and the response shapes are
+unchanged. `ci_cd_authz_test.go`, `ci_cd_story_parity_test.go` and
+`ci_cd_story_readback_test.go` stay in root (auth middleware and other
+families' surfaces); only the SQL predicate-order test moves, into
+`cicd/queries_test.go`. The dead root selector forwarder
+`resolveRepositorySelectorForRequestWithAccess` is deleted: the family calls
+`selector.ResolveForRequestWithAccess` directly like every other leaf, and
+keeping a callerless forwarder trips the graph-read capability sweep. These
+are Postgres reads, not graph reads: nothing here registers in
+`internal/queryplan`.
 
 No-Observability-Change: no span, metric or log change.
