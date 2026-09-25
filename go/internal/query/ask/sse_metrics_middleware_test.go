@@ -1,31 +1,34 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/metrics"
 )
 
-// This regression stays in root because it drives root's AskHandler through
-// the request-metrics middleware that moved to internal/query/metrics (#6642).
+// This regression lives in ask (not root) because it drives ask.Handler
+// through the request-metrics middleware in internal/query/metrics (#6642);
+// both homes are importable here, so no root alias is involved.
 
 // TestAskSSE_StreamsThroughMetricsMiddleware is the end-to-end regression for
 // issue #3381: POST /api/v0/ask with Accept: text/event-stream served behind
-// RequestMetricsMiddleware must stream a 200 event stream, not a 500 "streaming
+// metrics.RequestMiddleware must stream a 200 event stream, not a 500 "streaming
 // not supported by this server configuration" error.
 func TestAskSSE_StreamsThroughMetricsMiddleware(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{
+	h := &Handler{Asker: &fakeAsker{
 		answer: AskAnswer{Prose: "streamed answer", Narrated: true},
 	}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)
-	handler := RequestMetricsMiddleware(mux)
+	handler := metrics.RequestMiddleware(mux)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(`{"question":"stream check"}`))

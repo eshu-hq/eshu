@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/ask"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -61,7 +61,7 @@ const MaxAskToolCallsPerTurnCeiling = 16
 // narration posture. The setter is a no-op when the engine was not built
 // (adapter or engine construction failed).
 type HandlerResult struct {
-	Handler    *query.AskHandler
+	Handler    *ask.Handler
 	SetPosture func(func() status.AnswerNarrationStatus)
 }
 
@@ -71,7 +71,7 @@ type HandlerResult struct {
 // than mere profile presence.
 func (r HandlerResult) AdapterReady() bool { return r.Handler.Asker != nil }
 
-// BuildAskHandler constructs a [query.AskHandler] for POST /api/v0/ask.
+// BuildAskHandler constructs an [ask.Handler] for POST /api/v0/ask.
 //
 // Returns a HandlerResult with a nil-Asker handler (default-off → 503
 // unavailable) and a no-op SetPosture in any of the following cases:
@@ -96,7 +96,7 @@ func BuildAskHandler(
 	logger *slog.Logger,
 ) HandlerResult {
 	noop := func(func() status.AnswerNarrationStatus) {}
-	h := &query.AskHandler{Logger: logger}
+	h := &ask.Handler{Logger: logger}
 
 	if !IsAskEnabled(getenv) {
 		return HandlerResult{Handler: h, SetPosture: noop}
@@ -327,15 +327,15 @@ func toolsetExcludingAsk(cat *catalog.Catalog) []provider.Tool {
 	return engine.Toolset(cat, filtered)
 }
 
-// engineAsker adapts *engine.Engine to query.Asker. It lives in askwiring to
+// engineAsker adapts *engine.Engine to ask.Asker. It lives in askwiring to
 // avoid a cycle: ask/engine imports query; query must not import ask/engine.
 type engineAsker struct {
 	eng *engine.Engine
 }
 
-// Ask implements query.Asker. It forwards the question to the engine using
+// Ask implements ask.Asker. It forwards the question to the engine using
 // the request context (carries deadline + cancellation).
-func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, error) {
+func (a *engineAsker) Ask(r *http.Request, question string) (ask.AskAnswer, error) {
 	// Thread the caller's Authorization header into the engine context so the
 	// in-process runner authorizes every inner tool call as the caller (scoped
 	// or shared) rather than always as the shared admin token. Combined with
@@ -344,16 +344,16 @@ func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, er
 	ctx := engine.ContextWithCallerAuthHeader(r.Context(), r.Header.Get("Authorization"))
 	ans, err := a.eng.Ask(ctx, question)
 	if err != nil {
-		return query.AskAnswer{}, err
+		return ask.AskAnswer{}, err
 	}
 	return convertAnswer(ans), nil
 }
 
-// AskStream implements query.Asker. It drives engine.AskStream, mapping engine
-// StreamEvents to query.AskStreamEvents and forwarding them to emit. If the
-// engine adapter does not support streaming, it returns query.ErrNoStreaming so
+// AskStream implements ask.Asker. It drives engine.AskStream, mapping engine
+// StreamEvents to ask.AskStreamEvent values and forwarding them to emit. If the
+// engine adapter does not support streaming, it returns ask.ErrNoStreaming so
 // the SSE handler falls back to the synchronous Ask path.
-func (a *engineAsker) AskStream(r *http.Request, question string, emit func(query.AskStreamEvent)) (query.AskAnswer, error) {
+func (a *engineAsker) AskStream(r *http.Request, question string, emit func(ask.AskStreamEvent)) (ask.AskAnswer, error) {
 	// Thread the caller's Authorization header into the engine context so the
 	// streaming path enforces the caller's scope on every inner tool call,
 	// exactly as Ask does. Without this, a scoped streaming request would fall
@@ -362,49 +362,49 @@ func (a *engineAsker) AskStream(r *http.Request, question string, emit func(quer
 	ans, err := a.eng.AskStream(ctx, question, func(ev engine.StreamEvent) {
 		switch ev.Kind {
 		case engine.KindToken:
-			emit(query.AskStreamEvent{Kind: "token", TextDelta: ev.TextDelta})
+			emit(ask.AskStreamEvent{Kind: "token", TextDelta: ev.TextDelta})
 		case engine.KindToolCallStarted:
-			emit(query.AskStreamEvent{
+			emit(ask.AskStreamEvent{
 				Kind:       "tool_call_started",
 				ToolCallID: ev.ToolCallID,
 				ToolName:   ev.ToolName,
 			})
 		case engine.KindTraceEntry:
 			if ev.TraceEntry != nil {
-				te := &query.AskTraceEntry{
+				te := &ask.AskTraceEntry{
 					Tool:       ev.TraceEntry.Tool,
 					Args:       ev.TraceEntry.Args,
 					Supported:  ev.TraceEntry.Supported,
-					TruthClass: query.AnswerTruthClass(ev.TraceEntry.TruthClass),
+					TruthClass: ask.AnswerTruthClass(ev.TraceEntry.TruthClass),
 					Err:        ev.TraceEntry.Err,
 				}
-				emit(query.AskStreamEvent{Kind: "trace_entry", TraceEntry: te})
+				emit(ask.AskStreamEvent{Kind: "trace_entry", TraceEntry: te})
 			}
 		}
 	})
 	if err != nil {
 		if err == engine.ErrNoStreaming {
-			return query.AskAnswer{}, query.ErrNoStreaming
+			return ask.AskAnswer{}, ask.ErrNoStreaming
 		}
-		return query.AskAnswer{}, err
+		return ask.AskAnswer{}, err
 	}
 	return convertAnswer(ans), nil
 }
 
-// convertAnswer maps engine.Answer to query.AskAnswer without any import of
+// convertAnswer maps engine.Answer to ask.AskAnswer without any import of
 // query in ask/engine (the conversion is one-way, caller-side only).
-func convertAnswer(ans engine.Answer) query.AskAnswer {
-	trace := make([]query.AskTraceEntry, len(ans.Trace))
+func convertAnswer(ans engine.Answer) ask.AskAnswer {
+	trace := make([]ask.AskTraceEntry, len(ans.Trace))
 	for i, t := range ans.Trace {
-		trace[i] = query.AskTraceEntry{
+		trace[i] = ask.AskTraceEntry{
 			Tool:       t.Tool,
 			Args:       t.Args,
 			Supported:  t.Supported,
-			TruthClass: query.AnswerTruthClass(t.TruthClass),
+			TruthClass: ask.AnswerTruthClass(t.TruthClass),
 			Err:        t.Err,
 		}
 	}
-	return query.AskAnswer{
+	return ask.AskAnswer{
 		Prose:              ans.Prose,
 		Narrated:           ans.Narrated,
 		Packets:            ans.Packets,

@@ -110,7 +110,7 @@ string into any error it returns.
   the `TruthLevel`/`TruthBasis`/`FreshnessState` enums, `ResponseEnvelope`, and
   `ErrorEnvelope`; `internal/query` re-exports them in `envelope_aliases.go`.
 - Truncation is a read-model field, not an envelope field (e.g.
-  `AnswerPacket.Truncated`, `go/internal/query/answer_packet.go:88-89`;
+  `AnswerPacket.Truncated`, `go/internal/query/ask/answer_packet.go`;
   `admission_decision_types.go:126`). The bundle records the observed
   truncation flags from the data it captured, not a new contract.
 - Evidence citation handle shape: `evidenceCitationHandle`

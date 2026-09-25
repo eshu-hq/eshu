@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
@@ -190,7 +190,7 @@ func TestBuildAskResponse_FacetJSONShape(t *testing.T) {
 func TestAskHandler_FacetHelm(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "Services deployed by Helm.",
@@ -233,7 +233,7 @@ func TestHandleAskAppliedFacetsDetectedIntent(t *testing.T) {
 			Supported:  true,
 		}},
 	}
-	h := &AskHandler{Asker: &fakeAsker{answer: fakeAnswer}}
+	h := &Handler{Asker: &fakeAsker{answer: fakeAnswer}}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)

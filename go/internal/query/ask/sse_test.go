@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"bufio"
@@ -13,7 +13,7 @@ import (
 )
 
 // postAskSSE sends POST /api/v0/ask with Accept: text/event-stream.
-func postAskSSE(h *AskHandler, body string) *httptest.ResponseRecorder {
+func postAskSSE(h *Handler, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
@@ -47,7 +47,7 @@ func parseSSEEvents(body string) []struct{ event, data string } {
 func TestAskSSE_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "You have 2 repos.",
@@ -125,7 +125,7 @@ func TestAskSSE_HappyPath(t *testing.T) {
 func TestAskSSE_TraceEventShape(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "ok",
@@ -170,7 +170,7 @@ func TestAskSSE_Disabled_Returns503JSON(t *testing.T) {
 	t.Parallel()
 
 	// Nil Asker → disabled. Must return 503 JSON, NOT an event stream.
-	h := &AskHandler{Asker: nil}
+	h := &Handler{Asker: nil}
 	w := postAskSSE(h, `{"question":"anything"}`)
 
 	if w.Code != http.StatusServiceUnavailable {
@@ -194,7 +194,7 @@ func TestAskSSE_Disabled_Returns503JSON(t *testing.T) {
 func TestAskSSE_EmptyQuestion_Returns400(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{}}
+	h := &Handler{Asker: &fakeAsker{}}
 	w := postAskSSE(h, `{"question":""}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -213,7 +213,7 @@ func TestAskSSE_EngineError_EmitsErrorEvent(t *testing.T) {
 	const secretText = "SECRET_PROVIDER_BODY_12345"
 	// errAskerWithSecret always returns an error whose message contains a secret.
 	// The SSE handler must NOT echo this into the stream.
-	h := &AskHandler{Asker: &errAskerWithSecret{secret: secretText}}
+	h := &Handler{Asker: &errAskerWithSecret{secret: secretText}}
 	w := postAskSSE(h, `{"question":"list services"}`)
 
 	if w.Code != http.StatusOK {
@@ -295,7 +295,7 @@ func TestAskSSE_NonSSEPathUnchanged(t *testing.T) {
 	t.Parallel()
 
 	// A request without Accept: text/event-stream must still return JSON.
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "regression check",
@@ -325,7 +325,7 @@ func TestAskSSE_NonSSEPathUnchanged(t *testing.T) {
 func TestAskSSE_NoFlusher_Returns500(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{
+	h := &Handler{Asker: &fakeAsker{
 		answer: AskAnswer{Prose: "ok", Narrated: true},
 	}}
 

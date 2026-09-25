@@ -121,7 +121,7 @@ var passwordDeclarationValues = map[string]bool{
 // "PGPASSWORD:" is unscreened in any position, for the reason above.
 //
 // One FindAllStringSubmatch pass is what keeps this linear, and the input is
-// not capped: ask_sse.go screens the whole joined model answer as one string,
+// not capped: ask/sse.go screens the whole joined model answer as one string,
 // and answerquality screens evidence values taken from indexed repository
 // content. An earlier version captured up to whitespace, a quote, or a comma
 // and restarted the regex at each value it classified, which re-scanned the

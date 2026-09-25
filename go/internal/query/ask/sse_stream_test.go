@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ func TestAskSSE_Streaming_ForwardsValidatedTokenEvents(t *testing.T) {
 	t.Parallel()
 
 	traceTE := AskTraceEntry{Tool: "list_repos", Supported: true, TruthClass: AnswerTruthDeterministic}
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeStreamingAsker{
 			events: []AskStreamEvent{
 				{Kind: "token", TextDelta: "Hello"},
@@ -107,7 +107,7 @@ func TestAskSSE_Streaming_ForwardsValidatedTokenEvents(t *testing.T) {
 func TestAskSSE_Streaming_FallbackToSync(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeAsker{
 			answer: AskAnswer{
 				Prose:    "sync answer",
@@ -161,7 +161,7 @@ func TestAskSSE_Streaming_LeakSafe(t *testing.T) {
 	t.Parallel()
 
 	const secretText = "STREAMING_SECRET_9999"
-	h := &AskHandler{Asker: &errAskerWithSecret{secret: secretText}}
+	h := &Handler{Asker: &errAskerWithSecret{secret: secretText}}
 	w := postAskSSE(h, `{"question":"list services"}`)
 
 	body := w.Body.String()
@@ -186,7 +186,7 @@ func TestAskSSE_StreamingFinalAnswerSuppressesUnsafeNarration(t *testing.T) {
 	t.Parallel()
 
 	rawAddress := strings.Join([]string{"10", "66", "8", "4"}, ".")
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeStreamingAsker{
 			answer: AskAnswer{
 				Prose:    "The private host is " + rawAddress,
@@ -231,7 +231,7 @@ func TestAskSSE_StreamingDropsUnsafeTokenEvents(t *testing.T) {
 	t.Parallel()
 
 	rawAddress := strings.Join([]string{"10", "77", "3", "9"}, ".")
-	h := &AskHandler{
+	h := &Handler{
 		Asker: &fakeStreamingAsker{
 			events: []AskStreamEvent{
 				{Kind: "token", TextDelta: "safe prefix"},

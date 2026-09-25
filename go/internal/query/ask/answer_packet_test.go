@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 func TestAnswerPacketFromExactGraphEnvelopeIsDeterministic(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:      TruthLevelExact,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelExact,
 		Capability: "call_graph.direct_callers",
-		Profile:    ProfileLocalAuthoritative,
-		Basis:      TruthBasisAuthoritativeGraph,
-		Freshness:  TruthFreshness{State: FreshnessFresh},
+		Profile:    querycontract.ProfileLocalAuthoritative,
+		Basis:      querycontract.TruthBasisAuthoritativeGraph,
+		Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 	packet := NewAnswerPacket(AnswerPacketInput{
 		PromptFamily: "call_graph.direct_callers",
@@ -25,7 +26,7 @@ func TestAnswerPacketFromExactGraphEnvelopeIsDeterministic(t *testing.T) {
 		PrimaryRoute: "POST /api/v0/code/call-graph/callers",
 		Summary:      "12 direct callers across 3 repositories.",
 		ResultRef:    "eshu://tool-result/envelope",
-		Envelope:     &ResponseEnvelope{Data: map[string]any{"callers": 12}, Truth: truth},
+		Envelope:     &querycontract.ResponseEnvelope{Data: map[string]any{"callers": 12}, Truth: truth},
 	})
 
 	if !packet.Supported {
@@ -40,7 +41,7 @@ func TestAnswerPacketFromExactGraphEnvelopeIsDeterministic(t *testing.T) {
 	if packet.Summary == "" {
 		t.Fatalf("expected a confident summary on a supported answer")
 	}
-	if packet.Truth == nil || packet.Truth.Level != TruthLevelExact {
+	if packet.Truth == nil || packet.Truth.Level != querycontract.TruthLevelExact {
 		t.Fatalf("expected canonical truth preserved, got %+v", packet.Truth)
 	}
 	if len(packet.UnsupportedReasons) != 0 {
@@ -51,27 +52,27 @@ func TestAnswerPacketFromExactGraphEnvelopeIsDeterministic(t *testing.T) {
 func TestAnswerPacketTruthClassMapping(t *testing.T) {
 	cases := []struct {
 		name  string
-		level TruthLevel
-		basis TruthBasis
+		level querycontract.TruthLevel
+		basis querycontract.TruthBasis
 		want  AnswerTruthClass
 	}{
-		{"graph_exact", TruthLevelExact, TruthBasisAuthoritativeGraph, AnswerTruthDeterministic},
-		{"semantic_exact", TruthLevelExact, TruthBasisSemanticFacts, AnswerTruthSemanticObservation},
-		{"content_derived", TruthLevelDerived, TruthBasisContentIndex, AnswerTruthCodeHint},
-		{"hybrid_derived", TruthLevelDerived, TruthBasisHybrid, AnswerTruthDerived},
-		{"content_fallback_is_hint", TruthLevelFallback, TruthBasisContentIndex, AnswerTruthCodeHint},
-		{"fallback", TruthLevelFallback, TruthBasisHybrid, AnswerTruthFallback},
-		{"no_backend_read", TruthLevelFallback, TruthBasisNoBackendRead, AnswerTruthFallback},
+		{"graph_exact", querycontract.TruthLevelExact, querycontract.TruthBasisAuthoritativeGraph, AnswerTruthDeterministic},
+		{"semantic_exact", querycontract.TruthLevelExact, querycontract.TruthBasisSemanticFacts, AnswerTruthSemanticObservation},
+		{"content_derived", querycontract.TruthLevelDerived, querycontract.TruthBasisContentIndex, AnswerTruthCodeHint},
+		{"hybrid_derived", querycontract.TruthLevelDerived, querycontract.TruthBasisHybrid, AnswerTruthDerived},
+		{"content_fallback_is_hint", querycontract.TruthLevelFallback, querycontract.TruthBasisContentIndex, AnswerTruthCodeHint},
+		{"fallback", querycontract.TruthLevelFallback, querycontract.TruthBasisHybrid, AnswerTruthFallback},
+		{"no_backend_read", querycontract.TruthLevelFallback, querycontract.TruthBasisNoBackendRead, AnswerTruthFallback},
 		// The level here cannot occur through BuildTruthEnvelope (basisLevel
 		// fixes a no-read basis at fallback), and that is the point: it proves
 		// classifyAnswerTruth answers from its own no_backend_read case rather
 		// than from the level. Without that case this row reaches the default
 		// arm and a page that read nothing classifies as "derived".
-		{"no_backend_read_never_upgrades", TruthLevelExact, TruthBasisNoBackendRead, AnswerTruthFallback},
+		{"no_backend_read_never_upgrades", querycontract.TruthLevelExact, querycontract.TruthBasisNoBackendRead, AnswerTruthFallback},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := ClassifyAnswerTruth(&TruthEnvelope{Level: tc.level, Basis: tc.basis})
+			got := ClassifyAnswerTruth(&querycontract.TruthEnvelope{Level: tc.level, Basis: tc.basis})
 			if got != tc.want {
 				t.Fatalf("ClassifyAnswerTruth(%s/%s)=%q want %q", tc.level, tc.basis, got, tc.want)
 			}
@@ -83,10 +84,10 @@ func TestAnswerPacketTruthClassMapping(t *testing.T) {
 }
 
 func TestAnswerPacketFromErrorEnvelopeStaysNonConfident(t *testing.T) {
-	for _, code := range []ErrorCode{
-		ErrorCodeUnsupportedCapability,
-		ErrorCodeIndexBuilding,
-		ErrorCodeAmbiguous,
+	for _, code := range []querycontract.ErrorCode{
+		querycontract.ErrorCodeUnsupportedCapability,
+		querycontract.ErrorCodeIndexBuilding,
+		querycontract.ErrorCodeAmbiguous,
 	} {
 		t.Run(string(code), func(t *testing.T) {
 			packet := NewAnswerPacket(AnswerPacketInput{
@@ -95,8 +96,8 @@ func TestAnswerPacketFromErrorEnvelopeStaysNonConfident(t *testing.T) {
 				// A confident summary is offered, but the builder MUST drop it
 				// because the envelope carries an error.
 				Summary: "Everything calls it.",
-				Envelope: &ResponseEnvelope{
-					Error: &ErrorEnvelope{Code: code, Message: "capability not available at this profile"},
+				Envelope: &querycontract.ResponseEnvelope{
+					Error: &querycontract.ErrorEnvelope{Code: code, Message: "capability not available at this profile"},
 				},
 			})
 
@@ -117,17 +118,17 @@ func TestAnswerPacketFromErrorEnvelopeStaysNonConfident(t *testing.T) {
 }
 
 func TestAnswerPacketEmptyEvidenceIsPartialNotConfident(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:      TruthLevelDerived,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelDerived,
 		Capability: "evidence_citation.packet",
-		Basis:      TruthBasisContentIndex,
-		Freshness:  TruthFreshness{State: FreshnessFresh},
+		Basis:      querycontract.TruthBasisContentIndex,
+		Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 	packet := NewAnswerPacket(AnswerPacketInput{
 		PromptFamily: "evidence_citation.packet",
 		Question:     "Cite the evidence for AdmitWorkload.",
 		Summary:      "Here is the evidence.",
-		Envelope:     &ResponseEnvelope{Data: map[string]any{}, Truth: truth},
+		Envelope:     &querycontract.ResponseEnvelope{Data: map[string]any{}, Truth: truth},
 		// No resolved evidence handles: the question is answerable but nothing
 		// resolved, so the packet must be partial, never a confident "no".
 		NoEvidence: true,
@@ -148,11 +149,11 @@ func TestAnswerPacketEmptyEvidenceIsPartialNotConfident(t *testing.T) {
 }
 
 func TestAnswerPacketMissingEvidenceIsPartialWithSummary(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:      TruthLevelDerived,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelDerived,
 		Capability: "evidence_citation.packet",
-		Basis:      TruthBasisContentIndex,
-		Freshness:  TruthFreshness{State: FreshnessFresh},
+		Basis:      querycontract.TruthBasisContentIndex,
+		Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 	packet := NewAnswerPacket(AnswerPacketInput{
 		PromptFamily:    "evidence_citation.packet",
@@ -160,7 +161,7 @@ func TestAnswerPacketMissingEvidenceIsPartialWithSummary(t *testing.T) {
 		Summary:         "1 citation resolved.",
 		EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
 		MissingEvidence: []evidence.EvidenceCitationHandle{{Kind: "file", RepoID: "r1", RelativePath: "missing.go"}},
-		Envelope:        &ResponseEnvelope{Data: map[string]any{}, Truth: truth},
+		Envelope:        &querycontract.ResponseEnvelope{Data: map[string]any{}, Truth: truth},
 	})
 
 	if !packet.Supported {
@@ -178,11 +179,11 @@ func TestAnswerPacketMissingEvidenceIsPartialWithSummary(t *testing.T) {
 }
 
 func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:      TruthLevelDerived,
+	truth := &querycontract.TruthEnvelope{
+		Level:      querycontract.TruthLevelDerived,
 		Capability: "evidence_citation.packet",
-		Basis:      TruthBasisContentIndex,
-		Freshness:  TruthFreshness{State: FreshnessFresh},
+		Basis:      querycontract.TruthBasisContentIndex,
+		Freshness:  querycontract.TruthFreshness{State: querycontract.FreshnessFresh},
 	}
 	citation := evidence.EvidenceCitationResponse{
 		Question:  "Cite the evidence for AdmitWorkload.",
@@ -197,7 +198,7 @@ func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
 		PromptFamily: "evidence_citation.packet",
 		Question:     "Cite the evidence for AdmitWorkload.",
 		Summary:      "1 citation resolved.",
-		Envelope:     &ResponseEnvelope{Data: citation, Truth: truth},
+		Envelope:     &querycontract.ResponseEnvelope{Data: citation, Truth: truth},
 	}, citation)
 
 	if !packet.Supported {
@@ -228,18 +229,18 @@ func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
 // proven cause folds the cause into the partial reasons and surfaces its bounded
 // next check, while keeping the answer usable (still supported, still partial).
 func TestAnswerPacketSurfacesStaleFreshnessCause(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:     TruthLevelDerived,
-		Basis:     TruthBasisSemanticFacts,
-		Freshness: TruthFreshness{State: FreshnessStale},
+	truth := &querycontract.TruthEnvelope{
+		Level:     querycontract.TruthLevelDerived,
+		Basis:     querycontract.TruthBasisSemanticFacts,
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessStale},
 	}
-	WithFreshnessCause(truth, FreshnessCauseReducerBacklog)
+	querycontract.WithFreshnessCause(truth, querycontract.FreshnessCauseReducerBacklog)
 
 	packet := NewAnswerPacket(AnswerPacketInput{
 		PromptFamily: "platform_metrics.timeseries",
 		Question:     "ingest rate trend",
 		Summary:      "trend over 24h",
-		Envelope:     &ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
+		Envelope:     &querycontract.ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
 	})
 
 	if !packet.Supported || !packet.Partial {
@@ -247,7 +248,7 @@ func TestAnswerPacketSurfacesStaleFreshnessCause(t *testing.T) {
 	}
 	foundReason := false
 	for _, reason := range packet.UnsupportedReasons {
-		if strings.Contains(reason, string(FreshnessCauseReducerBacklog)) {
+		if strings.Contains(reason, string(querycontract.FreshnessCauseReducerBacklog)) {
 			foundReason = true
 		}
 	}
@@ -269,16 +270,16 @@ func TestAnswerPacketSurfacesStaleFreshnessCause(t *testing.T) {
 // proven, the packet keeps the generic stale reason and adds no freshness next
 // call: the packet never invents a cause.
 func TestAnswerPacketWithoutFreshnessCauseStaysGeneric(t *testing.T) {
-	truth := &TruthEnvelope{
-		Level:     TruthLevelDerived,
-		Basis:     TruthBasisSemanticFacts,
-		Freshness: TruthFreshness{State: FreshnessStale},
+	truth := &querycontract.TruthEnvelope{
+		Level:     querycontract.TruthLevelDerived,
+		Basis:     querycontract.TruthBasisSemanticFacts,
+		Freshness: querycontract.TruthFreshness{State: querycontract.FreshnessStale},
 	}
 	packet := NewAnswerPacket(AnswerPacketInput{
 		PromptFamily: "platform_metrics.timeseries",
 		Question:     "ingest rate trend",
 		Summary:      "trend over 24h",
-		Envelope:     &ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
+		Envelope:     &querycontract.ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
 	})
 	for _, reason := range packet.UnsupportedReasons {
 		if strings.Contains(reason, "cause:") {

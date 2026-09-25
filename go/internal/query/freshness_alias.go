@@ -14,7 +14,7 @@ import (
 // method files moved to freshness/. Names the rest of the program still
 // spells `query.X` (handler.go's struct field, cmd router wiring,
 // auth_scoped_routes.go, status_freshness_causality.go,
-// answer_packet.go, and staying root tests) alias here so the move touches
+// and staying root tests) alias here so the move touches
 // no caller outside the family.
 //
 // One home per symbol: nothing here implements behavior, it only aliases or

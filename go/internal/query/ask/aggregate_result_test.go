@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -43,7 +44,7 @@ func TestBuildAskResponseSurfacesAggregateResultReference(t *testing.T) {
 func TestAskHTTPResponseSurfacesAggregateResultReference(t *testing.T) {
 	t.Parallel()
 
-	handler := &AskHandler{Asker: &fakeAsker{answer: exactIndexedRepositoriesAnswer(896)}}
+	handler := &Handler{Asker: &fakeAsker{answer: exactIndexedRepositoriesAnswer(896)}}
 	recorder := postAsk(handler, `{"question":"How many repositories are currently indexed?"}`)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -74,7 +75,7 @@ func TestAskHTTPResponseSurfacesAggregateResultReference(t *testing.T) {
 func TestAskSSEStreamingAnswerSurfacesAggregateResultReference(t *testing.T) {
 	t.Parallel()
 
-	handler := &AskHandler{
+	handler := &Handler{
 		Asker: &fakeStreamingAsker{answer: exactIndexedRepositoriesAnswer(896)},
 	}
 	recorder := postAskSSE(handler, `{"question":"How many repositories are currently indexed?"}`)
@@ -140,7 +141,7 @@ func TestAskHTTPAndSSEUseExplicitInventoryPacketAcrossMultiPacketAnswer(t *testi
 	t.Parallel()
 
 	answer := multiPacketExactIndexedRepositoriesAnswer(896)
-	httpRecorder := postAsk(&AskHandler{Asker: &fakeAsker{answer: answer}}, `{"question":"How many repositories are currently indexed?"}`)
+	httpRecorder := postAsk(&Handler{Asker: &fakeAsker{answer: answer}}, `{"question":"How many repositories are currently indexed?"}`)
 	if httpRecorder.Code != http.StatusOK {
 		t.Fatalf("HTTP status = %d, want %d: %s", httpRecorder.Code, http.StatusOK, httpRecorder.Body.String())
 	}
@@ -151,7 +152,7 @@ func TestAskHTTPAndSSEUseExplicitInventoryPacketAcrossMultiPacketAnswer(t *testi
 	assertAskInventoryPublication(t, httpResponse)
 
 	sseRecorder := postAskSSE(
-		&AskHandler{Asker: &fakeStreamingAsker{answer: answer}},
+		&Handler{Asker: &fakeStreamingAsker{answer: answer}},
 		`{"question":"How many repositories are currently indexed?"}`,
 	)
 	if sseRecorder.Code != http.StatusOK {
@@ -217,7 +218,7 @@ func assertAskInventoryPublication(t *testing.T, response askResponse) {
 	if !ok {
 		t.Fatalf("result type = %T, want map[string]any", response.Result)
 	}
-	if got, want := IntVal(result, "total"), 896; got != want {
+	if got, want := querycontract.IntVal(result, "total"), 896; got != want {
 		t.Fatalf("result total = %d, want %d", got, want)
 	}
 	if got, want := response.CitationRef, "eshu://citations/repository-inventory"; got != want {
@@ -249,7 +250,7 @@ func assertAskAggregateResult(t *testing.T, response askResponse, wantTotal int6
 	if !ok {
 		t.Fatalf("result type = %T, want map[string]any", response.Result)
 	}
-	if got := IntVal(result, "total"); got != int(wantTotal) {
+	if got := querycontract.IntVal(result, "total"); got != int(wantTotal) {
 		t.Fatalf("result total = %d, want %d", got, wantTotal)
 	}
 	if got := response.TruthClass; got != string(AnswerTruthDeterministic) {

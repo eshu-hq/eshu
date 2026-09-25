@@ -300,3 +300,11 @@ docs/internal/evidence/6488-ack-fanout-lock-order.md:go/internal/storage/postgre
 docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/cross_scope_producer_readiness.go
 docs/internal/evidence/5709-cross-scope-readiness-floor.md:go/internal/storage/postgres/scope_quiescence.go
 docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/scope_quiescence_live_test.go
+
+# #6642 ask family move: .sse-report.md is the dated #3263 implementation
+# report; its Files Changed table records the tree as it stood when SSE
+# streaming landed ("new, 146 lines", "+6 lines"). Repointing to
+# go/internal/query/ask/ would falsify that record.
+.sse-report.md:go/internal/query/ask_sse.go
+.sse-report.md:go/internal/query/ask_sse_test.go
+.sse-report.md:go/internal/query/ask_handler.go

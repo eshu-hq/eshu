@@ -19,10 +19,10 @@ The class mapping is documented in `docs/public/reference/answer-packets.md`.
 
 ## Dependencies
 
-Inbound: 17 non-test files and 2 test files import this package, all under
+Inbound: 18 non-test files and 2 test files import this package, all under
 `go/internal/query`. Packages outside it (`ask/engine`, `serviceintel`, `mcp`,
 `cli`, `answerquality`, `answernarration`, `askwiring`) still name the root
-aliases in `query/answer_packet.go` and `query/answer_metadata_alias.go`.
+aliases in `query/ask_alias.go` and `query/answer_metadata_alias.go`.
 
 Outbound: the parent `querycontract` and `querycontract/evidence`. The parent
 must not import this package, or the import becomes a cycle.

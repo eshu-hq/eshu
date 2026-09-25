@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package ask
 
 import (
 	"bytes"
@@ -48,7 +48,7 @@ type fakeAskErr struct{}
 func (e *fakeAskErr) Error() string { return "engine failure" }
 
 // postAsk sends a POST /api/v0/ask request with the given body.
-func postAsk(h *AskHandler, body string) *httptest.ResponseRecorder {
+func postAsk(h *Handler, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func postAsk(h *AskHandler, body string) *httptest.ResponseRecorder {
 func TestAskHandler_Disabled(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: nil}
+	h := &Handler{Asker: nil}
 	w := postAsk(h, `{"question":"what services do I have?"}`)
 
 	if w.Code != http.StatusServiceUnavailable {
@@ -81,7 +81,7 @@ func TestAskHandler_Disabled(t *testing.T) {
 func TestAskHandler_EmptyQuestion(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{}}
+	h := &Handler{Asker: &fakeAsker{}}
 	w := postAsk(h, `{"question":""}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -92,7 +92,7 @@ func TestAskHandler_EmptyQuestion(t *testing.T) {
 func TestAskHandler_MissingQuestion(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{}}
+	h := &Handler{Asker: &fakeAsker{}}
 	w := postAsk(h, `{}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -103,7 +103,7 @@ func TestAskHandler_MissingQuestion(t *testing.T) {
 func TestAskHandler_WhitespaceOnlyQuestion(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{}}
+	h := &Handler{Asker: &fakeAsker{}}
 	w := postAsk(h, `{"question":"   "}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -114,7 +114,7 @@ func TestAskHandler_WhitespaceOnlyQuestion(t *testing.T) {
 func TestAskHandler_BadJSON(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &fakeAsker{}}
+	h := &Handler{Asker: &fakeAsker{}}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader("not-json"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -128,7 +128,7 @@ func TestAskHandler_BadJSON(t *testing.T) {
 func TestAskHandler_EngineError_Returns503(t *testing.T) {
 	t.Parallel()
 
-	h := &AskHandler{Asker: &errAsker{}}
+	h := &Handler{Asker: &errAsker{}}
 	w := postAsk(h, `{"question":"what repos do I have?"}`)
 
 	if w.Code != http.StatusServiceUnavailable {
@@ -149,7 +149,7 @@ func TestAskHandler_DisabledNoEngineConstruction(t *testing.T) {
 	t.Parallel()
 
 	// Verify the disabled handler never invokes the asker.
-	h := &AskHandler{Asker: nil}
+	h := &Handler{Asker: nil}
 	w := postAsk(h, `{"question":"anything"}`)
 
 	if w.Code != http.StatusServiceUnavailable {
@@ -169,7 +169,7 @@ func TestAskHandler_Mount(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	h := &AskHandler{Asker: nil}
+	h := &Handler{Asker: nil}
 	h.Mount(mux)
 
 	w := httptest.NewRecorder()

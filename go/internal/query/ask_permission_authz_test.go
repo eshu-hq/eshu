@@ -11,19 +11,37 @@ import (
 	"testing"
 )
 
+// fakeAskAuthAsker stubs the ask engine for auth tests. It lives here (not in
+// ask/) because this test stays in root to drive the auth middleware
+// interplay; ask's own fakeAsker is not importable from another package's
+// tests.
+type fakeAskAuthAsker struct {
+	answer AskAnswer
+}
+
+func (f *fakeAskAuthAsker) Ask(_ *http.Request, _ string) (AskAnswer, error) {
+	return f.answer, nil
+}
+
+func (f *fakeAskAuthAsker) AskStream(_ *http.Request, _ string, _ func(AskStreamEvent)) (AskAnswer, error) {
+	return AskAnswer{}, ErrNoStreaming
+}
+
 func postAskWithAuth(h *AskHandler, body string, auth AuthContext) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
 	w := httptest.NewRecorder()
-	h.handleAsk(w, req)
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	mux.ServeHTTP(w, req)
 	return w
 }
 
 func TestAskHandlerGeneratedTokenRequiresAskSearchFeature(t *testing.T) {
 	t.Parallel()
 
-	asker := &fakeAsker{answer: AskAnswer{Packets: []AnswerPacket{{Summary: "should not run"}}}}
+	asker := &fakeAskAuthAsker{answer: AskAnswer{Packets: []AnswerPacket{{Summary: "should not run"}}}}
 	h := &AskHandler{Asker: asker}
 	w := postAskWithAuth(h, `{"question":"what services do I have?"}`, AuthContext{
 		Mode:                         AuthModeScoped,
@@ -50,7 +68,7 @@ func TestAskHandlerGeneratedTokenRequiresAskSearchFeature(t *testing.T) {
 func TestAskHandlerGeneratedTokenRequiresAskSearchDataClasses(t *testing.T) {
 	t.Parallel()
 
-	asker := &fakeAsker{answer: AskAnswer{Packets: []AnswerPacket{{Summary: "should not run"}}}}
+	asker := &fakeAskAuthAsker{answer: AskAnswer{Packets: []AnswerPacket{{Summary: "should not run"}}}}
 	h := &AskHandler{Asker: asker}
 	w := postAskWithAuth(h, `{"question":"what services do I have?"}`, AuthContext{
 		Mode:                         AuthModeScoped,

@@ -6,7 +6,7 @@ default-off semantics and engine lifecycle are implemented once.
 
 ## Responsibilities
 
-- `BuildAskHandler` — constructs the [query.AskHandler] with a live engine
+- `BuildAskHandler` — constructs the [ask.Handler] with a live engine
   when `ESHU_ASK_ENABLED=true` and a valid `agent_reasoning` provider profile
   is present; returns a default-off handler (nil Asker → 503 unavailable)
   otherwise.
