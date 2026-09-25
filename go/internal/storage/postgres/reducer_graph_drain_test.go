@@ -5,10 +5,12 @@ package postgres
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func TestReducerGraphDrainHasActiveReducerGraphWork(t *testing.T) {
@@ -84,7 +86,7 @@ func TestReducerGraphDrainHasUncommittedCanonicalCodeScopes(t *testing.T) {
 		t.Fatalf("query drifted from uncommittedCanonicalCodeScopesQuery:\n%s", query)
 	}
 	args := db.queries[0].args
-	if got, want := len(args), 2; got != want {
+	if got, want := len(args), 4; got != want {
 		t.Fatalf("query args = %d, want %d: %v", got, want, args)
 	}
 	if got, want := args[0], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
@@ -93,7 +95,17 @@ func TestReducerGraphDrainHasUncommittedCanonicalCodeScopes(t *testing.T) {
 	if got, want := args[1], string(reducer.GraphProjectionPhaseCanonicalNodesCommitted); got != want {
 		t.Fatalf("phase arg = %v, want %v", got, want)
 	}
+	// #7133: only code-bearing collectors, derived from the workflow
+	// contracts, may hold the gate; ref scopes never project canonically.
+	if got, want := args[2], []string{string(scope.CollectorGit)}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("collector kinds arg = %#v, want %#v", got, want)
+	}
+	if got, want := args[3], string(scope.KindRepositoryRef); got != want {
+		t.Fatalf("excluded scope kind arg = %v, want %v", got, want)
+	}
 	for _, want := range []string{
+		"scope.collector_kind = ANY($3::text[])",
+		"scope.scope_kind <> $4",
 		"FROM ingestion_scopes AS scope",
 		"scope.active_generation_id IS NOT NULL",
 		"FROM fact_records AS fact",
@@ -126,5 +138,56 @@ func TestReducerGraphDrainHasUncommittedCanonicalCodeScopesClear(t *testing.T) {
 	}
 	if uncommitted {
 		t.Fatal("HasUncommittedCanonicalCodeScopes() = true, want false")
+	}
+}
+
+// TestReducerGraphDrainDescribeUncommittedCanonicalCodeScopes pins the
+// operator-facing blocker sample (#7133): same predicate as the gate, the
+// window total survives LIMIT, and the sample size is clamped.
+func TestReducerGraphDrainDescribeUncommittedCanonicalCodeScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{
+			{"git-repository-scope:a", int64(7)},
+			{"git-repository-scope:b", int64(7)},
+		}}},
+	}
+	total, ids, err := NewReducerGraphDrain(db).DescribeUncommittedCanonicalCodeScopes(context.Background(), 1000)
+	if err != nil {
+		t.Fatalf("DescribeUncommittedCanonicalCodeScopes() error = %v", err)
+	}
+	if total != 7 || !reflect.DeepEqual(ids, []string{"git-repository-scope:a", "git-repository-scope:b"}) {
+		t.Fatalf("DescribeUncommittedCanonicalCodeScopes() = (%d, %v), want (7, [a b])", total, ids)
+	}
+	query := db.queries[0].query
+	if !strings.Contains(query, uncommittedCanonicalCodeScopePredicate) {
+		t.Fatalf("sample query does not share the gate predicate:\n%s", query)
+	}
+	if !strings.Contains(query, "count(*) OVER ()") || !strings.Contains(query, "LIMIT $5") {
+		t.Fatalf("sample query lost its bounded window shape:\n%s", query)
+	}
+	args := db.queries[0].args
+	if got, want := len(args), 5; got != want {
+		t.Fatalf("args = %d, want %d", got, want)
+	}
+	if got, want := args[4], MaxCanonicalCodeQuiescenceBlockerSample; got != want {
+		t.Fatalf("limit arg = %v, want clamp to %d", got, want)
+	}
+}
+
+func TestReducerGraphDrainDescribeUncommittedCanonicalCodeScopesEmpty(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
+	total, ids, err := NewReducerGraphDrain(db).DescribeUncommittedCanonicalCodeScopes(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("DescribeUncommittedCanonicalCodeScopes() error = %v", err)
+	}
+	if total != 0 || len(ids) != 0 {
+		t.Fatalf("DescribeUncommittedCanonicalCodeScopes() = (%d, %v), want (0, [])", total, ids)
+	}
+	if got := db.queries[0].args[4]; got != 3 {
+		t.Fatalf("limit arg = %v, want 3", got)
 	}
 }

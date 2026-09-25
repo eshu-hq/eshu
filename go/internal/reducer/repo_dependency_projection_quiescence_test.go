@@ -84,6 +84,29 @@ func TestRepoDependencyProjectionRunnerRecordsQuiescenceBlockedCycle(t *testing.
 	if !quiescenceBlockedDurationHasPoint(resources) {
 		t.Fatal("blocked cycle left no canonical-write-duration point for domain repo_dependency")
 	}
+	// #7133: the shared lane-blocked counter names the lane and reason, so
+	// code_calls and repo_dependency stalls read from one metric.
+	if got := laneBlockedCount(resources, DomainRepoDependency, "canonical_code_quiescence"); got != 1 {
+		t.Fatalf("lane_blocked_total{repo_dependency,canonical_code_quiescence} = %d, want 1", got)
+	}
+}
+
+func laneBlockedCount(resources metricdata.ResourceMetrics, domain, reason string) int64 {
+	want := attribute.NewSet(attribute.String("domain", domain), attribute.String("reason", reason))
+	for _, scope := range resources.ScopeMetrics {
+		for _, candidate := range scope.Metrics {
+			if candidate.Name != "eshu_dp_shared_projection_lane_blocked_total" {
+				continue
+			}
+			sum, _ := candidate.Data.(metricdata.Sum[int64])
+			for _, point := range sum.DataPoints {
+				if point.Attributes.Equals(&want) {
+					return point.Value
+				}
+			}
+		}
+	}
+	return -1
 }
 
 func quiescenceBlockedDurationHasPoint(resources metricdata.ResourceMetrics) bool {

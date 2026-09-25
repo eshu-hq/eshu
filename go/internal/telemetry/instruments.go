@@ -206,6 +206,20 @@ type Instruments struct {
 	// an ambiguous, canceled, or lease-uncertain repo-dependency cycle. Labels
 	// are domain and a bounded reason set; never repository or lease owner.
 	SharedProjectionLeaseQuarantines metric.Int64Counter
+	// SharedProjectionLaneBlocked counts shared-projection partition cycles
+	// that a lane-wide gate held shut before any lease claim (#7133). Labels:
+	// domain (code_calls, repo_dependency) and reason
+	// (canonical_code_quiescence — some code scope's active generation has
+	// not committed canonical nodes; reducer_graph_work_active — graph-writing
+	// reducer work is still in flight on a local-authoritative profile). A
+	// steady rate with no drop in pending intents is a wedged lane.
+	SharedProjectionLaneBlocked metric.Int64Counter
+	// SharedProjectionLaneBlockerCount is the number of scopes last seen
+	// holding a lane-wide gate, sampled when a blocked episode starts, then
+	// at a bounded interval, and set to zero on release (#7133). Labels:
+	// domain and reason, as for SharedProjectionLaneBlocked. The scope ids
+	// themselves are in the runner's "lane blocked" log line, never a label.
+	SharedProjectionLaneBlockerCount metric.Int64Gauge
 	GenerationRetentionPruned        metric.Int64Counter
 	GenerationRetentionRowsPruned    metric.Int64Counter
 	GenerationRetentionFailures      metric.Int64Counter
@@ -2004,6 +2018,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionLeaseQuarantines counter: %w", err)
+	}
+
+	inst.SharedProjectionLaneBlocked, err = meter.Int64Counter(
+		"eshu_dp_shared_projection_lane_blocked_total",
+		metric.WithDescription("Total shared-projection partition cycles held shut by a lane-wide gate before lease claim, by domain and bounded reason (canonical_code_quiescence/reducer_graph_work_active)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionLaneBlocked counter: %w", err)
+	}
+
+	inst.SharedProjectionLaneBlockerCount, err = meter.Int64Gauge(
+		"eshu_dp_shared_projection_lane_blocking_scopes",
+		metric.WithDescription("Scopes last seen holding a shared-projection lane-wide gate, by domain and reason; sampled per blocked episode at a bounded interval and zeroed on release"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionLaneBlockerCount gauge: %w", err)
 	}
 
 	inst.GenerationRetentionPruned, err = meter.Int64Counter(

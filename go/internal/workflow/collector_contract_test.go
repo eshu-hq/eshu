@@ -379,3 +379,48 @@ func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 		t.Fatalf("fresh RequiredPhases[0].PhaseName = %q, want %q", got, want)
 	}
 }
+
+// TestCollectorKindsRequiringPhaseCodeCanonicalNodes pins the code-bearing
+// collector set the canonical-code quiescence gate scopes to (#7133). It is
+// derived from the collector contracts, so a collector that starts requiring
+// code_entities_uid canonical nodes joins the gate without a hand-kept list.
+func TestCollectorKindsRequiringPhaseCodeCanonicalNodes(t *testing.T) {
+	t.Parallel()
+
+	got := CollectorKindsRequiringPhase(
+		reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+	)
+	if want := []scope.CollectorKind{scope.CollectorGit}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("CollectorKindsRequiringPhase(code_entities_uid, canonical_nodes_committed) = %#v, want %#v", got, want)
+	}
+
+	// Cross-check against every contract: a kind is returned exactly when its
+	// contract requires that phase.
+	returned := make(map[scope.CollectorKind]bool, len(got))
+	for _, kind := range got {
+		returned[kind] = true
+	}
+	for _, kind := range scope.AllCollectorKinds() {
+		requires := false
+		for _, requirement := range RequiredPhasesForCollector(kind) {
+			if requirement.Required &&
+				requirement.Keyspace == reducer.GraphProjectionKeyspaceCodeEntitiesUID &&
+				requirement.PhaseName == reducer.GraphProjectionPhaseCanonicalNodesCommitted {
+				requires = true
+			}
+		}
+		if requires != returned[kind] {
+			t.Fatalf("collector %q requires phase = %v, returned = %v", kind, requires, returned[kind])
+		}
+	}
+}
+
+func TestCollectorKindsRequiringPhaseUnknownPhaseIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	got := CollectorKindsRequiringPhase(reducer.GraphProjectionKeyspace("no_such_keyspace"), reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	if len(got) != 0 {
+		t.Fatalf("CollectorKindsRequiringPhase(unknown) = %#v, want empty", got)
+	}
+}

@@ -43,7 +43,14 @@
 // concurrent migrators cannot race on the same catalog name.
 // ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
-// it starts its edge write lane. Shared projection partition leases use a
+// it starts its edge write lane. Its canonical-code quiescence probe admits
+// only scopes whose collector contract requires the code_entities_uid
+// canonical-nodes phase (git, excluding repository_ref overlays), so cloud,
+// Terraform-state, and synthetic scopes such as eshu:global cannot hold the
+// code_calls or repo_dependency lane (#7133). Its
+// DescribeUncommittedCanonicalCodeScopes sibling names a capped sample of the
+// blocking scopes for the runner's blocked-lane log. Shared projection
+// partition leases use a
 // domain-scoped advisory lock and reject active partition-count rescaling for
 // one domain so remapped file partitions cannot overlap old in-flight writer
 // claims. CloudResource-consuming reducer edge domains stay unclaimed until

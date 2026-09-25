@@ -68,23 +68,23 @@ func TestCodeCallProjectionRunnerValidation(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		runner Runner
+		runner *Runner
 	}{
 		{
 			name:   "missing intent reader",
-			runner: Runner{LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
+			runner: &Runner{LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
 		},
 		{
 			name:   "missing lease manager",
-			runner: Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
+			runner: &Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
 		},
 		{
 			name:   "missing edge writer",
-			runner: Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
+			runner: &Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) { return "", false }},
 		},
 		{
 			name:   "missing accepted generation lookup",
-			runner: Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}},
+			runner: &Runner{IntentReader: &fakeCodeCallIntentStore{leaseGranted: true}, LeaseManager: &fakeCodeCallIntentStore{leaseGranted: true}, EdgeWriter: &recordingCodeCallProjectionEdgeWriter{}},
 		},
 	}
 

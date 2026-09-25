@@ -107,6 +107,8 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_projection_step_seconds` | histogram | Shared projection substeps such as selection, load, retract, write, replay, and mark-completed. |
 | `eshu_dp_shared_projection_stale_intents_total` | counter | Stale shared projection intents filtered during processing. |
 | `eshu_dp_shared_projection_partition_heartbeat_missed_total` | counter | Shared projection partition lease heartbeat failures by domain. A non-zero rate means a slow partition cycle's lease may be reclaimed by another worker while the original holder is still processing. |
+| `eshu_dp_shared_projection_lane_blocked_total` | counter | Partition cycles a lane-wide gate held shut before lease claim (#7133). Labels: `domain` (`code_calls`, `repo_dependency`) and `reason` (`canonical_code_quiescence`, `reducer_graph_work_active`). A steady rate while that domain's pending intents stay flat is a wedged lane; the `code call projection lane blocked` warning names the blocking scope ids. |
+| `eshu_dp_shared_projection_lane_blocking_scopes` | gauge | Scopes last seen holding the lane-wide gate, by `domain` and `reason`. The code-call runner samples it when a blocked episode starts and at most once a minute after that, and sets it to zero on release. |
 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | histogram | Shared acceptance lookup latency. |
 | `eshu_dp_shared_acceptance_lookup_errors_total` | counter | Shared acceptance lookup failures. |
 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | histogram | Shared acceptance write latency. |

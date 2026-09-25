@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -170,6 +171,13 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
 		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
 		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
 		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
+		if r.Instruments.SharedProjectionLaneBlocked != nil {
+			// #7133: the lane-blocked counter both gated lanes share.
+			r.Instruments.SharedProjectionLaneBlocked.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrReason(projection.BlockedReasonCanonicalCodeQuiescence),
+			))
+		}
 	}
 	if r.Logger != nil {
 		r.Logger.InfoContext(

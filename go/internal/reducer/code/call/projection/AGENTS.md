@@ -48,8 +48,15 @@ whole-unit history).
   `Runner`, `RunnerConfig`, `ReducerGraphDrain`, the reader/lookup
   interfaces, and the three `Default*`/`FilePartitionKeyPrefix` symbols are
   exported because the reducer root's compat forwarders and
-  `internal/storage/postgres`'s compile-time interface assertions need them;
-  nothing else in this package has an external caller today.
+  `internal/storage/postgres`'s compile-time interface assertions need them.
+  `CanonicalCodeQuiescenceDescriber` and the two `BlockedReason*` constants
+  are exported for cmd/reducer's wiring test and the repo-dependency runner's
+  shared `reason` label (#7133). Nothing else in this package has an external
+  caller today.
+- Calling the blocker describer on every blocked cycle. It evaluates the full
+  gate predicate without the EXISTS short-circuit. `laneBlockState` rate-limits
+  it to episode start, reason changes, and once per `blockedReportInterval`.
+  Keep scope ids in log lines only, never as metric labels.
 
 ## Do not change without ADR review
 

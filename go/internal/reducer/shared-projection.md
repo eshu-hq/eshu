@@ -38,6 +38,12 @@ repository commits MATCHes nothing and is marked completed anyway. That
 quiescence half is wired unconditionally (`CanonicalQuiescence`), not behind
 the drain flag, because the loss happens on every backend and query profile —
 the DR gate stack itself runs a non-authoritative profile with the drain off.
+Only code-bearing scopes can hold it (#7133): scopes whose collector contract
+requires the `code_entities_uid` canonical-nodes phase, excluding the git
+collector's `repository_ref` overlays. A blocked cycle counts on
+`eshu_dp_shared_projection_lane_blocked_total` with a bounded `reason`. The
+code-call runner also logs the blocking scope ids once per episode, then at
+most once a minute.
 The gate only schedules work. It does not change which rows become `CALLS`,
 `REFERENCES`, or `USES_METACLASS`.
 

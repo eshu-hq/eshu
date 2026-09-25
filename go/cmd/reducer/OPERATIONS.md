@@ -69,6 +69,11 @@ operator-facing signals, scaling guidance, and runtime invariants for the
   `CanonicalQuiescence` checker on every backend/profile so cross-repository
   edges wait for every code scope's canonical-nodes phase — the DR gate stack
   runs non-authoritative with the drain off, which is where the loss was measured.
+  Only code-bearing scopes hold that gate (#7133): collectors whose contract
+  requires the `code_entities_uid` canonical-nodes phase (git), excluding
+  `repository_ref` overlays. When the lane is blocked, look for
+  `eshu_dp_shared_projection_lane_blocked_total{domain,reason}` and the WARN
+  line `code call projection lane blocked`, which names the blocking scope ids.
 
 ## Gotchas and invariants
 
