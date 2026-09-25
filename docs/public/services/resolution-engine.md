@@ -128,6 +128,19 @@ into a retry storm that starves new work; the exponential term and jitter both
 exist to break that synchronization. `eshu_dp_reducer_retry_surge_total`
 (labeled by `failure_class`) tracks the rate of scheduled retries.
 
+`failure_class="generation_activation_not_ready"` on that counter means a
+reducer intent was claimed for a newer generation before the projector
+acknowledged it, so the generation is still `pending` while an older one is
+active. The intent is not superseded. It waits for the projector's Ack and then
+runs its handler. This class does not count toward `ESHU_REDUCER_MAX_ATTEMPTS`
+and never dead-letters: `attempt_count` stays frozen, so the retry delay stays
+constant at about twice `ESHU_REDUCER_RETRY_DELAY` plus jitter. Such rows sit
+in `retrying` with this `failure_class` and should drain within one projector
+window, once the generation activates, fails, or is superseded by a newer one.
+A count that persists for the same scope means a generation is stuck `pending`
+with no projector work making progress; check that scope's projector work item
+and `scope_generations` row.
+
 ## Configuration
 
 Important env vars:

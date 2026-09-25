@@ -55,6 +55,22 @@ generation `failed`. If a newer generation wins, the projector marks it
 `superseded`. In both of those cases the next attempt gets `(false, nil)` and
 acks terminally.
 
+`TestReducerContentionGatePreActivationDeferralExits`
+(`reducer_queue_pre_activation_exits_live_test.go`) runs those exits live, each
+from the same seed after one production deferral:
+
+- `ProjectorQueue.Fail` dead-letters gen-2. The generation becomes `failed`,
+  and the next claim acks the deferred row as superseded with 0 handler calls.
+- `ProjectorQueue.Ack` activates a newer gen-3. The reducer claim's
+  stale-generation CTE retires the deferred gen-2 row as `superseded` before
+  any worker runs it, with 0 handler calls.
+- `ClaimBatch` defers three times at `attempt_count = 1`. After gen-2's Ack,
+  the row runs exactly once through `AckBatch`.
+
+A mutation that treats any non-active newer generation (including `failed`) as
+still pending makes the dead-letter subtest fail
+(`status = "retrying", want succeeded`).
+
 ## Concurrency
 
 - Conflict domain: one `fact_work_items` reducer row, plus the read-only
@@ -91,8 +107,12 @@ No plan has a sequential scan on `scope_generations`. The added cost is about
 0.04 ms and 6 buffer hits per claimed intent, measured on a single local
 execution per plan. That is small next to the claim statement and handler work
 that already run for every intent. No end-to-end wall-time claim is made. A
-deferral adds one claim plus one retry `UPDATE` per retry delay (default 30 s)
-for each intent waiting on its projector. Before this change the same intent
+deferral adds one claim plus one retry `UPDATE` per retry interval for each
+intent waiting on its projector. Because the class freezes `attempt_count` at
+1, `ComputeRetryDelay` (`go/internal/storage/postgres/queue/backoff.go`)
+returns `base * 2^1` plus jitter: about 60 s at the 30 s default
+`ESHU_REDUCER_RETRY_DELAY`, constant rather than growing. The same interval
+bounds the latency from activation to the handler run for a deferred intent. Before this change the same intent
 did one claim plus one ack and then lost its work.
 
 Observability Evidence: each deferral is durable on
@@ -114,4 +134,6 @@ cap and may not grow.
 
 - `go test ./internal/storage/postgres/ -run '^TestReducerContentionGate(PreActivationGenerationRunsAfterActivation|OlderGenerationSupersessionStaysTerminal|CrossScopeReadiness)' -race -count=1`
   with `ESHU_REDUCER_FAIRNESS_PROOF_DSN` set: RED before the fix, GREEN after.
+- `go test ./internal/storage/postgres/ -run '^TestReducerContentionGatePreActivation' -count=1`
+  with `ESHU_POSTGRES_DSN` set: the activation proof plus the three exit subtests.
 - `go test ./internal/storage/postgres/ ./internal/reducer/... ./cmd/reducer/ -count=1`

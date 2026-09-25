@@ -49,7 +49,8 @@ func (r *fakeExistsRows) Err() error   { return nil }
 func (r *fakeExistsRows) Close() error { return nil }
 
 // fakeGenerationRows returns a single row, modeling the active_generation_id
-// lookup on ingestion_scopes that the generation-freshness guard issues. value is the generation id the fake DB reports as active.
+// lookup on ingestion_scopes that the generation-freshness guard issues.
+// value is the generation id the fake DB reports as active.
 type fakeGenerationRows struct {
 	value *string
 	read  bool
