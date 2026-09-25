@@ -33,8 +33,13 @@ renders as unknown. An empty grant issues no graph call.
 The three statements are grant-free owner projections, anchored on the page's
 own keys (`WHERE n.<key> IN $uids`, keyed node first) and returning each key's
 owning repository id; the grant is applied in Go. Their cost therefore depends
-on the number of checked keys, not on the caller's grant size: about 0.15 ms
-per key at `ChunkSize` 50 on the pinned NornicDB build. Per-chunk cost grows
+on the number of checked keys and their owner fan-in, not on the caller's
+grant size: about 0.15 ms per key at fan-in ~1 and `ChunkSize` 50.
+`RowLimit` bounds the rows a chunk returns, not the owner edges expanded
+before `LIMIT`, so a hub node costs its whole fan-in: 50 hubs of 2000 owners
+take ~0.03 s per chunk on Neo4j 2026 but 12-15 s on the pinned NornicDB build,
+over the 10 s graph-read deadline (the request then fails closed). A hub whose
+granted owner sorts past `RowLimit` is unchecked, so ungranted and truncated. Per-chunk cost grows
 with the square of the key list, so chunks stay small. `MaxCheckedKeys` (4500)
 caps the distinct statement-checked keys per request, and `RowLimit` (800)
 caps one chunk's owner rows; the cap is at least the

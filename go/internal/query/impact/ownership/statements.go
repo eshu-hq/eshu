@@ -22,7 +22,8 @@ package ownership
 // Each statement returns `uid` (the matched key, whatever property it is) and
 // `repo_id` (the owner's repository id), one row per distinct pair, ordered
 // and capped at $row_limit (RowLimit) so owner fan-in on a widely shared node
-// cannot grow a chunk's result without bound. ORDER BY and LIMIT sit on the
+// cannot grow a chunk's result without bound. The cap bounds returned rows,
+// not the owner edges expanded before it; budget.go records the hub cost. ORDER BY and LIMIT sit on the
 // RETURN clause: a WITH ... ORDER BY ... LIMIT form drops the ORDER BY on the
 // pinned build.
 
