@@ -20,6 +20,9 @@ func TestChangedSinceDigestNormalizationIsSharedAndScopedToContentEntities(t *te
 		!strings.Contains(changedSincePayloadDigestInput, "fact_kind = 'content_entity'") {
 		t.Fatalf("digest input does not strip indexed_at for content_entity only: %s", changedSincePayloadDigestInput)
 	}
+	if !strings.Contains(changedSincePayloadDigestInput, "jsonb_typeof(payload) = 'object'") {
+		t.Fatalf("digest input must guard the key removal to object payloads (scalar jsonb errors): %s", changedSincePayloadDigestInput)
+	}
 	if got := strings.Count(changedSinceClassificationCTEs, "convert_to(("+changedSincePayloadDigestInput+")::text, 'UTF8')"); got != 4 {
 		t.Fatalf("digest input used in %d payload hashes, want 4 (prior, current, prior duplicates, current duplicates)", got)
 	}

@@ -136,3 +136,29 @@ func TestChangedSinceRepositorySourceRunIDReportsUpdatedLive(t *testing.T) {
 		t.Fatalf("updated facts = %v, want the repository key", keys)
 	}
 }
+
+// TestChangedSinceScalarContentEntityPayloadDoesNotErrorLive is the #7127 F4
+// proof: jsonb "payload - 'indexed_at'" raises "cannot delete from scalar" on a
+// non-object payload, which would fail the whole request instead of one key.
+// The normalization applies only to object payloads, so a scalar content_entity
+// payload digests as itself: equal scalars are unchanged and different scalars
+// are updated.
+func TestChangedSinceScalarContentEntityPayloadDoesNotErrorLive(t *testing.T) {
+	ctx, tx := openChangedSinceFixtureTx(t)
+	rows := []changedSinceFixtureRow{}
+	rows = append(rows, pair("content_entity", "entity/scalar-same", `"v"`, `"v"`)...)
+	rows = append(rows, pair("content_entity", "entity/scalar-diff", `"v"`, `"w"`)...)
+	rows = append(rows, pair("content_entity", "entity/scalar-to-object", `5`, `{"indexed_at":"t"}`)...)
+	for i := range rows {
+		rows[i].scope = "n1"
+	}
+	insertChangedSinceFixtureRows(ctx, t, tx, rows)
+
+	entities := changedSinceCountsByCategory(ctx, t, tx, "n1")[statuspkg.ChangedSinceCategoryContentEntities]
+	if want := (statuspkg.ChangedSinceCounts{Updated: 2, Unchanged: 1}); entities.Counts != want {
+		t.Fatalf("content_entities counts = %+v, want %+v", entities.Counts, want)
+	}
+	if keys := sampleKeys(entities, statuspkg.ChangedSinceUpdated); !slices.Equal(keys, []string{"entity/scalar-diff", "entity/scalar-to-object"}) {
+		t.Fatalf("updated content entities = %v", keys)
+	}
+}

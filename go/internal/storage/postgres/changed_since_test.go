@@ -431,8 +431,8 @@ func TestComputeChangedSinceDeltaDiffQueryUsesPayloadHashAndFullOuterJoin(t *tes
 	}
 	diffQuery := queryer.queries[2]
 	for _, want := range []string{
-		"sha256(convert_to((CASE WHEN fact_kind = 'content_entity' THEN payload - 'indexed_at' ELSE payload END)::text, 'UTF8'))",
-		`fact_kind NOT LIKE 'reducer\_%'`,
+		"sha256(convert_to((" + changedSincePayloadDigestInput + ")::text, 'UTF8'))",
+		changedSinceExcludeReducerDerivedKinds,
 		"FULL OUTER JOIN",
 		"is_tombstone = TRUE",
 		"GROUP BY fact_category, classification",

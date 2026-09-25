@@ -331,11 +331,15 @@
 // resolves the prior generation named by since_generation_id or observed at or
 // before since_observed_at, then diffs the two fact_records sets keyed by
 // (scope_id, generation_id, stable_fact_key) via a FULL OUTER JOIN on
-// (fact_category, stable_fact_key) using SHA-256 of payload::text for payload
-// identity. Counts are exact per category and verdict (added, updated,
-// unchanged, retired, superseded); sample reads run only for non-empty buckets
-// and are ordered by stable_fact_key and capped at the sample limit plus one to
-// set Truncated. An unknown scope returns an empty ScopeID, an unresolved since
+// (fact_category, stable_fact_key) using SHA-256 of a normalized payload for
+// payload identity: content_entity object payloads drop the per-run indexed_at
+// stamp, and reducer-derived kinds (fact_kind starting with reducer_) are
+// excluded from every scan because they track reducer scheduling, not
+// repository change. Counts are exact per category and verdict (added,
+// updated, unchanged, retired, superseded). One statement evaluates the diff
+// once and returns each non-empty bucket's count with its first sample keys,
+// ordered by stable_fact_key and capped at the sample limit plus one to set
+// Truncated. An unknown scope returns an empty ScopeID, an unresolved since
 // reference returns an empty SinceGenerationID, and a scope with no current
 // active generation returns Unavailable so callers never read zero deltas as
 // confident truth.

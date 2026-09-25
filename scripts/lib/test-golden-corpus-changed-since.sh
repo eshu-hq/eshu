@@ -50,6 +50,24 @@ if rg -qi 'md5\(' "${sql_log}"; then
 fi
 hash_call_count="$(rg -o 'sha256\(' "${sql_log}" | wc -l | tr -d ' ')"
 [[ "${hash_call_count}" == "2" ]] || fail "golden changed-since SQL hashes each generation more than once (${hash_call_count} calls)"
+# The oracle must classify with the same digest input and reducer-kind
+# exclusion as the get_changed_since statement (#7127). Those fragments are
+# generated from the Go constants, so assert the SQL the oracle sent carries
+# them, read from the generated file rather than typed here.
+(
+	# shellcheck source=scripts/lib/golden-corpus-changed-since-sql-fragments.sh
+	. "${repo_root}/scripts/lib/golden-corpus-changed-since-sql-fragments.sh"
+	[[ -n "${golden_changed_since_digest_input}" && -n "${golden_changed_since_exclude_reducer_kinds}" ]] ||
+		fail "generated SQL fragments file defines no fragments"
+	digest_uses="$(rg -Fo -- "sha256(convert_to((${golden_changed_since_digest_input})::text, 'UTF8'))" "${sql_log}" | wc -l | tr -d ' ')"
+	[[ "${digest_uses}" == "2" ]] ||
+		fail "oracle digest does not use the shared payload digest input in both generations (${digest_uses} of 2)"
+	exclusion_uses="$(rg -Fo -- "AND ${golden_changed_since_exclude_reducer_kinds}" "${sql_log}" | wc -l | tr -d ' ')"
+	[[ "${exclusion_uses}" == "3" ]] ||
+		fail "oracle does not exclude reducer-derived kinds on prior, current and tombstone scans (${exclusion_uses} of 3)"
+	[[ "$(rg -c 'FROM fact_records' "${sql_log}")" == "3" ]] ||
+		fail "oracle scans fact_records a different number of times than the exclusion covers"
+)
 [[ "${golden_changed_since_current_generation}" == "generation:current-2" ]] ||
 	fail "current generation was not captured"
 [[ "${golden_changed_since_facts_added_count:-}" == "0" ]] || fail "facts added count was not captured"

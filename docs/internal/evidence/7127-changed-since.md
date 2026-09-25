@@ -12,7 +12,9 @@ unchanged, so rows are identical.
 Performance Evidence: local PostgreSQL 18.6, one database, 2,219,152
 `fact_records` rows (target scope about 0.4x of a 12,403-file repository plus
 30 noise scopes inserted in random order; `pg_stats` correlation of
-`generation_id` 0.063), the ruling's fixture (`gen.sql`, `load.sql`). Each
+`generation_id` 0.063), a synthetic fixture built for this measurement. Its
+generator scripts were scratch files and are not committed, so the figures below
+are single-host measurements to be re-derived, not a replayable benchmark. Each
 request is measured as the sum of `EXPLAIN (ANALYZE, BUFFERS)` execution times
 of its statements, three interleaved rounds with the first mover alternating,
 run on an otherwise idle machine:
@@ -48,8 +50,9 @@ single statement makes their duration the whole diff cost.
 
 ## PR-2: indexed_at and reducer-derived facts (intended delta)
 
-Change: the digest input drops `indexed_at` for `content_entity` rows
-(`changedSincePayloadDigestInput`) and every `fact_records` scan in the CTE
+Change: the digest input drops `indexed_at` for `content_entity` rows with an
+object payload (`changedSincePayloadDigestInput`; `jsonb - key` raises on a
+scalar payload, so a scalar digests as itself) and every `fact_records` scan in the CTE
 excludes `fact_kind LIKE 'reducer\_%'` (`changedSinceExcludeReducerDerivedKinds`).
 The escaped pattern is shared with `collector_evidence_summary.go`, whose
 unescaped `reducer_%` also matched a kind such as `reducerX`. Rows are NOT
@@ -63,7 +66,8 @@ Accuracy proof, RED first: on the unmodified statement the new live tests failed
 that a real content-entity change still reports `updated`, that only
 `content_entity` is normalized (`indexed_at` on a `file` still counts), that a
 duplicate-row multiset that differs only in `indexed_at` is `unchanged`, and that
-a `reducerX` kind is not excluded. The `repository` fact's `source_run_id`
+a `reducerX` kind is not excluded, and that a scalar `content_entity` payload
+does not raise. The `repository` fact's `source_run_id`
 change is asserted as `updated` (documented, not normalized).
 
 Fixture result (same 2.2M-row scope, sample limit 26): content_entities
@@ -83,3 +87,16 @@ no-regression evidence, not a speedup claim.
 
 No-Observability-Change: no runtime signal changes; the route keeps its span and
 the shared Postgres query metrics.
+
+Golden-corpus oracle: `scripts/lib/golden-corpus-changed-since.sh` computes the
+expected facts counts the live `get_changed_since` call must equal, so it must
+classify with the API's fragments. It sources
+`scripts/lib/golden-corpus-changed-since-sql-fragments.sh`, generated from
+`changedSincePayloadDigestInput` and `changedSinceExcludeReducerDerivedKinds`;
+`TestChangedSinceOracleFragmentsMatchGoConstants` fails when the file drifts and
+evaluates it in a shell. Proof on one PostgreSQL 18 fixture (facts category: 1
+added, 1 updated, 1 unchanged, 1 retired, 1 superseded once reducer rows are
+excluded, plus reducer, scalar and `indexed_at` rows): the API statement returns
+`1|1|1|1|1`; the pre-change oracle returned `2|2|1|2|2`; the updated oracle
+returns `1|1|1|1|1`. The live golden-corpus gate itself was not run for this
+change (a live gate was already in flight on the host).

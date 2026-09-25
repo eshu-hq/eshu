@@ -114,8 +114,16 @@ LIMIT 1
 // updated. Nothing reads the field back. Existing generations keep it forever,
 // so the diff normalizes it at read time; only content_entity is normalized
 // because no other kind carries a per-run timestamp of this shape. This is data
-// normalization of a known collector field, not an allowlist.
-const changedSincePayloadDigestInput = `CASE WHEN fact_kind = 'content_entity' THEN payload - 'indexed_at' ELSE payload END`
+// normalization of a known collector field, not an allowlist. The key removal
+// applies only to object payloads: jsonb "payload - key" raises "cannot delete
+// from scalar" on a scalar payload, which would fail the whole request instead
+// of one key, so a non-object payload digests as itself.
+//
+// scripts/lib/golden-corpus-changed-since-sql-fragments.sh is generated from
+// this constant and changedSinceExcludeReducerDerivedKinds so the golden-corpus
+// changed-since oracle cannot drift from the API statement (see
+// changed_since_oracle_fragments_test.go).
+const changedSincePayloadDigestInput = `CASE WHEN fact_kind = 'content_entity' AND jsonb_typeof(payload) = 'object' THEN payload - 'indexed_at' ELSE payload END`
 
 // reducerDerivedFactKindLikePattern matches every reducer-derived fact kind:
 // the reducer writes its materialized output into the source generation after
