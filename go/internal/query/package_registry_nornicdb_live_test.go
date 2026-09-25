@@ -46,8 +46,8 @@ import (
 //
 //	go test ./internal/query -run TestLivePackageRegistryListPackagesReturnsZeroVersionPackages -count=1 -v
 //
-// The seeded PackageVersion nodes carry package_id, as both production writers
-// set it (canonicalPackageRegistryVersionUpsertCypher): the version-count read
+// The seeded PackageVersion nodes carry package_id, as the canonical writer
+// sets it (canonicalPackageRegistryVersionUpsertCypher): the version-count read
 // counts PackageVersion nodes by that property, not HAS_VERSION edges.
 func TestLivePackageRegistryListPackagesReturnsZeroVersionPackages(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_PKG_REGISTRY_PROVE_LIVE")) == "" {

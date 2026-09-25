@@ -185,8 +185,8 @@ The browse route's own anchor statement is unchanged. Its live proofs,
 (`ESHU_PKG_REGISTRY_PROVE_LIVE=1`), were re-run against the new count statement.
 They failed first: their fixtures created `PackageVersion` nodes with only a
 `uid` and a `HAS_VERSION` edge, and the property-based count read 0 for the
-two-version package. Both production writers set `package_id` on the node, so
-the fixtures now carry it, as the writers' output does; the run then passes. A
+two-version package. The canonical writer sets `package_id` on the node, so
+the fixtures now carry it, as its output does; the run then passes. A
 deployed graph whose version nodes lack `package_id` would show 0, which no
 writer produces.
 
@@ -195,7 +195,7 @@ runs than the end-to-end table (different fixtures and n); read each table on it
 own and do not add them.
 
 Version count semantics. The shipped count reads `PackageVersion` nodes by
-`package_id`, not `HAS_VERSION` edges. Both writers set `v.package_id` on the
+`package_id`, not `HAS_VERSION` edges. The canonical writer sets `v.package_id` on the
 node (`canonicalPackageRegistryVersionUpsertCypher`), but the `HAS_VERSION`
 edge is written in a deferred second write group after the node group commits
 (`package_registry_edge_writer.go`). Between the two groups a version node

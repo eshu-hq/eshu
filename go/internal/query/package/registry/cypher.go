@@ -47,7 +47,7 @@ LIMIT $limit`, params
 // from this query's result has zero versions; the callers zero-fill it.
 //
 // This counts PackageVersion nodes by their package_id property, not
-// HAS_VERSION edges. Both writers set v.package_id on the node
+// HAS_VERSION edges. The canonical writer sets v.package_id on the node
 // (canonicalPackageRegistryVersionUpsertCypher), but the HAS_VERSION edge is
 // written in a deferred second write group after the node group commits
 // (package_registry_edge_writer.go). Between those two groups a version node

@@ -284,6 +284,10 @@ tests:
     tag: live_nornicdb_convention_outlier
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/codequery/registry_bundles_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#5167 live proof for POST /api/v0/code/bundles: ORDER BY/LIMIT honoured for ecosystem-pinned, query-only and unique_only shapes, the scoped public-visibility gate, and property-vs-edge version counts; env-gated by ESHU_PKG_REGISTRY_PROVE_LIVE — promote to blocking with repeated timing evidence"
   - file: go/internal/query/codequery/relationships_grant_live_test.go
     tag: live_code_relationships_grant
     class: scheduled
