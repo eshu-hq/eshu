@@ -28,25 +28,18 @@ After the Module-only writer change, the exact live conformance case passed on
 both pinned backends: absent File 0 rows, present File 1 contained uid-bearing
 row, canonical import 1 uid-NULL row. The full live conformance test passed
 on each backend, including its other read cases. This is the intended graph
-truth delta. On historical source commit
-`f9122222c3138418c5cb74e818998813fe1eee3e` (base
-`cab11116f6a3e7f41d022df9c6bb64653a09c81d`),
+truth delta. On source commit
+`7befec8026e1dacd5793fd17482b3f5317e1b00c` (base
+`9e597b8cd7225fa35d610f2c866211375e365e54`),
 `scripts/verify-golden-corpus-gate.sh` passed on the pinned
 NornicDB image over 31 staged repositories and all 39 launched cassette scope
 generations: 570 pass, 0 required-fail, 2 advisory timing warnings; terminal
 fact residual, required intents, completion events and dead letters were all
 zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
-first drain took 129 seconds against the gate's 75-second advisory baseline,
-and maintenance drains took 81 seconds against 25. The production Module
+first drain took 132 seconds against the gate's 75-second advisory baseline,
+and maintenance drains took 82 seconds against 25. The production Module
 statement source was blob `905f218de8bb7b8b0c06b01fdf5942111bdf3ed4`.
-The first feature commit on this branch preserves that writer blob. The
-compared B-7 inputs in `go/cmd/golden-corpus-gate`, the production Cypher,
-reducer, projector, collector, parser, and query packages, `testdata/golden/`,
-and the gate's entrypoint and replay, settle, and cleanup scripts are
-byte-identical to that measured source. Subsequent rebases changed unrelated
-Go tests, coverage, and gate files. The historical run is evidence for graph
-truth and corpus completion on the same writer shape, not a timing result for
-a newly rebased full tree.
+The commits after this measured source change only this evidence note.
 This run does not establish the timing warnings' cause or an end-to-end
 no-regression claim. The full NornicDB/Neo4j differential remains separate
 integration proof.
