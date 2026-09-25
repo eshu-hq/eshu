@@ -143,6 +143,7 @@ func exposurePathNodeFromAny(raw any) (exposure.PathNode, map[string]string) {
 			Labels:   append([]string(nil), node.Labels...),
 		}, props
 	case map[string]any:
+		node = flattenNodeProperties(node)
 		props := scalarStringProps(node)
 		labels := querycontract.StringSliceFromAny(node["labels"])
 		return exposure.PathNode{
@@ -153,6 +154,26 @@ func exposurePathNodeFromAny(raw any) (exposure.PathNode, map[string]string) {
 	default:
 		return exposure.PathNode{}, map[string]string{}
 	}
+}
+
+// flattenNodeProperties returns node with a nested `properties` map (the
+// node-map shape the impact path decoder also accepts) lifted to the top
+// level; a top-level key wins over a nested one. A flat map is returned as is.
+func flattenNodeProperties(node map[string]any) map[string]any {
+	nested, ok := node["properties"].(map[string]any)
+	if !ok {
+		return node
+	}
+	flat := make(map[string]any, len(nested)+len(node))
+	for key, value := range nested {
+		flat[key] = value
+	}
+	for key, value := range node {
+		if key != "properties" {
+			flat[key] = value
+		}
+	}
+	return flat
 }
 
 // nodeIdentity returns a node's stable identity, preferring id then uid.

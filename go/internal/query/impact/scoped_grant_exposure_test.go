@@ -164,3 +164,22 @@ func TestScopedTraceExposurePathEmptyGrantMakesNoGraphCalls(t *testing.T) {
 		t.Fatalf("sinks = %v, want none", got)
 	}
 }
+
+// P3-1 (#5167 review): a chain or sink node rendered as a map with nested
+// `properties` (the shape the impact path decoder accepts) is decoded to its
+// id and repo_id, so an owned node is not denied for an empty identity.
+func TestExposureOwnershipNodesReadsNestedProperties(t *testing.T) {
+	t.Parallel()
+	fnA, _ := twoTenantNodeByKey("fn-a")
+	row := map[string]any{
+		"chain":     []any{fnA.graphNode()},
+		"sink_node": map[string]any{"properties": map[string]any{"id": "sh-a", "uid": "sh-a", "repo_id": "repo-a"}, "labels": []any{"ShellCommand"}},
+	}
+	nodes := exposureOwnershipNodes(row)
+	if len(nodes) != 2 || nodes[0].ID != "fn-a" || nodes[0].RepoID != "repo-a" || nodes[1].UID != "sh-a" || nodes[1].RepoID != "repo-a" {
+		t.Fatalf("nodes = %+v, want fn-a and sh-a with repo-a", nodes)
+	}
+	if !slices.Equal(nodes[1].Labels, []string{"ShellCommand"}) {
+		t.Fatalf("sink labels = %v", nodes[1].Labels)
+	}
+}
