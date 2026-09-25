@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -79,6 +80,12 @@ func (s Service) startHeartbeat(
 		return heartbeatCtx, func() error { return preFailure }
 	}
 
+	// stopping is set by the stop function immediately before it cancels
+	// heartbeatCtx. A tick that returns context.Canceled while stopping is set
+	// was interrupted by our own stop, not by a lost lease (#7109). It is
+	// deliberately not set on parent cancellation or a failed tick's own
+	// cancel(), so those still surface.
+	var stopping atomic.Bool
 	done := make(chan error, 1)
 	go func() {
 		ticker := time.NewTicker(s.HeartbeatInterval)
@@ -92,6 +99,15 @@ func (s Service) startHeartbeat(
 				return
 			case <-ticker.C:
 				if err := s.Heartbeater.Heartbeat(heartbeatCtx, intent); err != nil {
+					if stopping.Load() && errors.Is(err, context.Canceled) {
+						// The handler already finished and stop cancelled the
+						// in-flight renewal UPDATE. The lease is fenced by the
+						// ack, so drop the self-inflicted error; reporting it
+						// would fail a successful item and stop the process.
+						s.logReducerHeartbeatStopRace(heartbeatCtx, intent, workerID)
+						done <- nil
+						return
+					}
 					heartbeatErr = fmt.Errorf("heartbeat reducer work: %w", err)
 					s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
 					cancel()
@@ -104,6 +120,7 @@ func (s Service) startHeartbeat(
 	return heartbeatCtx, func() error {
 		var heartbeatErr error
 		once.Do(func() {
+			stopping.Store(true)
 			cancel()
 			heartbeatErr = <-done
 		})
@@ -143,6 +160,29 @@ func (s Service) recordReducerHeartbeatMissed(
 		)
 		s.Logger.ErrorContext(ctx, "reducer lease heartbeat failed", logAttrs...)
 	}
+}
+
+// logReducerHeartbeatStopRace records, at debug level, that a periodic
+// heartbeat tick was interrupted by the worker's own stop and its
+// context-canceled error was dropped rather than treated as a lease failure.
+// It is not counted as a missed heartbeat: the lease was not lost.
+func (s Service) logReducerHeartbeatStopRace(ctx context.Context, intent Intent, workerID int) {
+	if s.Logger == nil {
+		return
+	}
+	domainAttrs := telemetry.DomainAttrs(string(intent.Domain), firstReducerPartitionKey(intent))
+	logAttrs := make([]any, 0, len(domainAttrs)+4)
+	for _, attribute := range domainAttrs {
+		logAttrs = append(logAttrs, attribute)
+	}
+	logAttrs = append(
+		logAttrs,
+		log.Queue("reducer"),
+		log.IntentID(intent.IntentID),
+		log.WorkerID(fmt.Sprintf("%d", workerID)),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+	s.Logger.DebugContext(ctx, "reducer lease heartbeat tick cancelled by stop; ignored", logAttrs...)
 }
 
 func firstReducerPartitionKey(intent Intent) string {
