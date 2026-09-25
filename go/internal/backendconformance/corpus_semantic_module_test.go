@@ -58,8 +58,7 @@ func TestSemanticModuleCasesAreInTheCorpora(t *testing.T) {
 // TestSemanticModuleAbsentFileReadWantsNoRows pins the decided outcome: a row
 // whose File is absent creates no Module. An empty non-nil WantRows is what
 // makes RunReadCorpus require zero rows; nil would disable the check. The
-// NornicDB divergence is pinned as an override under #6968, never as the
-// default, and Neo4j carries no override.
+// Neither backend may override the correct outcome.
 func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	t.Parallel()
 
@@ -73,8 +72,8 @@ func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	if _, ok := c.Overrides[BackendNeo4j]; ok {
 		t.Fatalf("absent-file case overrides neo4j; only the backend that diverges may be pinned")
 	}
-	if o, ok := c.Overrides[BackendNornicDB]; !ok || !strings.HasPrefix(o.Divergence, "#6968") {
-		t.Fatalf("absent-file NornicDB override = %#v, want one pinned under #6968", c.Overrides)
+	if _, ok := c.Overrides[BackendNornicDB]; ok {
+		t.Fatalf("absent-file NornicDB override = %#v, want shared correct rows", c.Overrides)
 	}
 	imp, ok := readCaseByName(semanticModuleImportReadCaseName)
 	if !ok {
@@ -86,16 +85,14 @@ func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	if _, ok := imp.Overrides[BackendNeo4j]; ok {
 		t.Fatalf("import case overrides neo4j; only the backend that diverges may be pinned")
 	}
-	if o, ok := imp.Overrides[BackendNornicDB]; !ok || !strings.HasPrefix(o.Divergence, "#6968") {
-		t.Fatalf("import NornicDB override = %#v, want one pinned under #6968", imp.Overrides)
+	if _, ok := imp.Overrides[BackendNornicDB]; ok {
+		t.Fatalf("import NornicDB override = %#v, want shared correct rows", imp.Overrides)
 	}
 }
 
-// TestSemanticModuleCasesRunEachBackendsDialect proves the cases carry the two
-// different statements the backends really receive: MATCH-first on Neo4j,
-// MERGE-first on NornicDB. If both lanes ran the same text the pair could not
-// catch the divergence.
-func TestSemanticModuleCasesRunEachBackendsDialect(t *testing.T) {
+// TestSemanticModuleCasesMatchFileBeforeMergeOnBothBackends keeps the production
+// writer's Module upsert gated by File existence on each backend.
+func TestSemanticModuleCasesMatchFileBeforeMergeOnBothBackends(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -103,7 +100,7 @@ func TestSemanticModuleCasesRunEachBackendsDialect(t *testing.T) {
 		prefix  string
 	}{
 		{BackendNeo4j, "UNWIND $rows AS row\nMATCH (f:File {path: row.file_path})\nMERGE (n:Module {uid: row.entity_id})"},
-		{BackendNornicDB, "UNWIND $rows AS row\nMERGE (n:Module {uid: row.entity_id})"},
+		{BackendNornicDB, "UNWIND $rows AS row\nMATCH (f:File {path: row.file_path})\nMERGE (n:Module {uid: row.entity_id})"},
 	} {
 		upsert := semanticModuleUpsertStatement(t, tc.backend, semanticModuleAbsentFileWriteCaseName)
 		if !strings.HasPrefix(upsert.Cypher, tc.prefix) {

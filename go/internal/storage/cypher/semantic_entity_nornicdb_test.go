@@ -100,18 +100,12 @@ func TestSemanticEntityWriterWithCanonicalNodeRowsSkipsFileContainmentForCanonic
 	}
 }
 
-func TestSemanticEntityCanonicalNodeRowsKeepsSemanticOwnedModuleContainment(t *testing.T) {
+func TestSemanticEntityCanonicalNodeRowsMatchesModuleFileBeforeMerge(t *testing.T) {
 	t.Parallel()
 
 	cypher := semanticEntityCanonicalNodeRowsUpsertCypher("Module", semanticModuleUpsertCypher)
-	if !strings.Contains(cypher, "MERGE (n:Module {uid: row.entity_id})") {
-		t.Fatalf("cypher = %q, want Module uid merge", cypher)
-	}
-	if !strings.Contains(cypher, "MATCH (f:File {path: row.file_path})") {
-		t.Fatalf("cypher = %q, want Module file match because canonical Module uses name key", cypher)
-	}
-	if !strings.Contains(cypher, "MERGE (f)-[:CONTAINS]->(n)") {
-		t.Fatalf("cypher = %q, want Module containment to remain semantic-owned", cypher)
+	if cypher != semanticModuleUpsertCypher {
+		t.Fatalf("cypher = %q, want File-gated Module uid merge and semantic-owned containment", cypher)
 	}
 }
 
@@ -230,14 +224,20 @@ func TestSemanticEntityWriterWithMergeFirstRowsUsesNornicDBHotPathShape(t *testi
 	}
 }
 
-func TestSemanticEntityMergeFirstRowsRewritesEverySemanticPlan(t *testing.T) {
+func TestSemanticEntityMergeFirstRowsPreservesModuleFileGate(t *testing.T) {
 	t.Parallel()
 
 	for _, plan := range semanticEntityPlans() {
 		t.Run(plan.label, func(t *testing.T) {
 			t.Parallel()
 
-			cypher := semanticEntityMergeFirstRowsUpsertCypher(plan.cypher)
+			cypher := semanticEntityMergeFirstRowsUpsertCypher(plan.label, plan.cypher)
+			if plan.label == "Module" {
+				if cypher != plan.cypher {
+					t.Fatalf("cypher = %q, want File-gated Module source statement", cypher)
+				}
+				return
+			}
 			expectedMerge := "UNWIND $rows AS row\nMERGE (n:" + plan.label + " {uid: row.entity_id})"
 			if !strings.Contains(cypher, expectedMerge) {
 				t.Fatalf("cypher = %q, want %q", cypher, expectedMerge)
@@ -394,7 +394,8 @@ func TestSemanticEntityWriterSkipsRetractWhenRequested(t *testing.T) {
 // deliberately skips (canonical_builder.go) AND the writer previously listed
 // as canonical-node-owned, so on NornicDB the upsert rewrote to a MATCH-only
 // statement against a base node nothing ever created — a silent no-op.
-// Variable must use the same merge-first, containment-owning shape as Module.
+// Variable still needs a merge-first, containment-owning shape; Module keeps
+// its File MATCH first to avoid creating an uncontained semantic node.
 func TestSemanticEntityCanonicalNodeRowsUpsertVariableIsMergeFirstWithContainment(t *testing.T) {
 	t.Parallel()
 

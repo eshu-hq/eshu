@@ -53,8 +53,8 @@ readback so both official backends prove the relationship stays idempotent.
 ## Semantic Module write path (issue #6965, phase 4)
 
 Most write cases send the same Cypher to every backend. The semantic-entity
-write does not: the reducer runs MATCH-first templates on Neo4j and a
-MERGE-first rewrite on NornicDB. `WriteCorpusFor(backend)` therefore appends
+writers differ for other labels, but both now match the File before merging a
+Module. `WriteCorpusFor(backend)` still appends
 backend-dialect cases to `DefaultWriteCorpus`. `corpus_semantic_module.go`
 builds them by running the production `SemanticEntityWriter` for that backend
 through a recording executor, so each lane executes its real statements. The
@@ -69,20 +69,18 @@ When a backend does not give the correct rows today, a read case can carry a
 the rows the backend actually returns and must name its tracking issue in
 `Divergence`. `RunReadCorpusFor(backend)` holds that backend to the pin and
 every other backend to `WantRows`, so both lanes stay deterministic. The
-NornicDB semantic Module pins sit under #6968. Both lanes were observed live
-returning exactly these rows; the reasoning, the commands, and the images are
+NornicDB's former semantic Module pins under #6968 have been removed. Both
+lanes now assert the same exact rows; the red/green proof and measured cost are
 in `evidence-notes.md`.
 
-No-Regression Evidence: no production Cypher text, index, schema, queue or
-batching changed. `sourcecypher.CanonicalNodeModuleUpsertCypher` is a new
-exported alias of the unchanged `canonicalNodeModuleUpsertCypher` and has no
-production caller. The new cases run only in the backend conformance tests.
-`go test ./internal/backendconformance/... -count=1` and the
-`go/cmd/reducer` wiring test pass with no live backend, so there is no
-hot-path shape to benchmark before and after.
+Performance Evidence: the #6968 File-first Module change has an interleaved
+same-store timing comparison on both pinned backends in `evidence-notes.md`.
+It changes one hot-path statement; the other semantic labels, indexes, schema,
+queue, and batch caps are unchanged.
 
-No-Observability-Change: no metrics, spans, or log keys added or changed; the
-live test's existing per-case `read case passed` log lines cover the new cases.
+No-Observability-Change: existing per-statement graph-write duration and
+summary metadata still cover Module writes; the live conformance test logs
+each exact-row case. No metric, span, or log key changes.
 
 ## Differential capture (issue #6782, slice 2)
 

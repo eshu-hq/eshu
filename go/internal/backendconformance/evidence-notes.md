@@ -1,100 +1,83 @@
 # Backend conformance evidence notes
 
-## Semantic Module write path (#6965 Phase 4, 2026-09-23)
+## Semantic Module convergence (#6968, 2026-09-25)
 
-`corpus_semantic_module.go` adds three exact-row cases for the semantic-entity
-`:Module` write. Each backend runs the statements its reducer really sends:
-the case builder drives the production `SemanticEntityWriter` through a
-recording executor. `WriteCorpusFor(backend)` picks the writer the reducer
-wires. For Neo4j that is `NewSemanticEntityWriter` (MATCH-first). For NornicDB
-it is `NewSemanticEntityWriterWithCanonicalNodeRows(...).WithLabelScopedRetract()`,
-which rewrites Module MERGE-first through
-`semanticEntityMergeFirstRowsUpsertCypher`.
-`TestSemanticModuleConformanceCasesUseTheReducerWiring` in `go/cmd/reducer`
-pins that mirror to `semanticEntityWriterForGraphBackend` by deep equality of
-the emitted statements. Swapping either backend's mirror to
-`NewSemanticEntityWriterWithMergeFirstRows` fails it for that backend (both
-mutations run, both red). Dropping only `WithLabelScopedRetract()` does not
-fail it, because canonical-node-rows mode ignores the retract mode
-(`semanticRetractStatements`), so the statements stay identical.
+`WriteCorpusFor(backend)` drives the production semantic writer through a
+recording executor, so the live case uses the actual statement each reducer
+sends. Both backends now receive the File-first `semanticModuleUpsertCypher`:
+`UNWIND $rows AS row; MATCH (f:File {path: row.file_path}); MERGE
+(n:Module {uid: row.entity_id})`. The `File.path` unique constraint anchors
+the read; `Module.uid` unique backs the node merge; `Module.name` is indexed
+for the later canonical `(name, lang)` import merge. Module batches are capped
+at 10 rows on NornicDB. Other semantic labels keep their prior shape.
 
-| Case | Seed | Expected rows |
-| --- | --- | --- |
-| absent file | Module row, File never written | none |
-| present file | File seeded, then the same row shape | one contained Module, uid set, `parser/semantic-entities` |
-| canonical import | absent-file Module row, then the production `CanonicalNodeModuleUpsertCypher` for the same `(name, lang)` | one Module, `uid` null, `projector/canonical` |
+Root-Cause Evidence: on complete 20-source / 40-generation differential input,
+the Module uid-NULL orphan sweep found 406 NornicDB rows and 413 Neo4j rows
+in both pairings (#6968). The old NornicDB writer moved the File MATCH below
+the Module MERGE/SET. The #7024 one-row live case established that an absent
+File left a uid-bearing semantic Module there; the later canonical import
+MERGE on `(name, lang)` bound that node instead of creating a uid-NULL import
+Module. Neo4j's File-first statement created no semantic Module for an absent
+File. Fixture intent and the orphan-sweep ownership rule require Neo4j's
+outcome. Removing the two #6968 NornicDB `BackendOverride` entries while
+keeping the old writer made `TestLiveBackendConformance` fail on NornicDB:
+`semantic module with absent file is not created`, got one uid-bearing row,
+want zero. The focused writer and corpus tests were also RED before the fix.
 
-### Why "no Module" is the correct absent-file outcome
+After the Module-only writer change, the exact live conformance case passed on
+both pinned backends: absent File 0 rows, present File 1 contained uid-bearing
+row, canonical import 1 uid-NULL row. The full live conformance test passed
+on each backend, including its other read cases. This is the intended graph
+truth delta. `scripts/verify-golden-corpus-gate.sh` then passed on the pinned
+NornicDB image over 31 staged repositories and all 39 launched cassette scope
+generations: 570 pass, 0 required-fail, 2 advisory timing warnings; terminal
+fact residual, required intents, completion events and dead letters were all
+zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
+first drain took 191 seconds against the gate's 75-second advisory baseline,
+and maintenance drains took 80 seconds against 25; this run does not establish
+their cause or an end-to-end no-regression claim. The full NornicDB/Neo4j
+differential remains separate integration proof.
 
-- `semanticModuleUpsertCypher` is the source template. The default writer
-  runs it, and so does Neo4j. It creates the node only for a row whose File
-  exists. The merge-first form rewrites that template to keep NornicDB on its
-  UNWIND/MERGE hot path (see the reducer wiring comment and
-  `NewSemanticEntityWriterWithMergeFirstRows`), and nothing documents a change
-  of meaning. #6965 Problem 3 states the contract: different statements, same
-  semantics.
-- A semantic Module with no File has no `CONTAINS` edge, and the `:Module`
-  orphan sweep only acts on `n.uid IS NULL` (`orphanSweepClassPredicate`). So
-  only the next repo-scoped semantic retract removes it.
-- It captures the import graph. `MERGE (m:Module {name, lang})` matches any
-  Module with that name and language, so a later canonical import binds to the
-  stray semantic node and overwrites its `evidence_source`. No uid-NULL node is
-  created. This is #6968's mechanism, and the third case pins it.
+Performance Evidence: before implementation, an isolated scratch HTTP
+`tx/commit` shim extracted the exact production Module template and compared
+its old merge-first rewrite to the File-first source statement. Each backend
+used its pinned image on a fresh volume, with 500 File nodes, 10 existing
+Module nodes and containment edges, `File.path` and `Module.uid` uniqueness,
+and the `Module.name` index. After warmup, 12 A/B pairs alternated first-mover
+order. Every timing is the wall time for one idempotent 10-row write, including
+the same local HTTP round trip; the storage state and rows were held fixed
+within each backend's comparison. These are query-shape measurements, not
+corpus-stage totals.
 
-### Per-backend pins (BackendOverride)
+| Backend image | Old merge-first median | File-first median | Delta |
+| --- | ---: | ---: | ---: |
+| NornicDB `fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1` | 3.400 ms | 5.695 ms | +2.295 ms per 10-row batch (+67.5%) |
+| Neo4j `2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` | 10.085 ms | 10.488 ms | +0.403 ms per batch (+4.0%) |
 
-`WantRows` on every case is the correct outcome above. NornicDB does not give
-it today on two cases. It gets a `BackendOverride` holding the rows it
-produces, with `Divergence` set to `#6968`
-(`corpus_override.go`). Both lanes are therefore green and deterministic:
+The Neo4j production path was already File-first, so its two columns compare
+statement shapes, not a deployed before/after change. Absolute timings across
+backends are not comparable. On the same fresh graph, the absent-File shim
+returned one stray Module for merge-first and zero for File-first on each
+backend. `PROFILE` returned an operator tree on Neo4j, including
+`NodeUniqueIndexSeek(Locking)`, `MergeUniqueNode`, and `LockingMerge`;
+NornicDB's response contained no plan tree. The HTTP timings carry its cost
+comparison. The per-batch NornicDB regression is a known correctness cost;
+whole-pipeline impact requires a bounded rebuilt-binary replay and measured
+Module row count before making an end-to-end performance claim.
 
-- Neo4j is held to the correct rows. Any drift fails.
-- NornicDB is held to its pinned rows. When #6968 fixes the write path,
-  NornicDB returns the correct rows, fails its pin, and the fix must delete
-  the override. Any other change fails too.
+No-Observability-Change: Module writes retain the existing statement label,
+summary, graph-write duration and failure telemetry. The conformance test logs
+case names and row counts. No new metric, span, log key, batch cap, queue
+behavior, schema statement or `nornicDBSchemaConstraint` change was made.
 
-Validation rejects an override that has no `#NNNN` issue, nil rows, rows
-equal to the correct rows, an unknown backend, or no default `WantRows`. A
-mismatch error names the backend, the divergence, the correct rows, the
-pinned rows, and the rows actually returned. A live-lane failure therefore
-shows the true values in the CI log.
+## Historical semantic Module pin (#6965 Phase 4, 2026-09-23)
 
-| Case | Correct (default, Neo4j) | NornicDB pin (#6968) |
-| --- | --- | --- |
-| absent file | no rows | `{uid: module:backend-conformance:semantic-absent, lang: typescript, evidence_source: parser/semantic-entities}` |
-| present file | one contained Module | no override |
-| canonical import | `{uid: null, evidence_source: projector/canonical}` | `{uid: module:backend-conformance:semantic-import, evidence_source: projector/canonical}` |
-
-The pins were first derived from the Cypher each lane receives and the #6965
-measurement (merge-first creates the uid-bearing node and skips only the
-edge). The canonical-import pin also rested on #6968's hypothesis: the
-canonical MERGE binds to the stray node and its SET overwrites
-`evidence_source`. Both lanes were then run live, one backend at a time, each
-on a fresh container of the image the Compose files pin, on its own ports:
-
-- NornicDB, `ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`:
-  `TestLiveBackendConformance` PASS, exit 0. The absent-file and
-  canonical-import cases passed on their #6968 pins (`1 rows, pinned
-  divergence #6968`), and the present-file case passed on the default rows.
-  Validation rejects a pin equal to the correct rows, so NornicDB did not
-  return the correct rows: the divergence is observed, not assumed.
-- Neo4j, `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`:
-  `TestLiveBackendConformance` PASS, exit 0, every case on the default rows
-  (absent file 0 rows, present file 1 row, canonical import 1 uid-null row).
-
-To reproduce with Compose, from the repo root, one backend at a time:
-
-```bash
-docker compose up -d nornicdb
-ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
-
-docker compose -f docker-compose.neo4j.yml up -d neo4j
-ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_conformance_live.sh
-```
-
-In CI the same script is the "Run live backend conformance" step of
-`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`).
-A case that passes on a pin logs `pinned divergence #6968`.
+Before #6968, the conformance corpus held correct `WantRows` and two NornicDB
+`BackendOverride` pins. On the pinned NornicDB image, absent File returned a
+uid-bearing Module and the later canonical import retained that uid; on the
+pinned Neo4j image, absent File returned no Module and import had a uid-NULL
+Module. Both were observed live on clean containers for #7024. This history
+explains the prior pin and is superseded by the shared exact rows above.
 
 ## Current state: value-flow statements and answer-truth shapes (2026-09-18)
 

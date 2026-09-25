@@ -281,7 +281,12 @@ func semanticEntityBatchedPropertiesUpsertCypher(label string) string {
 		"MERGE (f)-[:CONTAINS]->(n)"
 }
 
-func semanticEntityMergeFirstRowsUpsertCypher(cypher string) string {
+func semanticEntityMergeFirstRowsUpsertCypher(label, cypher string) string {
+	// A Module without its File must not exist: canonical imports MERGE by
+	// (name, lang) and would otherwise bind the stray uid-bearing node.
+	if label == "Module" {
+		return cypher
+	}
 	const unwindLine = "UNWIND $rows AS row\n"
 	const fileMatchLine = "MATCH (f:File {path: row.file_path})\n"
 	const containmentMerge = "MERGE (f)-[:CONTAINS]->(n)"
@@ -299,13 +304,13 @@ func semanticEntityMergeFirstRowsUpsertCypher(cypher string) string {
 
 func semanticEntityCanonicalNodeRowsUpsertCypher(label string, cypher string) string {
 	if !semanticEntityCanonicalNodeOwnedLabel(label) {
-		return semanticEntityMergeFirstRowsUpsertCypher(cypher)
+		return semanticEntityMergeFirstRowsUpsertCypher(label, cypher)
 	}
 	const fileMatchLine = "MATCH (f:File {path: row.file_path})"
 	const containmentMerge = "MERGE (f)-[:CONTAINS]->(n)"
 	const evidenceSourceAssignment = "n.evidence_source = row.evidence_source"
 
-	rewritten := semanticEntityMergeFirstRowsUpsertCypher(cypher)
+	rewritten := semanticEntityMergeFirstRowsUpsertCypher(label, cypher)
 	rewritten = strings.Replace(
 		rewritten,
 		"MERGE (n:"+label+" {uid: row.entity_id})",

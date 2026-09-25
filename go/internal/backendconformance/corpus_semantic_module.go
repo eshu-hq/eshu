@@ -14,33 +14,24 @@ import (
 // The semantic Module cases pin what the production semantic-entity write does
 // to :Module on each backend (#6965 Phase 4, root cause owned by #6968).
 //
-// The two backends receive different Cypher for the same write. The reducer
-// wires a MATCH-first writer for Neo4j (sourcecypher.NewSemanticEntityWriter)
-// and a MERGE-first writer for NornicDB
+// The reducer wires a MATCH-first writer for Neo4j
+// (sourcecypher.NewSemanticEntityWriter) and a specialized writer for NornicDB
 // (NewSemanticEntityWriterWithCanonicalNodeRows + WithLabelScopedRetract,
-// go/cmd/reducer/neo4j_wiring.go). Module is not canonical-node-owned, so on
-// NornicDB its template goes through semanticEntityMergeFirstRowsUpsertCypher,
-// which moves `MATCH (f:File ...)` from before the node MERGE to just before
-// the containment MERGE. That rewrite exists to keep NornicDB on its
-// UNWIND/MERGE batch hot path; nothing documents it as a change of meaning.
+// go/cmd/reducer/neo4j_wiring.go). Module is not canonical-node-owned, and
+// both writers keep its File MATCH before its uid MERGE.
 //
 // Expected outcome for a row whose File is absent: NO Module. Reasons:
 //   - The per-label template (semanticModuleUpsertCypher) is the source of
-//     truth; it is what the default writer and Neo4j run, and it only creates
-//     the node for a row whose File exists. The merge-first form is a
-//     rewrite of that template for planner shape, so it owes the same result
-//     (#6965 Problem 3: "different statements, same semantics").
+//     truth. Both writers run it and create the node only when its File exists.
 //   - A semantic Module with no File has no CONTAINS edge, and the :Module
 //     orphan sweep deliberately skips uid-bearing nodes
 //     (orphanSweepClassPredicate, `n.uid IS NULL`), so nothing but the next
 //     repo retract would remove it.
-//   - It collides with the import graph: the canonical
-//     `MERGE (m:Module {name, lang})` matches any Module with that name and
-//     language, so it binds to the stray semantic node instead of creating
-//     its own uid-NULL node. That is the uid-NULL count divergence #6968
-//     measured (NornicDB 406 vs Neo4j 413 on the orphan sweep).
+//   - Without that File gate, canonical `MERGE (m:Module {name, lang})` can
+//     bind to a stray semantic node instead of creating its uid-NULL import
+//     node. That produced the #6968 406-vs-413 orphan-sweep divergence.
 //
-// The cases capture the statements from the production writer through a
+// The cases capture statements from the production writer through a
 // recording executor, so they run the exact Cypher each backend receives,
 // never a copy. A cmd/reducer test pins the mirrored writer construction here
 // to the reducer's own wiring.
@@ -55,10 +46,6 @@ const (
 	semanticModuleImportWriteCaseName      = "canonical import module after absent-file semantic module"
 	semanticModuleImportReadCaseName       = "canonical import module stays uid-null"
 )
-
-// semanticModuleDivergence is the tracking issue for the NornicDB outcome the
-// absent-File and canonical-import reads pin until the write path is fixed.
-const semanticModuleDivergence = "#6968 NornicDB merge-first semantic Module write creates the node when its File is absent"
 
 // Fixture values. Each case owns its repo id, so one case's repo retract can
 // never delete another case's nodes, and its own module name, so each read
@@ -194,10 +181,7 @@ SET f.repo_id = $repo_id,
 // write cases. Each read has distinct Cypher so the default fake answers each
 // one with its own expected rows.
 //
-// WantRows is always the correct outcome. Where NornicDB differs today, a
-// BackendOverride pins what it returns, under #6968, so both lanes stay green
-// and deterministic: NornicDB changing (fixed or otherwise) fails its pinned
-// rows, and Neo4j drifting from the correct rows fails the default.
+// WantRows holds the same correct outcome for both backends.
 func semanticModuleReadCases() []ReadCase {
 	return []ReadCase{
 		{
@@ -207,18 +191,6 @@ func semanticModuleReadCases() []ReadCase {
 RETURN m.uid AS uid, m.lang AS lang, m.evidence_source AS evidence_source`,
 			Parameters: map[string]any{"module_name": semanticModuleAbsentName},
 			WantRows:   []map[string]any{},
-			// Observed live on NornicDB (see evidence-notes.md): merge-first
-			// creates and SETs the node before the File MATCH drops the row.
-			Overrides: map[BackendID]BackendOverride{
-				BackendNornicDB: {
-					Divergence: semanticModuleDivergence,
-					WantRows: []map[string]any{{
-						"uid":             semanticModuleAbsentUID,
-						"lang":            semanticModuleLanguage,
-						"evidence_source": "parser/semantic-entities",
-					}},
-				},
-			},
 		},
 		{
 			Name:       semanticModulePresentFileReadCaseName,
@@ -249,18 +221,6 @@ RETURN m.uid AS uid, m.evidence_source AS evidence_source`,
 				"uid":             nil,
 				"evidence_source": "projector/canonical",
 			}},
-			// Observed live on NornicDB (see evidence-notes.md): the canonical
-			// MERGE binds to the stray uid-bearing node and its SET
-			// overwrites evidence_source, so no uid-NULL node exists.
-			Overrides: map[BackendID]BackendOverride{
-				BackendNornicDB: {
-					Divergence: semanticModuleDivergence,
-					WantRows: []map[string]any{{
-						"uid":             semanticModuleImportUID,
-						"evidence_source": "projector/canonical",
-					}},
-				},
-			},
 		},
 	}
 }

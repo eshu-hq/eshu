@@ -80,10 +80,8 @@ func NewSemanticEntityWriterWithBatchedProperties(executor Executor, batchSize i
 	}
 }
 
-// NewSemanticEntityWriterWithMergeFirstRows returns a semantic-entity writer
-// whose batched Cypher starts with the node MERGE before file containment. This
-// keeps NornicDB on its generalized UNWIND/MERGE batch hot path while retaining
-// the explicit per-label SET fields used by the legacy row templates.
+// NewSemanticEntityWriterWithMergeFirstRows uses merge-first batched Cypher
+// except for Module, whose File-first form avoids stray semantic nodes.
 func NewSemanticEntityWriterWithMergeFirstRows(executor Executor, batchSize int) *SemanticEntityWriter {
 	return &SemanticEntityWriter{
 		executor:  executor,
@@ -336,7 +334,7 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 					end = len(rows)
 				}
 				batchRows := rows[start:end]
-				cypher := semanticEntityMergeFirstRowsUpsertCypher(plan.cypher)
+				cypher := semanticEntityMergeFirstRowsUpsertCypher(plan.label, plan.cypher)
 				if w.writeMode == semanticEntityWriteModeCanonicalNodeRows &&
 					semanticEntityCanonicalNodeOwnedLabel(plan.label) {
 					cypher = semanticEntityCanonicalNodeRowsUpsertCypher(plan.label, plan.cypher)
