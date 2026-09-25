@@ -58,4 +58,15 @@ func TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID(t *testing.T) {
 	if sourceKey != repo.ID {
 		t.Fatalf("Metadata[\"source_key\"] = %q, want repo.ID %q", sourceKey, repo.ID)
 	}
+
+	// Pin the repository_ref half of the #7007 producer invariant: a ref
+	// scope must keep Metadata["source_key"] == repo.ID so the readiness
+	// dependency-gap scope bound never silently drops gap rows on ref scopes.
+	refScope := buildScope(repo, "refs/heads/main")
+	if refScope.ScopeKind != scope.KindRepositoryRef {
+		t.Fatalf("ScopeKind = %q, want %q", refScope.ScopeKind, scope.KindRepositoryRef)
+	}
+	if got := refScope.Metadata["source_key"]; got != repo.ID {
+		t.Fatalf("ref scope source_key = %q, want repo.ID %q", got, repo.ID)
+	}
 }

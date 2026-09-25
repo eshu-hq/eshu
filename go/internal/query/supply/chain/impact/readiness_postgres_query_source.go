@@ -25,6 +25,23 @@ package_dependency_gap_active AS (
           'editable_dependency',
           'unsupported_dependency'
       )
+      -- #7007: bound the read to the requested repository's own scope.
+      -- These provenance-only kinds are rare (17 active rows across ~810
+      -- scopes on ops-qa) and have no repo_id-leading index, so an unbounded
+      -- read probes fact_records once per active scope and filters ~2.7k
+      -- content_entity rows out of each (8.0s of an 8.1s readiness read).
+      -- The only consumer, unsupported_target_rows below, already requires
+      -- "$11 <> '' AND payload->>'repo_id' = $11", so requiring both here is
+      -- a pure narrowing: same rows, read from one scope. source_key is the
+      -- repository id the git collector stamps on every repository and
+      -- repository_ref scope (buildScope in collector/repo/git,
+      -- TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID), so it
+      -- reaches every generation scope the repo_id payload predicate would.
+      -- A future consumer that needs these rows without a repository anchor
+      -- must not reuse this CTE unchanged.
+      AND $11 <> ''
+      AND scope.source_key = $11
+      AND fact.payload->>'repo_id' = $11
 ),
 unsupported_target_rows AS (
     -- Owned dependency rows in an ecosystem the supply-chain matcher cannot
