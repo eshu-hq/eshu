@@ -19,8 +19,7 @@ graph-backend, and failure-class labels stay here so runtime packages do not
 invent local observability vocabularies.
 
 See `docs/public/reference/telemetry/index.md` for the project-wide rules that
-flow
-from this package.
+flow from this package.
 
 ## Package layout
 

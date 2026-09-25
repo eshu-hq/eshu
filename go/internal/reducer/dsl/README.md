@@ -90,8 +90,7 @@ in `go/internal/telemetry/instruments.go`.
 - **`OutputKindResolvedRelationship` feeds `resolved_relationships`** —
   the row that other reducer domains consume. Per `docs/internal/agent-guide.md`
   "Bootstrap And Correlation Truth", the bootstrap pipeline reopens
-  `deployment_mapping`
-  work items in Phase 3 after backfill
+  `deployment_mapping` work items in Phase 3 after backfill
   (`bootstrap-index/main.go:273`). Any new domain that consumes
   `resolved_relationships` must have its own post-Phase-3 reopen; this
   package does not provide it.

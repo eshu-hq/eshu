@@ -9,8 +9,7 @@
 3. `go/internal/recovery/doc.go` — package contract statement
 4. `go/internal/storage/postgres/` — `ReplayStore` implementation
 5. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — why replay
-   must
-   respect phase ordering
+   must respect phase ordering
 
 ## Invariants this package enforces
 

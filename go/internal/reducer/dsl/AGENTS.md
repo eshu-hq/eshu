@@ -10,8 +10,7 @@ it before touching any file in this directory.
 2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
    sub-packages.
 3. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — Phase 1–4
-   ordering.
-   Specifically: any domain that consumes `resolved_relationships` must have
+   ordering. Specifically: any domain that consumes `resolved_relationships` must have
    a post-Phase-3 reopen; `OutputKindResolvedRelationship` publications from
    this package feed those rows.
 

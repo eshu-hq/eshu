@@ -10,8 +10,7 @@ Read it before touching any file in this directory.
 2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
    sub-packages.
 3. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — Phase 1
-   canonical-nodes
-   publications from this scaffold feed downstream domains that may require
+   canonical-nodes publications from this scaffold feed downstream domains that may require
    Phase 3 reopen.
 
 ## Invariants (cite file:line)

@@ -23,8 +23,7 @@ touching any file in `go/cmd/bootstrap-index/`.
 - `go/cmd/bootstrap-index/nornicdb_wiring.go` — NornicDB-specific executor
   chain (phase-group chunking, timeout, instrumentation, retry).
 - `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — describes
-  the four
-  phases in prose; `main.go` is the implementation.
+  the four phases in prose; `main.go` is the implementation.
 - `go/internal/storage/postgres/ingestion.go` — owns `SkipRelationshipBackfill`,
   `BackfillAllRelationshipEvidence`, `ReopenDeploymentMappingWorkItems`, and
   `MaterializeIaCReachability` (the `bootstrapCommitter` methods).

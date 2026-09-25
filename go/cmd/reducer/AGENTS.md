@@ -12,8 +12,7 @@ before touching any file in this directory.
    env var or write path.
 4. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" and the
    `eshu-correlation-truth` skill — understand Phase 1–4 before changing claim
-   gating or domain
-   ordering.
+   gating or domain ordering.
 5. the `concurrency-deadlock-rigor` skill — before changing worker counts,
    leases, retry delays, or batch sizes.
 6. `main.go` holds `buildReducerService` (config + dependency setup + the
