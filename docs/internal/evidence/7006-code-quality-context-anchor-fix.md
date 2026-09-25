@@ -478,9 +478,9 @@ drift, byte-identical on a back-to-back re-run.
 
 Reading: nothing timed out before the fix on Neo4j (scope stated in the
 intro). `infra/relationships` first-hit reads improve about 10x to several
-hundred x in server time (0.78s to 0-59ms, measured at `bee2ff4a14`; that
-statement is unchanged since). Another label or a miss now costs the
-fast-path reads plus the pre-fix unlabeled statement (776-783 ms), slower
+hundred x in server time (0.78s to 0-59ms, measured at `968a258afd`
+(rebased from `bee2ff4a14`); that statement is unchanged since). Another
+label or a miss now costs the fast-path reads plus the pre-fix unlabeled statement (776-783 ms), slower
 than pre-fix. `get_entity_context` has no valid after figure: the 1.2x-2x
 measured the Wave 3 shape, replaced in Wave 5 and not re-measured. Its first
 label is still a 445,784-node `NodeByLabelScan` (Neo4j indexes `Function.uid`,

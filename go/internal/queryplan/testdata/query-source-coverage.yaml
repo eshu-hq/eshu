@@ -199,7 +199,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 0391e1932b1786d02c7a8afadab137561527876bc6d2aef2aff5617818cdba43
+          source_sha256: c1ed9d950a6317c6b9f775b017b1bcbac75b67479d16ca39d07ddefd00d2d313
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go

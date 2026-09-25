@@ -335,6 +335,14 @@ caller deadline set outside the bounded ctx that is shorter than the shared
 budget and fires first still classifies as `caller_deadline`, never
 `deadline`.
 
+`GET /api/v0/entities/{entity_id}/context` runs one more graph read after the
+loop, the repo-identity hydration that only fires for a Workload or
+WorkloadInstance row with no repo identity. That read is not on the loop's
+shared deadline: a loop that spent nearly all of its budget on misses would
+otherwise starve it. It gets its own bounded read and the same `entity.context`
+`graph_query_name`, so its slow-read and deadline telemetry is attributed to the
+route. The route's worst case is the loop budget plus one bounded read.
+
 `POST /api/v0/infra/relationships`'s request span additionally records
 `eshu.entity_anchor_labels_tried`, an integer count of how many anchor reads
 the loop issued before matching or exhausting the set -- the 1-based index of

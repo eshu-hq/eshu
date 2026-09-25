@@ -67,7 +67,8 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// well over a hundred), and no short label list can reproduce that answer.
 	// A hit on a fast-path label never pays the whole-graph scan; an id on
 	// another label, or a genuine miss, pays exactly what the pre-#7006 read
-	// paid. Every read shares one bounded deadline (below).
+	// paid. Every anchor-loop read shares one bounded deadline (below); the
+	// repo-identity hydration read after the loop is a separate bounded read.
 	//
 	// The file/repo enrichment is the pre-#7006 statement unchanged: repo_id
 	// and repo_name come from the Repository that REPO_CONTAINS the entity's
@@ -208,7 +209,17 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
-	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {
+	// The repo-identity hydration below runs after the anchor loop, so it is
+	// deliberately NOT on the loop's shared bounded window: a loop that spent
+	// nearly all of that budget on misses would otherwise starve a read that
+	// only fires for a Workload/WorkloadInstance row missing repo identity.
+	// It gets its own single bounded read (Neo4jReader.runRead wraps every
+	// read in the configured read timeout) but the same
+	// "entity.context" query name, so its slow-read and deadline telemetry is
+	// attributed to this route instead of "unnamed". Worst case for the route
+	// is therefore the anchor loop budget plus one more bounded read.
+	hydrationCtx := querycontract.WithGraphQueryName(r.Context(), "entity.context")
+	if _, err := hydrateResolvedEntityRepoIdentity(hydrationCtx, h.Neo4j, h.Content, []map[string]any{response}); err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
 			return
 		}
