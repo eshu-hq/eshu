@@ -95,6 +95,7 @@ func TestSweepSkipsCmdGateTools(t *testing.T) {
 	const create = "UNWIND $rows AS row CREATE (n:%s { %s })"
 	writeSweepLiteral(t, root, "cmd/read-api-latency-gate/seed_graph.go", create)
 	writeSweepLiteral(t, root, "cmd/golden-corpus-gate/seed.go", create)
+	writeSweepLiteral(t, root, "cmd/ci-gates/seed.go", create)
 	writeSweepLiteral(t, root, "cmd/reducer/seed.go", create)
 
 	findings, candidates := sweepIndexedWrites(t, root, []string{"cmd"})
@@ -102,7 +103,7 @@ func TestSweepSkipsCmdGateTools(t *testing.T) {
 	for _, f := range findings {
 		got[strings.SplitN(f.file, ":", 2)[0]] = true
 	}
-	for _, rel := range []string{"cmd/read-api-latency-gate/seed_graph.go", "cmd/golden-corpus-gate/seed.go"} {
+	for _, rel := range []string{"cmd/read-api-latency-gate/seed_graph.go", "cmd/golden-corpus-gate/seed.go", "cmd/ci-gates/seed.go"} {
 		if got[rel] {
 			t.Errorf("%s scanned, want skipped as a gate tool", rel)
 		}
