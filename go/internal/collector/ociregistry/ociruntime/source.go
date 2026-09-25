@@ -56,6 +56,9 @@ type Source struct {
 	Clock         func() time.Time
 
 	next int
+	// transportFailures counts consecutive transient transport failures per
+	// target index; a successful scan of the target clears its entry.
+	transportFailures map[int]int
 }
 
 // Next returns the next configured registry repository generation.
@@ -67,37 +70,27 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	if s.ClientFactory == nil {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("OCI registry client factory is required")
 	}
-	if s.next >= len(config.Targets) {
-		s.next = 0
-		return collector.CollectedGeneration{}, false, nil
-	}
-	target := config.Targets[s.next]
-	s.next++
-	collected, err := s.scanTarget(ctx, config, target, "")
-	if err != nil {
-		if sdk.IsTransientTransportError(ctx, err) {
-			// A dropped connection or network timeout is a property of the
-			// registry connection, not of this target's configuration. Skip the
-			// target for this cycle and let the next poll retry it instead of
-			// returning a fatal error that exits the collector process.
-			s.logTransientTransport(ctx, target)
-			return collector.CollectedGeneration{}, false, nil
+	// Walk forward past targets that hit a transient transport error so one
+	// dropped connection does not report the batch as drained (firing the drain
+	// hooks early) or delay every later target by a poll interval.
+	for s.next < len(config.Targets) {
+		index := s.next
+		target := config.Targets[index]
+		s.next++
+		collected, err := s.scanTarget(ctx, config, target, "")
+		if err == nil {
+			delete(s.transportFailures, index)
+			return collected, true, nil
 		}
-		return collector.CollectedGeneration{}, false, err
+		if !sdk.IsTransientTransportError(ctx, err) {
+			return collector.CollectedGeneration{}, false, err
+		}
+		if err := s.skipTransientTransport(ctx, index, target, err); err != nil {
+			return collector.CollectedGeneration{}, false, err
+		}
 	}
-	return collected, true, nil
-}
-
-func (s *Source) logTransientTransport(ctx context.Context, target TargetConfig) {
-	if s.Logger == nil {
-		return
-	}
-	s.Logger.WarnContext(
-		ctx, "OCI registry scan hit a transient transport error; retrying next cycle",
-		telemetry.PhaseAttr(telemetry.PhaseDiscovery),
-		log.Provider(string(target.Provider)),
-		slog.String("failure_class", string(sdk.FailureRetryable)),
-	)
+	s.next = 0
+	return collector.CollectedGeneration{}, false, nil
 }
 
 func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (_ collector.CollectedGeneration, scanErr error) {

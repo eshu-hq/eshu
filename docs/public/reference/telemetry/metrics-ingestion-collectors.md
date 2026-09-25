@@ -144,7 +144,7 @@ structured logs, not metric labels.
 | `eshu_dp_oci_registry_tags_observed_total` | `provider`, `result` | Tags accepted into bounded scans. |
 | `eshu_dp_oci_registry_manifests_observed_total` | `provider`, `media_family` | Manifest, index, and descriptor observations. |
 | `eshu_dp_oci_registry_referrers_observed_total` | `provider`, `artifact_family` | SBOM, signature, attestation, vulnerability, or unknown referrer evidence. |
-| `eshu_dp_oci_registry_scan_duration_seconds` | `provider`, `result` | One repository scan before durable commit. `result` is `success`, `failed`, or `retryable_transport` (a connection reset, unexpected EOF, or network timeout; the target is skipped for the cycle and retried on the next poll, issue #7110). |
+| `eshu_dp_oci_registry_scan_duration_seconds` | `provider`, `result` | One repository scan before durable commit. `result` is `success`, `failed`, or `retryable_transport` (a connection reset, unexpected EOF, or network timeout; the target is skipped for the cycle and retried on the next poll; the warn log carries `cause_class` and `consecutive_transport_failures`, and 20 consecutive failed cycles return the error as fatal, issue #7110). |
 | `eshu_dp_package_registry_requests_total` | `ecosystem`, `status_class` | Metadata request attempts. |
 | `eshu_dp_package_registry_facts_emitted_total` | `ecosystem`, `fact_kind` | Parser output volume. |
 | `eshu_dp_package_registry_rate_limited_total` | `ecosystem` | HTTP 429 pressure. |
@@ -424,7 +424,7 @@ relationship, and materialization metrics are documented in
 | `eshu_dp_confluence_documents_observed_total` | `result` | Document volume after normalization. |
 | `eshu_dp_confluence_sections_emitted_total` | `result` | Section fact volume. |
 | `eshu_dp_confluence_links_emitted_total` | `result` | Link fact volume. |
-| `eshu_dp_confluence_sync_failures_total` | `failure_class` | Configuration, source-read, and fact-build failures, plus retryable backoff classes (`rate_limited`, `provider_unavailable`, `retryable_status`, and `transport_error` for a connection reset, unexpected EOF, or network timeout on one request, issue #7110). A retryable class schedules backoff and does not exit the collector. |
+| `eshu_dp_confluence_sync_failures_total` | `failure_class` | Configuration, source-read, and fact-build failures, plus retryable backoff classes (`rate_limited`, `provider_unavailable`, `retryable_status`, and `transport_error` for a connection reset, unexpected EOF, or network timeout on one request, issue #7110). A retryable class schedules backoff and does not exit the collector, except that 20 consecutive `transport_error` retries return the failure as fatal (`source_read`) so a persistent wrong host or port crash-loops. The retry warn log carries `attempt`, `cause_class`, and `consecutive_transport_failures`. |
 
 Page IDs, titles, URLs, excerpts, paths, and body content stay out of metric
 labels.

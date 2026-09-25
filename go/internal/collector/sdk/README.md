@@ -29,7 +29,14 @@ See `doc.go` for the godoc package contract. The public surface includes:
   reset/refused/aborted, broken pipe, unexpected EOF, network timeout) that a
   collector should retry after backoff. It is false for parent-context
   cancellation or deadline, `context.Canceled`, TLS/certificate errors, and
-  HTTP status errors.
+  HTTP status errors. A bare `io.EOF` counts only inside a `*url.Error` (the
+  server closed the connection before responding); the same `io.EOF` from a
+  JSON decoder reading an empty 200 body is a content problem and is false.
+- `TransportFailureClass` names a transport error's cause as a bounded string
+  (`reset`, `refused`, `timeout`, `unreachable`, `eof`, `dns`, `other`) safe for
+  logs and labels. `MaxConsecutiveTransportFailures` (20) is the ceiling after
+  which a collector must stop retrying the same source and return the failure
+  as fatal, so persistent misconfiguration crash-loops instead of idling.
 
 ## Dependencies
 

@@ -78,9 +78,14 @@ digests. Those values are high cardinality and may describe private topology.
 - A transient transport error (connection reset or refused, broken pipe,
   unexpected EOF, network timeout; see `sdk.IsTransientTransportError`) during a
   non-claimed `Source.Next` scan skips that target for the cycle, logs a bounded
-  warning, records `result=retryable_transport`, and returns an idle poll so the
-  collector process keeps running (issue #7110). Cancellation, TLS/certificate
-  failures, and HTTP status failures still propagate. Claimed scans keep
+  warning (`cause_class`, `consecutive_transport_failures`), records
+  `result=retryable_transport`, and continues to the next target in the same
+  call so the collector process keeps running and the batch is not reported as
+  drained early (issue #7110). After `sdk.MaxConsecutiveTransportFailures` (20)
+  consecutive failed cycles for the same target the error is returned as fatal,
+  so a wrong host or port crash-loops instead of idling. Cancellation,
+  TLS/certificate failures, empty-body decode errors, and HTTP status failures
+  still propagate. Claimed scans keep
   returning the error to `ClaimedService`, which retries the claim.
 - Claimed scans must match one configured target by normalized `scope_id`; an
   unmatched claim releases without emitting facts.

@@ -6,6 +6,8 @@ package ociruntime
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -75,21 +77,17 @@ func TestSourceNextIsolatesTransientTransportFailureOnPing(t *testing.T) {
 		"team/second": healthy,
 	}, instruments)
 
-	_, ok, err := source.Next(context.Background())
+	// The failed target is skipped for this cycle and the healthy target
+	// scans in the same call.
+	collected, ok, err := source.Next(context.Background())
 	if err != nil {
 		t.Fatalf("Next() error = %v, want nil: a transient transport failure must not exit the collector", err)
 	}
-	if ok {
-		t.Fatal("Next() ok = true, want false for the target that hit a transport error")
-	}
-
-	// The failed target is skipped for this cycle; the next target still scans.
-	collected, ok, err := source.Next(context.Background())
-	if err != nil || !ok {
-		t.Fatalf("second Next() = ok %v err %v, want the healthy target scanned", ok, err)
+	if !ok {
+		t.Fatal("Next() ok = false, want the healthy target scanned after the transport failure was skipped")
 	}
 	if collected.Scope.ScopeID == "" {
-		t.Fatal("second Next() returned an empty scope")
+		t.Fatal("Next() returned an empty scope")
 	}
 
 	var rm metricdata.ResourceMetrics
@@ -114,6 +112,10 @@ func TestSourceNextKeepsCancellationAndNonTransportFailuresFatal(t *testing.T) {
 			pingErr: collector.RegistryTransportFailure("oci", "", "ping", &url.Error{
 				Op: "Get", Err: errors.New("x509: certificate signed by unknown authority"),
 			}),
+		},
+		{
+			name:    "empty success body is a content problem not transport",
+			pingErr: fmt.Errorf("decode OCI tag list: %w", io.EOF),
 		},
 		{
 			name:    "cancelled context",

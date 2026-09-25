@@ -47,11 +47,12 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	activeSpaceID := s.activeSpaceID()
 	pages, spaceValue, failureCount, truncated, err := s.collectPages(ctx)
 	if err != nil {
-		if s.recordRetryableFailure(ctx, observedAt, err) {
+		retried, failure := s.recordRetryableFailure(ctx, observedAt, err)
+		if retried {
 			return collector.CollectedGeneration{}, false, nil
 		}
 		s.recordSyncFailure(ctx, "source_read")
-		return collector.CollectedGeneration{}, false, err
+		return collector.CollectedGeneration{}, false, failure
 	}
 	pages = latestCurrentPages(pages)
 
