@@ -80,6 +80,10 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 // key, so the ANY() probe is a bounded primary-key lookup over at most the
 // distinct generations of one selection window, one round trip per pass.
 //
+// The worker passes only the generation ids of readiness-BLOCKED rows: ready
+// rows on a superseded generation still project, because a delta successor
+// would never re-emit their edge (#7121, #7130).
+//
 // It keys on the terminal 'superseded' status, not on "generation_id is not
 // ingestion_scopes.active_generation_id": a pending generation's shared
 // intents are selectable before it activates, so "not active" would race with
@@ -95,9 +99,9 @@ WHERE generation_id = ANY($1::text[])
 
 // SupersededGenerationIDs returns the subset of generationIDs whose scope
 // generation is superseded. The shared projection worker uses it to drain
-// intents whose generation will never publish the prerequisite phase row
-// (#7121). An empty input performs no query; a query error is returned so the
-// caller fails the selection instead of guessing.
+// readiness-blocked intents whose generation will never publish the
+// prerequisite phase row (#7121). An empty input performs no query; a query
+// error is returned so the caller fails the selection instead of guessing.
 func (s *SharedIntentStore) SupersededGenerationIDs(
 	ctx context.Context,
 	generationIDs []string,

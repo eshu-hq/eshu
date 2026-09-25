@@ -97,20 +97,28 @@ call uses the pre-heartbeat context, not the heartbeat-derived one
 fails and leaves the lease held until its own TTL. See the inline comment on
 `ProcessPartitionOnce` before reordering this.
 
-**Superseded-generation intents drain before readiness (#7121).** When the
-`IntentReader` also implements `SupersededGenerationReader`,
-`SelectPartitionBatch` makes one bounded lookup over the batch's distinct
-generation ids and drains every intent whose scope generation is
-`superseded` through `StaleIDs`, before the acceptance filter and the
-readiness gate. Such an intent's `workload_materialization` phase row is never
-published, so the gate would block it forever. The predicate is the terminal
+**Readiness-blocked intents of a superseded generation drain (#7121).** When
+the `IntentReader` also implements `SupersededGenerationReader`,
+`SelectPartitionBatch` runs the acceptance filter, dedupe, and readiness gate
+first, then makes one bounded lookup over the distinct generation ids of the
+BLOCKED rows only (skipped when nothing is blocked) and moves the blocked rows
+whose scope generation is `superseded` into `StaleIDs`, out of `BlockedRows`.
+Such a generation was superseded before workload materialization ran, so its
+`workload_materialization` phase row is never published and the gate would
+block those rows forever. Ready rows (phase row published) and terminal rows
+on a superseded generation are NOT drained and still project: a delta
+successor (`scope_generations.is_delta`) carries only changed-file facts and a
+file-scoped retract, so it never re-emits an untouched file's edge, and
+draining a ready row would lose that edge permanently. Drained rows count as
+progress, so a window full of orphans returns a batch instead of widening the
+scan toward the cap. The predicate is the terminal
 `superseded` status, not "not the active generation": a pending generation's
 intents are selectable before it activates and must not be dropped. A reader
 without the port keeps the old behavior; a lookup error fails the selection.
 `PartitionBatchResult.SupersededGenerationCount` and
 `PartitionProcessResult.SupersededGenerationIntents` carry the subset of the
-stale count that came from this drain. Because those rows never reach the
-gate, `blocked_count` and `blocked_intent_wait_seconds` describe only
+stale count that came from this drain. Because the drained rows leave
+`BlockedRows`, `blocked_count` and `blocked_intent_wait_seconds` describe only
 generations that are not superseded, so a large blocked wait is a real
 prerequisite-phase stall. The SQL does not yet enforce that `superseded` is
 terminal on every writer; that gap is tracked in #7130.

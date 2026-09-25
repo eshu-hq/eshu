@@ -82,7 +82,7 @@ func TestProcessPartitionDrainsSupersededGenerationWithReasonTelemetry(t *testin
 			result.StaleIntents, result.SupersededGenerationIntents)
 	}
 	if result.BlockedReadiness != 0 {
-		t.Fatalf("BlockedReadiness = %d, want 0 (superseded rows never reach the gate)", result.BlockedReadiness)
+		t.Fatalf("BlockedReadiness = %d, want 0 (drained blocked rows leave BlockedRows)", result.BlockedReadiness)
 	}
 	if !slices.Contains(reader.marked, orphan.IntentID) {
 		t.Fatalf("marked = %v, want the orphan completed", reader.marked)

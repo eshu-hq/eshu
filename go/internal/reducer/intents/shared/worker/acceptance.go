@@ -75,8 +75,9 @@ func (t AcceptanceTelemetry) RecordLookup(ctx context.Context, event AcceptanceL
 // Stale-intent reasons recorded on eshu_dp_shared_projection_stale_intents_total
 // as the closed "reason" attribute. acceptance_mismatch is the intent's
 // generation differing from the accepted generation for its acceptance key;
-// generation_superseded is the intent's scope generation being terminally
-// superseded (#7121), which no phase row will ever unblock.
+// generation_superseded is a readiness-blocked intent whose scope generation
+// is terminally superseded (#7121): it was superseded before workload
+// materialization ran, so no phase row will ever unblock it.
 const (
 	StaleReasonAcceptanceMismatch   = "acceptance_mismatch"
 	StaleReasonGenerationSuperseded = "generation_superseded"

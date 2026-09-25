@@ -176,13 +176,6 @@ func SelectPartitionBatch(
 			continue
 		}
 
-		// Drain intents on a superseded scope generation first (#7121): their
-		// phase rows never publish, so readiness would block them forever.
-		partitionRows, generationSupersededIDs, err := splitSupersededGenerationRows(ctx, reader, partitionRows)
-		if err != nil {
-			return PartitionBatchResult{}, err
-		}
-
 		lookup := acceptedGen
 		if prefetch != nil {
 			resolvedLookup, err := prefetch(ctx, partitionRows)
@@ -193,9 +186,6 @@ func SelectPartitionBatch(
 		}
 
 		active, mismatchIDs := FilterAuthoritativeIntents(partitionRows, lookup)
-		staleIDs := make([]string, 0, len(generationSupersededIDs)+len(mismatchIDs))
-		staleIDs = append(staleIDs, generationSupersededIDs...)
-		staleIDs = append(staleIDs, mismatchIDs...)
 		latest, supersededIntentIDs := LatestIntentsByRepoAndPartition(active)
 		readyRows, blockedRows, terminalRows, err := FilterRowsByReadiness(
 			ctx,
@@ -209,10 +199,27 @@ func SelectPartitionBatch(
 			return PartitionBatchResult{}, err
 		}
 
+		// Drain only the rows the readiness gate blocked, and only when their
+		// scope generation is superseded (#7121): that phase row never publishes
+		// for a generation superseded before workload materialization ran. Ready
+		// and terminal rows on a superseded generation keep projecting, because a
+		// delta successor would never re-emit their edge. The lookup is one
+		// bounded round trip over the blocked rows' generation ids and is skipped
+		// when nothing is blocked.
+		blockedRows, generationSupersededIDs, err := splitSupersededGenerationRows(ctx, reader, blockedRows)
+		if err != nil {
+			return PartitionBatchResult{}, err
+		}
+		staleIDs := make([]string, 0, len(mismatchIDs)+len(generationSupersededIDs))
+		staleIDs = append(staleIDs, mismatchIDs...)
+		staleIDs = append(staleIDs, generationSupersededIDs...)
+
 		// Terminal rows are complete with no edge; draining them promptly (rather
 		// than widening the scan in search of more ready rows) is what keeps a
 		// route-only backlog from stalling, so they count toward returning a batch.
-		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || seenAll {
+		// Blocked rows drained as superseded are progress for the same reason: a
+		// window full of orphans must not widen the scan toward the cap.
+		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || len(generationSupersededIDs) > 0 || seenAll {
 			if len(readyRows) > batchLimit {
 				readyRows = readyRows[:batchLimit]
 			}

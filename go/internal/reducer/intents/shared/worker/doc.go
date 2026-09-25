@@ -41,10 +41,13 @@
 // # Superseded generations
 //
 // [SupersededGenerationReader] is an optional port on the [IntentReader]. When
-// implemented, [SelectPartitionBatch] drains every intent whose scope
-// generation is superseded as stale (#7121) before the acceptance and
-// readiness filters, because such an intent's prerequisite phase row is never
-// published. The subset is reported as
+// implemented, [SelectPartitionBatch] drains, as stale (#7121), only the
+// intents the readiness gate blocks whose scope generation is superseded:
+// that generation was superseded before workload materialization ran, so its
+// prerequisite phase row is never published. Ready and terminal rows on a
+// superseded generation are not drained and still project, because a delta
+// successor generation would never re-emit their edge (#7130 tracks the SQL
+// terminality gap). The subset is reported as
 // [PartitionBatchResult].SupersededGenerationCount and
 // [PartitionProcessResult].SupersededGenerationIntents, and recorded on
 // eshu_dp_shared_projection_stale_intents_total with reason

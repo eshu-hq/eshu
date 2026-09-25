@@ -6,11 +6,13 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -118,42 +120,190 @@ func TestSelectPartitionBatchKeepsActiveGenerationBlockedOnMissingPhase(t *testi
 	}
 }
 
-// TestSelectPartitionBatchLeavesSuccessorGenerationUntouched proves that when a
-// superseded generation and its successor both have pending rows in the same
-// batch, only the superseded row drains and the successor row still flows
-// through readiness.
-func TestSelectPartitionBatchLeavesSuccessorGenerationUntouched(t *testing.T) {
+// readinessPublishedFor returns a readiness lookup that reports the phase row
+// as published (ready) only for the listed generations, mirroring production
+// where a phase row is keyed by generation id and never appears for a
+// generation superseded before workload materialization ran.
+func readinessPublishedFor(generationIDs ...string) gpphase.ReadinessLookup {
+	published := make(map[string]struct{}, len(generationIDs))
+	for _, id := range generationIDs {
+		published[id] = struct{}{}
+	}
+	return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
+		_, ok := published[key.GenerationID]
+		return ok, ok
+	}
+}
+
+func acceptedByRun(generationsByRun map[string]string) sharedintent.AcceptedGenerationLookup {
+	return func(key sharedintent.AcceptanceKey) (string, bool) {
+		generationID, ok := generationsByRun[key.SourceRunID]
+		return generationID, ok
+	}
+}
+
+// TestSelectPartitionBatchKeepsReadyRowOnSupersededGeneration is the #7121
+// review F1 RED: a superseded generation whose phase row DID publish still has
+// ready intents. A delta successor (scope_generations.is_delta) carries only
+// changed-file facts and never re-emits an untouched file's edge, so draining
+// the ready row would lose that edge permanently. The row must project.
+func TestSelectPartitionBatchKeepsReadyRowOnSupersededGeneration(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
-	orphan := runsInRow("repo-c", "run-old", "gen-old", now)
-	successor := runsInRow("repo-c", "run-new", "gen-new", now.Add(time.Minute))
+	ready := runsInRow("repo-f", "run-old", "gen-old", now)
 	reader := &supersededReader{
-		stubSharedIntentReader: stubSharedIntentReader{pending: []sharedintent.Row{orphan, successor}},
+		stubSharedIntentReader: stubSharedIntentReader{pending: []sharedintent.Row{ready}},
 		superseded:             map[string]struct{}{"gen-old": {}},
 	}
-	accepted := func(key sharedintent.AcceptanceKey) (string, bool) {
-		if key.SourceRunID == "run-old" {
-			return "gen-old", true
-		}
-		return "gen-new", true
-	}
 
-	batch, err := selectRunsIn(reader, accepted, true, true)
+	batch, err := selectRunsIn(reader, acceptedGenerationFixed("gen-old", true), true, true)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)
 	}
-	if !slices.Equal(batch.StaleIDs, []string{orphan.IntentID}) {
-		t.Fatalf("StaleIDs = %v, want only the superseded row", batch.StaleIDs)
+	if len(batch.LatestRows) != 1 || batch.LatestRows[0].IntentID != ready.IntentID {
+		t.Fatalf("LatestRows = %v, want the ready row on the superseded generation", batch.LatestRows)
 	}
-	if len(batch.LatestRows) != 1 || batch.LatestRows[0].IntentID != successor.IntentID {
-		t.Fatalf("LatestRows = %v, want the successor row", batch.LatestRows)
+	if len(batch.StaleIDs) != 0 || batch.SupersededGenerationCount != 0 {
+		t.Fatalf("StaleIDs = %v count = %d, want none: a ready row must project", batch.StaleIDs, batch.SupersededGenerationCount)
 	}
-	if len(reader.calls) != 1 {
-		t.Fatalf("superseded lookups = %d, want exactly 1 round trip", len(reader.calls))
+	if len(reader.calls) != 0 {
+		t.Fatalf("superseded lookups = %d, want 0 when nothing is blocked", len(reader.calls))
 	}
-	if got := slices.Sorted(slices.Values(reader.calls[0])); !slices.Equal(got, []string{"gen-new", "gen-old"}) {
-		t.Fatalf("lookup ids = %v, want the distinct batch generations", got)
+}
+
+// TestSelectPartitionBatchDrainsOnlyBlockedRowsOfSupersededGeneration mixes a
+// ready row and a blocked row on the same superseded generation with a ready
+// successor row: only the blocked row drains, and the lookup covers only the
+// blocked rows' generation.
+func TestSelectPartitionBatchDrainsOnlyBlockedRowsOfSupersededGeneration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	blockedOrphan := runsInRow("repo-g", "run-old-g", "gen-old-blocked", now)
+	readyOnSuperseded := runsInRow("repo-h", "run-old-h", "gen-old-ready", now)
+	successor := runsInRow("repo-i", "run-new-i", "gen-new", now)
+	reader := &supersededReader{
+		stubSharedIntentReader: stubSharedIntentReader{
+			pending: []sharedintent.Row{blockedOrphan, readyOnSuperseded, successor},
+		},
+		superseded: map[string]struct{}{"gen-old-blocked": {}, "gen-old-ready": {}},
+	}
+	accepted := acceptedByRun(map[string]string{
+		"run-old-g": "gen-old-blocked",
+		"run-old-h": "gen-old-ready",
+		"run-new-i": "gen-new",
+	})
+
+	batch, err := SelectPartitionBatch(
+		context.Background(), reader, reducercontract.DomainRunsIn,
+		0, 1, 10, accepted, nil,
+		readinessPublishedFor("gen-old-ready", "gen-new"), nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("SelectPartitionBatch() error = %v", err)
+	}
+	if !slices.Equal(batch.StaleIDs, []string{blockedOrphan.IntentID}) || batch.SupersededGenerationCount != 1 {
+		t.Fatalf("StaleIDs = %v count = %d, want only the blocked superseded row", batch.StaleIDs, batch.SupersededGenerationCount)
+	}
+	gotReady := []string{}
+	for _, row := range batch.LatestRows {
+		gotReady = append(gotReady, row.IntentID)
+	}
+	wantReady := []string{readyOnSuperseded.IntentID, successor.IntentID}
+	slices.Sort(gotReady)
+	slices.Sort(wantReady)
+	if !slices.Equal(gotReady, wantReady) {
+		t.Fatalf("LatestRows = %v, want the ready rows %v", gotReady, wantReady)
+	}
+	if batch.BlockedCount != 0 || len(batch.BlockedRows) != 0 {
+		t.Fatalf("blocked = %d/%d, want 0: the drained row must leave BlockedRows", batch.BlockedCount, len(batch.BlockedRows))
+	}
+	if len(reader.calls) != 1 || !slices.Equal(reader.calls[0], []string{"gen-old-blocked"}) {
+		t.Fatalf("lookups = %v, want one round trip over the blocked rows' generation only", reader.calls)
+	}
+}
+
+// TestSelectPartitionBatchKeepsPendingGenerationBlocked pins that a blocked row
+// on a generation that is not superseded (pending or active: its phase row may
+// still publish) stays blocked even though the lookup ran.
+func TestSelectPartitionBatchKeepsPendingGenerationBlocked(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	pending := runsInRow("repo-j", "run-pending", "gen-pending", now)
+	reader := &supersededReader{
+		stubSharedIntentReader: stubSharedIntentReader{pending: []sharedintent.Row{pending}},
+		superseded:             map[string]struct{}{},
+	}
+
+	batch, err := selectRunsIn(reader, acceptedGenerationFixed("gen-pending", true), false, false)
+	if err != nil {
+		t.Fatalf("SelectPartitionBatch() error = %v", err)
+	}
+	if batch.BlockedCount != 1 || len(batch.StaleIDs) != 0 {
+		t.Fatalf("blocked = %d stale = %v, want 1/none", batch.BlockedCount, batch.StaleIDs)
+	}
+	if len(reader.calls) != 1 || !slices.Equal(reader.calls[0], []string{"gen-pending"}) {
+		t.Fatalf("lookups = %v, want one round trip over the blocked generation", reader.calls)
+	}
+}
+
+// TestSelectPartitionBatchSupersededLookupSkippedWhenNothingBlocked proves the
+// port costs no round trip when every row is ready.
+func TestSelectPartitionBatchSupersededLookupSkippedWhenNothingBlocked(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	reader := &supersededReader{
+		stubSharedIntentReader: stubSharedIntentReader{
+			pending: []sharedintent.Row{runsInRow("repo-k", "run-1", "gen-1", now)},
+		},
+		superseded: map[string]struct{}{"gen-1": {}},
+	}
+
+	batch, err := selectRunsIn(reader, acceptedGenerationFixed("gen-1", true), true, true)
+	if err != nil {
+		t.Fatalf("SelectPartitionBatch() error = %v", err)
+	}
+	if len(batch.LatestRows) != 1 || len(reader.calls) != 0 {
+		t.Fatalf("latest = %d lookups = %d, want 1/0", len(batch.LatestRows), len(reader.calls))
+	}
+}
+
+// TestSelectPartitionBatchReturnsWithoutWideningWhenSupersededRowsDrain is the
+// #7121 review F4 case: a window made only of blocked rows on a superseded
+// generation, with more pending rows behind it, counts the drained rows as
+// progress and returns instead of widening the scan toward the cap.
+func TestSelectPartitionBatchReturnsWithoutWideningWhenSupersededRowsDrain(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	const batchLimit = 10
+	pending := make([]sharedintent.Row, 0, 3*batchLimit)
+	for i := 0; i < 3*batchLimit; i++ {
+		repo := fmt.Sprintf("repo-orphan-%02d", i)
+		pending = append(pending, runsInRow(repo, "run-old", "gen-old", now))
+	}
+	reader := &supersededReader{
+		stubSharedIntentReader: stubSharedIntentReader{pending: pending},
+		superseded:             map[string]struct{}{"gen-old": {}},
+	}
+
+	batch, err := SelectPartitionBatch(
+		context.Background(), reader, reducercontract.DomainRunsIn,
+		0, 1, batchLimit, acceptedGenerationFixed("gen-old", true), nil,
+		readinessLookupFixed(false, false), nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("SelectPartitionBatch() error = %v", err)
+	}
+	if !slices.Equal(reader.limitRequests, []int{batchLimit * 2}) {
+		t.Fatalf("list limits = %v, want one window read (no widening)", reader.limitRequests)
+	}
+	if len(batch.StaleIDs) != batchLimit*2 || batch.SupersededGenerationCount != batchLimit*2 {
+		t.Fatalf("StaleIDs = %d count = %d, want the whole %d-row window drained",
+			len(batch.StaleIDs), batch.SupersededGenerationCount, batchLimit*2)
 	}
 }
 

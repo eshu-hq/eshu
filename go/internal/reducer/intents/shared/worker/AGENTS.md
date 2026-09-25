@@ -22,11 +22,15 @@ repo-wide-retract fence must follow the root `AGENTS.md`'s "Change reducer
 queue claim semantics" section: prove idempotency under duplicate claim or
 partial failure.
 
-**Keep the superseded-generation drain ahead of the acceptance and readiness
-filters in `SelectPartitionBatch` (#7121).** A superseded generation's phase
-row never publishes, so a row left for the readiness gate blocks forever.
-Key it on the terminal `superseded` status only, never on "not the scope's
-active generation" (that races activation). The port is optional: a nil or
+**Keep the superseded-generation drain behind the readiness gate and limited
+to BLOCKED rows in `SelectPartitionBatch` (#7121).** A generation superseded
+before workload materialization ran never publishes its phase row, so its
+blocked rows wait forever. Ready and terminal rows on a superseded generation
+must keep projecting: a delta successor never re-emits an untouched file's
+edge, so draining a ready row is permanent edge loss. Key the lookup on the
+terminal `superseded` status only, never on "not the scope's active
+generation" (that races activation), and look up only the blocked rows'
+generation ids. The port is optional: a nil or
 non-implementing reader must stay byte-identical, and a lookup error must
 fail the selection rather than drop or keep rows.
 

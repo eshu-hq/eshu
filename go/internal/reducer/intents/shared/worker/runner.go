@@ -327,8 +327,8 @@ func (r *Runner) processPartitionWithTelemetry(
 	)
 	if result.BlockedReadiness > 0 && r.Logger != nil {
 		// blocked_count covers only intents whose scope generation is not
-		// superseded: superseded generations drain as stale before the readiness
-		// gate runs (#7121), so a persistently large blocked_intent_wait_seconds
+		// superseded: blocked rows on a superseded generation drain as stale
+		// right after the readiness gate (#7121), so a persistently large blocked_intent_wait_seconds
 		// is a real prerequisite-phase stall, not orphaned work.
 		readinessPhase, _ := ReadinessPhase(domain)
 		r.Logger.InfoContext(
