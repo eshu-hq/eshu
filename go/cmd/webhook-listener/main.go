@@ -24,6 +24,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -100,7 +101,7 @@ func run(parent context.Context) error {
 			return err
 		}
 	}
-	var awsFreshnessStore *postgres.AWSFreshnessStore
+	var awsFreshnessStore *awsfreshnessstore.AWSFreshnessStore
 	if cfg.AWSFreshnessToken != "" {
 		awsFreshnessDB := &postgres.InstrumentedDB{
 			Inner:       postgres.SQLDB{DB: db},
@@ -108,7 +109,7 @@ func run(parent context.Context) error {
 			Instruments: instruments,
 			StoreName:   "aws_freshness_triggers",
 		}
-		awsFreshnessStore = postgres.NewAWSFreshnessStore(awsFreshnessDB)
+		awsFreshnessStore = awsfreshnessstore.NewAWSFreshnessStore(awsFreshnessDB)
 		if err := awsFreshnessStore.EnsureSchema(parent); err != nil {
 			return err
 		}

@@ -305,10 +305,11 @@ the concrete adapters stay here.
   (`go/internal/storage/postgres/webhook`) —
   `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
   `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
-- `AWSFreshnessStore` / `NewAWSFreshnessStore` —
+- `awsfreshnessstore.AWSFreshnessStore` / `awsfreshnessstore.NewAWSFreshnessStore`
+  (`go/internal/storage/postgres/freshness/aws`) —
   coalesced AWS Config/EventBridge freshness triggers with
-  `AWSFreshnessSchemaSQL`; `StatusStore` also reads aggregate freshness trigger
-  counts and oldest queued age for `/admin/status`
+  `awsfreshnessstore.AWSFreshnessSchemaSQL`; `StatusStore` also reads
+  aggregate freshness trigger counts and oldest queued age for `/admin/status`
 - `vulnerabilitystore.VulnerabilitySourceStateStore` /
   `vulnerabilitystore.NewVulnerabilitySourceStateStore` — durable
   OSV/NVD/KEV/EPSS source freshness, checkpoint, retry, and terminal state

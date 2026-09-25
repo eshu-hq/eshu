@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package awsfreshnessstore
 
 const awsFreshnessSchemaSQL = `
 CREATE TABLE IF NOT EXISTS aws_freshness_triggers (

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package awsfreshnessstore
 
 const storeAWSFreshnessTriggerQuery = `
 INSERT INTO aws_freshness_triggers (

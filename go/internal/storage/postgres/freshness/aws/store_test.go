@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package awsfreshnessstore
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 func TestAWSFreshnessSchemaDefinesCoalescingKeys(t *testing.T) {
@@ -39,8 +40,8 @@ func TestAWSFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 
 	receivedAt := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 	trigger := testAWSFreshnessTrigger(receivedAt)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, receivedAt)},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, receivedAt)},
 	}
 	store := NewAWSFreshnessStore(db)
 
@@ -54,14 +55,14 @@ func TestAWSFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 	if stored.TriggerID == "" || stored.DeliveryKey == "" || stored.FreshnessKey == "" {
 		t.Fatalf("stored trigger missing durable keys: %#v", stored)
 	}
-	if got, want := len(db.queries), 1; got != want {
+	if got, want := len(db.Queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.queries[0].query, "INSERT INTO aws_freshness_triggers") {
-		t.Fatalf("query missing insert: %s", db.queries[0].query)
+	if !strings.Contains(db.Queries[0].Query, "INSERT INTO aws_freshness_triggers") {
+		t.Fatalf("query missing insert: %s", db.Queries[0].Query)
 	}
-	if !strings.Contains(db.queries[0].query, "ON CONFLICT (freshness_key) DO UPDATE") {
-		t.Fatalf("query missing freshness-key upsert: %s", db.queries[0].query)
+	if !strings.Contains(db.Queries[0].Query, "ON CONFLICT (freshness_key) DO UPDATE") {
+		t.Fatalf("query missing freshness-key upsert: %s", db.Queries[0].Query)
 	}
 	for _, want := range []string{
 		"trigger_id = CASE",
@@ -72,8 +73,8 @@ func TestAWSFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 		"failed_at = CASE",
 		"failure_class = CASE",
 	} {
-		if !strings.Contains(db.queries[0].query, want) {
-			t.Fatalf("query missing claim-safe upsert fragment %q: %s", want, db.queries[0].query)
+		if !strings.Contains(db.Queries[0].Query, want) {
+			t.Fatalf("query missing claim-safe upsert fragment %q: %s", want, db.Queries[0].Query)
 		}
 	}
 }
@@ -83,8 +84,8 @@ func TestAWSFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 	trigger := testAWSFreshnessTrigger(now)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusClaimed, now)},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusClaimed, now)},
 	}
 	store := NewAWSFreshnessStore(db)
 
@@ -98,17 +99,17 @@ func TestAWSFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	if triggers[0].Status != freshness.TriggerStatusClaimed {
 		t.Fatalf("Status = %q, want %q", triggers[0].Status, freshness.TriggerStatusClaimed)
 	}
-	if !strings.Contains(db.queries[0].query, "FOR UPDATE SKIP LOCKED") {
-		t.Fatalf("claim query missing SKIP LOCKED: %s", db.queries[0].query)
+	if !strings.Contains(db.Queries[0].Query, "FOR UPDATE SKIP LOCKED") {
+		t.Fatalf("claim query missing SKIP LOCKED: %s", db.Queries[0].Query)
 	}
-	if !strings.Contains(db.queries[0].query, "status = 'queued'") {
-		t.Fatalf("claim query missing queued filter: %s", db.queries[0].query)
+	if !strings.Contains(db.Queries[0].Query, "status = 'queued'") {
+		t.Fatalf("claim query missing queued filter: %s", db.Queries[0].Query)
 	}
-	if !strings.Contains(db.queries[0].query, "claim_expires_at = $4") {
-		t.Fatalf("claim query missing claim_expires_at lease assignment: %s", db.queries[0].query)
+	if !strings.Contains(db.Queries[0].Query, "claim_expires_at = $4") {
+		t.Fatalf("claim query missing claim_expires_at lease assignment: %s", db.Queries[0].Query)
 	}
 	wantLeaseExpiry := now.Add(5 * time.Minute)
-	if got := db.queries[0].args[3]; got != wantLeaseExpiry {
+	if got := db.Queries[0].Args[3]; got != wantLeaseExpiry {
 		t.Fatalf("claim_expires_at arg = %v, want %v", got, wantLeaseExpiry)
 	}
 }
@@ -117,14 +118,14 @@ func TestAWSFreshnessStoreClaimQueuedTriggersRequiresPositiveLease(t *testing.T)
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	db := &fake.ExecQueryer{}
 	store := NewAWSFreshnessStore(db)
 
 	if _, err := store.ClaimQueuedTriggers(context.Background(), "aws-freshness-handoff", now, 10, 0); err == nil {
 		t.Fatal("ClaimQueuedTriggers() error = nil, want non-nil for zero lease duration")
 	}
-	if len(db.queries) != 0 {
-		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.queries))
+	if len(db.Queries) != 0 {
+		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.Queries))
 	}
 }
 
@@ -133,8 +134,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsUsesSkipLockedAndLeaseExpiry(t
 
 	now := time.Date(2026, time.May, 15, 10, 30, 0, 0, time.UTC)
 	trigger := testAWSFreshnessTrigger(now)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, now)},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, now)},
 	}
 	store := NewAWSFreshnessStore(db)
 
@@ -148,7 +149,7 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsUsesSkipLockedAndLeaseExpiry(t
 	if reclaimed[0].Status != freshness.TriggerStatusQueued {
 		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, freshness.TriggerStatusQueued)
 	}
-	query := db.queries[0].query
+	query := db.Queries[0].Query
 	for _, want := range []string{
 		"FOR UPDATE SKIP LOCKED",
 		"status = 'claimed'",
@@ -169,21 +170,21 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsRequiresPositiveLimit(t *testi
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 10, 30, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	db := &fake.ExecQueryer{}
 	store := NewAWSFreshnessStore(db)
 
 	if _, err := store.ReapExpiredTriggerClaims(context.Background(), now, 0); err == nil {
 		t.Fatal("ReapExpiredTriggerClaims() error = nil, want non-nil for zero limit")
 	}
-	if len(db.queries) != 0 {
-		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.queries))
+	if len(db.Queries) != 0 {
+		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.Queries))
 	}
 }
 
 func TestAWSFreshnessStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{}
+	db := &fake.ExecQueryer{}
 	store := NewAWSFreshnessStore(db)
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 
@@ -195,20 +196,20 @@ func TestAWSFreshnessStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *tes
 	if err != nil {
 		t.Fatalf("MarkTriggersHandedOff() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if strings.Contains(db.execs[0].query, "ANY($1)") {
-		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
+	if strings.Contains(db.Execs[0].Query, "ANY($1)") {
+		t.Fatalf("query still uses array parameter: %s", db.Execs[0].Query)
 	}
-	if !strings.Contains(db.execs[0].query, "VALUES ($1, $2::bigint), ($3, $4::bigint)") {
-		t.Fatalf("query missing fenced (trigger_id, fencing_token) VALUES pairs (dedup should drop the repeated trigger-2): %s", db.execs[0].query)
+	if !strings.Contains(db.Execs[0].Query, "VALUES ($1, $2::bigint), ($3, $4::bigint)") {
+		t.Fatalf("query missing fenced (trigger_id, fencing_token) VALUES pairs (dedup should drop the repeated trigger-2): %s", db.Execs[0].Query)
 	}
-	if !strings.Contains(db.execs[0].query, "trigger.claim_fencing_token = fenced.fencing_token") {
-		t.Fatalf("query missing claim_fencing_token fencing predicate: %s", db.execs[0].query)
+	if !strings.Contains(db.Execs[0].Query, "trigger.claim_fencing_token = fenced.fencing_token") {
+		t.Fatalf("query missing claim_fencing_token fencing predicate: %s", db.Execs[0].Query)
 	}
 	wantArgs := []any{"trigger-2", int64(7), "trigger-1", int64(3), now.UTC()}
-	if got := db.execs[0].args; len(got) != len(wantArgs) {
+	if got := db.Execs[0].Args; len(got) != len(wantArgs) {
 		t.Fatalf("exec args = %#v, want %#v", got, wantArgs)
 	} else {
 		for i := range wantArgs {
@@ -236,7 +237,7 @@ func awsFreshnessTriggerRow(
 	trigger freshness.Trigger,
 	status freshness.TriggerStatus,
 	now time.Time,
-) queueFakeRows {
+) fake.Rows {
 	return awsFreshnessTriggerRowWithFencingToken(trigger, status, now, 0)
 }
 
@@ -249,12 +250,12 @@ func awsFreshnessTriggerRowWithFencingToken(
 	status freshness.TriggerStatus,
 	now time.Time,
 	fencingToken int64,
-) queueFakeRows {
+) fake.Rows {
 	stored, err := freshness.NewStoredTrigger(trigger, now)
 	if err != nil {
 		panic(err)
 	}
-	return queueFakeRows{rows: [][]any{{
+	return fake.Rows{Data: [][]any{{
 		stored.TriggerID,
 		stored.DeliveryKey,
 		stored.FreshnessKey,
