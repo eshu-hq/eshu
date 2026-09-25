@@ -165,3 +165,29 @@ func TestRunsOnDeclaresOneEdgePerEndpointPair(t *testing.T) {
 		t.Fatal("RUNS_ON does not declare OneEdgePerEndpointPair; a duplicate carrying another writer's stamp, or none, is invisible to assert-edges")
 	}
 }
+
+// TestOneEdgePerEndpointPairStaysOffWhereStampsPartition pins the negative
+// side: DEPENDS_ON and TARGETS_ENVIRONMENT are partitioned by evidence_source,
+// so the flag must stay false there or the gate would report legitimate
+// parallel edges from another writer as duplicates.
+func TestOneEdgePerEndpointPairStaysOffWhereStampsPartition(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ family, edgeType string }{
+		{family: "repo_dependency", edgeType: "DEPENDS_ON"},
+		{family: "workload_dependency", edgeType: "DEPENDS_ON"},
+		{family: "kubernetes_namespace_environment", edgeType: "TARGETS_ENVIRONMENT"},
+	} {
+		constraints, ok := MaterializedEdgeEndpointLabels(tc.family)
+		if !ok {
+			t.Fatalf("%s has no endpoint constraints", tc.family)
+		}
+		endpoint, ok := constraints[tc.edgeType]
+		if !ok {
+			t.Fatalf("%s has no %s constraint", tc.family, tc.edgeType)
+		}
+		if endpoint.OneEdgePerEndpointPair {
+			t.Errorf("%s %s sets OneEdgePerEndpointPair; its writers are not declared to share one canonical edge per pair", tc.family, tc.edgeType)
+		}
+	}
+}
