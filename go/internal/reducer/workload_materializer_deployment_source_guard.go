@@ -107,12 +107,38 @@ func buildDeploymentSourceTargetProbe(rows []DeploymentSourceRow) (string, map[s
 	return sb.String(), params
 }
 
+// deploymentSourceProbeError fails a materialization pass whose target
+// existence probe could not run. The guard fails closed (#6759): writing
+// without verification would let an absent target turn the MERGE into a
+// silent no-op counted as written. Retryable() keeps the intent queued, but
+// the error deliberately carries no FailureClass, so it is a counting failure:
+// a persistent backend fault spends the normal retry budget and dead-letters
+// loudly instead of waiting forever like a genuine target-not-ready deferral.
+type deploymentSourceProbeError struct {
+	batchRows int
+	cause     error
+}
+
+func (e *deploymentSourceProbeError) Error() string {
+	return fmt.Sprintf(
+		"deployment-source target probe failed for a batch of %d row(s); failing the pass rather than writing unverified: %v",
+		e.batchRows, e.cause,
+	)
+}
+
+// Unwrap exposes the probe failure to errors.Is/As.
+func (e *deploymentSourceProbeError) Unwrap() error { return e.cause }
+
+// Retryable opts the probe failure into bounded queue retries.
+func (e *deploymentSourceProbeError) Retryable() bool { return true }
+
 // checkDeploymentSourceTargets probes one deployment-source batch for
 // write-target completeness before its MERGE runs. It returns nil when no
-// prober is wired, the probe itself fails (fail open on infrastructure
-// faults: a backend fault must not stall the partition on work that may be
-// perfectly writable), or every target is present. A detected miss returns a
-// retryable error; the caller must run no deployment-source statement for
+// prober is wired or every target is present. A detected miss returns a
+// retryable, non-counting deferral. A failing probe fails closed: it returns a
+// retryable, counting error wrapping the probe failure, because a write the
+// guard could not verify may silently no-op on an absent target (#6759). In
+// both failure cases the caller must run no deployment-source statement for
 // the batch afterwards and must count nothing as written.
 func checkDeploymentSourceTargets(
 	ctx context.Context,
@@ -129,12 +155,12 @@ func checkDeploymentSourceTargets(
 	if err != nil {
 		if logger != nil {
 			logger.Warn(
-				"deployment-source target probe failed, writing without verification",
+				"deployment-source target probe failed, failing the pass closed",
 				"batch_rows", len(rows),
 				"error", err,
 			)
 		}
-		return nil
+		return &deploymentSourceProbeError{batchRows: len(rows), cause: err}
 	}
 	if allPresent {
 		return nil
