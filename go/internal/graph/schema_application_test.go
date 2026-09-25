@@ -55,7 +55,12 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
+			// #7097 drops the three single-property uniqueness constraints
+			// narrower than the canonical uid identity on NornicDB and adds
+			// no statement, so no write identity changes and the previous tip
+			// stays admitted.
 			compatible: []string{
+				graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
 				graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
 				graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
 			},

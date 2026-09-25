@@ -20,7 +20,7 @@ predecessor stays compatible.
 
 ## Proof
 
-- Guard `TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity`
+- Guard `TestUniqueConstraintsDoNotNarrowCanonicalUIDIdentity/neo4j`
   (`go/internal/graph/schema_uid_identity_test.go`). It is RED on the base with
   exactly the five labels and GREEN on this change. Its seeded-violation
   companion `TestNarrowUIDIdentityConstraintsSeededViolation` flags a planted
@@ -100,13 +100,13 @@ In those cases two failures stop the strict bootstrap:
 Before such a rollback, drop the three `path` indexes and resolve the
 TerraformModule and HelmChart `(name, path)` duplicates.
 
-## Open: NornicDB
+## NornicDB
 
 NornicDB drops only the composite `REQUIRE (...) IS UNIQUE` form, so it still
-enforces the single-property `kustomize_unique`, `helm_values_unique` and
+enforced the single-property `kustomize_unique`, `helm_values_unique` and
 `tg_config_unique`. A throwaway probe ran the same two-generation write against
 the pinned `nornicdb-amd64-cpu:fix-500-e022384c`. TerraformModule passed.
 HelmValues, KustomizeOverlay and TerragruntConfig failed with
 `Neo.TransientError.Transaction.Outdated (commit failed: constraint violation: UNIQUE on <Label>.[path])`
-after retrying for 30s. This change leaves NornicDB untouched, and the owner
-decides the follow-up.
+after retrying for 30s. #7097 retires them; see
+[7097-nornicdb-narrow-uid-constraints.md](7097-nornicdb-narrow-uid-constraints.md).

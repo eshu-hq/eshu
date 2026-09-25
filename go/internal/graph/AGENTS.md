@@ -79,6 +79,13 @@
   NornicDB dialect uses `uid` uniqueness constraints and lookup indexes for the
   same labels; projector code must derive canonical `uid` values from the same
   identity tuple before graph write instead of trusting caller-supplied IDs.
+- **Uniqueness keys must not be narrower than the uid** — a uniqueness
+  constraint on a uid-MERGEd canonical label must be `{uid}` or a superset of
+  `(name, path, line_number)`. The writer upserts a moved block's new uid before
+  it retracts the old node. Retire a narrower key with
+  `DROP CONSTRAINT ... IF EXISTS` in the dialect (`schema_retired_constraints.go`,
+  #7095 Neo4j, #7097 NornicDB) and let
+  `TestUniqueConstraintsDoNotNarrowCanonicalUIDIdentity` enforce it.
 - **No import cycles** — `CypherStatement` and `CypherExecutor` are defined
   here, not imported from `storage/cypher`. Do not add an import of
   `internal/storage/cypher` or any package that imports it.

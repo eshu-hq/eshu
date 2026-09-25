@@ -48,8 +48,8 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   adoption for NornicDB and disabled adoption for Neo4j. Truthy values require
   inspection support for either backend. False values disable adoption. Adoption
   inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; if every current schema object
-  already exists and no object the schema drops (the Neo4j `DROP CONSTRAINT`
-  statements, #7095) is still present, it marks the backend/fingerprint as
+  already exists and no object the schema drops (the `DROP CONSTRAINT`
+  statements, #7095 on Neo4j and #7097 on NornicDB) is still present, it marks the backend/fingerprint as
   applied and skips the DDL pass. A still-present retired object makes
   adoption incomplete so the DDL pass runs the drop. If only some NornicDB
   objects are missing, the DDL pass forwards only those missing objects and

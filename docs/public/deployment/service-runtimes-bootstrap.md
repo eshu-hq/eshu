@@ -134,8 +134,7 @@ changes may declare older writer fingerprints compatible in the marker row.
 Destructive schema changes leave the list empty so stale pods refuse before
 runtime graph writes fail.
 
-On Neo4j, the graph schema bootstrap also drops constraints that later releases
-retire. `DROP CONSTRAINT ... IF EXISTS` runs before every other statement. The
+The graph schema bootstrap also drops constraints that later releases retire. `DROP CONSTRAINT ... IF EXISTS` runs before every other statement. The
 first retired set (#7095) covers `tf_module_unique`, `helm_chart_unique`,
 `helm_values_unique`, `kustomize_unique`, and `tg_config_unique`. Their keys
 were narrower than the canonical `uid` identity, so the delta that moved a block
@@ -155,6 +154,32 @@ Otherwise the path constraints fail with `IndexAlreadyExists`. Then resolve
 TerraformModule and HelmChart nodes that share `(name, path)`, which this schema
 permits. Otherwise the composite constraints fail with
 `ConstraintCreationFailed`. Either failure stops the strict bootstrap.
+
+NornicDB retires the three single-property members of that set (#7097):
+`kustomize_unique`, `helm_values_unique`, and `tg_config_unique`. NornicDB never
+created the composite `tf_module_unique` and `helm_chart_unique`. The same delta
+failed on NornicDB with `Neo.TransientError.Transaction.Outdated` (a UNIQUE
+constraint violation). NornicDB marks that error transient, so the work item
+retried instead of dead-lettering. NornicDB gets no replacement `path` index:
+the delta retract filters `n.path IN $file_paths` and does not seek a `path`
+index or constraint on the pinned NornicDB, so an index would cost writes and a
+backfill and serve no read.
+
+This moves the NornicDB schema fingerprint, so the first
+`eshu-bootstrap-data-plane` run after the upgrade re-applies the schema on an
+existing store. With the default opportunistic adoption, that run finds the
+retired constraints still present, refuses to adopt, and forwards only the three
+`DROP CONSTRAINT ... IF EXISTS` statements to NornicDB, because every other
+object already exists and is skipped before it reaches the backend. No index
+is rebuilt, so the upgrade adds three cheap drops and no property-index
+backfill. Setting `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` disables that filter
+and re-runs the whole DDL pass, which re-runs every `CREATE INDEX IF NOT EXISTS`
+on a populated graph; leave it unset for this upgrade. The previous NornicDB
+fingerprint stays in the marker's compatible list, so pods still on the older
+release keep writing during a rolling upgrade, and a rollback to that release
+skips graph DDL, so the three constraints stay dropped. Re-creating them by
+forcing the older DDL on a populated graph is a slow, needless step; do not do
+it.
 
 That startup check decides whether a writer may **start**. A writer already past
 it keeps writing unless something checks again, and with
@@ -239,7 +264,7 @@ or GitOps workflow.
 Existing-schema adoption inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`, then
 fails closed if inspection errors. Unset adoption is opportunistic for NornicDB
 and disabled for Neo4j; truthy values require adoption support. A graph that
-still has an object the schema drops (the retired Neo4j constraints above) is
+still has an object the schema drops (the retired constraints above) is
 not adopted, so the DDL pass runs the drop. When inspection
 finds an incomplete NornicDB schema, bootstrap forwards only missing objects to
 the strict DDL pass. Existing indexes and constraints are skipped before they
