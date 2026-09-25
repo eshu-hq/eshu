@@ -29,7 +29,16 @@ func componentCollectorInstancesFromEnv(getenv func(string) string) ([]workflow.
 		if entry.Error != nil || entry.Verification == nil || !entry.Verification.Allowed {
 			continue
 		}
-		manifest, err := component.LoadManifest(entry.ManifestPath)
+		// Reload through the registry, not component.LoadManifest: the bare
+		// loader passes no producer grants and rejects any core-owned fact
+		// kind, so a manifest that Readback admitted under a live grant would
+		// abort coordinator startup here. LoadInstalledManifest is the loader
+		// the extension worker uses, so both planners admit the same set. It
+		// re-reads grants per component rather than reusing one snapshot
+		// because Readback loads its own state and cannot share it; a
+		// revocation landing between the two reads fails closed as a hard
+		// error rather than planning an activation without authorization.
+		manifest, err := registry.LoadInstalledManifest(entry.ID, entry.Version)
 		if err != nil {
 			return nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
 		}

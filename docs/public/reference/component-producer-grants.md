@@ -68,8 +68,9 @@ stored grant revoked so the next emission fails closed.
 Grants are read from durable registry state, never from the component
 package itself:
 
-- Install, enable, and readback resolve the registry's stored grants, so a
-  granted core-kind manifest passes admission while an ungranted one keeps
+- Install, enable, readback, and coordinator activation planning resolve the
+  registry's stored grants, so a granted core-kind manifest passes admission
+  and is planned as a collector instance, while an ungranted one keeps
   the fail-closed core-owned rejection. Install reads the target home's
   grants before its own pre-validation, which is what makes
   grant-first-then-install work through the operator CLI.
