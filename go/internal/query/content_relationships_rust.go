@@ -8,6 +8,15 @@ import (
 	"fmt"
 )
 
+// buildOutgoingRustImplBlockRelationships lists the Functions an ImplBlock
+// contains by scanning the repository's Functions and keeping those whose
+// impl_context names the block.
+//
+// The scan is capped at the 20-row content-lookup ceiling before the
+// impl_context filter runs, so the truncation flag means the scan hit that
+// ceiling, not that more members exist. Any repository with more than 20
+// Functions therefore reports its ImplBlocks as truncated, even when every
+// real member was returned.
 func buildOutgoingRustImplBlockRelationships(
 	ctx context.Context,
 	reader ContentStore,
