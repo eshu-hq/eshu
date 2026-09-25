@@ -494,7 +494,10 @@ jobs:
   gate:
     name: ${{ matrix.display }}
     needs: changes
-    if: ${{ needs.changes.outputs.any == 'true' }}
+    # merge_group lists every gate in the matrix (see append_gate), so `any`
+    # is true there; the explicit arm lets ci-gates validate prove this job
+    # always runs on a queue entry.
+    if: ${{ github.event_name == 'merge_group' || needs.changes.outputs.any == 'true' }}
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
     strategy:

@@ -124,7 +124,14 @@ jobs:
 
   build-and-push-image:
     needs: changes
-    if: needs.changes.outputs.image == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
     permissions:
@@ -135,9 +142,11 @@ jobs:
 
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
+        if: env.LANE_APPLIES == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
@@ -149,6 +158,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
+        if: env.LANE_APPLIES == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -163,10 +173,12 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Compute source date epoch
+        if: env.LANE_APPLIES == 'true'
         id: epoch
         run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
       - name: Pin deterministic labels
+        if: env.LANE_APPLIES == 'true'
         id: labels
         run: |
           CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
@@ -175,6 +187,7 @@ jobs:
           { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
 
       - name: Build and push Docker image
+        if: env.LANE_APPLIES == 'true'
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -260,23 +273,34 @@ jobs:
     needs:
       - changes
       - build-and-push-image
-    if: needs.changes.outputs.image == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.image }}
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
+        if: env.LANE_APPLIES == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Compute source date epoch
+        if: env.LANE_APPLIES == 'true'
         id: epoch
         run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
       - name: Build image (first)
+        if: env.LANE_APPLIES == 'true'
         run: |
           docker buildx build \
             --platform linux/amd64 \
@@ -288,6 +312,7 @@ jobs:
             .
 
       - name: Build image (second, no cache)
+        if: env.LANE_APPLIES == 'true'
         run: |
           docker buildx build \
             --platform linux/amd64 \
@@ -299,6 +324,7 @@ jobs:
             .
 
       - name: Compare builds
+        if: env.LANE_APPLIES == 'true'
         run: |
           (cd /tmp/out1 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out1.sha256
           (cd /tmp/out2 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out2.sha256
@@ -358,7 +384,14 @@ jobs:
 
   package-and-push-chart:
     needs: changes
-    if: needs.changes.outputs.chart == 'true'
+    # Always runs on merge_group so a truncated queue selection (every
+    # blocking gate) never sees it SKIPPED; LANE_APPLIES gates the steps,
+    # and a queue entry that does not touch this lane passes as a no-op.
+    # `changes` diffs the full merge-base range with no file cap, a superset
+    # of what required-gates.yml selects, so a selected lane always builds.
+    if: github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.chart }}
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -367,9 +400,11 @@ jobs:
 
     steps:
       - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
         uses: actions/checkout@v5
 
       - name: Set up Helm
+        if: env.LANE_APPLIES == 'true'
         uses: azure/setup-helm@v5.0.0
         with:
           # Pinned: setup-helm installs latest by default, and a newer helm
@@ -379,9 +414,11 @@ jobs:
           version: v4.2.3
 
       - name: Lint Helm chart
+        if: env.LANE_APPLIES == 'true'
         run: helm lint ${{ env.CHART_PATH }}
 
       - name: Package Helm chart
+        if: env.LANE_APPLIES == 'true'
         run: |
           mkdir -p dist
           helm package ${{ env.CHART_PATH }} --destination dist

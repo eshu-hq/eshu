@@ -27,12 +27,12 @@ ruleset does not require up-to-date branches — so the rebase-and-rerun loop th
 stamp forced was entirely self-imposed, and PRs sat for days waiting on it.
 
 The non-strict ruleset alone later proved unsafe: at 5–8 merges a day, two
-green PRs could land a red `main` because neither was tested against the other
-(about 60% of CI reds in the September 2026 survey). `main` now merges through
-a GitHub merge queue. The queue builds each entry on top of the entries ahead
-of it and runs every required context on that exact commit (`merge_group`),
-so correctness no longer depends on authors rebasing, and strict mode stays
-off. Enter the queue from the PR page; do not rebase just because `main` moved.
+green PRs could land a red `main` because neither was tested against the other.
+That was the leading cause of CI reds in the September 2026 CI failure review
+tracked in #7111. `main` now merges through a GitHub merge queue. The queue
+builds each entry on top of the entries ahead of it and runs the required
+contexts on that exact commit (`merge_group`), so correctness no longer
+depends on authors rebasing, and strict mode stays off. Enter the queue from the PR page; do not rebase just because `main` moved.
 
 This does **not** weaken the Ifá/Odù protection for contracts, performance, or
 end-to-end behavior. That protection was never fully local to begin with: the

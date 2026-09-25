@@ -64,6 +64,7 @@ func checkRequiredStatusWorkflows(repoRoot string, reg *Registry) []error {
 		errs = append(errs, validateTrustedAggregator(check, raw, workflow.Concurrency, workflow.Permissions, job)...)
 		errs = append(errs, validateSourceWorkflow(repoRoot, check)...)
 		errs = append(errs, validateBlockingWorkflowSources(repoRoot, check, raw, reg)...)
+		errs = append(errs, validateBlockingJobsRunOnMergeGroup(repoRoot, check, reg)...)
 	}
 	return errs
 }

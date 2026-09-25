@@ -44,7 +44,13 @@ queue, so validation also requires every blocking gate's workflow to declare a
 `merge_group` trigger. Without one, a queue entry that selects the gate waits
 out its timeout on a check that never appears. The rule follows from the
 `blocking` flag rather than an exception list: a workflow that must not run on
-the queue has to stop being blocking.
+the queue has to stop being blocking. Each blocking job must also provably run on
+`merge_group`: its job-level `if:` has to evaluate true with
+`github.event_name == 'merge_group'` (other contexts count as unknown, and
+`always()`/`cancelled()` are understood), and so must every job it `needs`.
+A queue entry whose compare hits the 300-file cap selects every blocking gate,
+so a SKIPPED blocking job there would publish `failure` for a gate that does
+not apply. Path-selective jobs run anyway on the queue and gate their steps.
 
 ## Selector semantics
 
