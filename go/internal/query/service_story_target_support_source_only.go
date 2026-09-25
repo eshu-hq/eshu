@@ -62,9 +62,18 @@ SELECT
 ` + serviceStoryTargetSupportActiveFactsFrom("fact.fact_kind", []string{
 		"fact.is_tombstone = FALSE",
 		`NOT (
-      (jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND jsonb_array_length(fact.payload->'candidate_refs') > 0)
-   OR (jsonb_typeof(fact.payload->'evidence_refs') = 'array' AND jsonb_array_length(fact.payload->'evidence_refs') > 0)
-   OR (jsonb_typeof(fact.payload->'linked_entities') = 'array' AND jsonb_array_length(fact.payload->'linked_entities') > 0)
+      CASE WHEN jsonb_typeof(fact.payload->'candidate_refs') = 'array'
+        THEN jsonb_array_length(fact.payload->'candidate_refs') > 0
+        ELSE FALSE
+      END
+   OR CASE WHEN jsonb_typeof(fact.payload->'evidence_refs') = 'array'
+        THEN jsonb_array_length(fact.payload->'evidence_refs') > 0
+        ELSE FALSE
+      END
+   OR CASE WHEN jsonb_typeof(fact.payload->'linked_entities') = 'array'
+        THEN jsonb_array_length(fact.payload->'linked_entities') > 0
+        ELSE FALSE
+      END
   )`,
 	}) + `
 `, []any{array.Of(factKinds)}

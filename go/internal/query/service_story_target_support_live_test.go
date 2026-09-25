@@ -28,8 +28,8 @@ import (
 //   - the target read orders by observed_at DESC then fact_id DESC, so a tie on
 //     observed_at is broken deterministically;
 //   - a kind listed twice counts its facts once (fact_kind = ANY semantics);
-//   - the source-only rollup keeps its pre-existing three-valued-logic
-//     behavior: a fact missing a ref key is not counted (tracked in #6807).
+//   - the source-only rollup includes active source facts with absent or empty
+//     ref arrays, and excludes facts with a nonempty ref array (#6807).
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
@@ -70,8 +70,26 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	if err := conn.QueryRowContext(ctx, sourceSQL, array.Of(kinds)).Scan(&total, &workItems, &incidents); err != nil {
 		t.Fatalf("source-only query: %v", err)
 	}
-	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "2|1|1"; got != want {
+	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "5|4|1"; got != want {
 		t.Fatalf("source-only counts = %s, want %s", got, want)
+	}
+	support := buildStoryTargetSupportWithSourceOnlySummary(
+		serviceStoryTargetSupportFilter{Repository: "repo-x", Limit: 20},
+		nil,
+		false,
+		serviceStoryTargetSupportSourceOnlySummary{
+			TotalCount:           int(total),
+			WorkItemCount:        int(workItems),
+			IncidentRoutingCount: int(incidents),
+		},
+	)
+	coverage := mapValue(support, "coverage")
+	if got := IntVal(coverage, "source_only_count"); got != 5 {
+		t.Fatalf("coverage.source_only_count = %d, want 5", got)
+	}
+	missing, ok := support["missing_evidence"].([]map[string]any)
+	if !ok || len(missing) != 1 || StringVal(missing[0], "reason") != "support_source_only_not_target_linked" {
+		t.Fatalf("missing_evidence = %#v, want source-only reason", support["missing_evidence"])
 	}
 }
 
@@ -152,10 +170,16 @@ VALUES ($1, $2, 'snapshot', $3, $3, $4, '{}'::jsonb)`, gen.id, gen.scope, base, 
 		{"f-other-repo", "s-b", "g-b", "work_item.record", `{"candidate_refs":[{"id":"repo-y","kind":"repository"}]}`, 0, false},
 		{"f-foreign", "s-foreign", "g-none", "work_item.record", linked, 0, false},
 		{"f-pending", "s-pending", "g-p", "work_item.record", linked, 0, false},
-		// Source-only candidates on the active generation of s-b.
+		// Source-only candidates on the active generation of s-b. A fact with
+		// no ref keys, one with only some empty ref keys, one with a non-array
+		// ref value, and facts with all empty ref keys must count. Any nonempty
+		// ref array must exclude it.
 		{"src-work", "s-b", "g-b", "work_item.record", allEmpty, 0, false},
 		{"src-incident", "s-b", "g-b", "incident_routing.coverage_warning", allEmpty, 0, false},
-		{"src-missing-keys", "s-b", "g-b", "work_item.record", `{}`, 0, false},
+		{"src-no-ref-keys", "s-b", "g-b", "work_item.record", `{}`, 0, false},
+		{"src-some-ref-keys", "s-b", "g-b", "work_item.record", `{"candidate_refs":[]}`, 0, false},
+		{"src-nonarray-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":{}}`, 0, false},
+		{"src-nonempty-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":[],"evidence_refs":[{"id":"repo-z"}],"linked_entities":[]}`, 0, false},
 	} {
 		exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
