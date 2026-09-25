@@ -81,6 +81,7 @@ func TestDocumentationFactsActiveScopeReadUsesKeysetIndexLive(t *testing.T) {
 
 type docFactsPlanNode struct {
 	NodeType      string             `json:"Node Type"`
+	RelationName  string             `json:"Relation Name"`
 	IndexName     string             `json:"Index Name"`
 	ScanDirection string             `json:"Scan Direction"`
 	IndexCond     string             `json:"Index Cond"`
@@ -92,6 +93,7 @@ type docFactsPlanNode struct {
 type docFactsPlan struct {
 	Plan          docFactsPlanNode `json:"Plan"`
 	ExecutionTime float64          `json:"Execution Time"`
+	raw           string
 }
 
 func (p docFactsPlan) walk(visit func(docFactsPlanNode)) {
@@ -201,6 +203,7 @@ func decodeDocumentationFactsPlan(t *testing.T, raw []byte) docFactsPlan {
 	if err := json.Unmarshal(raw, &plans); err != nil || len(plans) != 1 {
 		t.Fatalf("decode plan: err=%v raw=%s", err, raw)
 	}
+	plans[0].raw = string(raw)
 	return plans[0]
 }
 
@@ -256,5 +259,142 @@ CROSS JOIN generate_series(1, $3) AS n`,
 	}
 	if _, err := db.ExecContext(ctx, "ANALYZE fact_records; ANALYZE ingestion_scopes; ANALYZE scope_generations"); err != nil {
 		t.Fatalf("analyze: %v", err)
+	}
+}
+
+// TestDocumentationFactsAnchorOnlyReadsBindActiveGenerationLive proves the two
+// anchor-only binding forms (#7128) plan as intended at the ops-qa source
+// scale: 1,500 scopes of eight generations each, one documentation_source fact
+// per generation (12,000 rows, one row in eight active).
+//
+//   - active_probe (fact_kind=source alone) keeps the ordered scan of the
+//     documentation_source partial index with no Sort, and probes
+//     ingestion_scopes by primary key per row;
+//   - active_join (a selective anchor, and any scoped token) binds through one
+//     INNER JOIN on ingestion_scopes.active_generation_id.
+//
+// Both are checked under a literal plan and under force_generic_plan.
+func TestDocumentationFactsAnchorOnlyReadsBindActiveGenerationLive(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN"),
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE"),
+		6*time.Minute,
+	)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply bootstrap: %v", err)
+	}
+	seedDocumentationFactsSourceScale(t, ctx, db)
+
+	t.Run("probe form keeps the ordered partial-index scan", func(t *testing.T) {
+		filter := documentationFactFilter{FactKind: "documentation_source", Limit: 10}
+		if got := documentationFactBindingForm(filter); got != documentationFactBindingActiveProbe {
+			t.Fatalf("binding form = %q, want active_probe", got)
+		}
+		query, args := buildDocumentationFactsSQL(filter)
+		for label, plan := range map[string]docFactsPlan{
+			"literal": explainDocumentationFactsLiteral(t, ctx, db, query, args),
+			"generic": explainDocumentationFactsGeneric(t, ctx, db, query, args),
+		} {
+			var sourcesIdx, sorted, scopePK bool
+			plan.walk(func(n docFactsPlanNode) {
+				if n.IndexName == "fact_records_documentation_sources_observed_idx" {
+					sourcesIdx = true
+				}
+				if n.NodeType == "Sort" {
+					sorted = true
+				}
+				if n.RelationName == "ingestion_scopes" && strings.Contains(n.NodeType, "Index") {
+					scopePK = true
+				}
+			})
+			buffers := plan.Plan.SharedHit + plan.Plan.SharedRead
+			t.Logf("DOCFACTS_PLAN form=active_probe mode=%s sources_idx=%v scope_pk_probe=%v sort=%v exec_ms=%.3f buffers=%d",
+				label, sourcesIdx, scopePK, sorted, plan.ExecutionTime, buffers)
+			if !sourcesIdx || sorted || !scopePK {
+				t.Fatalf("%s plan lost the ordered early stop: sources_idx=%v sort=%v scope_pk_probe=%v\n%s",
+					label, sourcesIdx, sorted, scopePK, plan.raw)
+			}
+			if buffers > 600 {
+				t.Fatalf("%s plan touched %d buffers, want at most 600", label, buffers)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		filter documentationFactFilter
+	}{
+		{"selective anchor", documentationFactFilter{FactKind: "documentation_source", SourceID: "doc-source:scale:0042", Limit: 10}},
+		{"scoped token", documentationFactFilter{FactKind: "documentation_source", Limit: 10, AllowedScopeIDs: []string{"scope:docfacts-scale-0042"}}},
+	} {
+		t.Run("join form "+tc.name, func(t *testing.T) {
+			if got := documentationFactBindingForm(tc.filter); got != documentationFactBindingActiveJoin {
+				t.Fatalf("binding form = %q, want active_join", got)
+			}
+			query, args := buildDocumentationFactsSQL(tc.filter)
+			for label, plan := range map[string]docFactsPlan{
+				"literal": explainDocumentationFactsLiteral(t, ctx, db, query, args),
+				"generic": explainDocumentationFactsGeneric(t, ctx, db, query, args),
+			} {
+				var joined bool
+				plan.walk(func(n docFactsPlanNode) {
+					if n.RelationName == "ingestion_scopes" {
+						joined = true
+					}
+				})
+				t.Logf("DOCFACTS_PLAN form=active_join case=%q mode=%s ingestion_scopes=%v exec_ms=%.3f buffers=%d",
+					tc.name, label, joined, plan.ExecutionTime, plan.Plan.SharedHit+plan.Plan.SharedRead)
+				if !joined || !strings.Contains(plan.raw, "active_generation_id") {
+					t.Fatalf("%s plan does not bind through ingestion_scopes.active_generation_id:\n%s", label, plan.raw)
+				}
+			}
+			// The join returns exactly the active generation's row.
+			got := documentationFactPayloadIDs(t, ctx, db, query, args...)
+			if len(got) != 1 || !strings.HasSuffix(got[0], ":8") {
+				t.Fatalf("join-form rows = %v, want the single active-generation fact", got)
+			}
+		})
+	}
+}
+
+// seedDocumentationFactsSourceScale seeds 1,500 scopes x eight generations with
+// one documentation_source fact per generation; generation 8 is active.
+func seedDocumentationFactsSourceScale(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+  scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, payload
+)
+SELECT 'scope:docfacts-scale-' || lpad(s::text, 4, '0'), 'documentation_source', 'proof', 'proof', 'proof', 'proof',
+  clock_timestamp(), clock_timestamp(), 'active',
+  jsonb_build_object('repo', 'scope:docfacts-scale-' || lpad(s::text, 4, '0'))
+FROM generate_series(1, 1500) AS s;
+INSERT INTO scope_generations (
+  generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+)
+SELECT 'generation:docfacts-scale-' || lpad(s::text, 4, '0') || ':' || g,
+  'scope:docfacts-scale-' || lpad(s::text, 4, '0'), 'proof',
+  clock_timestamp(), clock_timestamp(), CASE WHEN g = 8 THEN 'active' ELSE 'superseded' END, clock_timestamp()
+FROM generate_series(1, 1500) AS s CROSS JOIN generate_series(1, 8) AS g;
+UPDATE ingestion_scopes SET active_generation_id =
+  'generation:docfacts-scale-' || substr(scope_id, length('scope:docfacts-scale-') + 1) || ':8'
+WHERE scope_id LIKE 'scope:docfacts-scale-%';
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at, payload
+)
+SELECT 'fact:docfacts-scale-' || lpad(s::text, 4, '0') || ':' || g,
+  'scope:docfacts-scale-' || lpad(s::text, 4, '0'),
+  'generation:docfacts-scale-' || lpad(s::text, 4, '0') || ':' || g,
+  'documentation_source', 'stable:' || s || ':' || g, 'proof', 'proof', 'key:' || s || ':' || g,
+  TIMESTAMPTZ '2026-09-01 00:00:00+00' + (g * interval '1 day') + (s * interval '1 second'),
+  clock_timestamp(),
+  jsonb_build_object('source_id', 'doc-source:scale:' || lpad(s::text, 4, '0'))
+FROM generate_series(1, 1500) AS s CROSS JOIN generate_series(1, 8) AS g;
+ANALYZE fact_records; ANALYZE ingestion_scopes; ANALYZE scope_generations;
+`); err != nil {
+		t.Fatalf("seed source scale: %v", err)
 	}
 }

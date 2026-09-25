@@ -139,6 +139,46 @@ func TestDocumentationFactsBindActiveGenerationLive(t *testing.T) {
 		}
 	})
 
+	t.Run("probe form and join form return identical rows", func(t *testing.T) {
+		// The kind-only source read binds through the per-row probe; the same
+		// read written with the INNER JOIN must return the same ordered rows.
+		// The seed makes the comparison bite: source facts of every scope tie on
+		// observed_at (fact_id breaks the tie), two scopes are active, one has a
+		// superseded generation, and two scopes have a NULL active generation
+		// (dead-lettered and pending) whose facts both forms must exclude.
+		filter := documentationFactFilter{FactKind: "documentation_source", Limit: 200}
+		probeSQL, args := buildDocumentationFactsSQL(filter)
+		if documentationFactBindingForm(filter) != documentationFactBindingActiveProbe ||
+			!strings.Contains(probeSQL, documentationFactActiveProbeClause) {
+			t.Fatalf("filter did not select the probe form:\n%s", probeSQL)
+		}
+		joinSQL := strings.Replace(probeSQL, " AND "+documentationFactActiveProbeClause, "", 1)
+		joinSQL = strings.Replace(joinSQL, "FROM fact_records\n", "FROM fact_records"+documentationFactActiveScopeJoinSQL+"\n", 1)
+		if joinSQL == probeSQL || strings.Contains(joinSQL, documentationFactActiveProbeClause) {
+			t.Fatalf("join-form derivation did not change the statement:\n%s", joinSQL)
+		}
+		probeIDs := documentationFactPayloadIDs(t, ctx, db, probeSQL, args...)
+		joinIDs := documentationFactPayloadIDs(t, ctx, db, joinSQL, args...)
+		assertDocumentationFactIDs(t, probeIDs, joinIDs)
+		want := []string{
+			"fact:" + docFactsGenNew + ":source",
+			"fact:" + docFactsGenD + ":source",
+		}
+		if !sameDocumentationIDSet(probeIDs, want) {
+			t.Fatalf("probe form = %v, want exactly the active sources %v (NULL-active and superseded generations excluded)", probeIDs, want)
+		}
+		// Paging one row at a time walks the same order through both forms.
+		for offset := 0; offset < 3; offset++ {
+			page := documentationFactFilter{FactKind: "documentation_source", Limit: 1, Offset: offset}
+			pageSQL, pageArgs := buildDocumentationFactsSQL(page)
+			pageJoin := strings.Replace(pageSQL, " AND "+documentationFactActiveProbeClause, "", 1)
+			pageJoin = strings.Replace(pageJoin, "FROM fact_records\n", "FROM fact_records"+documentationFactActiveScopeJoinSQL+"\n", 1)
+			assertDocumentationFactIDs(t,
+				documentationFactPayloadIDs(t, ctx, db, pageSQL, pageArgs...),
+				documentationFactPayloadIDs(t, ctx, db, pageJoin, pageArgs...))
+		}
+	})
+
 	t.Run("scope without an active generation returns no rows and says why", func(t *testing.T) {
 		for _, tc := range []struct {
 			scope      string
@@ -263,6 +303,29 @@ WHERE f.is_tombstone = FALSE AND f.fact_kind IN (`+documentationCollectedFactKin
 ORDER BY f.observed_at DESC, f.fact_id DESC`, sourceID)
 }
 
+// documentationFactPayloadIDs runs a production-shaped facts statement and
+// returns the fact_id of each returned payload, in row order.
+func documentationFactPayloadIDs(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) []string {
+	t.Helper()
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		t.Fatalf("facts statement: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		payload, err := scanJSONPayload(rows)
+		if err != nil {
+			t.Fatalf("scan payload: %v", err)
+		}
+		ids = append(ids, payload["fact_id"].(string))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("facts rows: %v", err)
+	}
+	return ids
+}
+
 func queryDocumentationIDs(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -301,7 +364,7 @@ func seedDocumentationFactsGenerationRowSet(t *testing.T, ctx context.Context, d
 		{docFactsScopeA, docFactsGenNew, "active", "active", true, true},
 		{docFactsScopeD, docFactsGenD, "active", "active", true, true},
 		{docFactsScopeB, docFactsGenB, "failed", "failed", false, true},
-		{docFactsScopeC, docFactsGenC, "pending", "pending", false, false},
+		{docFactsScopeC, docFactsGenC, "pending", "pending", false, true},
 		{docFactsScopeE, docFactsGenE, "active", "active", true, false},
 	} {
 		seedDocumentationFactsScopeGeneration(t, ctx, db, s)

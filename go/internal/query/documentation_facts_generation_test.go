@@ -65,23 +65,101 @@ func TestBuildDocumentationFactsSQLKeepsExplicitGeneration(t *testing.T) {
 	}
 }
 
-func TestDocumentationFactGenerationBindingKind(t *testing.T) {
+func TestDocumentationFactBindingFormForEveryFilterClass(t *testing.T) {
 	t.Parallel()
 
+	grantScope := []string{"scope-a"}
+	grantRepo := []string{"repository:r_1"}
 	for _, tc := range []struct {
 		name   string
 		filter documentationFactFilter
 		want   string
 	}{
+		// scope_id reads: scalar subquery, whatever else is set.
 		{"scope only", documentationFactFilter{ScopeID: "s"}, "active_scope"},
 		{"scope with blank generation", documentationFactFilter{ScopeID: "s", GenerationID: "  "}, "active_scope"},
-		{"anchor only", documentationFactFilter{Repository: "repository:r_1"}, "active_join"},
-		{"blank scope is anchor only", documentationFactFilter{ScopeID: "  ", SourceID: "src"}, "active_join"},
+		{"scope with kind", documentationFactFilter{ScopeID: "s", FactKind: "documentation_source"}, "active_scope"},
+		{"scope with payload filters", documentationFactFilter{ScopeID: "s", SourceID: "x", Query: "q"}, "active_scope"},
+		{"scope with scoped token", documentationFactFilter{ScopeID: "s", AllowedScopeIDs: grantScope}, "active_scope"},
+		{"scope with repo grant", documentationFactFilter{ScopeID: "s", AllowedRepositoryIDs: grantRepo}, "active_scope"},
+		// explicit generation: the exact read, with or without a scope or grant.
 		{"explicit", documentationFactFilter{ScopeID: "s", GenerationID: "g"}, "explicit"},
 		{"explicit without scope", documentationFactFilter{SourceID: "src", GenerationID: "g"}, "explicit"},
+		{"explicit with scoped token", documentationFactFilter{ScopeID: "s", GenerationID: "g", AllowedScopeIDs: grantScope}, "explicit"},
+		{"explicit kind-only", documentationFactFilter{FactKind: "documentation_source", GenerationID: "g"}, "explicit"},
+		// anchor-only reads with a selective predicate: INNER JOIN.
+		{"repo", documentationFactFilter{Repository: "repository:r_1"}, "active_join"},
+		{"target", documentationFactFilter{TargetKind: "service", TargetID: "svc"}, "active_join"},
+		{"service", documentationFactFilter{ServiceID: "svc"}, "active_join"},
+		{"source id", documentationFactFilter{SourceID: "src"}, "active_join"},
+		{"document id", documentationFactFilter{DocumentID: "doc"}, "active_join"},
+		{"section id", documentationFactFilter{SectionID: "sec"}, "active_join"},
+		{"blank scope with source id", documentationFactFilter{ScopeID: "  ", SourceID: "src"}, "active_join"},
+		{"source kind with source id", documentationFactFilter{FactKind: "documentation_source", SourceID: "src"}, "active_join"},
+		{"source kind with text", documentationFactFilter{FactKind: "documentation_source", Query: "q"}, "active_join"},
+		{"source kind with repo", documentationFactFilter{FactKind: "documentation_source", Repository: "repository:r_1"}, "active_join"},
+		// kind-only source page, no scoped token: per-row PK probe.
+		{"source kind alone", documentationFactFilter{FactKind: "documentation_source"}, "active_probe"},
+		{"source kind blank scope", documentationFactFilter{FactKind: "documentation_source", ScopeID: "  "}, "active_probe"},
+		{"source kind with cursor and limit", documentationFactFilter{FactKind: "documentation_source", Limit: 10, Offset: 20}, "active_probe"},
+		// scoped tokens need the scope payload, so they always join.
+		{"source kind with scope grant", documentationFactFilter{FactKind: "documentation_source", AllowedScopeIDs: grantScope}, "active_join"},
+		{"source kind with repo grant", documentationFactFilter{FactKind: "documentation_source", AllowedRepositoryIDs: grantRepo}, "active_join"},
+		{"repo with scope grant", documentationFactFilter{Repository: "repository:r_1", AllowedScopeIDs: grantScope}, "active_join"},
+		{"blank grant does not count", documentationFactFilter{FactKind: "documentation_source", AllowedScopeIDs: []string{"  "}}, "active_probe"},
 	} {
-		if got := documentationFactGenerationBindingKind(tc.filter); got != tc.want {
-			t.Errorf("%s: binding kind = %q, want %q", tc.name, got, tc.want)
+		if got := documentationFactBindingForm(tc.filter); got != tc.want {
+			t.Errorf("%s: binding form = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestDocumentationFactsSQLFollowsBindingForm pins that the builder derives its
+// SQL from documentationFactBindingForm and from nothing else, for every form.
+func TestDocumentationFactsSQLFollowsBindingForm(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		filter       documentationFactFilter
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "active_scope",
+			filter:       documentationFactFilter{ScopeID: "s", Limit: 5},
+			wantContains: []string{"(SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $"},
+			wantAbsent:   []string{"JOIN ingestion_scopes", "SELECT s.active_generation_id"},
+		},
+		{
+			name:         "active_join",
+			filter:       documentationFactFilter{SourceID: "src", Limit: 5},
+			wantContains: []string{"\nJOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id AND ingestion_scopes.active_generation_id = fact_records.generation_id"},
+			wantAbsent:   []string{"LEFT JOIN", "SELECT s.active_generation_id", "SELECT active_generation_id"},
+		},
+		{
+			name:         "active_probe",
+			filter:       documentationFactFilter{FactKind: "documentation_source", Limit: 5},
+			wantContains: []string{"(SELECT s.active_generation_id FROM ingestion_scopes s WHERE s.scope_id = fact_records.scope_id) = fact_records.generation_id"},
+			wantAbsent:   []string{"JOIN ingestion_scopes"},
+		},
+		{
+			name:         "explicit",
+			filter:       documentationFactFilter{ScopeID: "s", GenerationID: "g", Limit: 5},
+			wantContains: []string{"fact_records.generation_id = $"},
+			wantAbsent:   []string{"active_generation_id", "JOIN ingestion_scopes"},
+		},
+	} {
+		query, _ := buildDocumentationFactsSQL(tc.filter)
+		for _, fragment := range tc.wantContains {
+			if !strings.Contains(query, fragment) {
+				t.Errorf("%s: SQL missing %q:\n%s", tc.name, fragment, query)
+			}
+		}
+		for _, fragment := range tc.wantAbsent {
+			if strings.Contains(query, fragment) {
+				t.Errorf("%s: SQL must not contain %q:\n%s", tc.name, fragment, query)
+			}
 		}
 	}
 }
@@ -116,7 +194,7 @@ func TestBuildDocumentationFactsSQLAnchorOnlyJoinsActiveGeneration(t *testing.T)
 	}
 }
 
-func TestBuildDocumentationFactsSQLKindOnlySourceReadKeepsOrderedEarlyStop(t *testing.T) {
+func TestBuildDocumentationFactsSQLProbeFormKeepsOrderedEarlyStop(t *testing.T) {
 	t.Parallel()
 
 	// fact_kind=source with nothing else is served by an ordered scan of the
@@ -145,6 +223,24 @@ func TestBuildDocumentationFactsSQLKindOnlySourceReadKeepsOrderedEarlyStop(t *te
 	})
 	if got := strings.Count(scoped, "JOIN ingestion_scopes"); got != 1 || strings.Contains(scoped, "LEFT JOIN") {
 		t.Fatalf("scoped kind-only read must INNER JOIN ingestion_scopes once, got:\n%s", scoped)
+	}
+}
+
+func TestBuildDocumentationFactsSQLInlinesOnlyTheSourceKindLiteral(t *testing.T) {
+	t.Parallel()
+
+	// A generic plan cannot prove the documentation_source partial index
+	// predicate from `fact_kind = $n`, so the source page uses the constant.
+	query, args := buildDocumentationFactsSQL(documentationFactFilter{FactKind: "documentation_source", Limit: 10})
+	if !strings.Contains(query, "fact_records.fact_kind = 'documentation_source'") {
+		t.Fatalf("source page must inline its kind literal, got:\n%s", query)
+	}
+	if len(args) != 2 {
+		t.Fatalf("args = %#v, want only limit and offset", args)
+	}
+	other, otherArgs := buildDocumentationFactsSQL(documentationFactFilter{FactKind: "documentation_section", ScopeID: "s", Limit: 10})
+	if !strings.Contains(other, "fact_records.fact_kind = $1") || otherArgs[0] != "documentation_section" {
+		t.Fatalf("other kinds must stay parameters, got:\n%s\n%#v", other, otherArgs)
 	}
 }
 
@@ -592,6 +688,7 @@ func TestDocumentationFactsHandlerRecordsGenerationBindingSpanAttribute(t *testi
 	}{
 		{"scope", "/api/v0/documentation/facts?scope_id=docs-scope", "active_scope"},
 		{"anchor", "/api/v0/documentation/facts?repo=repository:r_1", "active_join"},
+		{"kind only", "/api/v0/documentation/facts?fact_kind=source", "active_probe"},
 		{"explicit", "/api/v0/documentation/facts?scope_id=docs-scope&generation_id=g1", "explicit"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

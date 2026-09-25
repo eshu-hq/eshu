@@ -18,12 +18,30 @@ gap and are deliberately not touched here; they are tracked in #7164.
 | --- | --- | --- |
 | `scope_id`, no `generation_id` | `generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $n)` reusing the scope parameter | `generation_binding.mode=active`, bound generation from the returned rows |
 | anchor-only (`repo`, `source_id`, ...), no `generation_id` | one INNER JOIN on `ingestion_scopes.active_generation_id = fact_records.generation_id` | `mode=active`, `generation_id` empty, `is_active=true` |
-| `fact_kind=source` alone, no scoped token | ordered `documentation_source` scan plus a per-row primary-key probe of `ingestion_scopes` | as anchor-only |
+| `fact_kind=source` alone, no scoped token | ordered `documentation_source` scan plus a per-row primary-key probe of `ingestion_scopes` (`active_probe`) | as anchor-only |
 | `generation_id` set | unchanged `generation_id = $n` | `mode=explicit`, `is_active` from `scope_generations`; `truth.freshness` `fresh` (active), `stale` (superseded, completed, failed), `building` (pending), `unavailable` (unknown id) |
 | scope with no active generation | zero rows, never a latest-generation fallback | states `no_active_generation`; freshness `unavailable`/`dead_lettered_domain` for a failed scope, `building`/`pending_repo_generation` otherwise |
 | unknown `scope_id` | zero rows | state `scope_not_found` |
 
 The cursor stays an integer offset that names no generation.
+
+`documentationFactBindingForm` is the single pure function that picks the form
+(`explicit`, `active_scope`, `active_join`, `active_probe`); the SQL builder, the
+read model, and the handler span attribute all call it and nothing else chooses
+a form. `TestDocumentationFactBindingFormForEveryFilterClass` covers every
+filter class, including scoped-token callers, and
+`TestDocumentationFactsSQLFollowsBindingForm` pins the SQL each form produces.
+
+## Deviation from the arbiter ruling
+
+The ruling put every anchor-only read on one INNER JOIN and named an EXISTS
+semi-join as the fallback if shape (a) lost its early stop. The measurements
+below show both forms lose it, so `fact_kind=source` alone with no scoped token
+binds through a per-row primary-key probe (`active_probe`) instead. That form is
+not an index and keeps the ordered scan the ruling wanted. The team lead
+approved it against the measured data. The span attribute therefore has a fourth
+value, `active_probe`, beyond the ruling's `active_scope`, `active_join`, and
+`explicit`.
 
 ## Before: measured floor
 
@@ -89,6 +107,52 @@ Decision from the data:
   predicates without a scope. That is pre-existing and no index is proposed
   here.
 
+## Generic plans for the anchor-only forms
+
+`TestDocumentationFactsAnchorOnlyReadsBindActiveGenerationLive` seeds the ops-qa
+source scale (1,500 scopes x 8 generations, one `documentation_source` fact per
+generation, 12,000 rows, one row in eight active) and plans each form as a
+literal statement and as a `force_generic_plan` `PREPARE`/`EXECUTE`:
+
+| Form / case | Literal ms / buffers | Generic ms / buffers | Plan |
+| --- | --- | --- | --- |
+| `active_probe`, `fact_kind=source` | 0.096 / 58 | 0.220 / 36 | `documentation_source` partial index, no Sort, `ingestion_scopes` primary-key probe |
+| `active_join`, selective `source_id` | 4.5 / 478 | 2.2 / 478 | INNER JOIN through `ingestion_scopes` on `active_generation_id` |
+| `active_join`, scoped token | 7.1 / 478 | 6.5 / 478 | same join |
+
+This check found a pre-existing defect. Before this change, the unbound source
+page under a generic plan already lost the partial index because the kind was a
+parameter (`fact_kind = $n`): 32.4 ms, 405 buffers, with a Sort, against 0.043
+ms and 3 buffers as a literal. With the probe added, the same generic plan got
+worse (83.7 ms, 45,949 buffers) until the builder inlined the
+`documentation_source` constant, a package constant and never caller input.
+Under `plan_cache_mode = auto` the planner keeps the cheap custom plan, so
+production was not seeing the generic plan; the forced check is the worst case
+and is now clean.
+
+## Residual and the issue's acceptance
+
+The selective-anchor shapes (b)-(d) go from a statement timeout above 45 s to
+2.8-9.9 s (up to 20.5 s for the `q` search shape). That is still above the
+sub-second target and is a named residual, not a claim of success: no index
+serves `source_id`, `document_id`, `section_id`, or `q` payload predicates
+without a scope, so the join bounds the scan to active generations but still
+reads it. No index is proposed here.
+
+The issue's own acceptance is the sweep's `scope_id`-only argsets at limits 6,
+15, and 30 (p95 warm under 1 s). Evidence so far:
+
+- ops-qa diagnosis shim of the same statement shape, literal parameters,
+  before the change: 0.67-6.0 s (median about 1.4 s); after (scalar-subquery
+  form): 0.36-1.58 ms at limit 6, 0.75-1.05 ms at limit 15, 1.26-1.57 ms at
+  limit 30, 16-77 buffers.
+- local PostgreSQL 16, production SQL, 56,000 rows: 0.05-1.9 ms, 5-35 buffers,
+  literal and generic plans.
+- NOT_CHECKED: the sweep itself against a rebuilt binary on ops-qa (p50/p95 warm
+  and the cold call at each limit). The ops-qa SSO session expired during the
+  work; this is the remaining gap on the acceptance and should be closed before
+  the issue closes.
+
 ## Row-set equivalence and accuracy proof
 
 `TestDocumentationFactsBindActiveGenerationLive` (PostgreSQL 16, disposable
@@ -101,8 +165,15 @@ superseded generation equals its reference; a selective `fact_kind` filter;
 offset paging with no duplicates or gaps; a scoped token (granted and denied);
 anchor-only source reads across scopes; the kind-only source read; the three
 empty-scope states; and explicit-generation labelling. With the active binding
-removed from the builder, seven of the nine subtests fail (the two that do not
-are the explicit-generation ones, which must not change); with it, all pass.
+removed from the builder, seven of the nine original subtests fail (the two that
+do not are the explicit-generation ones, which must not change); with it, all
+ten pass. The tenth subtest runs the kind-only source read through the probe form
+and through the same statement rewritten with the INNER JOIN, and requires the
+same ordered rows, including the paged walk one row at a time. The seed makes
+that comparison bite: source facts of every scope tie on `observed_at` (`fact_id`
+breaks the tie), two scopes are active, one has a superseded generation, and two
+scopes have a NULL `active_generation_id` (one dead-lettered, one pending) whose
+facts both forms must exclude.
 
 ## Observability
 
@@ -128,6 +199,11 @@ concurrency proof beyond the plan check is claimed.
   6, 15, and 30 with a cold call, and with the section filter and scoped-token
   predicate (the ops-qa SSO session expired during the work; the local
   PostgreSQL 16 plan proof above covers plan shape, not the ops-qa cache state).
+- NOT_CHECKED: the golden-corpus gate on Neo4j (`neo4j:2026-community`); see the
+  handoff for its status. A first attempt started on NornicDB and was stopped
+  and discarded under the owner's Neo4j-only directive. No graph-backed
+  evidence in this note came from NornicDB; every measurement above is
+  PostgreSQL only.
 - The 26-39 s cold-call outlier from the diagnosis was inferred to be cold cache
   on a fixed 74,000-buffer scan and was not reproduced. After the change the
   read touches under 40 buffers locally, so a cold read is bounded by tens of

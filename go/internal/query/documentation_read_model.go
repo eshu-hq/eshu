@@ -185,7 +185,7 @@ func (cr *ContentReader) documentationFactPageState(
 	factRows []map[string]any,
 ) (querycontract.DocumentationFactPageState, error) {
 	scopeID := strings.TrimSpace(filter.ScopeID)
-	switch documentationFactGenerationBindingKind(filter) {
+	switch documentationFactBindingForm(filter) {
 	case documentationFactBindingExplicit:
 		generationID := strings.TrimSpace(filter.GenerationID)
 		var foundScope, status string
@@ -232,10 +232,10 @@ const (
 	// predicates read.
 	documentationFactActiveScopeJoinSQL = "\nJOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id" +
 		" AND ingestion_scopes.active_generation_id = fact_records.generation_id"
-	// documentationFactActiveKindOnlyClause probes each candidate row's scope by
+	// documentationFactActiveProbeClause probes each candidate row's scope by
 	// primary key without turning the probe into a join, so the ordered scan and
 	// its early stop survive.
-	documentationFactActiveKindOnlyClause = "(SELECT s.active_generation_id FROM ingestion_scopes s" +
+	documentationFactActiveProbeClause = "(SELECT s.active_generation_id FROM ingestion_scopes s" +
 		" WHERE s.scope_id = fact_records.scope_id) = fact_records.generation_id"
 )
 
@@ -374,15 +374,22 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		args = append(args, value)
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
-	if strings.TrimSpace(filter.FactKind) != "" {
+	if strings.TrimSpace(filter.FactKind) == facts.DocumentationSourceFactKind {
+		// A literal, not a parameter: a generic plan cannot prove the
+		// documentation_source partial index predicate from `fact_kind = $n`,
+		// so a parameterized source page loses the ordered early stop that
+		// index gives it (#7128). The value is the package constant, never
+		// caller input.
+		clauses = append(clauses, "fact_records.fact_kind = '"+facts.DocumentationSourceFactKind+"'")
+	} else if strings.TrimSpace(filter.FactKind) != "" {
 		addColumnFilter("fact_records.fact_kind", filter.FactKind)
 	} else {
 		clauses = append(clauses, "fact_records.fact_kind IN ("+documentationCollectedFactKindSQLList()+")")
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
 	scopeArg := len(args)
-	bindingKind := documentationFactGenerationBindingKind(filter)
-	switch bindingKind {
+	bindingForm := documentationFactBindingForm(filter)
+	switch bindingForm {
 	case documentationFactBindingExplicit:
 		// An explicit generation keeps the exact read it always had, whatever
 		// its lifecycle status; the handler labels it (#7128).
@@ -395,10 +402,8 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 			"fact_records.generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $%d)",
 			scopeArg,
 		))
-	case documentationFactBindingActiveJoin:
-		if documentationFactReadIsKindOnly(filter) {
-			clauses = append(clauses, documentationFactActiveKindOnlyClause)
-		}
+	case documentationFactBindingActiveProbe:
+		clauses = append(clauses, documentationFactActiveProbeClause)
 	}
 	clauses, args = appendDocumentationTargetClause(
 		clauses,
@@ -437,7 +442,7 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 	}
 	scopeJoin := ""
 	switch {
-	case bindingKind == documentationFactBindingActiveJoin && !documentationFactReadIsKindOnly(filter):
+	case bindingForm == documentationFactBindingActiveJoin:
 		// One INNER JOIN carries both the active-generation bind and, for a
 		// scoped token, the payload the authorization predicates read.
 		scopeJoin = documentationFactActiveScopeJoinSQL

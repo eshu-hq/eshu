@@ -41,51 +41,60 @@ const (
 	// scope's active generation through a scalar subquery.
 	documentationFactBindingActiveScope = "active_scope"
 	// documentationFactBindingActiveJoin is an anchor-only read bound to each
-	// scope's active generation through ingestion_scopes.
+	// scope's active generation through one INNER JOIN on ingestion_scopes.
 	documentationFactBindingActiveJoin = "active_join"
+	// documentationFactBindingActiveProbe is an anchor-only read with no
+	// payload filter and no scoped token, bound through a per-row primary-key
+	// probe of ingestion_scopes so its ordered scan keeps its early stop.
+	documentationFactBindingActiveProbe = "active_probe"
 	// documentationFactBindingExplicit is a read of the generation the caller
 	// named.
 	documentationFactBindingExplicit = "explicit"
 
 	// documentationGenerationBindingAttr is the bounded span attribute carrying
-	// the binding kind on the query.documentation_facts handler span.
+	// the binding form on the query.documentation_facts handler span.
 	documentationGenerationBindingAttr = "eshu.documentation.generation_binding"
 )
 
-// documentationFactGenerationBindingKind names how a facts read is bound to a
-// generation. The SQL builder, the read model, and the handler telemetry all
-// call it, so the three can never disagree about the mode.
-func documentationFactGenerationBindingKind(filter documentationFactFilter) string {
-	if strings.TrimSpace(filter.GenerationID) != "" {
+// documentationFactBindingForm is the ONE place that chooses how a facts read
+// is bound to a generation. The SQL builder, the read model, and the handler
+// telemetry all call it and nothing else picks a form, so they can never
+// disagree.
+//
+//   - a named generation_id keeps its exact read (explicit);
+//   - a scope_id read binds through a scalar subquery on that scope (active_scope);
+//   - an anchor-only read binds through one INNER JOIN (active_join), except
+//   - one with no payload, target, or text filter and no scoped token, which is
+//     the fact_kind=source page: an ordered scan of the documentation_source
+//     partial index stops after LIMIT rows, and a join (or EXISTS, which the
+//     planner flattens into the same semi-join) would replace that early stop
+//     with a sort of every source row, so it probes the scope by primary key
+//     per candidate row instead (active_probe). A scoped token needs the scope
+//     payload for its authorization predicates, so it takes the join.
+func documentationFactBindingForm(filter documentationFactFilter) string {
+	switch {
+	case strings.TrimSpace(filter.GenerationID) != "":
 		return documentationFactBindingExplicit
-	}
-	if strings.TrimSpace(filter.ScopeID) != "" {
+	case strings.TrimSpace(filter.ScopeID) != "":
 		return documentationFactBindingActiveScope
-	}
-	return documentationFactBindingActiveJoin
-}
-
-// documentationFactBindingMode maps a binding kind to the response mode.
-func documentationFactBindingMode(kind string) string {
-	if kind == documentationFactBindingExplicit {
-		return querycontract.DocumentationFactBindingExplicit
-	}
-	return querycontract.DocumentationFactBindingActive
-}
-
-// documentationFactReadIsKindOnly reports whether a read carries no payload,
-// target, or text filter and no scoped-token predicate, so its only selectivity
-// is the fact kind and the observed_at order. Such a read is served by an
-// ordered scan of the documentation_source partial index that stops after
-// LIMIT rows; binding it with a join would replace that early stop with a sort
-// of every row of the kind.
-func documentationFactReadIsKindOnly(filter documentationFactFilter) bool {
-	return len(querycontract.DocumentationTargetRefsFromFactFilter(filter)) == 0 &&
+	case len(querycontract.DocumentationTargetRefsFromFactFilter(filter)) == 0 &&
 		strings.TrimSpace(filter.SourceID) == "" &&
 		strings.TrimSpace(filter.DocumentID) == "" &&
 		strings.TrimSpace(filter.SectionID) == "" &&
 		strings.TrimSpace(filter.Query) == "" &&
-		!documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
+		!documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs):
+		return documentationFactBindingActiveProbe
+	default:
+		return documentationFactBindingActiveJoin
+	}
+}
+
+// documentationFactBindingMode maps a binding form to the response mode.
+func documentationFactBindingMode(form string) string {
+	if form == documentationFactBindingExplicit {
+		return querycontract.DocumentationFactBindingExplicit
+	}
+	return querycontract.DocumentationFactBindingActive
 }
 
 func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +121,7 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	span.SetAttributes(attribute.String(documentationGenerationBindingAttr, documentationFactGenerationBindingKind(filter)))
+	span.SetAttributes(attribute.String(documentationGenerationBindingAttr, documentationFactBindingForm(filter)))
 	filter, ok = documentationFactFilterWithRepositoryAccess(r.Context(), filter)
 	if !ok {
 		empty := documentationFactListReadModel{}
@@ -260,7 +269,7 @@ func documentationFactsResponse(
 		"missing_evidence": missingEvidence,
 		"states":           documentationFactListStates(missingEvidence, readModel.EmptyReason),
 		"generation_binding": map[string]any{
-			"mode":          documentationFactBindingMode(documentationFactGenerationBindingKind(filter)),
+			"mode":          documentationFactBindingMode(documentationFactBindingForm(filter)),
 			"generation_id": readModel.Binding.GenerationID,
 			"is_active":     readModel.Binding.IsActive,
 		},
