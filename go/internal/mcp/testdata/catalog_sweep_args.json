@@ -473,7 +473,7 @@
           "ok",
           "unsupported_capability"
         ],
-        "acceptReason": "repo_id $REPO: code divergence findings require a query profile the sweep stack does not run"
+        "acceptReason": "code divergence findings require a query profile the sweep stack does not run"
       }
     ],
     "investigate_code_divergence": [
@@ -502,7 +502,7 @@
           "ok",
           "unsupported_capability"
         ],
-        "acceptReason": "repo_id $REPO: the code divergence report requires a query profile the sweep stack does not run"
+        "acceptReason": "the code divergence report requires a query profile the sweep stack does not run"
       }
     ],
     "trace_exposure_path": [
@@ -1416,9 +1416,9 @@
         },
         "accept": [
           "ok",
-          "http_503"
+          "ask_default_off"
         ],
-        "acceptReason": "the sweep stack does not set ESHU_ASK_ENABLED, so ask answers 503 for question \"how many repositories are indexed?\""
+        "acceptReason": "the sweep stack does not set ESHU_ASK_ENABLED, so ask answers its default-off 503 (state unavailable, \"ask is not enabled\") for the question"
       }
     ],
     "get_index_status": [

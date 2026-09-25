@@ -10,7 +10,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -81,70 +80,6 @@ type catalogSweepPolicy struct {
 	DisclosurePattern string                  `json:"disclosurePattern"`
 	DisclosureFlags   string                  `json:"disclosureFlags"`
 	Rows              []catalogSweepPolicyRow `json:"rows"`
-}
-
-// acceptReasonProblem reports why a case's acceptReason cannot justify
-// accepting anything other than "ok". A row that tolerates a not-found answer
-// stops proving the tool succeeds for its seeded subject, so the reason must
-// name the unseeded subject: it has to quote at least one of the case's own
-// string arguments (three or more characters) or the tool's own name, which a
-// boilerplate sentence shared across rows cannot do; every accepted outcome
-// must also be one catalogSweepKnownOutcomes lists. It returns "" when the
-// reason is acceptable.
-func acceptReasonProblem(tool string, c catalogSweepCase) string {
-	reason := strings.TrimSpace(c.AcceptReason)
-	if reason == "" {
-		return "has no acceptReason"
-	}
-	for _, outcome := range c.Accept {
-		if !catalogSweepKnownOutcomes[outcome] {
-			return "names the unknown outcome " + outcome
-		}
-	}
-	if strings.Contains(reason, tool) {
-		return ""
-	}
-	for _, value := range catalogSweepStringArguments(c.Arguments) {
-		if len(value) >= 3 && strings.Contains(reason, value) {
-			return ""
-		}
-	}
-	return "its acceptReason quotes none of the case's own string arguments, so it does not name the unseeded subject"
-}
-
-// catalogSweepKnownOutcomes is the closed set of outcomes a case may accept:
-// success, the typed not-found answers for an unseeded subject, and the two
-// capability answers a stack profile can legitimately give.
-var catalogSweepKnownOutcomes = map[string]bool{
-	"ok":                             true,
-	"not_found":                      true,
-	"scope_not_found":                true,
-	"service_not_found":              true,
-	"unsupported_capability":         true,
-	"component_registry_unavailable": true,
-	"http_503":                       true,
-}
-
-// catalogSweepStringArguments collects every string value in an argument tree.
-func catalogSweepStringArguments(value any) []string {
-	switch v := value.(type) {
-	case string:
-		return []string{v}
-	case []any:
-		var out []string
-		for _, item := range v {
-			out = append(out, catalogSweepStringArguments(item)...)
-		}
-		return out
-	case map[string]any:
-		var out []string
-		for _, item := range v {
-			out = append(out, catalogSweepStringArguments(item)...)
-		}
-		return out
-	default:
-		return nil
-	}
 }
 
 func loadCatalogSweepArgs(t *testing.T) catalogSweepArgsFile {
