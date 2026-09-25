@@ -150,7 +150,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			// graph-read policy's own deadline and returns the wrapped
 			// querycontract.ErrGraphReadDeadline sentinel directly, so this
 			// translation is normally a no-op against the real reader. It
-			// stays as a defensive fallback: querytestutil.FakeGraphReader
+			// stays as a defensive fallback: testutil/graph.FakeGraphReader
 			// (used by this package's unit tests) and any other GraphQuery
 			// implementation that bypasses Neo4jReader can still return a
 			// raw context.DeadlineExceeded, and that must never fall through
