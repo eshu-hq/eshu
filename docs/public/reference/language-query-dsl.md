@@ -179,7 +179,15 @@ guard-classified functions only.
 profile answers it with `501 unsupported_capability` rather than an empty page
 -- and since #6541 it is the one entity type this route does not serve with a
 single self-sufficient graph statement. What a caller sees differs from the
-other entity types in four ways.
+other entity types in these ways.
+
+**File counts use File ownership.** The route seeks directories by their
+`repo_id`, then counts only contained Files whose own `repo_id` matches that
+repository. A stale `CONTAINS` edge to a File owned by another repository, or
+to a File without an owner, does not increase `file_count`. A directory with
+no matching-language, owned File is absent rather than returned with count
+zero. This closes the cross-repository aggregate-count window in #6703; the
+route still does not return File paths or identities through directory rows.
 
 **Ordering and page membership are now a function of the data.** Directory rows
 come back ordered by `file_count` descending, then `repo_id` ascending, then
@@ -238,19 +246,22 @@ page needs.
 This entity type depends on the `directory_repo_id` index over
 `Directory.repo_id` (declared in `go/internal/graph/schema_tables_indexes.go`
 and applied by `eshu-bootstrap-data-plane`). The index is a precondition, not
-an enhancement, and what skipping it costs depends on who calls. Measured on a
-50-repository corpus at limit 50: without the index the current shape is slower
-than the statement it replaced *for unscoped callers* -- 15.384s against
-12.484s -- so an unscoped deployment that skips it is worse off than before
-rather than merely un-optimised. Scoped callers are still faster without the
+an enhancement, and what skipping it costs depends on who calls. The #6541
+pre-File-ownership shape was measured on a 50-repository corpus at limit 50:
+without the index it was slower than the statement it replaced *for unscoped
+callers* -- 15.384s against 12.484s. An unscoped deployment that skips it is
+worse off than before rather than merely un-optimised. Scoped callers are still faster without the
 index than they were before it (grant-1 0.333s against 15.722s, grant-5 1.498s
 against 16.228s, grant-50 15.987s against 33.964s), but far slower than with it
 (grant-50 8.534s against 15.987s). The queryplan
 manifest entry `QP-LANGUAGE-DIRECTORY` names it in `required_schema`, and the
 live planner gate profiles the statement against Neo4j with the index present
-and rejects any plan that is not anchored on it. The measurements are in
+and rejects any plan that is not anchored on it. Those historical measurements
+are in
 `docs/internal/evidence/6541-directory-query-s2.md` and
-`docs/internal/evidence/6541-directory-query-s2-corpus-timing.md`.
+`docs/internal/evidence/6541-directory-query-s2-corpus-timing.md`; the #6703
+ownership-check measurements are in
+`docs/internal/evidence/6703-directory-file-ownership.md`.
 
 ## Capability Mapping
 
