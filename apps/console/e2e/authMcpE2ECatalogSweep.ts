@@ -26,6 +26,7 @@ import type { Page } from "playwright";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import {
   classifyToolCallOutcome,
+  compileDisclosurePattern,
   coverageProblems,
   judgeRow,
   renderSweepTable,
@@ -73,6 +74,7 @@ export async function loadSweepPolicy(path: string): Promise<SweepPolicy> {
   if (!Array.isArray(policy.rows) || policy.rows.length === 0 || typeof policy.disclosurePattern !== "string") {
     throw new Error(`${path} is not a catalog-sweep policy (no rows or no disclosurePattern)`);
   }
+  compileDisclosurePattern(policy);
   return policy;
 }
 
@@ -169,7 +171,7 @@ async function sweepEveryTool(
     throw new Error(`catalog coverage mismatch:\n  ${problems.join("\n  ")}`);
   }
   const descriptions = new Map(listed.map((t) => [t.name, t.description]));
-  const disclosure = new RegExp(policy.disclosurePattern);
+  const disclosure = compileDisclosurePattern(policy);
   const ids = { granted: SEEDED_REPOSITORY_ID, ungranted: UNGRANTED_REPOSITORY_ID };
   const results: SweepRowResult[] = [];
   for (const row of policy.rows) {

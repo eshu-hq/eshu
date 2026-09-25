@@ -33,7 +33,15 @@ const catalogSweepPolicyOutEnv = "ESHU_CATALOG_SWEEP_POLICY_OUT"
 // disclosed instead of silent (#5167 Scope: "the annotation says why, and the
 // route's MCP tool description tells a caller holding a scoped token the same
 // thing"). The runner applies the same pattern to the live tools/list output.
-const catalogSweepDisclosurePattern = `(?i)\b403\b|shared[- ]key|shared ESHU_API_KEY|refused`
+//
+// The pattern is written in the syntax Go and JavaScript share: it carries no
+// inline (?i) flag, which is a SyntaxError in JavaScript. Case-insensitivity is
+// applied out of band through catalogSweepDisclosureFlags.
+const catalogSweepDisclosurePattern = `\b403\b|shared[- ]key|shared ESHU_API_KEY|refused`
+
+// catalogSweepDisclosureFlags is the JavaScript RegExp flag set the runner
+// constructs the pattern with; Go applies the same case-insensitivity as (?i).
+const catalogSweepDisclosureFlags = "i"
 
 // Route classes the sweep expects a scoped personal token to meet.
 const (
@@ -71,6 +79,7 @@ type catalogSweepPolicyRow struct {
 // catalogSweepPolicy is the JSON document handed to the sweep runner.
 type catalogSweepPolicy struct {
 	DisclosurePattern string                  `json:"disclosurePattern"`
+	DisclosureFlags   string                  `json:"disclosureFlags"`
 	Rows              []catalogSweepPolicyRow `json:"rows"`
 }
 
@@ -111,7 +120,7 @@ func classifyCatalogSweepRoute(req *http.Request) (string, bool) {
 // is set, writes the derived tool -> route -> class table for the runner.
 func TestCatalogSweepPolicy(t *testing.T) {
 	file := loadCatalogSweepArgs(t)
-	disclosure := regexp.MustCompile(catalogSweepDisclosurePattern)
+	disclosure := regexp.MustCompile("(?" + catalogSweepDisclosureFlags + ")" + catalogSweepDisclosurePattern)
 
 	registered := map[string]string{}
 	for _, tool := range ReadOnlyTools() {
@@ -185,7 +194,7 @@ func TestCatalogSweepPolicy(t *testing.T) {
 	if out == "" || t.Failed() {
 		return
 	}
-	encoded, err := json.MarshalIndent(catalogSweepPolicy{DisclosurePattern: catalogSweepDisclosurePattern, Rows: rows}, "", "  ")
+	encoded, err := json.MarshalIndent(catalogSweepPolicy{DisclosurePattern: catalogSweepDisclosurePattern, DisclosureFlags: catalogSweepDisclosureFlags, Rows: rows}, "", "  ")
 	if err != nil {
 		t.Fatalf("encode policy: %v", err)
 	}

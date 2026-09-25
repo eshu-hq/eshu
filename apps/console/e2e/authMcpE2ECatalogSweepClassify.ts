@@ -27,7 +27,10 @@ export interface SweepPolicyRow {
 }
 
 export interface SweepPolicy {
+  // disclosurePattern is Go/JavaScript-portable regex source with no inline
+  // flags; disclosureFlags carries the RegExp flags (Go applies them as (?i)).
   readonly disclosurePattern: string;
+  readonly disclosureFlags: string;
   readonly rows: readonly SweepPolicyRow[];
 }
 
@@ -193,4 +196,19 @@ export function substituteSeedIds(value: unknown, ids: { readonly granted: strin
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, substituteSeedIds(v, ids)]));
   }
   return value;
+}
+
+// compileDisclosurePattern builds the RegExp the Go test's policy describes.
+// It is the single place the emitted pattern becomes a JavaScript RegExp, so a
+// Go-only construct in the pattern fails here with a message naming the policy
+// rather than as a bare "Invalid group" mid-sweep.
+export function compileDisclosurePattern(policy: Pick<SweepPolicy, "disclosurePattern" | "disclosureFlags">): RegExp {
+  try {
+    return new RegExp(policy.disclosurePattern, policy.disclosureFlags);
+  } catch (err) {
+    throw new Error(
+      `policy disclosurePattern ${JSON.stringify(policy.disclosurePattern)} is not a valid JavaScript RegExp ` +
+        `(flags ${JSON.stringify(policy.disclosureFlags)}): ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }

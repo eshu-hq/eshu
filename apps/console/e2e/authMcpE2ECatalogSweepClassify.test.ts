@@ -3,12 +3,16 @@
 // produce on demand: a silent 403 on a ledger route, an unmounted route, an
 // unexpected 403 on an allowlisted route, and a tool that slipped past the
 // argument table.
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { McpJsonRpcResult } from "./authMcpE2EJsonRpc.ts";
 import {
   ROUTE_DENIED,
   classifyToolCallOutcome,
+  compileDisclosurePattern,
   coverageProblems,
   judgeRow,
   renderSweepTable,
@@ -89,5 +93,35 @@ describe("substituteSeedIds and renderSweepTable", () => {
   it("prints the pass count", () => {
     const rows = [judgeRow(allow, { outcome: "ok", detail: "" }, "", disclosurePattern), judgeRow(ledger, { outcome: "ok", detail: "" }, "", disclosurePattern)];
     expect(renderSweepTable(rows)).toContain("1/2 calls passed");
+  });
+});
+
+describe("the disclosure pattern the Go test emits", () => {
+  // Read the pattern from the Go source constant, not a hand-written literal:
+  // a Go-only construct such as an inline (?i) flag is a SyntaxError in
+  // JavaScript, and a literal here would hide exactly that.
+  const goSource = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../../go/internal/mcp/dispatch_catalog_sweep_policy_test.go"),
+    "utf8",
+  );
+  const emitted = /const catalogSweepDisclosurePattern = `([^`]*)`/.exec(goSource)?.[1] ?? "";
+
+  const goFlags = /const catalogSweepDisclosureFlags = "([^"]*)"/.exec(goSource)?.[1] ?? "";
+
+  it("rejects a Go-only inline flag with a message naming the policy", () => {
+    expect(() => compileDisclosurePattern({ disclosurePattern: "(?i)403", disclosureFlags: "" })).toThrow(/disclosurePattern/);
+  });
+
+  it("is found in the Go source", () => {
+    expect(emitted).not.toBe("");
+  });
+
+  it("compiles as a JavaScript RegExp exactly as the runner constructs it", () => {
+    const policy = { disclosurePattern: emitted, disclosureFlags: goFlags };
+    expect(() => compileDisclosurePattern(policy)).not.toThrow();
+    const re = compileDisclosurePattern(policy);
+    expect(re.test("Refused with a 403 for scoped tokens")).toBe(true);
+    expect(re.test("Shared-key callers only")).toBe(true);
+    expect(re.test("Runs a Cypher query")).toBe(false);
   });
 });
