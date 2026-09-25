@@ -15,4 +15,8 @@
 // JavaScript, and Java, mirroring production function-entity emission.
 // Every other grammar is exact-only: exact hash plus token count, no renamed
 // hash, sketch, or bands.
+//
+// FingerprintBodies hashes the concatenated leaf stream of several body
+// nodes in order, so a multi-equation function fingerprints as one unit
+// (issue #6865); a single body hashes exactly as FingerprintBody.
 package fingerprint

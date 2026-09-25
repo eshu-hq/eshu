@@ -154,6 +154,32 @@ func Attach(lang string, hasError bool, body *tree_sitter.Node, src []byte, item
 		return ReasonHasError
 	}
 	res := FingerprintBody(lang, body, src)
+	return attachResult(res, item, stats, start)
+}
+
+// AttachBodies attaches the fingerprint of several body nodes' concatenated
+// leaf stream (issue #6865: every defining equation of a Haskell function
+// feeds one fingerprint) and sets the Key* entity metadata on item. Skip
+// reasons mirror Attach; a nil or empty list records the no-body skip. The
+// per-result tail is shared with Attach, so one body attaches exactly as
+// FingerprintBody.
+func AttachBodies(lang string, hasError bool, bodies []*tree_sitter.Node, src []byte, item map[string]any, stats *Stats) string {
+	start := time.Now()
+	if len(bodies) == 0 {
+		stats.Record(ReasonNoBody, 0)
+		return ReasonNoBody
+	}
+	if hasError {
+		stats.Record(ReasonHasError, 0)
+		return ReasonHasError
+	}
+	return attachResult(FingerprintBodies(lang, bodies, src), item, stats, start)
+}
+
+// attachResult applies one fingerprint result to item or records its
+// below-floor skip, sharing the emission tail between Attach and
+// AttachBodies.
+func attachResult(res *Result, item map[string]any, stats *Stats, start time.Time) string {
 	if res.TokenCount < MinTokenCount {
 		stats.Record(ReasonBelowFloor, time.Since(start))
 		return ReasonBelowFloor
