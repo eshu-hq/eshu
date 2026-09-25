@@ -101,36 +101,15 @@ func (s StatusStore) ComputeChangedSinceDelta(
 	summary.SinceGenerationID = prior.generationID
 	summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(prior.observedAt)
 
-	counts, err := s.changedSinceCounts(ctx, scope.scopeID, prior.generationID, scope.currentGenerationID)
+	categories, err := s.changedSinceCategories(
+		ctx,
+		scope.scopeID,
+		prior.generationID,
+		scope.currentGenerationID,
+		filter.SampleLimit,
+	)
 	if err != nil {
 		return statuspkg.ChangedSinceSummary{}, err
-	}
-
-	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ChangedSinceCategories))
-	for _, category := range statuspkg.ChangedSinceCategories {
-		delta := statuspkg.ChangedSinceCategoryDelta{
-			Category: category,
-			Counts:   counts[category],
-		}
-		samples, truncated, sampleErr := s.changedSinceSamples(
-			ctx,
-			scope.scopeID,
-			prior.generationID,
-			scope.currentGenerationID,
-			category,
-			counts[category],
-			filter.SampleLimit,
-		)
-		if sampleErr != nil {
-			return statuspkg.ChangedSinceSummary{}, sampleErr
-		}
-		if len(samples) > 0 {
-			delta.Samples = samples
-		}
-		if len(truncated) > 0 {
-			delta.Truncated = truncated
-		}
-		categories = append(categories, delta)
 	}
 	summary.Categories = categories
 
@@ -278,38 +257,77 @@ func (s StatusStore) changedSinceRetentionExpired(
 	return expired, filter.SinceObservedAt, nil
 }
 
-func (s StatusStore) changedSinceCounts(
+// changedSinceCategories evaluates the diff between two generations of one scope
+// in a single statement and assembles the per-category counts, bounded ordered
+// samples, and truncation flags. Counts are exact; only the samples are capped
+// at sampleLimit (the statement fetches sampleLimit+1 to detect truncation).
+func (s StatusStore) changedSinceCategories(
 	ctx context.Context,
 	scopeID, priorGenerationID, currentGenerationID string,
-) (map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts, error) {
+	sampleLimit int,
+) ([]statuspkg.ChangedSinceCategoryDelta, error) {
 	rows, err := s.queryer.QueryContext(
 		ctx,
-		changedSinceCountsQuery,
+		changedSinceDeltaQuery,
 		scopeID,
 		priorGenerationID,
 		currentGenerationID,
+		sampleLimit+1,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("changed-since counts: %w", err)
+		return nil, fmt.Errorf("changed-since diff: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	counts := map[statuspkg.ChangedSinceCategory]statuspkg.ChangedSinceCounts{}
+	samples := map[statuspkg.ChangedSinceCategory]map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
 	for rows.Next() {
-		var category string
-		var classification string
+		var category, classification string
 		var keyCount int64
-		if err := rows.Scan(&category, &classification, &keyCount); err != nil {
-			return nil, fmt.Errorf("changed-since counts: %w", err)
+		var stableFactKey, factKind sql.NullString
+		if err := rows.Scan(&category, &classification, &keyCount, &stableFactKey, &factKind); err != nil {
+			return nil, fmt.Errorf("changed-since diff: %w", err)
 		}
-		bucket := counts[statuspkg.ChangedSinceCategory(category)]
+		cat := statuspkg.ChangedSinceCategory(category)
+		class := statuspkg.ChangedSinceClassification(classification)
+		bucket := counts[cat]
 		applyChangedSinceCount(&bucket, classification, int(keyCount))
-		counts[statuspkg.ChangedSinceCategory(category)] = bucket
+		counts[cat] = bucket
+		if !stableFactKey.Valid {
+			continue
+		}
+		if samples[cat] == nil {
+			samples[cat] = map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
+		}
+		samples[cat][class] = append(samples[cat][class], statuspkg.ChangedSinceSample{
+			StableFactKey: stableFactKey.String,
+			FactKind:      factKind.String,
+		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("changed-since counts: %w", err)
+		return nil, fmt.Errorf("changed-since diff: %w", err)
 	}
-	return counts, nil
+
+	categories := make([]statuspkg.ChangedSinceCategoryDelta, 0, len(statuspkg.ChangedSinceCategories))
+	for _, category := range statuspkg.ChangedSinceCategories {
+		delta := statuspkg.ChangedSinceCategoryDelta{Category: category, Counts: counts[category]}
+		truncated := map[statuspkg.ChangedSinceClassification]bool{}
+		for classification, bucket := range samples[category] {
+			if len(bucket) > sampleLimit {
+				bucket = bucket[:sampleLimit]
+				truncated[classification] = true
+				samples[category][classification] = bucket
+			}
+		}
+		if len(samples[category]) > 0 {
+			delta.Samples = samples[category]
+		}
+		if len(truncated) > 0 {
+			delta.Truncated = truncated
+		}
+		categories = append(categories, delta)
+	}
+	return categories, nil
 }
 
 func applyChangedSinceCount(bucket *statuspkg.ChangedSinceCounts, classification string, value int) {
@@ -327,43 +345,6 @@ func applyChangedSinceCount(bucket *statuspkg.ChangedSinceCounts, classification
 	}
 }
 
-func (s StatusStore) changedSinceSamples(
-	ctx context.Context,
-	scopeID, priorGenerationID, currentGenerationID string,
-	category statuspkg.ChangedSinceCategory,
-	counts statuspkg.ChangedSinceCounts,
-	sampleLimit int,
-) (map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample, map[statuspkg.ChangedSinceClassification]bool, error) {
-	samples := map[statuspkg.ChangedSinceClassification][]statuspkg.ChangedSinceSample{}
-	truncated := map[statuspkg.ChangedSinceClassification]bool{}
-
-	for _, classification := range statuspkg.ChangedSinceClassifications {
-		// Only query buckets that have keys, so an empty diff makes no sample reads.
-		if changedSinceClassificationCount(counts, classification) == 0 {
-			continue
-		}
-		bucket, isTruncated, err := s.changedSinceSampleBucket(
-			ctx,
-			scopeID,
-			priorGenerationID,
-			currentGenerationID,
-			string(category),
-			string(classification),
-			sampleLimit,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		if len(bucket) > 0 {
-			samples[classification] = bucket
-		}
-		if isTruncated {
-			truncated[classification] = true
-		}
-	}
-	return samples, truncated, nil
-}
-
 func changedSinceClassificationCount(counts statuspkg.ChangedSinceCounts, classification statuspkg.ChangedSinceClassification) int {
 	switch classification {
 	case statuspkg.ChangedSinceAdded:
@@ -379,46 +360,6 @@ func changedSinceClassificationCount(counts statuspkg.ChangedSinceCounts, classi
 	default:
 		return 0
 	}
-}
-
-func (s StatusStore) changedSinceSampleBucket(
-	ctx context.Context,
-	scopeID, priorGenerationID, currentGenerationID, category, classification string,
-	sampleLimit int,
-) ([]statuspkg.ChangedSinceSample, bool, error) {
-	fetch := sampleLimit + 1
-	rows, err := s.queryer.QueryContext(
-		ctx,
-		changedSinceSamplesQuery,
-		scopeID,
-		priorGenerationID,
-		currentGenerationID,
-		category,
-		classification,
-		fetch,
-	)
-	if err != nil {
-		return nil, false, fmt.Errorf("changed-since samples: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	bucket := make([]statuspkg.ChangedSinceSample, 0, sampleLimit)
-	for rows.Next() {
-		var sample statuspkg.ChangedSinceSample
-		if err := rows.Scan(&sample.StableFactKey, &sample.FactKind); err != nil {
-			return nil, false, fmt.Errorf("changed-since samples: %w", err)
-		}
-		bucket = append(bucket, sample)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("changed-since samples: %w", err)
-	}
-
-	truncated := len(bucket) > sampleLimit
-	if truncated {
-		bucket = bucket[:sampleLimit]
-	}
-	return bucket, truncated, nil
 }
 
 func unavailableChangedSinceCategories() []statuspkg.ChangedSinceCategoryDelta {

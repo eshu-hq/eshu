@@ -246,20 +246,36 @@ classified AS (
 )
 `
 
-// changedSinceCountsQuery returns exact per-category and classification counts.
-const changedSinceCountsQuery = changedSinceClassificationCTEs + `
-SELECT fact_category, classification, COUNT(*) AS key_count
-FROM classified
-GROUP BY fact_category, classification
-ORDER BY fact_category ASC, classification ASC
-`
-
-// changedSinceSamplesQuery returns bounded, ordered sample handles for one
-// category and classification. The caller passes sample_limit+1 as $6.
-const changedSinceSamplesQuery = changedSinceClassificationCTEs + `
-SELECT stable_fact_key, fact_kind
-FROM classified
-WHERE fact_category = $4 AND classification = $5
-ORDER BY stable_fact_key ASC
-LIMIT $6
+// changedSinceDeltaQuery evaluates the classification diff once and returns,
+// for every non-empty (category, classification) bucket, its exact key count and
+// its first $4 keys ordered by stable_fact_key. The caller passes
+// sample_limit+1 as $4 so it can tell a truncated bucket from a full one.
+//
+// The whole request is one statement because every statement re-scans and
+// re-hashes both generations: the former counts statement plus one samples
+// statement per non-empty bucket cost 1+N diffs (#7127). classified is
+// referenced twice (bucket counts, lateral samples), so PostgreSQL materializes
+// it once. Buckets without a sample key cannot occur because a bucket exists
+// only when it has at least one key and $4 is at least 1.
+//
+// Parameter order: $1 scope_id, $2 prior generation, $3 current generation,
+// $4 sample fetch limit.
+const changedSinceDeltaQuery = changedSinceClassificationCTEs + `
+, buckets AS (
+    SELECT fact_category, classification, COUNT(*) AS key_count
+    FROM classified
+    GROUP BY fact_category, classification
+)
+SELECT bucket.fact_category, bucket.classification, bucket.key_count,
+       sample.stable_fact_key, sample.fact_kind
+FROM buckets AS bucket
+LEFT JOIN LATERAL (
+    SELECT candidate.stable_fact_key, candidate.fact_kind
+    FROM classified AS candidate
+    WHERE candidate.fact_category = bucket.fact_category
+      AND candidate.classification = bucket.classification
+    ORDER BY candidate.stable_fact_key ASC
+    LIMIT $4
+) AS sample ON TRUE
+ORDER BY bucket.fact_category ASC, bucket.classification ASC, sample.stable_fact_key ASC
 `

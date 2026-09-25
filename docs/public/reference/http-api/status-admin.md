@@ -571,21 +571,19 @@ evidence families now ship the emitter, category, delta surface, and a
 nil-tolerant loader seam.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
-keyed by `(scope_id, generation_id, stable_fact_key)`. Counts classify keys from the two generations of one scope, using
-the `fact_records_scope_generation_idx` index (`scope_id, generation_id`
-anchored) for each per-generation scan and a hash join on `stable_fact_key`.
-Equal minimum digests on duplicate-key groups trigger a sorted multiset
-comparison. Non-empty sample buckets use `ORDER BY stable_fact_key LIMIT
-sample_limit+1`. (The prior
-`fact_records_stable_key_idx` was dropped in #4859 — `EXPLAIN` on the live stack
-confirms this query anchors on `fact_records_scope_generation_idx` and hash-joins
-by `stable_fact_key` rather than probing a `stable_fact_key`-leading index.) Expected cardinality scales with
-the per-generation fact count of a single repository scope (files plus content
-entities plus facts), not the whole repository corpus; no whole-graph or
-cross-scope scan is performed. Live SQL is exercised by the CI integration gate
-against Postgres; the in-process fake `Queryer`/`Rows` harness
-(`internal/storage/postgres/changed_since_test.go`) proves the bounding, diff
-classification, truncation, and resolution-failure behavior.
+keyed by `(scope_id, generation_id, stable_fact_key)`. A request evaluates the
+classification diff once: one statement materializes the classified keys and
+returns each non-empty bucket's exact count with its first `sample_limit+1` keys
+by `stable_fact_key` (a lateral join per bucket). It replaces a counts statement
+plus one samples statement per non-empty bucket, each of which re-scanned both
+generations (1+N diffs); rows are identical, and a live differential proves it.
+On a 2.2M-row local fixture the summed `EXPLAIN ANALYZE` time fell from a median
+of 65.12 s (8 statements) to 10.88 s (1 statement); see
+`docs/internal/evidence/7127-changed-since.md`. Each per-generation scan still
+anchors on `fact_records_scope_generation_idx` (`scope_id, generation_id`) with a
+hash join on `stable_fact_key`, and equal minimum digests on duplicate-key groups
+trigger a sorted multiset comparison. One diff stays O(generation size) and is
+tracked in #7127. No whole-graph or cross-scope scan is performed.
 
 No-Observability-Change: the surface adds the bounded
 `query.freshness_changed_since` span with low-cardinality scope-id,
