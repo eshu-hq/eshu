@@ -206,7 +206,7 @@ async function sweepEveryTool(
   const strict = results.length - ledger - tolerant;
   return (
     `${listed.length} tools listed; ${results.length}/${results.length} calls passed: ${strict} allowlisted calls proved success ("ok"), ` +
-    `${tolerant} proved only that the route is mounted and the grant admitted the call (an unseeded subject answered a typed not-found), ` +
+    `${tolerant} proved only that the route is mounted and the grant admitted the call (an unseeded subject answered a typed not-found, or the stack profile gates the tool), ` +
     `${ledger} ledger/shared-key routes refused with a disclosed 403`
   );
 }
