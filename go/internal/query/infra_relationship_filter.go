@@ -96,23 +96,33 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 
 	typeFilter := infraRelationshipTypeClause(relationshipTypes)
-	// The bare `MATCH (n)` anchor scanned every node in the graph on every
-	// call regardless of scope -- proven live on ops-qa (issue #7006) to blow
-	// the 10s bounded-read deadline.
+	// The bare `MATCH (n)` anchor scans every node in the graph -- proven
+	// live on ops-qa's NornicDB deployment (issue #7006) to blow the 10s
+	// bounded-read deadline.
 	//
 	// A single-clause label DISJUNCTION (`MATCH (n:A|B) WHERE n.id = $id`,
-	// deployment.ImpactAnchorLabelDisjunction interpolated directly) looked
-	// like the fix, but is live-proven unsafe on this NornicDB pin: it
-	// silently returns ZERO rows for an id a single-label MATCH resolves
-	// correctly (reproduced with a real Workload id). A many-branch
-	// `CALL{UNION}` (the impact/deployment package's own by-id resolver
-	// shape) is also live-proven unsafe here -- 28 branches did not return before a 15s
-	// timeout even though the target existed. The only shape proven both
-	// correct and bounded is one label per MATCH: try each of
-	// impactRelationshipAnchorLabels in turn and use the first match.
-	buildCypher := func(label string) string {
+	// deployment.ImpactAnchorLabelDisjunction interpolated directly) is
+	// live-proven unsafe on this NornicDB pin: it silently returns ZERO rows
+	// for an id a single-label MATCH resolves correctly (reproduced with a
+	// real Workload id). A many-branch `CALL{UNION}` did not return within
+	// 15s for 28 branches.
+	//
+	// So the anchor is a fast path plus an exact fallback: one single-label
+	// MATCH per impactRelationshipAnchorLabels entry, stopping at the first
+	// row, then -- only if every label misses -- the pre-#7006 unlabeled
+	// `MATCH (n)`. The old read resolved an id on ANY label (this route is
+	// also called with code-entity ids such as a Function), so a short label
+	// list alone would turn those into a silent 404. An impact-label hit never
+	// pays the whole-graph scan; any other id pays what the pre-#7006 read
+	// paid, under the shared deadline below.
+	anchors := make([]string, 0, len(impactRelationshipAnchorLabels)+1)
+	for _, label := range impactRelationshipAnchorLabels {
+		anchors = append(anchors, "(n:"+label+")")
+	}
+	anchors = append(anchors, "(n)")
+	buildCypher := func(anchor string) string {
 		return `
-		MATCH (n:` + label + `) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
+		MATCH ` + anchor + ` WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
 		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + infraRelationshipNeighborClause(access, "target") + `
 		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + infraRelationshipNeighborClause(access, "source") + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
@@ -152,9 +162,9 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	var row map[string]any
 	var err error
 	labelsAttempted := 0
-	for _, label := range impactRelationshipAnchorLabels {
+	for _, anchor := range anchors {
 		labelsAttempted++
-		row, err = h.Neo4j.RunSingle(ctx, buildCypher(label), params)
+		row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
 		if err != nil || row != nil {
 			break
 		}

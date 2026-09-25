@@ -304,11 +304,15 @@ func TestInfraRelationshipsScopedOutOfGrantReturnsNotFound(t *testing.T) {
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	// #7006: a genuine miss now tries every candidate label (one MATCH per
-	// label, never a disjunction), so a not-found result pays the full label
-	// count instead of one call.
-	if want := len(impactRelationshipAnchorLabels); graph.singleN != want {
+	// #7006: a genuine miss tries every fast-path label (one MATCH per
+	// label, never a disjunction), then the unlabeled pre-#7006 anchor so an
+	// id on any other label still resolves. The fallback is the last read and
+	// must carry the same scoped predicates.
+	if want := len(impactRelationshipAnchorLabels) + 1; graph.singleN != want {
 		t.Fatalf("graph RunSingle calls = %d, want %d", graph.singleN, want)
+	}
+	if !strings.Contains(graph.lastSingle.Cypher, "MATCH (n) WHERE n.id = $entity_id") {
+		t.Fatalf("last read is not the unlabeled fallback anchor:\n%s", graph.lastSingle.Cypher)
 	}
 	if !strings.Contains(graph.lastSingle.Cypher, "n.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped relationships Cypher missing anchor predicate:\n%s", graph.lastSingle.Cypher)

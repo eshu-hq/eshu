@@ -40,78 +40,45 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// unrelated `e.id = $entity_id` anchor, so a scoped caller's request for
 	// one entity could read back an arbitrary DIFFERENT entity (#6786). The
 	// grant is now decided in Go instead, from the single-line-WHERE
-	// OPTIONAL MATCH below (already proven safe) plus the id/repo_id checks
+	// OPTIONAL MATCH in entityContextCypher (already proven safe) plus the id/repo_id checks
 	// after RunSingle: the row-id equality check just below guards
 	// e.id = $entity_id even if a future backend regresses that anchor, and
 	// the access.AllowsRepositoryID check after hydration (unchanged) is
 	// what actually fails a scoped, ungranted read closed to not-found.
 	//
-	// The bare, unlabeled `MATCH (e)` anchor scanned every node in the graph
-	// for every call regardless of scope -- the classic all-node-scan shape
+	// The bare, unlabeled `MATCH (e)` anchor scans every node in the graph
+	// -- the classic all-node-scan shape
 	// (docs/public/reference/cypher-performance.md, "unlabeled anchor"),
-	// proven live on ops-qa (issue #7006) to blow the 10s bounded-read
-	// deadline on every request.
+	// proven live on ops-qa's NornicDB deployment (issue #7006) to blow the
+	// 10s bounded-read deadline.
 	//
-	// A single `MATCH (e:A|B|C)` label DISJUNCTION looks like the fix, and is
-	// the shape codequery/chain.AnchorLabelDisjunction and
-	// impact/deployment.ImpactAnchorLabelDisjunction use -- but both of those only
-	// ever render on the Neo4j-compat path (BuildCallChainCypher's own NornicDB
-	// branch bypasses it entirely, and the impact family never uses the raw
-	// disjunction in a MATCH at all, only Go-side via strings.Split for its
-	// CALL{UNION} resolver below). Proven live on ops-qa (issue #7006): on
-	// this NornicDB pin, `MATCH (n:A|B) WHERE n.id = $id` -- and the inline-map
-	// form `MATCH (n:A|B {id: $id})` -- both silently return ZERO rows for an
-	// id a single-label `MATCH (n:A) WHERE n.id = $id` resolves correctly,
-	// reproduced for both a code-entity id and an infra-entity id. Shipping
-	// that shape would have converted the timeout into an always-wrong
-	// not-found. A many-branch `CALL{UNION}` resolver (the impact/deployment
-	// package's own pattern) is also live-proven unsafe here: 28 branches did not return
-	// before a 15s timeout even though the target existed and an 8-branch
-	// subset resolved it in 0.67s -- badly non-linear, not just slower.
+	// A single `MATCH (e:A|B|C)` label DISJUNCTION is not a safe fix: on the
+	// pinned NornicDB build `MATCH (n:A|B) WHERE n.id = $id` (and the inline
+	// map form) silently returns ZERO rows for an id a single-label MATCH
+	// resolves (issue #7006, live-proven for a code-entity and an
+	// infra-entity id). A many-branch `CALL{UNION}` resolver did not return
+	// within 15s for 28 branches on the same deployment.
 	//
-	// The only shape proven both correct and bounded is a single label per
-	// MATCH. EntityContextAnchorLabels tries each candidate label in turn,
-	// most-common-first, stopping at the first match; a genuinely absent
-	// entity pays the full label count (14 reads, each individually proven
-	// sub-second live), never a whole-graph or many-branch scan.
+	// So the anchor is a fast path plus an exact fallback. First, one
+	// single-label `MATCH (e:<Label>)` per EntityContextAnchorLabels entry,
+	// most-common-first, stopping at the first row. Then, only if every fast-path label misses,
+	// the pre-#7006 unlabeled `MATCH (e)`: the old read matched an id on ANY
+	// label that carries an id property (schema, writers and fixtures create
+	// well over a hundred), and no short label list can reproduce that answer.
+	// A hit on a fast-path label never pays the whole-graph scan; an id on
+	// another label, or a genuine miss, pays exactly what the pre-#7006 read
+	// paid. Every read shares one bounded deadline (below).
 	//
-	// The file/repo enrichment also changed shape, for a second, independent
-	// reason: chaining a SECOND hop onto the (already fast, single-bound-node)
-	// `OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)` -- reaching for `r:Repository`
-	// via `<-[:REPO_CONTAINS]-` -- is itself live-proven catastrophic on this
-	// NornicDB pin: it did not return before a 10s timeout even anchored on a
-	// real Function id whose File parent exists and resolves instantly alone.
-	// The reverse `(f)<-[:REPO_CONTAINS]-(r)` hop is unreliable even as a
-	// REQUIRED (non-optional) single hop from an indexed, bound File node: it
-	// returned zero rows for a File whose containing Repository is real and
-	// resolves correctly via the forward direction
-	// (`(r:Repository {id:...})-[:REPO_CONTAINS]->(f:File)`). So the fix
-	// drops the graph-side Repository hop entirely: `e`/`f` already carry a
-	// direct `repo_id` property (the canonical writer sets it on every
-	// code-entity and File node), and the handler's existing
-	// hydrateResolvedEntityRepoIdentity call below already backfills
-	// repo_name from the content store once repo_id is set -- no second graph
-	// round trip needed. A Repository entity's own id/name backfill the same
-	// way, via that function's resolvedEntityIsRepository branch.
-	buildCypher := func(label string) string {
-		cypher := `
-		MATCH (e:` + label + `) WHERE e.id = $entity_id
-	`
-		cypher += `
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)
-		OPTIONAL MATCH (e)-[rel]->(target)
-		RETURN e.id as id, labels(e) as labels, e.name as name,
-		       f.relative_path as file_path,
-		       coalesce(e.language, f.language) as language,
-		       e.start_line as start_line,
-		       e.end_line as end_line,
-` + rows.GraphSemanticMetadataProjection() + `
-		       ,coalesce(e.repo_id, f.repo_id) as repo_id,
-		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
-	`
-		return cypher
-	}
-
+	// The file/repo enrichment is the pre-#7006 statement unchanged: repo_id
+	// and repo_name come from the Repository that REPO_CONTAINS the entity's
+	// File, with the scoped grant on that Repository. A #7006 revision read
+	// coalesce(e.repo_id, f.repo_id) and dropped repo_name instead; that lost
+	// both columns wherever the nodes carry no repo_id property (the
+	// live-backend answer-truth fixtures on NornicDB and Neo4j) and, for a
+	// scoped caller, turned an in-grant entity into a 404. The two-hop
+	// OPTIONAL MATCH was observed slow on ops-qa's retired NornicDB
+	// deployment; answer truth wins over that observation, and the shared
+	// deadline still caps the request.
 	params := access.GraphParams(map[string]any{"entity_id": entityID})
 	var row map[string]any
 	var err error
@@ -137,9 +104,9 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		)
 		defer cancel()
 		labelsAttempted := 0
-		for _, label := range EntityContextAnchorLabels {
+		for _, anchor := range entityContextAnchors() {
 			labelsAttempted++
-			row, err = h.Neo4j.RunSingle(ctx, buildCypher(label), params)
+			row, err = h.Neo4j.RunSingle(ctx, entityContextCypher(anchor, access), params)
 			if err != nil || row != nil {
 				break
 			}
@@ -167,7 +134,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 				h.Logger.WarnContext(r.Context(),
 					"entity context anchor loop ended with an error before resolving",
 					"labels_tried", labelsAttempted,
-					"labels_total", len(EntityContextAnchorLabels),
+					"labels_total", len(EntityContextAnchorLabels)+1,
 					telemetry.LogKeyFailureClass, failureClass,
 				)
 			}
@@ -264,4 +231,45 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	response["result_limits"] = contextResultLimits(response, entityID)
 	response["partial_reasons"] = querycontract.ContextPartialReasons(response)
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
+}
+
+// entityContextAnchors returns GetEntityContext's anchor patterns in try
+// order: one single-label pattern per EntityContextAnchorLabels entry, then
+// the unlabeled pre-#7006 pattern as the exact-answer fallback.
+func entityContextAnchors() []string {
+	anchors := make([]string, 0, len(EntityContextAnchorLabels)+1)
+	for _, label := range EntityContextAnchorLabels {
+		anchors = append(anchors, "(e:"+label+")")
+	}
+	return append(anchors, "(e)")
+}
+
+// entityContextCypher renders GetEntityContext's read for one anchor pattern.
+// Everything after the anchor is the pre-#7006 statement: file/repo
+// enrichment through the Repository that REPO_CONTAINS the entity's File,
+// with the scoped grant applied to that Repository.
+func entityContextCypher(anchor string, access querycontract.RepositoryAccessFilter) string {
+	cypher := `
+		MATCH ` + anchor + ` WHERE e.id = $entity_id
+	`
+	cypher += `
+		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+	`
+	if access.Scoped() {
+		cypher += `
+		WHERE ` + access.GraphCondition("r") + `
+	`
+	}
+	cypher += `
+		OPTIONAL MATCH (e)-[rel]->(target)
+		RETURN e.id as id, labels(e) as labels, e.name as name,
+		       f.relative_path as file_path,
+		       coalesce(e.language, f.language) as language,
+		       e.start_line as start_line,
+		       e.end_line as end_line,
+` + rows.GraphSemanticMetadataProjection() + `
+		       ,r.id as repo_id, r.name as repo_name,
+		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
+	`
+	return cypher
 }

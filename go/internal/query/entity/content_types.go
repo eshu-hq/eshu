@@ -44,30 +44,20 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 	"file":       {},
 }
 
-// EntityContextAnchorLabelDisjunction is the label set GetEntityContext seeds
-// its by-id graph anchor with (issue #7006).
+// EntityContextAnchorLabelDisjunction is the fast-path label set
+// GetEntityContext tries, one label per MATCH, before its unlabeled fallback
+// (issue #7006).
 //
-// It is deliberately wider than codequery/chain.AnchorLabelDisjunction (the
-// call-chain builder's narrower Function/Class/Struct/Interface/TypeAlias/File
-// set): GetEntityContext's MCP/OpenAPI contract describes its input as any
-// "canonical entity identifier," and resolve_entity -- the sibling tool a
-// caller uses to discover one -- can return an id for every label in
-// querycontract.GraphBackedEntityTypes (Repository, Directory, File, Module,
-// Function, Class, Struct, Enum, Union, Macro, TypeAnnotation) plus Workload
-// (resolverOnlyGraphEntityTypes above), none of which has a content-store
-// fallback row. Interface and TypeAlias are included too: they are real graph
-// labels a caller can hold an id for (e.g. from a call-chain response) even
-// though resolve_entity cannot produce them by name search. Restricting the
-// anchor to only the call-chain label set would silently 404 any of these
-// other types where the pre-fix unlabeled `MATCH (e)` scan used to resolve
-// them.
-//
-// Every other type resolve_entity can return (querycontract.ContentBackedEntityTypes,
-// ResolveContentBackedEntityTypes, GraphFirstContentBackedEntityTypes -- e.g.
-// TerraformModule, ArgoCDApplication, K8sResource, DataAsset, SqlTable) has a
-// content-store row, so a graph miss for one of those still resolves through
-// GetEntityContext's existing getEntityContextFromContent fallback and needs
-// no graph anchor coverage here.
+// It covers every label resolve_entity can return with no content-store
+// fallback row -- querycontract.GraphBackedEntityTypes (Repository,
+// Directory, File, Module, Function, Class, Struct, Enum, Union, Macro,
+// TypeAnnotation) plus Workload (resolverOnlyGraphEntityTypes above) -- and
+// the other common id-indexed labels a caller holds ids for: Interface and
+// TypeAlias from call-chain responses, WorkloadInstance from workload
+// context. It is a latency list, not a completeness list: the pre-#7006
+// `MATCH (e) WHERE e.id = $entity_id` matched an id on any label, so
+// GetEntityContext finishes with that unlabeled read when every label here
+// misses, and an id on any other label still resolves.
 //
 // This is kept as a "|"-joined string (rather than only the slice below) so
 // TestEntityContextAnchorLabelDisjunctionCoversEveryGraphOnlyResolveEntityType
@@ -78,7 +68,7 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 // rows for an id a single-label MATCH resolves correctly -- live-proven on
 // ops-qa for both a code-entity and an infra-entity id (issue #7006). Use
 // EntityContextAnchorLabels to iterate one label per MATCH instead.
-const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Workload|Interface|TypeAlias"
+const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Workload|WorkloadInstance|Interface|TypeAlias"
 
 // EntityContextAnchorLabels is EntityContextAnchorLabelDisjunction's labels,
 // ordered most-common-first (the six code-entity labels
@@ -88,6 +78,7 @@ const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Fu
 var EntityContextAnchorLabels = []string{
 	"Function", "Class", "Struct", "Interface", "TypeAlias", "File",
 	"Repository", "Directory", "Module", "Enum", "Union", "Macro", "TypeAnnotation", "Workload",
+	"WorkloadInstance",
 }
 
 func knownResolveEntityType(typeName string) bool {

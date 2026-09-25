@@ -319,7 +319,8 @@ sees, so hashing NornicDB's `query` field will not reproduce it.
 A route that resolves an id through several sequential label-anchored reads --
 `GET /api/v0/entities/{entity_id}/context` and
 `POST /api/v0/infra/relationships`, both trying one label per candidate in a
-loop until a match or exhaustion -- derives ONE shared deadline once, before
+loop until a match or exhaustion, then one final unlabeled read so an id on
+any other label still resolves as it did before the loop existed -- derives ONE shared deadline once, before
 the loop, via `querycontract.WithBoundedGraphReadDeadline`, and reuses it for
 every candidate read. This bounds the whole loop by the same 10-second budget
 a single statement gets, instead of paying that budget once per candidate
@@ -335,10 +336,10 @@ budget and fires first still classifies as `caller_deadline`, never
 `deadline`.
 
 `POST /api/v0/infra/relationships`'s request span additionally records
-`eshu.entity_anchor_labels_tried`, an integer count of how many candidate
-labels the loop tried before matching or exhausting the set --
-`len(impactRelationshipAnchorLabels)` on a full miss, or the 1-based index of
-the label that matched. `GET /api/v0/entities/{entity_id}/context` logs the
+`eshu.entity_anchor_labels_tried`, an integer count of how many anchor reads
+the loop issued before matching or exhausting the set -- the 1-based index of
+the label that matched, `len(impactRelationshipAnchorLabels)+1` when only the
+unlabeled fallback matched, and the same value on a full miss. `GET /api/v0/entities/{entity_id}/context` logs the
 same count as `labels_tried`/`labels_total` structured fields (plus a
 `failure_class` of `deadline` or `graph_read_error`) on its own separate
 handler-level warning when the loop ends in an error before resolving --

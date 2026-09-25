@@ -41,7 +41,8 @@ from).
 3. `GetEntityContext` (`internal/query/entity/context_handler.go`) anchors
    with one single-label `MATCH (e:<Label>) WHERE e.id = $entity_id` per
    candidate in `EntityContextAnchorLabels`, most-common-first, stopping at
-   the first row, all under one shared bounded deadline. A first attempt used
+   the first row, then falls back to the pre-fix unlabeled read (Wave 5), all
+   under one shared bounded deadline. A first attempt used
    a single label disjunction (`Function|Class|...`, as the call-chain builder
    does, issue #3567); the Wave 3 addendum proves that shape silently returns
    zero rows on the pinned NornicDB build, so it was replaced. See the Wave 3
@@ -49,13 +50,9 @@ from).
 
 1 and 2 (the complexity list and quality inspect anchors) are pure
 anchor-order rewrites: predicate set, projections, ordering, and `LIMIT` are
-unchanged. `GetEntityContext` (3) is NOT purely an anchor-label swap: its
-Wave 3 revision (below) also changed the shape of the `repo_id` source
-(graph hop -> `e.repo_id`/`f.repo_id` property), dropped the graph-side
-`r.name` projection and the in-Cypher grant `WHERE` on the Repository hop
-(replaced by the Go-side `access.AllowsRepositoryID` check that was already
-the real scoped-access boundary) -- see the Wave 3 addendum for the full
-reasoning and the live proof each of those changes stayed correct.
+unchanged. `GetEntityContext` (3) is an anchor swap plus fallback: every read
+projects exactly the pre-fix columns from the pre-fix enrichment (Wave 5
+restored the Repository hop that Wave 3 had replaced).
 
 Backend: NornicDB via `kubectl port-forward` to the ops-qa deployment, image
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c`
@@ -227,14 +224,10 @@ parent resolves instantly alone). A single REQUIRED reverse `:REPO_CONTAINS`
 hop from a bound File node also returned zero rows, fast, for a File whose
 Repository provably exists and resolves via the forward direction -- the
 reverse direction of this relationship type is unreliable on this pin
-regardless of `OPTIONAL`. `GetEntityContext` now resolves `repo_id` from the
-entity/File node's own direct `repo_id` property (confirmed present, no extra
-hop) and relies on its pre-existing `hydrateResolvedEntityRepoIdentity` call
-to backfill `repo_name` from the content store, exactly as it already did for
-other repo-name gaps; the Go-side `access.AllowsRepositoryID` check after
-hydration is unchanged and remains the real scoped-access boundary (the
-removed in-Cypher `WHERE` on the Repository hop was defense-in-depth on top
-of it, not the gate itself).
+regardless of `OPTIONAL`. Wave 3 therefore read `repo_id` from the node's own
+`repo_id` property and dropped `repo_name`. **Superseded by Wave 5**: that
+shape lost `repo_id`/`repo_name` wherever the nodes carry no `repo_id`
+property and was reverted to the pre-fix Repository hop.
 
 Performance Evidence (clean, uncontended measurements): the final shape
 (single-label anchor + two independent single-hop `OPTIONAL MATCH`es, no
@@ -470,18 +463,18 @@ complexity>0 functions): before 0.09-0.46s API, 0-262ms PROFILE; after
 0-313ms; db hits identical on all 12 pairs (16-447k). `EXPLAIN` of the
 deployed statement is `NodeUniqueIndexSeek` (Repository) -> `Expand` ->
 `Expand`, so Neo4j already seeds from the Repository index and the rewrite is
-a no-op here. `get_entity_context`, 6 real ids (3 Function, Class, Struct, Repository): before 0.75-1.42s API,
+a no-op here. `get_entity_context` (**Wave 3 shape; no longer the shipped Cypher, see Wave 5**), 6 real ids (3 Function, Class, Struct, Repository): before 0.75-1.42s API,
 715-808ms PROFILE, 1.84-1.89M db hits; after (loop to first hit, 1-7 tries)
 405-513ms, 0.89-1.22M db hits; a miss (14 tries) 551-594ms vs 690ms.
 `infra/relationships`, 6 real ids: before 0.74-1.16s API, 754-797ms PROFILE,
 1.84M db hits; after 0-59ms, 366-108k db hits (1-11 tries); a miss 72-74ms vs
-776-783ms.
+776-783ms (**the miss figure no longer holds after Wave 5**: a miss now also
+runs the unlabeled fallback, i.e. the "before" statement).
 
 Accuracy Evidence: `infra/relationships` raw output is byte-identical between
 the deployed and first-hit per-label statements for all 6 ids; for
-`get_entity_context` every column matches except `repo_name` (dropped from the
-Cypher, backfilled from the content store); an absent id returns no row on
-both. One repo first showed a 2-db-hit mismatch across runs: live reprojection
+`get_entity_context` every column matched except `repo_name` in the Wave 3
+shape, which Wave 5 reverted; an absent id returns no row on both. One repo first showed a 2-db-hit mismatch across runs: live reprojection
 drift, byte-identical on a back-to-back re-run.
 
 Reading: nothing timed out before the fix on Neo4j (scope stated in the
@@ -493,3 +486,11 @@ complexity/inspect not at all.
 
 No-Observability-Change: this section adds measurement only; no code, metric,
 span, or log field changed.
+
+
+## Wave 5 Addendum — Answer-Truth Regressions Found By live-backend CI
+
+Moved to [7006-live-answer-truth-fallback.md](7006-live-answer-truth-fallback.md)
+to keep this record under the Markdown line cap: the per-label loops now end
+with the pre-fix unlabeled read, and `GetEntityContext` projects the pre-fix
+Repository-hop enrichment again.

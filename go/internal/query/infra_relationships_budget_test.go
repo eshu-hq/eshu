@@ -115,7 +115,9 @@ func TestInfraRelationshipsSpanRecordsLabelsTried(t *testing.T) {
 		matchOn   string // label to answer a match on; "" means miss every label
 		wantTried int
 	}{
-		{name: "full_miss", matchOn: "", wantTried: len(impactRelationshipAnchorLabels)},
+		// A full miss tries every label, then the unlabeled fallback anchor,
+		// which the attribute counts as one more anchor tried.
+		{name: "full_miss", matchOn: "", wantTried: len(impactRelationshipAnchorLabels) + 1},
 		{name: "early_match", matchOn: impactRelationshipAnchorLabels[1], wantTried: 2},
 	}
 
