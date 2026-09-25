@@ -109,6 +109,11 @@ leases.
 | 2,000 scopes, 20k projector rows, 60k reducer rows | 112.35 ms | 115.01 ms | 179,744 -> 182,268 (+1.4%) |
 | 20,000 scopes, 200k projector rows, 600k reducer rows | 12.30 s | 14.87 s | 11,664,539 -> 11,693,079 (+0.24%) |
 
+Wall time at 20k scopes is inconclusive under host load, and buffer hits are
+the proxy this note relies on. An independent interleaved re-measurement (21
+runs at 2k scopes, 9 at 20k scopes, a different seed) gave a 20k median of
+484.9 ms shipped versus 484.6 ms lock-first, a ratio of 0.999.
+
 The 20k wall times ranged 7.6-19.5 s (shipped) and 7.1-21.4 s (lock-first) on a
 host with load average 31-55, so their medians are not comparable. Buffer
 counts, which do not depend on host load, differ by 0.24%. In both plans the
@@ -127,11 +132,26 @@ retries, it logs `failure_class=projector_claim_conflict`. Claim latency stays o
 retry counter should stay at zero; a nonzero rate means a new lock-order
 conflict to investigate.
 
-Known remaining risk: the harness also observes two overlapping projector
-leases in one scope at the same low rate on both statements (a total of 3 and 5
-distinct pairs across four 40 s runs). This race predates #7108 and this change
-does not alter it. Two claimers whose snapshots disagree on the scope's oldest
-ready row, for example a retrying older generation versus a freshly enqueued
-newer one, lock different rows. The snapshot-only in-flight guard sees neither
-uncommitted claim. Closing it needs a scope-level exclusion and is tracked
-separately.
+Known remaining risk: the harness observes two overlapping projector leases in
+one scope, and it observes them more often after this change than before it.
+Measured distinct overlapping-lease pairs, shipped statement versus lock-first:
+
+| run set | shipped | lock-first |
+| --- | --- | --- |
+| author, 4 x 40 s, 32 workers | 5 and 3 pairs (two batches) | 8 and 5 pairs |
+| reviewer, 5 x 30 s, 32 workers, 40 scopes | 1 pair in 3,208 claims | 11 pairs in 4,470 claims |
+| reviewer, 2 x 60 s, 10k-scope backlog | 0 pairs in 1,020 claims | 2 pairs in 2,837 claims |
+
+The double-lease rate in the harness is higher after this change. The race is
+the same pre-existing one and is tracked in #7115; this change does not fix it.
+Two claimers whose snapshots disagree on the scope's oldest ready row, for
+example a retrying older generation versus a freshly enqueued newer one, lock
+different rows. The snapshot-only in-flight guard sees neither uncommitted
+claim. Closing it needs a scope-level exclusion.
+
+Hypothesis, not proven: the shipped statement's blocking waits serialised
+claimers, and removing the waits raises concurrency enough to unmask the race
+more often. The mechanism was not isolated. The harness shape is extreme (32
+workers on 40 scopes with 150 ms leases); production pods run far fewer
+workers, so the absolute exposure there is smaller. Whether #7115 lands before
+or with this change is an owner decision.

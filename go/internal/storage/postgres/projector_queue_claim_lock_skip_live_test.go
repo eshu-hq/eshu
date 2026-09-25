@@ -149,7 +149,10 @@ FOR EACH ROW EXECUTE FUNCTION proof_pause_on_supersede();
 	if err := database.QueryRow("SHOW search_path").Scan(&searchPath); err != nil {
 		t.Fatalf("read search_path: %v", err)
 	}
-	pausedDSN := withDSNParam(withDSNParam(dsn, "search_path="+strings.TrimSpace(searchPath)), "eshu_proof.pause=on")
+	pausedDSN := withDSNParam(withDSNParam(withDSNParam(dsn,
+		"search_path="+strings.TrimSpace(searchPath)),
+		"eshu_proof.pause=on"),
+		"application_name="+pausedClaimApplicationName)
 	paused, err := sql.Open("pgx", pausedDSN)
 	if err != nil {
 		t.Fatalf("open paused pool: %v", err)
@@ -167,7 +170,10 @@ FOR EACH ROW EXECUTE FUNCTION proof_pause_on_supersede();
 		work, ok, err := queue.Claim(context.Background())
 		done <- claimResult{generation: work.Generation.GenerationID, ok: ok, err: err}
 	}()
-	time.Sleep(500 * time.Millisecond) // the claimer is inside pg_sleep now
+	// Race the claimer only once it is provably inside the trigger's pg_sleep,
+	// after its statement snapshot. A fixed sleep could let the UPDATEs commit
+	// before the snapshot, so the assertions would pass without EvalPlanQual.
+	waitForPausedClaimer(t, dsn)
 	if _, err := database.Exec(`
 UPDATE fact_work_items
 SET status = 'claimed', lease_owner = 'racing-worker', claim_until = now() + interval '1 minute'
@@ -194,4 +200,40 @@ UPDATE fact_work_items SET claim_until = now() + interval '1 minute' WHERE work_
 	if status, class, owner := workState(t, database, "scope-c", "gen-c1"); status != "claimed" || owner != "other-worker" {
 		t.Fatalf("renewed gen-c1 = (%s, %s, %q), want its renewed lease kept", status, class, owner)
 	}
+}
+
+// pausedClaimApplicationName tags the session whose claim the proof trigger
+// pauses, so the test can find it in pg_stat_activity.
+const pausedClaimApplicationName = "eshu_7108_paused_claimer"
+
+// waitForPausedClaimer polls pg_stat_activity until the tagged session is
+// waiting in pg_sleep inside an active statement, with a deadline. It fails the
+// test if the paused state is never reached, because the racing UPDATEs would
+// then not exercise the lock recheck.
+func waitForPausedClaimer(t *testing.T, dsn string) {
+	t.Helper()
+	observer, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open observer: %v", err)
+	}
+	defer func() { _ = observer.Close() }()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var paused bool
+		if err := observer.QueryRow(`
+SELECT EXISTS (
+    SELECT 1 FROM pg_stat_activity
+    WHERE application_name = $1
+      AND state = 'active'
+      AND wait_event_type = 'Timeout'
+      AND wait_event = 'PgSleep'
+)`, pausedClaimApplicationName).Scan(&paused); err != nil {
+			t.Fatalf("poll pg_stat_activity: %v", err)
+		}
+		if paused {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("claimer never reached pg_sleep within 10s; the racing UPDATEs would not test the recheck")
 }

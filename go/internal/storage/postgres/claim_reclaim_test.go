@@ -80,12 +80,10 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 		"FROM supersedable_projector_generations AS supersedable",
 		"supersedable.work_item_id = work.work_item_id",
 		// #7108: every maintenance branch locks first without waiting.
-		"FOR NO KEY UPDATE OF stale_generation SKIP LOCKED",
 		"JOIN locked_stale_scope_generations AS locked_generation",
 		"FROM locked_stale_projector_generations AS locked",
 		"FROM locked_stale_projector_duplicates AS locked",
 		"FROM locked_claim_siblings AS locked",
-		"FOR NO KEY UPDATE OF stale SKIP LOCKED",
 		"FROM superseded_stale_projector_generations AS superseded_same",
 		"superseded_same.work_item_id = same.work_item_id",
 		"reclaimed_claim_siblings AS (",
@@ -105,6 +103,17 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("claim query missing %q:\n%s", want, query)
+		}
+	}
+	// Count occurrences: a single substring hit must not satisfy all four lock
+	// CTEs (#7108). Three lock CTEs lock rows "OF stale" (duplicates,
+	// work rows, siblings) and one locks the generation row.
+	for lock, min := range map[string]int{
+		"FOR NO KEY UPDATE OF stale SKIP LOCKED":            3,
+		"FOR NO KEY UPDATE OF stale_generation SKIP LOCKED": 1,
+	} {
+		if got := strings.Count(query, lock); got < min {
+			t.Fatalf("claim query has %d x %q, want at least %d", got, lock, min)
 		}
 	}
 }
