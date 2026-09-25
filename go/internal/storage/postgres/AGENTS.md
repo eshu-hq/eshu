@@ -597,7 +597,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 
 No-Regression Evidence: admission-decision evidence bounds are covered by
 `go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1`
-and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1`.
+and `go test ./internal/storage/postgres/admission -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1`.
 The route rejects unsupported lightweight profiles before store reads and caps
 embedded evidence at 20 rows per decision with truncation metadata.
 
