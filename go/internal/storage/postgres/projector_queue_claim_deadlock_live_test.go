@@ -49,7 +49,8 @@ type claimDeadlockOutcome struct {
 // Overlapping leases in one scope are logged, not asserted: they come from a
 // separate race in the unchanged candidate selection (two claimers whose
 // snapshots disagree on the scope's oldest ready row lock different rows) and
-// occur at the same rate with the pre-#7108 statement.
+// also occur with the pre-#7108 statement, at a lower rate in this harness
+// (see #7115).
 func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 	dsn := os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN")
 	if dsn == "" {

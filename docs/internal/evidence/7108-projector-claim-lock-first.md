@@ -129,8 +129,9 @@ retry. Each retry logs a `projector claim conflict; retrying claim` warning with
 can join to the Postgres deadlock report. When a worker survives exhausted
 retries, it logs `failure_class=projector_claim_conflict`. Claim latency stays on
 `eshu_dp_queue_claim_duration_seconds{queue="projector"}`. After this change the
-retry counter should stay at zero; a nonzero rate means a new lock-order
-conflict to investigate.
+retry counter should stay near zero. A `40001` can also come from contention
+with Ack, Enqueue or the heartbeat, so a sustained nonzero rate is worth
+investigating as a possible new lock-order conflict, not proof of one.
 
 Known remaining risk: the harness observes two overlapping projector leases in
 one scope, and it observes them more often after this change than before it.
