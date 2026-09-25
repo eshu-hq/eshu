@@ -2,9 +2,10 @@
 
 ## Purpose
 
-`correlation/rules` defines the declarative rule-pack schema and the thirteen
+`correlation/rules` defines the declarative rule-pack schema and the fourteen
 first-party rule packs Eshu ships for container, IaC, and CI/CD correlation
-families, plus Terraform config-vs-state and AWS cloud-runtime drift. The
+families, plus Terraform config-vs-state, AWS cloud-runtime, and multi-cloud
+runtime drift. The
 engine consumes these packs verbatim; the rules package owns no evaluation
 logic, only schema definition and pack constructors.
 
@@ -69,6 +70,8 @@ First-party pack constructors (one per file):
   `terraform_config_state_drift`, `MinAdmissionConfidence` 0.80
 - `AWSCloudRuntimeDriftRulePack` — pack name `aws_cloud_runtime_drift`,
   `MinAdmissionConfidence` 0.85
+- `MultiCloudRuntimeDriftRulePack` — pack name `multi_cloud_runtime_drift`,
+  `MinAdmissionConfidence` 0.85
 
 Aggregated entry points (in `container_rulepacks.go`):
 
@@ -76,11 +79,12 @@ Aggregated entry points (in `container_rulepacks.go`):
   `DockerfileRulePack`, `DockerComposeRulePack`, `GitHubActionsRulePack`,
   `JenkinsRulePack`, `HelmRulePack`, `ArgoCDRulePack`, `KustomizeRulePack`,
   `TerraformConfigRulePack`, `CloudFormationRulePack` (9 packs; excludes
-  `TerragruntRulePack` and `AnsibleRulePack`).
-- `FirstPartyRulePacks()` — returns all 13 shipped packs; adds
+  `TerragruntRulePack`, `AnsibleRulePack`, and the three drift packs).
+- `FirstPartyRulePacks()` — returns all 14 shipped packs; adds
   `TerragruntRulePack`, `AnsibleRulePack`,
-  `TerraformConfigStateDriftRulePack`, and
-  `AWSCloudRuntimeDriftRulePack` to the container slice.
+  `TerraformConfigStateDriftRulePack`,
+  `AWSCloudRuntimeDriftRulePack`, and
+  `MultiCloudRuntimeDriftRulePack` to the container slice.
 
 See `doc.go` for the godoc contract.
 
@@ -107,7 +111,7 @@ None. Schema and constructors only.
   the engine uses the full evidence count. A value of 0 does not mean "disallow matches."
 - `ContainerRulePacks` and `FirstPartyRulePacks` return different sets. Do
   not assume callers use the same slice. `ContainerRulePacks` excludes
-  `TerragruntRulePack` and `AnsibleRulePack`.
+  `TerragruntRulePack`, `AnsibleRulePack`, and the three drift packs.
 - Pack constructors return value types, not pointers. Each call produces a
   fresh independent pack.
 
