@@ -148,6 +148,41 @@ func TestReadMergeGroupChecksJoinsCheckRunsToTheNewestMergeGroupRun(t *testing.T
 	}
 }
 
+// The runs API documents no sort order for pagination, so the newest run per
+// workflow must be chosen by run id, not by position. Here the superseded
+// attempt (id 900, a completed success) is listed before the current one
+// (id 901, still running); a first-seen rule would let the stale SUCCESS row
+// satisfy the gate.
+const mergeGroupRunsOldestFirst = `[{"workflow_runs":[
+	{"id":900,"name":"Build Test","event":"merge_group","conclusion":"success","check_suite_id":40},
+	{"id":901,"name":"Build Test","event":"merge_group","conclusion":null,"check_suite_id":41}
+]}]`
+
+const mergeGroupCheckRunsTwoAttempts = `[{"check_runs":[
+	{"name":"go-core-complete","status":"completed","conclusion":"success","check_suite":{"id":40}},
+	{"name":"go-core-complete","status":"in_progress","conclusion":null,"check_suite":{"id":41}}
+]}]`
+
+func TestReadMergeGroupChecksPicksTheNewestRunByIDNotListOrder(t *testing.T) {
+	t.Parallel()
+
+	runner := &endpointRunner{routes: map[string]string{
+		"actions/runs?": mergeGroupRunsOldestFirst,
+		"commits/" + headSHAFixture + "/check-runs": mergeGroupCheckRunsTwoAttempts,
+	}}
+
+	got, err := readMergeGroupChecks(context.Background(), runner, "eshu-hq/eshu", headSHAFixture)
+	if err != nil {
+		t.Fatalf("readMergeGroupChecks: %v", err)
+	}
+	want := []checkRollup{
+		{Name: "go-core-complete", State: "IN_PROGRESS", Bucket: "pending", Workflow: "Build Test", Event: "merge_group"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("checks =\n%#v\nwant the newest run (id 901) only:\n%#v", got, want)
+	}
+}
+
 func TestCheckRollupBucketMirrorsGHAggregate(t *testing.T) {
 	t.Parallel()
 

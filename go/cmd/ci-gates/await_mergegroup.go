@@ -153,6 +153,7 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 	}
 	var runPages []struct {
 		WorkflowRuns []struct {
+			ID           int64  `json:"id"`
 			Name         string `json:"name"`
 			Event        string `json:"event"`
 			CheckSuiteID int64  `json:"check_suite_id"`
@@ -161,20 +162,30 @@ func readMergeGroupChecks(ctx context.Context, runner ghRunner, repo, headSHA st
 	if err := json.Unmarshal(runsOutput, &runPages); err != nil {
 		return nil, fmt.Errorf("decode merge_group runs for %s: %w", headSHA, err)
 	}
-	suiteWorkflow := make(map[int64]string)
-	seenName := make(map[string]struct{})
+	// The runs API documents no pagination sort order, so the newest run per
+	// workflow name is chosen by run id (ids increase monotonically), not by
+	// list position. A superseded attempt must never own the name: its
+	// completed rows would satisfy a gate the current attempt has not run yet.
+	// On an id tie (only when ids are absent) the first-seen run is kept.
+	type newestRun struct {
+		id    int64
+		suite int64
+	}
+	newest := make(map[string]newestRun)
 	for _, page := range runPages {
 		for _, run := range page.WorkflowRuns {
 			if run.Event != eventMergeGroup {
 				continue
 			}
-			// Newest-first: the first run per name owns the current rows.
-			if _, seen := seenName[run.Name]; seen {
+			if current, seen := newest[run.Name]; seen && run.ID <= current.id {
 				continue
 			}
-			seenName[run.Name] = struct{}{}
-			suiteWorkflow[run.CheckSuiteID] = run.Name
+			newest[run.Name] = newestRun{id: run.ID, suite: run.CheckSuiteID}
 		}
+	}
+	suiteWorkflow := make(map[int64]string, len(newest))
+	for name, run := range newest {
+		suiteWorkflow[run.suite] = name
 	}
 
 	checksEndpoint := "repos/" + repo + "/commits/" + url.PathEscape(headSHA) + "/check-runs?per_page=100&filter=latest"
