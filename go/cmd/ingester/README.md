@@ -138,7 +138,7 @@ commits in bounded per-repository-batch transactions, each taking only its own
 repositories' exclusive advisory locks — namespaced under
 `deferred_relationship_maintenance` and acquired in sorted repository order to
 stay deadlock-free — and normal source fact commits take the matching *shared*
-lock for their own repository partition only (`deferred_maintenance_lock.go`).
+lock for their own repository partition only (`lock/deferred_maintenance.go`).
 The reopen pass that follows runs in one transaction of its own and takes no
 advisory lock at all: it only flips `fact_work_items` rows in status
 `succeeded`, which the reducer claim path never selects — it claims `status IN

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -68,7 +69,7 @@ func (g *RepoDependencyAcceptanceUnitGate) WithAcceptanceUnit(
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, []string{key.AcceptanceUnitID}); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, []string{key.AcceptanceUnitID}); err != nil {
 		return false, fmt.Errorf("lock repo dependency acceptance unit %q: %w", key.AcceptanceUnitID, err)
 	}
 	owned, err := repoDependencyLeaseOwnerActive(ctx, tx, key)

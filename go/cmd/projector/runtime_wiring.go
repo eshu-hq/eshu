@@ -26,6 +26,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -165,7 +166,7 @@ func buildProjectorRuntime(
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(database),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(database),
 		RetryInjector:                 retryInjector,
-		PackageRegistryIdentityLocker: postgres.PackageRegistryIdentityLocker{DB: database},
+		PackageRegistryIdentityLocker: lockstore.PackageRegistryIdentityLocker{DB: database},
 		Tracer:                        tracer,
 		Instruments:                   instruments,
 		Logger:                        logger,

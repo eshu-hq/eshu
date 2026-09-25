@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // TestGraphNodeOwnerSchemaSQLMatchesMigration proves the store resolves its DDL
@@ -86,7 +87,7 @@ func TestGraphNodeOwnerAdvisoryKeyIsDeterministicAndNamespaced(t *testing.T) {
 		t.Fatalf("advisory key must be non-negative (63-bit), got %d", a)
 	}
 	// A different subsystem prefix must produce a different key for the same id.
-	if ownerstore.GraphNodeOwnerAdvisoryKey("x") == packageRegistryIdentityAdvisoryLockKey("x") {
+	if ownerstore.GraphNodeOwnerAdvisoryKey("x") == lockstore.PackageRegistryIdentityAdvisoryLockKey("x") {
 		t.Fatal("graph node owner advisory key collides with package registry identity namespace")
 	}
 }

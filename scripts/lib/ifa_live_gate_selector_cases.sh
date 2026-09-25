@@ -72,7 +72,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/storage/cypher/bounded_retract_drain.go|go/internal/storage/cypher/bounded_retract_drain.go'
 	'go/internal/storage/cypher/reconciliation_drift_metrics.go|go/internal/storage/cypher/reconciliation_drift_metrics.go'
 	'go/internal/storage/cypher/canonical_node_writer_entities_singleton.go|go/internal/storage/cypher/canonical_node_writer_entities_singleton.go'
-	'go/internal/storage/postgres/deferred_maintenance_lock.go|go/internal/storage/postgres/deferred_maintenance_lock.go'
+	'go/internal/storage/postgres/lock/deferred_maintenance.go|go/internal/storage/postgres/lock/deferred_maintenance.go'
 	'go/internal/storage/postgres/relationship_reference_keys.go|go/internal/storage/postgres/relationship_reference_keys.go'
 	'go/internal/storage/postgres/relationship_store*.go|go/internal/storage/postgres/relationship_store.go'
 	'go/internal/storage/postgres/relationship_store*.go|go/internal/storage/postgres/relationship_store_resolved.go'

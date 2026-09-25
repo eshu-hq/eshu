@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -23,7 +24,7 @@ import (
 // deferredMaintenanceBarrierLockKey is the retired single fleet-wide advisory
 // lock key that once serialized all deferred relationship maintenance across the
 // fleet. Deferred maintenance now partitions its locks per repository (see
-// deferred_maintenance_lock.go); this key is retained only as a regression guard
+// lock/deferred_maintenance.go); this key is retained only as a regression guard
 // so tests can assert the global serialization point is not reintroduced.
 const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 
@@ -215,7 +216,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 
 	stageStart = time.Now()
-	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, lockstore.DeferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
 	// Held from here until tx.Commit() releases it (recordSharedLockHoldDuration

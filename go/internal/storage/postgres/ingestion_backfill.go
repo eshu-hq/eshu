@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -267,9 +268,9 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 
 	lockKeys := make([]string, 0, len(batchRepoIDs))
 	for _, repoID := range batchRepoIDs {
-		lockKeys = append(lockKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
+		lockKeys = append(lockKeys, lockstore.DeferredMaintenanceRepoLockKeyFromID(repoID))
 	}
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
 		return nil, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
 	}
 

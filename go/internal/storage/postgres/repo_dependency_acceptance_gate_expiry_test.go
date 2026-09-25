@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 func TestRepoDependencyLeaseOwnerActiveUsesWallClockTimestamp(t *testing.T) {
@@ -59,7 +60,7 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 		t.Fatalf("begin repository-lock blocker: %v", err)
 	}
 	defer func() { _ = blocker.Rollback() }()
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, SQLTx{Tx: blocker}, []string{repoID}); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, SQLTx{Tx: blocker}, []string{repoID}); err != nil {
 		t.Fatalf("hold repository lock: %v", err)
 	}
 

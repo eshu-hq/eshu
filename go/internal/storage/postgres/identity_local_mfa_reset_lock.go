@@ -19,8 +19,8 @@ const (
 	// identity_bootstrap_credential_sql.go) share the same
 	// pg_advisory_xact_lock(bigint) keyspace; the prefix keeps this domain's
 	// keys collision-free from any other named lock, mirroring the same
-	// per-entity pattern platform_graph_locker.go and
-	// package_registry_identity_locker.go already use.
+	// per-entity pattern lock/platform_graph.go and
+	// lock/package_registry_identity.go already use.
 	localIdentityMFAResetAdvisoryLockPrefix = "eshu:local_identity_mfa_reset:"
 	localIdentityMFAResetAdvisoryLockQuery  = "SELECT pg_advisory_xact_lock($1::bigint)"
 	maxLocalIdentityMFAResetAdvisoryLockKey = uint64(1<<63 - 1)

@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // measureConcurrentExclusiveLockWaitDuringWork opens a shared-barrier-holding
@@ -50,7 +51,7 @@ func measureConcurrentExclusiveLockWaitDuringWork(
 	if err != nil {
 		t.Fatalf("begin maintenance tx: %v", err)
 	}
-	if _, err := tx.ExecContext(ctx, deferredMaintenancePartitionedExclusiveLockSQL, deferredMaintenanceLockNamespace, repoKey); err != nil {
+	if _, err := tx.ExecContext(ctx, lockstore.DeferredMaintenancePartitionedExclusiveLockSQL, lockstore.DeferredMaintenanceLockNamespace, repoKey); err != nil {
 		t.Fatalf("acquire maintenance exclusive lock: %v", err)
 	}
 	maintenanceWait := time.Since(maintenanceStart)
@@ -83,7 +84,7 @@ func runLockedBackfillWindow(ctx context.Context, adapter SQLDB, repoKey, newRep
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
 		return fmt.Errorf("acquire shared barrier: %w", err)
 	}
 
@@ -125,7 +126,7 @@ func runLockedCommitWindowWithoutBackfill(ctx context.Context, adapter SQLDB, re
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
 		return fmt.Errorf("acquire shared barrier: %w", err)
 	}
 

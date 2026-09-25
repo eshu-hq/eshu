@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // TestCommitTakesRepoScopedSharedBarrier proves a generation commit fences only
@@ -54,10 +55,10 @@ func TestCommitTakesRepoScopedSharedBarrier(t *testing.T) {
 	if !strings.Contains(first.query, "hashtext") {
 		t.Fatalf("first exec = %q, want namespaced two-arg partitioned lock, not the global key", first.query)
 	}
-	if got, want := first.args[0], deferredMaintenanceLockNamespace; got != want {
+	if got, want := first.args[0], lockstore.DeferredMaintenanceLockNamespace; got != want {
 		t.Fatalf("shared barrier namespace = %v, want %v", got, want)
 	}
-	if got, want := first.args[1], deferredMaintenanceRepoLockKey(scopeValue); got != want {
+	if got, want := first.args[1], lockstore.DeferredMaintenanceRepoLockKey(scopeValue); got != want {
 		t.Fatalf("shared barrier repo key = %v, want %v", got, want)
 	}
 }
@@ -117,7 +118,7 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 	for _, exec := range tx.execs {
 		if strings.Contains(exec.query, "pg_advisory_xact_lock(") &&
 			strings.Contains(exec.query, "hashtext") {
-			if got, want := exec.args[0], deferredMaintenanceLockNamespace; got != want {
+			if got, want := exec.args[0], lockstore.DeferredMaintenanceLockNamespace; got != want {
 				t.Fatalf("exclusive lock namespace = %v, want %v", got, want)
 			}
 			lockKeys = append(lockKeys, exec.args[1])
@@ -136,8 +137,8 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 		}
 	}
 
-	wantAlpha := deferredMaintenanceRepoLockKeyFromID("repo-alpha")
-	wantZeta := deferredMaintenanceRepoLockKeyFromID("repo-zeta")
+	wantAlpha := lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-alpha")
+	wantZeta := lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-zeta")
 	if lockKeys[0] != wantAlpha || lockKeys[1] != wantZeta {
 		t.Fatalf("lock keys = %v, want sorted [%v %v]", lockKeys, wantAlpha, wantZeta)
 	}
@@ -173,7 +174,7 @@ func maintenanceRepoLockKeys(t *testing.T, execs []fakeExecCall) []any {
 		if !strings.Contains(exec.query, "pg_advisory_xact_lock(") || !strings.Contains(exec.query, "hashtext") {
 			continue
 		}
-		if got, want := exec.args[0], deferredMaintenanceLockNamespace; got != want {
+		if got, want := exec.args[0], lockstore.DeferredMaintenanceLockNamespace; got != want {
 			t.Fatalf("exclusive lock namespace = %v, want %v", got, want)
 		}
 		keys = append(keys, exec.args[1])
@@ -188,12 +189,12 @@ func maintenanceRepoLockKeys(t *testing.T, execs []fakeExecCall) []any {
 func TestRepoLockKeyDisjointForDistinctRepos(t *testing.T) {
 	t.Parallel()
 
-	a := deferredMaintenanceRepoLockKeyFromID("repo-A")
-	b := deferredMaintenanceRepoLockKeyFromID("repo-B")
+	a := lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-A")
+	b := lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-B")
 	if a == b {
 		t.Fatalf("distinct repos produced equal lock keys: %q", a)
 	}
-	if a != deferredMaintenanceRepoLockKeyFromID("repo-A") {
+	if a != lockstore.DeferredMaintenanceRepoLockKeyFromID("repo-A") {
 		t.Fatal("repo lock key is not stable for the same repo id")
 	}
 }

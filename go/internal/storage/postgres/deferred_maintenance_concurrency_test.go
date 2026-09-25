@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // TestDisjointRepoMaintenanceRunsConcurrently proves the core regression fix:
@@ -26,7 +28,7 @@ func TestDisjointRepoMaintenanceRunsConcurrently(t *testing.T) {
 	// Pass A holds repo-alpha and repo-beta exclusively and parks inside the
 	// "transaction" until released, modeling a slow/stalled maintenance run.
 	txA := &advisoryLockTx{mgr: mgr}
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, txA, []string{"repo-beta", "repo-alpha"}); err != nil {
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, txA, []string{"repo-beta", "repo-alpha"}); err != nil {
 		t.Fatalf("pass A lock acquisition: %v", err)
 	}
 
@@ -34,7 +36,7 @@ func TestDisjointRepoMaintenanceRunsConcurrently(t *testing.T) {
 	doneB := make(chan struct{})
 	go func() {
 		txB := &advisoryLockTx{mgr: mgr}
-		if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, txB, []string{"repo-gamma", "repo-delta"}); err != nil {
+		if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, txB, []string{"repo-gamma", "repo-delta"}); err != nil {
 			t.Errorf("pass B lock acquisition: %v", err)
 		}
 		_ = txB.Commit()
@@ -54,7 +56,7 @@ func TestDisjointRepoMaintenanceRunsConcurrently(t *testing.T) {
 	go func() {
 		txCommit := &advisoryLockTx{mgr: mgr}
 		close(commitBlocked)
-		if err := acquireDeferredMaintenanceRepoSharedLock(ctx, txCommit, "repo-alpha"); err != nil {
+		if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, txCommit, "repo-alpha"); err != nil {
 			t.Errorf("commit shared lock: %v", err)
 		}
 		_ = txCommit.Commit()
@@ -228,7 +230,7 @@ func TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit(t *testing.T) {
 	mgr := newAdvisoryLockManager()
 	// Take repo-a's exclusive lock to model the repo-a batch being mid-flight.
 	batchTx := &advisoryLockTx{mgr: mgr}
-	if err := acquireDeferredMaintenanceRepoExclusiveLocks(
+	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(
 		context.Background(), batchTx, []string{"repo-a"},
 	); err != nil {
 		t.Fatalf("repo-a batch lock: %v", err)
@@ -237,7 +239,7 @@ func TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit(t *testing.T) {
 	commitProceeded := make(chan struct{})
 	go func() {
 		commitTx := &advisoryLockTx{mgr: mgr}
-		if err := acquireDeferredMaintenanceRepoSharedLock(
+		if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(
 			context.Background(), commitTx, "repo-b",
 		); err != nil {
 			t.Errorf("repo-b commit shared lock: %v", err)

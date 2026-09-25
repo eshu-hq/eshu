@@ -11,7 +11,7 @@ package postgres
 // completes within a bounded deadline. Postgres advisory locks are pure
 // mutexes with no built-in deadlock detector (unlike row/table locks), so
 // lock ordering discipline is the only thing that keeps this deadlock-free;
-// acquireDeferredMaintenanceRepoExclusiveLocks already sorts its keys for
+// lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks already sorts its keys for
 // exactly this reason, and the post-commit backfill takes only its OWN single
 // repository's shared lock (never a multi-repository sorted set), so it
 // cannot introduce a new lock-ordering conflict.
@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -200,7 +201,7 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 					// alias unique to this (repo slot, round) pair — never
 					// repoKey itself, and never reused across rounds. repoKey
 					// stays fixed as scopeValue.PartitionKey (the deferred-
-					// maintenance lock key, deferredMaintenanceRepoLockKey),
+					// maintenance lock key, lockstore.DeferredMaintenanceRepoLockKey),
 					// so the lock-ordering contention this test exists to
 					// prove is unchanged; only the catalog identity onboarded
 					// this round is new. hasNewRepo
@@ -250,7 +251,7 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 						atomic.AddInt32(&failures, 1)
 						return
 					}
-					if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, batch); err != nil {
+					if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, batch); err != nil {
 						_ = tx.Rollback()
 						t.Errorf("acquire maintenance batch locks: %v", err)
 						atomic.AddInt32(&failures, 1)

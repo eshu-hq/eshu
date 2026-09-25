@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package lockstore
 
 import (
 	"context"
@@ -44,8 +44,8 @@ func TestPackageRegistryIdentityLockerLocksUniqueSortedPackageIDsInTransaction(t
 		t.Fatal("transaction rolled back after successful callback")
 	}
 	if got, want := tx.lockKeys, []int64{
-		packageRegistryIdentityAdvisoryLockKey("package://npm/a"),
-		packageRegistryIdentityAdvisoryLockKey("package://npm/z"),
+		PackageRegistryIdentityAdvisoryLockKey("package://npm/a"),
+		PackageRegistryIdentityAdvisoryLockKey("package://npm/z"),
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("lock keys = %v, want %v", got, want)
 	}
