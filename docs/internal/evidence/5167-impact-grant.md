@@ -243,7 +243,7 @@ Every leak class was run RED on the unchanged handlers and then GREEN.
 | X1 `TestScopedTraceExposurePathForeignSourceIsNotFound` | `fn-b` by id walked | not found, 0 walks |
 | X2–X5 `...FiltersPaths` | 6 sinks incl. cr-b, sh-shared, cidr | `[cr-a sh-a]`, reason names both withheld classes |
 | X6 `...TruncatedFromRawCount` | 25 foreign-interior paths returned | 0 paths, `truncated: true` |
-| D1 `TestScopedTraceResourceToCodeSharedNameResolvesGrantedNode` (a name two tenants share, foreign row first) | `start = {id: shared-handler}`: the caller's own node rendered as unknown (run on `d7f1e0276`) | repo-a's `fn-dup-2` on 20/20 runs, one traversal anchored on it |
+| D1 `TestScopedTraceResourceToCodeSharedNameResolvesGrantedNode` (a name two tenants share, foreign row first) | `start = {id: shared-handler}`: the caller's own node rendered as unknown (run on `d7f1e0276`) | repo-a's `fn-dup-2` on every one of the test's 20 asserted runs, one traversal anchored on it |
 | D1 `...UngrantedOnlyNameIsUnknown` | (guard) | byte-identical to an unknown name, 0 traversals |
 | B1 `TestScopedTraceExposurePathCountsWithheldSinkClass` | `withheld_sink_class = 0`, the CidrBlock sink counted as `ungranted_node` | `withheld_sink_class = 1`, `ungranted_node = 3` |
 | P3-1 `TestExposureOwnershipNodesReadsNestedProperties` | nested-`properties` node decoded to an empty id (fix reverse-applied) | id and repo_id decoded |

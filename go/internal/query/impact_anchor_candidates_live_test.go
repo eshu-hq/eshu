@@ -96,5 +96,5 @@ func TestLiveImpactScopedAnchorSharedName(t *testing.T) {
 	if gotCode != wantCode || strings.Replace(gotBody, p("only-b"), p("absent-name"), 1) != wantBody {
 		t.Fatalf("ungranted-only name\n got %d %s\nwant %d %s (the unknown-name shape)", gotCode, gotBody, wantCode, wantBody)
 	}
-	t.Logf("scoped shared-name anchor resolved repo-a's node on 20/20 runs; ungranted-only name renders as unknown")
+	t.Logf("scoped shared-name anchor resolved repo-a's node on every run; ungranted-only name renders as unknown")
 }
