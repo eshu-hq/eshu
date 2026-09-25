@@ -39,10 +39,12 @@ zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
 first drain took 129 seconds against the gate's 75-second advisory baseline,
 and maintenance drains took 81 seconds against 25. The production Module
 statement source was blob `905f218de8bb7b8b0c06b01fdf5942111bdf3ed4`.
-The rebased source commit `ce86a04b68db72a5609a112833d1070e91451231`
-(base `fbc84fd53493c78ccb2c2d02f57448f7474558d0`) has byte-identical
-`go/`, `testdata/golden/`, and B-7 driver scripts. The intervening base change
-only altered the performance-evidence gate, its tests, registry, and CI docs.
+The first feature commit on this branch preserves that writer blob and the
+other B-7 runtime inputs in `go/`, `testdata/golden/`, and the B-7 driver
+scripts. Subsequent rebases changed unrelated gate, coverage, and test files;
+they did not change the measured Module writer or B-7 runtime inputs. The
+historical run is evidence for graph truth and corpus completion on the same
+writer shape, not a timing result for a newly rebased full tree.
 This run does not establish the timing warnings' cause or an end-to-end
 no-regression claim. The full NornicDB/Neo4j differential remains separate
 integration proof.
