@@ -81,16 +81,27 @@ func (r Registry) RecordGrant(grant ProducerGrant) error {
 // producer and version, covering the schema version, scoped to one of the
 // declared scopes, neither revoked nor expired. Anything else fails closed.
 func AuthorizesEmission(grants []ProducerGrant, producerID, version, kind, schemaVersion string, scopes []string, now time.Time) bool {
-	if !facts.IsCoreFactKind(strings.TrimSpace(kind)) {
-		return true
+	allowed, _ := EvaluateEmission(grants, producerID, version, kind, schemaVersion, scopes, now)
+	return allowed
+}
+
+// EvaluateEmission is AuthorizesEmission that also reports whether the kind
+// is governed by a grant (core-owned). The per-emission recheck uses it so
+// the grant-decision signal covers only grant-governed kinds without a second
+// core-kind lookup on the hot path. governed is false exactly when the kind
+// needs no grant, in which case allowed is always true.
+func EvaluateEmission(grants []ProducerGrant, producerID, version, kind, schemaVersion string, scopes []string, now time.Time) (allowed, governed bool) {
+	trimmed := strings.TrimSpace(kind)
+	if !facts.IsCoreFactKind(trimmed) {
+		return true, false
 	}
 	covered := grantedCoreKinds(producerID, version, scopes, grants, now)
-	for _, coveredVersion := range covered[strings.TrimSpace(kind)] {
+	for _, coveredVersion := range covered[trimmed] {
 		if coveredVersion == schemaVersion {
-			return true
+			return true, true
 		}
 	}
-	return false
+	return false, true
 }
 
 // RevokeGrant marks the stored grant for a producer, version, kind, and

@@ -25,6 +25,12 @@ import (
 // Config.Grants; without them construction fails exactly as grant-less
 // manifest validation rejects them.
 func NewSource(config Config) (*Source, error) {
+	// The activation gate is the owning decision site for the activation-stage
+	// grant signal: report the manifest's core-kind decisions once, whether or
+	// not the grant allows, then fail closed on a validation error.
+	config.Manifest.ObserveManifestGrants(
+		context.Background(), config.GrantObserver, component.GrantStageActivation, config.Grants, time.Now().UTC(),
+	)
 	if err := config.Manifest.ValidateWithGrants(config.Grants); err != nil {
 		return nil, fmt.Errorf("validate component manifest: %w", err)
 	}
@@ -52,7 +58,7 @@ func NewSource(config Config) (*Source, error) {
 	grants := append([]component.ProducerGrant(nil), config.Grants...)
 	liveGrants := config.LiveGrants
 	if liveGrants == nil {
-		liveGrants = func() []component.ProducerGrant { return grants }
+		liveGrants = func() ([]component.ProducerGrant, error) { return grants, nil }
 	}
 	collectorKinds := make(map[scope.CollectorKind]struct{}, len(config.Manifest.Spec.CollectorKinds))
 	for _, kind := range config.Manifest.Spec.CollectorKinds {
@@ -72,6 +78,7 @@ func NewSource(config Config) (*Source, error) {
 		clock:               clock,
 		collectorKinds:      collectorKinds,
 		liveGrants:          liveGrants,
+		grantObserver:       config.GrantObserver,
 	}, nil
 }
 
@@ -98,7 +105,7 @@ func (s *Source) NextClaimed(
 			cause: err,
 		}
 	}
-	if err := s.validateResult(request, result); err != nil {
+	if err := s.validateResult(ctx, request, result); err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
 	if err := s.recordStatuses(ctx, item, result); err != nil {
@@ -159,7 +166,7 @@ func (s *Source) validateWorkItem(item workflow.WorkItem) error {
 	return nil
 }
 
-func (s *Source) validateResult(request Request, result sdkcollector.Result) error {
+func (s *Source) validateResult(ctx context.Context, request Request, result sdkcollector.Result) error {
 	if _, err := s.validator.ValidateResult(result); err != nil {
 		return extensionFailure{
 			class:    FailureClassInvalidResult,
@@ -188,7 +195,7 @@ func (s *Source) validateResult(request Request, result sdkcollector.Result) err
 			cause:    err,
 		}
 	}
-	if err := s.validateGrantCoverage(result); err != nil {
+	if err := s.validateGrantCoverage(ctx, result); err != nil {
 		return extensionFailure{
 			class:    FailureClassInvalidResult,
 			terminal: true,
@@ -201,12 +208,24 @@ func (s *Source) validateResult(request Request, result sdkcollector.Result) err
 // validateGrantCoverage rechecks core-issued producer authorization on every
 // emission against the live grant set, so a grant revoked after activation
 // fails the next result closed instead of emitting under a dead
-// authorization. Kinds that are not core-owned need no grant.
-func (s *Source) validateGrantCoverage(result sdkcollector.Result) error {
-	grants := s.liveGrants()
+// authorization. Kinds that are not core-owned need no grant. An unreadable
+// grant set denies core-owned kinds (fail closed) and is reported as such.
+//
+// It is also the owning decision site for the emission-stage grant signal
+// (#6726): one decision is reported per distinct core-owned kind in the
+// result on allow, and one on the first deny (which returns), so a result is
+// never counted twice. The hot path adds only a nil check when no observer is
+// configured and no core lookup beyond the authorization it already ran.
+func (s *Source) validateGrantCoverage(ctx context.Context, result sdkcollector.Result) error {
+	grants, readErr := s.liveGrants()
+	if readErr != nil {
+		grants = nil
+	}
 	now := s.clock()
+	var seenBuf [4]string
+	seen := seenBuf[:0]
 	for _, fact := range result.Facts {
-		if component.AuthorizesEmission(
+		allowed, governed := component.EvaluateEmission(
 			grants,
 			s.manifest.Metadata.ID,
 			s.manifest.Metadata.Version,
@@ -214,8 +233,15 @@ func (s *Source) validateGrantCoverage(result sdkcollector.Result) error {
 			fact.SchemaVersion,
 			s.manifest.Spec.CollectorKinds,
 			now,
-		) {
+		)
+		if allowed {
+			if governed && s.grantObserver != nil {
+				seen = s.observeEmissionAllow(ctx, fact.Kind, seen)
+			}
 			continue
+		}
+		if s.grantObserver != nil {
+			s.observeEmissionDeny(ctx, grants, readErr, fact, now)
 		}
 		return fmt.Errorf(
 			"fact kind %q is core-owned by Eshu and has no live producer grant for %q version %q",
@@ -223,6 +249,57 @@ func (s *Source) validateGrantCoverage(result sdkcollector.Result) error {
 		)
 	}
 	return nil
+}
+
+// observeEmissionAllow reports one allow per distinct kind, tracking reported
+// kinds in seen (a stack-backed slice for the common few-kind result).
+func (s *Source) observeEmissionAllow(ctx context.Context, kind string, seen []string) []string {
+	trimmed := strings.TrimSpace(kind)
+	for _, reported := range seen {
+		if reported == trimmed {
+			return seen
+		}
+	}
+	s.grantObserver.ObserveGrantDecision(ctx, component.GrantDecision{
+		Stage:      component.GrantStageEmission,
+		Allowed:    true,
+		Reason:     component.GrantReasonGranted,
+		ProducerID: s.manifest.Metadata.ID,
+		Version:    s.manifest.Metadata.Version,
+		Kind:       trimmed,
+	})
+	return append(seen, trimmed)
+}
+
+// observeEmissionDeny reports the deny for the fact that failed the recheck.
+// Classification runs only here, on the cold deny path.
+func (s *Source) observeEmissionDeny(
+	ctx context.Context,
+	grants []component.ProducerGrant,
+	readErr error,
+	fact sdkcollector.Fact,
+	now time.Time,
+) {
+	reason := component.GrantReasonGrantsUnreadable
+	if readErr == nil {
+		reason = component.ClassifyEmission(
+			grants,
+			s.manifest.Metadata.ID,
+			s.manifest.Metadata.Version,
+			fact.Kind,
+			fact.SchemaVersion,
+			s.manifest.Spec.CollectorKinds,
+			now,
+		)
+	}
+	s.grantObserver.ObserveGrantDecision(ctx, component.GrantDecision{
+		Stage:      component.GrantStageEmission,
+		Allowed:    false,
+		Reason:     reason,
+		ProducerID: s.manifest.Metadata.ID,
+		Version:    s.manifest.Metadata.Version,
+		Kind:       strings.TrimSpace(fact.Kind),
+	})
 }
 
 func (s *Source) validatePayloadSchemas(result sdkcollector.Result) error {

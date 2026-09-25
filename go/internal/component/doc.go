@@ -17,5 +17,10 @@
 // references, and non-unknown source-confidence values before a component can
 // be installed; local registry checks reject core-owned fact kinds and report
 // installed component fact-kind ownership collisions before install, dry-run
-// enable, or activation.
+// enable, or activation. Core-issued producer grants relax that check for a
+// named producer, version, kind, schema, and scope. Each grant allow or deny
+// is reported to an optional GrantObserver at the install, readback, and
+// activation stages (the extension host adds emission), classified into a
+// closed set of reasons by ClassifyEmission; observation never changes the
+// admission outcome.
 package component

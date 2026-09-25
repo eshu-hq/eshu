@@ -49,7 +49,7 @@ func (r Registry) Readback(policy Policy) ([]RegistryReadbackComponent, error) {
 			InstalledComponent: installed,
 			States:             lifecycleStates(installed),
 		}
-		manifest, err := loadManifest(installed.ManifestPath, state.Grants)
+		manifest, err := loadManifestObserved(installed.ManifestPath, state.Grants, r.observer, GrantStageReadback)
 		if err != nil {
 			entry.States = appendFailureState(entry.States, ErrorCodeOf(err))
 			entry.Error = errorSummary(err, ErrorCodeInvalidManifest)

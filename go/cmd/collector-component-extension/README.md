@@ -43,7 +43,13 @@ The binary uses service name `collector-component-extension`, status server
 name `collector-component-extension`, and Postgres store name
 `collector_component_extension`. It inherits `/healthz`, `/readyz`, `/metrics`,
 `/admin/status`, OTEL spans, and collector commit metrics from shared runtime,
-collector, and storage packages.
+collector, and storage packages. The worker also attaches one
+`extensionhost.GrantTelemetry` observer, so registry readback, extension-host
+activation, and every per-emission recheck record
+`eshu_dp_component_producer_grant_decisions_total` (labels `decision`, `stage`,
+`reason`, `fact_kind`), a `component.producer_grant.decision` span event, and
+`producer_grant.*` log keys. Producer id stays off metric labels. See
+[Component Producer Grants](../../../docs/public/reference/component-producer-grants.md#grant-decision-telemetry).
 
 ## Gotchas / invariants
 

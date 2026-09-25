@@ -95,11 +95,17 @@ type processRuntimeConfig struct {
 }
 
 func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
+	return loadRuntimeConfigObserved(getenv, nil)
+}
+
+// loadRuntimeConfigObserved is loadRuntimeConfig that reports the registry
+// readback's producer-grant decisions to observer (nil disables it).
+func loadRuntimeConfigObserved(getenv func(string) string, observer component.GrantObserver) (runtimeConfig, error) {
 	home := strings.TrimSpace(getenv(envComponentHome))
 	if home == "" {
 		return runtimeConfig{}, fmt.Errorf("%s is required", envComponentHome)
 	}
-	candidate, err := selectActivation(home, componentPolicyFromEnv(getenv), strings.TrimSpace(getenv(envCollectorInstanceID)))
+	candidate, err := selectActivation(home, componentPolicyFromEnv(getenv), strings.TrimSpace(getenv(envCollectorInstanceID)), observer)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
@@ -154,8 +160,9 @@ func selectActivation(
 	home string,
 	policy component.Policy,
 	requestedInstanceID string,
+	observer component.GrantObserver,
 ) (activationCandidate, error) {
-	registry := component.NewRegistry(home)
+	registry := component.NewRegistry(home).WithGrantObserver(observer)
 	readback, err := registry.Readback(policy)
 	if err != nil {
 		return activationCandidate{}, fmt.Errorf("read component registry: %w", err)

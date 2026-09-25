@@ -18,4 +18,12 @@
 // privileges, and no Eshu datastore/graph/reducer/API/MCP/workflow handles).
 // Both speak the same bounded JSON SDK contract over stdin/stdout; OCIRunner
 // refuses any image reference that is not digest-pinned.
+//
+// The host is the owning decision site for the activation and emission stages
+// of producer-grant admission. Config.GrantObserver receives one allow or deny
+// decision per core-owned fact kind, and GrantTelemetry turns those decisions
+// into the eshu_dp_component_producer_grant_decisions_total counter, a span
+// event, and structured log keys without ever carrying credentials, grant
+// scope, or fact payloads. Observation is additive: a denied grant still fails
+// the result closed.
 package extensionhost

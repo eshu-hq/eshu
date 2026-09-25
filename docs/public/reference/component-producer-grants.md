@@ -159,8 +159,53 @@ workflow mutations and fact writes.
   emission was previously unconditional for ungranted core kinds — which
   is the feature, proven by the revocation/expiry tests.
 
-No-Observability-Change: this change adds no metric, span, or log key.
-Grant denials surface through the existing extension-failure
-`InvalidResult` terminal channel with the producer, version, and kind in
-the message; approvals leave no dedicated trace. A dedicated
-grant-decision signal is tracked separately in #6726.
+## Grant-decision telemetry
+
+Full reference: [Producer-Grant Decisions](telemetry/producer-grant-decisions.md).
+
+Every grant decision for a core-owned fact kind leaves an operator signal
+(#6726), so an operator can tell a grant allow from a grant deny from
+telemetry alone. Kinds that are not core-owned need no grant and report
+nothing.
+
+| Signal | Name | Carries |
+| --- | --- | --- |
+| Counter | `eshu_dp_component_producer_grant_decisions_total` | `decision` (`allow`/`deny`), `stage`, `reason`, `fact_kind` |
+| Span event | `component.producer_grant.decision` on the active span | the four labels plus `eshu.producer_grant.producer_id` and `eshu.producer_grant.version` |
+| Log line | `producer grant denied` (WARN) / `producer grant allowed` (INFO) | `producer_grant.*` keys |
+
+`stage` is where the decision was made: `install` (`eshu component install`),
+`readback` (registry readback, including the worker's activation selection),
+`activation` (`eshu component enable` and extension-host construction), and
+`emission` (the recheck on every extension result).
+
+`reason` is `granted` for an allow and exactly one closed deny reason:
+
+| Reason | Meaning |
+| --- | --- |
+| `no_matching_grant` | No grant names this producer, version, and kind. |
+| `revoked` | Every matching grant is revoked. |
+| `expired` | Every unrevoked matching grant is past its expiry. |
+| `scope_mismatch` | A live grant exists but its scope is not a collector kind the manifest declares. |
+| `schema_not_covered` | A live in-scope grant exists but does not cover the emitted schema version. |
+| `grants_unreadable` | The grant set could not be read; the recheck denied fail-closed. |
+
+Cardinality: `decision`, `stage`, and `reason` are closed sets and `fact_kind`
+is bounded by the core fact-kind registry (any other value folds to `other`).
+The producer id is operator-configured and unbounded, so it appears on the span
+event and log line only, never as a metric label. No signal carries a
+credential, grant scope, config value, or fact payload.
+
+A denial still fails closed exactly as before (terminal `InvalidResult`, zero
+facts); the signal is additive. Emission decisions are reported once per
+distinct core kind per result, so an allowed result with many facts of one kind
+counts once. The worker (`collector-component-extension`) wires the readback,
+activation, and emission stages. The CLI, coordinator, and API construct
+registries without an observer today, so their install/enable/readback
+decisions surface through command output and exit status rather than this
+counter.
+
+Performance: the recheck adds one nil-check when no observer is configured and
+one pre-built-attribute counter add (one 16-byte SDK allocation) per distinct
+core kind per result when it is; see the No-Regression evidence in the #6726
+change for the before/after microbenchmark.

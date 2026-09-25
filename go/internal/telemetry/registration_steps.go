@@ -321,3 +321,20 @@ func registerServiceChangedSince() {
 	}
 	spanNames = append(spanNames, contract.SpanQueryFreshnessServiceChangedSince)
 }
+
+// registerProducerGrant appends the producer-grant decision log keys (#6726).
+// It adds no metric dimension keys (decision, stage, reason, and fact_kind are
+// already registered) and no span names (the decision is a span event on the
+// active span, not a new span), so it only extends logKeys, unconditionally at
+// the end and independent of every earlier step.
+func registerProducerGrant() {
+	logKeys = append(
+		logKeys,
+		contract.LogKeyProducerGrantProducerID,
+		contract.LogKeyProducerGrantVersion,
+		contract.LogKeyProducerGrantDecision,
+		contract.LogKeyProducerGrantStage,
+		contract.LogKeyProducerGrantReason,
+		contract.LogKeyProducerGrantFactKind,
+	)
+}

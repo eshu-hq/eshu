@@ -60,9 +60,32 @@ component's verified manifest artifact. It is a core library path for explicit
 host runners; publishing the reference image and remote Compose proof remain
 gated by the follow-up out-of-tree collector proof issues.
 
-No-Observability-Change: the package records bounded SDK status records through
-an injected `StatusRecorder` and otherwise relies on existing
-`collector.ClaimedService` claim failure classes, workflow claim rows,
-collector fact evidence, and `/admin/status` collector runtime derivation. It
-adds no new metric labels, graph writes, queue domains, API routes, or MCP
-tools.
+Producer-grant decision telemetry (#6726): the host is the owning decision
+site for the activation and emission stages of producer-grant admission.
+`Config.GrantObserver` (a `component.GrantObserver`) receives one decision per
+core-owned fact kind at `NewSource` and one per distinct core kind per result
+from the per-emission recheck (`Source.validateGrantCoverage`), whether the
+grant allows or denies; a denial still fails the result closed (terminal
+`InvalidResult`, zero facts). `GrantTelemetry` is the production observer: it
+records `eshu_dp_component_producer_grant_decisions_total` (labels `decision`,
+`stage`, `reason`, `fact_kind`; producer id is never a label), adds the
+`component.producer_grant.decision` span event on the active span, and logs
+`producer_grant.*` keys (WARN on deny, INFO on install/activation allow, no
+per-emission allow log). `Config.LiveGrants` returns an error so an unreadable
+registry is a distinct `grants_unreadable` deny rather than a silent nil.
+
+Grant Decision Benchmark Evidence: `go test ./internal/collector/extensionhost
+-run '^$' -bench 'GrantCoverageRecheck' -benchmem -count=5` on the granted
+core-kind result with a 50-grant set: the recheck is 6 allocs/op and
+3504 B/op before the change and with no observer configured, and 7 allocs/op
+and 3520 B/op with `GrantTelemetry` attached over an unsampled context (the
+one extra allocation is the OTEL SDK counter add; the recorder itself adds
+none). `ns/op` on the shared development host was dominated by load and is not
+quoted; see the change's report for the measurement conditions.
+
+No-Observability-Change: beyond the producer-grant decision signals above, the
+package records bounded SDK status records through an injected
+`StatusRecorder` and otherwise relies on existing `collector.ClaimedService`
+claim failure classes, workflow claim rows, collector fact evidence, and
+`/admin/status` collector runtime derivation. It adds no graph writes, queue
+domains, API routes, or MCP tools.

@@ -306,6 +306,7 @@ nav:
       - Graph-Backed Gauge Snapshots: reference/telemetry/graph-gauge-snapshots.md
       - Traces: reference/telemetry/traces.md
       - Logs: reference/telemetry/logs.md
+      - Producer-Grant Decisions: reference/telemetry/producer-grant-decisions.md
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md
       - Shared-Write Operations: reference/telemetry/shared-write-operations.md
       - Streaming And Memory: reference/telemetry/streaming-memory.md

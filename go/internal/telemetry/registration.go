@@ -36,8 +36,9 @@ import (
 // source_tool, supply_chain, vaultlive, vulnerability_intelligence,
 // z_incident_context, z_observability_coverage, z_secrets_iam,
 // zz_work_item_evidence, zzz_generation_lifecycle, zzzz_changed_since,
-// zzzz_service_changed_since) exactly; do not resort it alphabetically by Go
-// function name or reflow it without re-running the order tests.
+// zzzz_service_changed_since) exactly, then appends producer_grant (#6726)
+// last; do not resort it alphabetically by Go function name or reflow it
+// without re-running the order tests.
 var registrationSteps = []func(){
 	registerAdmissionDecisions,
 	registerBootstrapIngestion,
@@ -62,6 +63,7 @@ var registrationSteps = []func(){
 	registerGenerationLifecycle,
 	registerChangedSince,
 	registerServiceChangedSince,
+	registerProducerGrant,
 }
 
 func init() {

@@ -149,6 +149,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `LargeRepoClassifications` | `eshu_dp_large_repo_classifications_total` |
 | `EvidenceFactsDiscovered` | `eshu_dp_evidence_facts_discovered_total` |
 | `WorkflowClaimFactsEmitted` | `eshu_dp_workflow_claim_facts_emitted_total` (labels: `collector_kind`, `source_system`) |
+| `ProducerGrantDecisions` | `eshu_dp_component_producer_grant_decisions_total` (labels: `decision`, `stage`, `reason`, `fact_kind`; record through `ProducerGrantDecisionRecorder`; log keys `producer_grant.*` and span event `component.producer_grant.decision` are in `contract/producer_grant.go`; producer id is never a label) |
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
 | `DeferredBackfillBatchesCompleted` | `eshu_dp_deferred_backfill_batches_completed_total` |
 | `DeferredBackfillPartitionsSkipped` | `eshu_dp_deferred_backfill_partitions_skipped_total` (labels: `reason`) |

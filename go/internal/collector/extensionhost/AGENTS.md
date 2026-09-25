@@ -14,3 +14,8 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   credentials, local file paths, or high-cardinality source values in errors or
   status records.
 - Add failing tests first for every behavior change.
+- Grant decisions are reported at the owning site (`NewSource` for activation,
+  `Source.validateGrantCoverage` for emission), once per distinct core kind per
+  result. Observation must never change the allow/deny outcome, and no observer
+  or telemetry value may carry credentials, grant scope, config, or payloads.
+  Keep the recheck hot path allocation-free beyond the observer call.

@@ -27,6 +27,12 @@
 - **Trust fails closed** — rejected, revoked, unsupported, or unavailable
   provenance checks must block installation.
 
+- **Grant observation is additive** — `GrantObserver` decisions never alter
+  admission. A decision names only the producer, version, kind, stage, and a
+  closed reason: never grant scope, payloads, or credentials. Keep
+  `ClassifyEmission` in lockstep with `AuthorizesEmission`/`grantedCoreKinds`
+  (a test pins that they agree).
+
 - **Registry state is durable** — update `registry.json` atomically and keep
   manifest copies under the component home so offline verification remains
   inspectable.
