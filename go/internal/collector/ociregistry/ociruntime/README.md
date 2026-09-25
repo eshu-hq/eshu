@@ -84,7 +84,7 @@ digests. Those values are high cardinality and may describe private topology.
   drained early (issue #7110). After `sdk.MaxConsecutiveTransportFailures` (20)
   consecutive failed cycles for the same target the error is returned as fatal,
   so a wrong host or port crash-loops instead of idling. At the default 5-minute
-  poll interval that is about 100 minutes of wall clock before the exit; a
+  poll interval the 19 waits take about 95 minutes of wall clock before the exit; a
   shorter `ESHU_OCI_REGISTRY_POLL_INTERVAL` shortens it. Cancellation,
   TLS/certificate failures, empty-body decode errors, and HTTP status failures
   still propagate. Claimed scans keep
