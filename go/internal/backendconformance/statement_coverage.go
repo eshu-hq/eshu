@@ -40,6 +40,10 @@ type StatementCoverageFailure struct {
 // executions never carried Bolt counters: advisory only, since a MERGE
 // that matched-existing legitimately reports zeros — but a backend that
 // never reports any counter anywhere is a counter-fidelity signal.
+// DispatchMisses names label-dispatch member texts (labelDispatchFamilies)
+// that never returned rows while their family did: advisory only, since a
+// label tried before the owning label misses by construction, but it shows
+// which anchor labels the corpus never positively exercised.
 type BackendStatementCoverage struct {
 	Backend               string
 	Executed              []string
@@ -47,6 +51,7 @@ type BackendStatementCoverage struct {
 	Exempted              []string
 	AlwaysEmptyReads      []string
 	FailedReads           []string
+	DispatchMisses        []string
 	Unattributed          []string
 	WritesWithoutCounters []string
 }
@@ -116,13 +121,14 @@ func ComputeStatementCoverage(manifest queryplan.BuilderManifest, recordsByBacke
 				}
 			}
 		}
-		coverage.AlwaysEmptyReads, coverage.FailedReads = emptyReads(records, exemptions)
+		coverage.AlwaysEmptyReads, coverage.FailedReads, coverage.DispatchMisses = emptyReads(records, exemptions)
 		coverage.Unattributed = unattributedTexts(records, matched)
 		sort.Strings(coverage.Executed)
 		sort.Strings(coverage.NeverExecuted)
 		sort.Strings(coverage.Exempted)
 		sort.Strings(coverage.AlwaysEmptyReads)
 		sort.Strings(coverage.FailedReads)
+		sort.Strings(coverage.DispatchMisses)
 		sort.Strings(coverage.Unattributed)
 		sort.Strings(coverage.WritesWithoutCounters)
 		report.ByBackend[backend] = coverage
@@ -189,13 +195,17 @@ func variantMatches(variant queryplan.StatementVariant, text string) bool {
 	return true
 }
 
-// emptyReads groups successful read executions by statement text. A text
-// with executions that all returned zero rows is always-empty (failing
-// unless exempted); a text with only failed executions is failed-only
-// (reported, never failing: transients must not red the gate, and
-// slice-3's failures kind owns persistent failure). Writes (no digest)
-// never qualify.
-func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alwaysEmpty, failedOnly []string) {
+// emptyReads groups successful read executions by read: its statement
+// text, or for a proven label-dispatch member (labelDispatchFamilies) its
+// family's unlabeled text, so one logical read split across per-label
+// statements is judged once. A read whose executions all returned zero
+// rows is always-empty (failing unless exempted); a text with only failed
+// executions is failed-only (reported, never failing: transients must not
+// red the gate, and slice-3's failures kind owns persistent failure). A
+// dispatch member that never returned rows while its family did is a
+// dispatch miss (reported, never failing: a label tried before the owning
+// label misses by construction). Writes (no digest) never qualify.
+func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alwaysEmpty, failedOnly, dispatchMisses []string) {
 	type readStats struct {
 		succeeded bool
 		maxRows   int
@@ -219,18 +229,37 @@ func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alw
 			entry.maxRows = record.RowCount
 		}
 	}
+	families := labelDispatchFamilies(records)
+	membersByRead := make(map[string][]string)
 	for text, entry := range stats {
-		if entry.succeeded {
-			if entry.maxRows == 0 {
-				if _, exempt := exemptions[text]; !exempt {
-					alwaysEmpty = append(alwaysEmpty, text)
-				}
+		if !entry.succeeded {
+			failedOnly = append(failedOnly, text)
+			continue
+		}
+		read := text
+		if family, ok := families[text]; ok {
+			read = family
+		}
+		membersByRead[read] = append(membersByRead[read], text)
+	}
+	for read, members := range membersByRead {
+		maxRows := 0
+		for _, member := range members {
+			maxRows = max(maxRows, stats[member].maxRows)
+		}
+		if maxRows == 0 {
+			if !readFamilyExempt(read, members, exemptions) {
+				alwaysEmpty = append(alwaysEmpty, read)
 			}
 			continue
 		}
-		failedOnly = append(failedOnly, text)
+		for _, member := range members {
+			if stats[member].maxRows == 0 {
+				dispatchMisses = append(dispatchMisses, member)
+			}
+		}
 	}
-	return alwaysEmpty, failedOnly
+	return alwaysEmpty, failedOnly, dispatchMisses
 }
 
 // unattributedTexts lists recorded statement texts no manifest variant
