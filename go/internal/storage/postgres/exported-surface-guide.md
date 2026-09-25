@@ -345,7 +345,11 @@ the concrete adapters stay here.
 **Freshness checks** (implement `reducer` interfaces)
 
 - `NewAcceptedGenerationLookup` / `NewAcceptedGenerationPrefetch`
-- `NewGenerationFreshnessCheck` / `NewPriorGenerationCheck`
+- `NewGenerationFreshnessCheck` / `NewPriorGenerationCheck` —
+  `NewGenerationFreshnessCheck` reads the active pointer and the intent
+  generation's lifecycle row in one statement; a newer generation that is still
+  `pending` returns the retryable `GenerationNotYetActiveError` (#6686) instead
+  of reporting supersession.
 
 **Terraform drift adapters** (implement reducer drift ports for chunk #163)
 

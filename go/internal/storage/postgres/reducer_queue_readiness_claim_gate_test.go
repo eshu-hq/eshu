@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
@@ -229,6 +230,13 @@ var readinessClassOwningDomain = map[string]string{
 	// CloudAdmissionNotReadyFailureClass; the handler's own pre-load fence
 	// is the defense and is non-counting.
 	crossscope.ValueFlowInputsNotReadyFailureClass: "",
+	// #6686: the not-yet-active generation deferral. The shared
+	// GenerationFreshnessCheck returns it for any domain's intent whose
+	// generation is newer than the active one and still pending, so no single
+	// domain owns it and no graph_projection_phase_state row expresses
+	// "the projector has acked this generation". Placed nowhere; the runtime
+	// check is the defense and is non-counting.
+	reducercontract.GenerationActivationNotReadyFailureClass: "",
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

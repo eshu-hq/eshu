@@ -12,12 +12,36 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-const isCurrentGenerationSQL = `
-SELECT active_generation_id
-FROM ingestion_scopes
-WHERE scope_id = $1
+// generationFreshnessSQL reads, in one statement (one snapshot), the scope's
+// active generation plus the intent generation's status and whether that
+// generation sorts after the active one. The order is (ingested_at,
+// generation_id): the same order the projector supersession SQL
+// (supersedeProjectorObsoleteGenerationsQuery and the running-work heartbeat
+// check) and the reducer claim's superseded_stale_reducer_generations CTE use
+// to decide which generation wins, so "newer" here means "the projector will
+// let this generation activate over the current one". Every join is a primary
+// key lookup (ingestion_scopes.scope_id, scope_generations.generation_id). An
+// unknown scope returns no rows.
+const generationFreshnessSQL = `
+SELECT scope.active_generation_id,
+       intent_generation.status,
+       COALESCE(
+           (intent_generation.ingested_at, intent_generation.generation_id)
+               > (active_generation.ingested_at, active_generation.generation_id),
+           false
+       ) AS intent_is_newer
+FROM ingestion_scopes AS scope
+LEFT JOIN scope_generations AS intent_generation
+       ON intent_generation.generation_id = $2
+      AND intent_generation.scope_id = scope.scope_id
+LEFT JOIN scope_generations AS active_generation
+       ON active_generation.generation_id = scope.active_generation_id
+      AND active_generation.scope_id = scope.scope_id
+WHERE scope.scope_id = $1
 `
 
 const priorGenerationExistsSQL = `
@@ -89,22 +113,41 @@ func (s IngestionStore) CurrentScopeGeneration(
 }
 
 // NewGenerationFreshnessCheck returns a GenerationFreshnessCheck backed by
-// the ingestion_scopes.active_generation_id denormalized column.
+// the ingestion_scopes.active_generation_id denormalized column and the
+// scope_generations lifecycle row of the intent's generation.
+//
+// Outcomes:
+//   - the intent generation is active, the scope has no active generation, or
+//     the scope is unknown: (true, nil), and the handler runs;
+//   - the intent generation is still pending and sorts after the active
+//     generation: (false, reducercontract.GenerationNotYetActiveError). Its
+//     projector has enqueued reducer work but not yet acknowledged, so the
+//     intent is retried (non-counting) until the generation activates, rather
+//     than acked succeeded as superseded and never re-driven (#6686);
+//   - anything else (an older, superseded, or failed generation, or a missing
+//     generation row): (false, nil), and the intent is terminally superseded.
 func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFreshnessCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
-		rows, err := database.QueryContext(ctx, isCurrentGenerationSQL, scopeID)
+		rows, err := database.QueryContext(ctx, generationFreshnessSQL, scopeID, generationID)
 		if err != nil {
 			return false, fmt.Errorf("query active generation for scope %s: %w", scopeID, err)
 		}
 		defer func() { _ = rows.Close() }()
 
 		if !rows.Next() {
+			if err := rows.Err(); err != nil {
+				return false, fmt.Errorf("query active generation for scope %s: %w", scopeID, err)
+			}
 			// Unknown scope — assume current (defensive, let handler decide).
 			return true, nil
 		}
 
-		var activeGenID sql.NullString
-		if err := rows.Scan(&activeGenID); err != nil {
+		var (
+			activeGenID   sql.NullString
+			intentStatus  sql.NullString
+			intentIsNewer bool
+		)
+		if err := rows.Scan(&activeGenID, &intentStatus, &intentIsNewer); err != nil {
 			return false, fmt.Errorf("scan active generation for scope %s: %w", scopeID, err)
 		}
 
@@ -112,8 +155,17 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 			// No active generation yet — assume current.
 			return true, nil
 		}
-
-		return activeGenID.String == generationID, nil
+		if activeGenID.String == generationID {
+			return true, nil
+		}
+		if intentStatus.Valid && intentStatus.String == string(scope.GenerationStatusPending) && intentIsNewer {
+			return false, reducercontract.GenerationNotYetActiveError{
+				ScopeID:            scopeID,
+				GenerationID:       generationID,
+				ActiveGenerationID: activeGenID.String,
+			}
+		}
+		return false, nil
 	}
 }
 

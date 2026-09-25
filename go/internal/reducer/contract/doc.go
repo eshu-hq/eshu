@@ -21,4 +21,11 @@
 // port (context plus a Cypher string in, rows out) that a family or the root
 // backfill orchestrator accepts to run bounded lookups without depending on
 // any specific graph driver.
+//
+// [GenerationFreshnessCheck] distinguishes a superseded generation from a
+// newer one that has not activated yet: the latter returns
+// [GenerationNotYetActiveError], a retryable error self-classified as
+// [GenerationActivationNotReadyFailureClass], so the durable queue retries the
+// intent until its generation activates instead of acking it as superseded
+// (issue #6686).
 package contract

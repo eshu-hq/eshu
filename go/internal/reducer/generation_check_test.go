@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestRuntimeExecuteSkipsStaleGeneration(t *testing.T) {
@@ -277,4 +279,60 @@ type stubHandler struct {
 func (h *stubHandler) Handle(_ context.Context, _ Intent) (Result, error) {
 	h.handleCalls++
 	return h.result, h.err
+}
+
+// TestRuntimeExecuteDefersNotYetActiveGeneration pins #6686 in the runtime:
+// a freshness check that reports a newer, still-pending generation must not
+// become a superseded result (which Service acks succeeded); it must return
+// the retryable, self-classified error so WorkSink.Fail retries the intent.
+func TestRuntimeExecuteDefersNotYetActiveGeneration(t *testing.T) {
+	t.Parallel()
+
+	handler := &stubHandler{result: Result{IntentID: "intent-1", Domain: DomainWorkloadIdentity, Status: ResultStatusSucceeded}}
+	registry := NewRegistry()
+	if err := registry.Register(DomainDefinition{
+		Domain:        DomainWorkloadIdentity,
+		Summary:       "test domain",
+		Ownership:     OwnershipShape{CrossSource: true, CrossScope: true, CanonicalWrite: true},
+		TruthContract: testTruthContract("workload_identity"),
+		Handler:       handler,
+	}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	rt, err := NewRuntime(registry)
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	rt.GenerationCheck = func(_ context.Context, scopeID, generationID string) (bool, error) {
+		return false, reducercontract.GenerationNotYetActiveError{
+			ScopeID: scopeID, GenerationID: generationID, ActiveGenerationID: "gen-1",
+		}
+	}
+
+	result, err := rt.Execute(context.Background(), Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "scope-123",
+		GenerationID: "gen-2",
+		SourceSystem: "git",
+		Domain:       DomainWorkloadIdentity,
+		Cause:        "test",
+		EntityKeys:   []string{"workload:eshu"},
+		Status:       IntentStatusPending,
+	})
+	if err == nil {
+		t.Fatalf("Execute() = %#v, nil error; want the not-yet-active deferral", result)
+	}
+	if result.Status == ResultStatusSuperseded {
+		t.Fatal("Execute() returned a superseded result for a not-yet-active generation")
+	}
+	if !IsRetryable(err) || !errors.Is(err, reducercontract.ErrGenerationNotYetActive) {
+		t.Fatalf("Execute() error = %v, want a retryable ErrGenerationNotYetActive", err)
+	}
+	var classed interface{ FailureClass() string }
+	if !errors.As(err, &classed) || classed.FailureClass() != reducercontract.GenerationActivationNotReadyFailureClass {
+		t.Fatalf("Execute() error = %v, want failure class %q", err, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
+	if handler.handleCalls != 0 {
+		t.Fatalf("handler calls = %d, want 0 while the generation is not active", handler.handleCalls)
+	}
 }

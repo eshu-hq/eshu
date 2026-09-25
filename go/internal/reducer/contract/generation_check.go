@@ -7,7 +7,11 @@ import "context"
 
 // GenerationFreshnessCheck reports whether the given generation is still
 // the active generation for the scope. Returns (true, nil) if current,
-// (false, nil) if superseded, or (false, err) on lookup failure.
+// (false, nil) if superseded, or (false, err) on lookup failure. A generation
+// that is newer than the active one but not yet activated is neither: the
+// check returns (false, GenerationNotYetActiveError), a retryable,
+// self-classifying error, so callers must propagate the error (wrapped with
+// %w) rather than treat false as supersession (#6686).
 type GenerationFreshnessCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
 
 // PriorGenerationCheck reports whether the scope has any generation before the
