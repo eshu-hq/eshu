@@ -37,15 +37,25 @@ baseline manifest is unchanged.
   asserts through `GET /api/v0/auth/profile` that the token resolves through
   roles with the permission catalog enforced.
 - **Every tool, judged.** Each tool is called with fixed small limits and
-  seeded identifiers. An allowlisted route must answer an outcome its table
-  entry accepts (default `ok`; an unindexed seed identifier may also answer a
-  typed `not_found`, and the entry states why). A ledger or shared-key-only
-  route must answer the route-policy `403`, and its live description must
-  disclose it. An unexpected `403`, an unmounted route, or a `5xx` fails.
+  seeded identifiers. Of the 167 checked-in calls, 116 allowlisted calls must
+  answer `ok`: their subject is the seeded repository or needs no subject, so a
+  grant filter that wrongly hid the seeded repository would fail them. 42
+  allowlisted calls name a subject the fixture does not seed (a workload,
+  service, cloud scope, code symbol, or file); they may also answer a typed
+  `not_found`, which proves only that the route is mounted and the grant
+  admitted the call. The Go test rejects such an entry unless its
+  `acceptReason` quotes the unseeded argument it relies on. The remaining 9
+  calls reach a ledger or shared-key-only route, which must answer the
+  route-policy `403` with a live description that discloses it. An unexpected
+  `403`, an unmounted route, or a `5xx` fails. The runner prints this split in
+  the step detail.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
-  granted repository only, and the single-repository tools refuse the ungranted
-  id while answering for the granted one.
+  granted repository only, and each single-repository tool refuses the ungranted
+  id while answering for the granted one. A positive control makes the same
+  ungranted-repository read through the all-scope console session; it must
+  answer `200`, so the scoped refusal is not vacuous. The run prints one
+  `granted=... ungranted=... all-scope(ungranted)=...` line per tool.
 
 The runner prints a tool / route / expected / actual table with the pass count
 and writes it to `e2e-artifacts/auth-mcp-e2e-catalog-sweep.txt`

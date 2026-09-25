@@ -39,14 +39,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_repo_context": [
@@ -54,14 +47,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_repo_story": [
@@ -69,14 +55,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_repository_coverage": [
@@ -84,14 +63,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_repository_freshness": [
@@ -99,14 +71,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_repository_stats": [
@@ -114,14 +79,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "list_repository_files": [
@@ -129,14 +87,7 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_file_content": [
@@ -152,7 +103,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "relative_path README.md is not seeded: the fixture indexes no repository content"
       }
     ],
     "get_file_lines": [
@@ -170,7 +121,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "relative_path README.md is not seeded: the fixture indexes no repository content"
       }
     ],
     "get_entity_content": [
@@ -185,7 +136,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "entity_id sweep-seed-missing names no seeded entity"
       }
     ],
     "get_entity_context": [
@@ -200,7 +151,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "entity_id sweep-seed-missing names no seeded entity"
       }
     ],
     "search_file_content": [
@@ -212,14 +163,7 @@
             "$REPO"
           ],
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "search_entity_content": [
@@ -231,14 +175,7 @@
             "$REPO"
           ],
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "build_evidence_citation_packet": [
@@ -253,14 +190,7 @@
             }
           ],
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "resolve_entity": [
@@ -270,14 +200,7 @@
           "query": "sweep",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "analyze_code_relationships": [
@@ -295,7 +218,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "target sweepTarget is not seeded: the fixture indexes no code entities"
       },
       {
         "label": "who_modifies_pending_ledger",
@@ -320,7 +243,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "function_name sweepFn is not seeded: the fixture indexes no code entities"
       }
     ],
     "compare_code_paths": [
@@ -328,8 +251,8 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO",
-          "start": "a",
-          "end": "b",
+          "start": "sweepStart",
+          "end": "sweepEnd",
           "max_depth": 3,
           "max_paths": 3
         },
@@ -339,7 +262,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities"
       }
     ],
     "dispatch_cfg_summary": [
@@ -356,7 +279,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
       }
     ],
     "dispatch_pdg_summary": [
@@ -373,7 +296,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
       }
     ],
     "dispatch_reaching_def": [
@@ -390,7 +313,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
       }
     ],
     "dispatch_taint_path": [
@@ -407,7 +330,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
       }
     ],
     "execute_cypher_query": [
@@ -436,14 +359,7 @@
           "language": "go",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_code": [
@@ -453,14 +369,7 @@
           "query": "sweep",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_symbol": [
@@ -470,14 +379,7 @@
           "symbol": "sweepFn",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_dead_code": [
@@ -486,14 +388,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_dead_code": [
@@ -502,14 +397,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_cross_repo_dead_code": [
@@ -518,14 +406,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_function_call_chain": [
@@ -533,8 +414,8 @@
         "label": "default",
         "arguments": {
           "repo_id": "$REPO",
-          "start": "a",
-          "end": "b",
+          "start": "sweepStart",
+          "end": "sweepEnd",
           "max_depth": 3
         },
         "accept": [
@@ -543,7 +424,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities"
       }
     ],
     "find_most_complex_functions": [
@@ -552,14 +433,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_code_relationship_story": [
@@ -576,7 +450,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "target sweepTarget is not seeded: the fixture indexes no code entities"
       }
     ],
     "inspect_call_graph_metrics": [
@@ -586,14 +460,7 @@
           "repo_id": "$REPO",
           "metric_type": "hub_functions",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "inspect_code_inventory": [
@@ -603,14 +470,7 @@
           "repo_id": "$REPO",
           "inventory_kind": "entity",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "inspect_code_quality": [
@@ -620,14 +480,7 @@
           "repo_id": "$REPO",
           "check": "complexity",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_code_topic": [
@@ -637,14 +490,7 @@
           "topic": "sweep",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_import_dependencies": [
@@ -655,14 +501,7 @@
           "query_type": "importers",
           "source_module": "sweep",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_hardcoded_secrets": [
@@ -671,14 +510,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_code_divergence": [
@@ -687,14 +519,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_code_divergence": [
@@ -711,7 +536,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "fingerprint sweep-fingerprint names no seeded divergence finding"
       }
     ],
     "report_code_divergence": [
@@ -720,14 +545,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "top_per_kind": 3
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "trace_exposure_path": [
@@ -754,7 +572,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "path /sweep names no seeded HTTP route"
       }
     ],
     "find_dead_iac": [
@@ -763,14 +581,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_contract_impact": [
@@ -779,14 +590,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_graph_summary_packet": [
@@ -795,14 +599,7 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "analyze_infra_relationships": [
@@ -818,7 +615,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "target sweep-seed-missing names no seeded infrastructure entity"
       }
     ],
     "analyze_pre_change_impact": [
@@ -829,14 +626,7 @@
           "target_type": "repository",
           "target": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_change_surface": [
@@ -847,14 +637,7 @@
           "target_type": "repository",
           "target": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_blast_radius": [
@@ -864,14 +647,7 @@
           "target": "$REPO",
           "target_type": "repository",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "find_change_surface": [
@@ -880,14 +656,7 @@
         "arguments": {
           "target": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "plan_developer_change": [
@@ -899,14 +668,7 @@
           "target": "$REPO",
           "developer_intent": "sweep",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "explain_dependency_path": [
@@ -933,14 +695,7 @@
         "arguments": {
           "service_name": "sweep-seed-missing",
           "max_depth": 3
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "compare_environments": [
@@ -958,7 +713,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "investigate_resource": [
@@ -967,14 +722,7 @@
         "arguments": {
           "query": "sweep",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "investigate_deployment_config": [
@@ -990,7 +738,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "service_name sweep-seed-missing is not a seeded service"
       }
     ],
     "get_ecosystem_overview": [
@@ -1035,7 +783,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "get_service_story": [
@@ -1050,7 +798,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "get_service_intelligence_report": [
@@ -1065,7 +813,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "get_workload_context": [
@@ -1080,7 +828,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "get_workload_story": [
@@ -1095,7 +843,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
       }
     ],
     "investigate_service": [
@@ -1110,7 +858,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "service_name sweep-seed-missing is not a seeded service"
       }
     ],
     "get_incident_context": [
@@ -1126,7 +874,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "provider_incident_id sweep-seed-missing is not a seeded incident"
       }
     ],
     "get_relationship_evidence": [
@@ -1141,7 +889,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "resolved_id sweep-seed-missing is not a seeded resolved relationship"
       }
     ],
     "list_relationship_edges": [
@@ -1150,14 +898,7 @@
         "arguments": {
           "verb": "DEPENDS_ON",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "list_cloud_resource_inventory": [
@@ -1192,7 +933,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id sweep-seed-missing is not a seeded cloud scope"
       }
     ],
     "list_aws_runtime_drift_findings": [
@@ -1237,7 +978,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id sweep-seed-missing is not a seeded IaC scope"
       }
     ],
     "get_replatforming_rollups": [
@@ -1277,7 +1018,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id sweep-seed-missing is not a seeded Terraform state scope"
       }
     ],
     "count_supply_chain_impact_findings": [
@@ -1315,7 +1056,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "finding_id sweep-seed-missing is not a seeded impact finding"
       }
     ],
     "export_supply_chain_impact_packet": [
@@ -1331,7 +1072,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "finding_id sweep-seed-missing is not a seeded impact finding"
       }
     ],
     "export_deployable_unit_packet": [
@@ -1348,7 +1089,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
       }
     ],
     "get_vulnerability_scanner_read_contract": [
@@ -1420,14 +1161,7 @@
           "repository_id": "$REPO",
           "tag": "latest",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "count_sbom_attestation_attachments": [
@@ -1512,7 +1246,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "package_id sweep-seed-missing is not a seeded package"
       }
     ],
     "list_package_registry_correlations": [
@@ -1555,7 +1289,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
       }
     ],
     "list_service_catalog_correlations": [
@@ -1572,14 +1306,7 @@
         "arguments": {
           "repository_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "list_kubernetes_correlations": [
@@ -1618,7 +1345,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id sweep-seed-missing is not a seeded secrets/IAM scope"
       }
     ],
     "list_secrets_iam_identity_trust_chains": [
@@ -1696,7 +1423,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "finding_id sweep-seed-missing is not a seeded documentation finding"
       }
     ],
     "check_documentation_evidence_packet_freshness": [
@@ -1711,7 +1438,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "packet_id sweep-seed-missing is not a seeded evidence packet"
       }
     ],
     "list_semantic_code_hints": [
@@ -1739,14 +1466,7 @@
           "repo_id": "$REPO",
           "limit": 5,
           "timeout_ms": 5000
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_semantic_capability_status": [
@@ -1782,14 +1502,7 @@
         "arguments": {
           "repository": "$REPO",
           "sample_limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "get_service_changed_since": [
@@ -1840,7 +1553,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
       }
     ],
     "get_hosted_governance_status": [
@@ -1890,14 +1603,7 @@
         "label": "default",
         "arguments": {
           "family": "pagerduty"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "list_collector_extraction_readiness": [
@@ -1920,7 +1626,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "component_id dev.eshu.collector.aws is not a registered component in the sweep stack"
       }
     ],
     "list_component_extensions": [
@@ -1936,14 +1642,7 @@
         "label": "default",
         "arguments": {
           "fact_kind": "terraform_state_resource"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        }
       }
     ],
     "list_fact_schema_versions": [
@@ -1993,7 +1692,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "playbook_id sweep-seed-missing is not a registered playbook"
       }
     ],
     "list_investigation_workflows": [
@@ -2018,7 +1717,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "workflow_id sweep-seed-missing is not a registered workflow"
       }
     ],
     "derive_visualization_packet": [
@@ -2034,7 +1733,7 @@
           "scope_not_found",
           "service_not_found"
         ],
-        "acceptReason": "selector names an entity the zero-corpus sweep stack never indexed; a typed not-found answer proves the route is mounted and the grant admitted the call"
+        "acceptReason": "source_response for view service_story is an empty stub, not a seeded service story"
       }
     ]
   }

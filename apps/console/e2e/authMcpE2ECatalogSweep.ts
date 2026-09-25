@@ -23,6 +23,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Page } from "playwright";
 
+import { apiFetchInPage } from "./authE2EOidcFlow.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import {
   classifyToolCallOutcome,
@@ -193,7 +194,13 @@ async function sweepEveryTool(
     throw new Error(`${failed.length}/${results.length} calls failed:\n  ${lines.join("\n  ")}`);
   }
   const ledger = results.filter((r) => r.expected.startsWith("403")).length;
-  return `${listed.length} tools listed; ${results.length}/${results.length} calls passed (${results.length - ledger} allowlisted succeeded, ${ledger} ledger/shared-key routes refused with a disclosed 403)`;
+  const tolerant = policy.rows.filter((r) => r.class === "allowlisted" && r.accept.some((a) => a !== "ok")).length;
+  const strict = results.length - ledger - tolerant;
+  return (
+    `${listed.length} tools listed; ${results.length}/${results.length} calls passed: ${strict} allowlisted calls proved success ("ok"), ` +
+    `${tolerant} proved only that the route is mounted and the grant admitted the call (an unseeded subject answered a typed not-found), ` +
+    `${ledger} ledger/shared-key routes refused with a disclosed 403`
+  );
 }
 
 // singleRepoTools are allowlisted tools that take one repo_id and answer from a
@@ -207,13 +214,23 @@ const singleRepoTools = [
   "get_repository_freshness",
 ] as const;
 
-// assertNegativeControl proves the scoped token cannot read outside its grant.
-// list_indexed_repositories is the row-level proof and is non-vacuous by
-// construction: both repositories exist in the graph, so exactly the granted
-// one must come back. The single-repository tools are then asked for the
-// ungranted id; none may answer "ok" with data. The granted id is asked too, so
-// a refusal cannot be blamed on missing seed data.
-async function assertNegativeControl(ctx: CatalogSweepContext, token: string): Promise<string> {
+// assertNegativeControl proves the scoped token cannot read outside its grant,
+// and that the proof is not vacuous. list_indexed_repositories is the row-level
+// check: both repositories exist in the graph, so exactly the granted one must
+// come back. Each single-repository tool is then asked for the ungranted id
+// with the scoped token (must not answer "ok") and for the granted id (so a
+// refusal cannot be blamed on missing seed data). The POSITIVE control makes
+// the same ungranted-repository call through the all-scope console session the
+// harness already holds, straight at the route the tool dispatches to: it must
+// answer 200, which proves the ungranted repository really is readable by
+// someone with the authority, so its absence under the scoped token is
+// meaningful. The per-tool line is printed for the sweep log.
+async function assertNegativeControl(
+  ctx: CatalogSweepContext,
+  token: string,
+  adminPage: Page,
+  policy: SweepPolicy,
+): Promise<string> {
   const list = await mcpToolsCall(ctx.mcpBase, "list_indexed_repositories", { limit: 50, offset: 0 }, token);
   const listOutcome = classifyToolCallOutcome(list);
   if (listOutcome.outcome !== "ok") {
@@ -232,25 +249,44 @@ async function assertNegativeControl(ctx: CatalogSweepContext, token: string): P
   if (rows.includes(UNGRANTED_REPOSITORY_ID)) {
     throw new Error(`scope escape: the scoped token listed ungranted repository ${UNGRANTED_REPOSITORY_ID} (${JSON.stringify(rows)})`);
   }
-  const perTool: string[] = [];
+  const allScopeList = await apiFetchInPage(adminPage, "GET", "/api/v0/repositories?limit=50&offset=0");
+  const allScopeIds = ((JSON.parse(allScopeList.text || "{}") as RepoRows).repositories ?? []).map((r) => r.id);
+  if (allScopeList.status !== 200 || !allScopeIds.includes(UNGRANTED_REPOSITORY_ID) || !allScopeIds.includes(SEEDED_REPOSITORY_ID)) {
+    throw new Error(
+      `positive control failed: the all-scope session must list both seeded repositories, got ${allScopeList.status} ${JSON.stringify(allScopeIds)}`,
+    );
+  }
+  const lines: string[] = [];
+  const failures: string[] = [];
   let groundedByGrantedOk = 0;
   for (const tool of singleRepoTools) {
     const denied = classifyToolCallOutcome(await mcpToolsCall(ctx.mcpBase, tool, { repo_id: UNGRANTED_REPOSITORY_ID }, token));
-    if (denied.outcome === "ok") {
-      throw new Error(`scope escape: ${tool} answered ok for ungranted repository ${UNGRANTED_REPOSITORY_ID}: ${denied.detail}`);
-    }
     const allowed = classifyToolCallOutcome(await mcpToolsCall(ctx.mcpBase, tool, { repo_id: SEEDED_REPOSITORY_ID }, token));
+    const row = policy.rows.find((r) => r.tool === tool && r.label === "default");
+    if (row === undefined || row.method !== "GET") {
+      throw new Error(`the single-repository control needs a GET policy row for ${tool}, got ${row?.method ?? "none"}`);
+    }
+    const path = row.path.split("$REPO").join(encodeURIComponent(UNGRANTED_REPOSITORY_ID));
+    const positive = await apiFetchInPage(adminPage, row.method, path);
+    lines.push(`${tool}: granted=${allowed.outcome} ungranted=${denied.outcome} all-scope(ungranted)=${positive.status}`);
+    if (denied.outcome === "ok") {
+      failures.push(`scope escape: ${tool} answered ok for ungranted repository ${UNGRANTED_REPOSITORY_ID}`);
+    }
+    if (positive.status !== 200) {
+      failures.push(`positive control: ${tool} via the all-scope session for ${UNGRANTED_REPOSITORY_ID} answered ${positive.status}, not 200 (${path})`);
+    }
     if (allowed.outcome === "ok") {
       groundedByGrantedOk += 1;
     }
-    perTool.push(`${tool}: ungranted=${denied.outcome}, granted=${allowed.outcome}`);
+  }
+  process.stdout.write(`\nnegative control (per single-repository tool):\n  ${lines.join("\n  ")}\n\n`);
+  if (failures.length > 0) {
+    throw new Error(`${failures.join("; ")}\n  ${lines.join("\n  ")}`);
   }
   if (groundedByGrantedOk === 0) {
-    throw new Error(
-      `no single-repository tool answered ok for the granted repository, so the ungranted refusals prove nothing:\n  ${perTool.join("\n  ")}`,
-    );
+    throw new Error(`no single-repository tool answered ok for the granted repository, so the refusals prove nothing:\n  ${lines.join("\n  ")}`);
   }
-  return `scoped list = ${JSON.stringify(rows)} (ungranted absent); ${perTool.join("; ")}`;
+  return `scoped list = ${JSON.stringify(rows)}; all-scope list = ${JSON.stringify(allScopeIds)}; ${lines.join("; ")}`;
 }
 
 // runCatalogSweep runs every catalog-sweep_* step on the bootstrapped admin page.
@@ -287,5 +323,5 @@ export async function runCatalogSweep(step: AuthE2EStep, adminPage: Page, ctx: C
     return;
   }
   await step("catalog-sweep_every_tool_matches_route_policy", () => sweepEveryTool(ctx, token, loaded, listed));
-  await step("catalog-sweep_negative_control_ungranted_repo_unreadable", () => assertNegativeControl(ctx, token));
+  await step("catalog-sweep_negative_control_ungranted_repo_unreadable", () => assertNegativeControl(ctx, token, adminPage, loaded));
 }

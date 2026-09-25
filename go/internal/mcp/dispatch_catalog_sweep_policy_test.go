@@ -83,6 +83,47 @@ type catalogSweepPolicy struct {
 	Rows              []catalogSweepPolicyRow `json:"rows"`
 }
 
+// acceptReasonProblem reports why a case's acceptReason cannot justify
+// accepting anything other than "ok". A row that tolerates a not-found answer
+// stops proving the tool succeeds for its seeded subject, so the reason must
+// name the unseeded subject: it has to quote at least one of the case's own
+// string arguments (three or more characters), which a boilerplate sentence
+// shared across rows cannot do. It returns "" when the reason is acceptable.
+func acceptReasonProblem(c catalogSweepCase) string {
+	reason := strings.TrimSpace(c.AcceptReason)
+	if reason == "" {
+		return "has no acceptReason"
+	}
+	for _, value := range catalogSweepStringArguments(c.Arguments) {
+		if len(value) >= 3 && strings.Contains(reason, value) {
+			return ""
+		}
+	}
+	return "its acceptReason quotes none of the case's own string arguments, so it does not name the unseeded subject"
+}
+
+// catalogSweepStringArguments collects every string value in an argument tree.
+func catalogSweepStringArguments(value any) []string {
+	switch v := value.(type) {
+	case string:
+		return []string{v}
+	case []any:
+		var out []string
+		for _, item := range v {
+			out = append(out, catalogSweepStringArguments(item)...)
+		}
+		return out
+	case map[string]any:
+		var out []string
+		for _, item := range v {
+			out = append(out, catalogSweepStringArguments(item)...)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func loadCatalogSweepArgs(t *testing.T) catalogSweepArgsFile {
 	t.Helper()
 	raw, err := os.ReadFile(catalogSweepArgsPath)
@@ -172,8 +213,10 @@ func TestCatalogSweepPolicy(t *testing.T) {
 				if len(accept) == 0 {
 					accept = []string{"ok"}
 				}
-				if len(c.Accept) > 0 && strings.TrimSpace(c.AcceptReason) == "" {
-					t.Errorf("tool %q case %q accepts %v without an acceptReason", name, c.Label, c.Accept)
+				if len(c.Accept) > 0 {
+					if problem := acceptReasonProblem(c); problem != "" {
+						t.Errorf("tool %q case %q accepts %v but %s", name, c.Label, c.Accept, problem)
+					}
 				}
 			default:
 				if len(c.Accept) > 0 {
