@@ -87,6 +87,19 @@ Request contract:
 - optional `limit` (default 50, max 200)
 
 Each result reports `package_id`, `name`, `ecosystem`, `registry`, `namespace`,
-`purl`, and `version_count`. The route returns matching bundle candidates from
+`purl`, and `version_count`, ordered by `ecosystem`, `name`, then `package_id`.
+Scoped-token behavior (#5167): a `Package` node has no repository key for a
+grant to bind, so a scoped token is admitted and gated on visibility, the same
+gate the package-registry ecosystem browse applies.
+
+- A scoped caller sees only packages whose `visibility` is exactly `public`. A
+  private package, and a package whose fact carries no `visibility`, stay
+  hidden. Correlation-granted private packages are not served on this route.
+- A scoped token with an empty grant gets an empty page; the graph is not read.
+- The shared key and all-scope callers see every package. An all-scope caller
+  is admitted under the `ESHU_GOVERNANCE_MODE` rules in
+  [HTTP API](../http-api.md#all-scope-credentials-on-grant-filtered-routes).
+- `limit` bounds the page and `truncated` is `true` when more matches exist
+  than `limit`. `version_count` is exact for every returned row, `0` included. The route returns matching bundle candidates from
 the active query backend. It does not upload files, mutate graph state, or
 import `.eshu` archives.

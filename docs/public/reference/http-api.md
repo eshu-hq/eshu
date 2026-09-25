@@ -166,7 +166,6 @@ console session is still admitted only where the modes above admit it:
 
 | Route | Why no grant binds yet |
 | --- | --- |
-| `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
 | `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
 
 `GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are

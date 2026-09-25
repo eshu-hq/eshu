@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -62,6 +63,13 @@ func writeSearchBundlesError(w http.ResponseWriter, r *http.Request, status int,
 // `OPTIONAL MATCH`/`count(v)` aggregation across the whole registry before
 // applying `LIMIT`, which violates the bounded read contract on large
 // registries. Requiring a scope keeps the read bounded by construction.
+//
+// #5167: a scoped token is admitted and sees only `visibility = 'public'`
+// packages (a package with no visibility stays hidden); an empty grant is an
+// empty page with no graph call. The read is two statements, an anchor-only
+// ordered page and a page-bound version count, because the pinned NornicDB
+// ignores the ORDER BY/LIMIT that follow `WITH p, count(v)` (see
+// searchRegistryBundlesCypher).
 func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query      string `json:"query"`
@@ -89,7 +97,19 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		limit = searchBundlesMaxLimit
 	}
 
-	cypher, params := searchRegistryBundlesCypher(query, ecosystem, req.UniqueOnly, limit+1)
+	// #5167: a scoped caller sees only visibility = 'public' packages, the
+	// same gate the package-registry ecosystem browse applies. Package nodes
+	// carry no repository key a grant could bind to, so an empty grant is a
+	// zero-row page with no graph call and every other grant reads the public
+	// subset. An unscoped or all-scope caller reads the whole catalog.
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
+	if access.Empty() {
+		writeSearchBundlesPage(w, r, h, nil, limit, false)
+		return
+	}
+	publicOnly := access.Scoped()
+
+	cypher, params := searchRegistryBundlesCypher(query, ecosystem, req.UniqueOnly, publicOnly, limit+1)
 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
@@ -108,6 +128,42 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		rows = rows[:limit]
 	}
 
+	// The anchor statement carries no version count: the pinned NornicDB
+	// ignores ORDER BY/LIMIT after `WITH p, count(v)`, so the count is read
+	// for the bounded page only, by the registry family's MATCH-only
+	// statement, and zero-filled here.
+	packageIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		packageIDs = append(packageIDs, StringVal(row, "package_id"))
+	}
+	counts, err := registry.VersionCountsByPackageID(ctx, h.Neo4j, packageIDs)
+	if err != nil {
+		if WriteGraphReadError(w, r, err, searchBundlesCapability) {
+			return
+		}
+		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		return
+	}
+	for _, row := range rows {
+		row["version_count"] = counts[StringVal(row, "package_id")]
+	}
+
+	writeSearchBundlesPage(w, r, h, rows, limit, truncated)
+}
+
+// writeSearchBundlesPage writes the bundle-search success envelope. rows may
+// be nil (an empty page).
+func writeSearchBundlesPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	h *CodeHandler,
+	rows []map[string]any,
+	limit int,
+	truncated bool,
+) {
+	if rows == nil {
+		rows = []map[string]any{}
+	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"bundles":   rows,
 		"count":     len(rows),
@@ -117,22 +173,37 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 }
 
 // searchRegistryBundlesCypher builds the bounded, deterministically ordered
-// query over the package registry catalog. The match anchors on `:Package`
-// identities (which carry the dual `:PackageRegistryPackage` label written by
-// the reducer) and filters by case-insensitive substring over the package's
-// normalized name, namespace, or PURL. A non-empty ecosystem scopes the read to
-// one ecosystem. The caller (handleSearchBundles) requires a non-empty query or
-// ecosystem before calling this, so the produced query always carries a
-// selective predicate ahead of the version aggregation and never scans the
-// whole catalog. The query parameter is always bound, never interpolated, so
-// the substring match stays injection-safe.
-func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly bool, limit int) (string, map[string]any) {
+// anchor read over the package registry catalog. The match anchors on
+// `:Package` identities (which carry the dual `:PackageRegistryPackage` label
+// written by the reducer) and filters by case-insensitive substring over the
+// package's normalized name, namespace, or PURL. A non-empty ecosystem scopes
+// the read to one ecosystem. The caller (handleSearchBundles) requires a
+// non-empty query or ecosystem before calling this, so the produced query
+// always carries a selective predicate and never scans the whole catalog. The
+// query parameter is always bound, never interpolated, so the substring match
+// stays injection-safe.
+//
+// publicOnly adds `p.visibility = 'public'` for a scoped caller, the literal
+// the package-registry ecosystem browse
+// (packageRegistryPackagesScopedEcosystemCypher) uses: a package whose fact
+// carries no visibility is not public, so it stays hidden.
+//
+// The statement is deliberately anchor-only, with no version count and no
+// OPTIONAL MATCH: on the pinned NornicDB, `WITH p, count(v)` makes the
+// planner silently drop the trailing ORDER BY and LIMIT (measured: LIMIT 51
+// returned all 3000 rows unordered), so version_count is resolved for the
+// returned page by registry.VersionCountsByPackageID. ORDER BY and LIMIT sit
+// directly on the anchor RETURN, where the pinned build honours them.
+func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly, publicOnly bool, limit int) (string, map[string]any) {
 	params := map[string]any{"limit": limit}
 
 	cypher := `MATCH (p:Package) WHERE p.uid IS NOT NULL`
 	if ecosystem != "" {
 		cypher += ` AND p.ecosystem = $ecosystem`
 		params["ecosystem"] = ecosystem
+	}
+	if publicOnly {
+		cypher += ` AND p.visibility = 'public'`
 	}
 	if query != "" {
 		cypher += ` AND (toLower(coalesce(p.normalized_name, '')) CONTAINS toLower($query)` +
@@ -146,15 +217,12 @@ func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly bool, limit
 		projection += ` DISTINCT`
 	}
 	cypher += `
-OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
-WITH p, count(v) AS version_count
 ` + projection + ` p.uid AS package_id,
        p.normalized_name AS name,
        p.ecosystem AS ecosystem,
        p.registry AS registry,
        p.namespace AS namespace,
-       p.purl AS purl,
-       version_count AS version_count
+       p.purl AS purl
 ORDER BY p.ecosystem, p.normalized_name, p.uid
 LIMIT $limit`
 

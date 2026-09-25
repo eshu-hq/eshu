@@ -283,6 +283,7 @@ nav:
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
       - NornicDB Upstream Defects: reference/nornicdb-upstream-defects.md
       - NornicDB Query-Shape Pitfalls: reference/nornicdb-query-pitfalls.md
+      - NornicDB ORDER BY/LIMIT After Aggregate: reference/nornicdb-aggregate-order-limit.md
       - NornicDB Path-Predicate Pitfalls: reference/nornicdb-path-predicate-pitfalls.md
       - NornicDB Write-Shape Pitfalls: reference/nornicdb-write-shape-pitfalls.md
       - NornicDB Order-Limit Pitfalls: reference/nornicdb-order-limit-pitfalls.md

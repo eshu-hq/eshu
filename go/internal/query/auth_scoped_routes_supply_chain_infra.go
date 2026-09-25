@@ -232,6 +232,20 @@ func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
 	}
 }
 
+// scopedCodeBundlesRoute reports whether the request targets the registry
+// bundle search (#5167). It reads the same :Package catalog the package
+// registry identity routes above serve, and gates a scoped caller the same
+// way the ecosystem browse does: no repository key exists on a Package node
+// for a grant to bind, so codequery.handleSearchBundles returns an empty page
+// without a graph call for an empty grant and otherwise adds
+// `p.visibility = 'public'` to the anchor read, which keeps a package whose
+// fact carries no visibility hidden. Correlation-granted private packages are
+// not served on this route. Version counts come from a second statement bound
+// to the returned page, which is only ever public rows.
+func scopedCodeBundlesRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/bundles"
+}
+
 // scopedPackageRegistryDependencyChainsRoute reports whether the request
 // targets the repo-scoped package dependency chain read. The handler requires
 // repository_id, intersects both the consumption and publisher reads with the

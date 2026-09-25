@@ -330,21 +330,13 @@ func (h *Handler) attachPackageVersionCounts(
 	ctx context.Context,
 	results []PackageResult,
 ) error {
-	if len(results) == 0 {
-		return nil
-	}
 	packageIDs := make([]string, len(results))
 	for i, result := range results {
 		packageIDs[i] = result.PackageID
 	}
-	cypher, params := packageRegistryVersionCountsCypher(packageIDs)
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	counts, err := VersionCountsByPackageID(ctx, h.Neo4j, packageIDs)
 	if err != nil {
 		return err
-	}
-	counts := make(map[string]int, len(rows))
-	for _, row := range rows {
-		counts[querycontract.StringVal(row, "package_id")] = querycontract.IntVal(row, "version_count")
 	}
 	for i := range results {
 		results[i].VersionCount = counts[results[i].PackageID]

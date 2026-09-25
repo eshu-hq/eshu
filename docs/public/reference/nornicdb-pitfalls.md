@@ -494,9 +494,9 @@ before/after and the fan-in timing.
 
 ### Observed shape
 
-Measured directly over the HTTP `tx/commit` endpoint and independently via
-`neo4j-go-driver/v5` (both paths reproduce it) against the then-current
-`eshu-nornicdb-pr261:149245885258` pin:
+Measured over `tx/commit` and `neo4j-go-driver/v5` on the older
+`eshu-nornicdb-pr261:149245885258` pin; NOT reproduced on the current pin, see
+[the #5167 re-measurement](nornicdb-aggregate-order-limit.md):
 
 ```cypher
 CREATE (:Package {uid:"pkg:mini:1", ecosystem:"npm-mini", normalized_name:"a"});
