@@ -48,9 +48,9 @@ func (r *fakeExistsRows) Scan(dest ...any) error {
 func (r *fakeExistsRows) Err() error   { return nil }
 func (r *fakeExistsRows) Close() error { return nil }
 
-// fakeGenerationRows returns a single string row, modeling the
-// active_generation_id lookup on ingestion_scopes that the generation-freshness
-// guard issues. value is the generation id the fake DB reports as active.
+// fakeGenerationRows returns a single row, modeling the active_generation_id
+// lookup on ingestion_scopes that the generation-freshness guard issues.
+// value is the generation id the fake DB reports as active.
 type fakeGenerationRows struct {
 	value *string
 	read  bool
@@ -65,8 +65,26 @@ func (r *fakeGenerationRows) Next() bool {
 }
 
 func (r *fakeGenerationRows) Scan(dest ...any) error {
+	// The freshness check (generationFreshnessSQL) scans three columns:
+	// active_generation_id, the intent generation's status, and whether it
+	// sorts after the active generation. The fake reports the intent's
+	// generation as the active one, so the extra columns read "active" and
+	// false.
+	if len(dest) == 3 {
+		status, ok := dest[1].(*sql.NullString)
+		if !ok {
+			return fmt.Errorf("unsupported status scan dest type %T", dest[1])
+		}
+		status.Valid, status.String = true, "active"
+		newer, ok := dest[2].(*bool)
+		if !ok {
+			return fmt.Errorf("unsupported newer scan dest type %T", dest[2])
+		}
+		*newer = false
+		dest = dest[:1]
+	}
 	if len(dest) != 1 {
-		return fmt.Errorf("scan: got %d dest, want 1", len(dest))
+		return fmt.Errorf("scan: got %d dest, want 1 or 3", len(dest))
 	}
 	switch d := dest[0].(type) {
 	case *sql.NullString:

@@ -292,6 +292,42 @@ func TestCloudInventoryAdmissionStaleGenerationSuperseded(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryAdmissionPropagatesNotYetActiveGeneration pins #6686 on
+// the one handler that calls GenerationCheck itself: a not-yet-active
+// generation must surface as the retryable, self-classified error (so
+// WorkSink.Fail retries it) rather than a superseded result that acks the
+// admission succeeded before its generation activates.
+func TestCloudInventoryAdmissionPropagatesNotYetActiveGeneration(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubCloudInventoryEvidenceLoader{}
+	writer := &stubCloudInventoryAdmissionWriter{}
+	handler := CloudInventoryAdmissionHandler{
+		EvidenceLoader: loader,
+		Writer:         writer,
+		GenerationCheck: func(_ context.Context, scopeID, generationID string) (bool, error) {
+			return false, reducercontract.GenerationNotYetActiveError{
+				ScopeID: scopeID, GenerationID: generationID, ActiveGenerationID: "gen-active",
+			}
+		},
+	}
+
+	result, err := handler.Handle(context.Background(), cloudInventoryIntent())
+	if err == nil {
+		t.Fatalf("Handle() = %#v, nil error; want the not-yet-active deferral", result)
+	}
+	if !reducercontract.IsRetryable(err) || !errors.Is(err, reducercontract.ErrGenerationNotYetActive) {
+		t.Fatalf("Handle() error = %v, want a retryable ErrGenerationNotYetActive", err)
+	}
+	var classed interface{ FailureClass() string }
+	if !errors.As(err, &classed) || classed.FailureClass() != reducercontract.GenerationActivationNotReadyFailureClass {
+		t.Fatalf("Handle() error = %v, want failure class %q", err, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
+	if loader.calls != 0 || len(writer.writes) != 0 {
+		t.Fatalf("deferral must short-circuit: loader calls = %d, writes = %d", loader.calls, len(writer.writes))
+	}
+}
+
 func TestCloudInventoryAdmissionDoesNotWriteOnLoadError(t *testing.T) {
 	t.Parallel()
 

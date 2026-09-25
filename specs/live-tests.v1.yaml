@@ -1675,6 +1675,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
+  - file: go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live Postgres proof gated by env Skip (#6686); its TestReducerContentionGate prefix already runs it on every claim-path PR in reducer-contention-gate.yml, but it is not in the live-backend graph job; promote to ci with timing evidence
   - file: go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
     tag: ~
     class: scheduled

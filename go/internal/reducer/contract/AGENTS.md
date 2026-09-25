@@ -36,6 +36,11 @@ intent or result fields require compatibility tests through the parent aliases.
   accept a domain with no production owner.
 - Mutating a nested payload value after `Intent.Clone` also changes the source
   intent because only the top-level map is detached.
+- Treating `(false, GenerationNotYetActiveError)` from a
+  `GenerationFreshnessCheck` as supersession acks work for a generation that is
+  about to activate, and nothing re-drives it (#6686). Callers must propagate
+  the error wrapped with `%w` so the queue retries the intent; only
+  `(false, nil)` is supersession.
 
 ## Anti-patterns
 

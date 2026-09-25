@@ -24,8 +24,10 @@ constants, `KnownDomains`, `ParseDomain`, lifecycle statuses, `FailureRecord`,
 `OwnershipShape`, `CrossScopeDependency`, `DomainDefinition`, `Handler`,
 `HandlerFunc`, `ContainerImageIdentityOutcome` and its five outcome
 constants, `ContainerImageIdentityFactKind`, `ProjectionDomains`,
-`RationaleEvidenceSource`, and `GraphQueryRunner`. See [doc.go](doc.go) for
-the package contract.
+`RationaleEvidenceSource`, `GraphQueryRunner`, the generation-check func
+types, and the not-yet-active generation deferral (`ErrGenerationNotYetActive`,
+`GenerationNotYetActiveError`, `GenerationActivationNotReadyFailureClass`). See
+[doc.go](doc.go) for the package contract.
 
 ## Dependencies
 
@@ -49,6 +51,14 @@ spans, counters, and structured logs around contract handlers.
   canonical write or bounded counter emission.
 - The parent package aliases these types; changing a field or method changes the
   existing `reducer` API too.
+- `GenerationFreshnessCheck` has three outcomes, not two (#6686): `(true, nil)`
+  runs the handler, `(false, nil)` is terminal supersession, and
+  `(false, GenerationNotYetActiveError)` means the intent's generation is newer
+  than the active one and still pending. Callers must propagate that error
+  (wrapped with `%w`) so the queue retries the intent; treating it as
+  supersession acks work for a generation that is about to activate, and nothing
+  re-drives it. Its failure class ends in `_not_ready` so the storage enrollment
+  guard requires it to stay non-counting.
 
 No-Regression Evidence: #6100 moves the existing value types and validation
 methods without changing fields, constants, lifecycle rules, or registry order.
@@ -124,3 +134,13 @@ their existing telemetry are untouched.
 - [Reducer package](../README.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
+
+No-Regression Evidence: #6686 adds `GenerationNotYetActiveError` and its
+sentinel and failure class. They are value types with no I/O; the behavior they
+carry is proven where the check and queue live (see
+`docs/internal/evidence/6686-reducer-pre-activation-deferral.md`).
+
+No-Observability-Change: #6686's error type registers no metric. A deferral is
+durable as `failure_class = generation_activation_not_ready` on
+`fact_work_items` and counted by the existing
+`eshu_dp_reducer_retry_surge_total{failure_class}`.

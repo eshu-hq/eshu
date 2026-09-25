@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
@@ -137,6 +138,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// read while the generation is retired-or-pending and workload
 	// materialization succeeds on that partial input.
 	reducer.WorkloadMaterializationResolutionNotReadyFailureClass,
+	// #6686: an intent whose generation is newer than the scope's active
+	// generation and still pending. NewGenerationFreshnessCheck defers it
+	// until the projector's Ack activates the generation instead of acking it
+	// succeeded as superseded. Waiting on that Ack is not a failure on the
+	// intent's own merits; a generation that instead ends failed or superseded
+	// makes the next attempt ack terminally, so the wait is bounded by the
+	// projector's own lifecycle, not by this budget.
+	reducercontract.GenerationActivationNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

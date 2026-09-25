@@ -6,63 +6,103 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestGenerationFreshnessCheck(t *testing.T) {
 	t.Parallel()
 
+	row := func(active, status string, newer bool) freshnessRow {
+		r := freshnessRow{intentIsNewer: newer}
+		if active != "" {
+			r.active = sql.NullString{String: active, Valid: true}
+		}
+		if status != "" {
+			r.intentStatus = sql.NullString{String: status, Valid: true}
+		}
+		return r
+	}
+
 	tests := []struct {
-		name         string
-		scopeID      string
-		generationID string
-		database     *generationFreshnessTestDB
-		wantCurrent  bool
-		wantErr      bool
+		name          string
+		scopeID       string
+		generationID  string
+		database      *generationFreshnessTestDB
+		wantCurrent   bool
+		wantRetryable bool
+		wantErr       bool
 	}{
 		{
 			name:         "current when generation matches active",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			database: &generationFreshnessTestDB{
-				scopes: map[string]sql.NullString{
-					"scope-123": {String: "gen-abc", Valid: true},
-				},
-			},
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-abc", "active", false),
+			}},
 			wantCurrent: true,
 		},
 		{
-			name:         "stale when generation does not match active",
+			name:         "older superseded generation stays terminal",
 			scopeID:      "scope-123",
 			generationID: "gen-old",
-			database: &generationFreshnessTestDB{
-				scopes: map[string]sql.NullString{
-					"scope-123": {String: "gen-new", Valid: true},
-				},
-			},
-			wantCurrent: false,
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-new", "superseded", false),
+			}},
+		},
+		{
+			name:         "pending but older than active is superseded, not deferred",
+			scopeID:      "scope-123",
+			generationID: "gen-old",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-new", "pending", false),
+			}},
+		},
+		{
+			name:         "newer failed generation is superseded, not deferred",
+			scopeID:      "scope-123",
+			generationID: "gen-next",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-new", "failed", true),
+			}},
+		},
+		{
+			name:         "missing generation row is superseded",
+			scopeID:      "scope-123",
+			generationID: "gen-missing",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-new", "", false),
+			}},
+		},
+		{
+			name:         "newer pending generation defers with a retryable error",
+			scopeID:      "scope-123",
+			generationID: "gen-next",
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("gen-new", "pending", true),
+			}},
+			wantRetryable: true,
 		},
 		{
 			name:         "current when scope not found",
 			scopeID:      "scope-unknown",
 			generationID: "gen-abc",
-			database: &generationFreshnessTestDB{
-				scopes: map[string]sql.NullString{},
-			},
-			wantCurrent: true,
+			database:     &generationFreshnessTestDB{freshness: map[string]freshnessRow{}},
+			wantCurrent:  true,
 		},
 		{
 			name:         "current when active_generation_id is NULL",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			database: &generationFreshnessTestDB{
-				scopes: map[string]sql.NullString{
-					"scope-123": {Valid: false},
-				},
-			},
+			database: &generationFreshnessTestDB{freshness: map[string]freshnessRow{
+				"scope-123": row("", "pending", false),
+			}},
 			wantCurrent: true,
 		},
 		{
@@ -72,8 +112,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			database: &generationFreshnessTestDB{
 				queryErr: fmt.Errorf("connection refused"),
 			},
-			wantCurrent: false,
-			wantErr:     true,
+			wantErr: true,
 		},
 	}
 
@@ -88,15 +127,71 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+				if reducer.IsRetryable(err) {
+					t.Fatalf("lookup failure %v must not classify as a retryable deferral", err)
+				}
 				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
 			}
 			if gotCurrent != tt.wantCurrent {
 				t.Fatalf("current = %v, want %v", gotCurrent, tt.wantCurrent)
 			}
+			if !tt.wantRetryable {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			assertGenerationNotYetActive(t, err, tt.scopeID, tt.generationID)
+			// The runtime wraps the check error with %w before WorkSink.Fail;
+			// the classification must survive that wrapping.
+			assertGenerationNotYetActive(t, fmt.Errorf("generation freshness check: %w", err), tt.scopeID, tt.generationID)
 		})
+	}
+}
+
+func assertGenerationNotYetActive(t *testing.T, err error, scopeID, generationID string) {
+	t.Helper()
+	if !reducer.IsRetryable(err) {
+		t.Fatalf("error %v is not retryable", err)
+	}
+	if !errors.Is(err, reducercontract.ErrGenerationNotYetActive) {
+		t.Fatalf("error %v does not unwrap to ErrGenerationNotYetActive", err)
+	}
+	var classed interface{ FailureClass() string }
+	if !errors.As(err, &classed) || classed.FailureClass() != reducercontract.GenerationActivationNotReadyFailureClass {
+		t.Fatalf("error %v does not self-classify as %q", err, reducercontract.GenerationActivationNotReadyFailureClass)
+	}
+	var typed reducercontract.GenerationNotYetActiveError
+	if !errors.As(err, &typed) || typed.ScopeID != scopeID || typed.GenerationID != generationID {
+		t.Fatalf("error %#v does not carry scope %q generation %q", err, scopeID, generationID)
+	}
+}
+
+// TestGenerationFreshnessCheckReadsOneSnapshot pins the check to one
+// statement over primary-key lookups, ordered like the projector
+// supersession SQL, so the active pointer and the intent generation status
+// cannot come from different snapshots.
+func TestGenerationFreshnessCheckReadsOneSnapshot(t *testing.T) {
+	t.Parallel()
+
+	database := &generationFreshnessTestDB{freshness: map[string]freshnessRow{}}
+	if _, err := NewGenerationFreshnessCheck(database)(context.Background(), "scope-1", "gen-1"); err != nil {
+		t.Fatalf("check error = %v", err)
+	}
+	if got := len(database.queries); got != 1 {
+		t.Fatalf("queries = %d, want 1 statement", got)
+	}
+	for _, want := range []string{
+		"FROM ingestion_scopes AS scope",
+		"intent_generation.generation_id = $2",
+		"active_generation.generation_id = scope.active_generation_id",
+		"(intent_generation.ingested_at, intent_generation.generation_id)",
+		"> (active_generation.ingested_at, active_generation.generation_id)",
+		"WHERE scope.scope_id = $1",
+	} {
+		if !strings.Contains(database.queries[0], want) {
+			t.Fatalf("freshness query missing %q:\n%s", want, database.queries[0])
+		}
 	}
 }
 
@@ -209,20 +304,40 @@ type currentGenerationRow struct {
 	freshnessHint string
 }
 
+// freshnessRow is one generationFreshnessSQL result row.
+type freshnessRow struct {
+	active        sql.NullString
+	intentStatus  sql.NullString
+	intentIsNewer bool
+}
+
 type generationFreshnessTestDB struct {
-	scopes             map[string]sql.NullString // scope_id -> active_generation_id
-	generations        map[string][]string       // scope_id -> generation_ids
+	freshness          map[string]freshnessRow // scope_id -> freshness row
+	generations        map[string][]string     // scope_id -> generation_ids
 	currentGenerations map[string]currentGenerationRow
 	queryErr           error
+	queries            []string
 }
 
 func (database *generationFreshnessTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (database *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
+func (database *generationFreshnessTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.queries = append(database.queries, query)
 	if database.queryErr != nil {
 		return nil, database.queryErr
+	}
+
+	if query == generationFreshnessSQL {
+		freshness, found := database.freshness[args[0].(string)]
+		if !found {
+			return &generationFreshnessTestRows{data: nil, idx: -1}, nil
+		}
+		return &generationFreshnessTestRows{
+			data: [][]any{{freshness.active, freshness.intentStatus, freshness.intentIsNewer}},
+			idx:  -1,
+		}, nil
 	}
 
 	switch len(args) {
@@ -234,14 +349,7 @@ func (database *generationFreshnessTestDB) QueryContext(_ context.Context, _ str
 				idx:  -1,
 			}, nil
 		}
-		activeGen, found := database.scopes[scopeID]
-		if !found {
-			return &generationFreshnessTestRows{data: nil, idx: -1}, nil
-		}
-		return &generationFreshnessTestRows{
-			data: [][]any{{activeGen}},
-			idx:  -1,
-		}, nil
+		return &generationFreshnessTestRows{data: nil, idx: -1}, nil
 	case 2:
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
