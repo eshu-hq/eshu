@@ -209,12 +209,44 @@ func (cr *ContentReader) documentationTargetFacts(
 	return factRows, truncated, nil
 }
 
-func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string, []any) {
+// documentationTargetFactSelect projects one fact row into the JSON object the
+// target readback scans. It is shared by every branch of the target-facts
+// statement so the branches cannot drift apart.
+const documentationTargetFactSelect = `jsonb_build_object(
+    'fact_id', fact_records.fact_id,
+    'fact_kind', fact_records.fact_kind,
+    'scope_id', fact_records.scope_id,
+    'generation_id', fact_records.generation_id,
+    'source_system', fact_records.source_system,
+    'source_uri', fact_records.source_uri,
+    'source_record_id', fact_records.source_record_id,
+    'observed_at', fact_records.observed_at,
+    'payload', fact_records.payload
+)`
+
+// documentationTargetFactsParts is the filter-derived shape shared by every
+// branch of the target-facts statement: the non-kind WHERE clauses, the bound
+// arguments (without the trailing limit), the optional ACL join, and the row
+// limit. Only the fact_kind predicate differs between branches.
+type documentationTargetFactsParts struct {
+	// clauses are the WHERE conjuncts common to every branch: the tombstone
+	// filter, the column and payload filters, the target ref containment
+	// predicate, and the ACL clause.
+	clauses []string
+	// args are the positional arguments the clauses reference, in order.
+	args []any
+	// scopeJoin is the ingestion_scopes join, empty unless an ACL applies.
+	scopeJoin string
+	// limit is the bounded row count the read returns (before the +1 sentinel
+	// that reports truncation).
+	limit int
+}
+
+// newDocumentationTargetFactsParts derives the shared statement parts from a
+// finding filter.
+func newDocumentationTargetFactsParts(filter documentationFindingFilter) documentationTargetFactsParts {
 	args := []any{}
-	clauses := []string{
-		"fact_records.fact_kind IN ('" + facts.DocumentationEntityMentionFactKind + "', '" + facts.DocumentationClaimCandidateFactKind + "', '" + facts.SemanticDocumentationObservationFactKind + "')",
-		"fact_records.is_tombstone = FALSE",
-	}
+	clauses := []string{"fact_records.is_tombstone = FALSE"}
 	addColumnFilter := func(column, value string) {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -249,30 +281,74 @@ func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string
 		filter.AllowedRepositoryIDs,
 		filter.AllowedScopeIDs,
 	)
-	limit := documentationTargetFactLimit(filter.Limit)
 	scopeJoin := ""
 	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
 		scopeJoin = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
 	}
-	args = append(args, limit+1)
-	return fmt.Sprintf(`
-SELECT jsonb_build_object(
-    'fact_id', fact_records.fact_id,
-    'fact_kind', fact_records.fact_kind,
-    'scope_id', fact_records.scope_id,
-    'generation_id', fact_records.generation_id,
-    'source_system', fact_records.source_system,
-    'source_uri', fact_records.source_uri,
-    'source_record_id', fact_records.source_record_id,
-    'observed_at', fact_records.observed_at,
-    'payload', fact_records.payload
-) AS payload
-FROM fact_records
-%s
+	return documentationTargetFactsParts{
+		clauses:   clauses,
+		args:      args,
+		scopeJoin: scopeJoin,
+		limit:     documentationTargetFactLimit(filter.Limit),
+	}
+}
+
+// documentationTargetIndexedKindsClause is the fact_kind predicate of the
+// indexed branch. Every kind it names is also named by the partial GIN index
+// fact_records_documentation_target_refs_idx, so together with
+// is_tombstone = FALSE Postgres can prove the index covers the branch. Adding
+// a kind here that the index predicate lacks silently disables the index (#7126).
+var documentationTargetIndexedKindsClause = "fact_records.fact_kind IN ('" +
+	facts.DocumentationEntityMentionFactKind + "', '" +
+	facts.DocumentationClaimCandidateFactKind + "')"
+
+// documentationTargetSemanticKindClause is the fact_kind predicate of the
+// semantic branch. semantic.documentation_observation is deliberately absent
+// from the GIN index predicate, so it is read by its own bounded branch rather
+// than widening the indexed branch's kind list.
+var documentationTargetSemanticKindClause = "fact_records.fact_kind = '" +
+	facts.SemanticDocumentationObservationFactKind + "'"
+
+// documentationTargetFactsBranch renders one bounded, ordered branch of the
+// target-facts statement. Each branch carries its own ORDER BY ... LIMIT so the
+// planner can use the index for that branch and stop early.
+func documentationTargetFactsBranch(kindClause string, parts documentationTargetFactsParts, limitParam int) string {
+	clauses := append([]string{kindClause}, parts.clauses...)
+	return fmt.Sprintf(`(SELECT %s AS payload, fact_records.observed_at AS observed_at, fact_records.fact_id AS fact_id
+FROM fact_records%s
 WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
+LIMIT $%d)`, documentationTargetFactSelect, parts.scopeJoin, strings.Join(clauses, " AND "), limitParam)
+}
+
+// buildDocumentationTargetFactsSQL builds the bounded target-facts read.
+//
+// The statement is the UNION ALL of two branches: one over the kinds the
+// partial GIN index covers (so its payload containment predicate uses the
+// index) and one over semantic.documentation_observation. Each branch is
+// ordered and limited to limit+1 rows, and the outer ORDER BY ... LIMIT
+// re-applies the same ordering and bound, so the result is row-for-row the one
+// the earlier single-statement read returned. fact_id is the primary key and
+// the two branches read disjoint fact kinds, so the ordering is total and no
+// row can appear twice.
+func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string, []any) {
+	parts := newDocumentationTargetFactsParts(filter)
+	args := append(append([]any{}, parts.args...), parts.limit+1)
+	limitParam := len(args)
+	return fmt.Sprintf(`
+SELECT target_facts.payload
+FROM (
+%s
+UNION ALL
+%s
+) AS target_facts
+ORDER BY target_facts.observed_at DESC, target_facts.fact_id DESC
 LIMIT $%d
-`, scopeJoin, strings.Join(clauses, " AND "), len(args)), args
+`,
+		documentationTargetFactsBranch(documentationTargetIndexedKindsClause, parts, limitParam),
+		documentationTargetFactsBranch(documentationTargetSemanticKindClause, parts, limitParam),
+		limitParam,
+	), args
 }
 
 func documentationTargetFactLimit(limit int) int {

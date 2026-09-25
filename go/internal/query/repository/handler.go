@@ -298,8 +298,8 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	platformTypes := storySummary.platformTypes
 	dependencyCount := storySummary.dependencyCount
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "semantic_overview")
-	semanticOverview, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
-	timer.Done(r.Context(), slog.Bool("error", err != nil))
+	semanticOverview, files, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
+	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)))
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("semantic overview failed: %v", err))
 		return
@@ -312,13 +312,8 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		storyLimitations = append(storyLimitations, storyRowsTruncatedReason)
 	}
 	if h.Content != nil {
-		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "content_files")
-		files, err := h.Content.ListRepoFiles(r.Context(), repoID, querycontract.RepositorySemanticEntityLimit)
-		timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)))
-		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
-			return
-		}
+		// files is the list the semantic overview stage already read; it is
+		// shared by the stages below and not listed a second time (#7126).
 		if files == nil {
 			files = []querycontract.FileContent{}
 		}
@@ -387,7 +382,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	}
 	infrastructureOverview = attachRepositoryDeploymentEvidence(infrastructureOverview, deploymentEvidence)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "ci_cd_evidence")
-	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidence(r.Context(), h.Content, h.CICDRunCorrelations, repoID)
+	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(r.Context(), h.Content, h.CICDRunCorrelations, repoID, files)
 	timer.Done(r.Context(), slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load ci/cd evidence: %v", err))

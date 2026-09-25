@@ -92,24 +92,31 @@ func buildRepositorySemanticOverviewWithFiles(
 	return overview
 }
 
+// loadRepositorySemanticOverview reads the repository's bounded entity and file
+// lists and builds the semantic overview from them. It returns the file list it
+// read so the caller can reuse it: the repository story consumes the same
+// ListRepoFiles(repoID, RepositorySemanticEntityLimit) result for its
+// infrastructure, deployment, narrative, and CI/CD stages, and reading it once
+// instead of once per consumer removes the duplicate large-repository read
+// (#7126). The returned slice must be treated as read-only.
 func loadRepositorySemanticOverview(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
-) (map[string]any, error) {
+) (map[string]any, []querycontract.FileContent, error) {
 	if reader == nil || repoID == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	entities, err := reader.ListRepoEntities(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
 	if err != nil {
-		return nil, fmt.Errorf("list repository semantic entities: %w", err)
+		return nil, nil, fmt.Errorf("list repository semantic entities: %w", err)
 	}
 	files, err := reader.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
 	if err != nil {
-		return nil, fmt.Errorf("list repository semantic files: %w", err)
+		return nil, nil, fmt.Errorf("list repository semantic files: %w", err)
 	}
-	return buildRepositorySemanticOverviewWithFiles(entities, files), nil
+	return buildRepositorySemanticOverviewWithFiles(entities, files), files, nil
 }
 
 func buildRepositorySemanticStory(overview map[string]any) string {

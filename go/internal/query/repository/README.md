@@ -19,6 +19,13 @@ documenting the repository routes live in `openapi/paths/repository/`
 trio the census missed are counted, so the fragments stay where the spec
 assembly already references them.
 
+## Story file list
+
+`getRepositoryStory` reads the repository file list once, in the
+`semantic_overview` stage (`loadRepositorySemanticOverview` returns it), and
+shares that read-only slice with the infrastructure, deployment, narrative, and
+CI/CD stages instead of listing the repository again per stage (#7126).
+
 ## Ownership boundary
 
 This package owns handler orchestration for the repository routes. Story,

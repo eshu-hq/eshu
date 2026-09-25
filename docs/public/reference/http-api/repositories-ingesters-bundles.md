@@ -290,7 +290,7 @@ canonical-id selectors, proves the stats route does not issue the old optional
 graph aggregation after selector resolution, verifies content-store
 file/entity/language/entity-type counts, and checks that missing content
 coverage returns explicit missing-evidence metadata rather than zero totals:
-`go test ./internal/query -run 'TestGetRepositoryStats|TestContentReaderRepositoryCoverageIncludesEntityTypeCounts' -count=1`.
+`go test ./internal/query -run 'TestGetRepositoryStats|TestContentReaderRepositoryCoverageDerivesEntityTotalsFromOnePass' -count=1`.
 
 Performance Evidence: issue #1462 coverage adds route-deadline regressions for
 selector resolution and content coverage plus a large-count response fixture

@@ -271,6 +271,55 @@ truth/error reporting. The change only aligns response synthesis from already
 bounded API-surface evidence and adds no graph query, collector call, queue
 worker, metric instrument, span name, or deployment knob.
 
+## Story read cost (#7126)
+
+Three story-route reads were the size- or corpus-scaled Postgres cost of the
+repository and service stories; none is graph work.
+
+- Documentation target facts (both stories) are read as two bounded branches
+  joined by `UNION ALL`: the mention and claim kinds, which the partial GIN
+  `fact_records_documentation_target_refs_idx` covers, and the
+  `semantic.documentation_observation` kind on its own. The single earlier
+  statement listed all three kinds, which the index predicate does not cover, so
+  the planner never used the index and filtered every documentation fact. Rows,
+  ordering, and limit are unchanged.
+- Repository coverage derives the entity total, newest `indexed_at`, and type
+  distribution from one grouped `content_entities` pass instead of three scans.
+- Repository story lists the repository's files once (the semantic overview
+  stage) and shares that list with the infrastructure, deployment, narrative,
+  and CI/CD stages. The `content_files` stage log is gone; `semantic_overview`
+  now reports `file_count`.
+
+The semantic overview and file list are still capped at 5,000 rows without a
+`+1` sentinel, and the story does not mark that cap as truncated.
+
+Performance Evidence: local PostgreSQL 16, 180,000 mention and claim facts over
+600 generations with about 5 KB payloads, 9,000 semantic facts, interleaved runs
+alternating the first mover. Target facts, median of 9: 556.8 ms and
+2,217,962 shared hits with 126,957 reads before, 27.8 ms and 638 hits with
+5,608 reads after; a 60,000-fact rerun gave 638.5 ms and 14.5 ms. Coverage on
+one 240,000-entity repository, median of 9: 75.0 ms for the three scans, 25.8 ms
+for the single pass. On the shared read-only QA database the split statement ran
+in 301 ms warm (previously 0.76 s warm and 44.9 s cold), of which the semantic
+branch is 225 ms: no index covers that kind, so it costs 7,370 index searches
+even with zero rows. A partial GIN over that kind, measured only in the scratch
+run, took the branch from 8.1 ms to 0.1 ms in the 60,000-fact run. Reproduce with
+`ESHU_TEST_DOCUMENTATION_TARGET_FACTS_ROWS` and
+`ESHU_TEST_CONTENT_COVERAGE_ROWS` (see `documentation_target_facts_plan_live_test.go`
+and `content_reader_coverage_differential_live_test.go`).
+
+No-Regression Evidence: live differentials on real PostgreSQL return identical
+ordered rows and payloads for the old and new statements (all three kinds, ties
+on `observed_at`, tombstones, ACL join, limits 1, equal, above, and the default
+cap) and identical coverage values (populated, tied, empty, and unknown repos):
+`go test ./internal/query -run 'TestDocumentationTargetFacts|TestRepositoryCoverageSinglePass|TestGetRepositoryStoryListsRepositoryFilesOnce' -count=1`
+with `ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN` and
+`ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1` set.
+
+No-Observability-Change: existing `postgres.query` spans and
+`repository_query.stage_completed` logs stay; the only change is that the
+`content_files` stage is no longer emitted because the read it timed is shared.
+
 ## Investigation packets
 
 The service-investigation route accepts optional

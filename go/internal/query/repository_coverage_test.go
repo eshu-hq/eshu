@@ -24,22 +24,21 @@ func TestQueryContentStoreCoverageIncludesCompletenessAndGapFields(t *testing.T)
 			rows:    [][]driver.Value{{int64(10)}},
 		},
 		{
-			columns: []string{"count"},
-			rows:    [][]driver.Value{{int64(7)}},
-		},
-		{
 			columns: []string{"indexed_at"},
 			rows:    [][]driver.Value{{contentIndexedAt}},
-		},
-		{
-			columns: []string{"indexed_at"},
-			rows:    [][]driver.Value{{entityIndexedAt}},
 		},
 		{
 			columns: []string{"language", "file_count"},
 			rows: [][]driver.Value{
 				{"go", int64(8)},
 				{"yaml", int64(2)},
+			},
+		},
+		{
+			columns: []string{"entity_type", "entity_count", "indexed_at"},
+			rows: [][]driver.Value{
+				{"Function", int64(5), entityIndexedAt.Add(-time.Minute)},
+				{"Module", int64(2), entityIndexedAt},
 			},
 		},
 	})
