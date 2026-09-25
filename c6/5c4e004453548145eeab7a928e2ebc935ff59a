@@ -1,0 +1,52 @@
+docs/internal/design/1134-iam-can-perform.md
+  h_78a442cba0b3e6 369,408,410,412-413
+docs/internal/design/1146-ec2-instance-node.md
+  h_78a442cba0b3e6 21
+docs/internal/design/391-observability-coverage-correlation.md
+  h_78a442cba0b3e6 44
+docs/public/guides/collector-authoring.md
+  h_78a442cba0b3e6 151,156
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 14-16,348,360-361,528-529,623,696-697,735,848,853,855,861,874,885
+docs/public/services/collector-aws-cloud-coverage-matrix.md
+  h_78a442cba0b3e6 118
+go/cmd/collector-aws-cloud/AGENTS.md
+  h_78a442cba0b3e6 31
+go/cmd/collector-aws-cloud/README.md
+  h_78a442cba0b3e6 31
+go/cmd/collector-aws-cloud/record.go
+  h_78a442cba0b3e6 18,53,61-62,64-65
+go/cmd/collector-aws-cloud/record_test.go
+  h_78a442cba0b3e6 22-23,118,125,144,152,157-158,161,163,165,180,189
+go/internal/collector/cicdrun/runwatermark/types.go
+  h_78a442cba0b3e6 21
+go/internal/collector/cloud/aws/service/amplify/bind/AGENTS.md
+  h_78a442cba0b3e6 7
+go/internal/collector/cloud/aws/service/cloudwatch/bind/README.md
+  h_78a442cba0b3e6 14
+go/internal/collector/cloud/aws/service/vpc/bind/README.md
+  h_78a442cba0b3e6 22
+go/internal/collector/cloud/aws/service/xray/bind/README.md
+  h_78a442cba0b3e6 13
+go/internal/collector/vaultlive/AGENTS.md
+  h_78a442cba0b3e6 33-34
+go/internal/coordinator/planner/aws/freshness/AGENTS.md
+  h_78a442cba0b3e6 47-49
+go/internal/correlation/drift/cloudruntime/README.md
+  h_78a442cba0b3e6 256
+go/internal/reducer/cloud-projections.md
+  h_78a442cba0b3e6 347
+go/internal/reducer/gotchas-correlation-queue-and-graph-security.md
+  h_78a442cba0b3e6 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c65c4e004453548145eeab7a928e2ebc935ff59a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
