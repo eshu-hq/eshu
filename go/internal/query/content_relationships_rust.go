@@ -12,17 +12,18 @@ func buildOutgoingRustImplBlockRelationships(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, bool, bool, error) {
 	if entity.EntityType != "ImplBlock" || entity.EntityName == "" {
-		return nil, false, nil
+		return nil, false, false, nil
 	}
 
 	matches, err := reader.SearchEntitiesByName(
-		ctx, entity.RepoID, "Function", "", contentRelationshipLimit,
+		ctx, entity.RepoID, "Function", "", contentRelationshipFetchLimit,
 	)
 	if err != nil {
-		return nil, true, fmt.Errorf("search rust impl functions: %w", err)
+		return nil, true, false, fmt.Errorf("search rust impl functions: %w", err)
 	}
+	matches, clipped := capContentLookup(matches)
 
 	relationships := make([]map[string]any, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
@@ -45,25 +46,26 @@ func buildOutgoingRustImplBlockRelationships(
 		})
 	}
 
-	return relationships, true, nil
+	return relationships, true, clipped, nil
 }
 
 func buildIncomingRustImplBlockRelationships(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, bool, bool, error) {
 	implContext, ok := metadataNonEmptyString(entity.Metadata, "impl_context")
 	if entity.EntityType != "Function" || !ok || implContext == "" {
-		return nil, false, nil
+		return nil, false, false, nil
 	}
 
 	matches, err := reader.SearchEntitiesByName(
-		ctx, entity.RepoID, "ImplBlock", implContext, contentRelationshipLimit,
+		ctx, entity.RepoID, "ImplBlock", implContext, contentRelationshipFetchLimit,
 	)
 	if err != nil {
-		return nil, true, fmt.Errorf("search rust impl blocks: %w", err)
+		return nil, true, false, fmt.Errorf("search rust impl blocks: %w", err)
 	}
+	matches, clipped := capContentLookup(matches)
 
 	relationships := make([]map[string]any, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
@@ -83,5 +85,5 @@ func buildIncomingRustImplBlockRelationships(
 		})
 	}
 
-	return relationships, true, nil
+	return relationships, true, clipped, nil
 }

@@ -15,18 +15,25 @@ import (
 // into the other with no loss.
 //
 // ScanTruncated reports that a k8s SELECTS candidate scan overran its
-// ceiling: root's entity route discloses it (entity/context_content.go), and
-// the code relationships route reads its per-direction split,
-// OutgoingTruncated and IncomingTruncated, to set the response's
-// outgoing_truncated/incoming_truncated flags (#7151).
+// ceiling: root's entity route discloses it (entity/context_content.go) and
+// counts it as k8s telemetry, so it stays limited to that scan. The code
+// relationships route reads the wider per-direction OutgoingTruncated and
+// IncomingTruncated, which also cover the fixed-size name lookups, to set the
+// response's outgoing_truncated/incoming_truncated flags (#7151).
 type ContentRelationshipSet struct {
 	Incoming, Outgoing []map[string]any
 	ScanTruncated      bool
-	// OutgoingTruncated and IncomingTruncated split ScanTruncated by the
-	// direction whose candidate scan overran its ceiling, so the code
-	// relationships response can set outgoing_truncated/incoming_truncated
-	// (#7151). ScanTruncated is their OR.
+	// OutgoingTruncated and IncomingTruncated report, per direction, that a
+	// candidate scan or a fixed-size lookup returned fewer neighbours than
+	// exist, so the code relationships response can set
+	// outgoing_truncated/incoming_truncated (#7151). They cover every clip
+	// ScanTruncated does plus the lookups capped at the content relationship
+	// limit.
 	OutgoingTruncated, IncomingTruncated bool
+	// OutgoingClipType and IncomingClipType name the relationship type each
+	// direction's clip belongs to (empty when the direction was not clipped),
+	// so a relationship_type filter can hide a clip it excludes.
+	OutgoingClipType, IncomingClipType string
 }
 
 // ContentRelationshipBuilder builds an entity's content-derived incoming and

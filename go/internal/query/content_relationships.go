@@ -15,6 +15,42 @@ import (
 
 const contentRelationshipLimit = 20
 
+// contentRelationshipFetchLimit is what a capped content lookup asks the store
+// for: one row past contentRelationshipLimit, so an over-full lookup is an exact
+// signal rather than a silent clip (#7151). capContentLookup trims the extra
+// row back off.
+const contentRelationshipFetchLimit = contentRelationshipLimit + 1
+
+// capContentLookup trims a lookup fetched with contentRelationshipFetchLimit
+// back to contentRelationshipLimit and reports whether the store held more
+// rows than the limit. Exactly contentRelationshipLimit rows is complete.
+func capContentLookup(rows []EntityContent) ([]EntityContent, bool) {
+	if len(rows) > contentRelationshipLimit {
+		return rows[:contentRelationshipLimit], true
+	}
+	return rows, false
+}
+
+// contentClip reports what one direction's content build clipped (#7151).
+// scan is the k8s SELECTS candidate scan (repositorySemanticEntityLimit),
+// which alone feeds the entity route's k8s telemetry. edgeType names the
+// relationship type whose neighbours were clipped -- by that scan or by a
+// contentRelationshipLimit lookup -- and is empty when nothing was clipped, so
+// a relationship_type filter can tell whether it hides the clip.
+type contentClip struct {
+	scan     bool
+	edgeType string
+}
+
+// lookupClip is the clip a contentRelationshipLimit lookup reports for
+// edgeType, or no clip.
+func lookupClip(clipped bool, edgeType string) contentClip {
+	if !clipped {
+		return contentClip{}
+	}
+	return contentClip{edgeType: edgeType}
+}
+
 // k8sSelectCandidateScanTruncationReason is the machine-readable disclosure
 // reason emitted on the entity-context API/MCP response when a k8s SELECTS
 // relationship build's K8sResource candidate scan hits
@@ -39,9 +75,14 @@ type contentRelationshipSet struct {
 	// kind=Deployment), so ORing both is safe and future-proof against that
 	// invariant changing.
 	scanTruncated bool
-	// outgoingTruncated and incomingTruncated are the per-direction halves
-	// of scanTruncated (#7151).
+	// outgoingTruncated and incomingTruncated report, per direction, that a
+	// scan or contentRelationshipLimit lookup clipped neighbours (#7151).
+	// scanTruncated is deliberately narrower: only the k8s SELECTS scan.
 	outgoingTruncated, incomingTruncated bool
+	// outgoingClipType and incomingClipType name the relationship type each
+	// direction's clip belongs to, so the code relationships route can scope
+	// the flag to a relationship_type filter.
+	outgoingClipType, incomingClipType string
 }
 
 func buildContentRelationshipSet(
@@ -50,12 +91,12 @@ func buildContentRelationshipSet(
 	entity EntityContent,
 	logger *slog.Logger,
 ) (contentRelationshipSet, error) {
-	outgoing, outgoingTruncated, err := buildOutgoingContentRelationships(ctx, reader, entity, logger)
+	outgoing, outgoingClip, err := buildOutgoingContentRelationships(ctx, reader, entity, logger)
 	if err != nil {
 		return contentRelationshipSet{}, err
 	}
 
-	incoming, incomingTruncated, err := buildIncomingContentRelationships(ctx, reader, entity, logger)
+	incoming, incomingClip, err := buildIncomingContentRelationships(ctx, reader, entity, logger)
 	if err != nil {
 		return contentRelationshipSet{}, err
 	}
@@ -63,9 +104,11 @@ func buildContentRelationshipSet(
 	return contentRelationshipSet{
 		incoming:          incoming,
 		outgoing:          outgoing,
-		scanTruncated:     outgoingTruncated || incomingTruncated,
-		outgoingTruncated: outgoingTruncated,
-		incomingTruncated: incomingTruncated,
+		scanTruncated:     outgoingClip.scan || incomingClip.scan,
+		outgoingTruncated: outgoingClip.edgeType != "",
+		incomingTruncated: incomingClip.edgeType != "",
+		outgoingClipType:  outgoingClip.edgeType,
+		incomingClipType:  incomingClip.edgeType,
 	}, nil
 }
 
@@ -74,53 +117,56 @@ func buildOutgoingContentRelationships(
 	reader ContentStore,
 	entity EntityContent,
 	logger *slog.Logger,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, contentClip, error) {
 	if relationships, ok, err := buildOutgoingArgoCDRelationships(entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
 	if relationships, ok, err := deployment.BuildOutgoingTerraformRelationships(entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
 	if relationships, ok, err := buildOutgoingGitHubActionsRelationships(entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
 	if relationships, ok, err := buildOutgoingDockerfileRelationships(entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
 	if relationships, ok, err := buildOutgoingDockerComposeRelationships(entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
 	if reader == nil {
-		return nil, false, nil
+		return nil, contentClip{}, nil
 	}
 	if relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(ctx, reader, entity, logger); ok || err != nil {
-		return relationships, truncated, err
+		return relationships, selectsClip(truncated), err
 	}
 	if relationships, ok, err := buildOutgoingCloudFormationRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, false, err
+		return relationships, contentClip{}, err
 	}
-	if relationships, ok, err := buildOutgoingKustomizeRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, false, err
+	if relationships, ok, truncated, err := buildOutgoingKustomizeRelationships(ctx, reader, entity); ok || err != nil {
+		return relationships, lookupClip(truncated, "PATCHES"), err
 	}
-	if relationships, ok, err := buildOutgoingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, false, err
+	if relationships, ok, truncated, err := buildOutgoingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
+		return relationships, lookupClip(truncated, "CONTAINS"), err
 	}
 
 	componentNames := metadataStringSlice(entity.Metadata, "jsx_component_usage")
 	if len(componentNames) == 0 {
-		return nil, false, nil
+		return nil, contentClip{}, nil
 	}
 
 	relationships := make([]map[string]any, 0, len(componentNames))
 	seen := make(map[string]struct{}, len(componentNames))
+	clipped := false
 	for _, componentName := range componentNames {
 		if componentName == "" {
 			continue
 		}
-		components, err := reader.SearchEntitiesByName(ctx, entity.RepoID, "Component", componentName, contentRelationshipLimit)
+		components, err := reader.SearchEntitiesByName(ctx, entity.RepoID, "Component", componentName, contentRelationshipFetchLimit)
 		if err != nil {
-			return nil, false, fmt.Errorf("search referenced components: %w", err)
+			return nil, contentClip{}, fmt.Errorf("search referenced components: %w", err)
 		}
+		components, lookupClipped := capContentLookup(components)
+		clipped = clipped || lookupClipped
 		for _, component := range components {
 			if component.EntityID == entity.EntityID {
 				continue
@@ -139,7 +185,7 @@ func buildOutgoingContentRelationships(
 		}
 	}
 
-	return relationships, false, nil
+	return relationships, lookupClip(clipped, "REFERENCES"), nil
 }
 
 func buildIncomingContentRelationships(
@@ -147,22 +193,23 @@ func buildIncomingContentRelationships(
 	reader ContentStore,
 	entity EntityContent,
 	logger *slog.Logger,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, contentClip, error) {
 	if relationships, ok, truncated, err := buildIncomingK8sSelectRelationships(ctx, reader, entity, logger); ok || err != nil {
-		return relationships, truncated, err
+		return relationships, selectsClip(truncated), err
 	}
-	if relationships, ok, err := buildIncomingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, false, err
+	if relationships, ok, truncated, err := buildIncomingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
+		return relationships, lookupClip(truncated, "CONTAINS"), err
 	}
 
 	if entity.EntityType != "Component" || entity.EntityName == "" {
-		return nil, false, nil
+		return nil, contentClip{}, nil
 	}
 
-	referencing, err := reader.SearchEntitiesReferencingComponent(ctx, entity.RepoID, entity.EntityName, contentRelationshipLimit)
+	referencing, err := reader.SearchEntitiesReferencingComponent(ctx, entity.RepoID, entity.EntityName, contentRelationshipFetchLimit)
 	if err != nil {
-		return nil, false, fmt.Errorf("search referencing entities: %w", err)
+		return nil, contentClip{}, fmt.Errorf("search referencing entities: %w", err)
 	}
+	referencing, clipped := capContentLookup(referencing)
 
 	relationships := make([]map[string]any, 0, len(referencing))
 	seen := make(map[string]struct{}, len(referencing))
@@ -183,7 +230,7 @@ func buildIncomingContentRelationships(
 		})
 	}
 
-	return relationships, false, nil
+	return relationships, lookupClip(clipped, "REFERENCES"), nil
 }
 
 func buildOutgoingArgoCDRelationships(entity EntityContent) ([]map[string]any, bool, error) {
@@ -252,25 +299,28 @@ func buildOutgoingKustomizeRelationships(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, bool, bool, error) {
 	if entity.EntityType != "KustomizeOverlay" {
-		return nil, false, nil
+		return nil, false, false, nil
 	}
 
 	patchTargets := metadataStringSlice(entity.Metadata, "patch_targets")
 	relationships := make([]map[string]any, 0, len(patchTargets)+8)
 	seen := make(map[string]struct{}, len(patchTargets))
+	clipped := false
 	for _, patchTarget := range patchTargets {
 		kind, name, ok := splitKustomizePatchTarget(patchTarget)
 		if !ok {
 			continue
 		}
 		matches, err := reader.SearchEntitiesByName(
-			ctx, entity.RepoID, "K8sResource", name, contentRelationshipLimit,
+			ctx, entity.RepoID, "K8sResource", name, contentRelationshipFetchLimit,
 		)
 		if err != nil {
-			return nil, true, fmt.Errorf("search kustomize patch targets: %w", err)
+			return nil, true, false, fmt.Errorf("search kustomize patch targets: %w", err)
 		}
+		matches, lookupClipped := capContentLookup(matches)
+		clipped = clipped || lookupClipped
 		for _, match := range matches {
 			if match.EntityID == entity.EntityID || !isK8sResourceKind(match, kind) {
 				continue
@@ -311,7 +361,17 @@ func buildOutgoingKustomizeRelationships(
 		})
 	}
 
-	return relationships, true, nil
+	return relationships, true, clipped, nil
+}
+
+// selectsClip is the clip a k8s SELECTS candidate scan reports: the scan
+// flag the entity route's telemetry reads, and the SELECTS edge type the
+// code relationships route scopes its flag by.
+func selectsClip(truncated bool) contentClip {
+	if !truncated {
+		return contentClip{}
+	}
+	return contentClip{scan: true, edgeType: "SELECTS"}
 }
 
 // K8s SELECTS relationship building (buildOutgoingK8sSelectRelationships,

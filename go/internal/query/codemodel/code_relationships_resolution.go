@@ -96,6 +96,11 @@ func AmbiguousRelationshipsResponse(req RelationshipsRequest, resolution Relatio
 		"repo_id":           strings.TrimSpace(req.RepoID),
 		"outgoing":          []map[string]any{},
 		"incoming":          []map[string]any{},
+		// No neighbours are read for an unresolved target, so nothing is
+		// clipped; the flags stay present so the advertised shape is stable
+		// (#7151).
+		"outgoing_truncated": false,
+		"incoming_truncated": false,
 		"summary": map[string]any{
 			"candidate_count": len(resolution.Candidates),
 			"truncated":       resolution.Truncated,

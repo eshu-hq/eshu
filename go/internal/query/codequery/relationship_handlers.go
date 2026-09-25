@@ -466,9 +466,12 @@ func (h *CodeHandler) relationshipsFromEntity(
 		"metadata":   entity.Metadata,
 		"outgoing":   relationshipSet.Outgoing,
 		"incoming":   relationshipSet.Incoming,
-		// Only the k8s SELECTS candidate scan has a row ceiling the builder
-		// can observe, and it is per direction (#7151).
+		// The k8s SELECTS candidate scan and the fixed-size name lookups have
+		// row ceilings the builder observes, per direction (#7151). The clip
+		// types are internal: scopeContentTruncationToType consumes them.
 		"outgoing_truncated": relationshipSet.OutgoingTruncated,
 		"incoming_truncated": relationshipSet.IncomingTruncated,
+		outgoingClipTypeKey:  relationshipSet.OutgoingClipType,
+		incomingClipTypeKey:  relationshipSet.IncomingClipType,
 	}, nil
 }
