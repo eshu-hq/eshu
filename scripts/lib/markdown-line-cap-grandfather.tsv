@@ -71,7 +71,7 @@
 # Pinned at 5570de3454a942449a339168041fd87c215e7fa1 with
 # `bash scripts/verify-markdown-line-cap.sh --pin <path>`.
 #
-go/cmd/bootstrap-index/README.md	568
+go/cmd/bootstrap-index/README.md	553
 go/cmd/ingester/README.md	690
 go/internal/cigates/AGENTS.md	513
 go/internal/collector/terraformstate/README.md	501
