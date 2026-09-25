@@ -48,9 +48,12 @@ replay the rest; they do not name specific rows.
   refused.** They are simply not replayed. A `200` with `replayed_count: 0`
   therefore means nothing matched, never that matched rows were skipped.
 - **`force=true` skips the check.** The named rows replay as before.
-- **The check honors `scope_id`, `stage`, and `failure_class`.** An id outside the
-  requested scope, stage, or failure class is not a match and does not cause a
-  refusal, because the check selects the same rows the replay would.
+- **The check honors `scope_id` and `stage`.** An id outside the requested scope
+  or stage is not a candidate and does not cause a refusal, because the check
+  applies the same selectors as the replay.
+- **A `failure_class` selector skips the check.** An unsafe class is refused (or
+  forced) before the check runs, so a class that reaches it is safe and cannot
+  match an unsafe row. Ids in another class are simply not replayed.
 - **The check runs before the idempotency claim.** A retry of a key whose rows
   have since re-dead-lettered into a refused class gets a `422`, not the stored
   outcome of the earlier request.

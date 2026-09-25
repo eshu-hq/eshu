@@ -28,7 +28,10 @@ func (h *Handler) refuseUnsafeExplicitReplay(
 	authCtx auth.AuthContext,
 	correlationID string,
 ) bool {
-	if req.Force || len(req.WorkItemIDs) == 0 {
+	// A failure_class selector that reaches here is safe: an unsafe class was
+	// already refused (or forced) by the selector guard in replay. "Unsafe AND
+	// that class" is then empty by construction, so skip the read.
+	if req.Force || len(req.WorkItemIDs) == 0 || req.FailureClass != "" {
 		return false
 	}
 	targets, err := h.Store.UnsafeReplayTargets(r.Context(), UnsafeReplayTargetFilter{

@@ -188,11 +188,12 @@ func TestReplayUnsafeTargetReadErrorFailsClosedBeforeClaim(t *testing.T) {
 	}
 }
 
-// TestReplayExplicitIDsWithFailureClassSelectorCarriesClassToRead proves the
-// pre-read applies the same failure_class predicate as the replay UPDATE: a
-// projection_bug id is not a candidate when the request also selects
-// failure_class=transient_error, so it must not cause a false 422.
-func TestReplayExplicitIDsWithFailureClassSelectorCarriesClassToRead(t *testing.T) {
+// TestReplayExplicitIDsWithFailureClassSelectorSkipsRead proves a request that
+// also names a failure_class never causes a false 422: an unsafe class is
+// refused (or forced) before this check, so any class reaching it is safe and
+// "unsafe AND that class" is empty by construction. The read is skipped rather
+// than spent on a provably empty result.
+func TestReplayExplicitIDsWithFailureClassSelectorSkipsRead(t *testing.T) {
 	store := &stubAdminStore{
 		claim:    ReplayIdempotencyClaim{Claimed: true},
 		replayed: []WorkItem{{WorkItemID: "wi-transient"}},
@@ -209,7 +210,7 @@ func TestReplayExplicitIDsWithFailureClassSelectorCarriesClassToRead(t *testing.
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	if store.unsafeFilter.FailureClass != "transient_error" {
-		t.Fatalf("unsafe read FailureClass = %q, want transient_error", store.unsafeFilter.FailureClass)
+	if store.unsafeCalls != 0 {
+		t.Fatalf("unsafe read ran %d times with a safe failure_class selector, want 0", store.unsafeCalls)
 	}
 }
