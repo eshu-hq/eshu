@@ -144,13 +144,11 @@ facts whose reference-array keys are absent, empty, or non-array, and excludes
 a fact when any of those arrays is nonempty.
 
 The support source-only count uses the same two-valued "no structured refs"
-rule as the documentation count above: a missing or JSON-null ref key means no
-refs. Before #7126 it excluded any support fact missing a key, so it stayed zero
-for real Jira and PagerDuty facts, none of which carry those keys, and the story
-reported `support_target_facts_absent`; it now reports the real aggregate count
-and `support_source_only_not_target_linked`. The main target-support row read
-still admits a fact only when its `candidate_refs`, `evidence_refs`, or
-`linked_entities` carry a matching ref; that read returns no rows for
+rule as the documentation count above (the #6807 correction). Since #7126 both
+statements render that rule from one helper, the one whose text migration 122's
+partial index predicate repeats. The main target-support row read still admits
+a fact only when its `candidate_refs`, `evidence_refs`, or `linked_entities`
+carry a matching ref; that read returns no rows for
 support kinds that never emit those keys, tracked separately in #7138.
 
 Performance Evidence: migration 123 adds a partial index over the twelve

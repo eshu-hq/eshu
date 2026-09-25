@@ -88,3 +88,13 @@ cd go && ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=... ESHU_TEST_DOCUMENTATION_
 cd go && ESHU_POSTGRES_DSN=... go test ./internal/query -run 'TestServiceStoryTargetSupportSQLSemanticsLive' -count=1
 cd go && go test ./internal/query -run 'TestServiceStoryTargetSupport(SQLInlinesKindLiteralsForIndex|IndexMatchesQuery|SQLProbesFactKindIndex)' -count=1
 ```
+
+## Rebase onto #7155
+
+#7155 (Refs #6807) fixed the support source-only count first, with a `CASE`
+form of the same two-valued rule. This branch replaces that `CASE` text with the
+shared `documentationNoStructuredRefsPredicate` helper so both source-only
+statements render one rule. The two forms agree on every case the merged
+`TestServiceStoryTargetSupportSQLSemanticsLive` fixture carries: missing keys,
+some empty keys, an object value, a scalar value, all-empty arrays (counted),
+and one nonempty array (excluded).
