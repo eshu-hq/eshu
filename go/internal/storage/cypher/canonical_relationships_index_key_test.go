@@ -34,3 +34,26 @@ func TestEvidenceArtifactEnvironmentRowDropsWholeRow(t *testing.T) {
 		t.Fatalf("production statement reported unanalyzed: %+v", refs)
 	}
 }
+
+// The rationale query is assembled from a label disjunction. Pin the guard's
+// behavior on the complete production statement, not a Go string fragment.
+func TestCanonicalRationaleUIDRowDropsWholeRow(t *testing.T) {
+	rows := []map[string]any{
+		{"rationale_uid": "rationale:ok", "target_entity_id": "entity:ok"},
+		{"rationale_uid": strings.Repeat("r", graph.MaxIndexKeyBytes+1), "target_entity_id": "entity:big"},
+	}
+	out, dropped, skip := graph.GuardIndexKeyWrites(BatchCanonicalRationaleExplainsEdgeCypher, map[string]any{"rows": rows})
+	if skip {
+		t.Fatal("skip = true, want row-level drop")
+	}
+	if len(dropped) != 1 || dropped[0].Label != "Rationale" || dropped[0].Property != "uid" {
+		t.Fatalf("dropped = %+v, want one Rationale/uid", dropped)
+	}
+	kept := out["rows"].([]map[string]any)
+	if len(kept) != 1 || kept[0]["rationale_uid"] != "rationale:ok" {
+		t.Fatalf("kept rows = %+v, want only rationale:ok", kept)
+	}
+	if refs, _ := graph.UnanalyzedIndexWrites(BatchCanonicalRationaleExplainsEdgeCypher); len(refs) != 0 {
+		t.Fatalf("production statement reported unanalyzed: %+v", refs)
+	}
+}

@@ -3,8 +3,6 @@
 
 package cypher
 
-import "strings"
-
 // Batched UNWIND Cypher for rationale EXPLAINS edges (issue #2230).
 //
 // An EXPLAINS edge links an identity-only Rationale node — built from an intent
@@ -16,12 +14,33 @@ import "strings"
 // on rationale.repo_id; delta-generation retracts anchor on target.path so a
 // changed file cannot delete other files' EXPLAINS truth.
 
-// RationaleExplainsTargetLabels is the single source of truth for the code
-// entity labels an EXPLAINS edge can target. The write template's target
-// disjunction and the per-label delta retract statements are both built from
-// it, so a label added to one side cannot silently miss the other.
+// Both static Cypher scanners can resolve constants, so keep each label value
+// in one place while exposing a constant disjunction and a literal label list.
+const (
+	rationaleTargetFunctionLabel            = "Function"
+	rationaleTargetClassLabel               = "Class"
+	rationaleTargetStructLabel              = "Struct"
+	rationaleTargetInterfaceLabel           = "Interface"
+	rationaleTargetTypeAliasLabel           = "TypeAlias"
+	rationaleTargetEnumLabel                = "Enum"
+	rationaleTargetFileLabel                = "File"
+	rationaleExplainsTargetLabelDisjunction = rationaleTargetFunctionLabel + "|" +
+		rationaleTargetClassLabel + "|" + rationaleTargetStructLabel + "|" +
+		rationaleTargetInterfaceLabel + "|" + rationaleTargetTypeAliasLabel + "|" +
+		rationaleTargetEnumLabel + "|" + rationaleTargetFileLabel
+)
+
+// RationaleExplainsTargetLabels lists the code entity labels an EXPLAINS edge
+// can target. The write template and per-label delta retracts use the same
+// label constants; the writer test checks that their ordered lists agree.
 var RationaleExplainsTargetLabels = []string{
-	"Function", "Class", "Struct", "Interface", "TypeAlias", "Enum", "File",
+	rationaleTargetFunctionLabel,
+	rationaleTargetClassLabel,
+	rationaleTargetStructLabel,
+	rationaleTargetInterfaceLabel,
+	rationaleTargetTypeAliasLabel,
+	rationaleTargetEnumLabel,
+	rationaleTargetFileLabel,
 }
 
 // BatchCanonicalRationaleExplainsEdgeCypher targets its MATCH with a label
@@ -31,7 +50,7 @@ var RationaleExplainsTargetLabels = []string{
 // WHERE predicate, which matches zero rows (#5116 — the reason the delta
 // retract fans out per target label instead).
 var BatchCanonicalRationaleExplainsEdgeCypher = `UNWIND $rows AS row
-MATCH (target:` + strings.Join(RationaleExplainsTargetLabels, "|") + ` {uid: row.target_entity_id})
+MATCH (target:` + rationaleExplainsTargetLabelDisjunction + ` {uid: row.target_entity_id})
 MERGE (rationale:Rationale {uid: row.rationale_uid})
 SET rationale.type = 'rationale',
     rationale.repo_id = row.repo_id,
