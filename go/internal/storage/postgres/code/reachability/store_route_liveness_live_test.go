@@ -52,6 +52,8 @@ func registerRouteLivenessCleanup(t *testing.T, db *sql.DB, scopeID, repoID stri
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		// Child-first so the cleanup is correct even if a table's FK is not
+		// ON DELETE CASCADE; ingestion_scopes last cascades any stragglers.
 		stmts := []struct {
 			q    string
 			args []any
