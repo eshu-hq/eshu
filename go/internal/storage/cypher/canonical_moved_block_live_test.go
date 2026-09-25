@@ -88,8 +88,9 @@ func movedBlockMaterialization(c movedBlockCase, generation string, line int, fi
 // TestLiveNeo4jMovedCanonicalBlockKeepsOneNode is the #7095 regression. The
 // canonical writer upserts a moved block's new uid before entity_retract
 // deletes the prior generation's node, so a Neo4j uniqueness constraint
-// narrower than the uid identity -- tf_module_unique on (name, path),
-// helm_values_unique on (path) -- rejected the delta with
+// narrower than the uid identity -- tf_module_unique and helm_chart_unique on
+// (name, path), helm_values_unique, kustomize_unique and tg_config_unique on
+// (path) -- rejected the delta with
 // ConstraintValidationFailed and dead-lettered the repository. It drives the
 // real schema bootstrap over a store that already carries the legacy
 // constraints, then the real CanonicalNodeWriter for both generations.

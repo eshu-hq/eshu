@@ -30,11 +30,12 @@ predecessor stays compatible.
   neo4j:2026-community@sha256:eabfbb04, 2026.08.1). It seeds the legacy
   constraints and applies the real schema bootstrap. The real
   `CanonicalNodeWriter` then writes generation 1 with the block at line 726 and
-  a delta that moves it to 755. On the base, the five constraints survive the
-  bootstrap and both TerraformModule and HelmValues fail with
-  `ConstraintValidationFailed`. On this change, the constraints are dropped and
-  each label is left with exactly one node: the new uid, line 755, and
-  generation 2.
+  a delta that moves it to 755, for each of the five retired labels
+  (TerraformModule, HelmChart, HelmValues, KustomizeOverlay, TerragruntConfig).
+  On the base, the five constraints survive the bootstrap and the delta fails
+  with `ConstraintValidationFailed`. On this change, the constraints are
+  dropped and each label is left with exactly one node: the new uid, line 755,
+  and generation 2.
 
 ## Performance
 
