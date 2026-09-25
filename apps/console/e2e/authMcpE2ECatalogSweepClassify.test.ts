@@ -54,6 +54,9 @@ describe("classifyToolCallOutcome", () => {
     expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: `HTTP 403: ${routeDeniedMessage}` }] })).outcome).toBe(ROUTE_DENIED);
     expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: "HTTP 404: 404 page not found" }] })).outcome).toBe("route_unmounted");
     expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: "HTTP 500: boom" }] })).outcome).toBe("http_500");
+    const typed404 = 'HTTP 404: {"detail":"service not found","error":"Not Found"}';
+    expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: typed404 }] })).outcome).toBe("not_found");
+    expect(classifyToolCallOutcome(rpc({ isError: true, content: [{ type: "text", text: "HTTP 404: 404 page not found" }] })).outcome).toBe("route_unmounted");
   });
   it("never reads an unrecognised body as success", () => {
     expect(classifyToolCallOutcome({ httpStatus: 200, wwwAuthenticate: null, bodyText: "<html>", json: null }).outcome).toBe("unrecognized_response");
@@ -88,7 +91,10 @@ describe("coverageProblems", () => {
 
 describe("substituteSeedIds and renderSweepTable", () => {
   it("substitutes both placeholders recursively", () => {
-    expect(substituteSeedIds({ a: "$REPO", b: ["x-$OTHER_REPO"], c: 3 }, { granted: "g", ungranted: "u" })).toEqual({ a: "g", b: ["x-u"], c: 3 });
+    const ids = { granted: "g", ungranted: "u", scope: "s", stateScope: "t" };
+    expect(substituteSeedIds({ a: "$REPO", b: ["x-$OTHER_REPO"], c: 3, d: "$SCOPE", e: "$STATE_SCOPE" }, ids)).toEqual({
+      a: "g", b: ["x-u"], c: 3, d: "s", e: "t",
+    });
   });
   it("prints the pass count", () => {
     const rows = [judgeRow(allow, { outcome: "ok", detail: "" }, "", disclosurePattern), judgeRow(ledger, { outcome: "ok", detail: "" }, "", disclosurePattern)];

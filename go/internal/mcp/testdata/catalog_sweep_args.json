@@ -211,14 +211,7 @@
           "target": "sweepTarget",
           "repo_id": "$REPO",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "target sweepTarget is not seeded: the fixture indexes no code entities"
+        }
       },
       {
         "label": "who_modifies_pending_ledger",
@@ -258,11 +251,9 @@
         },
         "accept": [
           "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
+          "unsupported_capability"
         ],
-        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities"
+        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities, and code path comparison needs authoritative graph mode"
       }
     ],
     "dispatch_cfg_summary": [
@@ -272,14 +263,7 @@
           "repo_id": "$REPO",
           "file_path": "main.go",
           "symbol": "main"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
+        }
       }
     ],
     "dispatch_pdg_summary": [
@@ -289,14 +273,7 @@
           "repo_id": "$REPO",
           "file_path": "main.go",
           "symbol": "main"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
+        }
       }
     ],
     "dispatch_reaching_def": [
@@ -306,14 +283,7 @@
           "repo_id": "$REPO",
           "file_path": "main.go",
           "symbol": "main"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
+        }
       }
     ],
     "dispatch_taint_path": [
@@ -323,14 +293,7 @@
           "repo_id": "$REPO",
           "file_path": "main.go",
           "symbol": "main"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "symbol main in main.go is not seeded: the fixture indexes no code"
+        }
       }
     ],
     "execute_cypher_query": [
@@ -417,14 +380,7 @@
           "start": "sweepStart",
           "end": "sweepEnd",
           "max_depth": 3
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities"
+        }
       }
     ],
     "find_most_complex_functions": [
@@ -443,14 +399,7 @@
           "repo_id": "$REPO",
           "target": "sweepTarget",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "target sweepTarget is not seeded: the fixture indexes no code entities"
+        }
       }
     ],
     "inspect_call_graph_metrics": [
@@ -519,7 +468,12 @@
         "arguments": {
           "repo_id": "$REPO",
           "limit": 5
-        }
+        },
+        "accept": [
+          "ok",
+          "unsupported_capability"
+        ],
+        "acceptReason": "repo_id $REPO: code divergence findings require a query profile the sweep stack does not run"
       }
     ],
     "investigate_code_divergence": [
@@ -532,11 +486,9 @@
         },
         "accept": [
           "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
+          "unsupported_capability"
         ],
-        "acceptReason": "fingerprint sweep-fingerprint names no seeded divergence finding"
+        "acceptReason": "fingerprint sweep-fingerprint names no seeded divergence finding, and code divergence needs a query profile the sweep stack does not run"
       }
     ],
     "report_code_divergence": [
@@ -545,7 +497,12 @@
         "arguments": {
           "repo_id": "$REPO",
           "top_per_kind": 3
-        }
+        },
+        "accept": [
+          "ok",
+          "unsupported_capability"
+        ],
+        "acceptReason": "repo_id $REPO: the code divergence report requires a query profile the sweep stack does not run"
       }
     ],
     "trace_exposure_path": [
@@ -695,7 +652,14 @@
         "arguments": {
           "service_name": "sweep-seed-missing",
           "max_depth": 3
-        }
+        },
+        "accept": [
+          "ok",
+          "not_found",
+          "scope_not_found",
+          "service_not_found"
+        ],
+        "acceptReason": "service_name sweep-seed-missing is not a seeded service"
       }
     ],
     "compare_environments": [
@@ -706,14 +670,7 @@
           "left": "prod",
           "right": "stage",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "workload_id sweep-seed-missing is not a seeded workload"
+        }
       }
     ],
     "investigate_resource": [
@@ -914,6 +871,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "provider": "aws",
           "limit": 5
         }
@@ -926,20 +884,14 @@
           "provider": "aws",
           "scope_id": "sweep-seed-missing",
           "max_source_facts": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id sweep-seed-missing is not a seeded cloud scope"
+        }
       }
     ],
     "list_aws_runtime_drift_findings": [
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -948,6 +900,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -956,6 +909,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -963,28 +917,26 @@
     "get_iac_management_status": [
       {
         "label": "default",
-        "arguments": {}
+        "arguments": {
+          "scope_id": "$SCOPE",
+          "resource_id": "sweep-seed-missing"
+        }
       }
     ],
     "explain_iac_management_status": [
       {
         "label": "default",
         "arguments": {
-          "scope_id": "sweep-seed-missing"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id sweep-seed-missing is not a seeded IaC scope"
+          "scope_id": "$SCOPE",
+          "resource_id": "sweep-seed-missing"
+        }
       }
     ],
     "get_replatforming_rollups": [
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -993,6 +945,8 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
+          "scope_kind": "account",
           "limit": 5
         }
       }
@@ -1001,6 +955,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1009,16 +964,9 @@
       {
         "label": "default",
         "arguments": {
-          "scope_id": "sweep-seed-missing",
+          "scope_id": "$STATE_SCOPE",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id sweep-seed-missing is not a seeded Terraform state scope"
+        }
       }
     ],
     "count_supply_chain_impact_findings": [
@@ -1040,6 +988,7 @@
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1049,14 +998,7 @@
         "label": "default",
         "arguments": {
           "finding_id": "sweep-seed-missing"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "finding_id sweep-seed-missing is not a seeded impact finding"
+        }
       }
     ],
     "export_supply_chain_impact_packet": [
@@ -1065,14 +1007,7 @@
         "arguments": {
           "finding_id": "sweep-seed-missing",
           "max_source_facts": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "finding_id sweep-seed-missing is not a seeded impact finding"
+        }
       }
     ],
     "export_deployable_unit_packet": [
@@ -1082,14 +1017,7 @@
           "scope_id": "sweep-seed-missing",
           "generation_id": "sweep-seed-missing",
           "max_source_facts": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
+        }
       }
     ],
     "get_vulnerability_scanner_read_contract": [
@@ -1104,6 +1032,7 @@
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1127,6 +1056,7 @@
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1150,6 +1080,7 @@
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1158,7 +1089,7 @@
       {
         "label": "default",
         "arguments": {
-          "repository_id": "$REPO",
+          "repository_id": "oci-registry://sweep.example/sweep",
           "tag": "latest",
           "limit": 5
         }
@@ -1183,6 +1114,7 @@
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1206,6 +1138,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1229,6 +1162,7 @@
       {
         "label": "default",
         "arguments": {
+          "ecosystem": "npm",
           "limit": 5
         }
       }
@@ -1239,20 +1173,14 @@
         "arguments": {
           "package_id": "sweep-seed-missing",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "package_id sweep-seed-missing is not a seeded package"
+        }
       }
     ],
     "list_package_registry_correlations": [
       {
         "label": "default",
         "arguments": {
+          "repository_id": "$REPO",
           "limit": 5
         }
       }
@@ -1261,6 +1189,7 @@
       {
         "label": "default",
         "arguments": {
+          "package_id": "sweep-seed-missing",
           "limit": 5
         }
       }
@@ -1282,20 +1211,14 @@
           "generation_id": "sweep-seed-missing",
           "scope_id": "sweep-seed-missing",
           "limit": 5
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
+        }
       }
     ],
     "list_service_catalog_correlations": [
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1313,6 +1236,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1321,6 +1245,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1329,6 +1254,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1337,21 +1263,15 @@
       {
         "label": "default",
         "arguments": {
-          "scope_id": "sweep-seed-missing"
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id sweep-seed-missing is not a seeded secrets/IAM scope"
+          "scope_id": "$SCOPE"
+        }
       }
     ],
     "list_secrets_iam_identity_trust_chains": [
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1360,6 +1280,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1368,6 +1289,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1376,6 +1298,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1407,6 +1330,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1445,6 +1369,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1453,6 +1378,7 @@
       {
         "label": "default",
         "arguments": {
+          "scope_id": "$SCOPE",
           "limit": 5
         }
       }
@@ -1487,7 +1413,12 @@
         "arguments": {
           "question": "how many repositories are indexed?",
           "format": "json"
-        }
+        },
+        "accept": [
+          "ok",
+          "http_503"
+        ],
+        "acceptReason": "the sweep stack does not set ESHU_ASK_ENABLED, so ask answers 503 for question \"how many repositories are indexed?\""
       }
     ],
     "get_index_status": [
@@ -1501,6 +1432,7 @@
         "label": "default",
         "arguments": {
           "repository": "$REPO",
+          "since_observed_at": "2020-01-01T00:00:00Z",
           "sample_limit": 5
         }
       }
@@ -1546,14 +1478,7 @@
           "generation_id": "sweep-seed-missing",
           "limit": 5,
           "timeout_ms": 5000
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "scope_id and generation_id sweep-seed-missing are not a seeded scope generation"
+        }
       }
     ],
     "get_hosted_governance_status": [
@@ -1622,11 +1547,9 @@
         },
         "accept": [
           "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
+          "component_registry_unavailable"
         ],
-        "acceptReason": "component_id dev.eshu.collector.aws is not a registered component in the sweep stack"
+        "acceptReason": "component_id dev.eshu.collector.aws: the sweep stack does not set ESHU_COMPONENT_HOME, so the component registry is unavailable"
       }
     ],
     "list_component_extensions": [
@@ -1634,7 +1557,12 @@
         "label": "default",
         "arguments": {
           "limit": 5
-        }
+        },
+        "accept": [
+          "ok",
+          "component_registry_unavailable"
+        ],
+        "acceptReason": "list_component_extensions: the sweep stack does not set ESHU_COMPONENT_HOME, so the component registry is unavailable"
       }
     ],
     "get_fact_schema_version": [
@@ -1726,14 +1654,7 @@
         "arguments": {
           "view": "service_story",
           "source_response": {}
-        },
-        "accept": [
-          "ok",
-          "not_found",
-          "scope_not_found",
-          "service_not_found"
-        ],
-        "acceptReason": "source_response for view service_story is an empty stub, not a seeded service story"
+        }
       }
     ]
   }

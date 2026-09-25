@@ -47,6 +47,8 @@ export const UNGRANTED_REPOSITORY_ID = "e2e-seed-repo-ungranted";
 
 const sweepRoleId = "e2e_catalog_sweep_reader";
 const sweepScopeId = "e2e-catalog-sweep-scope-granted";
+const ungrantedScopeId = "e2e-catalog-sweep-scope-ungranted";
+const stateScopeId = "state_snapshot:e2e-catalog-sweep";
 
 export interface CatalogSweepContext {
   readonly mcpBase: string;
@@ -109,14 +111,20 @@ async function seedSweepGrants(ctx: CatalogSweepContext): Promise<string> {
   const sql = [
     `INSERT INTO identity_roles (tenant_id, role_id, role_key_hash, status, built_in, policy_revision_hash, created_at, updated_at) VALUES (${tenant}, ${role}, ${sqlQuote(`sha256:${sweepRoleId}`)}, 'active', false, ${revision}, now(), now())`,
     `INSERT INTO identity_role_grants (tenant_id, role_id, grant_id, action, feature, data_class, scope_class, status, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${role}, 'grant-all-read', 'read', '*', '*', 'repository', 'active', ${revision}, now(), now(), now())`,
-    `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status) VALUES (${scope}, 'repository', 'git', ${granted}, 'git', ${granted}, now(), now(), 'active')`,
+    // The relational repository catalog (content routes, IaC, selectors) reads
+    // ingestion_scopes rows of kind 'repository' with the repo id in payload, so
+    // both repositories get one; only the granted one gets a role target.
+    `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload) VALUES (${scope}, 'repository', 'git', ${granted}, 'git', ${granted}, now(), now(), 'active', ${sqlQuote(JSON.stringify({ repo_id: SEEDED_REPOSITORY_ID, name: SEEDED_REPOSITORY_ID }))}::jsonb)`,
+    `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload) VALUES (${sqlQuote(ungrantedScopeId)}, 'repository', 'git', ${sqlQuote(UNGRANTED_REPOSITORY_ID)}, 'git', ${sqlQuote(UNGRANTED_REPOSITORY_ID)}, now(), now(), 'active', ${sqlQuote(JSON.stringify({ repo_id: UNGRANTED_REPOSITORY_ID, name: UNGRANTED_REPOSITORY_ID }))}::jsonb)`,
+    `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status) VALUES (${sqlQuote(stateScopeId)}, 'state_snapshot', 'terraform_state', ${sqlQuote(stateScopeId)}, 'terraform_state', ${sqlQuote(stateScopeId)}, now(), now(), 'active')`,
+    `INSERT INTO identity_role_scope_targets (tenant_id, workspace_id, role_id, scope_id, status, grant_source, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${workspace}, ${role}, ${sqlQuote(stateScopeId)}, 'active', 'e2e_catalog_sweep', ${revision}, now(), now(), now())`,
     `INSERT INTO identity_role_scope_targets (tenant_id, workspace_id, role_id, scope_id, status, grant_source, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${workspace}, ${role}, ${scope}, 'active', 'e2e_catalog_sweep', ${revision}, now(), now(), now())`,
     `INSERT INTO identity_role_repository_targets (tenant_id, workspace_id, role_id, repo_id, scope_id, status, grant_source, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${workspace}, ${role}, ${granted}, ${scope}, 'active', 'e2e_catalog_sweep', ${revision}, now(), now(), now())`,
     `INSERT INTO identity_membership_roles (tenant_id, workspace_id, user_id, role_id, assignment_source, status, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${workspace}, ${user}, ${role}, 'e2e_catalog_sweep', 'active', ${revision}, now(), now(), now())`,
   ].join("; ");
   await runPsql(ctx.repoRoot, ctx.project, `${sql};`);
   await seedGraphRepository(ctx.nornicHttpBase, UNGRANTED_REPOSITORY_ID);
-  return `role ${sweepRoleId} (all features, all data classes) granted on repository ${SEEDED_REPOSITORY_ID} only; ungranted repository ${UNGRANTED_REPOSITORY_ID} seeded into the graph`;
+  return `role ${sweepRoleId} (all features, all data classes) granted on repository ${SEEDED_REPOSITORY_ID} (scope ${sweepScopeId}) and state scope ${stateScopeId} only; ungranted repository ${UNGRANTED_REPOSITORY_ID} seeded into the graph and the repository catalog`;
 }
 
 // assertTokenIsScoped proves the credential the sweep uses is a personal token
@@ -173,7 +181,7 @@ async function sweepEveryTool(
   }
   const descriptions = new Map(listed.map((t) => [t.name, t.description]));
   const disclosure = compileDisclosurePattern(policy);
-  const ids = { granted: SEEDED_REPOSITORY_ID, ungranted: UNGRANTED_REPOSITORY_ID };
+  const ids = { granted: SEEDED_REPOSITORY_ID, ungranted: UNGRANTED_REPOSITORY_ID, scope: sweepScopeId, stateScope: stateScopeId };
   const results: SweepRowResult[] = [];
   for (const row of policy.rows) {
     const args = substituteSeedIds(row.arguments, ids) as Record<string, unknown>;

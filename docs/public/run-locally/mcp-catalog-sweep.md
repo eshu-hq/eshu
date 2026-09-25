@@ -37,18 +37,25 @@ baseline manifest is unchanged.
   asserts through `GET /api/v0/auth/profile` that the token resolves through
   roles with the permission catalog enforced.
 - **Every tool, judged.** Each tool is called with fixed small limits and
-  seeded identifiers. Of the 167 checked-in calls, 116 allowlisted calls must
-  answer `ok`: their subject is the seeded repository or needs no subject, so a
-  grant filter that wrongly hid the seeded repository would fail them. 42
-  allowlisted calls name a subject the fixture does not seed (a workload,
-  service, cloud scope, code symbol, or file); they may also answer a typed
-  `not_found`, which proves only that the route is mounted and the grant
-  admitted the call. The Go test rejects such an entry unless its
-  `acceptReason` quotes the unseeded argument it relies on. The remaining 9
-  calls reach a ledger or shared-key-only route, which must answer the
-  route-policy `403` with a live description that discloses it. An unexpected
-  `403`, an unmounted route, or a `5xx` fails. The runner prints this split in
-  the step detail.
+  seeded identifiers. The seed gives the granted repository a graph node and a
+  repository-catalog scope, adds an ungranted repository the same way, and adds
+  one `state_snapshot` scope; there is no indexed content. Of the 167
+  checked-in calls, 130 allowlisted calls must answer `ok`: they name the
+  seeded repository or scope, or need no subject, so a grant filter that wrongly
+  hid the seeded subject would fail them. 28 allowlisted calls may also answer a
+  second outcome, each with a specific `acceptReason`: 21 name a subject the
+  fixture does not seed (a workload, service, code symbol, file, or evidence
+  packet) and may answer a typed `not_found`; 7 depend on the stack profile
+  (`unsupported_capability` for code divergence and path comparison, `503` for
+  `ask` because `ESHU_ASK_ENABLED` is unset, `component_registry_unavailable`
+  because `ESHU_COMPONENT_HOME` is unset). For those 28 the proof is only that
+  the route is mounted and the grant admitted the call. The Go test rejects
+  such an entry unless its `acceptReason` quotes one of the row's own string
+  arguments or the tool name, and unless every accepted outcome is one it
+  lists. The remaining 9 calls reach a ledger or shared-key-only route, which
+  must answer the route-policy `403` with a live description that discloses it.
+  An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
+  fails. The runner prints this split in the step detail.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
   granted repository only, and each single-repository tool refuses the ungranted

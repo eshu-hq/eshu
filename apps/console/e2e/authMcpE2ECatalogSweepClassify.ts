@@ -92,6 +92,12 @@ export function classifyToolCallOutcome(result: McpJsonRpcResult): { outcome: st
   if (status === "404" && /page not found/i.test(text)) {
     return { outcome: "route_unmounted", detail: truncate(text) };
   }
+  // A handler's typed not-found is JSON with error "Not Found" ({"detail":...,
+  // "error":"Not Found"}); an unmounted route is the mux's plain-text "404 page
+  // not found" handled above. Only the JSON shape counts as an answer.
+  if (status === "404" && /"error"\s*:\s*"Not Found"/.test(text)) {
+    return { outcome: "not_found", detail: truncate(text) };
+  }
   return { outcome: status ? `http_${status}` : "tool_error", detail: truncate(text) };
 }
 
@@ -183,11 +189,18 @@ export function renderSweepTable(results: readonly SweepRowResult[]): string {
   return [line(header), line(widths.map((w) => "-".repeat(w))), ...rows.map(line), "", `${passed}/${results.length} calls passed`].join("\n");
 }
 
-// substituteSeedIds replaces the $REPO / $OTHER_REPO placeholders in a
+// substituteSeedIds replaces the $REPO / $OTHER_REPO / $SCOPE / $STATE_SCOPE placeholders in a
 // checked-in argument value (recursively) with the seeded repository ids.
-export function substituteSeedIds(value: unknown, ids: { readonly granted: string; readonly ungranted: string }): unknown {
+export function substituteSeedIds(
+  value: unknown,
+  ids: { readonly granted: string; readonly ungranted: string; readonly scope: string; readonly stateScope: string },
+): unknown {
   if (typeof value === "string") {
-    return value.split("$OTHER_REPO").join(ids.ungranted).split("$REPO").join(ids.granted);
+    return value
+      .split("$OTHER_REPO").join(ids.ungranted)
+      .split("$STATE_SCOPE").join(ids.stateScope)
+      .split("$SCOPE").join(ids.scope)
+      .split("$REPO").join(ids.granted);
   }
   if (Array.isArray(value)) {
     return value.map((v) => substituteSeedIds(v, ids));
