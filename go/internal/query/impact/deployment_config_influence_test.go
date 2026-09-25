@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 type deploymentConfigInfluenceContentStore struct {
@@ -213,7 +213,7 @@ func TestBuildDeploymentConfigInfluenceResponseUsesServiceStoryDeploymentEvidenc
 	resp := buildDeploymentConfigInfluenceResponse(deploymentConfigInfluenceRequest{
 		ServiceName: "sample-service-api",
 		Limit:       10,
-	}, querytestutil.SampleServiceDossierContext())
+	}, testutil.SampleServiceDossierContext())
 
 	influencingRepos := querycontract.MapSliceValue(resp, "influencing_repositories")
 	if len(influencingRepos) < 3 {

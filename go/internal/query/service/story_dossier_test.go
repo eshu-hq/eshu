@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildServiceStoryResponseReturnsCompleteDossier(t *testing.T) {
 	t.Parallel()
 
-	workloadContext := querytestutil.SampleServiceDossierContext()
+	workloadContext := testutil.SampleServiceDossierContext()
 
 	got := BuildServiceStoryResponse("workload:sample-service-api", workloadContext)
 

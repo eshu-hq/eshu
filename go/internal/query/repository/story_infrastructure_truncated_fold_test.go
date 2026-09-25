@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated is the
@@ -76,10 +76,10 @@ func TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated(t *testi
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !querytestutil.AnySliceContains(limitations, infrastructureTruncatedReason) {
+	if !testutil.AnySliceContains(limitations, infrastructureTruncatedReason) {
 		t.Fatalf("limitations = %#v, want to contain %q", limitations, infrastructureTruncatedReason)
 	}
-	if querytestutil.AnySliceContains(limitations, storyRowsTruncatedReason) {
+	if testutil.AnySliceContains(limitations, storyRowsTruncatedReason) {
 		t.Fatalf("limitations = %#v, want no %q (only infrastructure should be truncated)", limitations, storyRowsTruncatedReason)
 	}
 

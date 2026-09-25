@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter pins the Go-side
@@ -61,7 +61,7 @@ func TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter(t *testing.T) {
 	}
 
 	want := []string{"cloudresource:bucket", "workload:checkout"}
-	if got := querytestutil.RowIDs(rows); !reflect.DeepEqual(got, want) {
+	if got := testutil.RowIDs(rows); !reflect.DeepEqual(got, want) {
 		t.Fatalf("row ids = %#v, want %#v -- a node outside the impacted-label "+
 			"whitelist reached the caller", got, want)
 	}
@@ -88,7 +88,7 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 	filtered := changeSurfaceFilterTraversalRows(rows, "", access, false)
 	if got, want := len(filtered), len(rows); got != want {
 		t.Fatalf("kept %d of %d whitelisted rows: %#v",
-			got, want, querytestutil.RowIDs(filtered))
+			got, want, testutil.RowIDs(filtered))
 	}
 }
 

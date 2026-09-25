@@ -47,7 +47,7 @@ which is why those two methods are exported. The remaining exports
 (`FetchWorkloadDeploymentTopology`, `FetchProvisionedPlatformResult`,
 `ProvisionedPlatformResult`, `FetchWorkloadRuntimeTopology`) exist only for
 staying root tests that pin family behavior; new callers must prefer the
-HTTP surface or `querytestutil` doubles.
+HTTP surface or `testutil` doubles.
 
 NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation` no longer
 render the multi-line scoped `WHERE` group that was unreliable on the pinned
@@ -77,14 +77,14 @@ lookup, and the read model all came back empty.
 Exports exist only for staying callers: the root deployment-trace wrapper,
 the `cmd` wiring alias, and the staying root tests that pin family
 behavior. Unexported helpers stay unexported; cross-package test pins go
-through `querytestutil/content` (notably `FakePortContentStore`) and
-`querytestutil/graph` (`FakeRepoGraphReader`), or `querycontract`.
+through `testutil/content` (notably `FakePortContentStore`) and
+`testutil/graph` (`FakeRepoGraphReader`), or `querycontract`.
 
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds, authorization seam), `selector` (selector
-resolution), `querytestutil`-adjacent fakes in tests only, `repository`
+resolution), `testutil`-adjacent fakes in tests only, `repository`
 (tech fingerprint, repo dependency/infrastructure reads), `service` (query
 timing, story/enrichment shaping), `supplychain` (image/SBOM read models),
 and the `telemetry`/`log` packages for handler instruments. It never

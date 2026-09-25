@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // These route pins live in package repository (not the root
@@ -20,7 +20,7 @@ import (
 // requires a matching Test function in the handler's own directory. The
 // root file keeps the deep ContentReader-backed coverage; these pin the
 // moved routes' wiring: required params, status codes, and the admin-page
-// shape against the promoted querytestutil fakes.
+// shape against the promoted testutil fakes.
 
 func languageInventoryAdminRequest(t *testing.T, target string) *http.Request {
 	t.Helper()
@@ -55,7 +55,7 @@ func TestListRepositoriesByLanguageRendersAdminPage(t *testing.T) {
 			},
 			LanguageRepos: []querycontract.RepositoryLanguageRepository{
 				{
-					Repository: querytestutil.RepositoryStatsCatalogEntry(),
+					Repository: testutil.RepositoryStatsCatalogEntry(),
 					Languages:  []querycontract.RepositoryLanguageCount{{Language: "go", FileCount: 42}},
 					FileCount:  42,
 				},
@@ -69,7 +69,7 @@ func TestListRepositoriesByLanguageRendersAdminPage(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	if got, want := resp["language"], "go"; got != want {
 		t.Fatalf("language = %#v, want %#v", got, want)
 	}
@@ -102,7 +102,7 @@ func TestGetRepositoryLanguageInventoryRendersAdminRows(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	rows, ok := resp["languages"].([]any)
 	if !ok || len(rows) != 1 {
 		t.Fatalf("languages = %#v, want 1 row", resp["languages"])

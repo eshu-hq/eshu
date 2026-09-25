@@ -8,14 +8,14 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfile(t *testing.T) {
 	t.Parallel()
 
-	fixtureContent := querytestutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
+	fixtureContent := testutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
 			columns: []string{

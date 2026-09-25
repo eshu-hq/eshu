@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
@@ -133,8 +133,8 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 	if got, want := deploysFrom["artifact_count"], float64(2); got != want {
 		t.Fatalf("DEPLOYS_FROM.artifact_count = %#v, want %#v", got, want)
 	}
-	if !querytestutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-1") ||
-		!querytestutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-2") {
+	if !testutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-1") ||
+		!testutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-2") {
 		t.Fatalf("DEPLOYS_FROM.resolved_ids = %#v, want both resolved ids", deploysFrom["resolved_ids"])
 	}
 	artifactFamilies := evidenceIndex["artifact_families"].(map[string]any)
@@ -142,21 +142,21 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 	if got, want := helm["artifact_count"], float64(1); got != want {
 		t.Fatalf("helm.artifact_count = %#v, want %#v", got, want)
 	}
-	if !querytestutil.AnySliceContains(helm["resolved_ids"].([]any), "resolved-1") {
+	if !testutil.AnySliceContains(helm["resolved_ids"].([]any), "resolved-1") {
 		t.Fatalf("helm.resolved_ids = %#v, want resolved-1", helm["resolved_ids"])
 	}
 
 	for _, want := range []string{"helm", "github_actions"} {
-		if !querytestutil.AnySliceContains(surface["artifact_families"].([]any), want) {
+		if !testutil.AnySliceContains(surface["artifact_families"].([]any), want) {
 			t.Fatalf("artifact_families missing %q: %#v", want, surface["artifact_families"])
 		}
 	}
 	for _, want := range []string{"HELM_VALUES_REFERENCE", "GITHUB_ACTIONS_REUSABLE_WORKFLOW_REF"} {
-		if !querytestutil.AnySliceContains(surface["evidence_kinds"].([]any), want) {
+		if !testutil.AnySliceContains(surface["evidence_kinds"].([]any), want) {
 			t.Fatalf("evidence_kinds missing %q: %#v", want, surface["evidence_kinds"])
 		}
 	}
-	if !querytestutil.AnySliceContains(surface["environments"].([]any), "prod") {
+	if !testutil.AnySliceContains(surface["environments"].([]any), "prod") {
 		t.Fatalf("environments missing prod: %#v", surface["environments"])
 	}
 

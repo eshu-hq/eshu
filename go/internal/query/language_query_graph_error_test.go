@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestHandleLanguageQueryMapsGraphReadAvailabilityErrors is the #5761
@@ -260,10 +260,10 @@ func TestOpenAPILanguageQueryDocuments501(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	languageQueryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/language-query")
-	languageQueryPost := querytestutil.MustMapField(t, languageQueryPath, "post")
-	responses := querytestutil.MustMapField(t, languageQueryPost, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	languageQueryPath := testutil.MustMapField(t, paths, "/api/v0/code/language-query")
+	languageQueryPost := testutil.MustMapField(t, languageQueryPath, "post")
+	responses := testutil.MustMapField(t, languageQueryPost, "responses")
 	for _, status := range []string{"400", "500", "501", "503", "504"} {
 		if _, ok := responses[status]; !ok {
 			t.Fatalf("language-query responses missing status %s", status)

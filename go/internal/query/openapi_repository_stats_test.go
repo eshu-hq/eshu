@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIRepositoryStatsDocumentsTimeoutMetadata(t *testing.T) {
@@ -18,19 +18,19 @@ func TestOpenAPIRepositoryStatsDocumentsTimeoutMetadata(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	statsPath := querytestutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/stats")
-	statsGet := querytestutil.MustMapField(t, statsPath, "get")
-	responses := querytestutil.MustMapField(t, statsGet, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	statsPath := testutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/stats")
+	statsGet := testutil.MustMapField(t, statsPath, "get")
+	responses := testutil.MustMapField(t, statsGet, "responses")
 	if _, ok := responses["504"]; !ok {
 		t.Fatal("stats responses missing 504 timeout contract")
 	}
 
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
-	coverage := querytestutil.MustMapField(t, properties, "coverage")
-	coverageProperties := querytestutil.MustMapField(t, coverage, "properties")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	properties := testutil.MustMapField(t, testutil.MustMapField(t, content, "schema"), "properties")
+	coverage := testutil.MustMapField(t, properties, "coverage")
+	coverageProperties := testutil.MustMapField(t, coverage, "properties")
 	for _, field := range []string{"partial_results", "truncated", "timeout", "timeout_budget", "missing_evidence"} {
 		if _, ok := coverageProperties[field]; !ok {
 			t.Fatalf("coverage schema missing %s", field)
@@ -51,10 +51,10 @@ func TestOpenAPIRepositoryDocumentsGroupEvidenceFields(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	repository := querytestutil.MustMapField(t, schemas, "Repository")
-	properties := querytestutil.MustMapField(t, repository, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	repository := testutil.MustMapField(t, schemas, "Repository")
+	properties := testutil.MustMapField(t, repository, "properties")
 	for _, field := range []string{"group_key", "group_source", "group_truth", "group_kind", "group_reason"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("Repository schema missing %s", field)
@@ -63,7 +63,7 @@ func TestOpenAPIRepositoryDocumentsGroupEvidenceFields(t *testing.T) {
 
 	// group_source must enumerate dependency_cluster so clients accept the new
 	// primary grouping value added by issue #3504.
-	groupSource := querytestutil.MustMapField(t, properties, "group_source")
+	groupSource := testutil.MustMapField(t, properties, "group_source")
 	groupSourceEnums := enumStrings(t, groupSource, "group_source")
 	for _, want := range []string{"dependency_cluster", "repository_dependency_flag", "repo_slug_namespace", "remote_url_owner", "missing_evidence"} {
 		if !containsString(groupSourceEnums, want) {
@@ -73,7 +73,7 @@ func TestOpenAPIRepositoryDocumentsGroupEvidenceFields(t *testing.T) {
 
 	// group_kind must enumerate cluster so clients accept the cluster value
 	// emitted when group_source is dependency_cluster.
-	groupKind := querytestutil.MustMapField(t, properties, "group_kind")
+	groupKind := testutil.MustMapField(t, properties, "group_kind")
 	groupKindEnums := enumStrings(t, groupKind, "group_kind")
 	for _, want := range []string{"cluster", "source", "dependency", "unknown"} {
 		if !containsString(groupKindEnums, want) {

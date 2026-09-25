@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestResolveRepositoryCatalogMatchesMatchesNameSlugAndPath(t *testing.T) {

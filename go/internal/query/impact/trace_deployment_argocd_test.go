@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestBuildDeploymentTraceResponseIncludesControllerEntities(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fetchWorkloadContextResultKeys is the reviewed key list for
@@ -231,8 +231,8 @@ func workloadContextSchemaProperties(t *testing.T) map[string]any {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	workloadContext := querytestutil.MustMapField(t, schemas, "WorkloadContext")
-	return querytestutil.MustMapField(t, workloadContext, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	workloadContext := testutil.MustMapField(t, schemas, "WorkloadContext")
+	return testutil.MustMapField(t, workloadContext, "properties")
 }

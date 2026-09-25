@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 )
 
@@ -87,7 +87,7 @@ func TestNornicDBInheritanceWalkDropsAnOutOfGrantInteriorClass(t *testing.T) {
 		},
 	}}
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-	ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	ctx := ContextWithAuthContext(context.Background(), testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 
 	rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, codemodel.RelationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
 	if err != nil {
@@ -127,7 +127,7 @@ func TestNornicDBInheritanceWalkFailsClosedOnAnUnattributableHop(t *testing.T) {
 				},
 			}}}
 			handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-			ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+			ctx := ContextWithAuthContext(context.Background(), testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 			rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, codemodel.RelationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
 			if err != nil {
 				t.Fatalf("inheritance rows: %v", err)
@@ -240,7 +240,7 @@ func TestNornicDBInheritanceWalkReportsTruncationFromTheRawCount(t *testing.T) {
 	}
 	graph := &inheritanceInteriorGraph{rows: raw}
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-	ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	ctx := ContextWithAuthContext(context.Background(), testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 
 	rows, rawCount, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
 		ctx, codemodel.RelationshipStoryRequest{Limit: limit}, "class:a", "outgoing")
@@ -298,7 +298,7 @@ func TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit(t *testing.T) {
 		crossing("CrossingTwo"),
 	}}
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-	ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	ctx := ContextWithAuthContext(context.Background(), testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 
 	rows, rawCount, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
 		ctx, codemodel.RelationshipStoryRequest{Limit: limit}, "class:a", "outgoing")

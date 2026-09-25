@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fakeGraphReader adapts graph.FakeGraphReader to the field names this
@@ -24,7 +24,7 @@ import (
 // untouched.
 //
 // The dispatch rules themselves are NOT duplicated here. They live in
-// querytestutil, which is where a handler family's tests reach them once the
+// testutil, which is where a handler family's tests reach them once the
 // family moves out of this package for #6060 -- a symbol declared in a _test.go
 // file cannot be imported across a package boundary, so a moved family could
 // not otherwise use this fake. Two copies of the rules would drift, and a fake

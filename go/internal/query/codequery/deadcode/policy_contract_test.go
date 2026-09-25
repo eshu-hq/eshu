@@ -14,8 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fakeDeadCodeContentStore adapts content.FakeDeadCodeContentStore to the
@@ -23,7 +23,7 @@ import (
 // keyed literals over entities/incomingEntityIDs, so those names stay lowercase
 // and none of those literals changed.
 //
-// Neither read is reimplemented here. Both live in querytestutil/content, which is where
+// Neither read is reimplemented here. Both live in testutil/content, which is where
 // a handler family's tests reach them once the family moves out of this package
 // for #6060 -- a symbol declared in a _test.go file is not importable across a
 // package boundary. Two copies of a double's dispatch drift, and the drifted one

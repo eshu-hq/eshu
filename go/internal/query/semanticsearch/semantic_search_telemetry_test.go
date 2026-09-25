@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 	"go.opentelemetry.io/otel/attribute"
@@ -64,12 +64,12 @@ func degradedCounterValue(t *testing.T, rm metricdata.ResourceMetrics, want map[
 // withDegradedCounterReader installs a process-global manual-reader meter
 // provider and resets the lazily registered counter so the test observes its
 // own datapoints. It is a thin wrapper around the shared
-// querytestutil.WithPackageMetricReader; see that helper's doc
+// testutil.WithPackageMetricReader; see that helper's doc
 // comment for why it also burns the OTel global delegate-once on a throwaway
 // provider before installing this test's own reader.
 func withDegradedCounterReader(t *testing.T) *sdkmetric.ManualReader {
 	t.Helper()
-	return querytestutil.WithPackageMetricReader(t, resetSemanticSearchInstrumentsForTest)
+	return testutil.WithPackageMetricReader(t, resetSemanticSearchInstrumentsForTest)
 }
 
 func collectDegradedMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
@@ -91,7 +91,7 @@ func TestSemanticSearchHandlerEmitsDegradedCounterOnHybridFallback(t *testing.T)
 			IndexedDocumentCount: 1,
 			RetrievalState:       "hybrid_degraded",
 			Candidates: []searchretrieval.Candidate{{
-				Document: querytestutil.SemanticSearchDocumentFixture(
+				Document: testutil.SemanticSearchDocumentFixture(
 					"searchdoc:p", "repo-p", "Payments", "payment runbook",
 				),
 				Score:    1.0,
@@ -104,7 +104,7 @@ func TestSemanticSearchHandlerEmitsDegradedCounterOnHybridFallback(t *testing.T)
 	handler.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	mux.ServeHTTP(rec, testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id": "repo-p", "query": "payment", "mode": "hybrid", "limit": 1, "timeout_ms": 250,
 	}))
 	if rec.Code != http.StatusOK {
@@ -128,7 +128,7 @@ func TestSemanticSearchHandlerEmitsDegradedOnIndexUnready(t *testing.T) {
 			IndexedDocumentCount: 1,
 			RetrievalState:       "index_unready",
 			Candidates: []searchretrieval.Candidate{{
-				Document: querytestutil.SemanticSearchDocumentFixture(
+				Document: testutil.SemanticSearchDocumentFixture(
 					"searchdoc:p", "repo-p", "Payments", "payment runbook",
 				),
 				Score:    1.0,
@@ -141,7 +141,7 @@ func TestSemanticSearchHandlerEmitsDegradedOnIndexUnready(t *testing.T) {
 	handler.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	mux.ServeHTTP(rec, testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id": "repo-p", "query": "payment", "mode": "hybrid", "limit": 1, "timeout_ms": 250,
 	}))
 	if rec.Code != http.StatusOK {
@@ -163,7 +163,7 @@ func TestSemanticSearchHandlerDoesNotEmitDegradedOnActiveHybrid(t *testing.T) {
 			IndexedDocumentCount: 1,
 			RetrievalState:       "hybrid_active",
 			Candidates: []searchretrieval.Candidate{{
-				Document: querytestutil.SemanticSearchDocumentFixture(
+				Document: testutil.SemanticSearchDocumentFixture(
 					"searchdoc:p", "repo-p", "Payments", "payment runbook",
 				),
 				Score:    1.0,
@@ -176,7 +176,7 @@ func TestSemanticSearchHandlerDoesNotEmitDegradedOnActiveHybrid(t *testing.T) {
 	handler.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	mux.ServeHTTP(rec, testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id": "repo-p", "query": "payment", "mode": "hybrid", "limit": 1, "timeout_ms": 250,
 	}))
 	if rec.Code != http.StatusOK {
@@ -201,7 +201,7 @@ func TestSemanticSearchHandlerEmitsDegradedOnSemanticNoEmbedder(t *testing.T) {
 	handler.Mount(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	mux.ServeHTTP(rec, testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id": "repo-p", "query": "payment", "mode": "semantic", "limit": 1, "timeout_ms": 250,
 	}))
 	if rec.Code != http.StatusServiceUnavailable {

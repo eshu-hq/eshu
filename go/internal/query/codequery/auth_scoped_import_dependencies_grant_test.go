@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -261,7 +261,7 @@ func TestImportDependenciesFilterByRepositoryGrant(t *testing.T) {
 			t.Parallel()
 
 			graph := newImportGrantGraph(tc.seeds)
-			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runImportGrantRequest(t, graph, tc.requestBody(), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -288,7 +288,7 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			t.Parallel()
 
 			graph := newImportGrantGraph(tc.seeds)
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			rec := runImportGrantRequest(t, graph, tc.requestBody(), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -297,7 +297,7 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			if len(graph.statements) != 0 {
 				t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
 			}
-			data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
+			data := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 			rowKey := importGrantRowKey(tc.queryType)
 			value, ok := data[rowKey]
 			if !ok {
@@ -426,7 +426,7 @@ func TestCrossModuleCallsBindTargetRepositoryIndependently(t *testing.T) {
 		importGrantCrossModuleCall(codeGrantGrantedRepo, codeGrantGrantedRepo, importGrantGrantedModule),
 		importGrantCrossModuleCall(codeGrantGrantedRepo, codeGrantOtherRepo, importGrantUngrantedModule),
 	})
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runImportGrantRequest(t, graph, map[string]any{
 		"query_type":  "cross_module_calls",
 		"source_file": "src/api.py",
@@ -468,7 +468,7 @@ func TestImportDependencyScanBoundIsSpentOnGrantedRowsOnly(t *testing.T) {
 	}
 
 	graph := newImportGrantGraph(seeds)
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runImportGrantRequest(t, graph, map[string]any{
 		"query_type":  "file_import_cycles",
 		"language":    "python",

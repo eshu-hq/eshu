@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression proves
@@ -155,8 +155,8 @@ func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testi
 	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
 		t.Errorf("truncated = %v, want %v -- no catalog collection is partial, so a degraded dependency read must NOT set it", got, want)
 	}
-	limitations := querytestutil.RequireStringAnySlice(t, data, "limitations")
-	if !querytestutil.AnySliceContains(limitations, repositoryDependencyEdgesDegradedReason) {
+	limitations := testutil.RequireStringAnySlice(t, data, "limitations")
+	if !testutil.AnySliceContains(limitations, repositoryDependencyEdgesDegradedReason) {
 		t.Fatalf("limitations = %v, want it to contain %q", limitations, repositoryDependencyEdgesDegradedReason)
 	}
 	repositories := data["repositories"].([]any)

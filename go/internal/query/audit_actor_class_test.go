@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // actorClassModeCases lists every AuthMode member with a subject hash and the
@@ -94,7 +94,7 @@ func TestIdentityMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 		for _, mode := range actorClassModeCases() {
 			t.Run(emitter.name+"/"+mode.name, func(t *testing.T) {
 				t.Parallel()
-				audit := &querytestutil.FakeGovernanceAuditAppender{}
+				audit := &testutil.FakeGovernanceAuditAppender{}
 				auth := AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
 				req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/anything", nil)
 				req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
@@ -171,7 +171,7 @@ func TestIdentityMutationAuditsWithNoSubjectHash(t *testing.T) {
 	for _, emitter := range identityMutationEmitters() {
 		t.Run(emitter.name, func(t *testing.T) {
 			t.Parallel()
-			audit := &querytestutil.FakeGovernanceAuditAppender{}
+			audit := &testutil.FakeGovernanceAuditAppender{}
 			auth := AuthContext{Mode: AuthModeBrowserSession, AllScopes: true}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/anything", nil)
 			req = req.WithContext(ContextWithAuthContext(req.Context(), auth))

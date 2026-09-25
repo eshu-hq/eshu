@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestDeploymentOverallConfidenceLiveEvidence(t *testing.T) {
@@ -55,7 +55,7 @@ func TestDeploymentOverallConfidenceNoEvidence(t *testing.T) {
 func TestBuildDeploymentFactSummaryTierLiveEvidence(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	instances, _ := ctx["instances"].([]map[string]any)
 	summary := deployment.BuildDeploymentFactSummary(
 		ctx,
@@ -87,7 +87,7 @@ func TestBuildDeploymentFactSummaryTierLiveEvidence(t *testing.T) {
 func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	// #5638 TIER GUARDRAIL (the non-negotiable): a live_instance_count CAN be
 	// present on the context (a matched fact carried a replica observation)
 	// while hasLiveEvidence is STILL false (e.g. the identity-bound match
@@ -137,7 +137,7 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 func TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	instances, _ := ctx["instances"].([]map[string]any)
 	summary := deployment.BuildDeploymentFactSummary(
 		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
@@ -258,7 +258,7 @@ func TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore(t *testing.
 		// (declaredObjectAnchorResourceByKind), so this resource resolves
 		// NO declared-object anchor either -- proving the fail-closed
 		// absence, not merely the absence of an ArgoCD controller.
-		[]map[string]any{querytestutil.K8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
+		[]map[string]any{testutil.K8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
 		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
@@ -279,8 +279,8 @@ func TestFetchWorkloadLiveEvidenceNilStore(t *testing.T) {
 	h := &Handler{} // KubernetesPodTemplates is nil
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
-		[]map[string]any{querytestutil.ArgoCDControllerFixture("app-a")},
-		[]map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]map[string]any{testutil.ArgoCDControllerFixture("app-a")},
+		[]map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img:latest"},
 		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
@@ -299,8 +299,8 @@ func TestFetchWorkloadLiveEvidenceEmptyImageRefs(t *testing.T) {
 	h := &Handler{KubernetesPodTemplates: store}
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
-		[]map[string]any{querytestutil.ArgoCDControllerFixture("app-a")},
-		[]map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]map[string]any{testutil.ArgoCDControllerFixture("app-a")},
+		[]map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		nil,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
@@ -337,10 +337,10 @@ func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 	t.Parallel()
 
 	sharedDigest := "ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"
-	controllersA := []map[string]any{querytestutil.ArgoCDControllerFixture("app-a")}
-	resourcesA := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
-	controllersB := []map[string]any{querytestutil.ArgoCDControllerFixture("app-b")}
-	resourcesB := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
+	controllersA := []map[string]any{testutil.ArgoCDControllerFixture("app-a")}
+	resourcesA := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
+	controllersB := []map[string]any{testutil.ArgoCDControllerFixture("app-b")}
+	resourcesB := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
 
 	trackingIDB := "app-b:apps/Deployment:shared-ns/workload-b"
 	trackingIDA := "app-a:apps/Deployment:shared-ns/workload-a"
@@ -405,8 +405,8 @@ func TestFetchWorkloadLiveEvidenceStoreError(t *testing.T) {
 	h := &Handler{KubernetesPodTemplates: store}
 	_, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
-		[]map[string]any{querytestutil.ArgoCDControllerFixture("app-a")},
-		[]map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]map[string]any{testutil.ArgoCDControllerFixture("app-a")},
+		[]map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img:latest"},
 		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
@@ -434,8 +434,8 @@ func TestFetchWorkloadLiveEvidenceScopedAccessFilter(t *testing.T) {
 	}
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
-		[]map[string]any{querytestutil.ArgoCDControllerFixture("app-a")},
-		[]map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]map[string]any{testutil.ArgoCDControllerFixture("app-a")},
+		[]map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img@sha256:a"},
 		access,
 	)
@@ -472,8 +472,8 @@ func TestFetchWorkloadLiveEvidenceEmptyAccess(t *testing.T) {
 	h := &Handler{KubernetesPodTemplates: store}
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
-		[]map[string]any{querytestutil.ArgoCDControllerFixture("app-a")},
-		[]map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]map[string]any{testutil.ArgoCDControllerFixture("app-a")},
+		[]map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
 		[]string{"img@sha256:a"},
 		querycontract.RepositoryAccessFilter{}, // empty: no grants, scoped
 	)

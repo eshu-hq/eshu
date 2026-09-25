@@ -28,7 +28,7 @@
   not be added or changed without converting the entry to the typed form.
 - No directory under `internal/query` sits outside that inventory. Only
   `testdata` and hidden or underscore-prefixed directories are skipped.
-  `internal/query/querytestutil` holds test doubles and used to be skipped too,
+  `internal/query/testutil` holds test doubles and used to be skipped too,
   since a fake whose `RunSingle` answers by calling `Run` is indistinguishable
   here from a production read. Granting that skip required whitelisting the
   self-delegation shape, which let a genuine graph read wearing it pass in

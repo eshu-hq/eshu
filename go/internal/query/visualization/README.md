@@ -51,7 +51,7 @@ own derivation reports.
   the assembled row against the YAML contract.
 - Test files -- `packet_test.go`, `merge_test.go`, and
   `story_bench_test.go` moved in verbatim from root (see Move evidence) and
-  construct fixtures hoisted to `querytestutil` (see AGENTS.md);
+  construct fixtures hoisted to `testutil` (see AGENTS.md);
   `handler_test.go` drives `Handler` through its own `Mount` so the leaf
   proves the route without root's `APIRouter`; `main_test.go` registers the
   capability for this test binary, which never links root.
@@ -78,9 +78,9 @@ moved in as `packet_test.go`, `merge_test.go`, `story_bench_test.go`;
 
 Four fixtures both sides' tests needed (`freshTruth`, `storyResponseWithUpstream`,
 `citationResponse`, `incidentResponse`) moved to
-`querytestutil.FreshTruth`/`StoryResponseWithUpstream`/`CitationResponse`/
+`testutil.FreshTruth`/`StoryResponseWithUpstream`/`CitationResponse`/
 `IncidentResponse` with one definition each; root's
-`visualization_packet_surface_test.go` calls the querytestutil spelling
+`visualization_packet_surface_test.go` calls the testutil spelling
 directly rather than keeping a duplicate or a forwarding wrapper.
 `nodeIDSet` had exactly one consumer file (the declaring one, now
 `packet_test.go`) so it moved unexported rather than being hoisted.

@@ -56,7 +56,7 @@ Read `doc.go` and `README.md` first.
   downgraded by a pending search-vector build. Widening that gate makes every
   keyword response report a freshness gap it does not have.
 - The degraded counter registers lazily under a `sync.Once`. A test observing
-  it MUST go through `querytestutil.WithPackageMetricReader` with
+  it MUST go through `testutil.WithPackageMetricReader` with
   `resetSemanticSearchInstrumentsForTest`, and MUST NOT call `t.Parallel()` —
   the helper installs a process-global meter provider.
 
@@ -82,14 +82,14 @@ root, not three.
 
 ## Shared test fixtures
 
-`querytestutil` holds the fixtures both this package and root need:
+`testutil` holds the fixtures both this package and root need:
 `SemanticSearchDocumentFixture`, `SemanticSearchHTTPRequest`, `ScriptedRows`,
 `WithPackageMetricReader`. Put a new shared fixture there rather than copying
 it — Go never compiles a package's `_test.go` files into anything another
 package can import, so a copy is the only alternative and copies drift.
 
-`querytestutil` MUST NOT import this package: this package's in-package tests
-import `querytestutil`, so that direction cycles. A fixture that needs a
+`testutil` MUST NOT import this package: this package's in-package tests
+import `testutil`, so that direction cycles. A fixture that needs a
 `semanticsearch` type therefore cannot be shared, and root declares its own
 double instead (`stubSemanticSearchIndex` in
 `session_permission_enforcement_test.go`).

@@ -38,16 +38,16 @@ moved here keep an exported boundary for the staying root tests that pin
 them (query text builders, selector predicates, traversal specs, result
 types with exported `Rows`/`Limits` fields or `Rows()`/`Limits()` methods,
 the `entityMapResolverQuery` `Cypher`/`Params` fields). Unexported helpers
-stay unexported; cross-package test pins go through `querytestutil/graph`
-(`FakeGraphReader`, `SqlBlastRadius*` cleanup probes), `querytestutil/content`
-(`FakePortContentStore`), and `querytestutil`
+stay unexported; cross-package test pins go through `testutil/graph`
+(`FakeGraphReader`, `SqlBlastRadius*` cleanup probes), `testutil/content`
+(`FakePortContentStore`), and `testutil`
 (`RecordingResourceInvestigationGraph`, `ScopedTestAuthContext`), or
 `querycontract` (row-value decoders, shared bounds, ports).
 
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
-capability registry, shared bounds), `querytestutil` in tests only,
+capability registry, shared bounds), `testutil` in tests only,
 `deployment`, `auth` (tests), and `tracing`/`internal/telemetry`
 for handler spans. It must not import the query root or graph drivers.
 

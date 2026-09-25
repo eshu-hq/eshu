@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 const scopeGrantInlineCappedMetric = "eshu_dp_query_scope_grant_inline_capped_total"

@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
@@ -195,7 +195,7 @@ func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentEntitiesIncludesStory(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -323,7 +323,7 @@ func TestGetEntityContextUsesGraphJavaScriptMetadataWithoutContent(t *testing.T)
 func TestGetEntityContextUsesGraphPythonMetadataWithoutContent(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -780,7 +780,7 @@ func TestGetEntityContextUsesGraphPythonLambdaWithoutContent(t *testing.T) {
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -855,7 +855,7 @@ func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t 
 func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -923,7 +923,7 @@ func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedFunction(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // boundedK8sFakeContentStore models ListRepoEntitiesByType exactly like the
@@ -46,10 +46,10 @@ func (f boundedK8sFakeContentStore) ListRepoEntitiesByType(_ context.Context, _,
 }
 
 // k8sResourceFillerEntities returns `count` K8sResource Deployment rows for
-// the truncation tests. The implementation moved to querytestutil for #6060;
+// the truncation tests. The implementation moved to testutil for #6060;
 // this wrapper keeps root callers unchanged.
 func k8sResourceFillerEntities(count int) []EntityContent {
-	filler := querytestutil.K8sResourceFillerEntities(count)
+	filler := testutil.K8sResourceFillerEntities(count)
 	out := make([]EntityContent, 0, len(filler))
 	for _, entity := range filler {
 		entity := entity

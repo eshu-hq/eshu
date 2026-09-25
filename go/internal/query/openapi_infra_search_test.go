@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIInfraSearchAllowsStructuredFilterScope(t *testing.T) {
@@ -27,14 +27,14 @@ func TestOpenAPIInfraSearchAllowsStructuredFilterScope(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	searchPath := querytestutil.MustMapField(t, paths, "/api/v0/infra/resources/search")
-	post := querytestutil.MustMapField(t, searchPath, "post")
-	requestBody := querytestutil.MustMapField(t, post, "requestBody")
-	content := querytestutil.MustMapField(t, requestBody, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	paths := testutil.MustMapField(t, spec, "paths")
+	searchPath := testutil.MustMapField(t, paths, "/api/v0/infra/resources/search")
+	post := testutil.MustMapField(t, searchPath, "post")
+	requestBody := testutil.MustMapField(t, post, "requestBody")
+	content := testutil.MustMapField(t, requestBody, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
 
 	for _, field := range []string{
 		"query",

@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 
 	got := BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
@@ -47,7 +47,7 @@ func TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths(t *test
 func TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["cloud_resources"] = []map[string]any{}
 	ctx["uncorrelated_cloud_resources"] = []map[string]any{
 		{

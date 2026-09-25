@@ -13,12 +13,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // scriptedExecQueryer serves canned query results in order and records exec calls.
 type scriptedExecQueryer struct {
-	queries   []*querytestutil.ScriptedRows
+	queries   []*testutil.ScriptedRows
 	queryIdx  int
 	execQuery string
 	execArgs  []any
@@ -26,7 +26,7 @@ type scriptedExecQueryer struct {
 
 func (s *scriptedExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	if s.queryIdx >= len(s.queries) {
-		return &querytestutil.ScriptedRows{}, nil
+		return &testutil.ScriptedRows{}, nil
 	}
 	rows := s.queries[s.queryIdx]
 	s.queryIdx++
@@ -45,7 +45,7 @@ func (sqlResultStub) LastInsertId() (int64, error) { return 0, nil }
 func (sqlResultStub) RowsAffected() (int64, error) { return 1, nil }
 
 func TestClaimReplayIdempotencyWinsOnInsert(t *testing.T) {
-	database := &scriptedExecQueryer{queries: []*querytestutil.ScriptedRows{
+	database := &scriptedExecQueryer{queries: []*testutil.ScriptedRows{
 		{Data: [][]any{{"k1"}}}, // INSERT ... RETURNING returned a row → claimed
 	}}
 	store := &postgresStore{database: database, now: func() time.Time { return time.Unix(0, 0).UTC() }}
@@ -60,7 +60,7 @@ func TestClaimReplayIdempotencyWinsOnInsert(t *testing.T) {
 }
 
 func TestClaimReplayIdempotencyReturnsPriorOnConflict(t *testing.T) {
-	database := &scriptedExecQueryer{queries: []*querytestutil.ScriptedRows{
+	database := &scriptedExecQueryer{queries: []*testutil.ScriptedRows{
 		{Data: nil}, // INSERT conflicted → no row
 		{Data: [][]any{{"fp", admin.ReplayRequestStatusCompleted, 2, []byte(`["a","b"]`)}}}, // SELECT prior
 	}}

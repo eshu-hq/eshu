@@ -14,9 +14,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T) {
@@ -75,7 +75,7 @@ func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T)
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := data["candidate_buckets"].(map[string]any)
 	for _, bucket := range []string{"dead", "live_by_consumer", "unknown"} {
 		assertCrossRepoDeadCodeBucketMissing(t, buckets, bucket, "producer-local-live")
@@ -125,7 +125,7 @@ func TestHandleCrossRepoDeadCodeTruncatedEvidenceStaysUnknown(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := data["candidate_buckets"].(map[string]any)
 	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-missing-evidence")
 	assertCrossRepoDeadCodeReason(t, unknown, "consumer_evidence_truncated")

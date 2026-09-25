@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -59,7 +59,7 @@ func TestFetchWorkloadRuntimeTopologySortsInstancesByEnvironmentAndIdentity(t *t
 			if err != nil {
 				t.Fatalf("FetchWorkloadRuntimeTopology() error = %v", err)
 			}
-			got := querytestutil.InstanceIDs(result.instances)
+			got := testutil.InstanceIDs(result.instances)
 			if strings.Join(got, ",") != strings.Join(wantOrder, ",") {
 				t.Fatalf("instance order (%s) = %v, want %v", name, got, wantOrder)
 			}
@@ -98,8 +98,8 @@ func TestFetchWorkloadRuntimeTopologyTruncationSurvivorSetIsOrderIndependentAbov
 		t.Fatalf("reversed survivor count = %d, want %d", len(reversedResult.instances), querycontract.ContextStoryItemLimit)
 	}
 
-	ascendingIDs := querytestutil.InstanceIDs(ascendingResult.instances)
-	reversedIDs := querytestutil.InstanceIDs(reversedResult.instances)
+	ascendingIDs := testutil.InstanceIDs(ascendingResult.instances)
+	reversedIDs := testutil.InstanceIDs(reversedResult.instances)
 	if strings.Join(ascendingIDs, ",") != strings.Join(reversedIDs, ",") {
 		t.Fatalf("survivor set depends on backend row order:\nascending = %v\nreversed  = %v", ascendingIDs, reversedIDs)
 	}

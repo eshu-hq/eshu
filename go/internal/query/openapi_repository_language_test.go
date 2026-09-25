@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIRepositoryLanguageDocumentsCoverageFields(t *testing.T) {
@@ -18,19 +18,19 @@ func TestOpenAPIRepositoryLanguageDocumentsCoverageFields(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	byLanguage := querytestutil.MustMapField(t, paths, "/api/v0/repositories/by-language")
-	byLanguageGet := querytestutil.MustMapField(t, byLanguage, "get")
-	byLanguageResponses := querytestutil.MustMapField(t, byLanguageGet, "responses")
-	if got, want := querytestutil.MustMapField(t, byLanguageResponses, "503")["$ref"], "#/components/responses/ServiceUnavailable"; got != want {
+	paths := testutil.MustMapField(t, spec, "paths")
+	byLanguage := testutil.MustMapField(t, paths, "/api/v0/repositories/by-language")
+	byLanguageGet := testutil.MustMapField(t, byLanguage, "get")
+	byLanguageResponses := testutil.MustMapField(t, byLanguageGet, "responses")
+	if got, want := testutil.MustMapField(t, byLanguageResponses, "503")["$ref"], "#/components/responses/ServiceUnavailable"; got != want {
 		t.Fatalf("by-language 503 ref = %#v, want %#v", got, want)
 	}
 
-	okResponse := querytestutil.MustMapField(t, byLanguageResponses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
-	repositories := querytestutil.MustMapField(t, properties, "repositories")
-	items := querytestutil.MustMapField(t, repositories, "items")
+	okResponse := testutil.MustMapField(t, byLanguageResponses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	properties := testutil.MustMapField(t, testutil.MustMapField(t, content, "schema"), "properties")
+	repositories := testutil.MustMapField(t, properties, "repositories")
+	items := testutil.MustMapField(t, repositories, "items")
 	allOf, ok := items["allOf"].([]any)
 	if !ok || len(allOf) != 2 {
 		t.Fatalf("repositories.items.allOf = %#v, want Repository plus coverage extension", items["allOf"])
@@ -39,16 +39,16 @@ func TestOpenAPIRepositoryLanguageDocumentsCoverageFields(t *testing.T) {
 	if !ok {
 		t.Fatalf("coverage extension type = %T, want map[string]any", allOf[1])
 	}
-	extensionProperties := querytestutil.MustMapField(t, extension, "properties")
+	extensionProperties := testutil.MustMapField(t, extension, "properties")
 	for _, field := range []string{"file_count", "languages", "last_indexed_at"} {
 		if _, ok := extensionProperties[field]; !ok {
 			t.Fatalf("repositories item schema missing %s", field)
 		}
 	}
 
-	inventory := querytestutil.MustMapField(t, paths, "/api/v0/repositories/language-inventory")
-	inventoryResponses := querytestutil.MustMapField(t, querytestutil.MustMapField(t, inventory, "get"), "responses")
-	if got, want := querytestutil.MustMapField(t, inventoryResponses, "503")["$ref"], "#/components/responses/ServiceUnavailable"; got != want {
+	inventory := testutil.MustMapField(t, paths, "/api/v0/repositories/language-inventory")
+	inventoryResponses := testutil.MustMapField(t, testutil.MustMapField(t, inventory, "get"), "responses")
+	if got, want := testutil.MustMapField(t, inventoryResponses, "503")["$ref"], "#/components/responses/ServiceUnavailable"; got != want {
 		t.Fatalf("language-inventory 503 ref = %#v, want %#v", got, want)
 	}
 }

@@ -152,7 +152,7 @@ func ContainsString(values []string, candidate string) bool {
 }
 
 // ContainsAllSubstrings reports whether value contains every part. It lives
-// here (not in querytestutil) because production code — the query root's
+// here (not in testutil) because production code — the query root's
 // family_impact_shim.go — calls it, and the source-coverage gate rejects
 // production imports of the test-only helper package. See #6060.
 func ContainsAllSubstrings(value string, parts ...string) bool {

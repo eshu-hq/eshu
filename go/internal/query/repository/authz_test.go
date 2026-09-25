@@ -15,10 +15,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
@@ -164,8 +164,8 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 	if got, want := unattributed["group_truth"], "missing_evidence"; got != want {
 		t.Fatalf("unattributed group_truth = %#v, want %#v", got, want)
 	}
-	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
-	if !querytestutil.AnySliceContains(reasons, "repository_group_evidence_missing") {
+	reasons := testutil.RequireStringAnySlice(t, body, "partial_reasons")
+	if !testutil.AnySliceContains(reasons, "repository_group_evidence_missing") {
 		t.Fatalf("partial_reasons = %#v, want repository_group_evidence_missing", reasons)
 	}
 }
@@ -174,7 +174,7 @@ func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=2", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
@@ -218,7 +218,7 @@ func TestResolveRepositorySelectorAppliesScopedAuthBeforeAmbiguity(t *testing.T)
 	t.Parallel()
 
 	handler := &Handler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
 		Mode:                 auth.AuthModeScoped,
@@ -243,7 +243,7 @@ func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	ctx := auth.ContextWithAuthContext(context.Background(), auth.AuthContext{
 		Mode:                 auth.AuthModeScoped,
@@ -269,7 +269,7 @@ func TestRepositoryListSharedAuthKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{
@@ -294,7 +294,7 @@ func TestRepositoryListAllScopeAdminKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
 	handler := &Handler{
-		Content: content.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
+		Content: content.FakePortContentStore{Repositories: testutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), auth.AuthContext{

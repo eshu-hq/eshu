@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // The story route resolves a target name by reading candidates a granted
@@ -139,7 +139,7 @@ func TestRelationshipStoryFindsAnExactMatchBehindAFullRepositoryPage(t *testing.
 	t.Parallel()
 
 	store := storyBudgetStore()
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantSecondRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantSecondRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, &storyClauseGraph{}, store), map[string]any{
 		"target":            storyBudgetTarget,
 		"relationship_type": "CALLS",
@@ -193,7 +193,7 @@ func TestRelationshipStoryFindsAnExactMatchBehindNearMissesInOneRepository(t *te
 	t.Parallel()
 
 	store := storyBudgetSingleRepoStore()
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, &storyClauseGraph{}, store), map[string]any{
 		"target":            storyBudgetTarget,
 		"relationship_type": "CALLS",

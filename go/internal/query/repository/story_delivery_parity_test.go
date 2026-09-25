@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildRepositoryStoryResponsePreservesCombinedDeliverySurfaces(t *testing.T) {
@@ -555,7 +555,7 @@ func TestRepositoryStoryDeliveryParitySynthesizesDeliveryFamilyParityWithoutColl
 		t.Fatalf("len(delivery_family_paths) = %d, want 4", len(deliveryFamilyPaths))
 	}
 	for _, family := range []string{"cloudformation", "docker_compose", "gitops", "jenkins"} {
-		if querytestutil.RequireRepositoryStoryDeliveryFamily(deliveryFamilyPaths, family) == nil {
+		if testutil.RequireRepositoryStoryDeliveryFamily(deliveryFamilyPaths, family) == nil {
 			t.Fatalf("delivery_family_paths = %#v, want family %q", deliveryFamilyPaths, family)
 		}
 	}

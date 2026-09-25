@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetRepositoryStoryRowsTruncatedIsDisclosed is the semantic guard for
@@ -75,7 +75,7 @@ func TestGetRepositoryStoryRowsTruncatedIsDisclosed(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !querytestutil.AnySliceContains(limitations, repository.StoryRowsTruncatedReason) {
+	if !testutil.AnySliceContains(limitations, repository.StoryRowsTruncatedReason) {
 		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.StoryRowsTruncatedReason)
 	}
 
@@ -87,7 +87,7 @@ func TestGetRepositoryStoryRowsTruncatedIsDisclosed(t *testing.T) {
 	if !ok {
 		t.Fatalf("answer_metadata[partial_reasons] missing or wrong type: %#v", answerMetadata["partial_reasons"])
 	}
-	if !querytestutil.AnySliceContains(partialReasons, repository.StoryRowsTruncatedReason) {
+	if !testutil.AnySliceContains(partialReasons, repository.StoryRowsTruncatedReason) {
 		t.Fatalf("answer_metadata.partial_reasons = %#v, want to contain %q", partialReasons, repository.StoryRowsTruncatedReason)
 	}
 	truncated, ok := answerMetadata["truncated"].(bool)
@@ -134,7 +134,7 @@ func TestGetRepositoryStoryRowsHealthyUnderLimitDoesNotDisclose(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if querytestutil.AnySliceContains(limitations, repository.StoryRowsTruncatedReason) {
+	if testutil.AnySliceContains(limitations, repository.StoryRowsTruncatedReason) {
 		t.Fatalf("limitations = %#v, want no %q for a healthy under-limit read", limitations, repository.StoryRowsTruncatedReason)
 	}
 	answerMetadata, ok := body["answer_metadata"].(map[string]any)

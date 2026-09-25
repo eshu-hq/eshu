@@ -14,14 +14,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fakeRepoGraphReader adapts graph.FakeRepoGraphReader to the field
 // names this package's tests already use. Keeping the lowercase names means
 // none of the tests below needed to change when the dispatch logic moved out
-// to querytestutil for the #6060 family split -- a symbol declared in this
+// to testutil for the #6060 family split -- a symbol declared in this
 // _test.go file cannot be imported across a package boundary, so a moved
 // family could not otherwise reach the fake its tests depend on.
 //
@@ -621,7 +621,7 @@ func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {
 func TestGetRepositoryContextIncludesTerraformAndTerragruntInfrastructureFromContent(t *testing.T) {
 	t.Parallel()
 
-	fixtureContent := querytestutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
+	fixtureContent := testutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
 			columns: []string{

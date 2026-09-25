@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce(t *testing.T) {

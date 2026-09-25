@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetRepositoryBranchesMapsGraphReadAvailabilityErrors covers GET
@@ -70,7 +70,7 @@ func TestGetRepositoryFreshnessMapsGraphReadAvailabilityErrors(t *testing.T) {
 				Neo4j: graph.FakeGraphReader{RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 					return nil, test.err
 				}},
-				Freshness: &querytestutil.FakeRepositoryFreshnessReader{},
+				Freshness: &testutil.FakeRepositoryFreshnessReader{},
 			}
 			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/freshness", nil)
 			req.SetPathValue("repo_id", "repo-1")

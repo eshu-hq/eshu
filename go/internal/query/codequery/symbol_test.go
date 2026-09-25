@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestCodeHandlerFindSymbolRejectsHugeOffset(t *testing.T) {

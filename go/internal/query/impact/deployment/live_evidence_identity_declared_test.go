@@ -6,7 +6,7 @@ package deployment
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestApiVersionVersionAppsGroup proves a namespaced apiVersion ("apps/v1")
@@ -47,7 +47,7 @@ func TestDeclaredObjectAnchorsMappableKindProducesAnchor(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 {
@@ -75,7 +75,7 @@ func TestDeclaredObjectAnchorsCoreGroupKind(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Pod", "worker-pod", "default", "v1"),
+		testutil.K8sResourceFixture("Pod", "worker-pod", "default", "v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 || anchors[0].GroupVersionResource != "/v1/pods" {
@@ -102,7 +102,7 @@ func TestDeclaredObjectAnchorsEveryMappedKind(t *testing.T) {
 	}
 	for _, tc := range cases {
 		resources := []map[string]any{
-			querytestutil.K8sResourceFixture(tc.kind, "workload-a", "ns", "apps/v1"),
+			testutil.K8sResourceFixture(tc.kind, "workload-a", "ns", "apps/v1"),
 		}
 		anchors := DeclaredObjectAnchors(resources)
 		if len(anchors) != 1 {
@@ -122,7 +122,7 @@ func TestDeclaredObjectAnchorsUnmappableKindIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("ConfigMap", "workload-a", "production", "v1"),
+		testutil.K8sResourceFixture("ConfigMap", "workload-a", "production", "v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 0 {
@@ -138,7 +138,7 @@ func TestDeclaredObjectAnchorsEmptyNamespaceIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "workload-a", "", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-a", "", "apps/v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 0 {
@@ -152,7 +152,7 @@ func TestDeclaredObjectAnchorsEmptyNameIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "", "production", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "", "production", "apps/v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 0 {
@@ -166,8 +166,8 @@ func TestDeclaredObjectAnchorsDeduplicates(t *testing.T) {
 	t.Parallel()
 
 	resources := []map[string]any{
-		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
-		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
+		testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
 	}
 	anchors := DeclaredObjectAnchors(resources)
 	if len(anchors) != 1 {
@@ -182,8 +182,8 @@ func TestDeclaredObjectAnchorsDeduplicates(t *testing.T) {
 func TestDeclaredObjectAnchorsDistinctWorkloadsProduceDistinctAnchors(t *testing.T) {
 	t.Parallel()
 
-	resourcesA := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
-	resourcesB := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
+	resourcesA := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
+	resourcesB := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
 
 	anchorsA := DeclaredObjectAnchors(resourcesA)
 	anchorsB := DeclaredObjectAnchors(resourcesB)
@@ -201,8 +201,8 @@ func TestDeclaredObjectAnchorsDistinctWorkloadsProduceDistinctAnchors(t *testing
 func TestDeclaredObjectAnchorsNamespaceDistinguishesIdentity(t *testing.T) {
 	t.Parallel()
 
-	resourcesProd := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "production", "apps/v1")}
-	resourcesStaging := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "staging", "apps/v1")}
+	resourcesProd := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "production", "apps/v1")}
+	resourcesStaging := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "staging", "apps/v1")}
 
 	anchorsProd := DeclaredObjectAnchors(resourcesProd)
 	anchorsStaging := DeclaredObjectAnchors(resourcesStaging)
@@ -220,8 +220,8 @@ func TestDeclaredObjectAnchorsNamespaceDistinguishesIdentity(t *testing.T) {
 func TestResolveLiveIdentityAnchorsOrdersArgoCDFirst(t *testing.T) {
 	t.Parallel()
 
-	controllers := []map[string]any{querytestutil.ArgoCDControllerFixture("app-a")}
-	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")}
+	controllers := []map[string]any{testutil.ArgoCDControllerFixture("app-a")}
+	resources := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")}
 
 	anchors := ResolveLiveIdentityAnchors(controllers, resources)
 	if len(anchors) != 2 {
@@ -242,7 +242,7 @@ func TestResolveLiveIdentityAnchorsOrdersArgoCDFirst(t *testing.T) {
 func TestResolveLiveIdentityAnchorsDeclaredOnlyWhenNoArgoCD(t *testing.T) {
 	t.Parallel()
 
-	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")}
+	resources := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")}
 	anchors := ResolveLiveIdentityAnchors(nil, resources)
 	if len(anchors) != 1 {
 		t.Fatalf("ResolveLiveIdentityAnchors() = %d anchors, want 1 (declared-object only)", len(anchors))
@@ -258,7 +258,7 @@ func TestResolveLiveIdentityAnchorsDeclaredOnlyWhenNoArgoCD(t *testing.T) {
 func TestResolveLiveIdentityAnchorsEmptyWhenNeitherPresent(t *testing.T) {
 	t.Parallel()
 
-	resources := []map[string]any{querytestutil.K8sResourceFixture("ConfigMap", "workload-a", "ns", "v1")}
+	resources := []map[string]any{testutil.K8sResourceFixture("ConfigMap", "workload-a", "ns", "v1")}
 	anchors := ResolveLiveIdentityAnchors(nil, resources)
 	if len(anchors) != 0 {
 		t.Fatalf("ResolveLiveIdentityAnchors() = %+v, want empty", anchors)

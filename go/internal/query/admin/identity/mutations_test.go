@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // fakeAdminMutationStore records the scoped arguments it was asked for and
@@ -78,9 +78,9 @@ func (f *fakeAdminMutationStore) DeleteAdminIdPGroupMapping(_ context.Context, r
 }
 
 // hasAuditReason reports whether the recorded audit events include reason.
-// Test-local helper over querytestutil.FakeGovernanceAuditAppender, mirroring
+// Test-local helper over testutil.FakeGovernanceAuditAppender, mirroring
 // the retired recordingAuditAppender.hasReason method.
-func hasAuditReason(audit *querytestutil.FakeGovernanceAuditAppender, reason string) bool {
+func hasAuditReason(audit *testutil.FakeGovernanceAuditAppender, reason string) bool {
 	for _, e := range audit.Events {
 		if e.ReasonCode == reason {
 			return true
@@ -99,7 +99,7 @@ func mutationRequest(method, target, body string, authCtx auth.AuthContext) *htt
 	return req.WithContext(auth.ContextWithAuthContext(req.Context(), authCtx))
 }
 
-func newMutationMux(store MutationStore, audit *querytestutil.FakeGovernanceAuditAppender) *http.ServeMux {
+func newMutationMux(store MutationStore, audit *testutil.FakeGovernanceAuditAppender) *http.ServeMux {
 	handler := &MutationHandler{Store: store, Audit: audit}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -133,7 +133,7 @@ func TestAdminMutationsRequireAllScope(t *testing.T) {
 
 	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: false}
 	for _, tc := range adminMutationCases() {
-		audit := &querytestutil.FakeGovernanceAuditAppender{}
+		audit := &testutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, mutationRequest(tc.method, tc.target, tc.body, scoped))
@@ -153,7 +153,7 @@ func TestAdminMutationsRequireTenant(t *testing.T) {
 
 	tenantless := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true}
 	for _, tc := range adminMutationCases() {
-		audit := &querytestutil.FakeGovernanceAuditAppender{}
+		audit := &testutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, mutationRequest(tc.method, tc.target, tc.body, tenantless))
@@ -177,7 +177,7 @@ func TestAdminMutationsSharedTokenDenialAuditsValidEvent(t *testing.T) {
 	// Shared bearer token: no SubjectIDHash, no tenant — triggers admin_tenant_required.
 	sharedNoTenant := auth.AuthContext{Mode: auth.AuthModeShared, AllScopes: true, SubjectIDHash: ""}
 	for _, tc := range adminMutationCases() {
-		audit := &querytestutil.FakeGovernanceAuditAppender{}
+		audit := &testutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, mutationRequest(tc.method, tc.target, tc.body, sharedNoTenant))
@@ -221,7 +221,7 @@ func TestGrantRoleAssignmentValidatesRole(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{grantResult: RoleAssignmentMutationResult{RoleValid: false}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -238,7 +238,7 @@ func TestGrantRoleAssignmentScopesAndAudits(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{grantResult: RoleAssignmentMutationResult{RoleValid: true, UserValid: true, Changed: true, Status: "active"}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -260,7 +260,7 @@ func TestGrantRoleAssignmentRejectsForeignWorkspace(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{grantResult: RoleAssignmentMutationResult{RoleValid: true}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -280,7 +280,7 @@ func TestGrantRoleAssignmentRequiresFields(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{}
-	mux := newMutationMux(store, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newMutationMux(store, &testutil.FakeGovernanceAuditAppender{})
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, mutationRequest(http.MethodPost, "/api/v0/auth/admin/role-assignments", `{"user_id":"u1"}`, allScopeAdminAuth("tenant_a", "workspace_a")))
@@ -303,7 +303,7 @@ func TestGrantRoleAssignmentRejectsUnknownUser(t *testing.T) {
 		RoleValid: true,
 		UserValid: false,
 	}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -326,7 +326,7 @@ func TestRevokeRoleAssignmentIdempotentNoop(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{roleRevokeResult: RoleAssignmentMutationResult{Changed: false, Status: "revoked"}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -351,7 +351,7 @@ func TestCreateIdPGroupMappingHashesGroupAndNeverLeaksRaw(t *testing.T) {
 	store := &fakeAdminMutationStore{mappingCreateResult: IdPGroupMappingCreateResult{
 		ProviderValid: true, RoleValid: true, Created: true, MappingRef: "ref_abc", Status: "active",
 	}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	body := `{"provider_config_id":"prov_1","external_group":"` + rawGroup + `","role_id":"developer"}`
@@ -402,7 +402,7 @@ func TestCreateIdPGroupMappingValidatesProviderAndRole(t *testing.T) {
 	}
 	for _, tc := range cases {
 		store := &fakeAdminMutationStore{mappingCreateResult: tc.result}
-		audit := &querytestutil.FakeGovernanceAuditAppender{}
+		audit := &testutil.FakeGovernanceAuditAppender{}
 		mux := newMutationMux(store, audit)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, mutationRequest(http.MethodPost, "/api/v0/auth/admin/idp-group-mappings", body, allScopeAdminAuth("tenant_a", "workspace_a")))
@@ -421,7 +421,7 @@ func TestDeleteIdPGroupMappingScopesAndAudits(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{mappingDeleteResult: IdPGroupMappingDeleteResult{Found: true, Deleted: true}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -444,7 +444,7 @@ func TestDeleteIdPGroupMappingIdempotentNoop(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{mappingDeleteResult: IdPGroupMappingDeleteResult{Found: false}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()

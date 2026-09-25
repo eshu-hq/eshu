@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // crossTenantEvidenceGraph resolves the orders-api workload (anchored on the
@@ -121,7 +121,7 @@ func TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentEvidence(t *testi
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered response, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	body2 := postImpactEvidence(t, path, body, &scoped)
 	if strings.Contains(body2, crossTenantEvidenceRepo) || strings.Contains(body2, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b deployment evidence: %s", body2)
@@ -144,7 +144,7 @@ func TestInvestigateDeploymentConfigScopedFiltersCrossTenantEvidence(t *testing.
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered response, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	bodyStr := postImpactEvidence(t, path, body, &scoped)
 	if strings.Contains(bodyStr, crossTenantEvidenceRepo) || strings.Contains(bodyStr, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b evidence in deployment-config-influence: %s", bodyStr)
@@ -182,7 +182,7 @@ func TestServiceContextScopedFiltersCrossTenantDeploymentEvidence(t *testing.T) 
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered service context, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, crossTenantEvidenceRepo) || strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b deployment evidence via /services/{name}/context: %s", scopedBody)
@@ -272,7 +272,7 @@ func TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks(t *testing.T) {
 				t.Fatalf("all-scope caller: expected free-text candidate %q present, got: %s", tc.candidateName, allScope)
 			}
 
-			scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+			scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 			scopedBody := run(&scoped)
 			if strings.Contains(scopedBody, tc.candidateName) {
 				t.Fatalf("scoped caller saw free-text CloudResource fallback candidate %q (no repo_id to bind to a grant): %s", tc.candidateName, scopedBody)
@@ -380,7 +380,7 @@ func TestLoadRepositoryDeploymentEvidenceReadModelBlanksCrossTenantIdentity(t *t
 
 	// Scoped: the recovered source identity is blanked, but the anchored artifact
 	// (target=repo-a) survives -- only the unverifiable endpoint is redacted.
-	scoped := loadArtifact(ptrAuth(querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	scoped := loadArtifact(ptrAuth(testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 	for _, field := range crossTenantSourceIdentityFields {
 		if got := StringVal(scoped, field); got != "" {
 			t.Fatalf("scoped caller granted only repo-a leaked recovered cross-tenant %s = %q from the read-model path: %#v", field, got, scoped)
@@ -435,7 +435,7 @@ func TestServiceContextReadModelPathScopedBlanksCrossTenantIdentity(t *testing.T
 		t.Fatalf("all-scope caller: expected recovered identity present in service context, got: %s", allScope)
 	}
 
-	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller leaked recovered cross-tenant source name via /services/{name}/context read-model path: %s", scopedBody)

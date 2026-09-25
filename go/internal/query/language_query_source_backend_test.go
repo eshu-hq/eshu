@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestOpenAPILanguageQueryResponseDocumentsSourceBackend is the #5761 P1-2
@@ -42,9 +42,9 @@ func TestOpenAPILanguageQueryResponseDocumentsSourceBackend(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	schemas := querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas")
-	languageQueryResponse := querytestutil.MustMapField(t, schemas, "LanguageQueryResponse")
-	properties := querytestutil.MustMapField(t, languageQueryResponse, "properties")
+	schemas := testutil.MustMapField(t, testutil.MustMapField(t, spec, "components"), "schemas")
+	languageQueryResponse := testutil.MustMapField(t, schemas, "LanguageQueryResponse")
+	properties := testutil.MustMapField(t, languageQueryResponse, "properties")
 	sourceBackend, ok := properties["source_backend"].(map[string]any)
 	if !ok {
 		t.Fatalf("LanguageQueryResponse.properties.source_backend missing or wrong type: %#v", properties["source_backend"])

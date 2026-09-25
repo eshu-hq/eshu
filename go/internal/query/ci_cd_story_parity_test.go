@@ -6,8 +6,8 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildRepositoryStoryResponsePreservesCICDEvidenceSummary(t *testing.T) {
@@ -28,8 +28,8 @@ func TestBuildRepositoryStoryResponsePreservesCICDEvidenceSummary(t *testing.T) 
 		nil,
 	)
 
-	summary := querytestutil.MustMapField(t, got, "ci_cd_evidence")
-	bridge := querytestutil.MustMapField(t, summary, "run_artifact_evidence")
+	summary := testutil.MustMapField(t, got, "ci_cd_evidence")
+	bridge := testutil.MustMapField(t, summary, "run_artifact_evidence")
 	if got, want := bridge["reason"], "artifact_digest_present"; got != want {
 		t.Fatalf("ci_cd_evidence.run_artifact_evidence.reason = %#v, want %#v", got, want)
 	}
@@ -41,26 +41,26 @@ func TestBuildRepositoryStoryResponsePreservesCICDEvidenceSummary(t *testing.T) 
 func TestBuildServiceStoryResponsePreservesCICDEvidenceSummaryInTrace(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["ci_cd_evidence"] = testCICDEvidenceSummaryMap()
 
 	got := buildServiceStoryResponse("sample-service-api", ctx)
-	summary := querytestutil.MustMapField(t, got, "ci_cd_evidence")
-	bridge := querytestutil.MustMapField(t, summary, "run_artifact_evidence")
+	summary := testutil.MustMapField(t, got, "ci_cd_evidence")
+	bridge := testutil.MustMapField(t, summary, "run_artifact_evidence")
 	if got, want := bridge["state"], "present"; got != want {
 		t.Fatalf("ci_cd_evidence.run_artifact_evidence.state = %#v, want %#v", got, want)
 	}
 
-	trace := querytestutil.MustMapField(t, got, "code_to_runtime_trace")
-	segment := querytestutil.SegmentByName(mapSliceValue(trace, "segments"), "ci_cd")
+	trace := testutil.MustMapField(t, got, "code_to_runtime_trace")
+	segment := testutil.SegmentByName(mapSliceValue(trace, "segments"), "ci_cd")
 	if segment == nil {
 		t.Fatalf("code_to_runtime_trace missing ci_cd segment: %#v", trace)
 	}
 	if got, want := StringVal(segment, "basis"), "ci_cd_run_correlation_readback"; got != want {
 		t.Fatalf("ci_cd segment basis = %q, want %q", got, want)
 	}
-	segmentSummary := querytestutil.MustMapField(t, segment, "evidence_summary")
-	if got, want := querytestutil.MustMapField(t, segmentSummary, "run_artifact_evidence")["reason"], "artifact_digest_present"; got != want {
+	segmentSummary := testutil.MustMapField(t, segment, "evidence_summary")
+	if got, want := testutil.MustMapField(t, segmentSummary, "run_artifact_evidence")["reason"], "artifact_digest_present"; got != want {
 		t.Fatalf("ci_cd segment run_artifact_evidence.reason = %#v, want %#v", got, want)
 	}
 }

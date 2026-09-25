@@ -14,9 +14,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestHandleDeadCodeInvestigationReturnsBucketsCoverageAndPaging(t *testing.T) {
@@ -104,7 +104,7 @@ func TestHandleDeadCodeInvestigationReturnsBucketsCoverageAndPaging(t *testing.T
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	if got, want := data["repo_id"], "repo-1"; got != want {
 		t.Fatalf("repo_id = %#v, want %#v", got, want)
 	}
@@ -191,7 +191,7 @@ func TestHandleDeadCodeInvestigationKeepsTypeScriptCandidatesAmbiguous(t *testin
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 
-	data := querytestutil.DecodeEnvelopeData(t, w.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, w.Body.Bytes())
 	buckets := requireDeadCodeInvestigationMap(t, data, "candidate_buckets")
 	if cleanupReady := requireDeadCodeInvestigationSlice(t, buckets, "cleanup_ready"); len(cleanupReady) != 0 {
 		t.Fatalf("cleanup_ready = %#v, want empty for TypeScript precision risk", cleanupReady)

@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestAttachTypeScriptSemanticsClonesResult(t *testing.T) {
@@ -90,7 +90,7 @@ func TestAttachTypeScriptSemanticsReturnsOriginalWhenEmpty(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataTypeScriptMappedTypeAlias(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -144,7 +144,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptMappedTypeAlias(t *test
 func TestEnrichEntityResultsWithContentMetadataTypeScriptGenericInterface(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -198,7 +198,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptGenericInterface(t *tes
 func TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -249,7 +249,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule(t *test
 func TestEnrichEntityResultsWithContentMetadataTypeScriptDeclarationMerging(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

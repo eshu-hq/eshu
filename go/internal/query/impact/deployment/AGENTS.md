@@ -15,7 +15,7 @@
   helpers yield identically to the service-story builder; evidence lists
   attach only when absent; `deployment_truth_tier` stays caller-owned.
 - Keep one home per symbol: no helper copies across `impact`, `deployment`,
-  `querycontract`, and `querytestutil`.
+  `querycontract`, and `testutil`.
 - `RepositoryAccessFilter` values must be derived from the request's
   `AuthContext`, never hand-built to widen access.
 
@@ -46,7 +46,7 @@ never Cypher text or queue/projection behavior.
 
 - Do not add handler orchestration, routes, or `ImpactHandler` methods here.
 - Do not duplicate test fakes or row decoders that already live in
-  `querytestutil` or `querycontract`.
+  `testutil` or `querycontract`.
 - Do not expose graph or Postgres implementations through the helpers.
 
 ## ADR-controlled changes

@@ -7,12 +7,12 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // fakeDeadCodeContentStore adapts content.FakeDeadCodeContentStore to
 // the field names the codequery tests already use. Neither read is
-// reimplemented here: both live in querytestutil/content, the single home for the
+// reimplemented here: both live in testutil/content, the single home for the
 // double, so this adapter cannot drift from the fake the deadcode leaf
 // family uses. A symbol declared in a _test.go file cannot be imported
 // across a package boundary, which is why the deadcode leaf keeps its own

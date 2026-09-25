@@ -198,7 +198,7 @@ Everything else stays in root package `query` for this lane — do not
 
 ## Shared test fixtures
 
-`querytestutil` holds the fixtures both this package's tests and root
+`testutil` holds the fixtures both this package's tests and root
 need. Put a new shared fixture there rather than copying it. Reuse
 its doubles; never redeclare them.
 

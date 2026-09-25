@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing.T) {
@@ -62,8 +62,8 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 		}
 	}
 
-	forward := BuildServiceStoryPacket(buildResponse(false), querytestutil.FreshTruth())
-	reverse := BuildServiceStoryPacket(buildResponse(true), querytestutil.FreshTruth())
+	forward := BuildServiceStoryPacket(buildResponse(false), testutil.FreshTruth())
+	reverse := BuildServiceStoryPacket(buildResponse(true), testutil.FreshTruth())
 	if !reflect.DeepEqual(forward, reverse) {
 		t.Fatalf("canonical collapse depends on observation order:\nforward=%+v\nreverse=%+v", forward, reverse)
 	}
@@ -105,7 +105,7 @@ func TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount(t *testing.
 		},
 	}
 
-	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(response, testutil.FreshTruth())
 	if !packet.Truncation.Truncated {
 		t.Fatal("source-truncated story must remain truncated")
 	}

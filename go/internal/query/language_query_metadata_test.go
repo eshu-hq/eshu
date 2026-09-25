@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestEnrichLanguageResultsWithContentMetadataPromotesExistingPythonSemanticsWithoutContent,
@@ -21,7 +21,7 @@ import (
 // moved to language_query_metadata_promotion_test.go (#6642), rewritten onto
 // the mounted route so they travel with the language family.
 
-// mockLanguageQueryGraphReader adapts querytestutil.MockLanguageQueryGraphReader
+// mockLanguageQueryGraphReader adapts testutil.MockLanguageQueryGraphReader
 // to this package's pre-existing field name. The implementation moved there
 // for #6642 so package language's own tests can construct the identical
 // double; this adapter keeps this package's ~17 callers, which build it with
@@ -31,11 +31,11 @@ type mockLanguageQueryGraphReader struct {
 }
 
 func (m *mockLanguageQueryGraphReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	return (&querytestutil.MockLanguageQueryGraphReader{Rows: m.rows}).Run(ctx, cypher, params)
+	return (&testutil.MockLanguageQueryGraphReader{Rows: m.rows}).Run(ctx, cypher, params)
 }
 
 func (m *mockLanguageQueryGraphReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	return (&querytestutil.MockLanguageQueryGraphReader{Rows: m.rows}).RunSingle(ctx, cypher, params)
+	return (&testutil.MockLanguageQueryGraphReader{Rows: m.rows}).RunSingle(ctx, cypher, params)
 }
 
 // languageQueryMetadataResult drives a language-query request through the

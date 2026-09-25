@@ -116,7 +116,7 @@ const nonHotTransitiveMaxDepth = 10
 // The inventory walks it like any other directory. It is named here only so a
 // non-test file under internal/query can be stopped from importing it:
 // production code has no business reaching a package of test doubles.
-const testOnlyHelperPackage = "querytestutil"
+const testOnlyHelperPackage = "testutil"
 
 // DiscoverQueryCallsites returns every direct Run or RunSingle selector call
 // in non-test Go files recursively beneath queryDir. Testdata plus hidden and

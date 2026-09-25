@@ -6,7 +6,7 @@
 // A dead-code answer is assembled by several packages that cannot import each
 // other: the content readers in package query, the scan and cross-repo filter
 // in query/codequery/deadcode, the exposure path in query/impact, and the
-// shared test double in query/querytestutil. Each of them needs the same
+// shared test double in query/testutil. Each of them needs the same
 // shapes. Declaring them once here is what keeps a single definition; a second
 // literal elsewhere would compile and then drift silently, changing either
 // what the scan checks or what the API advertises with nothing failing.

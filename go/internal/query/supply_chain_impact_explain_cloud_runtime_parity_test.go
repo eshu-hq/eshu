@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -405,9 +405,9 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 	}
 }
 
-// The graph double for the parity tests above is querytestutil's shared
+// The graph double for the parity tests above is testutil's shared
 // FakeCloudRuntimeGraph. The inventory twin below stays local: its signatures
-// name hub family types querytestutil cannot import (see its doc). The hub
+// name hub family types testutil cannot import (see its doc). The hub
 // copy in cloud_runtime_probe_test.go is authoritative;
 // keep both behavior-identical.
 
@@ -471,9 +471,9 @@ func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
 	return map[string]any{"uid": uid, "digest": digest, "arn": arn}
 }
 
-// The graph double for the parity tests above is querytestutil's shared
+// The graph double for the parity tests above is testutil's shared
 // FakeKubernetesRuntimeGraph. The workload-inventory twin below stays local:
-// its signatures name hub family types querytestutil cannot import. The hub
+// its signatures name hub family types testutil cannot import. The hub
 // copy in kubernetes_runtime_probe_test.go is
 // authoritative; keep both behavior-identical.
 

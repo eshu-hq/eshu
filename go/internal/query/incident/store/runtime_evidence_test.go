@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *testing.T) {
@@ -57,9 +57,9 @@ func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *tes
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotImage, model.IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotRuntimeArtifact, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotImage, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotRuntimeArtifact, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *testing.T) {
@@ -90,8 +90,8 @@ func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *
 		},
 	))
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) {
@@ -119,8 +119,8 @@ func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) 
 		},
 	))
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthDerived)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthDerived)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthDerived)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthDerived)
 }
 
 func TestBuildIncidentRuntimeEvidenceKeepsMultipleCommitCandidatesAmbiguous(t *testing.T) {
@@ -241,7 +241,7 @@ func TestBuildIncidentRuntimeEvidenceDoesNotUseImagesWithoutSingleDeployable(t *
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthAmbiguous)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthAmbiguous)
 	if image := findIncidentEdge(got, model.IncidentSlotImage); image != nil {
 		t.Fatalf("image edge = %#v, want nil without one deployable repository", image)
 	}

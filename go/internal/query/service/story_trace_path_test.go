@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // serviceTracePathTestDigest is the stable fixture digest for the trace-path
@@ -21,7 +21,7 @@ const serviceTracePathTestDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["deployment_evidence"] = map[string]any{
 		"artifacts": []map[string]any{
 			{
@@ -70,14 +70,14 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 		"runtime",
 		"cloud_dependencies",
 	} {
-		if querytestutil.SegmentByName(segments, want) == nil {
+		if testutil.SegmentByName(segments, want) == nil {
 			t.Fatalf("code_to_runtime_trace.segments missing %q: %#v", want, segments)
 		}
 	}
-	if got, want := querycontract.StringVal(querytestutil.SegmentByName(segments, "runtime"), "status"), "exact"; got != want {
+	if got, want := querycontract.StringVal(testutil.SegmentByName(segments, "runtime"), "status"), "exact"; got != want {
 		t.Fatalf("runtime segment status = %q, want %q", got, want)
 	}
-	imagePackage := querytestutil.SegmentByName(segments, "image_package")
+	imagePackage := testutil.SegmentByName(segments, "image_package")
 	if got, want := querycontract.StringVal(imagePackage, "status"), "derived"; got != want {
 		t.Fatalf("image_package segment status = %q, want %q", got, want)
 	}
@@ -88,7 +88,7 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	if got, want := querycontract.StringVal(evidence[0], "image_ref"), "ghcr.io/acme/sample-service-api:1.2.3"; got != want {
 		t.Fatalf("image_package evidence image_ref = %q, want %q", got, want)
 	}
-	cloud := querytestutil.SegmentByName(segments, "cloud_dependencies")
+	cloud := testutil.SegmentByName(segments, "cloud_dependencies")
 	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies segment status = %q, want %q", got, want)
 	}
@@ -114,7 +114,7 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 func TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates(t *testing.T) {
 	t.Parallel()
 
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["uncorrelated_cloud_resources"] = []map[string]any{
 		{
 			"id":                   "cloud:ssm:sample-service-client-port",
@@ -129,7 +129,7 @@ func TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates(t *testing.T)
 
 	got := BuildServiceStoryResponse("sample-service-api", ctx)
 	trace := querycontract.MapValue(got, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
@@ -194,7 +194,7 @@ func TestServiceTraceImagePackageSegmentPreservesEvidenceWithPartialMissingReaso
 }
 
 func BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier(b *testing.B) {
-	ctx := querytestutil.SampleServiceDossierContext()
+	ctx := testutil.SampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
 		"endpoints": serviceTraceBenchmarkRows(250),
 	}

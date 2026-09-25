@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // #5167 code-family batch 1, step 1: two-tenant grant proof for
@@ -136,7 +136,7 @@ func TestCodeTopicInvestigationFiltersByRepositoryGrant(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/topics/investigate", map[string]any{"topic": "session refresh"}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -167,7 +167,7 @@ func TestCodeTopicInvestigationEmptyGrantSkipsTheContentRead(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext(nil)
+	auth := testutil.CodeGrantScopedAuthContext(nil)
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/topics/investigate", map[string]any{"topic": "session refresh"}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

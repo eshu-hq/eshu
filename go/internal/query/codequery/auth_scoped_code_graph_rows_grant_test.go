@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // #5167 code-family batch 1: response-body two-tenant proof for the three
@@ -117,7 +117,7 @@ func TestComplexityListDoesNotLeakUngrantedFunctions(t *testing.T) {
 		Seeds:             complexityListSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runGraphGrantRoute(t, reader, "/api/v0/code/complexity", map[string]any{}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -217,7 +217,7 @@ func TestComplexityByNameDoesNotLeakUngrantedFunctions(t *testing.T) {
 		{RepoID: codeGrantOtherRepo, Row: complexityListRow("fn-other", "RefreshSession", codeGrantOtherRepo, 9)},
 	}
 	reader := &graph.EvaluatingRepositoryGraph{Seeds: seeds, RepositoryColumns: repositoryProjectedColumns()}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runGraphGrantRoute(t, reader, "/api/v0/code/complexity", map[string]any{"function_name": "RefreshSession"}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -238,7 +238,7 @@ func TestCodeQualityInspectDoesNotLeakUngrantedFunctions(t *testing.T) {
 		Seeds:             codeQualityInspectSeeds(),
 		RepositoryColumns: repositoryProjectedColumns(),
 	}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runGraphGrantRoute(t, reader, "/api/v0/code/quality/inspect", map[string]any{"check": "complexity"}, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -411,7 +411,7 @@ func TestCallGraphMetricsBodyCarriesOnlyGrantedFunctions(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/call-graph/metrics", callGraphMetricsGrantBody(), &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -443,7 +443,7 @@ func TestUngrantedRepositorySelectorIsRejectedWith400(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	body := map[string]any{"repo_id": codeGrantOtherRepo, "metric_type": "hub_functions"}
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/call-graph/metrics", body, &auth)
 	rec := httptest.NewRecorder()

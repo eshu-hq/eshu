@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Package testutil holds test helpers shared by internal/query and its
+// handler-family subpackages.
+//
+// The helpers live in ordinary (non-_test.go) files on purpose. A symbol
+// declared in a _test.go file is not part of the importable package, so no
+// export, alias, or forwarder can reach it from another package's tests. That
+// constraint is what forces this package to exist: as internal/query splits
+// into handler-family subpackages (#6060), each family's tests need the same
+// helpers, and they cannot reach root's _test.go declarations at all.
+//
+// This package is intended for tests only. No production file imports it today,
+// and while that holds the linker drops it from production binaries — a
+// consequence of the invariant, not a guarantee independent of it. A production
+// import would pull testing into a shipped binary and should be treated as a
+// defect rather than documented as behavior. internal/queryplan enforces that
+// direction: a non-test file under internal/query importing this package fails
+// the production query-callsite inventory.
+//
+// A fixture whose signature names a handler-family type cannot live here: this
+// package must not import a family, and a family's in-package tests import this
+// package, so that direction cycles. The consuming package declares its own
+// double for those. See AGENTS.md.
+//
+// A fake here must not call Run or RunSingle. That inventory walks this
+// directory and its nested leaves like any other, so such a call is an
+// unregistered production query callsite and fails the gate. The graph-read
+// doubles live in the graph leaf, whose doc.go says how each one satisfies
+// that (#6060, epic #6053).
+//
+// Two leaves nest under this package (#6642). content holds the content-read
+// doubles and the fake database/sql driver; graph holds the graph-read doubles
+// and the NornicDB Cypher-shape guards. The rules in this comment apply to
+// both, and the production-import check covers them by path element, so an
+// import of testutil/graph fails it the same as an import of this package.
+//
+// Fakes here may depend on the leaf packages whose types they stand in for --
+// FakeGovernanceAuditAppender on internal/governanceaudit and
+// FakeScopedTokenResolver on auth. Root internal/query is off limits: its
+// own in-package tests import this package, so importing root from here is an
+// import cycle in root's test binary.
+//
+// A handler family is off limits unconditionally, as a rule. What is
+// conditional is only whether the compiler notices: importing one from here
+// builds fine on its own, and the cycle appears just when that family's
+// INTERNAL tests also import this package -- the normal case for a family that
+// needs the shared fakes, and what the semanticsearch move hit. A family whose
+// tests are external, or that does not use this package yet, compiles clean
+// today and turns into a cycle the moment it adopts a fake from here. Do not
+// read a green build as permission. AGENTS.md carries the measured three-row
+// table behind this.
+package testutil

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // These tests drive Handler through its own Mount, without the root
@@ -22,10 +22,10 @@ import (
 func TestHandlerDeriveMountsRouteAndBuildsServiceStoryPacket(t *testing.T) {
 	t.Parallel()
 
-	truth := querytestutil.FreshTruth()
+	truth := testutil.FreshTruth()
 	rec := postDerive(t, map[string]any{
 		"view":            string(ViewServiceStory),
-		"source_response": querytestutil.StoryResponseWithUpstream([]string{"r2", "r1"}),
+		"source_response": testutil.StoryResponseWithUpstream([]string{"r2", "r1"}),
 		"source_truth":    truth,
 	})
 	if rec.Code != http.StatusOK {
@@ -64,11 +64,11 @@ func TestHandlerDeriveMountsRouteAndBuildsServiceStoryPacket(t *testing.T) {
 func TestHandlerDeriveCarriesSourceProfileIntoDerivationTruth(t *testing.T) {
 	t.Parallel()
 
-	truth := querytestutil.FreshTruth()
+	truth := testutil.FreshTruth()
 	truth.Profile = querycontract.ProfileProduction
 	rec := postDerive(t, map[string]any{
 		"view":            string(ViewServiceStory),
-		"source_response": querytestutil.StoryResponseWithUpstream([]string{"r1"}),
+		"source_response": testutil.StoryResponseWithUpstream([]string{"r1"}),
 		"source_truth":    truth,
 	})
 	if rec.Code != http.StatusOK {

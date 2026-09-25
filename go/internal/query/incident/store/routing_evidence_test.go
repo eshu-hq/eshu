@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildIncidentRoutingEvidenceShowsDeclaredAppliedObservedConvergence(t *testing.T) {
@@ -58,9 +58,9 @@ func TestBuildIncidentRoutingEvidenceShowsDeclaredAppliedObservedConvergence(t *
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRoutingEvidenceKeepsNoIaCPagerDutyUseful(t *testing.T) {
@@ -81,9 +81,9 @@ func TestBuildIncidentRoutingEvidenceKeepsNoIaCPagerDutyUseful(t *testing.T) {
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthMissing)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthMissing)
-	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthMissing)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthMissing)
+	testutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testing.T) {
@@ -112,7 +112,7 @@ func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testin
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, drifted, model.IncidentSlotLiveRouting, model.IncidentTruthDrifted)
+	testutil.AssertIncidentEdge(t, drifted, model.IncidentSlotLiveRouting, model.IncidentTruthDrifted)
 
 	hidden := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -126,7 +126,7 @@ func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testin
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, hidden, model.IncidentSlotLiveRouting, model.IncidentTruthPermissionHidden)
+	testutil.AssertIncidentEdge(t, hidden, model.IncidentSlotLiveRouting, model.IncidentTruthPermissionHidden)
 }
 
 func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected(t *testing.T) {
@@ -144,7 +144,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, derived, model.IncidentSlotIntendedRouting, model.IncidentTruthDerived)
+	testutil.AssertIncidentEdge(t, derived, model.IncidentSlotIntendedRouting, model.IncidentTruthDerived)
 
 	stale := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -159,7 +159,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, stale, model.IncidentSlotLiveRouting, model.IncidentTruthStale)
+	testutil.AssertIncidentEdge(t, stale, model.IncidentSlotLiveRouting, model.IncidentTruthStale)
 
 	unresolved := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -173,7 +173,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, unresolved, model.IncidentSlotLiveRouting, model.IncidentTruthUnresolved)
+	testutil.AssertIncidentEdge(t, unresolved, model.IncidentSlotLiveRouting, model.IncidentTruthUnresolved)
 
 	rejected := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -186,7 +186,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, rejected, model.IncidentSlotIntendedRouting, model.IncidentTruthRejected)
+	testutil.AssertIncidentEdge(t, rejected, model.IncidentSlotIntendedRouting, model.IncidentTruthRejected)
 }
 
 func TestBuildIncidentRoutingEvidenceKeepsAmbiguousDeclaredRouting(t *testing.T) {

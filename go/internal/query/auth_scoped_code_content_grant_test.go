@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // #5167 code-family batch 1, step 2: two-tenant grant proof for the three
@@ -210,7 +210,7 @@ func TestCodeContentRoutesFilterByRepositoryGrant(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -244,7 +244,7 @@ func TestCodeContentRoutesEmptyGrantSkipsTheContentRead(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -353,7 +353,7 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 			if !slices.Contains(filters, tc.want) {
 				t.Fatalf("%s builder = %#v, want a %q grant predicate; without it a scoped caller's grant is resolved but never applied", tc.name, filters, tc.want)
 			}
-			querytestutil.AssertBoundRepositoryGrantArray(t, args, grant)
+			testutil.AssertBoundRepositoryGrantArray(t, args, grant)
 
 			// A caller who named one repository must keep the single-repo
 			// equality predicate, not gain a second, wider ANY() scan.
@@ -409,7 +409,7 @@ func TestSymbolNameFallbackIteratesOnlyGrantedRepositories(t *testing.T) {
 	t.Parallel()
 
 	store := &symbolNameFallbackGrantStore{}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runSymbolNameFallbackSearch(t, store, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -431,7 +431,7 @@ func TestSymbolNameFallbackEmptyGrantSkipsTheLookup(t *testing.T) {
 	t.Parallel()
 
 	store := &symbolNameFallbackGrantStore{}
-	auth := querytestutil.CodeGrantScopedAuthContext(nil)
+	auth := testutil.CodeGrantScopedAuthContext(nil)
 	rec := runSymbolNameFallbackSearch(t, store, &auth)
 
 	if len(store.askedRepoIDs) != 0 {

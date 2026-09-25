@@ -8,13 +8,13 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -65,7 +65,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T
 func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -116,7 +116,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *test
 func TestEnrichEntityResultsWithContentMetadataTSXComponentWrapper(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

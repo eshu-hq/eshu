@@ -11,13 +11,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 func TestResolveEntityFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -82,7 +82,7 @@ func TestResolveEntityFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -145,7 +145,7 @@ func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -222,7 +222,7 @@ func TestResolveEntityFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *
 func TestResolveEntityFallsBackToPythonParameterTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -299,7 +299,7 @@ func TestResolveEntityFallsBackToPythonParameterTypeAnnotationContentEntity(t *t
 func TestGetEntityContextFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -370,7 +370,7 @@ func TestGetEntityContextFallsBackToPythonAssignmentTypeAnnotationContentEntity(
 func TestGetEntityContextFallsBackToPythonParameterTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

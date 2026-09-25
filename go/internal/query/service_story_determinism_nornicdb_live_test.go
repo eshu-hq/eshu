@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -319,7 +319,7 @@ func (s *liveDeterminismSeed) assertRuntimeInstanceSelectionDeterministic(ctx co
 		if err != nil {
 			t.Fatalf("entity.FetchWorkloadRuntimeTopology() call %d error = %v", call, err)
 		}
-		got := querytestutil.InstanceIDs(result.Instances())
+		got := testutil.InstanceIDs(result.Instances())
 		if len(got) != querycontract.ContextStoryItemLimit {
 			t.Fatalf("call %d survivor count = %d, want %d", call, len(got), querycontract.ContextStoryItemLimit)
 		}

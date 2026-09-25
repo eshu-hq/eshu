@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *testing.T) {
@@ -19,9 +19,9 @@ func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *tes
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	contractPath := querytestutil.MustMapField(t, paths, "/api/v0/impact/contracts")
-	contractPost := querytestutil.MustMapField(t, contractPath, "post")
+	paths := testutil.MustMapField(t, spec, "paths")
+	contractPath := testutil.MustMapField(t, paths, "/api/v0/impact/contracts")
+	contractPost := testutil.MustMapField(t, contractPath, "post")
 	description, ok := contractPost["description"].(string)
 	if !ok {
 		t.Fatal("contract impact description missing or not a string")
@@ -36,10 +36,10 @@ func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *tes
 		}
 	}
 
-	requestBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, contractPost, "requestBody"), "content")
-	requestJSON := querytestutil.MustMapField(t, requestBody, "application/json")
-	requestSchema := querytestutil.MustMapField(t, requestJSON, "schema")
-	requestProperties := querytestutil.MustMapField(t, requestSchema, "properties")
+	requestBody := testutil.MustMapField(t, testutil.MustMapField(t, contractPost, "requestBody"), "content")
+	requestJSON := testutil.MustMapField(t, requestBody, "application/json")
+	requestSchema := testutil.MustMapField(t, requestJSON, "schema")
+	requestProperties := testutil.MustMapField(t, requestSchema, "properties")
 	for _, field := range []string{
 		"family",
 		"provider_repo_id",
@@ -55,7 +55,7 @@ func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *tes
 			t.Fatalf("contract impact request schema missing %q", field)
 		}
 	}
-	family := querytestutil.MustMapField(t, requestProperties, "family")
+	family := testutil.MustMapField(t, requestProperties, "family")
 	enum, ok := family["enum"].([]any)
 	if !ok {
 		t.Fatalf("family enum type = %T, want []any", family["enum"])
@@ -65,7 +65,7 @@ func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *tes
 			t.Fatalf("family enum = %#v, want %q", enum, want)
 		}
 	}
-	limit := querytestutil.MustMapField(t, requestProperties, "limit")
+	limit := testutil.MustMapField(t, requestProperties, "limit")
 	if got, want := limit["maximum"], float64(100); got != want {
 		t.Fatalf("limit maximum = %#v, want %#v", got, want)
 	}
@@ -81,16 +81,16 @@ func TestOpenAPIContractImpactSurfaceDocumentsFamiliesAndEvidenceBoundary(t *tes
 		}
 	}
 
-	responses := querytestutil.MustMapField(t, contractPost, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	responseJSON := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	responseProperties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, responseJSON, "schema"), "properties")
+	responses := testutil.MustMapField(t, contractPost, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	responseJSON := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	responseProperties := testutil.MustMapField(t, testutil.MustMapField(t, responseJSON, "schema"), "properties")
 	for _, field := range []string{"family", "scope", "families", "providers", "consumers", "coverage", "truncated"} {
 		if _, ok := responseProperties[field]; !ok {
 			t.Fatalf("contract impact response schema missing %q", field)
 		}
 	}
-	families := querytestutil.MustMapField(t, responseProperties, "families")
+	families := testutil.MustMapField(t, responseProperties, "families")
 	if got, want := families["type"], "object"; got != want {
 		t.Fatalf("families type = %#v, want %#v", got, want)
 	}

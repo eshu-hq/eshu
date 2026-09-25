@@ -10,14 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestRevokeInvitationScopesToAuthTenantAndAudits(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{inviteResult: InvitationRevokeResult{Found: true, Revoked: true, Status: "revoked"}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -40,7 +40,7 @@ func TestRevokeInvitationNotFound(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{inviteResult: InvitationRevokeResult{Found: false}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -58,7 +58,7 @@ func TestRevokeInvitationIdempotentNoop(t *testing.T) {
 
 	// Already revoked: Found true, Revoked false. Must be 200 with status, no error.
 	store := &fakeAdminMutationStore{inviteResult: InvitationRevokeResult{Found: true, Revoked: false, Status: "revoked"}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newMutationMux(store, audit)
 
 	rec := httptest.NewRecorder()
@@ -85,7 +85,7 @@ func TestRevokeInvitationNeverEchoesInviteCode(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeAdminMutationStore{inviteResult: InvitationRevokeResult{Found: true, Revoked: true, Status: "revoked"}}
-	mux := newMutationMux(store, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newMutationMux(store, &testutil.FakeGovernanceAuditAppender{})
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, mutationRequest(http.MethodPost, "/api/v0/auth/local/invitations/inv_1/revoke", "", allScopeAdminAuth("tenant_a", "workspace_a")))

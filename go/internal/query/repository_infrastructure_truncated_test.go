@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetRepositoryContextInfrastructureTruncatedAddsReason is the P2-2
@@ -74,10 +74,10 @@ func TestGetRepositoryContextInfrastructureTruncatedAddsReason(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
+	if !testutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureTruncatedReason)
 	}
-	if querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+	if testutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want no %q: this read did not fail", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 
@@ -133,7 +133,7 @@ func TestGetRepositoryContextInfrastructureUnderLimitDoesNotAddTruncatedReason(t
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if querytestutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
+	if testutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("partial_reasons = %#v, want no %q for a read one row under the limit", partialReasons, repository.InfrastructureTruncatedReason)
 	}
 	if strings.Contains(logs.String(), `"truncated":true`) {

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 1, step 3: two-tenant grant proof for the three
@@ -103,7 +103,7 @@ func TestDeadCodeRoutesFilterByRepositoryGrant(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -142,7 +142,7 @@ func TestDeadCodeRoutesEmptyGrantSkipsTheCandidateScan(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := querytestutil.CodeGrantScopedAuthContext(nil)
+			auth := testutil.CodeGrantScopedAuthContext(nil)
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -170,7 +170,7 @@ func TestCrossRepoDeadCodeProducerScanCarriesTheGrant(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	req := newCodeGrantRouteRequest(
 		t,
 		"/api/v0/code/dead-code/cross-repo",
@@ -249,7 +249,7 @@ func TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code", map[string]any{"language": "go"}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

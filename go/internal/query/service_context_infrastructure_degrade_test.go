@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetServiceContextInfrastructureDegradeAttributesFailure covers a fourth
@@ -88,7 +88,7 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
 
@@ -148,7 +148,7 @@ func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T)
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if limitations, ok := body["limitations"].([]any); ok && querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+	if limitations, ok := body["limitations"].([]any); ok && testutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("limitations = %#v, want no %q for a healthy empty read", limitations, repository.InfrastructureReadDegradedReason)
 	}
 	if strings.Contains(logs.String(), "failure_class") {

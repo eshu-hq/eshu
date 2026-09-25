@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // workloadDependenciesGraphReader answers the base workload lookup and the
@@ -72,7 +72,7 @@ func getWorkloadContextPartialReasons(t *testing.T, dependenciesErr error) []any
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	return querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	return testutil.RequireStringAnySlice(t, body, "partial_reasons")
 }
 
 // TestGetWorkloadContextReportsRelationshipsReadDegraded is the #6810
@@ -85,7 +85,7 @@ func TestGetWorkloadContextReportsRelationshipsReadDegraded(t *testing.T) {
 	t.Parallel()
 
 	reasons := getWorkloadContextPartialReasons(t, errors.New("graph query exceeded its deadline"))
-	if !querytestutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
+	if !testutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want %q", reasons, repository.RelationshipsReadDegradedReason)
 	}
 }
@@ -97,7 +97,7 @@ func TestGetWorkloadContextHealthyDependenciesReadAddsNoReason(t *testing.T) {
 	t.Parallel()
 
 	reasons := getWorkloadContextPartialReasons(t, nil)
-	if querytestutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
+	if testutil.AnySliceContains(reasons, repository.RelationshipsReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", reasons, repository.RelationshipsReadDegradedReason)
 	}
 }

@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func BenchmarkBuildServiceStoryVisualizationPacketRetainedShape(b *testing.B) {
 	response := benchmarkServiceStoryPacketResponse()
-	truth := querytestutil.FreshTruth()
+	truth := testutil.FreshTruth()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {

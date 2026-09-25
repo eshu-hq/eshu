@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // Code-route OpenAPI proofs that live in package query: they assemble the
@@ -23,10 +23,10 @@ func TestOpenAPICypherRouteDocumentsUnsupportedProfile(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/code/cypher")
-	post := querytestutil.MustMapField(t, path, "post")
-	responses := querytestutil.MustMapField(t, post, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/code/cypher")
+	post := testutil.MustMapField(t, path, "post")
+	responses := testutil.MustMapField(t, post, "responses")
 	if _, ok := responses["501"]; !ok {
 		t.Fatalf("Cypher OpenAPI responses missing 501 unsupported profile response")
 	}
@@ -39,10 +39,10 @@ func TestOpenAPICypherRouteDocumentsBoundedGraphReadFailures(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/code/cypher")
-	post := querytestutil.MustMapField(t, path, "post")
-	responses := querytestutil.MustMapField(t, post, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/code/cypher")
+	post := testutil.MustMapField(t, path, "post")
+	responses := testutil.MustMapField(t, post, "responses")
 	for _, status := range []string{"503", "504"} {
 		if _, ok := responses[status]; !ok {
 			t.Errorf("Cypher OpenAPI responses missing %s bounded graph-read response", status)
@@ -57,10 +57,10 @@ func TestOpenAPIVisualizeRouteDocumentsUnsupportedProfile(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/code/visualize")
-	post := querytestutil.MustMapField(t, path, "post")
-	responses := querytestutil.MustMapField(t, post, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/code/visualize")
+	post := testutil.MustMapField(t, path, "post")
+	responses := testutil.MustMapField(t, post, "responses")
 	if _, ok := responses["501"]; !ok {
 		t.Fatalf("Visualize OpenAPI responses missing 501 unsupported profile response")
 	}
@@ -73,10 +73,10 @@ func TestOpenAPIVisualizeRouteDocumentsBoundedGraphReadFailures(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/code/visualize")
-	post := querytestutil.MustMapField(t, path, "post")
-	responses := querytestutil.MustMapField(t, post, "responses")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/code/visualize")
+	post := testutil.MustMapField(t, path, "post")
+	responses := testutil.MustMapField(t, post, "responses")
 	for _, status := range []string{"503", "504"} {
 		if _, ok := responses[status]; !ok {
 			t.Errorf("Visualize OpenAPI responses missing %s bounded graph-read response", status)
@@ -91,9 +91,9 @@ func TestOpenAPIVisualizeRouteCarriesSharedKeyOnlyMarker(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/code/visualize")
-	post := querytestutil.MustMapField(t, path, "post")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/code/visualize")
+	post := testutil.MustMapField(t, path, "post")
 	marked, ok := post["x-shared-key-only"].(bool)
 	if !ok || !marked {
 		t.Fatalf(`Visualize OpenAPI operation missing "x-shared-key-only": true marker`)

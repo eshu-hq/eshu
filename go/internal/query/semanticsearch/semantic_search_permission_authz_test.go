@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestSemanticSearchHandlerGeneratedTokenRequiresAskSearchFeature(t *testing.T) {
@@ -19,7 +19,7 @@ func TestSemanticSearchHandlerGeneratedTokenRequiresAskSearchFeature(t *testing.
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",
@@ -59,7 +59,7 @@ func TestSemanticSearchHandlerGeneratedTokenRequiresAskSearchDataClasses(t *test
 
 	index := &fakeSemanticSearchIndexStore{}
 	handler := &SemanticSearchHandler{Index: index, Profile: querycontract.ProfileProduction}
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
 		"mode":       "keyword",

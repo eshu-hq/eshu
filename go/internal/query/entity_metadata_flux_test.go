@@ -8,7 +8,7 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/testutil/contentreader"
 )
 
 // TestEnrichEntityResultsWithContentMetadataFluxGitRepository is the #5360 PR A
@@ -22,7 +22,7 @@ import (
 func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -73,7 +73,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxBucket(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -127,7 +127,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxBucket(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxHelmRelease(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -179,7 +179,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxHelmRelease(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxHelmRepository(t *testing.T) {
 	t.Parallel()
 
-	db := content.OpenReaderTestDB(t, []content.ReaderQueryResult{
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

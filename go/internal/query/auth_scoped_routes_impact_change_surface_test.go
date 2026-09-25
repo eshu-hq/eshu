@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // auth_scoped_routes_impact_change_surface_test.go continues the #5167 W3
@@ -57,7 +57,7 @@ func TestFindChangeSurfaceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a", "repo-a-impacted"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a", "repo-a-impacted"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -78,7 +78,7 @@ func TestFindChangeSurfaceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-c", []string{"repo-c"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-c", []string{"repo-c"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -102,7 +102,7 @@ func TestInvestigateChangeSurfaceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a", "repo-a-impacted"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a", "repo-a-impacted"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -119,7 +119,7 @@ func TestInvestigateChangeSurfaceScopedGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-c", []string{"repo-c"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-c", []string{"repo-c"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -144,7 +144,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsChangeSurfaceFamily(t *testing.T) {
 			handler := &ImpactHandler{Neo4j: changeSurfaceRepositoryTargetGraph(t), Profile: ProfileLocalAuthoritative}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
-			resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+			resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 			middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
@@ -202,7 +202,7 @@ func TestInvestigateChangeSurfaceScopedFiltersCrossTenantTopicEvidence(t *testin
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate", bytes.NewBufferString(`{"topic":"auth"}`))
-	req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -235,7 +235,7 @@ func TestAnalyzePreChangeImpactScopedRepoGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -250,7 +250,7 @@ func TestAnalyzePreChangeImpactScopedRepoGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -273,7 +273,7 @@ func TestPlanDeveloperChangeScopedRepoGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/developer-change-plan", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -288,7 +288,7 @@ func TestPlanDeveloperChangeScopedRepoGrantAndDeny(t *testing.T) {
 		mux := http.NewServeMux()
 		handler.Mount(mux)
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/developer-change-plan", bytes.NewBufferString(body))
-		req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
+		req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-b", []string{"repo-b"})))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
@@ -310,7 +310,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsPreChangeFamily(t *testing.T) {
 			handler := &ImpactHandler{Neo4j: graph.FakeGraphReaderWithSingle{}, Profile: ProfileLocalAuthoritative}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
-			resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+			resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 			middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{"repo_id":"repo-a","changed_paths":["main.go"]}`))
@@ -376,7 +376,7 @@ func TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentSource(t *testing
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-deployment-chain", bytes.NewBufferString(`{"service_name":"orders-api","direct_only":true}`))
-	req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -402,7 +402,7 @@ func TestInvestigateDeploymentConfigScopedFiltersCrossTenantDeploymentSource(t *
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/deployment-config-influence", bytes.NewBufferString(`{"service_name":"orders-api"}`))
-	req = req.WithContext(ContextWithAuthContext(req.Context(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -437,7 +437,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsDeploymentTraceFamily(t *testing.T)
 			handler := &ImpactHandler{Neo4j: deploymentTraceTestGraph(), Profile: ProfileLocalAuthoritative}
 			mux := http.NewServeMux()
 			handler.Mount(mux)
-			resolver := &fakeScopedTokenResolver{context: querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
+			resolver := &fakeScopedTokenResolver{context: testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"}), ok: true}
 			middleware := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
 			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewBufferString(tc.body))

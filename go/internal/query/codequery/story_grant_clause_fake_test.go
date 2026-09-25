@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // A graph fake that judges CLAUSE ATTACHMENT for the #5167 batch-2b story and

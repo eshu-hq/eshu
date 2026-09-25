@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestGetRepositoryContextInfrastructureDegradeAttributesFailure covers
@@ -74,7 +74,7 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 
@@ -126,7 +126,7 @@ func TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+	if testutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 	if strings.Contains(logs.String(), "failure_class") {
@@ -183,7 +183,7 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
 	answerMetadata, ok := body["answer_metadata"].(map[string]any)
@@ -194,7 +194,7 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 	if !ok {
 		t.Fatalf("answer_metadata[partial_reasons] missing or wrong type: %#v", answerMetadata["partial_reasons"])
 	}
-	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("answer_metadata.partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 

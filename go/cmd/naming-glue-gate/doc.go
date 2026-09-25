@@ -65,4 +65,17 @@
 // CI job is blocked for an unrelated cause. An unresolvable git state (a
 // bad -base-ref) fails closed (exit 2), matching
 // verify-filename-stutter.sh's "never green on an unscanned tree" rule.
+//
+// # Exemptions
+//
+// A glued name the owner has deliberately approved is recorded in
+// scripts/lib/naming-glue-exempt.tsv (one row per directory: repo-relative
+// path, reason, approver or issue) instead of argued with on every commit.
+// The bar for a row is an owner decision on the cited issue: nesting the
+// compound per rule 3 must lose to another naming rule at the call site,
+// with measured collision evidence for the kept name. Candidates matching a
+// row by full path are filtered before classification, in both blocking and
+// advisory modes; a same-named directory anywhere else is still classified.
+// A malformed ledger fails closed (exit 2): a corrupted file must never
+// silently unexempt a name.
 package main

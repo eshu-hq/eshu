@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecIncludesContainerImageList(t *testing.T) {
@@ -16,9 +16,9 @@ func TestOpenAPISpecIncludesContainerImageList(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/images")
-	get := querytestutil.MustMapField(t, path, "get")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/images")
+	get := testutil.MustMapField(t, path, "get")
 	if got, want := get["operationId"], "listContainerImages"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
@@ -37,7 +37,7 @@ func TestOpenAPISpecIncludesContainerImageList(t *testing.T) {
 			t.Fatalf("parameters missing %q", want)
 		}
 	}
-	limitSchema := querytestutil.MustMapField(t, byName["limit"], "schema")
+	limitSchema := testutil.MustMapField(t, byName["limit"], "schema")
 	if got, want := limitSchema["maximum"], float64(200); got != want {
 		t.Fatalf("limit maximum = %#v, want %#v", got, want)
 	}
@@ -45,14 +45,14 @@ func TestOpenAPISpecIncludesContainerImageList(t *testing.T) {
 		t.Fatalf("limit default = %#v, want %#v", got, want)
 	}
 
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	schema := querytestutil.MustMapField(t, content, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	images := querytestutil.MustMapField(t, properties, "images")
-	items := querytestutil.MustMapField(t, images, "items")
-	itemProperties := querytestutil.MustMapField(t, items, "properties")
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := testutil.MustMapField(t, content, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	images := testutil.MustMapField(t, properties, "images")
+	items := testutil.MustMapField(t, images, "items")
+	itemProperties := testutil.MustMapField(t, items, "properties")
 	for _, want := range []string{"id", "digest", "repository_id", "registry", "repository", "tag"} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("image item properties missing %q", want)

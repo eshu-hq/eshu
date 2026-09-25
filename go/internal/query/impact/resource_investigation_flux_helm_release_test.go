@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestResourceInvestigationDefaultLabelPredicateUsesFluxHelmReleaseNotDeadHelmReleaseLabel
@@ -53,7 +53,7 @@ func TestResourceInvestigationDefaultLabelPredicateUsesFluxHelmReleaseNotDeadHel
 func TestInvestigateResourceDefaultPredicateReachesProjectedFluxHelmReleaseNode(t *testing.T) {
 	t.Parallel()
 
-	graph := &querytestutil.RecordingResourceInvestigationGraph{
+	graph := &testutil.RecordingResourceInvestigationGraph{
 		SelectorLabel: "FluxHelmRelease",
 		RunRows: [][]map[string]any{{
 			{

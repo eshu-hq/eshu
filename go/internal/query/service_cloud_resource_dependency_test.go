@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t *testing.T) {
@@ -77,7 +77,7 @@ func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
 	trace := querycontract.MapValue(story, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
@@ -153,7 +153,7 @@ func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
 	trace := querycontract.MapValue(story, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
@@ -220,7 +220,7 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
 	trace := querycontract.MapValue(story, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
@@ -287,7 +287,7 @@ func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t 
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
 	trace := querycontract.MapValue(story, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
@@ -346,7 +346,7 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
 	trace := querycontract.MapValue(story, "code_to_runtime_trace")
-	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	cloud := testutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}

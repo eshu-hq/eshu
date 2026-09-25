@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
@@ -75,7 +75,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 	}
 	deploymentEvidence := mapValue(resp, "deployment_evidence")
 	familyPaths := mapSliceValue(deploymentEvidence, "delivery_family_paths")
-	cloudFormation := querytestutil.RequireRepositoryStoryDeliveryFamily(familyPaths, "cloudformation")
+	cloudFormation := testutil.RequireRepositoryStoryDeliveryFamily(familyPaths, "cloudformation")
 	if cloudFormation == nil {
 		t.Fatalf("delivery_family_paths = %#v, want cloudformation family", familyPaths)
 	}
@@ -184,10 +184,10 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 	if !ok {
 		t.Fatalf("limitations missing or wrong type: %#v", resp["limitations"])
 	}
-	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+	if !testutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
 		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
-	if querytestutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
+	if testutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("limitations = %#v, want NOT to contain %q alongside %q (degraded and truncated are mutually exclusive per read)",
 			limitations, repository.InfrastructureTruncatedReason, repository.InfrastructureReadDegradedReason)
 	}
@@ -260,7 +260,7 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 	if !ok {
 		t.Fatalf("limitations missing or wrong type: %#v", resp["limitations"])
 	}
-	if querytestutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
+	if testutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("limitations = %#v, want NOT to contain %q on an EMPTY infrastructure panel", limitations, repository.InfrastructureTruncatedReason)
 	}
 }

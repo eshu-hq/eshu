@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func nodeIDSet(packet Packet) []string {
@@ -26,8 +26,8 @@ func TestServiceStoryVisualizationDeterministicOrdering(t *testing.T) {
 	forward := []string{"r3", "r1", "r5", "r2", "r4"}
 	reverse := []string{"r4", "r2", "r5", "r1", "r3"}
 
-	packetA := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(forward), querytestutil.FreshTruth())
-	packetB := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(reverse), querytestutil.FreshTruth())
+	packetA := BuildServiceStoryPacket(testutil.StoryResponseWithUpstream(forward), testutil.FreshTruth())
+	packetB := BuildServiceStoryPacket(testutil.StoryResponseWithUpstream(reverse), testutil.FreshTruth())
 
 	idsA := nodeIDSet(packetA)
 	idsB := nodeIDSet(packetB)
@@ -53,9 +53,9 @@ func TestServiceStoryVisualizationDeterministicOrdering(t *testing.T) {
 }
 
 func TestServiceStoryVisualizationStableIDsAcrossRuns(t *testing.T) {
-	resp := querytestutil.StoryResponseWithUpstream([]string{"r1", "r2"})
-	first := BuildServiceStoryPacket(resp, querytestutil.FreshTruth())
-	second := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream([]string{"r2", "r1"}), querytestutil.FreshTruth())
+	resp := testutil.StoryResponseWithUpstream([]string{"r1", "r2"})
+	first := BuildServiceStoryPacket(resp, testutil.FreshTruth())
+	second := BuildServiceStoryPacket(testutil.StoryResponseWithUpstream([]string{"r2", "r1"}), testutil.FreshTruth())
 	if fmt.Sprint(nodeIDSet(first)) != fmt.Sprint(nodeIDSet(second)) {
 		t.Fatalf("stable IDs differ across runs")
 	}
@@ -69,7 +69,7 @@ func TestServiceStoryVisualizationTruncatesNodes(t *testing.T) {
 	for i := 0; i < MaxNodes-1; i++ {
 		ids = append(ids, fmt.Sprintf("repo-%04d", i))
 	}
-	packet := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(ids), querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(testutil.StoryResponseWithUpstream(ids), testutil.FreshTruth())
 
 	if len(packet.Nodes) != MaxNodes {
 		t.Fatalf("expected %d nodes after truncation, got %d", MaxNodes, len(packet.Nodes))
@@ -111,7 +111,7 @@ func TestServiceStoryVisualizationPrivacyInvariant(t *testing.T) {
 		},
 		"downstream_consumers": map[string]any{},
 	}
-	packet := BuildServiceStoryPacket(resp, querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(resp, testutil.FreshTruth())
 	checkedRepository := false
 	for _, node := range packet.Nodes {
 		// Labels fall back to the id the response carried; never to a fabricated name.
@@ -206,7 +206,7 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 		"downstream_consumers":  map[string]any{},
 	}
 
-	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(response, testutil.FreshTruth())
 
 	serviceNodes := 0
 	canonicalRepositories := 0
@@ -251,7 +251,7 @@ func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *
 		},
 	}
 
-	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(response, testutil.FreshTruth())
 	observations := 0
 	for _, node := range packet.Nodes {
 		if node.Label == "iac-eks-argocd" {
@@ -267,7 +267,7 @@ func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *
 }
 
 func TestServiceStoryVisualizationUnsupported(t *testing.T) {
-	packet := BuildServiceStoryPacket(map[string]any{}, querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(map[string]any{}, testutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet for empty response")
 	}
@@ -283,10 +283,10 @@ func TestServiceStoryVisualizationUnsupported(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationDeterministicOrdering(t *testing.T) {
-	forward := querytestutil.CitationResponse([]string{"e3", "e1", "e2"})
-	reverse := querytestutil.CitationResponse([]string{"e2", "e3", "e1"})
-	packetA := BuildEvidenceCitationPacket(forward, querytestutil.FreshTruth())
-	packetB := BuildEvidenceCitationPacket(reverse, querytestutil.FreshTruth())
+	forward := testutil.CitationResponse([]string{"e3", "e1", "e2"})
+	reverse := testutil.CitationResponse([]string{"e2", "e3", "e1"})
+	packetA := BuildEvidenceCitationPacket(forward, testutil.FreshTruth())
+	packetB := BuildEvidenceCitationPacket(reverse, testutil.FreshTruth())
 	if fmt.Sprint(nodeIDSet(packetA)) != fmt.Sprint(nodeIDSet(packetB)) {
 		t.Fatalf("citation node IDs not order independent")
 	}
@@ -298,8 +298,8 @@ func TestEvidenceCitationVisualizationDeterministicOrdering(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationPrivacyInvariant(t *testing.T) {
-	resp := querytestutil.CitationResponse([]string{"e1"})
-	packet := BuildEvidenceCitationPacket(resp, querytestutil.FreshTruth())
+	resp := testutil.CitationResponse([]string{"e1"})
+	packet := BuildEvidenceCitationPacket(resp, testutil.FreshTruth())
 	if len(packet.Nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(packet.Nodes))
 	}
@@ -321,7 +321,7 @@ func TestEvidenceCitationVisualizationTruncates(t *testing.T) {
 	for i := 0; i < MaxNodes+5; i++ {
 		ids = append(ids, fmt.Sprintf("e%04d", i))
 	}
-	packet := BuildEvidenceCitationPacket(querytestutil.CitationResponse(ids), querytestutil.FreshTruth())
+	packet := BuildEvidenceCitationPacket(testutil.CitationResponse(ids), testutil.FreshTruth())
 	if len(packet.Nodes) != MaxNodes {
 		t.Fatalf("expected %d nodes, got %d", MaxNodes, len(packet.Nodes))
 	}
@@ -334,7 +334,7 @@ func TestEvidenceCitationVisualizationTruncates(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationUnsupported(t *testing.T) {
-	packet := BuildEvidenceCitationPacket(evidence.EvidenceCitationResponse{}, querytestutil.FreshTruth())
+	packet := BuildEvidenceCitationPacket(evidence.EvidenceCitationResponse{}, testutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet for empty citations")
 	}
@@ -345,7 +345,7 @@ func TestEvidenceCitationVisualizationUnsupported(t *testing.T) {
 
 func TestIncidentVisualizationDeterministicAndTruthLabels(t *testing.T) {
 	slots := []model.IncidentEvidenceSlot{model.IncidentSlotIncident, model.IncidentSlotService, model.IncidentSlotDeployable}
-	packet := BuildIncidentContextPacket(querytestutil.IncidentResponse(slots), querytestutil.FreshTruth())
+	packet := BuildIncidentContextPacket(testutil.IncidentResponse(slots), testutil.FreshTruth())
 
 	if len(packet.Nodes) != len(slots)+1 {
 		t.Fatalf("expected incident anchor + %d slot nodes, got %d", len(slots), len(packet.Nodes))
@@ -379,7 +379,7 @@ func TestIncidentVisualizationDeterministicAndTruthLabels(t *testing.T) {
 }
 
 func TestIncidentVisualizationUnsupported(t *testing.T) {
-	packet := BuildIncidentContextPacket(model.IncidentContextResponse{}, querytestutil.FreshTruth())
+	packet := BuildIncidentContextPacket(model.IncidentContextResponse{}, testutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet with no evidence path")
 	}
@@ -389,7 +389,7 @@ func TestIncidentVisualizationUnsupported(t *testing.T) {
 }
 
 func TestVisualizationPacketPreservesTruth(t *testing.T) {
-	packet := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream([]string{"r1"}), querytestutil.FreshTruth())
+	packet := BuildServiceStoryPacket(testutil.StoryResponseWithUpstream([]string{"r1"}), testutil.FreshTruth())
 	if packet.Truth == nil {
 		t.Fatalf("expected truth envelope preserved")
 	}

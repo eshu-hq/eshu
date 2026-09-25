@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
@@ -63,7 +63,7 @@ func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 
 	handler.findBlastRadius(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	affected, ok := data["affected"].([]any)
 	if !ok || len(affected) != 2 {
 		t.Fatalf("affected = %#v, want two rows", data["affected"])
@@ -109,7 +109,7 @@ func TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation(t *testing.T)
 
 	handler.traceResourceToCode(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	paths, ok := data["paths"].([]any)
 	if !ok || len(paths) != 1 {
 		t.Fatalf("paths = %#v, want one row", data["paths"])
@@ -175,7 +175,7 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 
 	handler.findChangeSurface(rec, req)
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, rec)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
 	impacted, ok := data["impacted"].([]any)
 	if !ok || len(impacted) != 1 {
 		t.Fatalf("impacted = %#v, want one row", data["impacted"])

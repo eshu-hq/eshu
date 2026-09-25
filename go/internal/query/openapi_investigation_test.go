@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecServiceInvestigationExposesCoverageFields(t *testing.T) {
@@ -17,13 +17,13 @@ func TestOpenAPISpecServiceInvestigationExposesCoverageFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	investigationPath := querytestutil.MustMapField(t, paths, "/api/v0/investigations/services/{service_name}")
-	investigationGet := querytestutil.MustMapField(t, investigationPath, "get")
-	responses := querytestutil.MustMapField(t, investigationGet, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
+	paths := testutil.MustMapField(t, spec, "paths")
+	investigationPath := testutil.MustMapField(t, paths, "/api/v0/investigations/services/{service_name}")
+	investigationGet := testutil.MustMapField(t, investigationPath, "get")
+	responses := testutil.MustMapField(t, investigationGet, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	properties := testutil.MustMapField(t, testutil.MustMapField(t, content, "schema"), "properties")
 
 	for _, field := range []string{
 		"repositories_considered",
@@ -46,7 +46,7 @@ func TestOpenAPISpecIncludesInvestigationPacketRoutes(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
+	paths := testutil.MustMapField(t, spec, "paths")
 	tests := []struct {
 		path        string
 		operationID string
@@ -73,7 +73,7 @@ func TestOpenAPISpecIncludesInvestigationPacketRoutes(t *testing.T) {
 		t.Run(tc.operationID, func(t *testing.T) {
 			t.Parallel()
 
-			get := querytestutil.MustMapField(t, querytestutil.MustMapField(t, paths, tc.path), "get")
+			get := testutil.MustMapField(t, testutil.MustMapField(t, paths, tc.path), "get")
 			if got := get["operationId"]; got != tc.operationID {
 				t.Fatalf("operationId = %#v, want %#v", got, tc.operationID)
 			}
@@ -83,13 +83,13 @@ func TestOpenAPISpecIncludesInvestigationPacketRoutes(t *testing.T) {
 					t.Fatalf("parameters missing %q: %#v", name, parameters)
 				}
 			}
-			responses := querytestutil.MustMapField(t, get, "responses")
-			okResponse := querytestutil.MustMapField(t, responses, "200")
-			schema := querytestutil.MustMapField(
+			responses := testutil.MustMapField(t, get, "responses")
+			okResponse := testutil.MustMapField(t, responses, "200")
+			schema := testutil.MustMapField(
 				t,
-				querytestutil.MustMapField(
+				testutil.MustMapField(
 					t,
-					querytestutil.MustMapField(t, okResponse, "content"),
+					testutil.MustMapField(t, okResponse, "content"),
 					"application/json",
 				),
 				"schema",

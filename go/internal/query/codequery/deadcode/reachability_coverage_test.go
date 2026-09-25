@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 func TestDeadCodeIncomingEntityIDsCompleteReachabilitySnapshotSkipsLegacyDeadCluster(t *testing.T) {

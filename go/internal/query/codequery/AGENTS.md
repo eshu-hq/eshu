@@ -69,7 +69,7 @@ InheritanceDepth,AnchorLookup}Cypher`, `CallGraphMetricsEdgesCypher`
   `newLiveNornicDBReader` (no production read policy). Vet every tag
   after touching a live file; the default build skips them.
 - `auth_scoped_*` files here are code-family grant proofs (#5167
-  batch 1). Shared helpers hoist to `querytestutil` as exported
+  batch 1). Shared helpers hoist to `testutil` as exported
   non-test code; never twin a helper across the two packages.
 
 ## Verification (paste all)

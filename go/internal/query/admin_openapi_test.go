@@ -18,7 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
@@ -30,7 +30,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
+	paths := testutil.MustMapField(t, spec, "paths")
 	expectedPaths := []string{
 		"/api/v0/admin/refinalize",
 		"/api/v0/admin/reindex",
@@ -148,7 +148,7 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 		}},
 		Store: freshStore,
 	}
-	fresh := querytestutil.PostJSON(querytestutil.MountAdminHandler(freshHandler), "/api/v0/admin/recover-generations", map[string]any{
+	fresh := testutil.PostJSON(testutil.MountAdminHandler(freshHandler), "/api/v0/admin/recover-generations", map[string]any{
 		"scope_ids":       []string{"scope-1"},
 		"reason":          "wedged",
 		"idempotency_key": "fresh-key",
@@ -166,7 +166,7 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 			WorkItemIDs:   []string{"scope-1"},
 		}},
 	}
-	duplicate := querytestutil.PostJSON(querytestutil.MountAdminHandler(duplicateHandler), "/api/v0/admin/recover-generations", map[string]any{
+	duplicate := testutil.PostJSON(testutil.MountAdminHandler(duplicateHandler), "/api/v0/admin/recover-generations", map[string]any{
 		"scope_ids":       []string{"scope-1"},
 		"reason":          "retry",
 		"idempotency_key": "dup-key",
@@ -180,8 +180,8 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 		body      map[string]any
 		duplicate bool
 	}{
-		"recovery performed by this call": {body: querytestutil.DecodeResponseBody(t, fresh), duplicate: false},
-		"idempotent replay":               {body: querytestutil.DecodeResponseBody(t, duplicate), duplicate: true},
+		"recovery performed by this call": {body: testutil.DecodeResponseBody(t, fresh), duplicate: false},
+		"idempotent replay":               {body: testutil.DecodeResponseBody(t, duplicate), duplicate: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			required, ok := variants[tc.duplicate]
@@ -270,23 +270,23 @@ func sortedResponseKeys(body map[string]any) []string {
 // its stored external_<kind> form MUST appear in AdminProviderConfig's enum
 // with nothing else. The builder half lives in admin/provider/config
 // (kinds_test.go, calling the unexported builder directly), and both halves
-// read the one shared list in querytestutil — add a kind to the builder, the
+// read the one shared list in testutil — add a kind to the builder, the
 // spec enums, and that list together.
 func TestProviderConfigKindOpenAPISpecMatchesAcceptedKinds(t *testing.T) {
 	t.Parallel()
 
-	writeKindGroups := querytestutil.AcceptedProviderConfigKinds
+	writeKindGroups := testutil.AcceptedProviderConfigKinds
 
 	var spec map[string]any
 	if err := json.Unmarshal([]byte(query.OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	schemas := querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas")
+	schemas := testutil.MustMapField(t, testutil.MustMapField(t, spec, "components"), "schemas")
 
 	// Write-request enum must equal the accepted-kind set exactly.
-	writeReq := querytestutil.MustMapField(t, schemas, "AdminProviderConfigWriteRequest")
-	writeProps := querytestutil.MustMapField(t, writeReq, "properties")
-	writeEnum := enumStrings(t, querytestutil.MustMapField(t, writeProps, "provider_kind"), "AdminProviderConfigWriteRequest.provider_kind")
+	writeReq := testutil.MustMapField(t, schemas, "AdminProviderConfigWriteRequest")
+	writeProps := testutil.MustMapField(t, writeReq, "properties")
+	writeEnum := enumStrings(t, testutil.MustMapField(t, writeProps, "provider_kind"), "AdminProviderConfigWriteRequest.provider_kind")
 	assertSetEqual(t, "AdminProviderConfigWriteRequest.provider_kind enum", writeEnum, writeKindGroups)
 
 	// The github field group's properties must be documented on the write
@@ -300,8 +300,8 @@ func TestProviderConfigKindOpenAPISpecMatchesAcceptedKinds(t *testing.T) {
 	}
 
 	// Read-view enum must equal the stored external_<kind> forms exactly.
-	readView := querytestutil.MustMapField(t, schemas, "AdminProviderConfig")
-	readEnum := enumStrings(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, readView, "properties"), "provider_kind"), "AdminProviderConfig.provider_kind")
+	readView := testutil.MustMapField(t, schemas, "AdminProviderConfig")
+	readEnum := enumStrings(t, testutil.MustMapField(t, testutil.MustMapField(t, readView, "properties"), "provider_kind"), "AdminProviderConfig.provider_kind")
 	storedKinds := make([]string, 0, len(writeKindGroups))
 	for _, kind := range writeKindGroups {
 		storedKinds = append(storedKinds, "external_"+kind)

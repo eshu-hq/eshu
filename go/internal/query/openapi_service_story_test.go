@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
@@ -17,13 +17,13 @@ func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	serviceStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/services/{service_name}/story")
-	serviceStoryGet := querytestutil.MustMapField(t, serviceStoryPath, "get")
-	serviceStoryResponses := querytestutil.MustMapField(t, serviceStoryGet, "responses")
-	serviceStoryOK := querytestutil.MustMapField(t, serviceStoryResponses, "200")
-	serviceStoryContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, serviceStoryOK, "content"), "application/json")
-	serviceStorySchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, serviceStoryContent, "schema"), "properties")
+	paths := testutil.MustMapField(t, spec, "paths")
+	serviceStoryPath := testutil.MustMapField(t, paths, "/api/v0/services/{service_name}/story")
+	serviceStoryGet := testutil.MustMapField(t, serviceStoryPath, "get")
+	serviceStoryResponses := testutil.MustMapField(t, serviceStoryGet, "responses")
+	serviceStoryOK := testutil.MustMapField(t, serviceStoryResponses, "200")
+	serviceStoryContent := testutil.MustMapField(t, testutil.MustMapField(t, serviceStoryOK, "content"), "application/json")
+	serviceStorySchema := testutil.MustMapField(t, testutil.MustMapField(t, serviceStoryContent, "schema"), "properties")
 
 	for _, field := range []string{
 		"service_identity",
@@ -55,10 +55,10 @@ func TestOpenAPISpecServiceContextExposesEntrypointCandidates(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	workloadContextSchema := querytestutil.MustMapField(t, schemas, "WorkloadContext")
-	workloadContextProperties := querytestutil.MustMapField(t, workloadContextSchema, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	workloadContextSchema := testutil.MustMapField(t, schemas, "WorkloadContext")
+	workloadContextProperties := testutil.MustMapField(t, workloadContextSchema, "properties")
 	if _, ok := workloadContextProperties["entrypoint_candidates"]; !ok {
 		t.Fatal("WorkloadContext schema missing entrypoint_candidates")
 	}

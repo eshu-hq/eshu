@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPISpecIncludesCloudRuntimeDriftFindings(t *testing.T) {
@@ -17,29 +17,29 @@ func TestOpenAPISpecIncludesCloudRuntimeDriftFindings(t *testing.T) {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	path := querytestutil.MustMapField(t, paths, "/api/v0/cloud/runtime-drift/findings")
-	post := querytestutil.MustMapField(t, path, "post")
+	paths := testutil.MustMapField(t, spec, "paths")
+	path := testutil.MustMapField(t, paths, "/api/v0/cloud/runtime-drift/findings")
+	post := testutil.MustMapField(t, path, "post")
 	if got, want := post["operationId"], "listCloudRuntimeDriftFindings"; got != want {
 		t.Fatalf("operationId = %q, want %q", got, want)
 	}
-	requestBody := querytestutil.MustMapField(t, post, "requestBody")
-	requestContent := querytestutil.MustMapField(t, requestBody, "content")
-	requestJSON := querytestutil.MustMapField(t, requestContent, "application/json")
-	requestSchema := querytestutil.MustMapField(t, requestJSON, "schema")
-	requestProperties := querytestutil.MustMapField(t, requestSchema, "properties")
+	requestBody := testutil.MustMapField(t, post, "requestBody")
+	requestContent := testutil.MustMapField(t, requestBody, "content")
+	requestJSON := testutil.MustMapField(t, requestContent, "application/json")
+	requestSchema := testutil.MustMapField(t, requestJSON, "schema")
+	requestProperties := testutil.MustMapField(t, requestSchema, "properties")
 	for _, field := range []string{"scope_id", "account_id", "project_id", "subscription_id", "provider", "cloud_resource_uid", "finding_kinds", "limit", "offset"} {
 		if _, ok := requestProperties[field]; !ok {
 			t.Fatalf("cloud runtime drift request schema missing %q", field)
 		}
 	}
 
-	responses := querytestutil.MustMapField(t, post, "responses")
-	ok := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, ok, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	responses := testutil.MustMapField(t, post, "responses")
+	ok := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, ok, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{"drift_findings", "source_state_groups", "findings_count", "total_findings_count", "truncated", "next_offset"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("cloud runtime drift response schema missing %q", field)

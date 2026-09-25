@@ -106,7 +106,7 @@ func ContainsAuthString(values []string, candidate string) bool {
 }
 
 // GraphParamContains reports whether the graph params carry candidate under
-// key. It moved here from querytestutil with the codequery nesting work: a
+// key. It moved here from testutil with the codequery nesting work: a
 // production fake (the chain grant double) reads grant params, and production
 // code must not import the test-only helper package.
 func GraphParamContains(params map[string]any, key, candidate string) bool {
@@ -119,7 +119,7 @@ func GraphParamContains(params map[string]any, key, candidate string) bool {
 
 // NormalizeCypherWhitespace collapses a Cypher statement's whitespace to
 // single spaces so substring anchors do not depend on formatting. It moved
-// here from querytestutil alongside GraphParamContains for the same reason.
+// here from testutil alongside GraphParamContains for the same reason.
 func NormalizeCypherWhitespace(cypher string) string {
 	return strings.Join(strings.Fields(cypher), " ")
 }

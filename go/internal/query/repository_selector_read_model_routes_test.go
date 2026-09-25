@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestPackageRegistryCorrelationsResolveRepositorySelectors(t *testing.T) {
@@ -137,7 +137,7 @@ func TestCICDRunCorrelationAggregatesResolveRepositorySelectors(t *testing.T) {
 func TestServiceCatalogCorrelationsResolveRepositorySelectors(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{{
 			CorrelationID: "correlation-1",
 			RepositoryID:  "repo://example/api",

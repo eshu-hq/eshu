@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -24,7 +24,7 @@ const providerConfigSecretCanary = "correct-horse-redaction-canary"
 // for a handler call: neither the HTTP response body nor any recorded
 // governance-audit event (JSON-marshaled) may contain the secret canary, on
 // EITHER the SurfaceAPIMCPBodies or SurfaceAuditEvents policy.
-func assertNoCanaryInResponseAndAudit(t *testing.T, label string, rec *httptest.ResponseRecorder, audit *querytestutil.FakeGovernanceAuditAppender) {
+func assertNoCanaryInResponseAndAudit(t *testing.T, label string, rec *httptest.ResponseRecorder, audit *testutil.FakeGovernanceAuditAppender) {
 	t.Helper()
 	registry := redact.HostedGovernanceRegistry()
 	if err := registry.AssertNoForbiddenCanary(redact.SurfaceAPIMCPBodies, rec.Body.Bytes()); err != nil {
@@ -78,7 +78,7 @@ func TestProviderConfigMutationResponsesAndAuditNeverLeakCanary(t *testing.T) {
 			tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{
 				OK: true, Detail: "discovery and jwks reachable", RevisionID: "rev_1",
 			}}
-			audit := &querytestutil.FakeGovernanceAuditAppender{}
+			audit := &testutil.FakeGovernanceAuditAppender{}
 			mux := newProviderConfigMutationMux(store, tester, audit)
 
 			var req *http.Request

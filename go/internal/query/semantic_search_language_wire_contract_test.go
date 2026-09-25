@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // This test stays in package query rather than moving with the handler family
@@ -47,7 +47,7 @@ func TestSemanticSearchLanguagesOpenAPIDescriptionMatchesHandler(t *testing.T) {
 	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	req := querytestutil.SemanticSearchHTTPRequest(t, map[string]any{
+	req := testutil.SemanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
 		"query":      "service",
 		"mode":       "keyword",
@@ -76,15 +76,15 @@ func semanticSearchLanguagesOpenAPIDescription(t *testing.T) string {
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	item := querytestutil.MustMapField(t, paths, "/api/v0/search/semantic")
-	post := querytestutil.MustMapField(t, item, "post")
-	requestBody := querytestutil.MustMapField(t, post, "requestBody")
-	content := querytestutil.MustMapField(t, requestBody, "content")
-	jsonContent := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, jsonContent, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	languages := querytestutil.MustMapField(t, properties, "languages")
+	paths := testutil.MustMapField(t, spec, "paths")
+	item := testutil.MustMapField(t, paths, "/api/v0/search/semantic")
+	post := testutil.MustMapField(t, item, "post")
+	requestBody := testutil.MustMapField(t, post, "requestBody")
+	content := testutil.MustMapField(t, requestBody, "content")
+	jsonContent := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, jsonContent, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	languages := testutil.MustMapField(t, properties, "languages")
 	description, ok := languages["description"].(string)
 	if !ok {
 		t.Fatalf("languages description is %T, want string", languages["description"])

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestOpenAPIRelationshipDocumentsSourceMetadata(t *testing.T) {
@@ -16,8 +16,8 @@ func TestOpenAPIRelationshipDocumentsSourceMetadata(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	relationship := querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas"), "Relationship")
-	properties := querytestutil.MustMapField(t, relationship, "properties")
+	relationship := testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, spec, "components"), "schemas"), "Relationship")
+	properties := testutil.MustMapField(t, relationship, "properties")
 	for _, field := range []string{
 		"source_repo_id",
 		"source_repo_name",
@@ -50,13 +50,13 @@ func TestOpenAPIRelationshipEvidenceDocumentsConfidenceBasis(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	route := querytestutil.MustMapField(t, paths, "/api/v0/evidence/relationships/{resolved_id}")
-	get := querytestutil.MustMapField(t, route, "get")
-	responses := querytestutil.MustMapField(t, get, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, content, "schema"), "properties")
+	paths := testutil.MustMapField(t, spec, "paths")
+	route := testutil.MustMapField(t, paths, "/api/v0/evidence/relationships/{resolved_id}")
+	get := testutil.MustMapField(t, route, "get")
+	responses := testutil.MustMapField(t, get, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	properties := testutil.MustMapField(t, testutil.MustMapField(t, content, "schema"), "properties")
 	if _, ok := properties["confidence_basis"]; !ok {
 		t.Fatal("relationship evidence schema missing confidence_basis")
 	}

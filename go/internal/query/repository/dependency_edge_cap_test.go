@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestLoadUnscopedRepositoryDependencyEdgesCapsTransfer proves the grouped

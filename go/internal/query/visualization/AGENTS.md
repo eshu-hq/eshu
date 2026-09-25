@@ -73,25 +73,25 @@ Move evidence), `handler_test.go`, and `main_test.go`.
   its test names: `scripts/verify-route-coverage.sh` looks for the route's
   test only in the handler's own directory.
 
-## Test fixtures hoisted to querytestutil (#6608 rule)
+## Test fixtures hoisted to testutil (#6608 rule)
 
 A fixture this package's tests share with root's staying
-`visualization_packet_surface_test.go` moved to `querytestutil` as an
+`visualization_packet_surface_test.go` moved to `testutil` as an
 exported helper (one definition; both sides call the identical qualified
 name -- no forwarding wrapper on either side), rather than being duplicated.
 Do not re-duplicate any of these back into a `_test.go` copy here or in root:
 
-- `querytestutil.FreshTruth` -- root's `visualization_packet_surface_test.go`
+- `testutil.FreshTruth` -- root's `visualization_packet_surface_test.go`
   and this package's `packet_test.go`, `merge_test.go`, and
   `story_bench_test.go` all call it directly.
-- `querytestutil.StoryResponseWithUpstream` -- same four call sites.
-- `querytestutil.CitationResponse` -- root's
+- `testutil.StoryResponseWithUpstream` -- same four call sites.
+- `testutil.CitationResponse` -- root's
   `visualization_packet_surface_test.go` and this package's `packet_test.go`.
-- `querytestutil.IncidentResponse` -- same two call sites.
+- `testutil.IncidentResponse` -- same two call sites.
 
 `nodeIDSet` (`packet_test.go`) has exactly one consumer file -- the file that
 declares it -- so it stayed unexported in the leaf rather than moving to
-querytestutil; it is not a shared fixture in the #6608 sense.
+testutil; it is not a shared fixture in the #6608 sense.
 
 ## Naming
 

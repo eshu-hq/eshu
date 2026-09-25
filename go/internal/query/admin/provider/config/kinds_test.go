@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestBuildProviderConfigWriteAcceptsDocumentedKinds proves the write path
@@ -18,7 +18,7 @@ import (
 // This is the builder half of the provider-kind lockstep (issue #5166): the
 // OpenAPI-enum half lives in the external admin_test package
 // (admin/openapi_test.go) because it reads the root's OpenAPISpec, and both
-// halves read the one shared list in querytestutil. Add a new kind in the
+// halves read the one shared list in testutil. Add a new kind in the
 // same change that adds its buildXProviderConfigWrite case, its spec enums,
 // and the shared list entry.
 func TestBuildProviderConfigWriteAcceptsDocumentedKinds(t *testing.T) {
@@ -28,7 +28,7 @@ func TestBuildProviderConfigWriteAcceptsDocumentedKinds(t *testing.T) {
 	// etc.) — that is fine; the point is it must NOT be the unknown-kind
 	// rejection, i.e. the switch dispatched into a builder.
 	const unknownKindMarker = "provider_kind must be"
-	for _, kind := range querytestutil.AcceptedProviderConfigKinds {
+	for _, kind := range testutil.AcceptedProviderConfigKinds {
 		_, err := buildProviderConfigWrite(providerConfigWriteRequest{ProviderKind: kind})
 		if err != nil && strings.Contains(err.Error(), unknownKindMarker) {
 			t.Fatalf("buildProviderConfigWrite rejected accepted kind %q as unknown: %v", kind, err)

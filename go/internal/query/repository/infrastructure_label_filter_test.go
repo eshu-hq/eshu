@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes pins the graph

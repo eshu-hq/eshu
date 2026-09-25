@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code-family batch 2a: the shipped-text guards for
@@ -45,7 +45,7 @@ func (s *languageQueryGrantContentStore) SearchEntitiesByLanguageAndTypeForAcces
 	search taxonomy.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	s.searches = append(s.searches, search)
-	return querytestutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
+	return testutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
 }
 
 // TestLanguageQueryGrantBoundStoreTakesOneRead pins the path production takes.
@@ -57,7 +57,7 @@ func TestLanguageQueryGrantBoundStoreTakesOneRead(t *testing.T) {
 
 	store := &languageQueryGrantContentStore{}
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("variable"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -85,7 +85,7 @@ func TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 	if !slices.Contains(filters, "repo_id = ANY($2)") {
 		t.Fatalf("buildLanguageTypeEntityFilters() = %#v, want a repo_id = ANY($2) grant predicate; without it a scoped caller's grant is resolved but never applied", filters)
 	}
-	querytestutil.AssertBoundRepositoryGrantArray(t, args, grant)
+	testutil.AssertBoundRepositoryGrantArray(t, args, grant)
 
 	// A caller who named one repository keeps the single-repo equality
 	// predicate and must not gain a second, wider ANY() scan.

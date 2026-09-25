@@ -6,7 +6,7 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fakeWorkloadGraphReader adapts graph.FakeWorkloadGraphReader to the

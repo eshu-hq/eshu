@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // #5167 code family: /dead-code and /dead-code/investigate answer "is anything
@@ -125,7 +125,7 @@ func TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant(t *testing.T)
 	t.Parallel()
 
 	store := newDeadCodeHiddenConsumerStore()
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runDeadCodeHiddenConsumerRoute(t, store, "/api/v0/code/dead-code", &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -134,7 +134,7 @@ func TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant(t *testing.T)
 	if got := store.boundConsumerGrant; !slices.Contains(got, codeGrantGrantedRepo) {
 		t.Fatalf("consumer grant = %#v, want the caller's grant bound into the incoming-edge read", got)
 	}
-	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	results, _ := data["results"].([]any)
 	if len(results) != 1 {
 		t.Fatalf("results = %#v, want the candidate kept: an edge the caller cannot see is neither live nor dead; body = %s", results, rec.Body.String())
@@ -155,13 +155,13 @@ func TestDeadCodeInvestigateReportsThePermissionHiddenConsumerReason(t *testing.
 	t.Parallel()
 
 	store := newDeadCodeHiddenConsumerStore()
-	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runDeadCodeHiddenConsumerRoute(t, store, "/api/v0/code/dead-code/investigate", &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	buckets, _ := data["candidate_buckets"].(map[string]any)
 	cleanupReady, _ := buckets["cleanup_ready"].([]any)
 	if len(cleanupReady) != 0 {
@@ -196,7 +196,7 @@ func TestDeadCodeSharedKeyIncomingProbeIsUnchanged(t *testing.T) {
 	if got := store.boundConsumerGrant; len(got) != 0 {
 		t.Fatalf("consumer grant = %#v, want nothing bound for a shared-key caller", got)
 	}
-	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
+	data := testutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	if results, _ := data["results"].([]any); len(results) != 0 {
 		t.Fatalf("results = %#v, want the candidate filtered out by its strong incoming edge", results)
 	}

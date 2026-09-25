@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
@@ -67,7 +67,7 @@ func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
 		t.Fatalf("truth.basis = %q, want %q", got, want)
 	}
 	data := repositoryEnvelopeData(t, envelope)
-	repository := querytestutil.MustMapField(t, data, "repository")
+	repository := testutil.MustMapField(t, data, "repository")
 	if got, want := repository["id"], "repo-story"; got != want {
 		t.Fatalf("repository.id = %#v, want %#v", got, want)
 	}
@@ -89,7 +89,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("repo_id param = %#v, want %#v", got, want)
 				}
-				return querytestutil.RepositoryStatsGraphRow(), nil
+				return testutil.RepositoryStatsGraphRow(), nil
 			},
 		},
 		Content: fakePortContentStore{
@@ -108,7 +108,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 					{EntityType: "TerraformResource", Count: 2},
 				},
 			},
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		},
 		Profile: ProfileProduction,
 	}
@@ -138,7 +138,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 	if got, want := data["file_count"], float64(42); got != want {
 		t.Fatalf("file_count = %#v, want %#v", got, want)
 	}
-	coverage := querytestutil.MustMapField(t, data, "coverage")
+	coverage := testutil.MustMapField(t, data, "coverage")
 	if got, want := coverage["query_shape"], repository.StatsContentCoverageShape; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}

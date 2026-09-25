@@ -6,9 +6,9 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction(t *testing.T) {
@@ -53,7 +53,7 @@ func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction
 	if got, want := row["resource_type"], "AWS::Serverless::Function"; got != want {
 		t.Fatalf("resource_type = %#v, want %#v", got, want)
 	}
-	if got, want := row["signals"], []string{"template_file", "serverless_transform"}; !querytestutil.StringSliceEqual(got, want) {
+	if got, want := row["signals"], []string{"template_file", "serverless_transform"}; !testutil.StringSliceEqual(got, want) {
 		t.Fatalf("signals = %#v, want %#v", got, want)
 	}
 }
@@ -92,7 +92,7 @@ func TestLoadDeploymentArtifactOverviewAddsCloudFormationDeliveryPath(t *testing
 	if !ok {
 		t.Fatalf("delivery_family_paths type = %T, want []map[string]any", deployment["delivery_family_paths"])
 	}
-	row := querytestutil.RequireRepositoryStoryDeliveryFamily(families, "cloudformation")
+	row := testutil.RequireRepositoryStoryDeliveryFamily(families, "cloudformation")
 	if row == nil {
 		t.Fatalf("delivery_family_paths = %#v, want cloudformation family", families)
 	}

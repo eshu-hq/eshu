@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // serviceSelectorReadModelContentStore builds the repository read-model
@@ -33,7 +33,7 @@ func serviceSelectorReadModelContentStore() content.FakePortContentStore {
 func TestServiceCatalogListCorrelationsExplainsRepositoryScopedEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+	store := &testutil.RecordingServiceCatalogCorrelationStore{
 		Rows: []querycontract.ServiceCatalogCorrelationRow{
 			{
 				CorrelationID: "catalog-correlation-direct-service",

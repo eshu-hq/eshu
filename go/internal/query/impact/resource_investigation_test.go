@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // stubImpactPathProbe is the PathProbeBackend double for tests whose
@@ -47,9 +47,9 @@ func (stubImpactPathProbe) ResourceInvestigationHops(any) []map[string]any {
 
 // recordingResourceInvestigationGraph keeps the original lowercase field
 // names and delegates every call to
-// querytestutil.RecordingResourceInvestigationGraph through promoted(), so
+// testutil.RecordingResourceInvestigationGraph through promoted(), so
 // the dispatch lives in exactly one place (see the adapter rule in
-// querytestutil/AGENTS.md). Config and recorded state are copied into the
+// testutil/AGENTS.md). Config and recorded state are copied into the
 // delegate per call and the mutated state (recorded calls, consumed queued
 // rows) is taken back, so consumers keep reading graph.runCalls with no
 // edits.
@@ -73,12 +73,12 @@ type resourceInvestigationRunCall struct {
 	params map[string]any
 }
 
-func (g *recordingResourceInvestigationGraph) promoted() *querytestutil.RecordingResourceInvestigationGraph {
-	calls := make([]querytestutil.ResourceInvestigationRunCall, len(g.runCalls))
+func (g *recordingResourceInvestigationGraph) promoted() *testutil.RecordingResourceInvestigationGraph {
+	calls := make([]testutil.ResourceInvestigationRunCall, len(g.runCalls))
 	for i, c := range g.runCalls {
-		calls[i] = querytestutil.ResourceInvestigationRunCall{Cypher: c.cypher, Params: c.params}
+		calls[i] = testutil.ResourceInvestigationRunCall{Cypher: c.cypher, Params: c.params}
 	}
-	return &querytestutil.RecordingResourceInvestigationGraph{
+	return &testutil.RecordingResourceInvestigationGraph{
 		RunCalls:             calls,
 		RunRows:              g.runRows,
 		WorkloadRows:         g.workloadRows,
@@ -93,7 +93,7 @@ func (g *recordingResourceInvestigationGraph) promoted() *querytestutil.Recordin
 	}
 }
 
-func (g *recordingResourceInvestigationGraph) takeBack(d *querytestutil.RecordingResourceInvestigationGraph) {
+func (g *recordingResourceInvestigationGraph) takeBack(d *testutil.RecordingResourceInvestigationGraph) {
 	calls := make([]resourceInvestigationRunCall, len(d.RunCalls))
 	for i, c := range d.RunCalls {
 		calls[i] = resourceInvestigationRunCall{cypher: c.Cypher, params: c.Params}
@@ -159,7 +159,7 @@ func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 			t.Fatalf("ambiguous resolution unexpectedly traversed graph: %s", call.cypher)
 		}
 	}
-	data := querytestutil.DecodeImpactEnvelopeData(t, w)
+	data := testutil.DecodeImpactEnvelopeData(t, w)
 	resolution := data["target_resolution"].(map[string]any)
 	if got, want := resolution["status"], "ambiguous"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
@@ -260,7 +260,7 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 		t.Fatalf("path query count with requested depth = %d, want %d", got, want)
 	}
 
-	data := querytestutil.DecodeImpactEnvelopeData(t, w)
+	data := testutil.DecodeImpactEnvelopeData(t, w)
 	if got, want := data["truncated"], true; got != want {
 		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
@@ -344,7 +344,7 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 			t.Fatalf("section call %d resource_arn = %#v, want %#v", i+1, got, want)
 		}
 	}
-	data := querytestutil.DecodeImpactEnvelopeData(t, w)
+	data := testutil.DecodeImpactEnvelopeData(t, w)
 	resolution := data["target_resolution"].(map[string]any)
 	if got, want := resolution["status"], "resolved"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
@@ -454,7 +454,7 @@ func TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation(t *testing.T
 		},
 	}
 	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
-	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 
 	workloads, _, err := handler.ResourceInvestigationWorkloads(
 		context.Background(),
@@ -489,7 +489,7 @@ func TestResourceInvestigationRepoPathsGrantFiltersBeforeTruncation(t *testing.T
 		},
 	}
 	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative, PathProbe: stubImpactPathProbe{}}
-	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	access := querycontract.RepositoryAccessFilterFromContext(auth.ContextWithAuthContext(context.Background(), testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 
 	paths, _, err := handler.ResourceInvestigationRepoPaths(
 		context.Background(),

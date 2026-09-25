@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 type recordingObservabilityCoverageCorrelationStore struct {
@@ -209,7 +209,7 @@ func observabilityCoverageScopedFixtureRow(t *testing.T) []driver.Value {
 func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		observabilityCoverageScopedFixtureRow(t),
 	})
 	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}
@@ -275,7 +275,7 @@ func TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturns
 func TestObservabilityCoverageListCorrelationsUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := querytestutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
+	db, recorder := testutil.OpenScopeQueryerTestDB(t, []string{"fact_id", "payload"}, [][]driver.Value{
 		observabilityCoverageScopedFixtureRow(t),
 	})
 	handler := &Handler{Correlations: NewPostgresCorrelationStore(db)}

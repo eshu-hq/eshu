@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
 // buildPagedRefFixture returns refs in the exact store order (is_default
@@ -87,7 +87,7 @@ func TestGetRepositoryBranchesPagingFirstPageDefaultLimit(t *testing.T) {
 	refs := buildPagedRefFixture(150, 100) // 1 default + 149 + 100 = 250
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
 		},
 	}
@@ -133,7 +133,7 @@ func TestGetRepositoryBranchesPagingCursorRoundTripCoversFullSet(t *testing.T) {
 	refs := buildPagedRefFixture(150, 100)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
 		},
 	}
@@ -192,7 +192,7 @@ func TestGetRepositoryBranchesPagingSpansBranchTagBoundary(t *testing.T) {
 	refs := buildPagedRefFixture(100, 50) // 100 branches (incl. default) + 50 tags
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
 		},
 	}
@@ -224,7 +224,7 @@ func TestGetRepositoryBranchesPagingLimitValidation(t *testing.T) {
 	newHandler := func() *Handler {
 		return &Handler{
 			Content: content.FakePortContentStore{
-				Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+				Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 				RepositoryRefs: refs,
 			},
 		}
@@ -267,7 +267,7 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 	newHandler := func() *Handler {
 		return &Handler{
 			Content: content.FakePortContentStore{
-				Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+				Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 				RepositoryRefs: refs,
 			},
 		}
@@ -351,7 +351,7 @@ func TestGetRepositoryBranchesPagingChurnBetweenPages(t *testing.T) {
 
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{main, branchA, branchB},
 		},
 	}
@@ -367,7 +367,7 @@ func TestGetRepositoryBranchesPagingChurnBetweenPages(t *testing.T) {
 
 	// Simulate churn: branch-001 (not yet returned) is deleted before page 2.
 	handler.Content = content.FakePortContentStore{
-		Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+		Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		RepositoryRefs: []querycontract.RepositoryRef{main, branchA},
 	}
 
@@ -399,7 +399,7 @@ func TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip(t *testing.T) {
 	}
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: page1Refs,
 		},
 	}
@@ -417,7 +417,7 @@ func TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip(t *testing.T) {
 	// legitimate git operation). Names and kinds are unchanged; only Default
 	// moves. Real Postgres output for this state sorts as [alpha, main].
 	handler.Content = content.FakePortContentStore{
-		Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+		Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 		RepositoryRefs: []querycontract.RepositoryRef{
 			{Name: "alpha", Kind: "branch", HeadSHA: "sha-alpha", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 			{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: false, ObservedAt: observedAt, IndexedAt: indexedAt},
@@ -453,7 +453,7 @@ func TestGetRepositoryBranchesPagingFallbackAcceptsParams(t *testing.T) {
 	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    []querycontract.FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},
 			Coverage:     querycontract.RepositoryContentCoverage{Available: true, FileCount: 1, FileIndexedAt: indexedAt},
 		},

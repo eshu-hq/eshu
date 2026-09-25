@@ -75,7 +75,7 @@ Internal packages, all of them leaves that never import root package `query`:
 - `internal/storage/postgres` (as `pgstatus`) — the `Queryer` surface the
   snapshot store and scope resolver read through.
 
-Tests additionally use `internal/query/querytestutil` for
+Tests additionally use `internal/query/testutil` for
 `SemanticSearchDocumentFixture`, `SemanticSearchHTTPRequest`, `ScriptedRows`,
 and `WithPackageMetricReader`.
 
@@ -109,7 +109,7 @@ their pre-move form for the same reason:
   that git needs a pathspec spanning BOTH the old and new directories to pair
   the move as a rename at all -- a destination-only pathspec reports it as a
   new file and hides the comparison.
-- `querytestutil/metricreader.go` and `querytestutil/scriptedrows.go` are not
+- `testutil/metricreader.go` and `testutil/scriptedrows.go` are not
   whole-file moves. They are extractions out of root `_test.go` files
   (`metric_reader_test.go` and `admin_replay_idempotency_test.go`), so they
   differ by the `package` clause, by the export renames the promotion needs

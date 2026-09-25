@@ -24,12 +24,12 @@ predicates.
 The exported surface is described in [doc.go](doc.go). Loaders and
 predicates the `repository` package or staying root stayers call are
 exported; per-family artifact shaping stays unexported. Cross-package test
-pins go through `querytestutil` or `querycontract`.
+pins go through `testutil` or `querycontract`.
 
 ## Dependencies
 
 Standard library, `querycontract`, and content-parsing libraries, plus
-`querytestutil` in tests. No handler packages, no graph drivers.
+`testutil` in tests. No handler packages, no graph drivers.
 
 ## Verification
 

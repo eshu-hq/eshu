@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -20,8 +20,8 @@ import (
 // both this file and that one.
 
 // hasAuditReason reports whether the recorded audit events include reason.
-// Test-local helper over querytestutil.FakeGovernanceAuditAppender.
-func hasAuditReason(audit *querytestutil.FakeGovernanceAuditAppender, reason string) bool {
+// Test-local helper over testutil.FakeGovernanceAuditAppender.
+func hasAuditReason(audit *testutil.FakeGovernanceAuditAppender, reason string) bool {
 	for _, e := range audit.Events {
 		if e.ReasonCode == reason {
 			return true
@@ -113,7 +113,7 @@ func providerConfigAdminAuth() auth.AuthContext {
 // login-readiness guard (see readiness.go) never
 // trips for tests that are not specifically exercising it. Tests that DO
 // exercise the guard pass their own readStore explicitly.
-func newProviderConfigMutationMux(store MutationStore, tester ConnectionTester, audit *querytestutil.FakeGovernanceAuditAppender, readStore ...ReadStore) *http.ServeMux {
+func newProviderConfigMutationMux(store MutationStore, tester ConnectionTester, audit *testutil.FakeGovernanceAuditAppender, readStore ...ReadStore) *http.ServeMux {
 	handler := &MutationHandler{Store: store, Tester: tester, Audit: audit, ReadStore: defaultProviderConfigLoginReadyReadStore()}
 	if len(readStore) > 0 {
 		handler.ReadStore = readStore[0]
@@ -150,7 +150,7 @@ func TestHandleCreateAdminProviderConfig(t *testing.T) {
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{
 		ProviderConfigID: "pc_1", RevisionID: "rev_1", Status: "draft", Found: true, Changed: true,
 	}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validOIDCCreateBody))
@@ -185,7 +185,7 @@ func TestHandleCreateAdminProviderConfig(t *testing.T) {
 func TestHandleCreateAdminProviderConfigRejectsMissingSecret(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	body := `{"provider_kind":"oidc","issuer":"https://idp.example.test","client_id":"client-1"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(body))
@@ -206,7 +206,7 @@ func TestHandleUpdateAdminProviderConfig(t *testing.T) {
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{
 		ProviderConfigID: "pc_1", RevisionID: "rev_2", Status: "active", Found: true, Changed: true,
 	}}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1", strings.NewReader(validOIDCCreateBody))
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -224,7 +224,7 @@ func TestHandleUpdateAdminProviderConfig(t *testing.T) {
 func TestHandleUpdateAdminProviderConfigNotFound(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{Found: false}}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_missing", strings.NewReader(validOIDCCreateBody))
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -244,7 +244,7 @@ func TestHandleUpdateAdminProviderConfigNotFound(t *testing.T) {
 func TestHandleUpdateAdminProviderConfigKindMismatch(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{forceErr: ErrKindMismatch}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	samlBody := `{"provider_kind":"saml","entity_id":"https://sp.example.test","metadata_xml":"<md/>","sp_private_key":"k","sp_certificate":"c"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1", strings.NewReader(samlBody))
@@ -265,7 +265,7 @@ func TestHandleRevertAdminProviderConfig(t *testing.T) {
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{
 		ProviderConfigID: "pc_1", RevisionID: "rev_1", Status: "active", Found: true, Changed: true,
 	}}
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newProviderConfigMutationMux(store, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/revert", strings.NewReader(`{"revision_id":"rev_1"}`))
@@ -288,7 +288,7 @@ func TestHandleEnableAdminProviderConfigRequiresPassingTest(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{Found: true, Changed: true, Status: "active"}}
 	tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{OK: false, Detail: "discovery failed"}}
-	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, tester, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -312,7 +312,7 @@ func TestHandleEnableAdminProviderConfigPassingTest(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{Found: true, Changed: true, Status: "active"}}
 	tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_tested_1"}}
-	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, tester, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -337,7 +337,7 @@ func TestHandleEnableAdminProviderConfigRevisionChanged(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{forceErr: ErrRevisionChanged}
 	tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_tested_1"}}
-	mux := newProviderConfigMutationMux(store, tester, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, tester, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -352,7 +352,7 @@ func TestHandleEnableAdminProviderConfigRevisionChanged(t *testing.T) {
 func TestHandleDisableAdminProviderConfig(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: WriteResult{Found: true, Changed: true, Status: "draft"}}
-	mux := newProviderConfigMutationMux(store, nil, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(store, nil, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/disable", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -370,7 +370,7 @@ func TestHandleDisableAdminProviderConfig(t *testing.T) {
 func TestHandleTestConnectionAdminProviderConfig(t *testing.T) {
 	t.Parallel()
 	tester := &fakeProviderConfigConnectionTester{result: ConnectionTestResult{OK: true, Detail: "discovery ok"}}
-	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, tester, &querytestutil.FakeGovernanceAuditAppender{})
+	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, tester, &testutil.FakeGovernanceAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/test-connection", nil)
 	req = req.WithContext(auth.ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
@@ -394,7 +394,7 @@ func TestHandleTestConnectionAdminProviderConfig(t *testing.T) {
 // same storeReady helper.
 func TestHandleCreateAdminProviderConfigAuditsWhenStoreUnavailable(t *testing.T) {
 	t.Parallel()
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newProviderConfigMutationMux(nil, &fakeProviderConfigConnectionTester{}, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validOIDCCreateBody))
@@ -418,7 +418,7 @@ func TestHandleCreateAdminProviderConfigAuditsWhenStoreUnavailable(t *testing.T)
 // a denied attempt.
 func TestHandleTestConnectionAdminProviderConfigAuditsWhenTesterUnavailable(t *testing.T) {
 	t.Parallel()
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, nil, audit)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/test-connection", nil)
@@ -462,7 +462,7 @@ func TestProviderConfigMutationsRequireAllScope(t *testing.T) {
 	t.Parallel()
 	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: providerConfigAdminTenant, AllScopes: false}
 	for _, tc := range providerConfigMutationCases() {
-		audit := &querytestutil.FakeGovernanceAuditAppender{}
+		audit := &testutil.FakeGovernanceAuditAppender{}
 		mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, &fakeProviderConfigConnectionTester{}, audit)
 		var req *http.Request
 		if tc.body == "" {

@@ -118,10 +118,10 @@ for the full file layout and Move evidence.
   (`tracing.HandlerTracer()` seeded into a package-local var) then, not
   before.
 
-## Test fixtures (no querytestutil hoist)
+## Test fixtures (no testutil hoist)
 
 Unlike freshness's two-tenant fixtures, none of this family's pre-move test
-doubles were hoisted to `querytestutil`: every one of them
+doubles were hoisted to `testutil`: every one of them
 (`fakeGovernanceAuditAppender`, `sequenceSecrets`, `fakeBrowserSessionStore`,
 `fakeSignInPolicyReadStore`, `fakeLocalIdentityListStore`, `bodyContains`,
 `fixedNow`) is shared with OTHER still-root families (setup, status), so
@@ -131,7 +131,7 @@ therefore declares its own `fakeStore` (`handler_fakes_test.go`, an
 `IdentityProfileLister` double) and `fakeSessions`
 (`session.BrowserSessionStore` double) rather than reaching for root's
 private fakes it structurally cannot reach anyway. Do not try to import
-`querytestutil.FakeGovernanceAuditAppender` here as a `GovernanceAuditAppender`
+`testutil.FakeGovernanceAuditAppender` here as a `GovernanceAuditAppender`
 double AND keep duplicating `fakeStore`/`fakeSessions` locally -- the
 `Append`-only appender fixture genuinely is the shared home
 (`audit_test.go` already uses it); the storage/session doubles are not,

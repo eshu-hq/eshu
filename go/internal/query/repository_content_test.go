@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func repositoryContentHandler(files []FileContent) *RepositoryHandler {
 	return &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			repoFiles:    files,
 		},
 	}
@@ -86,7 +86,7 @@ func TestGetRepositoryContentServesSelectedIndexedBranch(t *testing.T) {
 	content := "# Title\nhello\n"
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: content},
 			},
@@ -111,7 +111,7 @@ func TestGetRepositoryContentRejectsUnindexedSelectedBranch(t *testing.T) {
 
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
 			},
@@ -133,7 +133,7 @@ func TestGetRepositoryContentRejectsUnknownSourceBackedRef(t *testing.T) {
 
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
 			},
@@ -216,7 +216,7 @@ func TestGetRepositoryContent_LocalLightweightReturnsContent(t *testing.T) {
 	handler := &RepositoryHandler{
 		Profile: ProfileLocalLightweight,
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", LineCount: 2, Language: "markdown", Content: content},
 			},

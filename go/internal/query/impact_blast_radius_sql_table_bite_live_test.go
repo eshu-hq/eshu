@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // impact_blast_radius_sql_table_bite_live_test.go is the standing bite proof

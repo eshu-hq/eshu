@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 var errReplayFailed = errors.New("replay store failure")
@@ -52,7 +52,7 @@ func assertAuditValid(t *testing.T, events []governanceaudit.Event) {
 }
 
 func TestReplayRefusesMissingReason(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	h := &Handler{Store: &stubAdminStore{}, Audit: audit}
 	rec := postReplay(t, h, map[string]any{
 		"failure_class":   "transient_error",
@@ -68,7 +68,7 @@ func TestReplayRefusesMissingReason(t *testing.T) {
 }
 
 func TestReplayRefusesMissingIdempotencyKey(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	h := &Handler{Store: &stubAdminStore{}, Audit: audit}
 	rec := postReplay(t, h, map[string]any{
 		"failure_class": "transient_error",
@@ -83,7 +83,7 @@ func TestReplayRefusesMissingIdempotencyKey(t *testing.T) {
 }
 
 func TestReplayRefusesUnauthorizedScopedToken(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
 	h := &Handler{Store: store, Audit: audit}
 	scoped := auth.AuthContext{Mode: auth.AuthModeScoped, SubjectIDHash: "sha256:deadbeef", AllScopes: false}
@@ -105,7 +105,7 @@ func TestReplayRefusesUnauthorizedScopedToken(t *testing.T) {
 }
 
 func TestReplayRefusesUnsafeClassWithoutForce(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
 	h := &Handler{Store: store, Audit: audit}
 	rec := postReplay(t, h, map[string]any{
@@ -133,7 +133,7 @@ func TestReplayRefusesUnsafeClassWithoutForce(t *testing.T) {
 // bucket) is refused at the live /admin/replay handler without force, before
 // any idempotency claim. Guards the #3502/#3514 triage contract end to end.
 func TestReplayRefusesManualReviewTriageClassWithoutForce(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
 	h := &Handler{Store: store, Audit: audit}
 	rec := postReplay(t, h, map[string]any{
@@ -157,7 +157,7 @@ func TestReplayRefusesManualReviewTriageClassWithoutForce(t *testing.T) {
 }
 
 func TestReplayHappyPathExcludesUnsafeClassesAndAudits(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{
 		replayed: []WorkItem{{WorkItemID: "wi-1"}, {WorkItemID: "wi-2"}},
 		claim:    ReplayIdempotencyClaim{Claimed: true},
@@ -197,7 +197,7 @@ func TestReplayForceKeepsUnsafeClasses(t *testing.T) {
 		replayed: []WorkItem{{WorkItemID: "wi-1"}},
 		claim:    ReplayIdempotencyClaim{Claimed: true},
 	}
-	h := &Handler{Store: store, Audit: &querytestutil.FakeGovernanceAuditAppender{}}
+	h := &Handler{Store: store, Audit: &testutil.FakeGovernanceAuditAppender{}}
 	rec := postReplay(t, h, map[string]any{
 		"failure_class":   "input_invalid",
 		"reason":          "input fixed at source, forcing",
@@ -213,7 +213,7 @@ func TestReplayForceKeepsUnsafeClasses(t *testing.T) {
 }
 
 func TestReplayDuplicateReturnsPriorOutcomeWithoutReplaying(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	// Must match the handler's fingerprint, which uses the default limit (100).
 	fingerprint := replayRequestFingerprint(nil, "scope-1", "", "", 100, false)
 	store := &stubAdminStore{
@@ -250,7 +250,7 @@ func TestReplayErrorLeavesClaimInProgress(t *testing.T) {
 		claim:     ReplayIdempotencyClaim{Claimed: true},
 		replayErr: errReplayFailed,
 	}
-	h := &Handler{Store: store, Audit: &querytestutil.FakeGovernanceAuditAppender{}}
+	h := &Handler{Store: store, Audit: &testutil.FakeGovernanceAuditAppender{}}
 	rec := postReplay(t, h, map[string]any{
 		"scope_id":        "scope-1",
 		"reason":          "retry",
@@ -270,7 +270,7 @@ func TestReplayRowVanishedFailsClosed(t *testing.T) {
 	store := &stubAdminStore{
 		claim: ReplayIdempotencyClaim{Claimed: false, Status: ""},
 	}
-	h := &Handler{Store: store, Audit: &querytestutil.FakeGovernanceAuditAppender{}}
+	h := &Handler{Store: store, Audit: &testutil.FakeGovernanceAuditAppender{}}
 	rec := postReplay(t, h, map[string]any{
 		"scope_id":        "scope-1",
 		"reason":          "retry",
@@ -285,7 +285,7 @@ func TestReplayInProgressDuplicateConflicts(t *testing.T) {
 	store := &stubAdminStore{
 		claim: ReplayIdempotencyClaim{Claimed: false, Status: ReplayRequestStatusInProgress},
 	}
-	h := &Handler{Store: store, Audit: &querytestutil.FakeGovernanceAuditAppender{}}
+	h := &Handler{Store: store, Audit: &testutil.FakeGovernanceAuditAppender{}}
 	rec := postReplay(t, h, map[string]any{
 		"scope_id":        "scope-1",
 		"reason":          "retry",
@@ -297,7 +297,7 @@ func TestReplayInProgressDuplicateConflicts(t *testing.T) {
 }
 
 func TestReplayReusedKeyDifferentParamsConflicts(t *testing.T) {
-	audit := &querytestutil.FakeGovernanceAuditAppender{}
+	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{
 		claim: ReplayIdempotencyClaim{
 			Claimed:     false,

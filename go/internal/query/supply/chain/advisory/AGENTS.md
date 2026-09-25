@@ -88,7 +88,7 @@ as `advisory.X`.
 
 ## Shared test fixtures
 
-`querytestutil` holds the fixtures both this package's future tests and
+`testutil` holds the fixtures both this package's future tests and
 root need. Put a new shared fixture there rather than copying it. Reuse
 its doubles; never redeclare them.
 

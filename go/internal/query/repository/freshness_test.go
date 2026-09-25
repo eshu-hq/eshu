@@ -12,20 +12,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/content"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
-func repositoryFreshnessTestHandler(reader *querytestutil.FakeRepositoryFreshnessReader) *Handler {
+func repositoryFreshnessTestHandler(reader *testutil.FakeRepositoryFreshnessReader) *Handler {
 	return &Handler{
 		Neo4j: graph.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": testutil.RepositoryStatsGraphRow(),
 			},
 		},
-		Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
+		Content:   content.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()}},
 		Freshness: reader,
 	}
 }
@@ -36,7 +36,7 @@ func repositoryFreshnessTestHandler(reader *querytestutil.FakeRepositoryFreshnes
 func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := repositoryFreshnessTestHandler(reader)
 
 	mux := http.NewServeMux()
@@ -53,7 +53,7 @@ func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 		t.Fatalf("reader received repo id %q, want repo-1", reader.GotRepoID)
 	}
 
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	if got, want := resp["verdict"], "current"; got != want {
 		t.Fatalf("verdict = %#v, want %#v", got, want)
 	}
@@ -73,12 +73,12 @@ func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 		t.Fatal("as_of missing from response")
 	}
 
-	repo := querytestutil.MustMapField(t, resp, "repository")
+	repo := testutil.MustMapField(t, resp, "repository")
 	if got, want := repo["id"], "repo-1"; got != want {
 		t.Fatalf("repository.id = %#v, want %#v", got, want)
 	}
 
-	generation := querytestutil.MustMapField(t, resp, "generation")
+	generation := testutil.MustMapField(t, resp, "generation")
 	if got, want := generation["id"], "gen-1"; got != want {
 		t.Fatalf("generation.id = %#v, want %#v", got, want)
 	}
@@ -95,7 +95,7 @@ func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 		t.Fatal("generation.activated_at missing")
 	}
 
-	stages := querytestutil.MustMapField(t, resp, "stages")
+	stages := testutil.MustMapField(t, resp, "stages")
 	for _, key := range []string{"collected", "reduced", "projected", "materialized"} {
 		if got, want := stages[key], true; got != want {
 			t.Fatalf("stages.%s = %#v, want %#v", key, got, want)
@@ -107,7 +107,7 @@ func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 		t.Fatalf("outstanding_by_stage = %#v, want empty slice", resp["outstanding_by_stage"])
 	}
 
-	sharedEnrichment := querytestutil.MustMapField(t, resp, "shared_enrichment")
+	sharedEnrichment := testutil.MustMapField(t, resp, "shared_enrichment")
 	if got, want := sharedEnrichment["pending"], false; got != want {
 		t.Fatalf("shared_enrichment.pending = %#v, want %#v", got, want)
 	}
@@ -127,12 +127,12 @@ func TestGetRepositoryFreshnessRendersCurrentVerdict(t *testing.T) {
 func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 	t.Parallel()
 
-	building := querytestutil.FullyBuiltRepositoryFreshnessSnapshot()
+	building := testutil.FullyBuiltRepositoryFreshnessSnapshot()
 	building.Stages.Reduced = false
 
-	behind := querytestutil.FullyBuiltRepositoryFreshnessSnapshot()
+	behind := testutil.FullyBuiltRepositoryFreshnessSnapshot()
 
-	unobserved := querytestutil.FullyBuiltRepositoryFreshnessSnapshot()
+	unobserved := testutil.FullyBuiltRepositoryFreshnessSnapshot()
 	unobserved.UnobservedPush = &status.RepositoryFreshnessUnobservedPush{
 		TargetSHA: "def456", Ref: "refs/heads/main", ReceivedAt: time.Date(2026, 7, 12, 3, 5, 0, 0, time.UTC),
 	}
@@ -156,7 +156,7 @@ func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: tt.snapshot}
+			reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: tt.snapshot}
 			handler := repositoryFreshnessTestHandler(reader)
 			mux := http.NewServeMux()
 			handler.Mount(mux)
@@ -172,7 +172,7 @@ func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 			if got, want := w.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
-			resp := querytestutil.DecodeResponseBody(t, w)
+			resp := testutil.DecodeResponseBody(t, w)
 			if got, want := resp["verdict"], tt.wantVerdict; got != want {
 				t.Fatalf("verdict = %#v, want %#v; body = %s", got, want, w.Body.String())
 			}
@@ -191,7 +191,7 @@ func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 func TestGetRepositoryFreshnessScopedAllowedRepositoryReturnsData(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := repositoryFreshnessTestHandler(reader)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -212,7 +212,7 @@ func TestGetRepositoryFreshnessScopedAllowedRepositoryReturnsData(t *testing.T) 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	if got, want := resp["scoped"], true; got != want {
 		t.Fatalf("scoped = %#v, want %#v", got, want)
 	}
@@ -229,7 +229,7 @@ func TestGetRepositoryFreshnessScopedAllowedRepositoryReturnsData(t *testing.T) 
 func TestGetRepositoryFreshnessScopedDeniedRepositoryReturns404(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := repositoryFreshnessTestHandler(reader)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -262,7 +262,7 @@ func TestGetRepositoryFreshnessScopedDeniedRepositoryReturns404(t *testing.T) {
 func TestGetRepositoryFreshnessAcceptsArbitraryExpectedCommit(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := repositoryFreshnessTestHandler(reader)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -274,7 +274,7 @@ func TestGetRepositoryFreshnessAcceptsArbitraryExpectedCommit(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	if got, want := resp["verdict"], "behind"; got != want {
 		t.Fatalf("verdict = %#v, want %#v", got, want)
 	}
@@ -286,7 +286,7 @@ func TestGetRepositoryFreshnessAcceptsArbitraryExpectedCommit(t *testing.T) {
 func TestGetRepositoryFreshnessUnknownRepositoryReturns404(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: testutil.FullyBuiltRepositoryFreshnessSnapshot()}
 	handler := &Handler{
 		Neo4j:     graph.FakeRepoGraphReader{},
 		Content:   content.FakePortContentStore{},
@@ -331,7 +331,7 @@ func TestGetRepositoryFreshnessReaderNotConfiguredReturns503(t *testing.T) {
 func TestGetRepositoryFreshnessReadErrorReturns500(t *testing.T) {
 	t.Parallel()
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Err: errors.New("connection reset")}
+	reader := &testutil.FakeRepositoryFreshnessReader{Err: errors.New("connection reset")}
 	handler := repositoryFreshnessTestHandler(reader)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -351,14 +351,14 @@ func TestGetRepositoryFreshnessReadErrorReturns500(t *testing.T) {
 func TestGetRepositoryFreshnessOutstandingByStageRendersRows(t *testing.T) {
 	t.Parallel()
 
-	snapshot := querytestutil.FullyBuiltRepositoryFreshnessSnapshot()
+	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
 	snapshot.Stages.Reduced = false
 	snapshot.Outstanding = []status.RepositoryFreshnessOutstanding{
 		{Stage: "reducer", Status: "pending", Count: 2},
 		{Stage: "reducer", Status: "retrying", Count: 1},
 	}
 
-	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: snapshot}
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: snapshot}
 	handler := repositoryFreshnessTestHandler(reader)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -367,7 +367,7 @@ func TestGetRepositoryFreshnessOutstandingByStageRendersRows(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	resp := querytestutil.DecodeResponseBody(t, w)
+	resp := testutil.DecodeResponseBody(t, w)
 	outstanding, ok := resp["outstanding_by_stage"].([]any)
 	if !ok || len(outstanding) != 2 {
 		t.Fatalf("outstanding_by_stage = %#v, want 2 rows", resp["outstanding_by_stage"])

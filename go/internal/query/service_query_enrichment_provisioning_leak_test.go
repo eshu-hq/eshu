@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // crossTenantProvisioningGraph resolves the orders-api workload anchored on the
@@ -143,7 +143,7 @@ func TestW3RoutesScopedFilterCrossTenantProvisioningCandidates(t *testing.T) {
 				t.Fatalf("all-scope caller: expected cross-tenant provisioning candidate present in unfiltered response, got: %s", allScope)
 			}
 
-			scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
+			scoped := testutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 			scopedBody := serve(&scoped)
 			if strings.Contains(scopedBody, crossTenant) || strings.Contains(scopedBody, crossTenantName) {
 				t.Fatalf("scoped caller granted only repo-a leaked cross-tenant %q via a provisioning-candidate field (dependents/consumer_repositories/provisioning_source_chains): %s", crossTenant, scopedBody)

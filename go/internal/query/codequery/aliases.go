@@ -253,7 +253,7 @@ type VisualizationPacket = visualization.VisualizationPacket
 //
 // It is an alias onto querycontract/code rather than a declaration: the type appears
 // in a ContentStore read's signature, and a shared double promoted to
-// querytestutil for #6060 cannot name an unexported root type. An alias
+// testutil for #6060 cannot name an unexported root type. An alias
 // preserves type identity, so every existing caller and every composite literal
 // is unchanged.
 type deadCodeIncomingEdge = code.DeadCodeIncomingEdge

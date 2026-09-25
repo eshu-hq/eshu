@@ -67,7 +67,7 @@ package reaches it only through the `querycontract.ContentStore` and
 - Test files -- this package's own tests, several moved in verbatim from
   root (see Move evidence); `entity_search_dispatch_test.go`,
   `cypher_shipped_text_test.go`, `repository_match_key_test.go` construct
-  fixtures hoisted to `querytestutil` (see AGENTS.md).
+  fixtures hoisted to `testutil` (see AGENTS.md).
 
 ## Move evidence
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 // TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConfirmed
@@ -20,7 +20,7 @@ import (
 func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConfirmed(t *testing.T) {
 	t.Parallel()
 
-	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
+	resources := []map[string]any{testutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
 	matchKey := declaredObjectStubMatchKey("apps/v1/deployments", "production", "deployable-source")
 	store := &stubKubernetesPodTemplateStore{
 		matchingDeclaredObjects: map[string]struct{}{matchKey: {}},
@@ -84,8 +84,8 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorSharedDigestDistinctWorklo
 	t.Parallel()
 
 	sharedDigest := "ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"
-	resourcesA := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
-	resourcesB := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
+	resourcesA := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
+	resourcesB := []map[string]any{testutil.K8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
 
 	// The live fact carries ONLY workload-b's declared identity.
 	matchKeyB := declaredObjectStubMatchKey("apps/v1/deployments", "shared-ns", "workload-b")
@@ -128,7 +128,7 @@ func TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorNamespaceGuard(t *testing.
 	}
 	h := &Handler{KubernetesPodTemplates: store}
 
-	resources := []map[string]any{querytestutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
+	resources := []map[string]any{testutil.K8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(), nil, resources,
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},

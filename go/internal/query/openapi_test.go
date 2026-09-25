@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestServeOpenAPI(t *testing.T) {
@@ -117,12 +117,12 @@ func TestServeOpenAPI(t *testing.T) {
 		}
 	}
 
-	repositoryContextPath := querytestutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/context")
-	repositoryContextGet := querytestutil.MustMapField(t, repositoryContextPath, "get")
-	repositoryContextResponses := querytestutil.MustMapField(t, repositoryContextGet, "responses")
-	repositoryContextOK := querytestutil.MustMapField(t, repositoryContextResponses, "200")
-	repositoryContextContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryContextOK, "content"), "application/json")
-	repositoryContextSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryContextContent, "schema"), "properties")
+	repositoryContextPath := testutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/context")
+	repositoryContextGet := testutil.MustMapField(t, repositoryContextPath, "get")
+	repositoryContextResponses := testutil.MustMapField(t, repositoryContextGet, "responses")
+	repositoryContextOK := testutil.MustMapField(t, repositoryContextResponses, "200")
+	repositoryContextContent := testutil.MustMapField(t, testutil.MustMapField(t, repositoryContextOK, "content"), "application/json")
+	repositoryContextSchema := testutil.MustMapField(t, testutil.MustMapField(t, repositoryContextContent, "schema"), "properties")
 	for _, field := range []string{
 		"relationships",
 		"relationship_overview",
@@ -146,11 +146,11 @@ func TestOpenAPIAskSSEDescribesValidatedTokenEvents(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	askPath := querytestutil.MustMapField(t, paths, "/api/v0/ask")
-	askPost := querytestutil.MustMapField(t, askPath, "post")
-	responses := querytestutil.MustMapField(t, askPost, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
+	paths := testutil.MustMapField(t, spec, "paths")
+	askPath := testutil.MustMapField(t, paths, "/api/v0/ask")
+	askPost := testutil.MustMapField(t, askPath, "post")
+	responses := testutil.MustMapField(t, askPost, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
 
 	responseDescription, ok := okResponse["description"].(string)
 	if !ok {
@@ -158,9 +158,9 @@ func TestOpenAPIAskSSEDescribesValidatedTokenEvents(t *testing.T) {
 	}
 	assertAskSSEValidatedTokenDescription(t, responseDescription)
 
-	content := querytestutil.MustMapField(t, okResponse, "content")
-	eventStream := querytestutil.MustMapField(t, content, "text/event-stream")
-	eventStreamSchema := querytestutil.MustMapField(t, eventStream, "schema")
+	content := testutil.MustMapField(t, okResponse, "content")
+	eventStream := testutil.MustMapField(t, content, "text/event-stream")
+	eventStreamSchema := testutil.MustMapField(t, eventStream, "schema")
 	eventStreamDescription, ok := eventStreamSchema["description"].(string)
 	if !ok {
 		t.Fatal("ask SSE schema description missing or not a string")
@@ -174,11 +174,11 @@ func TestOpenAPIAskDescribesRuntimeAnswerGuardrails(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	askPath := querytestutil.MustMapField(t, paths, "/api/v0/ask")
-	askPost := querytestutil.MustMapField(t, askPath, "post")
-	responses := querytestutil.MustMapField(t, askPost, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
+	paths := testutil.MustMapField(t, spec, "paths")
+	askPath := testutil.MustMapField(t, paths, "/api/v0/ask")
+	askPost := testutil.MustMapField(t, askPath, "post")
+	responses := testutil.MustMapField(t, askPost, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
 	responseDescription, ok := okResponse["description"].(string)
 	if !ok {
 		t.Fatal("ask 200 response description missing or not a string")
@@ -298,30 +298,30 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	readPath := querytestutil.MustMapField(t, paths, "/api/v0/content/entities/read")
-	readPost := querytestutil.MustMapField(t, readPath, "post")
-	readResponses := querytestutil.MustMapField(t, readPost, "responses")
-	readOK := querytestutil.MustMapField(t, readResponses, "200")
-	readContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, readOK, "content"), "application/json")
-	readSchema := querytestutil.MustMapField(t, readContent, "schema")
+	paths := testutil.MustMapField(t, spec, "paths")
+	readPath := testutil.MustMapField(t, paths, "/api/v0/content/entities/read")
+	readPost := testutil.MustMapField(t, readPath, "post")
+	readResponses := testutil.MustMapField(t, readPost, "responses")
+	readOK := testutil.MustMapField(t, readResponses, "200")
+	readContent := testutil.MustMapField(t, testutil.MustMapField(t, readOK, "content"), "application/json")
+	readSchema := testutil.MustMapField(t, readContent, "schema")
 	if got, want := readSchema["$ref"], "#/components/schemas/EntityContent"; got != want {
 		t.Fatalf("content/entities/read schema ref = %#v, want %#v", got, want)
 	}
 
-	searchPath := querytestutil.MustMapField(t, paths, "/api/v0/content/entities/search")
-	searchPost := querytestutil.MustMapField(t, searchPath, "post")
-	searchRequestBody := querytestutil.MustMapField(t, searchPost, "requestBody")
-	searchRequestContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, searchRequestBody, "content"), "application/json")
-	searchRequestSchema := querytestutil.MustMapField(t, searchRequestContent, "schema")
-	searchRequestProperties := querytestutil.MustMapField(t, searchRequestSchema, "properties")
+	searchPath := testutil.MustMapField(t, paths, "/api/v0/content/entities/search")
+	searchPost := testutil.MustMapField(t, searchPath, "post")
+	searchRequestBody := testutil.MustMapField(t, searchPost, "requestBody")
+	searchRequestContent := testutil.MustMapField(t, testutil.MustMapField(t, searchRequestBody, "content"), "application/json")
+	searchRequestSchema := testutil.MustMapField(t, searchRequestContent, "schema")
+	searchRequestProperties := testutil.MustMapField(t, searchRequestSchema, "properties")
 	if _, ok := searchRequestProperties["repo_ids"]; !ok {
 		t.Fatal("content/entities/search schema missing repo_ids property")
 	}
 	if _, ok := searchRequestProperties["pattern"]; !ok {
 		t.Fatal("content/entities/search schema missing pattern property")
 	}
-	offsetSchema := querytestutil.MustMapField(t, searchRequestProperties, "offset")
+	offsetSchema := testutil.MustMapField(t, searchRequestProperties, "offset")
 	if got, want := int(offsetSchema["maximum"].(float64)), ContentSearchMaxOffset; got != want {
 		t.Fatalf("content/entities/search offset maximum = %d, want %d", got, want)
 	}
@@ -330,77 +330,77 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatalf("content/entities/search schema anyOf = %#v, want 2 pattern requirement variants", searchRequestSchema["anyOf"])
 	}
 
-	searchResponses := querytestutil.MustMapField(t, searchPost, "responses")
-	searchOK := querytestutil.MustMapField(t, searchResponses, "200")
-	searchContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, searchOK, "content"), "application/json")
-	searchSchema := querytestutil.MustMapField(t, searchContent, "schema")
+	searchResponses := testutil.MustMapField(t, searchPost, "responses")
+	searchOK := testutil.MustMapField(t, searchResponses, "200")
+	searchContent := testutil.MustMapField(t, testutil.MustMapField(t, searchOK, "content"), "application/json")
+	searchSchema := testutil.MustMapField(t, searchContent, "schema")
 	if got, want := searchSchema["$ref"], "#/components/schemas/EntityContentSearchResponse"; got != want {
 		t.Fatalf("content/entities/search schema ref = %#v, want %#v", got, want)
 	}
 
-	components := querytestutil.MustMapField(t, spec, "components")
-	schemas := querytestutil.MustMapField(t, components, "schemas")
-	entitySearchSchema := querytestutil.MustMapField(t, schemas, "EntityContentSearchResponse")
-	entitySearchProperties := querytestutil.MustMapField(t, entitySearchSchema, "properties")
+	components := testutil.MustMapField(t, spec, "components")
+	schemas := testutil.MustMapField(t, components, "schemas")
+	entitySearchSchema := testutil.MustMapField(t, schemas, "EntityContentSearchResponse")
+	entitySearchProperties := testutil.MustMapField(t, entitySearchSchema, "properties")
 	for _, property := range []string{"results", "count", "limit", "offset", "truncated", "source_backend"} {
 		if _, ok := entitySearchProperties[property]; !ok {
 			t.Fatalf("EntityContentSearchResponse missing property %q", property)
 		}
 	}
-	entitySchema := querytestutil.MustMapField(t, schemas, "EntityContent")
-	entityProperties := querytestutil.MustMapField(t, entitySchema, "properties")
-	metadata := querytestutil.MustMapField(t, entityProperties, "metadata")
+	entitySchema := testutil.MustMapField(t, schemas, "EntityContent")
+	entityProperties := testutil.MustMapField(t, entitySchema, "properties")
+	metadata := testutil.MustMapField(t, entityProperties, "metadata")
 	if got, want := metadata["type"], "object"; got != want {
 		t.Fatalf("EntityContent.metadata.type = %#v, want %#v", got, want)
 	}
 
-	entityRefSchema := querytestutil.MustMapField(t, schemas, "EntityRef")
-	entityRefProperties := querytestutil.MustMapField(t, entityRefSchema, "properties")
-	entityRefSemanticSummary := querytestutil.MustMapField(t, entityRefProperties, "semantic_summary")
+	entityRefSchema := testutil.MustMapField(t, schemas, "EntityRef")
+	entityRefProperties := testutil.MustMapField(t, entityRefSchema, "properties")
+	entityRefSemanticSummary := testutil.MustMapField(t, entityRefProperties, "semantic_summary")
 	if got, want := entityRefSemanticSummary["type"], "string"; got != want {
 		t.Fatalf("EntityRef.semantic_summary.type = %#v, want %#v", got, want)
 	}
-	entityRefSemanticProfile := querytestutil.MustMapField(t, entityRefProperties, "semantic_profile")
+	entityRefSemanticProfile := testutil.MustMapField(t, entityRefProperties, "semantic_profile")
 	if got, want := entityRefSemanticProfile["type"], "object"; got != want {
 		t.Fatalf("EntityRef.semantic_profile.type = %#v, want %#v", got, want)
 	}
-	entityRefMetadata := querytestutil.MustMapField(t, entityRefProperties, "metadata")
+	entityRefMetadata := testutil.MustMapField(t, entityRefProperties, "metadata")
 	if got, want := entityRefMetadata["type"], "object"; got != want {
 		t.Fatalf("EntityRef.metadata.type = %#v, want %#v", got, want)
 	}
 
-	entityContextPath := querytestutil.MustMapField(t, paths, "/api/v0/entities/{entity_id}/context")
-	entityContextGet := querytestutil.MustMapField(t, entityContextPath, "get")
-	entityContextResponses := querytestutil.MustMapField(t, entityContextGet, "responses")
-	entityContextOK := querytestutil.MustMapField(t, entityContextResponses, "200")
-	entityContextContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, entityContextOK, "content"), "application/json")
-	entityContextSchema := querytestutil.MustMapField(t, entityContextContent, "schema")
-	entityContextProperties := querytestutil.MustMapField(t, entityContextSchema, "properties")
-	entityContextMetadata := querytestutil.MustMapField(t, entityContextProperties, "metadata")
+	entityContextPath := testutil.MustMapField(t, paths, "/api/v0/entities/{entity_id}/context")
+	entityContextGet := testutil.MustMapField(t, entityContextPath, "get")
+	entityContextResponses := testutil.MustMapField(t, entityContextGet, "responses")
+	entityContextOK := testutil.MustMapField(t, entityContextResponses, "200")
+	entityContextContent := testutil.MustMapField(t, testutil.MustMapField(t, entityContextOK, "content"), "application/json")
+	entityContextSchema := testutil.MustMapField(t, entityContextContent, "schema")
+	entityContextProperties := testutil.MustMapField(t, entityContextSchema, "properties")
+	entityContextMetadata := testutil.MustMapField(t, entityContextProperties, "metadata")
 	if got, want := entityContextMetadata["type"], "object"; got != want {
 		t.Fatalf("entity context metadata.type = %#v, want %#v", got, want)
 	}
-	entityContextSemanticProfile := querytestutil.MustMapField(t, entityContextProperties, "semantic_profile")
+	entityContextSemanticProfile := testutil.MustMapField(t, entityContextProperties, "semantic_profile")
 	if got, want := entityContextSemanticProfile["type"], "object"; got != want {
 		t.Fatalf("entity context semantic_profile.type = %#v, want %#v", got, want)
 	}
-	entityContextStory := querytestutil.MustMapField(t, entityContextProperties, "story")
+	entityContextStory := testutil.MustMapField(t, entityContextProperties, "story")
 	if got, want := entityContextStory["type"], "string"; got != want {
 		t.Fatalf("entity context story.type = %#v, want %#v", got, want)
 	}
 
-	codeSearchPath := querytestutil.MustMapField(t, paths, "/api/v0/code/search")
-	codeSearchPost := querytestutil.MustMapField(t, codeSearchPath, "post")
-	codeSearchResponses := querytestutil.MustMapField(t, codeSearchPost, "responses")
-	codeSearchOK := querytestutil.MustMapField(t, codeSearchResponses, "200")
-	codeSearchContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, codeSearchOK, "content"), "application/json")
-	codeSearchSchema := querytestutil.MustMapField(t, codeSearchContent, "schema")
+	codeSearchPath := testutil.MustMapField(t, paths, "/api/v0/code/search")
+	codeSearchPost := testutil.MustMapField(t, codeSearchPath, "post")
+	codeSearchResponses := testutil.MustMapField(t, codeSearchPost, "responses")
+	codeSearchOK := testutil.MustMapField(t, codeSearchResponses, "200")
+	codeSearchContent := testutil.MustMapField(t, testutil.MustMapField(t, codeSearchOK, "content"), "application/json")
+	codeSearchSchema := testutil.MustMapField(t, codeSearchContent, "schema")
 	if got, want := codeSearchSchema["$ref"], "#/components/schemas/CodeSearchResponse"; got != want {
 		t.Fatalf("code/search schema ref = %#v, want %#v", got, want)
 	}
-	codeSearchResultSchema := querytestutil.MustMapField(t, schemas, "CodeSearchResult")
-	codeSearchResultProperties := querytestutil.MustMapField(t, codeSearchResultSchema, "properties")
-	codeSearchSemanticProfile := querytestutil.MustMapField(t, codeSearchResultProperties, "semantic_profile")
+	codeSearchResultSchema := testutil.MustMapField(t, schemas, "CodeSearchResult")
+	codeSearchResultProperties := testutil.MustMapField(t, codeSearchResultSchema, "properties")
+	codeSearchSemanticProfile := testutil.MustMapField(t, codeSearchResultProperties, "semantic_profile")
 	if got, want := codeSearchSemanticProfile["type"], "object"; got != want {
 		t.Fatalf("CodeSearchResult.semantic_profile.type = %#v, want %#v", got, want)
 	}
@@ -408,8 +408,8 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	// search_backend=hybrid on content rows reordered by the bounded hybrid
 	// re-rank, so every returned row type must document the marker.
 	for _, schemaName := range []string{"CodeSearchResult", "EntityContent", "FileContent"} {
-		properties := querytestutil.MustMapField(t, querytestutil.MustMapField(t, schemas, schemaName), "properties")
-		searchBackend := querytestutil.MustMapField(t, properties, "search_backend")
+		properties := testutil.MustMapField(t, testutil.MustMapField(t, schemas, schemaName), "properties")
+		searchBackend := testutil.MustMapField(t, properties, "search_backend")
 		if got, want := searchBackend["type"], "string"; got != want {
 			t.Fatalf("%s.search_backend.type = %#v, want %#v", schemaName, got, want)
 		}
@@ -419,11 +419,11 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		}
 	}
 
-	symbolSearchPath := querytestutil.MustMapField(t, paths, "/api/v0/code/symbols/search")
-	symbolSearchPost := querytestutil.MustMapField(t, symbolSearchPath, "post")
-	symbolSearchBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, symbolSearchPost, "requestBody"), "content")
-	symbolSearchJSON := querytestutil.MustMapField(t, symbolSearchBody, "application/json")
-	symbolSearchRequestSchema := querytestutil.MustMapField(t, symbolSearchJSON, "schema")
+	symbolSearchPath := testutil.MustMapField(t, paths, "/api/v0/code/symbols/search")
+	symbolSearchPost := testutil.MustMapField(t, symbolSearchPath, "post")
+	symbolSearchBody := testutil.MustMapField(t, testutil.MustMapField(t, symbolSearchPost, "requestBody"), "content")
+	symbolSearchJSON := testutil.MustMapField(t, symbolSearchBody, "application/json")
+	symbolSearchRequestSchema := testutil.MustMapField(t, symbolSearchJSON, "schema")
 	if _, ok := symbolSearchRequestSchema["required"]; ok {
 		t.Fatal("symbol search request should not require only symbol when query alias is documented")
 	}
@@ -431,84 +431,84 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if !ok || len(anyOf) != 2 {
 		t.Fatalf("symbol search request anyOf = %#v, want symbol/query alternatives", symbolSearchRequestSchema["anyOf"])
 	}
-	symbolSearchResponses := querytestutil.MustMapField(t, symbolSearchPost, "responses")
-	symbolSearchOK := querytestutil.MustMapField(t, symbolSearchResponses, "200")
-	symbolSearchContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, symbolSearchOK, "content"), "application/json")
-	symbolSearchSchema := querytestutil.MustMapField(t, symbolSearchContent, "schema")
+	symbolSearchResponses := testutil.MustMapField(t, symbolSearchPost, "responses")
+	symbolSearchOK := testutil.MustMapField(t, symbolSearchResponses, "200")
+	symbolSearchContent := testutil.MustMapField(t, testutil.MustMapField(t, symbolSearchOK, "content"), "application/json")
+	symbolSearchSchema := testutil.MustMapField(t, symbolSearchContent, "schema")
 	if got, want := symbolSearchSchema["$ref"], "#/components/schemas/SymbolSearchResponse"; got != want {
 		t.Fatalf("code/symbols/search schema ref = %#v, want %#v", got, want)
 	}
-	symbolSearchResultSchema := querytestutil.MustMapField(t, schemas, "SymbolSearchResult")
-	symbolSearchResultProperties := querytestutil.MustMapField(t, symbolSearchResultSchema, "properties")
+	symbolSearchResultSchema := testutil.MustMapField(t, schemas, "SymbolSearchResult")
+	symbolSearchResultProperties := testutil.MustMapField(t, symbolSearchResultSchema, "properties")
 	if _, ok := symbolSearchResultProperties["source_handle"]; !ok {
 		t.Fatal("SymbolSearchResult missing source_handle")
 	}
 
-	structuralInventoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/structure/inventory")
-	structuralInventoryPost := querytestutil.MustMapField(t, structuralInventoryPath, "post")
-	structuralInventoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryPost, "requestBody"), "content")
-	structuralInventoryJSON := querytestutil.MustMapField(t, structuralInventoryBody, "application/json")
-	structuralInventoryRequestSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryJSON, "schema"), "properties")
+	structuralInventoryPath := testutil.MustMapField(t, paths, "/api/v0/code/structure/inventory")
+	structuralInventoryPost := testutil.MustMapField(t, structuralInventoryPath, "post")
+	structuralInventoryBody := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryPost, "requestBody"), "content")
+	structuralInventoryJSON := testutil.MustMapField(t, structuralInventoryBody, "application/json")
+	structuralInventoryRequestSchema := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryJSON, "schema"), "properties")
 	for _, field := range []string{"repo_id", "language", "inventory_kind", "entity_kind", "file_path", "symbol", "decorator", "method_name", "class_name", "limit", "offset"} {
 		if _, ok := structuralInventoryRequestSchema[field]; !ok {
 			t.Fatalf("code/structure/inventory request schema missing %s", field)
 		}
 	}
-	structuralInventoryResponses := querytestutil.MustMapField(t, structuralInventoryPost, "responses")
-	structuralInventoryOK := querytestutil.MustMapField(t, structuralInventoryResponses, "200")
-	structuralInventoryContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryOK, "content"), "application/json")
-	structuralInventoryResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryContent, "schema"), "properties")
+	structuralInventoryResponses := testutil.MustMapField(t, structuralInventoryPost, "responses")
+	structuralInventoryOK := testutil.MustMapField(t, structuralInventoryResponses, "200")
+	structuralInventoryContent := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryOK, "content"), "application/json")
+	structuralInventoryResponse := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryContent, "schema"), "properties")
 	for _, field := range []string{"results", "matches", "truncated", "next_offset", "source_backend"} {
 		if _, ok := structuralInventoryResponse[field]; !ok {
 			t.Fatalf("code/structure/inventory response schema missing %s", field)
 		}
 	}
 
-	topicInvestigationPath := querytestutil.MustMapField(t, paths, "/api/v0/code/topics/investigate")
-	topicInvestigationPost := querytestutil.MustMapField(t, topicInvestigationPath, "post")
-	topicInvestigationBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, topicInvestigationPost, "requestBody"), "content")
-	topicInvestigationJSON := querytestutil.MustMapField(t, topicInvestigationBody, "application/json")
-	topicInvestigationRequest := querytestutil.MustMapField(t, querytestutil.MustMapField(t, topicInvestigationJSON, "schema"), "properties")
+	topicInvestigationPath := testutil.MustMapField(t, paths, "/api/v0/code/topics/investigate")
+	topicInvestigationPost := testutil.MustMapField(t, topicInvestigationPath, "post")
+	topicInvestigationBody := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationPost, "requestBody"), "content")
+	topicInvestigationJSON := testutil.MustMapField(t, topicInvestigationBody, "application/json")
+	topicInvestigationRequest := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationJSON, "schema"), "properties")
 	for _, field := range []string{"topic", "intent", "repo_id", "language", "limit", "offset"} {
 		if _, ok := topicInvestigationRequest[field]; !ok {
 			t.Fatalf("code/topics/investigate request schema missing %s", field)
 		}
 	}
-	topicInvestigationResponses := querytestutil.MustMapField(t, topicInvestigationPost, "responses")
-	topicInvestigationOK := querytestutil.MustMapField(t, topicInvestigationResponses, "200")
-	topicInvestigationContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, topicInvestigationOK, "content"), "application/json")
-	topicInvestigationResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, topicInvestigationContent, "schema"), "properties")
+	topicInvestigationResponses := testutil.MustMapField(t, topicInvestigationPost, "responses")
+	topicInvestigationOK := testutil.MustMapField(t, topicInvestigationResponses, "200")
+	topicInvestigationContent := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationOK, "content"), "application/json")
+	topicInvestigationResponse := testutil.MustMapField(t, testutil.MustMapField(t, topicInvestigationContent, "schema"), "properties")
 	for _, field := range []string{"evidence_groups", "matched_symbols", "call_graph_handles", "recommended_next_calls", "coverage", "truncated", "candidate_pool_truncated"} {
 		if _, ok := topicInvestigationResponse[field]; !ok {
 			t.Fatalf("code/topics/investigate response schema missing %s", field)
 		}
 	}
 
-	relationshipStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
-	relationshipStoryPost := querytestutil.MustMapField(t, relationshipStoryPath, "post")
-	relationshipStoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
-	relationshipStoryJSON := querytestutil.MustMapField(t, relationshipStoryBody, "application/json")
-	relationshipStorySchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	relationshipStoryPath := testutil.MustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := testutil.MustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := testutil.MustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStorySchema := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryJSON, "schema"), "properties")
 	for _, field := range []string{"query_type", "target", "entity_id", "direction", "relationship_type", "relationship_types", "include_transitive", "max_depth", "limit", "offset", "token_budget"} {
 		if _, ok := relationshipStorySchema[field]; !ok {
 			t.Fatalf("code/relationships/story request schema missing %s", field)
 		}
 	}
-	relationshipStoryResponses := querytestutil.MustMapField(t, relationshipStoryPost, "responses")
-	relationshipStoryOK := querytestutil.MustMapField(t, relationshipStoryResponses, "200")
-	relationshipStoryContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryOK, "content"), "application/json")
-	relationshipStoryResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipStoryContent, "schema"), "properties")
+	relationshipStoryResponses := testutil.MustMapField(t, relationshipStoryPost, "responses")
+	relationshipStoryOK := testutil.MustMapField(t, relationshipStoryResponses, "200")
+	relationshipStoryContent := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryOK, "content"), "application/json")
+	relationshipStoryResponse := testutil.MustMapField(t, testutil.MustMapField(t, relationshipStoryContent, "schema"), "properties")
 	for _, field := range []string{"target_resolution", "relationships", "class_hierarchy", "override_story", "coverage"} {
 		if _, ok := relationshipStoryResponse[field]; !ok {
 			t.Fatalf("code/relationships/story response schema missing %s", field)
 		}
 	}
 
-	callChainPath := querytestutil.MustMapField(t, paths, "/api/v0/code/call-chain")
-	callChainPost := querytestutil.MustMapField(t, callChainPath, "post")
-	callChainBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, callChainPost, "requestBody"), "content")
-	callChainJSON := querytestutil.MustMapField(t, callChainBody, "application/json")
-	callChainSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, callChainJSON, "schema"), "properties")
+	callChainPath := testutil.MustMapField(t, paths, "/api/v0/code/call-chain")
+	callChainPost := testutil.MustMapField(t, callChainPath, "post")
+	callChainBody := testutil.MustMapField(t, testutil.MustMapField(t, callChainPost, "requestBody"), "content")
+	callChainJSON := testutil.MustMapField(t, callChainBody, "application/json")
+	callChainSchema := testutil.MustMapField(t, testutil.MustMapField(t, callChainJSON, "schema"), "properties")
 	if _, ok := callChainSchema["start"]; !ok {
 		t.Fatal("code/call-chain request schema missing start")
 	}
@@ -528,11 +528,11 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("code/call-chain request schema missing max_depth")
 	}
 
-	deadCodePath := querytestutil.MustMapField(t, paths, "/api/v0/code/dead-code")
-	deadCodePost := querytestutil.MustMapField(t, deadCodePath, "post")
-	deadCodeBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadCodePost, "requestBody"), "content")
-	deadCodeJSON := querytestutil.MustMapField(t, deadCodeBody, "application/json")
-	deadCodeSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadCodeJSON, "schema"), "properties")
+	deadCodePath := testutil.MustMapField(t, paths, "/api/v0/code/dead-code")
+	deadCodePost := testutil.MustMapField(t, deadCodePath, "post")
+	deadCodeBody := testutil.MustMapField(t, testutil.MustMapField(t, deadCodePost, "requestBody"), "content")
+	deadCodeJSON := testutil.MustMapField(t, deadCodeBody, "application/json")
+	deadCodeSchema := testutil.MustMapField(t, testutil.MustMapField(t, deadCodeJSON, "schema"), "properties")
 	if _, ok := deadCodeSchema["repo_id"]; !ok {
 		t.Fatal("code/dead-code request schema missing repo_id")
 	}
@@ -542,17 +542,17 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := deadCodeSchema["exclude_decorated_with"]; !ok {
 		t.Fatal("code/dead-code request schema missing exclude_decorated_with")
 	}
-	deadCodeResponses := querytestutil.MustMapField(t, deadCodePost, "responses")
-	deadCodeOK := querytestutil.MustMapField(t, deadCodeResponses, "200")
-	deadCodeContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadCodeOK, "content"), "application/json")
-	deadCodeResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadCodeContent, "schema"), "properties")
+	deadCodeResponses := testutil.MustMapField(t, deadCodePost, "responses")
+	deadCodeOK := testutil.MustMapField(t, deadCodeResponses, "200")
+	deadCodeContent := testutil.MustMapField(t, testutil.MustMapField(t, deadCodeOK, "content"), "application/json")
+	deadCodeResponse := testutil.MustMapField(t, testutil.MustMapField(t, deadCodeContent, "schema"), "properties")
 	if _, ok := deadCodeResponse["analysis"]; !ok {
 		t.Fatal("code/dead-code response schema missing analysis")
 	}
 	if _, ok := deadCodeResponse["truncated"]; !ok {
 		t.Fatal("code/dead-code response schema missing truncated")
 	}
-	deadCodeAnalysis := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadCodeResponse, "analysis"), "properties")
+	deadCodeAnalysis := testutil.MustMapField(t, testutil.MustMapField(t, deadCodeResponse, "analysis"), "properties")
 	if _, ok := deadCodeAnalysis["modeled_public_api"]; !ok {
 		t.Fatal("code/dead-code analysis schema missing modeled_public_api")
 	}
@@ -563,11 +563,11 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("code/dead-code analysis schema missing dead_code_observed_exactness_blockers")
 	}
 
-	deadIaCPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/dead")
-	deadIaCPost := querytestutil.MustMapField(t, deadIaCPath, "post")
-	deadIaCBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadIaCPost, "requestBody"), "content")
-	deadIaCJSON := querytestutil.MustMapField(t, deadIaCBody, "application/json")
-	deadIaCSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadIaCJSON, "schema"), "properties")
+	deadIaCPath := testutil.MustMapField(t, paths, "/api/v0/iac/dead")
+	deadIaCPost := testutil.MustMapField(t, deadIaCPath, "post")
+	deadIaCBody := testutil.MustMapField(t, testutil.MustMapField(t, deadIaCPost, "requestBody"), "content")
+	deadIaCJSON := testutil.MustMapField(t, deadIaCBody, "application/json")
+	deadIaCSchema := testutil.MustMapField(t, testutil.MustMapField(t, deadIaCJSON, "schema"), "properties")
 	if _, ok := deadIaCSchema["repo_ids"]; !ok {
 		t.Fatal("iac/dead request schema missing repo_ids")
 	}
@@ -577,10 +577,10 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := deadIaCSchema["offset"]; !ok {
 		t.Fatal("iac/dead request schema missing offset")
 	}
-	deadIaCResponses := querytestutil.MustMapField(t, deadIaCPost, "responses")
-	deadIaCOK := querytestutil.MustMapField(t, deadIaCResponses, "200")
-	deadIaCContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadIaCOK, "content"), "application/json")
-	deadIaCResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, deadIaCContent, "schema"), "properties")
+	deadIaCResponses := testutil.MustMapField(t, deadIaCPost, "responses")
+	deadIaCOK := testutil.MustMapField(t, deadIaCResponses, "200")
+	deadIaCContent := testutil.MustMapField(t, testutil.MustMapField(t, deadIaCOK, "content"), "application/json")
+	deadIaCResponse := testutil.MustMapField(t, testutil.MustMapField(t, deadIaCContent, "schema"), "properties")
 	if _, ok := deadIaCResponse["findings"]; !ok {
 		t.Fatal("iac/dead response schema missing findings")
 	}
@@ -594,11 +594,11 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("iac/dead response schema missing next_offset")
 	}
 
-	unmanagedPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
-	unmanagedPost := querytestutil.MustMapField(t, unmanagedPath, "post")
-	unmanagedBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedPost, "requestBody"), "content")
-	unmanagedJSON := querytestutil.MustMapField(t, unmanagedBody, "application/json")
-	unmanagedSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedJSON, "schema"), "properties")
+	unmanagedPath := testutil.MustMapField(t, paths, "/api/v0/iac/unmanaged-resources")
+	unmanagedPost := testutil.MustMapField(t, unmanagedPath, "post")
+	unmanagedBody := testutil.MustMapField(t, testutil.MustMapField(t, unmanagedPost, "requestBody"), "content")
+	unmanagedJSON := testutil.MustMapField(t, unmanagedBody, "application/json")
+	unmanagedSchema := testutil.MustMapField(t, testutil.MustMapField(t, unmanagedJSON, "schema"), "properties")
 	if _, ok := unmanagedSchema["scope_id"]; !ok {
 		t.Fatal("iac/unmanaged-resources request schema missing scope_id")
 	}
@@ -608,10 +608,10 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := unmanagedSchema["finding_kinds"]; !ok {
 		t.Fatal("iac/unmanaged-resources request schema missing finding_kinds")
 	}
-	unmanagedResponses := querytestutil.MustMapField(t, unmanagedPost, "responses")
-	unmanagedOK := querytestutil.MustMapField(t, unmanagedResponses, "200")
-	unmanagedContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedOK, "content"), "application/json")
-	unmanagedResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, unmanagedContent, "schema"), "properties")
+	unmanagedResponses := testutil.MustMapField(t, unmanagedPost, "responses")
+	unmanagedOK := testutil.MustMapField(t, unmanagedResponses, "200")
+	unmanagedContent := testutil.MustMapField(t, testutil.MustMapField(t, unmanagedOK, "content"), "application/json")
+	unmanagedResponse := testutil.MustMapField(t, testutil.MustMapField(t, unmanagedContent, "schema"), "properties")
 	if _, ok := unmanagedResponse["findings"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing findings")
 	}
@@ -627,9 +627,9 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := unmanagedResponse["finding_groups"]; !ok {
 		t.Fatal("iac/unmanaged-resources response schema missing finding_groups")
 	}
-	unmanagedFindings := querytestutil.MustMapField(t, unmanagedResponse, "findings")
-	unmanagedFindingItems := querytestutil.MustMapField(t, unmanagedFindings, "items")
-	unmanagedFindingProps := querytestutil.MustMapField(t, unmanagedFindingItems, "properties")
+	unmanagedFindings := testutil.MustMapField(t, unmanagedResponse, "findings")
+	unmanagedFindingItems := testutil.MustMapField(t, unmanagedFindings, "items")
+	unmanagedFindingProps := testutil.MustMapField(t, unmanagedFindingItems, "properties")
 	for _, field := range []string{
 		"management_status",
 		"tags",
@@ -650,21 +650,21 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("iac/dead response schema missing limitations")
 	}
 
-	statusPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status")
-	statusPost := querytestutil.MustMapField(t, statusPath, "post")
-	statusBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusPost, "requestBody"), "content")
-	statusJSON := querytestutil.MustMapField(t, statusBody, "application/json")
-	statusSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusJSON, "schema"), "properties")
+	statusPath := testutil.MustMapField(t, paths, "/api/v0/iac/management-status")
+	statusPost := testutil.MustMapField(t, statusPath, "post")
+	statusBody := testutil.MustMapField(t, testutil.MustMapField(t, statusPost, "requestBody"), "content")
+	statusJSON := testutil.MustMapField(t, statusBody, "application/json")
+	statusSchema := testutil.MustMapField(t, testutil.MustMapField(t, statusJSON, "schema"), "properties")
 	if _, ok := statusSchema["arn"]; !ok {
 		t.Fatal("iac/management-status request schema missing arn")
 	}
 	if _, ok := statusSchema["resource_id"]; !ok {
 		t.Fatal("iac/management-status request schema missing resource_id")
 	}
-	statusResponses := querytestutil.MustMapField(t, statusPost, "responses")
-	statusOK := querytestutil.MustMapField(t, statusResponses, "200")
-	statusResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, statusOK, "content"), "application/json"), "schema")
-	statusProps := querytestutil.MustMapField(t, statusResponse, "properties")
+	statusResponses := testutil.MustMapField(t, statusPost, "responses")
+	statusOK := testutil.MustMapField(t, statusResponses, "200")
+	statusResponse := testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, statusOK, "content"), "application/json"), "schema")
+	statusProps := testutil.MustMapField(t, statusResponse, "properties")
 	if _, ok := statusProps["management_status"]; !ok {
 		t.Fatal("iac/management-status response schema missing management_status")
 	}
@@ -672,20 +672,20 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("iac/management-status response schema missing story")
 	}
 
-	explainPath := querytestutil.MustMapField(t, paths, "/api/v0/iac/management-status/explain")
-	explainPost := querytestutil.MustMapField(t, explainPath, "post")
-	explainResponses := querytestutil.MustMapField(t, explainPost, "responses")
-	explainOK := querytestutil.MustMapField(t, explainResponses, "200")
-	explainProps := querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, querytestutil.MustMapField(t, explainOK, "content"), "application/json"), "schema"), "properties")
+	explainPath := testutil.MustMapField(t, paths, "/api/v0/iac/management-status/explain")
+	explainPost := testutil.MustMapField(t, explainPath, "post")
+	explainResponses := testutil.MustMapField(t, explainPost, "responses")
+	explainOK := testutil.MustMapField(t, explainResponses, "200")
+	explainProps := testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, testutil.MustMapField(t, explainOK, "content"), "application/json"), "schema"), "properties")
 	if _, ok := explainProps["evidence_groups"]; !ok {
 		t.Fatal("iac/management-status/explain response schema missing evidence_groups")
 	}
 
-	relationshipsPath := querytestutil.MustMapField(t, paths, "/api/v0/code/relationships")
-	relationshipsPost := querytestutil.MustMapField(t, relationshipsPath, "post")
-	relationshipsBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipsPost, "requestBody"), "content")
-	relationshipsJSON := querytestutil.MustMapField(t, relationshipsBody, "application/json")
-	relationshipsSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, relationshipsJSON, "schema"), "properties")
+	relationshipsPath := testutil.MustMapField(t, paths, "/api/v0/code/relationships")
+	relationshipsPost := testutil.MustMapField(t, relationshipsPath, "post")
+	relationshipsBody := testutil.MustMapField(t, testutil.MustMapField(t, relationshipsPost, "requestBody"), "content")
+	relationshipsJSON := testutil.MustMapField(t, relationshipsBody, "application/json")
+	relationshipsSchema := testutil.MustMapField(t, testutil.MustMapField(t, relationshipsJSON, "schema"), "properties")
 	if _, ok := relationshipsSchema["entity_id"]; !ok {
 		t.Fatal("code/relationships request schema missing entity_id")
 	}
@@ -705,19 +705,19 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("code/relationships request schema missing max_depth")
 	}
 
-	traceDeploymentPath := querytestutil.MustMapField(t, paths, "/api/v0/impact/trace-deployment-chain")
-	traceDeploymentPost := querytestutil.MustMapField(t, traceDeploymentPath, "post")
-	traceDeploymentBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, traceDeploymentPost, "requestBody"), "content")
-	traceDeploymentJSON := querytestutil.MustMapField(t, traceDeploymentBody, "application/json")
-	traceDeploymentSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, traceDeploymentJSON, "schema"), "properties")
+	traceDeploymentPath := testutil.MustMapField(t, paths, "/api/v0/impact/trace-deployment-chain")
+	traceDeploymentPost := testutil.MustMapField(t, traceDeploymentPath, "post")
+	traceDeploymentBody := testutil.MustMapField(t, testutil.MustMapField(t, traceDeploymentPost, "requestBody"), "content")
+	traceDeploymentJSON := testutil.MustMapField(t, traceDeploymentBody, "application/json")
+	traceDeploymentSchema := testutil.MustMapField(t, testutil.MustMapField(t, traceDeploymentJSON, "schema"), "properties")
 	if _, ok := traceDeploymentSchema["service_name"]; !ok {
 		t.Fatal("impact/trace-deployment-chain request schema missing service_name")
 	}
 
-	traceDeploymentResponses := querytestutil.MustMapField(t, traceDeploymentPost, "responses")
-	traceDeploymentOK := querytestutil.MustMapField(t, traceDeploymentResponses, "200")
-	traceDeploymentContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, traceDeploymentOK, "content"), "application/json")
-	traceDeploymentResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, traceDeploymentContent, "schema"), "properties")
+	traceDeploymentResponses := testutil.MustMapField(t, traceDeploymentPost, "responses")
+	traceDeploymentOK := testutil.MustMapField(t, traceDeploymentResponses, "200")
+	traceDeploymentContent := testutil.MustMapField(t, testutil.MustMapField(t, traceDeploymentOK, "content"), "application/json")
+	traceDeploymentResponse := testutil.MustMapField(t, testutil.MustMapField(t, traceDeploymentContent, "schema"), "properties")
 	for _, field := range []string{
 		"subject",
 		"hostnames",
@@ -751,18 +751,18 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 			t.Fatalf("impact/trace-deployment-chain response schema missing %s", field)
 		}
 	}
-	controllerOverview := querytestutil.MustMapField(t, traceDeploymentResponse, "controller_overview")
-	controllerOverviewProperties := querytestutil.MustMapField(t, controllerOverview, "properties")
+	controllerOverview := testutil.MustMapField(t, traceDeploymentResponse, "controller_overview")
+	controllerOverviewProperties := testutil.MustMapField(t, controllerOverview, "properties")
 	if _, ok := controllerOverviewProperties["entities"]; !ok {
 		t.Fatal("impact/trace-deployment-chain controller_overview schema missing entities")
 	}
 
-	repositoryStoryPath := querytestutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/story")
-	repositoryStoryGet := querytestutil.MustMapField(t, repositoryStoryPath, "get")
-	repositoryStoryResponses := querytestutil.MustMapField(t, repositoryStoryGet, "responses")
-	repositoryStoryOK := querytestutil.MustMapField(t, repositoryStoryResponses, "200")
-	repositoryStoryContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryStoryOK, "content"), "application/json")
-	repositoryStorySchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryStoryContent, "schema"), "properties")
+	repositoryStoryPath := testutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/story")
+	repositoryStoryGet := testutil.MustMapField(t, repositoryStoryPath, "get")
+	repositoryStoryResponses := testutil.MustMapField(t, repositoryStoryGet, "responses")
+	repositoryStoryOK := testutil.MustMapField(t, repositoryStoryResponses, "200")
+	repositoryStoryContent := testutil.MustMapField(t, testutil.MustMapField(t, repositoryStoryOK, "content"), "application/json")
+	repositoryStorySchema := testutil.MustMapField(t, testutil.MustMapField(t, repositoryStoryContent, "schema"), "properties")
 	for _, field := range []string{
 		"repository",
 		"subject",
@@ -782,29 +782,29 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		}
 	}
 
-	serviceContextPath := querytestutil.MustMapField(t, paths, "/api/v0/services/{service_name}/context")
-	serviceContextGet := querytestutil.MustMapField(t, serviceContextPath, "get")
-	serviceContextResponses := querytestutil.MustMapField(t, serviceContextGet, "responses")
-	serviceContextOK := querytestutil.MustMapField(t, serviceContextResponses, "200")
-	serviceContextContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, serviceContextOK, "content"), "application/json")
-	serviceContextSchema := querytestutil.MustMapField(t, serviceContextContent, "schema")
+	serviceContextPath := testutil.MustMapField(t, paths, "/api/v0/services/{service_name}/context")
+	serviceContextGet := testutil.MustMapField(t, serviceContextPath, "get")
+	serviceContextResponses := testutil.MustMapField(t, serviceContextGet, "responses")
+	serviceContextOK := testutil.MustMapField(t, serviceContextResponses, "200")
+	serviceContextContent := testutil.MustMapField(t, testutil.MustMapField(t, serviceContextOK, "content"), "application/json")
+	serviceContextSchema := testutil.MustMapField(t, serviceContextContent, "schema")
 	if got, want := serviceContextSchema["$ref"], "#/components/schemas/WorkloadContext"; got != want {
 		t.Fatalf("services/{service_name}/context schema ref = %#v, want %#v", got, want)
 	}
-	workloadContextSchema := querytestutil.MustMapField(t, schemas, "WorkloadContext")
-	workloadContextProperties := querytestutil.MustMapField(t, workloadContextSchema, "properties")
+	workloadContextSchema := testutil.MustMapField(t, schemas, "WorkloadContext")
+	workloadContextProperties := testutil.MustMapField(t, workloadContextSchema, "properties")
 	for _, field := range []string{"deployment_evidence", "entrypoints", "network_paths", "dependents", "ingress_posture"} {
 		if _, ok := workloadContextProperties[field]; !ok {
 			t.Fatalf("WorkloadContext schema missing %s", field)
 		}
 	}
 
-	repositoryCoveragePath := querytestutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/coverage")
-	repositoryCoverageGet := querytestutil.MustMapField(t, repositoryCoveragePath, "get")
-	repositoryCoverageResponses := querytestutil.MustMapField(t, repositoryCoverageGet, "responses")
-	repositoryCoverageOK := querytestutil.MustMapField(t, repositoryCoverageResponses, "200")
-	repositoryCoverageContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryCoverageOK, "content"), "application/json")
-	repositoryCoverageSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, repositoryCoverageContent, "schema"), "properties")
+	repositoryCoveragePath := testutil.MustMapField(t, paths, "/api/v0/repositories/{repo_id}/coverage")
+	repositoryCoverageGet := testutil.MustMapField(t, repositoryCoveragePath, "get")
+	repositoryCoverageResponses := testutil.MustMapField(t, repositoryCoverageGet, "responses")
+	repositoryCoverageOK := testutil.MustMapField(t, repositoryCoverageResponses, "200")
+	repositoryCoverageContent := testutil.MustMapField(t, testutil.MustMapField(t, repositoryCoverageOK, "content"), "application/json")
+	repositoryCoverageSchema := testutil.MustMapField(t, testutil.MustMapField(t, repositoryCoverageContent, "schema"), "properties")
 	for _, field := range []string{
 		"repo_id",
 		"completeness_state",
@@ -824,12 +824,12 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		}
 	}
 
-	languageQueryPath := querytestutil.MustMapField(t, paths, "/api/v0/code/language-query")
-	languageQueryPost := querytestutil.MustMapField(t, languageQueryPath, "post")
-	languageQueryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, languageQueryPost, "requestBody"), "content")
-	languageQueryJSON := querytestutil.MustMapField(t, languageQueryBody, "application/json")
-	languageQuerySchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, languageQueryJSON, "schema"), "properties")
-	entityType := querytestutil.MustMapField(t, languageQuerySchema, "entity_type")
+	languageQueryPath := testutil.MustMapField(t, paths, "/api/v0/code/language-query")
+	languageQueryPost := testutil.MustMapField(t, languageQueryPath, "post")
+	languageQueryBody := testutil.MustMapField(t, testutil.MustMapField(t, languageQueryPost, "requestBody"), "content")
+	languageQueryJSON := testutil.MustMapField(t, languageQueryBody, "application/json")
+	languageQuerySchema := testutil.MustMapField(t, testutil.MustMapField(t, languageQueryJSON, "schema"), "properties")
+	entityType := testutil.MustMapField(t, languageQuerySchema, "entity_type")
 	enumValues, ok := entityType["enum"].([]any)
 	if !ok {
 		t.Fatalf("language-query entity_type enum type = %T, want []any", entityType["enum"])
@@ -862,18 +862,18 @@ func TestOpenAPISpecPackageRegistryPublishedAtIsDateTime(t *testing.T) {
 		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	versionsPath := querytestutil.MustMapField(t, paths, "/api/v0/package-registry/versions")
-	versionsGet := querytestutil.MustMapField(t, versionsPath, "get")
-	responses := querytestutil.MustMapField(t, versionsGet, "responses")
-	okResponse := querytestutil.MustMapField(t, responses, "200")
-	content := querytestutil.MustMapField(t, querytestutil.MustMapField(t, okResponse, "content"), "application/json")
-	schema := querytestutil.MustMapField(t, content, "schema")
-	properties := querytestutil.MustMapField(t, schema, "properties")
-	versions := querytestutil.MustMapField(t, properties, "versions")
-	items := querytestutil.MustMapField(t, versions, "items")
-	versionProperties := querytestutil.MustMapField(t, items, "properties")
-	publishedAt := querytestutil.MustMapField(t, versionProperties, "published_at")
+	paths := testutil.MustMapField(t, spec, "paths")
+	versionsPath := testutil.MustMapField(t, paths, "/api/v0/package-registry/versions")
+	versionsGet := testutil.MustMapField(t, versionsPath, "get")
+	responses := testutil.MustMapField(t, versionsGet, "responses")
+	okResponse := testutil.MustMapField(t, responses, "200")
+	content := testutil.MustMapField(t, testutil.MustMapField(t, okResponse, "content"), "application/json")
+	schema := testutil.MustMapField(t, content, "schema")
+	properties := testutil.MustMapField(t, schema, "properties")
+	versions := testutil.MustMapField(t, properties, "versions")
+	items := testutil.MustMapField(t, versions, "items")
+	versionProperties := testutil.MustMapField(t, items, "properties")
+	publishedAt := testutil.MustMapField(t, versionProperties, "published_at")
 	if got, want := publishedAt["format"], "date-time"; got != want {
 		t.Fatalf("published_at format = %#v, want %#v", got, want)
 	}
@@ -891,25 +891,25 @@ func TestOpenAPISearchBundlesRejectsEmptyScope(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	paths := querytestutil.MustMapField(t, spec, "paths")
-	bundlesPath := querytestutil.MustMapField(t, paths, "/api/v0/code/bundles")
-	post := querytestutil.MustMapField(t, bundlesPath, "post")
-	requestBody := querytestutil.MustMapField(t, post, "requestBody")
+	paths := testutil.MustMapField(t, spec, "paths")
+	bundlesPath := testutil.MustMapField(t, paths, "/api/v0/code/bundles")
+	post := testutil.MustMapField(t, bundlesPath, "post")
+	requestBody := testutil.MustMapField(t, post, "requestBody")
 	if required, _ := requestBody["required"].(bool); !required {
 		t.Fatalf("bundles requestBody.required = %v, want true", requestBody["required"])
 	}
-	content := querytestutil.MustMapField(t, requestBody, "content")
-	appJSON := querytestutil.MustMapField(t, content, "application/json")
-	schema := querytestutil.MustMapField(t, appJSON, "schema")
+	content := testutil.MustMapField(t, requestBody, "content")
+	appJSON := testutil.MustMapField(t, content, "application/json")
+	schema := testutil.MustMapField(t, appJSON, "schema")
 
 	anyOf, ok := schema["anyOf"].([]any)
 	if !ok || len(anyOf) != 2 {
 		t.Fatalf("bundles schema anyOf = %#v, want two scope alternatives", schema["anyOf"])
 	}
 
-	properties := querytestutil.MustMapField(t, schema, "properties")
+	properties := testutil.MustMapField(t, schema, "properties")
 	for _, field := range []string{"query", "ecosystem"} {
-		prop := querytestutil.MustMapField(t, properties, field)
+		prop := testutil.MustMapField(t, properties, field)
 		minLen, ok := prop["minLength"].(float64)
 		if !ok || minLen < 1 {
 			t.Fatalf("bundles schema %q minLength = %#v, want >= 1", field, prop["minLength"])
