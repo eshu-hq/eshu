@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -55,6 +56,9 @@ type Source struct {
 	Clock         func() time.Time
 
 	next int
+	// transportFailures counts consecutive transient transport failures per
+	// target index; a successful scan of the target clears its entry.
+	transportFailures map[int]int
 }
 
 // Next returns the next configured registry repository generation.
@@ -66,20 +70,30 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	if s.ClientFactory == nil {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("OCI registry client factory is required")
 	}
-	if s.next >= len(config.Targets) {
-		s.next = 0
-		return collector.CollectedGeneration{}, false, nil
+	// Walk forward past targets that hit a transient transport error so one
+	// dropped connection does not report the batch as drained (firing the drain
+	// hooks early) or delay every later target by a poll interval.
+	for s.next < len(config.Targets) {
+		index := s.next
+		target := config.Targets[index]
+		s.next++
+		collected, err := s.scanTarget(ctx, config, target, "")
+		if err == nil {
+			delete(s.transportFailures, index)
+			return collected, true, nil
+		}
+		if !sdk.IsTransientTransportError(ctx, err) {
+			return collector.CollectedGeneration{}, false, err
+		}
+		if err := s.skipTransientTransport(ctx, index, target, err); err != nil {
+			return collector.CollectedGeneration{}, false, err
+		}
 	}
-	target := config.Targets[s.next]
-	s.next++
-	collected, err := s.scanTarget(ctx, config, target, "")
-	if err != nil {
-		return collector.CollectedGeneration{}, false, err
-	}
-	return collected, true, nil
+	s.next = 0
+	return collector.CollectedGeneration{}, false, nil
 }
 
-func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (collector.CollectedGeneration, error) {
+func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (_ collector.CollectedGeneration, scanErr error) {
 	start := time.Now()
 	if s.Tracer != nil {
 		var span trace.Span
@@ -92,6 +106,9 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 	}
 	result := "success"
 	defer func() {
+		if result == "failed" && sdk.IsTransientTransportError(ctx, scanErr) {
+			result = "retryable_transport"
+		}
 		if s.Instruments != nil {
 			s.Instruments.OCIRegistryScanDuration.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(
 				telemetry.AttrProvider(string(target.Provider)),

@@ -33,7 +33,23 @@ poll cycle starts from the first configured space again.
 For page trees, `ErrPermissionDenied` from a child page is counted as a
 partial-sync failure and collection continues. Other client errors fail the
 generation because the collector cannot prove the source state.
-HTTP 429 and 503 responses are retryable provider failures. The source records
+HTTP 429 and 503 responses, and transient transport failures (connection
+reset or refused, broken pipe, unexpected EOF, network timeout; see
+`sdk.IsTransientTransportError`), are retryable provider failures. A transport
+error on any single request, including one page fetch mid-cycle, no longer fails
+the generation with a fatal error that exits the collector (issue #7110).
+Transport failures record `failure_class=transport_error` and carry no
+`Retry-After`, so they use the exponential backoff. Their warn log carries
+`attempt`, a bounded `cause_class` (`refused`, `reset`, `timeout`, ...), and
+`consecutive_transport_failures`. After `sdk.MaxConsecutiveTransportFailures`
+(20) transport failures in a row with no success or status-class retry between
+them, the failure is returned as fatal (`source_read`), so a wrong host or port
+crash-loops instead of idling. Each retry returns an idle poll, and the collector
+service then waits the larger of the backoff (1-second base, 1-minute cap) and the
+poll interval, so at the default 5-minute poll interval the 19 waits take about
+95 minutes of wall clock before the exit. 429 and 503 retries stay unbounded. A 200
+response with an empty body is a content error, not a transport error, and is
+fatal on the first read. The source records
 a bounded sync-failure class, honors `Retry-After` when Confluence supplies it,
 otherwise schedules exponential backoff with deterministic jitter, and returns
 an idle poll until the retry window expires. Backoff polls do not start a
@@ -47,7 +63,8 @@ allowlist.
 - `Client` - source evidence interface used by `Source`
 - `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader
 - `ErrPermissionDenied` - permission-gap sentinel for page tree collection
-- `ErrRetryable` and `RetryableHTTPError` - retryable provider-status metadata
+- `ErrRetryable` and `RetryableHTTPError` - retryable provider-status or
+  transient-transport metadata (`StatusCode` is zero for a transport failure)
   with bounded retry guidance
 - `Space`, `Page`, `PageVersion`, `PageBody`, `Label`, and `Links` - the
   source response shape normalized into documentation facts
