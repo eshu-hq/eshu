@@ -199,7 +199,7 @@ func TestBuildDocumentationSourceOnlySQLStaysAggregateOnly(t *testing.T) {
 }
 
 // TestDocumentationSourceOnlyIndexMatchesQuery binds the builder to migration
-// 123. The planner uses the partial index only when it can prove the
+// 122. The planner uses the partial index only when it can prove the
 // statement's WHERE implies the index predicate, which needs the same kinds
 // (as literals) and the same no-structured-refs expression. Both are derived
 // from the builder's own helpers, never hand-copied, so drift in either the Go
@@ -215,7 +215,7 @@ func TestDocumentationSourceOnlyIndexMatchesQuery(t *testing.T) {
 		"tombstone":      "is_tombstone = FALSE",
 	} {
 		if !strings.Contains(normalizeSQLWhitespace(migration), normalizeSQLWhitespace(fragment)) {
-			t.Fatalf("migration 123 does not carry the query's %s %q:\n%s", name, fragment, migration)
+			t.Fatalf("migration 122 does not carry the query's %s %q:\n%s", name, fragment, migration)
 		}
 	}
 	query, _ := buildDocumentationSourceOnlySQL(documentationFindingFilter{ScopeID: "s"})

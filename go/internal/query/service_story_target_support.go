@@ -188,7 +188,7 @@ WHERE generation.status = 'active'`
 // serviceStoryTargetSupportKindLiterals renders the support fact kinds as a SQL
 // literal list for the LATERAL probe. It is redundant with the bound `$1` kind
 // array, which still drives the per-kind probes, but a literal list is what the
-// planner can prove implies migration 124's partial index predicate in a custom
+// planner can prove implies migration 123's partial index predicate in a custom
 // or generic plan; `fact_kind = kind.fact_kind` alone is not provable. The kinds
 // are compile-time constants, never caller input. A caller that binds a subset
 // of kinds still counts only that subset, since both conditions must hold.

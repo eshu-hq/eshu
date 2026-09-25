@@ -20,7 +20,7 @@
 -- absence of refs, so the index carries neither and serves both.
 --
 -- CONCURRENTLY so bootstrap never blocks writers; IF NOT EXISTS for rerun
--- safety, matching the 073/086/118/121/123 precedent. One statement per file so
+-- safety, matching the 073/086/118/121/122 precedent. One statement per file so
 -- the migration coordinator can run it outside a transaction
 -- (coordination.IsSoleConcurrentIndexStatement). A NEW migration file per
 -- issue #7002: never edit an applied migration.

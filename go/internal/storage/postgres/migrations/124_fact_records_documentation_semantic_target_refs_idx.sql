@@ -21,7 +21,7 @@
 -- query). Only semantic observation facts pay index maintenance.
 --
 -- CONCURRENTLY so bootstrap never blocks writers; IF NOT EXISTS for rerun
--- safety, matching the 073/086/118/121/123/124 precedent. One statement per
+-- safety, matching the 073/086/118/121/122/123 precedent. One statement per
 -- file so the migration coordinator can run it outside a transaction
 -- (coordination.IsSoleConcurrentIndexStatement). A NEW migration file per
 -- issue #7002: never edit an applied migration.

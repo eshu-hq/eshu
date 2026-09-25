@@ -65,7 +65,7 @@ func TestDocumentationTargetFactsUsesRefsIndexLive(t *testing.T) {
 	}
 	// Production drivers cache prepared statements and may adopt a generic
 	// plan; a bare EXPLAIN never shows it. Both branches must find their GIN
-	// index in a custom and a generic plan (#7126: migration 125 covers the
+	// index in a custom and a generic plan (#7126: migration 124 covers the
 	// semantic branch).
 	for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
 		prepared := explainPreparedWithMode(t, ctx, db, newSQL, newArgs, mode)
@@ -135,7 +135,7 @@ func TestDocumentationTargetFactsScaleProofLive(t *testing.T) {
 			run(legacySQL, legacyArgs, &legacyMS, &legacyHit, &legacyRead)
 		}
 	}
-	// Report the semantic branch on its own, without and with migration 125's
+	// Report the semantic branch on its own, without and with migration 124's
 	// partial GIN index, on a corpus where the kind has rows. The index is
 	// dropped and rebuilt from the shipped migration text so both measurements
 	// run on identical data and statistics.

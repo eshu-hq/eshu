@@ -130,7 +130,7 @@ WHERE %s
 
 // documentationSourceOnlyKindLiterals renders the counted documentation fact
 // kinds as a SQL literal list. The list is inlined, never bound as a
-// parameter: migration 123's partial index predicate carries the same literal
+// parameter: migration 122's partial index predicate carries the same literal
 // kinds, and Postgres can prove `fact_kind IN (literals)` implies that
 // predicate in a generic plan, whereas `fact_kind = ANY($1)` cannot be proven
 // until the parameter is known. The kinds are compile-time constants from the
@@ -151,7 +151,7 @@ func documentationSourceOnlyKindLiterals() string {
 // `jsonb_typeof(NULL) = 'array'` the disjunct is SQL NULL for an absent key
 // and NOT(NULL) excludes the row, so the count could only be nonzero for facts
 // that carry all three keys (#7126). `<> '[]'` is "non-empty" for an array and
-// raises no error on a scalar, unlike jsonb_array_length. Migration 123's
+// raises no error on a scalar, unlike jsonb_array_length. Migration 122's
 // partial index carries this exact text over the bare `payload` column so the
 // planner can prove the statement implies the index predicate.
 func documentationNoStructuredRefsPredicate(payload string) string {

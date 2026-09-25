@@ -48,7 +48,7 @@ func TestServiceStoryTargetSupportSQLProbesFactKindIndex(t *testing.T) {
 // TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex guards #7126:
 // both statements carry the support kinds as a literal IN list inside the
 // LATERAL, beside the bound array and the kind cross join, so the planner can
-// prove migration 124's partial index predicate. Removing the literals silently
+// prove migration 123's partial index predicate. Removing the literals silently
 // falls back to the wide scope/generation index.
 func TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex(t *testing.T) {
 	t.Parallel()
@@ -77,7 +77,7 @@ func TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex(t *testing.T) {
 }
 
 // TestServiceStoryTargetSupportIndexMatchesQuery binds the builder's kind list
-// to migration 124, derived from the builder rather than hand-copied, so a kind
+// to migration 123, derived from the builder rather than hand-copied, so a kind
 // added to the Go list without a new migration fails here instead of silently
 // disabling the index for that kind's probes.
 func TestServiceStoryTargetSupportIndexMatchesQuery(t *testing.T) {
@@ -86,9 +86,9 @@ func TestServiceStoryTargetSupportIndexMatchesQuery(t *testing.T) {
 	migration := normalizeSQLWhitespace(migrationSQLByName(t, "fact_records_story_support_kinds_idx"))
 	want := normalizeSQLWhitespace("fact_kind IN (" + serviceStoryTargetSupportKindLiterals() + ")")
 	if !strings.Contains(migration, want) {
-		t.Fatalf("migration 124 does not carry the query's kind list %q:\n%s", want, migration)
+		t.Fatalf("migration 123 does not carry the query's kind list %q:\n%s", want, migration)
 	}
 	if !strings.Contains(migration, "is_tombstone = FALSE") {
-		t.Fatalf("migration 124 lost the tombstone predicate the statements carry:\n%s", migration)
+		t.Fatalf("migration 123 lost the tombstone predicate the statements carry:\n%s", migration)
 	}
 }

@@ -92,7 +92,7 @@ func TestBuildDocumentationTargetFactsSQLSplitsIndexedAndSemanticBranches(t *tes
 }
 
 // TestDocumentationSemanticTargetRefsIndexMatchesQuery binds the semantic
-// branch to migration 125. The branch's kind clause is derived from the
+// branch to migration 124. The branch's kind clause is derived from the
 // production constant, so a change to the semantic kind, or to the GIN
 // opclass the target-ref containment predicate needs, fails here instead of
 // silently returning the branch to a heap scan.
@@ -108,7 +108,7 @@ func TestDocumentationSemanticTargetRefsIndexMatchesQuery(t *testing.T) {
 		"partial (WHERE)": "WHERE " + kind,
 	} {
 		if !strings.Contains(migration, fragment) {
-			t.Fatalf("migration 125 missing the query's %s %q:\n%s", name, fragment, migration)
+			t.Fatalf("migration 124 missing the query's %s %q:\n%s", name, fragment, migration)
 		}
 	}
 	query, _ := buildDocumentationTargetFactsSQL(documentationFindingFilter{Repository: "repo:payments", Limit: 5})

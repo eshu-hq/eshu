@@ -95,7 +95,7 @@ func TestDocumentationSourceOnlyCountsFactsWithoutRefKeysLive(t *testing.T) {
 	}
 }
 
-// TestDocumentationSourceOnlyUsesPartialIndexLive proves migration 123's
+// TestDocumentationSourceOnlyUsesPartialIndexLive proves migration 122's
 // partial index serves the builder's exact statement in both a custom and a
 // generic plan. A bare EXPLAIN never shows the generic plan; the statement is
 // PREPAREd with plan_cache_mode=force_generic_plan.

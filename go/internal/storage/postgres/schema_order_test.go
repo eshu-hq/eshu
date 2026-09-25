@@ -282,15 +282,14 @@ var orderedBootstrapDefinitionNames = []string{
 	// content_entity (the largest fact_kind in the corpus) on every
 	// impact/findings readiness read.
 	"fact_records_content_entity_dependency_variable_repo_idx",
-	// migration 123 (#7126) gives the documentation story's source-only
+	// migration 122 (#7126) gives the documentation story's source-only
 	// count a partial index over the four counted documentation kinds with no
-	// structured refs. Numbered 123 because 122 is reserved for the
-	// secret-lines side table (#7125).
+	// structured refs.
 	"fact_records_documentation_source_only_idx",
-	// migration 124 (#7126) gives the story target-support reads a partial
+	// migration 123 (#7126) gives the story target-support reads a partial
 	// index over the twelve work_item.* and incident_routing.* support kinds.
 	"fact_records_story_support_kinds_idx",
-	// migration 125 (#7126) gives the documentation target-facts read's
+	// migration 124 (#7126) gives the documentation target-facts read's
 	// semantic branch a partial GIN over semantic.documentation_observation,
 	// mirroring fact_records_documentation_target_refs_idx.
 	"fact_records_documentation_semantic_target_refs_idx",

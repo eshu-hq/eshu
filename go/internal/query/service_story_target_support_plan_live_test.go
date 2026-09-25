@@ -16,7 +16,7 @@ import (
 
 const storySupportKindsIndexName = "fact_records_story_support_kinds_idx"
 
-// TestServiceStoryTargetSupportUsesSupportKindsIndexLive proves migration 124's
+// TestServiceStoryTargetSupportUsesSupportKindsIndexLive proves migration 123's
 // partial index serves both story target-support statements (the row read and
 // the source-only count) in custom and generic plans on a corpus where the
 // support kinds are about one percent of fact_records, the production shape.
