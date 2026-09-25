@@ -300,12 +300,7 @@ func (f *deploymentTraceFields) attachOptionalFields(response map[string]any) {
 	if len(f.artifactLineage) > 0 {
 		response["artifact_lineage"] = f.artifactLineage
 	}
-	if len(f.hostnames) > 0 {
-		response["hostnames"] = f.hostnames
-	}
-	if len(f.entrypoints) > 0 {
-		response["entrypoints"] = f.entrypoints
-	}
+	f.attachHostnameEntrypointRows(response)
 	if len(f.networkPaths) > 0 {
 		response["network_paths"] = f.networkPaths
 	}

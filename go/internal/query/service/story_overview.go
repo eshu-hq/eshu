@@ -146,13 +146,14 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 	if len(configEnvironments) > 0 {
 		overview["config_environments"] = configEnvironments
 	}
+	// The full hostnames and entrypoints arrays ship once, at the top level of
+	// the context payload, where the response cap applies to them; the overview
+	// carries only the counts (#7169).
 	if hostnames := querycontract.MapSliceValue(workloadContext, "hostnames"); len(hostnames) > 0 {
 		overview["hostname_count"] = len(hostnames)
-		overview["hostnames"] = hostnames
 	}
 	if entrypoints := querycontract.MapSliceValue(workloadContext, "entrypoints"); len(entrypoints) > 0 {
 		overview["entrypoint_count"] = len(entrypoints)
-		overview["entrypoints"] = entrypoints
 	}
 	if networkPaths := querycontract.MapSliceValue(workloadContext, "network_paths"); len(networkPaths) > 0 {
 		overview["network_path_count"] = len(networkPaths)

@@ -66,6 +66,14 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if consumerTotal > 0 {
 		ctx["consumer_repositories"] = cappedConsumers
 	}
+	// hostnames and entrypoints are capped in place here, after every
+	// consumer of the full lists has run (network paths, trace paths, hostname
+	// labels, and the overview counts all read them during enrichment), so the
+	// cap changes only what ships (#7169). The pre-cut totals are reported on
+	// result_limits and each cut is named on ctx["limitations"], which
+	// ContextPartialReasons promotes to partial_reasons.
+	hostnameTotal, hostTrunc := capContextRows(ctx, "hostnames", "hostnames_truncated")
+	entrypointTotal, entryTrunc := capContextRows(ctx, "entrypoints", "entrypoints_truncated")
 	// #5720 PR #5933 review fix (Codex, query_enrichment.go:190):
 	// dependents_truncated, consumer_repositories_truncated, and
 	// provisioning_source_chains_truncated are set on ctx whenever the
@@ -95,7 +103,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		BoolVal(ctx, "consumer_repositories_truncated") ||
 		BoolVal(ctx, "provisioning_source_chains_truncated") ||
 		slices.Contains(StringSliceVal(ctx, "limitations"), "infrastructure_truncated")
-	truncated := instTrunc || depTrunc || conTrunc || upstreamTruncated
+	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
@@ -106,10 +114,34 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		"instance_count":    instanceTotal,
 		"dependent_count":   dependentTotal,
 		"consumer_count":    consumerTotal,
+		"hostname_count":    hostnameTotal,
+		"entrypoint_count":  entrypointTotal,
 		"truncated":         truncated,
 		"drilldown_basis":   "resolved_id",
 		"relationship_tool": "get_relationship_evidence",
 		"drilldown_tool":    drilldownTool,
 		"context_path":      "/api/v0/workloads/" + workloadID + "/context",
 	}
+}
+
+// capContextRows cuts ctx[key] to ContextStoryItemLimit in place and returns
+// the pre-cut total plus whether rows were dropped. On a cut it appends reason
+// to ctx["limitations"] once, so the truncation reaches partial_reasons rather
+// than only result_limits. A missing or empty list is left untouched.
+func capContextRows(ctx map[string]any, key, reason string) (int, bool) {
+	rows := MapSliceValue(ctx, key)
+	total := len(rows)
+	if total == 0 {
+		return 0, false
+	}
+	capped, cut := CapMapRows(rows, ContextStoryItemLimit)
+	if !cut {
+		return total, false
+	}
+	ctx[key] = capped
+	limitations := StringSliceVal(ctx, "limitations")
+	if !slices.Contains(limitations, reason) {
+		ctx["limitations"] = append(limitations, reason)
+	}
+	return total, true
 }
