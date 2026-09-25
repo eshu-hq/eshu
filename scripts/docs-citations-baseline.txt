@@ -290,7 +290,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/correlation/dri
 LINE docs/public/observability/telemetry-coverage.md go/internal/correlation/drift/multicloud/telemetry.go:67
 LINE docs/public/observability/telemetry-coverage.md go/internal/doctruth/observability.go:15
 LINE docs/public/observability/telemetry-coverage.md go/internal/graphowner/lock_only_gate.go:162
-LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service.go:115
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service_logging.go:41
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service_logging.go:44
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58

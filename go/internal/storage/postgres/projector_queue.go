@@ -67,6 +67,10 @@ type ProjectorQueue struct {
 	// scope row an ingestion commit holds while streaming facts. It must stay
 	// below the caller's Ack budget. Zero uses defaultProjectorAckLockTimeout.
 	AckScopeLockTimeout time.Duration
+	// ClaimConflictBackoff is the base delay between Claim attempts after a
+	// deadlock or serialization failure; each retry waits attempt*base plus
+	// up to one base of jitter. Zero uses defaultProjectorClaimConflictBackoff.
+	ClaimConflictBackoff time.Duration
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's
@@ -137,41 +141,32 @@ func (q ProjectorQueue) Enqueue(
 }
 
 // Claim implements projector.ProjectorWorkSource over fact_work_items.
+//
+// The claim statement takes every row lock with SKIP LOCKED, so it should not
+// deadlock (#7108). A 40P01 or 40001 from Postgres is still retried a bounded
+// number of times with jittered backoff as defense in depth; each retry
+// increments eshu_dp_queue_claim_conflict_retries_total. When every attempt
+// conflicts, the returned error wraps failure.ErrWorkClaimConflict so the
+// projector service keeps its workers running.
 func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWork, bool, error) {
 	if err := q.validate(); err != nil {
 		return projector.ScopeGenerationWork{}, false, err
 	}
-
-	now := q.now()
-	rows, err := q.database.QueryContext(
-		ctx,
-		claimProjectorWorkQuery,
-		now,
-		q.LeaseOwner,
-		now.Add(q.LeaseDuration),
-		q.ClaimSourceSystem,
-	)
-	if err != nil {
-		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
+	for attempt := 1; ; attempt++ {
+		work, ok, err := q.claimOnce(ctx)
+		class := claimConflictClass(err)
+		if class == "" {
+			return work, ok, err
 		}
-		return projector.ScopeGenerationWork{}, false, nil
+		if attempt >= projectorClaimConflictAttempts {
+			return projector.ScopeGenerationWork{}, false, fmt.Errorf("%w after %d attempts: %w",
+				failure.ErrWorkClaimConflict, attempt, err)
+		}
+		q.recordClaimConflictRetry(ctx, class, attempt, err)
+		if waitErr := sleepContext(ctx, q.claimConflictDelay(attempt)); waitErr != nil {
+			return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", waitErr)
+		}
 	}
-
-	work, err := scanProjectorWork(rows)
-	if err != nil {
-		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
-	}
-
-	return work, true, nil
 }
 
 // Ack marks one claimed projector work item as succeeded.

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -116,4 +117,29 @@ func (s Service) recordProjectionShutdownCanceled(ctx context.Context, work Scop
 		logAttrs = append(logAttrs, log.Err(err))
 	}
 	s.Logger.InfoContext(ctx, "projector work canceled during shutdown", logAttrs...)
+}
+
+// claimConflictFailureClass is the failure_class log value for a claim that
+// exhausted the storage layer's bounded conflict retries.
+const claimConflictFailureClass = "projector_claim_conflict"
+
+// recoverClaimConflict reports whether err is a transient claim conflict the
+// worker should survive. The storage layer already retried the claim and the
+// statement rolled back, so nothing changed: the worker logs the conflict,
+// waits one poll interval, and claims again. Any other claim error stays
+// fatal. A wait interrupted by shutdown is reported as recovered so the
+// caller's loop observes the canceled context and exits cleanly.
+func (s Service) recoverClaimConflict(ctx context.Context, err error, workerID int) bool {
+	if !errors.Is(err, failure.ErrWorkClaimConflict) {
+		return false
+	}
+	if s.Logger != nil {
+		s.Logger.WarnContext(ctx, "projector claim conflict; retrying after poll interval",
+			slog.Int("worker_id", workerID),
+			slog.String(telemetry.LogKeyFailureClass, claimConflictFailureClass),
+			slog.String("error", err.Error()),
+		)
+	}
+	_ = s.wait(ctx, s.pollInterval())
+	return true
 }

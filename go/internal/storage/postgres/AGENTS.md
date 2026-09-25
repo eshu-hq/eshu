@@ -8,7 +8,7 @@
    `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
    `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
+   (bounded 40P01/40001 retry; helpers in `projector_queue_scan.go`) and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -69,10 +69,13 @@
   in the claim ordering, or stale leases remain overdue while newer generations
   drain. Keep the stale duplicate reclaim CTEs in the claim path: they demote
   expired same-scope siblings to `retrying` when another live or newly claimed
-  sibling owns the scope. Keep the `ProjectorQueue.Claim`
-  stale-generation coalescing path (`projector_queue.go:74`) and the companion
-  CTEs together; they move older same-scope projector rows and pending or
-  failed `scope_generations` to `superseded` so durable snapshot history
+  sibling owns the scope. Every maintenance CTE in
+  `projector_queue_claim_sql.go` locks its rows first with
+  `FOR NO KEY UPDATE ... SKIP LOCKED`, repeating the row-self predicates for the
+  EvalPlanQual recheck, and updates only the locked ids (#7108). Never add a
+  blocking multi-row UPDATE to the claim: concurrent claimers deadlocked (40P01)
+  on one. Keep the stale-generation coalescing CTEs together; they move older
+  same-scope projector rows and pending or failed `scope_generations` to `superseded` so durable snapshot history
   remains available without reprocessing obsolete local polling generations or
   reporting superseded terminal failures as current health.
   Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:

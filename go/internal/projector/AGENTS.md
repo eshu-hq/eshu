@@ -371,6 +371,10 @@ editing inside it. Three rules that are easy to get wrong from here:
   `processWork` and the bootstrap drain log it at WARN and return nil; they do
   not Fail the item, count it as a projection outcome, or cancel other workers.
   The owning attempt acks or fails it. Never make this error fatal again.
+- **Claim conflicts keep workers running (#7108)** — `ErrWorkClaimConflict`
+  from `Claim` means the storage layer's bounded deadlock/serialization retries
+  ran out and nothing changed. `recoverClaimConflict` logs it and waits one poll
+  interval; every other Claim error still stops the service.
 - **Ack waits for a busy scope without stopping the service (#6738)** —
   `ErrWorkAckDeferred` means Ack hit its store lock timeout behind a same-scope
   ingestion commit and changed nothing. `AckWhenScopeFree` renews the lease with

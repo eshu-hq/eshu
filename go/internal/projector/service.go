@@ -127,6 +127,9 @@ func (s Service) runSequential(ctx context.Context) error {
 			if projectorClaimCanceled(ctx, err) {
 				return nil
 			}
+			if s.recoverClaimConflict(ctx, err, 0) {
+				continue
+			}
 			return fmt.Errorf("claim projector work: %w", err)
 		}
 		if !ok {
@@ -148,7 +151,8 @@ func (s Service) runSequential(ctx context.Context) error {
 // runConcurrent spawns N worker goroutines that compete for projector work.
 // Each worker independently claims, processes, and acknowledges work. On first
 // fatal error (Claim or Ack failure), the shared context is canceled to drain
-// siblings promptly.
+// siblings promptly. A claim that returns failure.ErrWorkClaimConflict is not
+// fatal: the worker waits one poll interval and claims again.
 func (s Service) runConcurrent(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -179,6 +183,9 @@ func (s Service) runConcurrent(ctx context.Context) error {
 				if err != nil {
 					if projectorClaimCanceled(ctx, err) {
 						return
+					}
+					if s.recoverClaimConflict(ctx, err, workerID) {
+						continue
 					}
 					mu.Lock()
 					errs = append(errs, fmt.Errorf("claim projector work (worker %d): %w", workerID, err))

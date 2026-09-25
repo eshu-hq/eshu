@@ -172,6 +172,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.GenerationRetentionOldestEligibleAge, "GenerationRetentionOldestEligibleAge histogram should be registered")
 	assert.NotNil(t, inst.CanonicalWriteDuration, "CanonicalWriteDuration histogram should be registered")
 	assert.NotNil(t, inst.QueueClaimDuration, "QueueClaimDuration histogram should be registered")
+	assert.NotNil(t, inst.QueueClaimConflictRetries, "QueueClaimConflictRetries counter should be registered")
 	assert.NotNil(t, inst.BatchClaimSize, "BatchClaimSize histogram should be registered")
 	assert.NotNil(t, inst.PostgresQueryDuration, "PostgresQueryDuration histogram should be registered")
 	assert.NotNil(t, inst.Neo4jQueryDuration, "Neo4jQueryDuration histogram should be registered")
