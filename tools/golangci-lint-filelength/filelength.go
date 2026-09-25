@@ -25,7 +25,7 @@ import (
 )
 
 // maxFileLines is the repository's enforced 500-line cap (see
-// AGENTS.md and CLAUDE.md "MUST keep files under 500 lines").
+// AGENTS.md "MUST keep files under 500 lines").
 const maxFileLines = 500
 
 // New is the constructor invoked by golangci-lint when it loads this
@@ -41,7 +41,7 @@ func New(_ any) ([]*analysis.Analyzer, error) {
 var Analyzer = &analysis.Analyzer{
 	Name: "filelength",
 	Doc: "reports Go source files that exceed Eshu's " +
-		"repository-wide 500-line cap (AGENTS.md / CLAUDE.md " +
+		"repository-wide 500-line cap (AGENTS.md " +
 		"\"MUST keep files under 500 lines\").",
 	Run:      run,
 	Requires: nil,

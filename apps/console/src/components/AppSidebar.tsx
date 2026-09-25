@@ -1,7 +1,7 @@
 // components/AppSidebar.tsx
 // The left navigation rail: brand mark, capability-gated nav groups, and the
 // backend status card. Extracted out of App.tsx (which sits at the console's
-// 500-line file cap — see CLAUDE.md) so nav rendering has its own
+// 500-line file cap — see AGENTS.md) so nav rendering has its own
 // single-purpose module, mirroring the appRoutes.tsx extraction that keeps
 // the route table out of App.tsx for the same reason. Pure relocation: no
 // rendered-output change from the inline block it replaces.

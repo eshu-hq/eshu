@@ -3,7 +3,7 @@
 
 // Prior-generation row-ordering regression tests for loadPriorConfigAddresses
 // (issue #5572 follow-up, P2 review finding). Split from
-// tfstate_drift_evidence_prior_config_test.go to stay under the CLAUDE.md
+// tfstate_drift_evidence_prior_config_test.go to stay under the AGENTS.md
 // 500-line cap.
 package postgres
 

@@ -9,7 +9,8 @@ it before touching any file in this directory.
    coordination model, and the post-Phase-3 reopen requirement.
 2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
    sub-packages.
-3. `CLAUDE.md` "Facts-First Bootstrap Ordering" — Phase 1–4 ordering.
+3. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — Phase 1–4
+   ordering.
    Specifically: any domain that consumes `resolved_relationships` must have
    a post-Phase-3 reopen; `OutputKindResolvedRelationship` publications from
    this package feed those rows.

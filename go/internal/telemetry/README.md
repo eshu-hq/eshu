@@ -18,7 +18,8 @@ bootstrapping seams those packages call at startup. Pipeline stage,
 graph-backend, and failure-class labels stay here so runtime packages do not
 invent local observability vocabularies.
 
-See `CLAUDE.md` §Observability Contract for the project-wide rules that flow
+See `docs/public/reference/telemetry/index.md` for the project-wide rules that
+flow
 from this package.
 
 ## Package layout

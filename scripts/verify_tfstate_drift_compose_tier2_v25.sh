@@ -338,7 +338,7 @@ export ESHU_TIER2_V25_GEN2_CLAIMS=true
 # isNornicDBCommitTimeUniqueConflict + allStatementsAreReplaySafe as retryable,
 # go/internal/storage/cypher/retrying_executor.go) absorbs concurrent
 # writers on the same File.[path] uid without serializing here. Per the
-# project rule "Serialization Is Not A Fix" (CLAUDE.md / AGENTS.md), a
+# project rule "Serialization Is Not A Fix" (AGENTS.md), a
 # concurrent writer must not be stopped purely to silence a MERGE race.
 "${COMPOSE_CMD[@]}" up -d --force-recreate --no-deps \
     resolution-engine eshu \
@@ -353,7 +353,7 @@ echo "==> Pass 2: re-running bootstrap-index against gen-2 repos"
 # uid with Pass 1 is self-healing: the first commit succeeds, racers
 # retry-and-match. Worker-knob serialization (ESHU_PROJECTION_WORKERS=1)
 # is intentionally NOT set — see "Serialization Is Not A Fix" in
-# CLAUDE.md / AGENTS.md.
+# AGENTS.md.
 "${COMPOSE_CMD[@]}" run --rm bootstrap-index >"$PHASE_35_PASS2_LOG" 2>&1 \
     || {
         echo "bootstrap-index Pass 2 failed; tail of output:" >&2

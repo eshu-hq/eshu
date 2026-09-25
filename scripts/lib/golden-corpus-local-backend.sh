@@ -240,7 +240,7 @@ pg_diag() {
 # no_config_repo_owns_backend) or "drift candidate resolved via defaulted
 # locator" (ownership resolved, so a downstream zero-admitted-candidates
 # outcome is the more precise next question) for every scope the handler
-# actually processes. Uses rg, not jq (and not grep -- AGENTS.md/CLAUDE.md's
+# actually processes. Uses rg, not jq (and not grep -- AGENTS.md's
 # repo-wide rule is rg for all text/content searching, never grep): rg never
 # errors on a line that happens not to be valid JSON (a real risk in a log
 # this script does not fully control the content of -- see the docstring

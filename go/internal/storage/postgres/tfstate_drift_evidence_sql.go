@@ -5,7 +5,7 @@ package postgres
 
 // SQL constants consumed by tfstate_drift_evidence.go's PostgresDriftEvidenceLoader.
 // Hoisted into a sibling file to keep the loader implementation under the
-// CLAUDE.md 500-line cap; behavior and call sites are unchanged.
+// AGENTS.md 500-line cap; behavior and call sites are unchanged.
 //
 // Edit each query helper in tfstate_drift_evidence.go in lockstep with the
 // constant it consumes — the rationale in each constant's comment block is

@@ -492,8 +492,8 @@ Adding a new post-collection pass (analogous to Phase 2 or Phase 4) requires:
 5. Add a test in `main_test.go` proving the ordering invariant.
 
 Any domain that consumes `resolved_relationships` must have a reopen or
-re-trigger mechanism after Phase 4. See `CLAUDE.md` — "Facts-First Bootstrap
-Ordering".
+re-trigger mechanism after Phase 4. See `docs/internal/agent-guide.md`
+"Bootstrap And Correlation Truth".
 
 ## Gotchas / invariants
 

@@ -11,7 +11,7 @@
 # Own isolated Compose project (eshu-e2e-auth-mcp) and 29xxx port block, both
 # disjoint from #4971's eshu-e2e-auth / 28xxx block, so both suites can run
 # concurrently on one machine (repo-wide convention: unique compose project
-# names, see AGENTS.md/CLAUDE.md memory on concurrent local stacks).
+# names, see AGENTS.md memory on concurrent local stacks).
 #
 # Usage: scripts/run-auth-mcp-e2e.sh [--module <name>]
 #   ESHU_KEEP_COMPOSE_STACK=true   Skip the `down -v` teardown for debugging

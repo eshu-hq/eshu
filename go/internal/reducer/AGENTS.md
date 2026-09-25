@@ -11,8 +11,8 @@ before touching any file in this directory.
   invariants" in `README.md`; read them before renaming that shell directory or
   adding a slow test here.
 
-1. `CLAUDE.md` **entirely** — especially "Facts-First Bootstrap Ordering",
-   "Correlation Truth Gates", "Concurrency Workflow", and "Golden Rules 1–4".
+1. Root `AGENTS.md` "Golden Rules", `docs/internal/agent-guide.md` "Bootstrap
+   And Correlation Truth", `eshu-correlation-truth`, `concurrency-deadlock-rigor`.
 2. `docs/public/architecture.md` — service boundaries and data flow.
 3. `docs/public/deployment/service-runtimes.md` — Resolution Engine section.
 4. `docs/public/reference/telemetry/index.md` — observability contract.
@@ -129,8 +129,8 @@ before touching any file in this directory.
 ### Change reducer queue claim semantics
 
 - Any change to `WorkSource.Claim`, `BatchWorkSource.ClaimBatch`, or
-  `WorkSink.Ack`/`Fail` is a concurrency change. Follow CLAUDE.md
-  "Concurrency Workflow" fully before writing code.
+  `WorkSink.Ack`/`Fail` is a concurrency change. Follow the
+  `concurrency-deadlock-rigor` skill fully before writing code.
 - Prove idempotency: a duplicate claim or partial failure must converge on
   the same graph truth, not produce duplicate or absent rows.
 

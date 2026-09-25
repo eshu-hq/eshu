@@ -149,7 +149,7 @@ if [ ! -d "$repo_root/go" ]; then
   exit 0
 fi
 
-# Per repo policy (AGENTS.md / CLAUDE.md), use rg, not find. Enumerate every
+# Per repo policy (AGENTS.md), use rg, not find. Enumerate every
 # non-test, non-doc.go Go source file under go/ and group by directory. rg
 # already respects .gitignore and .ignore, which keeps vendor/testdata
 # implicitly excluded if they are listed there; we add explicit globs as

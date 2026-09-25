@@ -56,7 +56,7 @@ go run ./cmd/eshu docs verify .. --limit 2400 \
   --fail-on contradicted,missing_evidence
 cd ..
 git diff --check
-cmp -s AGENTS.md CLAUDE.md
+bash scripts/verify-agent-canon.sh
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```

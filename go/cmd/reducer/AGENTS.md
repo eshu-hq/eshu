@@ -10,10 +10,11 @@ before touching any file in this directory.
 2. `docs/public/deployment/service-runtimes.md` — Resolution Engine section.
 3. `docs/public/reference/nornicdb-tuning.md` — before touching any NornicDB
    env var or write path.
-4. `CLAUDE.md` "Facts-First Bootstrap Ordering" and "Correlation Truth
-   Gates" — understand Phase 1–4 before changing claim gating or domain
+4. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" and the
+   `eshu-correlation-truth` skill — understand Phase 1–4 before changing claim
+   gating or domain
    ordering.
-5. `CLAUDE.md` "Concurrency Workflow" — before changing worker counts,
+5. the `concurrency-deadlock-rigor` skill — before changing worker counts,
    leases, retry delays, or batch sizes.
 6. `main.go` holds `buildReducerService` (config + dependency setup + the
    `reducer.DefaultHandlers` composition root + the returned `reducer.Service`).

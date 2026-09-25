@@ -100,7 +100,7 @@ test_files_mode_verifies_the_ledger_with_no_markdown_paths() {
 }
 
 # git exports GIT_DIR to every hook it runs. With an ABSOLUTE GIT_DIR --
-# which is what a linked worktree has, and CLAUDE.md mandates all work happen
+# which is what a linked worktree has, and AGENTS.md mandates all work happen
 # in a worktree -- `git rev-parse --show-toplevel` succeeds and returns the
 # directory git ran in (<root>/scripts) instead of the work tree, which
 # blinded the dirgate gate entirely until it was found. This script computes

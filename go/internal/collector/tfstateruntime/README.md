@@ -60,7 +60,8 @@ provided:
   stops mid-capture. The companion `slog.Warn` line is emitted once per
   `resource_type`, `attribute_key`, and `reason` shape, carrying the
   high-cardinality `attribute_key`, source path, reason, and diagnostic error
-  per the CLAUDE.md observability contract.
+  per the telemetry contract in
+  `docs/public/reference/telemetry/index.md`.
 
 The runtime also uses the Terraform-state span family from
 `go/internal/telemetry`: source open, parser stream, and fact batch handoff. Do

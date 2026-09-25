@@ -1,7 +1,7 @@
 # AGENTS.md — internal/reducer/iampolicy
 
 Scoped instructions for this package. Read them before editing anything here.
-The root `AGENTS.md` and `CLAUDE.md` still apply; these add to them.
+The root `AGENTS.md` still applies; these add to it.
 
 ## This is a leaf, and it must stay one
 

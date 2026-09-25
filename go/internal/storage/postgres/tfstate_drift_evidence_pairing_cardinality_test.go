@@ -3,7 +3,7 @@
 
 // pairSpuriousModuleMismatches's cardinality/ambiguity-guard tests. Split
 // from tfstate_drift_evidence_pairing_test.go (which keeps the
-// resourceAddressKey table test) to stay under the CLAUDE.md 500-line cap.
+// resourceAddressKey table test) to stay under the AGENTS.md 500-line cap.
 package postgres
 
 import (

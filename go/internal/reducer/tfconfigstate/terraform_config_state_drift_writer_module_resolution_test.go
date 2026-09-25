@@ -14,7 +14,7 @@ import (
 
 // Module-resolution-confidence outcome tests (issue #5572). Split from
 // terraform_config_state_drift_writer_test.go to keep both files under the
-// CLAUDE.md 500-line cap; same package, reuses exactDriftCandidate and the
+// AGENTS.md 500-line cap; same package, reuses exactDriftCandidate and the
 // fakeWorkloadIdentityExecer / decodeBatchedVersionedFactCalls helpers from
 // the sibling file.
 

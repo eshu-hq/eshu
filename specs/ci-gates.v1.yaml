@@ -1667,7 +1667,7 @@ gates:
     # Wired into CI (static-contract-gates.yml, the same lane as docs-refs)
     # because this is a blocking recurrence-prevention gate: a PR that edits a
     # cited doc, renames a Go test, or moves a fixture MUST run this gate in CI,
-    # or a phantom citation could merge with all required checks green (CLAUDE.md:
+    # or a phantom citation could merge with all required checks green (AGENTS.md:
     # CI is the non-bypassable source of truth). The broad go/**, docs/**, and
     # tests/fixtures/** triggers are deliberate: a source edit, hidden tracked doc,
     # test-file split, or fixture move must re-run this gate in the SAME PR that

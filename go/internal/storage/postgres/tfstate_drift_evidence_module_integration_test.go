@@ -14,7 +14,7 @@ import (
 // Integration tests for module-aware drift joining (issue #169 / ADR
 // 2026-05-11-module-aware-drift-joining). Split from the unit-test file at
 // tfstate_drift_evidence_module_prefix_test.go to keep both files under the
-// CLAUDE.md 500-line cap. Test fixtures and recorder helpers live in the
+// AGENTS.md 500-line cap. Test fixtures and recorder helpers live in the
 // other file; tests here exercise the full PostgresDriftEvidenceLoader path
 // through LoadDriftEvidence.
 

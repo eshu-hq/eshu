@@ -69,7 +69,8 @@ canonical-write stage.
 - Both accepted checkpoints are Phase 1 (`canonical_nodes_committed`)
   publications. Downstream domains that consume `resolved_relationships`
   derived from Terraform state canonical rows still require the post-Phase-3
-  reopen mechanism described in CLAUDE.md "Facts-First Bootstrap Ordering".
+  reopen mechanism described in `docs/internal/agent-guide.md` "Bootstrap And
+  Correlation Truth".
   That reopen lives outside this package.
 - `Validate` enforces non-blank components and checkpoint fields; it does
   not check that the listed component names map to any concrete

@@ -468,6 +468,6 @@ func cloneVisited(in map[string]struct{}) map[string]struct{} {
 // modulePrefixForPath and moduleResolutionConfidenceMap.reasonForPath
 // (the per-address module-resolution-confidence signal, issue #5572) live in
 // tfstate_drift_evidence_module_confidence.go — split out to keep this file
-// under the CLAUDE.md 500-line cap. Both do the same longest-matching-
+// under the AGENTS.md 500-line cap. Both do the same longest-matching-
 // ancestor-directory walk over a directory-keyed map; keeping them together
 // keeps that shared algorithm in one place.

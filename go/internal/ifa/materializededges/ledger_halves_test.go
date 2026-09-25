@@ -3,7 +3,7 @@
 
 // This file holds the ledger-halves machinery split out of
 // direct_family_blindness_test.go, which had grown past the
-// 500-line cap CLAUDE.md sets for every file in this repository. The seam is a
+// 500-line cap AGENTS.md sets for every file in this repository. The seam is a
 // real one and not an arbitrary cut: everything here answers "which HALF of the
 // split ledger does a row live in", while the blindness file answers "is this
 // family claimed at all". Merging the two back together restores the cap

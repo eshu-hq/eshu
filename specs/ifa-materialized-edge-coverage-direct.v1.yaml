@@ -15,7 +15,7 @@
 # no output -- which is exactly the blindness #6181 reported and this file
 # closes.
 #
-# WHY A SECOND FILE. The repository caps a file at 500 lines (CLAUDE.md), and
+# WHY A SECOND FILE. The repository caps a file at 500 lines (AGENTS.md), and
 # the sibling manifest's own footer records that its roadmap prose was moved to
 # docs/internal/design/5351-ifa-materialized-edge-known-gaps.md for that reason.
 # It already sits just under the cap, and every direct family below carries two

@@ -10,7 +10,7 @@
    selectors; understand `MatchAll` conjunctive semantics
 4. `go/internal/correlation/engine/README.md` — how the engine uses `Outcome`
    to append rejection reasons; admission does not append them
-5. `CLAUDE.md` "Correlation Truth Gates" — mandatory before any change that
+5. the `eshu-correlation-truth` skill — mandatory before any change that
    affects which candidates are admitted
 
 ## Invariants this package enforces
@@ -94,7 +94,7 @@
 
 - **Adding heuristics based on evidence field patterns** — do not add logic
   that infers platform, environment, or cluster from evidence key or value
-  string patterns. CLAUDE.md explicitly forbids inventing environment truth
+  string patterns. AGENTS.md explicitly forbids inventing environment truth
   from heuristic patterns.
 
 - **Mutating the input candidate** — `Evaluate` creates a copy. Do not assign

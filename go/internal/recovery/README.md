@@ -149,7 +149,7 @@ invokes `Handler`.
   projector or reducer re-runs the normal write pipeline including graph writes,
   phase-state publication, and content indexing. Domains that consume
   reducer-derived state still depend on the bootstrap-index phase ordering
-  described in `CLAUDE.md` after a mass replay.
+  described in `AGENTS.md` after a mass replay.
 
 ## Related docs
 

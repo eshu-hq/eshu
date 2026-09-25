@@ -1,7 +1,7 @@
 # AGENTS.md — internal/reducer/inheritance
 
 Scoped instructions for this package. Read them before editing anything here.
-The root `AGENTS.md` and `CLAUDE.md` still apply; these add to them.
+The root `AGENTS.md` still applies; these add to it.
 
 ## The import rule is the one that matters
 

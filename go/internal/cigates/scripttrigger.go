@@ -29,7 +29,7 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 // them sources is not itself among those paths, a PR that changes only that
 // file selects nothing: the local lane prints "SKIPPED <gate> — no trigger
 // matched changed paths" and the first run of the edited script happens in
-// CI. That is the shape CLAUDE.md's Verification Defaults rules out ("CI
+// CI. That is the shape AGENTS.md's Verification Defaults rules out ("CI
 // stays authoritative, but MUST NOT be the first place a credential-free
 // failure appears").
 //

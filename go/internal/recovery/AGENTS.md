@@ -8,7 +8,8 @@
    `RefinalizeFilter`, `Stage` constants
 3. `go/internal/recovery/doc.go` — package contract statement
 4. `go/internal/storage/postgres/` — `ReplayStore` implementation
-5. `CLAUDE.md` section "Facts-First Bootstrap Ordering" — why replay must
+5. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — why replay
+   must
    respect phase ordering
 
 ## Invariants this package enforces

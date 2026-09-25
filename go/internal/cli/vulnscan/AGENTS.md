@@ -1,7 +1,7 @@
 # Agent Instructions: internal/cli/vulnscan
 
-Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
-`CLAUDE.md` still apply.
+Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` still
+applies.
 
 ## Read first
 

@@ -38,4 +38,4 @@ A change here MUST keep `scripts/verify-openapi.sh` green — it cross-reference
 undocumented route or a documented route with no handler. A route path or
 method change here MUST update
 [HTTP API Reference](../../../../../../docs/public/reference/http-api.md) in
-the same PR, per the root `CLAUDE.md` documentation rule.
+the same PR, per the root `AGENTS.md` documentation rule.

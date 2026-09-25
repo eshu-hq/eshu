@@ -36,7 +36,7 @@ that evidence becomes graph, content, or query truth.
 ## Ownership boundary
 
 Owns the durable fact value types and the stable-ID function. Per the ownership
-table in `CLAUDE.md`: `go/internal/facts/` — durable fact models and queue
+table in `AGENTS.md`: `go/internal/facts/` — durable fact models and queue
 contracts.
 
 This package does not own queue row logic (`internal/queue`), scope identity

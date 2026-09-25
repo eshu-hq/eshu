@@ -26,7 +26,7 @@
   fleet barrier may run `BackfillAllRelationshipEvidence`, and it must run
   before `ReopenDeploymentMappingWorkItems`. Both must succeed; a failure exits
   the ingester. This implements the Phase 1 / Phase 3 bootstrap ordering
-  `go/cmd/bootstrap-index/README.md` documents (root `CLAUDE.md` does not name
+  `go/cmd/bootstrap-index/README.md` documents (root `AGENTS.md` does not name
   the phases).
   Enforced in `wiring_deferred_relationship.go` and
   `internal/storage/postgres/deferred_maintenance_barrier.go`.
@@ -64,8 +64,8 @@
   alongside the existing `nornicDBCanonicalGroupedWritesEnv` constants, add the
   reader in `wiring_nornicdb_env.go`, pass the value through
   `openIngesterCanonicalWriter`, and update `docs/public/reference/nornicdb-tuning.md`
-  and the active NornicDB ADR in the same PR. See CLAUDE.md NornicDB
-  Compatibility Workflow.
+  and the active NornicDB ADR in the same PR. See
+  `docs/public/reference/nornicdb-pitfalls.md`.
 
 - **Change projector worker defaults** → edit `projectorWorkerCount` in
   `wiring.go`; add a test in `wiring_nornicdb_phase_group_test.go` or a new

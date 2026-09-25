@@ -16,7 +16,7 @@ Reducer changes carry the highest correctness risk in the codebase. Wrong
 graph truth, query truth, or deployment truth is a product failure. Track the
 full path — raw evidence → admitted candidate → projected row → graph write →
 query surface — before changing ordering, admission, retries, or
-backend-specific behavior. See CLAUDE.md "Correlation Truth Gates".
+backend-specific behavior. See the `eshu-correlation-truth` skill.
 Code reachability projection computes a bounded transitive reachable set from
 root code entities over `CALLS`, `REFERENCES`, and `INHERITS`, preserving the
 weakest provenance method on each path so downstream dead-code reads can use

@@ -51,7 +51,7 @@ const driftIntentReason = "bootstrap_phase_3_5_drift_trigger"
 const driftIntentSourceSystem = "bootstrap_index"
 
 // EnqueueConfigStateDriftIntents implements the Phase 3.5 trigger required by
-// the facts-first bootstrap ordering documented in CLAUDE.md. The method
+// the facts-first bootstrap ordering documented in AGENTS.md. The method
 // walks active state_snapshot:* scopes and enqueues one config_state_drift
 // intent per scope. The reducer queue dedupes work items by
 // (domain, scope_id, generation_id), so re-running bootstrap is idempotent.

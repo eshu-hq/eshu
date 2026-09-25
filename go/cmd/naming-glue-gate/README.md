@@ -28,7 +28,7 @@ see `revive`'s `exported` rule), file-vs-directory stutter (rule 2; see
 - `Classifier` / `DeepSeekClient` — the model call; `Classifier` is the
   interface `run` depends on so tests inject a fake.
 - `Report`, `Finding`, `Verdict`, `Disposition` — the finding shape, matching
-  CLAUDE.md's severity/confidence/disposition/evidence vocabulary so this
+  AGENTS.md's severity/confidence/disposition/evidence vocabulary so this
   gate's JSON output composes with the rest of the review pipeline.
 
 See `doc.go` for the full contract, including the blocking-mode design.

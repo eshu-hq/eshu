@@ -31,7 +31,7 @@ import (
 // that's safe to act on (see tfstate_drift_evidence_pairing_cardinality_test.go's
 // TestPairSpuriousModuleMismatches* tests for the count>1 vs count=1
 // distinction; those live in a sibling file to keep this one under the
-// CLAUDE.md 500-line cap).
+// AGENTS.md 500-line cap).
 func TestResourceAddressKeyStripsModulePrefixes(t *testing.T) {
 	t.Parallel()
 

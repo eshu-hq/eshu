@@ -207,7 +207,7 @@ func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testin
 // basic mechanism; (2) CONCURRENT issuance from many goroutines still yields
 // a globally unique, strictly-ordered-by-issuance set (via nextval()'s own
 // atomicity), the genuine multi-worker-replica shape #5875 P1 is about --
-// this is the concurrency proof CLAUDE.md's evidence rules require for a
+// this is the concurrency proof AGENTS.md's evidence rules require for a
 // change to a shared ordering primitive, not just a single-threaded
 // correctness check.
 func TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive(t *testing.T) {

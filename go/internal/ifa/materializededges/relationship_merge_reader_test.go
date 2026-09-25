@@ -3,7 +3,7 @@
 
 // This file holds the relationship-merge READER split out of
 // direct_family_scan_test.go, which had grown past the
-// 500-line cap CLAUDE.md sets for every file in this repository. The seam is
+// 500-line cap AGENTS.md sets for every file in this repository. The seam is
 // the question each half answers: everything here decides whether a span of
 // Cypher TEXT merges a relationship, while the scan file decides which Cypher a
 // reducer port reaches. The reader is also what stripCypherComments in

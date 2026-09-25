@@ -41,7 +41,7 @@ type compositeCaptureLogKey struct {
 // loaded schema bundle) and reason (closed enum:
 // terraformstate.CompositeCaptureSkipReason* values). High-cardinality
 // attribute_key, the source path, and the diagnostic error string stay in
-// the first structured log attrs for each repeated shape per CLAUDE.md
+// the first structured log attrs for each repeated shape per AGENTS.md
 // observability rules.
 func (r *compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraformstate.CompositeCaptureSkip) {
 	if r == nil {

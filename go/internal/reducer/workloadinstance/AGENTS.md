@@ -1,7 +1,7 @@
 # AGENTS.md — internal/reducer/workloadinstance
 
-Scoped instructions for this package. The root `AGENTS.md` and `CLAUDE.md`
-still apply.
+Scoped instructions for this package. The root `AGENTS.md`
+still applies.
 
 - This is a reducer family package. It may import `reducer/contract`,
   `reducer/crossscope`, `go/pkg/log`, and the standard library. It must never import the parent `internal/reducer`

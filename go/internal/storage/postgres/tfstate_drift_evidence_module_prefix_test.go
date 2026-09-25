@@ -359,7 +359,7 @@ func TestBuildModulePrefixMapHandlesBlankSource(t *testing.T) {
 
 // Loader integration tests for module-aware joining live in
 // tfstate_drift_evidence_module_integration_test.go (split for the
-// CLAUDE.md 500-line cap; same package, same fixtures). Unit and
+// AGENTS.md 500-line cap; same package, same fixtures). Unit and
 // loader-integration tests for the module-resolution-confidence signal
 // (issue #5572) live in tfstate_drift_evidence_module_confidence_test.go.
 

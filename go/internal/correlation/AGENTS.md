@@ -10,7 +10,7 @@
    evaluation entry point; the root package does not orchestrate evaluation
 4. `go/internal/correlation/model/README.md` — candidate state and rejection
    reason constants that `BuildSummary` branches on
-5. `CLAUDE.md` "Correlation Truth Gates" section — mandatory reading before
+5. the `eshu-correlation-truth` skill — mandatory reading before
    any change to correlation behavior
 
 ## Invariants this package enforces

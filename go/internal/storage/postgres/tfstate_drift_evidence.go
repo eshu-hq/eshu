@@ -430,7 +430,7 @@ func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scope
 // logPriorConfigWalk emits one INFO log per drift intent summarizing the
 // prior-config walk that powers removed_from_config detection. Cardinality is
 // per-intent (low); address-level detail stays out of metric labels per
-// CLAUDE.md observability rules. Optional; nil logger drops the line.
+// AGENTS.md observability rules. Optional; nil logger drops the line.
 func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 	ctx context.Context,
 	scopeID string,
@@ -464,5 +464,5 @@ func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 
 // hasStateOnlyAddress, mergeDriftRows, decodeJSONArray, and coerceJSONString
 // were hoisted to tfstate_drift_evidence_helpers.go (issue #169) to keep this
-// loader file under the CLAUDE.md 500-line cap after the module-aware-join
+// loader file under the AGENTS.md 500-line cap after the module-aware-join
 // extension.
