@@ -90,3 +90,29 @@ func TestBuildDocumentationTargetFactsSQLSplitsIndexedAndSemanticBranches(t *tes
 		t.Fatalf("%q appears %d times, want 3 (two branches plus outer):\n%s", limitParam, got, query)
 	}
 }
+
+// TestDocumentationSemanticTargetRefsIndexMatchesQuery binds the semantic
+// branch to migration 125. The branch's kind clause is derived from the
+// production constant, so a change to the semantic kind, or to the GIN
+// opclass the target-ref containment predicate needs, fails here instead of
+// silently returning the branch to a heap scan.
+func TestDocumentationSemanticTargetRefsIndexMatchesQuery(t *testing.T) {
+	t.Parallel()
+
+	migration := normalizeSQLWhitespace(migrationSQLByName(t, "fact_records_documentation_semantic_target_refs_idx"))
+	kind := strings.TrimPrefix(documentationTargetSemanticKindClause, "fact_records.")
+	for name, fragment := range map[string]string{
+		"semantic kind":   kind,
+		"tombstone":       "is_tombstone = FALSE",
+		"GIN opclass":     "USING GIN (payload jsonb_path_ops)",
+		"partial (WHERE)": "WHERE " + kind,
+	} {
+		if !strings.Contains(migration, fragment) {
+			t.Fatalf("migration 125 missing the query's %s %q:\n%s", name, fragment, migration)
+		}
+	}
+	query, _ := buildDocumentationTargetFactsSQL(documentationFindingFilter{Repository: "repo:payments", Limit: 5})
+	if !strings.Contains(query, documentationTargetSemanticKindClause) || !strings.Contains(query, "fact_records.payload @>") {
+		t.Fatalf("semantic branch no longer reads its kind with payload containment:\n%s", query)
+	}
+}

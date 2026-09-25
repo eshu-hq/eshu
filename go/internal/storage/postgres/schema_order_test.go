@@ -290,4 +290,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 124 (#7126) gives the story target-support reads a partial
 	// index over the twelve work_item.* and incident_routing.* support kinds.
 	"fact_records_story_support_kinds_idx",
+	// migration 125 (#7126) gives the documentation target-facts read's
+	// semantic branch a partial GIN over semantic.documentation_observation,
+	// mirroring fact_records_documentation_target_refs_idx.
+	"fact_records_documentation_semantic_target_refs_idx",
 }

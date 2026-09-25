@@ -173,6 +173,7 @@ var migrationShippedChecksums = map[string]string{
 	"121_fact_records_content_entity_dependency_variable_repo_idx.sql":  "25d345d5212ac7951e45a4e3e2a447f8a5665f8a0743085a8697ec54c94d1504",
 	"123_fact_records_documentation_source_only_idx.sql":                "2cf12a55d9dc670509d6705e87580fd0a3c3743e9f11323e08cc3867352e3527",
 	"124_fact_records_story_support_kinds_idx.sql":                      "bccaa89c040510754144803f52367f926d368ec628a8a09409e9a5873c2b1480",
+	"125_fact_records_documentation_semantic_target_refs_idx.sql":       "24fff62cedbeacda880f88ddc02d20a9bd672f672402a9b79579245a4415dad5",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

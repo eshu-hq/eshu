@@ -17,7 +17,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-const documentationTargetRefsIndexName = "fact_records_documentation_target_refs_idx"
+const (
+	documentationTargetRefsIndexName         = "fact_records_documentation_target_refs_idx"
+	documentationSemanticTargetRefsIndexName = "fact_records_documentation_semantic_target_refs_idx"
+)
 
 // documentationTargetFactsProofShape sizes the scaled proof corpus.
 type documentationTargetFactsProofShape struct {
@@ -59,6 +62,19 @@ func TestDocumentationTargetFactsUsesRefsIndexLive(t *testing.T) {
 	newPlan := explainTargetFacts(t, ctx, db, newSQL, newArgs)
 	if !newPlan.indexes[documentationTargetRefsIndexName] {
 		t.Fatalf("production target-facts plan did not use %s: indexes=%v", documentationTargetRefsIndexName, newPlan.indexNames())
+	}
+	// Production drivers cache prepared statements and may adopt a generic
+	// plan; a bare EXPLAIN never shows it. Both branches must find their GIN
+	// index in a custom and a generic plan (#7126: migration 125 covers the
+	// semantic branch).
+	for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
+		prepared := explainPreparedWithMode(t, ctx, db, newSQL, newArgs, mode)
+		for _, index := range []string{documentationTargetRefsIndexName, documentationSemanticTargetRefsIndexName} {
+			if !prepared.indexes[index] {
+				t.Fatalf("%s: target-facts plan did not use %s: indexes=%v", mode, index, prepared.indexNames())
+			}
+		}
+		t.Logf("TARGET_FACTS_PREPARED_PLAN %s ms=%.3f indexes=%v", mode, prepared.executionMS, prepared.indexNames())
 	}
 	legacyPlan := explainTargetFacts(t, ctx, db, legacySQL, legacyArgs)
 	if legacyPlan.indexes[documentationTargetRefsIndexName] {
@@ -119,27 +135,31 @@ func TestDocumentationTargetFactsScaleProofLive(t *testing.T) {
 			run(legacySQL, legacyArgs, &legacyMS, &legacyHit, &legacyRead)
 		}
 	}
-	// Report the semantic branch on its own: no index covers its kind, so this
-	// is its honest cost on a corpus where the kind has rows.
+	// Report the semantic branch on its own, without and with migration 125's
+	// partial GIN index, on a corpus where the kind has rows. The index is
+	// dropped and rebuilt from the shipped migration text so both measurements
+	// run on identical data and statistics.
 	parts := newDocumentationTargetFactsParts(filter)
 	semanticArgs := append(append([]any{}, parts.args...), parts.limit+1)
 	semanticSQL := documentationTargetFactsBranch(documentationTargetSemanticKindClause, parts, len(semanticArgs))
-	semanticPlan := explainTargetFacts(t, ctx, db, semanticSQL, semanticArgs)
-	semanticPlan2 := explainTargetFacts(t, ctx, db, semanticSQL, semanticArgs)
-	t.Logf("TARGET_FACTS_SEMANTIC_BRANCH rows=%d first_ms=%.2f second_ms=%.2f indexes=%v buffers=hit:%d/read:%d",
-		rows/20, semanticPlan.executionMS, semanticPlan2.executionMS, semanticPlan2.indexNames(), semanticPlan2.sharedHit, semanticPlan2.sharedRead)
-	// Candidate follow-up, measured but not shipped: a partial GIN index over the
-	// semantic kind, mirroring the existing target-refs index. Without it the
-	// semantic branch is bounded only by the scope/generation btree (a full
-	// heap scan here, thousands of skip-scan probes on a many-scope deployment).
-	execProofStatements(t, ctx, db, []proofStatement{
-		{`CREATE INDEX candidate_semantic_target_refs_idx ON fact_records USING GIN (payload jsonb_path_ops)
-WHERE fact_kind = 'semantic.documentation_observation' AND is_tombstone = FALSE`, nil},
-		{`ANALYZE fact_records`, nil},
-	})
-	candidate := explainTargetFacts(t, ctx, db, semanticSQL, semanticArgs)
-	t.Logf("TARGET_FACTS_SEMANTIC_BRANCH_CANDIDATE_INDEX ms=%.2f indexes=%v buffers=hit:%d/read:%d",
-		candidate.executionMS, candidate.indexNames(), candidate.sharedHit, candidate.sharedRead)
+	execProofStatements(t, ctx, db, []proofStatement{{"DROP INDEX " + documentationSemanticTargetRefsIndexName, nil}, {"ANALYZE fact_records", nil}})
+	var withoutMS, withMS []float64
+	var without, with targetFactsPlan
+	measure := func() {
+		for i := 0; i < 9; i++ {
+			without = explainTargetFacts(t, ctx, db, semanticSQL, semanticArgs)
+			withoutMS = append(withoutMS, without.executionMS)
+		}
+	}
+	measure()
+	execProofStatements(t, ctx, db, []proofStatement{{migrationSQLByName(t, "fact_records_documentation_semantic_target_refs_idx"), nil}, {"ANALYZE fact_records", nil}})
+	for i := 0; i < 9; i++ {
+		with = explainTargetFacts(t, ctx, db, semanticSQL, semanticArgs)
+		withMS = append(withMS, with.executionMS)
+	}
+	t.Logf("TARGET_FACTS_SEMANTIC_BRANCH rows=%d without_index_median_ms=%.2f indexes=%v buffers=hit:%d/read:%d; with_index_median_ms=%.2f indexes=%v buffers=hit:%d/read:%d",
+		rows/20, median(withoutMS), without.indexNames(), without.sharedHit, without.sharedRead,
+		median(withMS), with.indexNames(), with.sharedHit, with.sharedRead)
 	t.Logf("TARGET_FACTS_SCALE rows=%d legacy_median_ms=%.2f legacy_first_ms=%.2f new_median_ms=%.2f new_first_ms=%.2f legacy_buffers=hit:%d/read:%d new_buffers=hit:%d/read:%d",
 		rows, median(legacyMS), legacyMS[0], median(newMS), newMS[1], legacyHit, legacyRead, newHit, newRead)
 }

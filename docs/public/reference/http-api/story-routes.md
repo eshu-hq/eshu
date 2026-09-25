@@ -358,10 +358,12 @@ repository and service stories; none is graph work.
 - Documentation target facts (both stories) are read as two bounded branches
   joined by `UNION ALL`: the mention and claim kinds, which the partial GIN
   `fact_records_documentation_target_refs_idx` covers, and the
-  `semantic.documentation_observation` kind on its own. The single earlier
-  statement listed all three kinds, which the index predicate does not cover, so
-  the planner never used the index and filtered every documentation fact. Rows,
-  ordering, and limit are unchanged.
+  `semantic.documentation_observation` kind on its own, which migration 125's
+  partial GIN `fact_records_documentation_semantic_target_refs_idx` covers (same
+  `jsonb_path_ops` expression, restricted to that kind and non-tombstoned
+  facts). The single earlier statement listed all three kinds, which the index
+  predicate does not cover, so the planner never used the index and filtered
+  every documentation fact. Rows, ordering, and limit are unchanged.
 - Repository coverage derives the entity total, newest `indexed_at`, and type
   distribution from one grouped `content_entities` pass instead of three scans.
 - Repository story lists the repository's files once (the semantic overview
@@ -379,13 +381,40 @@ alternating the first mover. Target facts, median of 9: 556.8 ms and
 5,608 reads after; a 60,000-fact rerun gave 638.5 ms and 14.5 ms. Coverage on
 one 240,000-entity repository, median of 9: 75.0 ms for the three scans, 25.8 ms
 for the single pass. On the shared read-only QA database the split statement ran
-in 301 ms warm (previously 0.76 s warm and 44.9 s cold), of which the semantic
-branch is 225 ms: no index covers that kind, so it costs 7,370 index searches
-even with zero rows. A partial GIN over that kind, measured only in the scratch
-run, took the branch from 8.1 ms to 0.1 ms in the 60,000-fact run. Reproduce with
+in 301 ms warm before migration 125, of which the semantic branch was 225 ms:
+no index covered that kind, so it cost 7,370 index searches even with zero rows.
+The earlier single statement measured 0.76 s warm and 44.9 s cold on the same
+database; the cold figure and the 301 ms warm figure are different cache states
+and are not a before/after pair, and the post-change cold cost on QA is
+unmeasured. On a disposable postgres:18.6 scale run (600,000 mention and claim
+facts over 600 generations with about 5 KB payloads, 30,000 semantic facts,
+median of 9): the whole statement took 1,386.6 ms (7.4M shared hits, 421k reads)
+in its pre-#7126 single-statement form and 7.0 ms (776 hits, 392 reads) as the
+split statement with both indexes; the semantic branch alone dropped from 39.7 ms
+(6,912 hits, 11,309 reads, heap scan) to 0.06 ms (18 hits) with migration 125's
+index, dropped and rebuilt from the shipped migration text on identical data.
+Both branches use their GIN index in a custom and a generic plan
+(`TestDocumentationTargetFactsUsesRefsIndexLive` prepares the statement with
+`plan_cache_mode=force_generic_plan`). Reproduce with
 `ESHU_TEST_DOCUMENTATION_TARGET_FACTS_ROWS` and
 `ESHU_TEST_CONTENT_COVERAGE_ROWS` (see `documentation_target_facts_plan_live_test.go`
 and `content_reader_coverage_differential_live_test.go`).
+
+Write cost of migrations 123 to 125 (`fact_records` ingest): each index adds
+one entry only for the rows its predicate matches. Measured on postgres:18.6 by
+inserting 50,000-row batches into two copies of `fact_records` that differ only
+by these three indexes (101 versus 104 indexes), ten alternating rounds, WAL
+bytes per batch (wall time on the laptop VM moved by up to 15% between identical
+runs and is not cited). A batch that is all `content_entity` rows: +0.8% WAL. All
+documentation facts with refs: +3.1%. All documentation facts without refs
+(migration 123): +9.9%. All support-kind facts (migration 124): +5.5%. All
+`semantic.documentation_observation` facts (migration 125, a GIN entry per
+row): +15.7%. A mixed batch in which 0.3% of rows match one of the three
+predicates (far denser than the QA corpus's unreferenced documentation facts,
+about 7,000 of 76 million rows): -1.8%, within noise.
+The per-shape figures are upper bounds for a batch made entirely of one matching
+kind; semantic observation facts exist only where a semantic provider is
+enabled.
 
 No-Regression Evidence: live differentials on real PostgreSQL return identical
 ordered rows and payloads for the old and new statements (all three kinds, ties
