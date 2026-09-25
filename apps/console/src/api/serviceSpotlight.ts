@@ -6,7 +6,7 @@ import type { DeploymentGraph } from "./mockData";
 import {
   normalizeServiceInvestigation,
   type ServiceInvestigation,
-  type ServiceInvestigationResponse
+  type ServiceInvestigationResponse,
 } from "./serviceInvestigation";
 import { deploymentGraph } from "./serviceSpotlightGraph";
 import { deploymentLanes } from "./serviceSpotlightLanes";
@@ -14,12 +14,12 @@ import { relationshipClusters } from "./serviceSpotlightRelationships";
 import {
   serviceSupportFromRecord,
   type ServiceSupportOverview,
-  type ServiceSupportRecord
+  type ServiceSupportRecord,
 } from "./serviceSupportEvidence";
 import {
   buildServiceTrafficPaths,
   type ServiceTrafficPath,
-  type ServiceTrafficPathContext
+  type ServiceTrafficPathContext,
 } from "./serviceTrafficPath";
 
 export interface ServiceSpotlight {
@@ -263,11 +263,11 @@ export interface ProvisioningRecord {
 
 export async function loadServiceSpotlight(
   client: EshuApiClient,
-  repositories: readonly RepositoryRecord[]
+  repositories: readonly RepositoryRecord[],
 ): Promise<ServiceSpotlight | undefined> {
   const candidates = selectServiceCandidates(repositories);
   const loaded = await Promise.all(
-    candidates.map(async (candidate) => loadCandidate(client, candidate))
+    candidates.map(async (candidate) => loadCandidate(client, candidate)),
   );
   return loaded
     .filter((candidate): candidate is ServiceSpotlight => candidate !== undefined)
@@ -276,12 +276,12 @@ export async function loadServiceSpotlight(
 
 async function loadCandidate(
   client: EshuApiClient,
-  serviceName: string
+  serviceName: string,
 ): Promise<ServiceSpotlight | undefined> {
   try {
-    const response = await client.get<ServiceContextResponse>(
-      `/api/v0/services/${encodeURIComponent(serviceName)}/context`
-    ) as unknown;
+    const response = (await client.get<ServiceContextResponse>(
+      `/api/v0/services/${encodeURIComponent(serviceName)}/context`,
+    )) as unknown;
     const { data, truth } = envelopePayload<ServiceContextResponse>(response);
     const spotlight = serviceSpotlightFromContext(data, serviceName, undefined, truth);
     return scoreSpotlight(spotlight) > 0 ? spotlight : undefined;
@@ -294,7 +294,7 @@ export function serviceSpotlightFromContext(
   context: ServiceContextResponse,
   fallbackName: string,
   configInfluence?: DeploymentConfigInfluence,
-  truth?: EshuTruth
+  truth?: EshuTruth,
 ): ServiceSpotlight {
   const name = nonEmpty(context.name, fallbackName);
   const endpoints = endpointRows(context.api_surface?.endpoints ?? []);
@@ -310,14 +310,15 @@ export function serviceSpotlightFromContext(
     downstream: context.result_limits?.downstream_count ?? rawConsumers.length,
     graphDependents: context.downstream_counts?.graphDependents ?? rawGraphDependents.length,
     references: context.downstream_counts?.references ?? rawReferences.length,
-    upstream: context.result_limits?.upstream_count ?? context.dependencies?.length ?? dependencies.length
+    upstream:
+      context.result_limits?.upstream_count ?? context.dependencies?.length ?? dependencies.length,
   };
   return {
     api: {
       endpointCount: context.api_surface?.endpoint_count ?? endpoints.length,
       endpoints,
       methodCount: context.api_surface?.method_count ?? countMethods(endpoints),
-      sourcePaths: context.api_surface?.source_paths ?? []
+      sourcePaths: context.api_surface?.source_paths ?? [],
     },
     consumers,
     configInfluence,
@@ -336,11 +337,13 @@ export function serviceSpotlightFromContext(
       context.api_surface?.endpoint_count ?? endpoints.length,
       lanes.length,
       relationshipCounts.upstream,
-      relationshipCounts.downstream
+      relationshipCounts.downstream,
     ),
-    support: serviceSupportFromRecord(context.support_overview?.target_support ?? context.target_support),
+    support: serviceSupportFromRecord(
+      context.support_overview?.target_support ?? context.target_support,
+    ),
     trafficPaths: buildServiceTrafficPaths(context, name, lanes),
-    trust: spotlightTrust(truth)
+    trust: spotlightTrust(truth),
   };
 }
 
@@ -349,18 +352,16 @@ function spotlightTrust(truth: EshuTruth | undefined): ServiceSpotlightTrust {
     basis: nonEmpty(truth?.basis, "unknown"),
     freshness: nonEmpty(truth?.freshness.state, "unavailable"),
     level: nonEmpty(truth?.level, "derived"),
-    profile: nonEmpty(truth?.profile, "local_authoritative")
+    profile: nonEmpty(truth?.profile, "local_authoritative"),
   };
 }
 
-function selectServiceCandidates(
-  repositories: readonly RepositoryRecord[]
-): readonly string[] {
+function selectServiceCandidates(repositories: readonly RepositoryRecord[]): readonly string[] {
   return repositories
     .map((repository, index) => ({
       index,
       name: nonEmpty(repository.name, repository.repo_slug, repository.id),
-      score: candidateScore(repository)
+      score: candidateScore(repository),
     }))
     .filter((candidate) => candidate.name.length > 0 && candidate.score > 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -393,7 +394,7 @@ function endpointRows(records: readonly EndpointRecord[]): readonly ServiceEndpo
     methods: record.methods ?? [],
     operationIds: record.operation_ids ?? [],
     path: nonEmpty(record.path, "/"),
-    sourcePaths: record.source_paths ?? []
+    sourcePaths: record.source_paths ?? [],
   }));
 }
 
@@ -404,7 +405,7 @@ function dependencyRows(records: readonly DependencyRecord[]): readonly ServiceD
     rationale: nonEmpty(record.rationale, "Relationship evidence observed."),
     resolvedId: record.resolved_id,
     targetName: nonEmpty(record.target_name, "dependency"),
-    type: nonEmpty(record.type, "DEPENDS_ON")
+    type: nonEmpty(record.type, "DEPENDS_ON"),
   }));
 }
 
@@ -412,7 +413,7 @@ function hostnameRows(records: readonly HostnameRecord[]): readonly ServiceHostn
   return records.slice(0, 12).map((record) => ({
     environment: nonEmpty(record.environment, "observed"),
     hostname: nonEmpty(record.hostname, "hostname pending"),
-    path: nonEmpty(record.relative_path)
+    path: nonEmpty(record.relative_path),
   }));
 }
 
@@ -422,15 +423,17 @@ function consumerRows(records: readonly ConsumerRecord[]): readonly ServiceConsu
     matchedValues: record.matched_values ?? [],
     relationshipTypes: record.relationship_types ?? record.graph_relationship_types ?? [],
     repository: nonEmpty(record.repo_name, record.repository, "consumer"),
-    samplePaths: record.sample_paths ?? []
+    samplePaths: record.sample_paths ?? [],
   }));
 }
 
 function scoreSpotlight(spotlight: ServiceSpotlight): number {
-  return spotlight.api.endpointCount * 5 +
+  return (
+    spotlight.api.endpointCount * 5 +
     spotlight.lanes.length * 8 +
     spotlight.dependencies.length * 3 +
-    spotlight.consumers.length * 3;
+    spotlight.consumers.length * 3
+  );
 }
 
 function countMethods(endpoints: readonly ServiceEndpoint[]): number {
@@ -442,7 +445,7 @@ function spotlightSummary(
   endpoints: number,
   lanes: number,
   dependencies: number,
-  consumers: number
+  consumers: number,
 ): string {
   return `${name} exposes ${endpoints} endpoint(s), runs through ${lanes} deployment lane(s), has ${dependencies} upstream relationship(s), and ${consumers} downstream relationship(s).`;
 }
