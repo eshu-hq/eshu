@@ -33,6 +33,11 @@ See `doc.go` for the godoc contract.
   shape returned by both constructors.
 - `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
   selected-request values used by both route selectors.
+- `internal/mcp/code/dead` owns `DefaultLimit`, the MCP default for an
+  omitted dead-code `limit`. The `dead_code` query type imports it instead of
+  keeping its own literal, because it posts to the same
+  `/api/v0/code/dead-code` route and returns the same rows inside the same
+  dispatch byte budget (#7168).
 - `internal/sourcetool` owns the canonical closed vocabulary advertised by the
   optional `source_tool` field.
 

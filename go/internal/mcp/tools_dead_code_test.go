@@ -80,31 +80,44 @@ func TestResolveRouteMapsInvestigateDeadCodeToolRoute(t *testing.T) {
 // schema default and the default the route actually sends as one number. The
 // two were separate literals, so a caller reading tools/list could be told
 // 100 while the dispatcher sent something else. #7168 sized the value to the
-// MCP response budget: 100 candidates overran it on most measured repos.
+// MCP response budget: 100 candidates overran it on most measured repos. The
+// analyze_code_relationships dead_code query type reaches the same payload, so
+// it is held to the same number.
 func TestDeadCodeToolSchemaLimitDefaultsMatchRouteDefaults(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"find_dead_code", "investigate_dead_code", "find_cross_repo_dead_code"} {
-		tool := requireToolDefinition(t, name)
+	for _, test := range []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "find_dead_code", args: map[string]any{"repo_id": "repo-1"}},
+		{name: "investigate_dead_code", args: map[string]any{"repo_id": "repo-1"}},
+		{name: "find_cross_repo_dead_code", args: map[string]any{"repo_id": "repo-1"}},
+		{name: "analyze_code_relationships", args: map[string]any{"repo_id": "repo-1", "query_type": "dead_code"}},
+	} {
+		tool := requireToolDefinition(t, test.name)
 		schema, ok := tool.InputSchema.(map[string]any)
 		if !ok {
-			t.Fatalf("%s InputSchema type = %T, want map[string]any", name, tool.InputSchema)
+			t.Fatalf("%s InputSchema type = %T, want map[string]any", test.name, tool.InputSchema)
 		}
 		properties, _ := schema["properties"].(map[string]any)
 		limit, ok := properties["limit"].(map[string]any)
 		if !ok {
-			t.Fatalf("%s has no limit property", name)
+			t.Fatalf("%s has no limit property", test.name)
 		}
-		route, err := resolveRoute(name, map[string]any{"repo_id": "repo-1"})
+		route, err := resolveRoute(test.name, test.args)
 		if err != nil {
-			t.Fatalf("resolveRoute(%s) error = %v, want nil", name, err)
+			t.Fatalf("resolveRoute(%s) error = %v, want nil", test.name, err)
+		}
+		if got, want := route.Path, "/api/v0/code/dead-code"; test.name == "analyze_code_relationships" && got != want {
+			t.Fatalf("resolveRoute(%s) path = %q, want %q", test.name, got, want)
 		}
 		routeLimit := requireRouteBody(t, route)["limit"]
 		if limit["default"] != routeLimit {
-			t.Errorf("%s schema limit default = %#v, route default = %#v, want them equal", name, limit["default"], routeLimit)
+			t.Errorf("%s schema limit default = %#v, route default = %#v, want them equal", test.name, limit["default"], routeLimit)
 		}
 		if routeLimit != 25 {
-			t.Errorf("%s default limit = %#v, want the budget-sized 25", name, routeLimit)
+			t.Errorf("%s default limit = %#v, want the budget-sized 25", test.name, routeLimit)
 		}
 	}
 }

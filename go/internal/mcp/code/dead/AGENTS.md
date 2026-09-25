@@ -44,7 +44,8 @@
 - Return the zero request and `handled=false` for unrelated tools, including
   `find_dead_iac`, which shares the `find_dead_` spelling, and
   `analyze_code_relationships`, whose `dead_code` query type selects the same
-  scan path from the relationships child.
+  scan path from the relationships child and takes its omitted-limit default
+  from this package's `DefaultLimit`.
 - Selection stays pure: no HTTP call, no query, no clock, no environment
   read.
 

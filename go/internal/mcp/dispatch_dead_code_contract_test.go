@@ -142,8 +142,9 @@ func TestDeadCodeDispatchKeepsEveryBodyKey(t *testing.T) {
 	}
 
 	// The defaults reach the handler unchanged when the caller sends nothing:
-	// limit 25 is the MCP default sized to the response budget (#7168), offset 0 is the first page, and the unset string filters still travel
-	// as explicit empty strings.
+	// limit 25 is the MCP default sized to the response budget (#7168), offset 0
+	// is the first page, and the unset string filters still travel as explicit
+	// empty strings.
 	bare, err := resolveRoute("investigate_dead_code", map[string]any{})
 	if err != nil {
 		t.Fatalf("resolveRoute(bare) error = %v, want nil", err)
