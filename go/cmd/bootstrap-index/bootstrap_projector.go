@@ -33,8 +33,12 @@ import (
 //   - A per-item projection failure is routed to the queue Fail path
 //     (retry/dead-letter) and isolated: the worker continues and sibling
 //     workers are NOT canceled (#4464 — a single slow/timed-out canonical write
-//     must not abort the whole run). Only a fatal error (Claim failure, or a
-//     Fail-path write failure) cancels the shared context; those are joined.
+//     must not abort the whole run). A transient claim conflict
+//     (failure.ErrWorkClaimConflict) is retried by claimProjectorWork and does
+//     not cancel siblings either (#7122). Only a fatal error cancels the shared
+//     context, and those are joined: a non-conflict Claim failure, a claim
+//     conflict that persists past maxConsecutiveClaimConflicts, or a Fail-path
+//     write failure.
 //   - An atomic counter tracks completed items for structured log output.
 //
 // Tuning: set ESHU_PROJECTION_WORKERS to control parallelism. Default is
@@ -193,15 +197,9 @@ func drainProjectorWorkItem(
 	logger *slog.Logger,
 ) error {
 	// Claim
-	claimStart := time.Now()
-	work, ok, err := claimProjectorWork(ctx, workSource, workerID, logger)
+	work, ok, err := claimProjectorWork(ctx, workSource, workerID, logger, instruments)
 	if err != nil {
 		return err
-	}
-	if instruments != nil {
-		instruments.QueueClaimDuration.Record(ctx, time.Since(claimStart).Seconds(), metric.WithAttributes(
-			attribute.String("queue", "projector"),
-		))
 	}
 	if !ok {
 		return errProjectorDrained
