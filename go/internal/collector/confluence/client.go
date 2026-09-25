@@ -248,7 +248,11 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("confluence GET %s: %w", requestURL.Path, err)
+		wrapped := fmt.Errorf("confluence GET %s: %w", requestURL.Path, err)
+		if sdk.IsTransientTransportError(ctx, err) {
+			return RetryableHTTPError{Cause: wrapped}
+		}
+		return wrapped
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -276,7 +280,13 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		result = "decode_error"
-		return fmt.Errorf("decode confluence response: %w", err)
+		wrapped := fmt.Errorf("decode confluence response: %w", err)
+		if sdk.IsTransientTransportError(ctx, err) {
+			// A connection reset or truncated body mid-response is the same
+			// transient transport failure as one before the headers.
+			return RetryableHTTPError{Cause: wrapped}
+		}
+		return wrapped
 	}
 	result = "success"
 	return nil

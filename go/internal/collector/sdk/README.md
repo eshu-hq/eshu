@@ -25,6 +25,11 @@ See `doc.go` for the godoc package contract. The public surface includes:
 - `HTTPError`, `HTTPDoer`, `JSONRequest`, including custom body decoders,
   `ParseBaseURL`, `DefaultHTTPClient`, `ParseRetryAfter`,
   `ParseRetryAfterHeader`, `ShouldRetryStatus`, and `DoJSON`.
+- `IsTransientTransportError` classifies connection-level failures (connection
+  reset/refused/aborted, broken pipe, unexpected EOF, network timeout) that a
+  collector should retry after backoff. It is false for parent-context
+  cancellation or deadline, `context.Canceled`, TLS/certificate errors, and
+  HTTP status errors.
 
 ## Dependencies
 

@@ -21,12 +21,14 @@ const (
 	confluenceRetryMaxDelay  = time.Minute
 )
 
-// ErrRetryable marks a Confluence provider response that should be retried
-// after bounded backoff instead of failing the collector process.
+// ErrRetryable marks a Confluence provider response or transient transport
+// failure (connection reset, unexpected EOF, network timeout) that should be
+// retried after bounded backoff instead of failing the collector process.
 var ErrRetryable = errors.New("confluence retryable provider failure")
 
 // RetryableHTTPError carries bounded Confluence retry metadata without source
-// paths, page IDs, titles, URLs, or response bodies.
+// paths, page IDs, titles, URLs, or response bodies. StatusCode is zero when
+// the failure was a transient transport error rather than an HTTP status.
 type RetryableHTTPError struct {
 	StatusCode int
 	RetryAfter time.Duration
@@ -132,6 +134,8 @@ func deterministicRetryJitter(key string, attempt int, delay time.Duration) time
 
 func confluenceRetryFailureClass(statusCode int) string {
 	switch statusCode {
+	case 0:
+		return "transport_error"
 	case http.StatusTooManyRequests:
 		return "rate_limited"
 	case http.StatusServiceUnavailable:

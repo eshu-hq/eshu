@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -74,12 +75,32 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	s.next++
 	collected, err := s.scanTarget(ctx, config, target, "")
 	if err != nil {
+		if sdk.IsTransientTransportError(ctx, err) {
+			// A dropped connection or network timeout is a property of the
+			// registry connection, not of this target's configuration. Skip the
+			// target for this cycle and let the next poll retry it instead of
+			// returning a fatal error that exits the collector process.
+			s.logTransientTransport(ctx, target)
+			return collector.CollectedGeneration{}, false, nil
+		}
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collected, true, nil
 }
 
-func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (collector.CollectedGeneration, error) {
+func (s *Source) logTransientTransport(ctx context.Context, target TargetConfig) {
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.WarnContext(
+		ctx, "OCI registry scan hit a transient transport error; retrying next cycle",
+		telemetry.PhaseAttr(telemetry.PhaseDiscovery),
+		log.Provider(string(target.Provider)),
+		slog.String("failure_class", string(sdk.FailureRetryable)),
+	)
+}
+
+func (s *Source) scanTarget(ctx context.Context, config Config, target TargetConfig, generationID string) (_ collector.CollectedGeneration, scanErr error) {
 	start := time.Now()
 	if s.Tracer != nil {
 		var span trace.Span
@@ -92,6 +113,9 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 	}
 	result := "success"
 	defer func() {
+		if result == "failed" && sdk.IsTransientTransportError(ctx, scanErr) {
+			result = "retryable_transport"
+		}
 		if s.Instruments != nil {
 			s.Instruments.OCIRegistryScanDuration.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(
 				telemetry.AttrProvider(string(target.Provider)),

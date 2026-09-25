@@ -51,7 +51,7 @@ bytes when a registry omits the digest header.
 | `eshu_dp_oci_registry_tags_observed_total` | Counter | `provider`, `result` | Counts bounded tag observations that will drive manifest reads. |
 | `eshu_dp_oci_registry_manifests_observed_total` | Counter | `provider`, `media_family` | Counts digest objects by `image_manifest`, `image_index`, or `descriptor`. |
 | `eshu_dp_oci_registry_referrers_observed_total` | Counter | `provider`, `artifact_family` | Counts referrer artifacts by bounded family: `sbom`, `signature`, `attestation`, `vulnerability`, `unknown`, or `other`. |
-| `eshu_dp_oci_registry_scan_duration_seconds` | Float64 histogram | `provider`, `result` | Measures one target scan from client creation through fact envelope construction. |
+| `eshu_dp_oci_registry_scan_duration_seconds` | Float64 histogram | `provider`, `result` | Measures one target scan from client creation through fact envelope construction. `result` is `success`, `failed`, or `retryable_transport`. |
 
 Trace spans:
 
@@ -75,6 +75,13 @@ digests. Those values are high cardinality and may describe private topology.
   references instead of treating a partial scan as authoritative absence. An
   incomplete window may be shorter than `TagLimit` or empty; it still emits the
   warning and never attempts to slice beyond the observed tags.
+- A transient transport error (connection reset or refused, broken pipe,
+  unexpected EOF, network timeout; see `sdk.IsTransientTransportError`) during a
+  non-claimed `Source.Next` scan skips that target for the cycle, logs a bounded
+  warning, records `result=retryable_transport`, and returns an idle poll so the
+  collector process keeps running (issue #7110). Cancellation, TLS/certificate
+  failures, and HTTP status failures still propagate. Claimed scans keep
+  returning the error to `ClaimedService`, which retries the claim.
 - Claimed scans must match one configured target by normalized `scope_id`; an
   unmatched claim releases without emitting facts.
 - Referrers API absence emits a warning fact instead of false negative truth.
