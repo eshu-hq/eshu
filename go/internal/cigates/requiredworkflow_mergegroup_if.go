@@ -32,8 +32,12 @@ type mergeGroupJob struct {
 // apply. So every blocking job must provably run on merge_group: its own
 // `if:` must evaluate true with github.event_name == 'merge_group' (any other
 // context is unknown and never assumed true), and, unless that `if:` calls
-// always() or cancelled(), every job it needs must provably run too. A job
-// that only sometimes has work to do runs anyway and decides per step.
+// always(), every job it needs must provably run too. always() is the only
+// needs override the guard models. GitHub also drops the implicit success()
+// for an `if:` such as !cancelled(), but the guard treats such a job as
+// skippable with its needs: that can flag a job that would run, never pass
+// one that would skip. A job that only sometimes has work to do runs anyway
+// and decides per step.
 func validateBlockingJobsRunOnMergeGroup(repoRoot string, check RequiredStatusCheck, reg *Registry) []error {
 	wfDir := filepath.Join(repoRoot, ".github", "workflows")
 	cache := make(map[string]map[string]mergeGroupJob)
@@ -119,7 +123,7 @@ func resolveMergeGroupJobs(jobs map[string]mergeGroupJob, checkName string) []st
 	return templated
 }
 
-var statusOverrideRE = regexp.MustCompile(`\b(always|cancelled)\(\)`)
+var statusOverrideRE = regexp.MustCompile(`\b(always)\(\)`)
 
 // mergeGroupSkipReason returns why a job may not run on merge_group, or "".
 func mergeGroupSkipReason(jobs map[string]mergeGroupJob, key string, visiting map[string]bool) string {

@@ -127,6 +127,21 @@ func TestCheckRequiredStatusWorkflows_AlwaysOverridesSkippedNeeds(t *testing.T) 
 	}
 }
 
+func TestCheckRequiredStatusWorkflows_NotCancelledIsNotTreatedAsNeedsOverride(t *testing.T) {
+	t.Parallel()
+
+	// always() is the only needs override the guard models. A job gated on
+	// !cancelled() is treated as skippable with its need, so it is flagged:
+	// the guard errs toward a false red, never a false green.
+	body := strings.Replace(pathSelectiveBlockingWorkflow,
+		"    needs: [changes, build]\n",
+		"    needs: [changes, build]\n    if: ${{ !cancelled() }}\n", 1)
+	root, reg := writeMergeGroupJobFixture(t, body, "verify")
+	if got := mergeGroupSkipErrors(checkRequiredStatusWorkflows(root, reg)); len(got) != 1 {
+		t.Fatalf("a !cancelled() job whose need can skip is flagged once, got %d: %v", len(got), got)
+	}
+}
+
 func TestCheckRequiredStatusWorkflows_ResolvesMatrixNamedJobs(t *testing.T) {
 	t.Parallel()
 

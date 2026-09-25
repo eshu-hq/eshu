@@ -46,8 +46,11 @@ out its timeout on a check that never appears. The rule follows from the
 `blocking` flag rather than an exception list: a workflow that must not run on
 the queue has to stop being blocking. Each blocking job must also provably run on
 `merge_group`: its job-level `if:` has to evaluate true with
-`github.event_name == 'merge_group'` (other contexts count as unknown, and
-`always()`/`cancelled()` are understood), and so must every job it `needs`.
+`github.event_name == 'merge_group'` (other contexts count as unknown,
+`always()` is true and `cancelled()` false), and so must every job it `needs`
+unless the `if:` calls `always()`. That is the only needs override the guard
+models; a job gated on `!cancelled()` is treated as skippable with its needs,
+which errs toward flagging a job rather than passing one that would skip.
 A queue entry whose compare hits the 300-file cap selects every blocking gate,
 so a SKIPPED blocking job there would publish `failure` for a gate that does
 not apply. Path-selective jobs run anyway on the queue and gate their steps.
