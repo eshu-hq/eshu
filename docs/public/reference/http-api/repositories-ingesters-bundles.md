@@ -60,7 +60,11 @@ language narrative rows are also bounded at 500 rows
 is capped rather than silently reported as the exact count, and disclosed via
 the `story_rows_truncated` reason (`limitations` /
 `answer_metadata.partial_reasons`, with `answer_metadata.truncated=true`).
-Their `infrastructure` panel is an auxiliary read layered on top of those
+The story's semantic entity and file reads are bounded at 5,000 rows
+(`RepositorySemanticEntityLimit`); a row past that cap is disclosed the same way
+with `repository_semantic_read_truncated_at_5000`, and the semantic overview and
+file-derived stages are then lower bounds.
+The story's `infrastructure` panel is an auxiliary read layered on top of those
 headline facts: a graph-read failure there keeps the response at `200` with
 an empty panel instead, and `context` carries an additive `partial_reasons`
 array (always present, listing `infrastructure_read_degraded` when that read

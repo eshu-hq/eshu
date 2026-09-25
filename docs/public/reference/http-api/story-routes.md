@@ -371,8 +371,19 @@ repository and service stories; none is graph work.
   and CI/CD stages. The `content_files` stage log is gone; `semantic_overview`
   now reports `file_count`.
 
-The semantic overview and file list are still capped at 5,000 rows without a
-`+1` sentinel, and the story does not mark that cap as truncated.
+The semantic overview and file list stay capped at 5,000 rows
+(`RepositorySemanticEntityLimit`), so every stage that shares them sees the same
+rows as before. The read now asks for one more row as a sentinel: only when that
+sentinel row exists does the repository story append
+`repository_semantic_read_truncated_at_5000` to `limitations` and
+`answer_metadata.partial_reasons` and set `answer_metadata.truncated` (the same
+vocabulary as `story_rows_truncated` and `infrastructure_truncated`). A
+repository with exactly 5,000 entities or files, or fewer, gets a response
+without the reason. When the reason is present, the semantic overview counts,
+language and signal totals, and the file-derived infrastructure, deployment,
+narrative, and CI/CD stages are lower bounds. The sentinel raises the two
+`ListRepoEntities` and `ListRepoFiles` limits from 5,000 to 5,001, one extra row
+on the same ordered, repository-scoped read.
 
 Performance Evidence: local PostgreSQL 16, 180,000 mention and claim facts over
 600 generations with about 5 KB payloads, 9,000 semantic facts, interleaved runs
@@ -424,9 +435,19 @@ cap) and identical coverage values (populated, tied, empty, and unknown repos):
 with `ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN` and
 `ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1` set.
 
-No-Observability-Change: existing `postgres.query` spans and
-`repository_query.stage_completed` logs stay; the only change is that the
-`content_files` stage is no longer emitted because the read it timed is shared.
+No-Regression Evidence (truncation marker): `go test ./internal/query ./internal/query/repository -run 'Test(GetRepositoryStoryDisclosesSemanticReadTruncation|LoadRepositorySemanticOverviewReportsTruncationAtCap|GetRepositoryStoryListsRepositoryFilesOnce)' -count=1`
+covers cap-1, cap, and cap+1 for the entity and the file list, the 5,001-row read
+limit, clipping back to 5,000, and the response fields; dropping the sentinel
+flag fails both tests.
+
+Observability Evidence: the `repository_query.stage_completed` event for the
+`semantic_overview` stage gains a `truncated` attribute beside `file_count`, and
+the response carries the reason in the existing `limitations` and
+`answer_metadata` fields; no metric, span, or runtime knob is added.
+
+No-Observability-Change (other stages): existing `postgres.query` spans and
+`repository_query.stage_completed` logs stay; the `content_files` stage is no
+longer emitted because the read it timed is shared.
 
 ## Investigation packets
 

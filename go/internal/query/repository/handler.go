@@ -298,8 +298,8 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	platformTypes := storySummary.platformTypes
 	dependencyCount := storySummary.dependencyCount
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "semantic_overview")
-	semanticOverview, files, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
-	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)))
+	semanticOverview, files, semanticTruncated, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
+	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", semanticTruncated))
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("semantic overview failed: %v", err))
 		return
@@ -310,6 +310,12 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	storyTruncated := storySummary.truncated
 	if storySummary.truncated {
 		storyLimitations = append(storyLimitations, storyRowsTruncatedReason)
+	}
+	if semanticTruncated {
+		// The semantic entity/file reads found a row past their cap (#7126); the
+		// overview and every stage sharing the file list are lower bounds.
+		storyLimitations = append(storyLimitations, SemanticReadTruncatedReason)
+		storyTruncated = true
 	}
 	if h.Content != nil {
 		// files is the list the semantic overview stage already read; it is

@@ -80,7 +80,9 @@ func TestGetRepositoryStoryListsRepositoryFilesOnce(t *testing.T) {
 	if got := store.calls.Load(); got != 1 {
 		t.Fatalf("ListRepoFiles calls = %d, want 1 (semantic overview and content_files share one read)", got)
 	}
-	if got, want := int(store.limit.Load()), querycontract.RepositorySemanticEntityLimit; got != want {
+	// The cap plus one sentinel row, so a list past the cap is disclosed as
+	// truncated instead of being clipped silently (#7126).
+	if got, want := int(store.limit.Load()), querycontract.RepositorySemanticEntityLimit+1; got != want {
 		t.Fatalf("ListRepoFiles limit = %d, want %d", got, want)
 	}
 }

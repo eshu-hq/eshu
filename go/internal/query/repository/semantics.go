@@ -92,31 +92,53 @@ func buildRepositorySemanticOverviewWithFiles(
 	return overview
 }
 
+// SemanticReadTruncatedReason is the shared limitations/partial_reasons value
+// the repository story appends when its bounded semantic entity or file read
+// found a row past querycontract.RepositorySemanticEntityLimit. The overview,
+// the file list, and every stage that consumes them stay capped at the limit, so
+// counts derived from them are lower bounds; this reason says so instead of
+// letting the story present a capped list's length as the exact total (#7126).
+// It is emitted only when the sentinel row beyond the limit exists, so a
+// repository with exactly the limit's rows gets a byte-identical response.
+const SemanticReadTruncatedReason = "repository_semantic_read_truncated_at_5000"
+
 // loadRepositorySemanticOverview reads the repository's bounded entity and file
 // lists and builds the semantic overview from them. It returns the file list it
 // read so the caller can reuse it: the repository story consumes the same
-// ListRepoFiles(repoID, RepositorySemanticEntityLimit) result for its
-// infrastructure, deployment, narrative, and CI/CD stages, and reading it once
-// instead of once per consumer removes the duplicate large-repository read
-// (#7126). The returned slice must be treated as read-only.
+// bounded file list for its infrastructure, deployment, narrative, and CI/CD
+// stages, and reading it once instead of once per consumer removes the
+// duplicate large-repository read (#7126). The returned slice must be treated
+// as read-only.
+//
+// Each list is read with querycontract.RepositorySemanticEntityLimit+1 rows,
+// the extra row being a sentinel: when it comes back the list is clipped to the
+// limit, so downstream consumers see exactly the rows they always did, and
+// truncated is true so the caller can disclose the cap.
 func loadRepositorySemanticOverview(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
-) (map[string]any, []querycontract.FileContent, error) {
+) (overview map[string]any, files []querycontract.FileContent, truncated bool, err error) {
 	if reader == nil || repoID == "" {
-		return nil, nil, nil
+		return nil, nil, false, nil
 	}
 
-	entities, err := reader.ListRepoEntities(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+	const limit = querycontract.RepositorySemanticEntityLimit
+	entities, err := reader.ListRepoEntities(ctx, repoID, limit+1)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list repository semantic entities: %w", err)
+		return nil, nil, false, fmt.Errorf("list repository semantic entities: %w", err)
 	}
-	files, err := reader.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+	files, err = reader.ListRepoFiles(ctx, repoID, limit+1)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list repository semantic files: %w", err)
+		return nil, nil, false, fmt.Errorf("list repository semantic files: %w", err)
 	}
-	return buildRepositorySemanticOverviewWithFiles(entities, files), files, nil
+	if len(entities) > limit {
+		entities, truncated = entities[:limit], true
+	}
+	if len(files) > limit {
+		files, truncated = files[:limit], true
+	}
+	return buildRepositorySemanticOverviewWithFiles(entities, files), files, truncated, nil
 }
 
 func buildRepositorySemanticStory(overview map[string]any) string {
