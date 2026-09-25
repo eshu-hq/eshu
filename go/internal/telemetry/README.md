@@ -433,8 +433,7 @@ new query routes such as hardcoded-secret investigation register their span
 name in the owning family file, then add a `registerXxx` step (or extend an
 existing one) in `registration.go`/`registration_steps.go` before handlers
 use it. The full frozen, ordered list is accessible at runtime via
-`SpanNames()` and is not duplicated here — see each family file's own doc
-comment for what it covers.
+`SpanNames()` and is not duplicated here; each family file's doc comment says what it covers.
 
 `SpanQueryVulnerabilitySuppressionMutation` uses
 `SpanAttrVulnerabilitySuppressionMutationOutcome`
