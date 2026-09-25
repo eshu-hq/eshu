@@ -23,17 +23,77 @@ OpenAPI marker (the `403` was already declared), and the removal from
 | Transitive walk (`nornicDBTransitiveOneHopRows`) | NornicDB | no grant | neighbour `repo_id` in each hop's WHERE, so the BFS never steps onto an ungranted node |
 | One-statement read (`codemodel.RelationshipGraphRowCypherFromAnchor`) | Neo4j | no grant, anchor included | anchor in a required `WITH e WHERE`; each neighbour in its own OPTIONAL MATCH WHERE |
 | Transitive traversal (`codemodel.BuildTransitiveRelationshipRowsCypher`) | Neo4j | no grant | `all(node IN nodes(path) WHERE <grant on node.repo_id>)` |
-| Content fallback entity (`relationshipsFromContent`) | Postgres | no check | the resolved entity's `repo_id` must be granted, otherwise the unknown-entity 404 |
-| Content fallback name without `repo_id` (`resolveRelationshipEntity`) | Postgres | corpus-wide `SearchEntitiesByNameAnyRepo` | `relationshipNameMatchesInGrant`: each granted repository in turn |
+| Content fallback entity by id (`resolveRelationshipEntity`) | Postgres | `GetEntityContent` (`WHERE entity_id = $1`) | `GetEntityContentInRepositories` (`AND repo_id = ANY(...)`, PK seek) through `relationshipEntityContentForAccess`, plus a repository recheck in `relationshipsFromContent` |
+| NornicDB label lookup (`nornicDBRelationshipEntityLabel`) | Postgres | unbound `GetEntityContent` (leaked only a label) | same grant-bound read |
+| Content fallback name without `repo_id` (`resolveRelationshipEntity`) | Postgres | corpus-wide `SearchEntitiesByNameAnyRepo` | new `ContentReader.SearchEntitiesByNameInRepositories`: one statement, `repo_id = ANY($2)` in the same WHERE, same LIMIT 2 |
+| Name-target ambiguity list (`codemodel.ResolveRelationshipsNameTarget`) | Postgres | only reachable with a grant-checked `repo_id` | unchanged, plus a defence-in-depth candidate filter on the grant |
 | Content fallback neighbours (`BuildContentRelationships`) | Postgres | `repo_id = $1` on the anchor's repository | unchanged; the anchor check above closes it |
 | Empty grant | both | reads ran | unknown-entity 404, no backend read |
 
-The content-store neighbour SQL did not change. Every neighbour read in
+The content-store neighbour SQL did not change, and nothing loops per granted
+repository: the name search is one statement for the whole grant, so the
+fallback's "exactly one match" rule holds across the grant (two granted copies
+stay ambiguous; one granted plus one ungranted resolves to the granted copy). Every neighbour read in
 `content_relationships*.go` (`SearchEntitiesByName`,
 `SearchEntitiesReferencingComponent`, `ListRepoEntitiesByType`, `ListRepoFiles`)
 is `WHERE repo_id = $1` bound to the anchor entity's own repository. Refusing an
-ungranted anchor therefore closes the fallback's neighbour set. No new SQL was
-written, so no `EXPLAIN ANALYZE` applies.
+ungranted anchor therefore closes the fallback's neighbour set; the hermetic
+`relGrantContentBuilder` double records that it never runs for one.
+
+### The new name search, measured
+
+Postgres 18 (`postgres:18-alpine`, throwaway container `pg-5167rel`), a
+`content_entities` table with the production indexes that matter here
+(`repo_idx`, `(repo_id, entity_id)`, `name_trgm` GIN, `path_idx`, `type_idx`),
+200,002 rows over 1000 repositories; `HandleRequest` is a common name (4000
+rows), `RareUniqueSymbolXyz` a rare one (2 rows, repos `r_1` and `r_777`).
+`EXPLAIN (ANALYZE)`, three executions each, median shown.
+
+The shape is `repo_id = ANY($2)` with a `text[]` parameter (the
+`appendRepositoryGrantFilter` form), not the `string_to_array` form
+`GetEntityContentInRepositories` uses. The two plan identically under a custom
+plan, but pgx caches named statements, and PostgreSQL's `plan_cache_mode = auto`
+DID switch this statement to a generic plan after five executions of a mixed
+workload on this data. Under the generic plan `string_to_array` is re-evaluated
+on every heap recheck:
+
+| Name, grant | before: `...AnyRepo`, custom | after, custom | after, generic: `ANY($2)` | generic: `string_to_array` | generic: `IN (SELECT unnest($2))` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| rare, 2 repos | 0.29 ms | 0.19 ms | 0.14 ms | 0.20 ms | 0.22 ms |
+| rare, 128 | — | 0.13 ms | 0.54 ms | 0.53 ms | 11.1 ms |
+| rare, 1000 (whole corpus) | — | 0.21 ms | 3.54 ms | 3.53 ms | 87.0 ms |
+| common, 2 | 1.03 ms | 0.64 ms | 0.76 ms | 0.82 ms | 1.21 ms |
+| common, 128 | — | 9.50 ms | 1.74 ms | 3.25 ms | 74.5 ms |
+| common, 1000 | — | 0.67 ms | 30.95 ms | 169.05 ms | 603.9 ms |
+
+The old corpus-wide read has a generic-plan worst case of its own: 128–131 ms
+for the rare name (it walks `repo_idx` in `ORDER BY` order and filters). So the
+grant-bound read's worst case, ~31 ms for a common name under a
+whole-corpus grant with a generic plan, is below the read it replaces. The
+custom-plan outlier (common name, 128-repo grant, ~9.5 ms) is the planner
+walking `repo_idx` in `ORDER BY repo_id` order across 128 repositories; the
+path only runs when the graph returned no row for a name. Row membership,
+checked directly: grant `{r_1, r_2}` returns only `entity:rare-a`; `{r_1, r_777}`
+returns both (ambiguous, so the fallback resolves nothing); `{r_5}` returns 0.
+`TestContentReaderSearchEntitiesByNameInRepositoriesBindsTheGrant` pins one
+statement with the grant ahead of `LIMIT`, and the empty-grant test pins that
+an empty set reads nothing.
+
+### Backend split for transitive CALLS
+
+- NornicDB answers transitive CALLS only through the per-hop Go breadth-first
+  walk (`nornicDBTransitiveOneHopRows`), with the grant in each hop's WHERE. The
+  variable-length statement is not safe there: the probe measured that an
+  endpoint-only bind leaks interior hops and that
+  `all(node IN nodes(path) WHERE ...)` filters nothing on the pinned build.
+- Neo4j answers it with `codemodel.BuildTransitiveRelationshipRowsCypher`,
+  bound with `all(node IN nodes(path) WHERE <grant on node.repo_id>)`, which
+  the live Neo4j run shows excluding both the bridged chain and its far end
+  while admitting the all-granted chain.
+- `TestCodeRelationshipsTransitiveDispatchIsPinnedPerBackend` fails if NornicDB
+  is ever routed through the variable-length statement (mutation-checked:
+  forcing it reds the test), or if the Neo4j statement loses its path-wide
+  grant.
 
 The ambiguity listing (`codemodel.ResolveRelationshipsNameTarget`) could not
 leak. `resolveExactGraphEntityCandidates` returns nothing without a `repo_id`,
@@ -75,6 +135,8 @@ cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:17995 ESHU_LIVE_GRAPH_BACKEND=nornicdb 
 | transitive out from chain start | `LiveClauseChainBridge` (ungranted), `LiveClauseChainEnd` (reached through it) | same |
 | transitive in from chain end | bridge and `LiveClauseChainStart` | same |
 | ungranted entity_id | 200 from the content fallback | 200 from the graph itself: the anchor was unbound |
+| name, no repo_id, only in repo-b | 404 (metadata read already bound) | 200 with repo-b's entity (the `MATCH (e) WHERE e.name` scan was unbound) |
+| name held once per tenant, no repo_id | resolves the granted copy (already bound) | 404: both copies counted, so ambiguous |
 
 Hermetic RED (`auth_scoped_code_relationships_grant_test.go`, both backends):
 
@@ -82,6 +144,12 @@ Hermetic RED (`auth_scoped_code_relationships_grant_test.go`, both backends):
   with the other tenant's entity.
 - The empty grant returned 200 and issued 1–2 graph reads.
 - A name held by both tenants returned 404 instead of the granted copy.
+- Added after review: without a relationship builder an ungranted id answered
+  503 where an unknown id answered 404, an existence oracle. The grant-bound
+  entity read now returns nothing for it, so both answer 404
+  (`TestCodeRelationshipsScopedEntityReadIsGrantBound`, which also pins that a
+  scoped caller never issues the unbound `WHERE entity_id = $1` read;
+  mutation-checked by reverting the label lookup).
 
 ### GREEN
 

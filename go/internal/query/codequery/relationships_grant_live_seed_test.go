@@ -37,6 +37,10 @@ const (
 	relLiveHubOtherName    = "RelLiveHubOther"
 	relLiveTypeGrantedName = "RelLiveTypeGranted"
 	relLiveTypeOtherName   = "RelLiveTypeOther"
+	// relLiveSharedName is held by one Function in each tenant, so a name
+	// lookup without repo_id is ambiguous corpus-wide and unique in the grant.
+	relLiveSharedName       = "RelLiveSharedName"
+	relLiveSharedGrantedUID = "fn:rel-live-shared-granted"
 )
 
 // relLiveOtherTypes are the relationship types besides CALLS that
@@ -57,6 +61,8 @@ func seedRelLiveGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Driv
 	nodes := []node{
 		{relLiveTypesAnchorUID, "RelLiveTypesAnchor", codeGrantGrantedRepo, "/granted/anchor.go"},
 		{relLiveHubUID, "RelLiveHub", codeGrantGrantedRepo, "/granted/anchor.go"},
+		{relLiveSharedGrantedUID, relLiveSharedName, codeGrantGrantedRepo, "/granted/neighbor.go"},
+		{"fn:rel-live-shared-other", relLiveSharedName, codeGrantOtherRepo, "/other/neighbor.go"},
 	}
 	type edge struct{ from, to, relType string }
 	var edges []edge

@@ -264,6 +264,32 @@ func TestLiveCodeRelationshipsGrant(t *testing.T) {
 		}
 	})
 
+	// Name lookups without repo_id: the NornicDB metadata read and the Neo4j
+	// `MATCH (e) WHERE e.name = $name` scan must both resolve among the granted
+	// repositories only.
+	t.Run("scoped/name_scan_resolves_granted_copy", func(t *testing.T) {
+		data := relLiveData(t, relLiveServe(t, handler, map[string]any{"name": relLiveSharedName}, &scoped))
+		if got, _ := data["entity_id"].(string); got != relLiveSharedGrantedUID {
+			t.Fatalf("scoped shared-name lookup resolved %q, want %q", got, relLiveSharedGrantedUID)
+		}
+		if got, _ := data["repo_id"].(string); got != codeGrantGrantedRepo {
+			t.Fatalf("scoped shared-name lookup repo_id = %q, want the granted repository", got)
+		}
+	})
+	t.Run("scoped/name_scan_ungranted_only_is_not_found", func(t *testing.T) {
+		ungranted := relLiveServe(t, handler, map[string]any{"name": liveClauseUngrantedCallee}, &scoped)
+		unknown := relLiveServe(t, handler, map[string]any{"name": "RelLiveNoSuchSymbol"}, &scoped)
+		if ungranted.Code != http.StatusNotFound || ungranted.Body.String() != unknown.Body.String() {
+			t.Fatalf("ungranted name: status %d body %s; unknown: status %d body %s",
+				ungranted.Code, ungranted.Body.String(), unknown.Code, unknown.Body.String())
+		}
+	})
+	t.Run("shared_key/name_scan_stays_ambiguous", func(t *testing.T) {
+		if rec := relLiveServe(t, handler, map[string]any{"name": relLiveSharedName}, nil); rec.Code != http.StatusNotFound {
+			t.Fatalf("unscoped shared-name lookup status = %d, want 404 (two matches); body = %s", rec.Code, rec.Body.String())
+		}
+	})
+
 	t.Run("scoped/ungranted_anchor_is_not_found", func(t *testing.T) {
 		content := &relGrantContentStore{entities: []EntityContent{{
 			EntityID: liveClauseUngrantedCalleeUID, EntityName: liveClauseUngrantedCallee, EntityType: "Function",

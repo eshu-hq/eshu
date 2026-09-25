@@ -182,10 +182,12 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     WHERE -- there the optional semantics are what is wanted: the anchor row
 //     survives with only its granted neighbours -- and the transitive
 //     traversal binds all(nodes(path)). The content-store fallback, which runs
-//     exactly when the graph refuses an anchor, rechecks the resolved entity's
-//     repository and resolves a repo-less name among the granted repositories
-//     only (relationshipNameMatchesInGrant); its neighbour SQL already reads
-//     `repo_id = $1` on the anchor's own repository. An ungranted anchor and an
+//     exactly when the graph refuses an anchor, reads the entity through
+//     GetEntityContentInRepositories and a repo-less name through
+//     SearchEntitiesByNameInRepositories -- one grant-bound statement each,
+//     never a per-repository loop -- and rechecks the resolved entity's
+//     repository; its neighbour SQL already reads `repo_id = $1` on the
+//     anchor's own repository. An ungranted anchor and an
 //     empty grant both answer the unknown-entity 404.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {

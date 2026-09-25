@@ -402,7 +402,7 @@ func (h *CodeHandler) resolveRelationshipEntity(
 	repoID string,
 ) (*EntityContent, error) {
 	if strings.TrimSpace(entityID) != "" {
-		return h.Content.GetEntityContent(ctx, entityID)
+		return relationshipEntityContentForAccess(ctx, h.Content, entityID)
 	}
 	if strings.TrimSpace(name) == "" {
 		return nil, nil

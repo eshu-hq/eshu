@@ -27,6 +27,8 @@ type relGrantContentStore struct {
 	mu           sync.Mutex
 	anyRepoReads int
 	repoReads    []string
+	grantReads   [][]string
+	unboundByID  int
 	reads        int
 }
 
@@ -41,18 +43,66 @@ func (s *relGrantContentStore) record(repoID string, anyRepo bool) {
 	s.repoReads = append(s.repoReads, repoID)
 }
 
-// GetEntityContent returns the seeded entity with the requested id.
+// GetEntityContent returns the seeded entity with the requested id, with no
+// repository restriction (`WHERE entity_id = $1`).
 func (s *relGrantContentStore) GetEntityContent(_ context.Context, entityID string) (*EntityContent, error) {
 	s.mu.Lock()
 	s.reads++
+	s.unboundByID++
 	s.mu.Unlock()
-	for _, entity := range s.entities {
-		if entity.EntityID == entityID {
-			found := entity
-			return &found, nil
+	return s.byID(entityID, nil), nil
+}
+
+// GetEntityContentInRepositories mirrors `entity_id = $1 AND repo_id = ANY($2)`.
+func (s *relGrantContentStore) GetEntityContentInRepositories(_ context.Context, entityID string, repoIDs []string) (*EntityContent, error) {
+	s.mu.Lock()
+	s.reads++
+	s.grantReads = append(s.grantReads, repoIDs)
+	s.mu.Unlock()
+	return s.byID(entityID, repoIDs), nil
+}
+
+// SearchEntitiesByNameInRepositories mirrors the corpus-wide substring read
+// with `repo_id = ANY($2)` in the same WHERE, then the LIMIT.
+func (s *relGrantContentStore) SearchEntitiesByNameInRepositories(_ context.Context, repoIDs []string, entityType, name string, limit int) ([]EntityContent, error) {
+	s.mu.Lock()
+	s.reads++
+	s.grantReads = append(s.grantReads, repoIDs)
+	s.mu.Unlock()
+	granted := make(map[string]struct{}, len(repoIDs))
+	for _, id := range repoIDs {
+		granted[id] = struct{}{}
+	}
+	out := make([]EntityContent, 0, limit)
+	for _, entity := range s.match("", entityType, name, len(s.entities), false) {
+		if _, ok := granted[entity.RepoID]; ok {
+			out = append(out, entity)
+			if len(out) >= limit {
+				break
+			}
 		}
 	}
-	return nil, nil
+	return out, nil
+}
+
+func (s *relGrantContentStore) byID(entityID string, repoIDs []string) *EntityContent {
+	for _, entity := range s.entities {
+		if entity.EntityID != entityID {
+			continue
+		}
+		if repoIDs != nil {
+			allowed := false
+			for _, id := range repoIDs {
+				allowed = allowed || id == entity.RepoID
+			}
+			if !allowed {
+				return nil
+			}
+		}
+		found := entity
+		return &found
+	}
+	return nil
 }
 
 // SearchEntitiesByName mirrors `repo_id = $1 AND entity_name ILIKE %name%`.

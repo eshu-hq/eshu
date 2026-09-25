@@ -30,6 +30,8 @@ const (
 	relGrantSharedName  = "RelSharedName"
 	relGrantSharedAID   = "entity:rel-shared-a"
 	relGrantSharedBID   = "entity:rel-shared-b"
+	relGrantSecondRepo  = "repo://tenant-a/second-service"
+	relGrantTwoName     = "RelTwoGrantedName"
 )
 
 func relGrantEntities() []EntityContent {
@@ -38,6 +40,8 @@ func relGrantEntities() []EntityContent {
 		{EntityID: relGrantOtherID, EntityName: relGrantOtherName, EntityType: "Function", RepoID: codeGrantOtherRepo, RelativePath: "internal/other.go", Language: "go"},
 		{EntityID: relGrantSharedAID, EntityName: relGrantSharedName, EntityType: "Function", RepoID: codeGrantGrantedRepo, RelativePath: "internal/shared.go", Language: "go"},
 		{EntityID: relGrantSharedBID, EntityName: relGrantSharedName, EntityType: "Function", RepoID: codeGrantOtherRepo, RelativePath: "internal/shared.go", Language: "go"},
+		{EntityID: "entity:rel-two-a", EntityName: relGrantTwoName, EntityType: "Function", RepoID: codeGrantGrantedRepo, RelativePath: "internal/two.go", Language: "go"},
+		{EntityID: "entity:rel-two-b", EntityName: relGrantTwoName, EntityType: "Function", RepoID: relGrantSecondRepo, RelativePath: "internal/two.go", Language: "go"},
 	}
 }
 
@@ -125,13 +129,12 @@ func TestCodeRelationshipsUngrantedNameIsIndistinguishableFromUnknown(t *testing
 			if ungranted.Body.String() != unknown.Body.String() {
 				t.Fatalf("ungranted body differs from unknown body:\nungranted: %s\nunknown:   %s", ungranted.Body.String(), unknown.Body.String())
 			}
-			if fixture.content.anyRepoReads != 0 {
-				t.Fatalf("scoped caller issued %d corpus-wide name read(s)", fixture.content.anyRepoReads)
+			if fixture.content.anyRepoReads != 0 || len(fixture.content.repoReads) != 0 {
+				t.Fatalf("scoped caller issued %d corpus-wide and %d per-repository name read(s); want one grant-bound read",
+					fixture.content.anyRepoReads, len(fixture.content.repoReads))
 			}
-			for _, repoID := range fixture.content.repoReads {
-				if repoID != codeGrantGrantedRepo {
-					t.Fatalf("scoped caller read repository %q outside its grant", repoID)
-				}
+			if got := len(fixture.content.grantReads); got != 1 {
+				t.Fatalf("scoped caller issued %d grant-bound name read(s), want 1", got)
 			}
 		})
 	}
@@ -250,6 +253,61 @@ func TestCodeRelationshipsUngrantedRepoSelectorIsRejected(t *testing.T) {
 			}
 			if n := fixture.graph.count() + fixture.content.reads; n != 0 {
 				t.Fatalf("ungranted selector issued %d backend read(s)", n)
+			}
+		})
+	}
+}
+
+// TestCodeRelationshipsNameSharedByTwoGrantedReposStaysAmbiguous: the fallback
+// resolves only a unique match, and that rule must hold across the whole grant
+// -- one statement, not one read per granted repository.
+func TestCodeRelationshipsNameSharedByTwoGrantedReposStaysAmbiguous(t *testing.T) {
+	t.Parallel()
+	for _, backend := range relGrantBackends() {
+		t.Run(string(backend), func(t *testing.T) {
+			t.Parallel()
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, relGrantSecondRepo})
+			fixture := newRelGrantFixture(backend)
+			rec := fixture.serve(t, map[string]any{"name": relGrantTwoName}, &auth)
+			if got, want := rec.Code, http.StatusNotFound; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+			if n := len(fixture.content.grantReads); n != 1 || len(fixture.content.repoReads) != 0 {
+				t.Fatalf("grant-bound reads = %d, per-repository reads = %d; want exactly one grant-bound read", n, len(fixture.content.repoReads))
+			}
+		})
+	}
+}
+
+// TestCodeRelationshipsScopedEntityReadIsGrantBound: a scoped caller never
+// issues the unbound `WHERE entity_id = $1` read -- not for the fallback, and
+// not for the NornicDB label lookup -- and without a relationship builder an
+// ungranted id answers the unknown-entity 404 rather than the builder's 503,
+// which used to confirm that the id exists.
+func TestCodeRelationshipsScopedEntityReadIsGrantBound(t *testing.T) {
+	t.Parallel()
+	for _, backend := range relGrantBackends() {
+		t.Run(string(backend), func(t *testing.T) {
+			t.Parallel()
+			auth := testutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			for _, id := range []string{relGrantGrantedID, relGrantOtherID} {
+				fixture := newRelGrantFixture(backend)
+				fixture.serve(t, map[string]any{"entity_id": id}, &auth)
+				if n := fixture.content.unboundByID; n != 0 {
+					t.Fatalf("entity_id %q: scoped caller issued %d unbound entity read(s)", id, n)
+				}
+			}
+
+			noBuilder := func(id string) *httptest.ResponseRecorder {
+				fixture := newRelGrantFixture(backend)
+				fixture.handler.ContentRelationships = nil
+				return fixture.serve(t, map[string]any{"entity_id": id}, &auth)
+			}
+			ungranted := noBuilder(relGrantOtherID)
+			unknown := noBuilder("entity:does-not-exist")
+			if ungranted.Code != http.StatusNotFound || ungranted.Body.String() != unknown.Body.String() {
+				t.Fatalf("without a builder: ungranted status %d body %s; unknown status %d body %s",
+					ungranted.Code, ungranted.Body.String(), unknown.Code, unknown.Body.String())
 			}
 		})
 	}

@@ -14,6 +14,21 @@ import (
 // codemodel.RelationshipGraphRowCypherFromAnchor); what is here keeps the
 // content-store fallback and the empty-grant case from answering around them.
 
+// grantScopedEntityContentStore is the optional content port that reads one
+// entity only when its repository is in an authorized set
+// (ContentReader.GetEntityContentInRepositories, `entity_id = $1 AND
+// repo_id = ANY(...)`).
+type grantScopedEntityContentStore interface {
+	GetEntityContentInRepositories(ctx context.Context, entityID string, repoIDs []string) (*EntityContent, error)
+}
+
+// grantScopedEntityNameSearcher is the optional content port that runs the
+// corpus-wide substring name search bound to an authorized repository set in
+// one statement (ContentReader.SearchEntitiesByNameInRepositories).
+type grantScopedEntityNameSearcher interface {
+	SearchEntitiesByNameInRepositories(ctx context.Context, repoIDs []string, entityType, name string, limit int) ([]EntityContent, error)
+}
+
 // relationshipsGrantBlocked reports whether the caller's grant admits nothing,
 // so the route answers its unknown-entity 404 without reading either backend.
 // Not an empty 200 and not a 403: the same answer an entity that does not exist
@@ -23,18 +38,43 @@ func relationshipsGrantBlocked(ctx context.Context, repoID string) bool {
 	return blocked
 }
 
+// relationshipEntityContentForAccess reads one entity by id for the caller's
+// grant. An unscoped caller reads it directly. A scoped caller reads it through
+// GetEntityContentInRepositories, so an entity outside the grant is never
+// fetched at all -- it answers nil, exactly like an id that does not exist,
+// ahead of the fallback's builder check, so neither the body nor a 503-vs-404
+// difference can confirm that an ungranted id exists. A store without the
+// grant-scoped port fails closed. The shape mirrors contentread's
+// getEntityContentForRepositoryAccess, which that package does not export.
+func relationshipEntityContentForAccess(ctx context.Context, content ContentStore, entityID string) (*EntityContent, error) {
+	access := codeGrantAccessFilter(ctx)
+	if content == nil || access.Empty() {
+		return nil, nil
+	}
+	if !access.Scoped() {
+		return content.GetEntityContent(ctx, entityID)
+	}
+	store, ok := content.(grantScopedEntityContentStore)
+	if !ok {
+		return nil, nil
+	}
+	entity, err := store.GetEntityContentInRepositories(ctx, entityID, access.RepositorySearchIDs())
+	if err != nil || entity == nil {
+		return entity, err
+	}
+	if !access.AllowsRepositoryID(entity.RepoID) {
+		return nil, nil
+	}
+	return entity, nil
+}
+
 // relationshipNameMatchesInGrant is the scoped caller's replacement for the
-// corpus-wide SearchEntitiesByNameAnyRepo name lookup of the content fallback.
-// It asks each granted repository in turn and stops as soon as limit matches
-// are in hand, the same per-repository shape
-// story.ExactCandidatesPerRepository uses. The worst case reads limit rows per
-// granted repository; the fallback asks for limit 2 because it resolves only a
-// unique match.
-//
-// Reading the whole corpus and filtering afterward would be wrong twice: a
-// page of the other tenant's rows could fill the limit and hide the granted
-// match, and a name that exists once in the grant and once outside it would
-// count as ambiguous and resolve to nothing.
+// corpus-wide SearchEntitiesByNameAnyRepo lookup of the content fallback: one
+// statement bound to the whole grant, with the same LIMIT, so the fallback's
+// "exactly one match" rule applies across the grant just as it applied across
+// the corpus. A name held by two granted repositories stays ambiguous; a name
+// held once in the grant and once outside it resolves to the granted copy.
+// A store without the grant-scoped port fails closed.
 func relationshipNameMatchesInGrant(
 	ctx context.Context,
 	content ContentStore,
@@ -42,16 +82,9 @@ func relationshipNameMatchesInGrant(
 	allowed []string,
 	limit int,
 ) ([]EntityContent, error) {
-	matches := make([]EntityContent, 0, limit)
-	for _, repoID := range allowed {
-		if len(matches) >= limit {
-			break
-		}
-		rows, err := content.SearchEntitiesByName(ctx, repoID, "", name, limit-len(matches))
-		if err != nil {
-			return nil, err
-		}
-		matches = append(matches, rows...)
+	searcher, ok := content.(grantScopedEntityNameSearcher)
+	if !ok {
+		return nil, nil
 	}
-	return matches, nil
+	return searcher.SearchEntitiesByNameInRepositories(ctx, allowed, "", name, limit)
 }
