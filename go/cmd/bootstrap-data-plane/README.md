@@ -51,9 +51,9 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   already exists and no object the schema drops (the Neo4j `DROP CONSTRAINT`
   statements, #7095) is still present, it marks the backend/fingerprint as
   applied and skips the DDL pass. A still-present retired object makes
-  adoption incomplete so the DDL pass runs the drop. If only some NornicDB objects are missing, the DDL pass forwards only
-  those missing objects and skips every inspected existing constraint/index
-  before it reaches NornicDB. The inspection uses the
+  adoption incomplete so the DDL pass runs the drop. If only some NornicDB
+  objects are missing, the DDL pass forwards only those missing objects and
+  skips every inspected existing constraint/index before it reaches NornicDB. The inspection uses the
   ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE

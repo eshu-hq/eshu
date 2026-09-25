@@ -59,8 +59,8 @@ retract was a label scan before this change and still is. That is a
 pre-existing gap, not a regression. Entity upserts MERGE on `uid` and keep
 seeking `<label>_uid_unique`. TerraformModule and HelmChart writes now update
 one fewer index. The three path-keyed labels swap a unique index for a
-non-unique one, so their writes update the same number of indexes. Bootstrap adds five idempotent DROPs and three CREATE
-INDEX statements.
+non-unique one, so their writes update the same number of indexes.
+Bootstrap adds five idempotent DROPs and three CREATE INDEX statements.
 
 No-Observability-Change: the schema bootstrap logs each new statement through
 the existing `graph schema statement applying` and `graph schema statement applied`
@@ -71,12 +71,33 @@ unchanged.
 
 ## Rollback
 
-An older release's bootstrap re-creates the dropped constraints.
-`kustomize_unique`, `helm_values_unique` and `tg_config_unique` then fail with
-`Neo.ClientError.Schema.IndexAlreadyExists` because the new `path` index covers
-the same schema. That was observed while rerunning the live test before it
-dropped the indexes in setup. The strict bootstrap stops, so drop the three
-`path` indexes before rolling back past this change.
+A rollback inside the compatible window leaves the schema alone.
+`graphSchemaAlreadyApplied` (`go/cmd/bootstrap-data-plane/main.go`) returns
+applied when the older release's fingerprint is in the marker's compatible
+list. The new marker lists `dc9d1cfb`, `9041fb74`, `5483f897` and `fb55804c`.
+Graph DDL is skipped, so the five constraints stay dropped, the three `path`
+indexes stay, and the older release writes against the constraint-free
+schema. Its writers MERGE on `uid`, so they write the same graph, and a moved
+block no longer dead-letters under it.
+
+The older DDL runs in only three cases:
+
+- `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` is set;
+- the release is older than the window;
+- the marker is missing, which is the `eshu-bootstrap-index` path.
+
+In those cases two failures stop the strict bootstrap:
+
+- `kustomize_unique`, `helm_values_unique` and `tg_config_unique` fail with
+  `IndexAlreadyExists`, because the new `path` index covers the same schema.
+  That was observed while rerunning the live test before it dropped the
+  indexes in setup.
+- `tf_module_unique` and `helm_chart_unique` fail with
+  `ConstraintCreationFailed` when two nodes share `(name, path)`, which this
+  schema permits. Review reproduced this on neo4j 2026.09.0.
+
+Before such a rollback, drop the three `path` indexes and resolve the
+TerraformModule and HelmChart `(name, path)` duplicates.
 
 ## Open: NornicDB
 

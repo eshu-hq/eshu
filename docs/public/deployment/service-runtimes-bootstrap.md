@@ -139,11 +139,22 @@ retire. `DROP CONSTRAINT ... IF EXISTS` runs before every other statement. The
 first retired set (#7095) covers `tf_module_unique`, `helm_chart_unique`,
 `helm_values_unique`, `kustomize_unique`, and `tg_config_unique`. Their keys
 were narrower than the canonical `uid` identity, so the delta that moved a block
-failed with `ConstraintValidationFailed`. That bootstrap is not reversible by
-redeploying an older release. The old bootstrap tries to re-create those
-constraints over the new `path` indexes, gets `IndexAlreadyExists`, and the
-strict bootstrap fails. Drop `kustomize_overlay_path`, `helm_values_path`, and
-`terragrunt_config_path` before a rollback.
+failed with `ConstraintValidationFailed`.
+
+Rolling back to a release whose fingerprint the marker lists as compatible does
+not re-create those constraints. `eshu-bootstrap-data-plane` finds its own
+fingerprint in the marker's compatible list and skips graph DDL. The constraints
+stay dropped, and the older release writes against the constraint-free schema.
+Its writers MERGE on `uid`, so they write the same graph.
+
+The older schema's DDL runs only with `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY`, for a
+release older than the compatible window, or when the marker is missing (the
+`eshu-bootstrap-index` path). In those cases, first drop
+`kustomize_overlay_path`, `helm_values_path`, and `terragrunt_config_path`.
+Otherwise the path constraints fail with `IndexAlreadyExists`. Then resolve
+TerraformModule and HelmChart nodes that share `(name, path)`, which this schema
+permits. Otherwise the composite constraints fail with
+`ConstraintCreationFailed`. Either failure stops the strict bootstrap.
 
 That startup check decides whether a writer may **start**. A writer already past
 it keeps writing unless something checks again, and with

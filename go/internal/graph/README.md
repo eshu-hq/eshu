@@ -361,9 +361,14 @@ knob was added.
   (`schema_retired_constraints.go`) and adds non-unique `path` indexes for the
   three path-keyed labels, which the delta retract seeks.
   `TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity` guards the rule.
-  An older release's bootstrap cannot re-create those constraints once the
-  path index exists (`IndexAlreadyExists`), so a rollback past this change
-  logs those statements as failed and the strict bootstrap stops.
+  A rollback to a release inside the marker's compatible window skips graph
+  DDL, so the constraints stay dropped and that release writes against the
+  constraint-free schema. The old DDL runs only with
+  `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY`, for a release older than that window, or
+  when the marker is missing. Then the three `path` indexes must be dropped
+  first (`IndexAlreadyExists`), and TerraformModule/HelmChart nodes sharing
+  `(name, path)` must be resolved first (`ConstraintCreationFailed`), or the
+  strict bootstrap stops.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.
