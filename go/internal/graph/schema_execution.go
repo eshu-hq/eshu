@@ -44,6 +44,17 @@ func ensureSchemaWithBackend(
 		total:   schemaStatementTotal(dialect),
 	}
 
+	if dialect.retireNarrowUIDConstraints {
+		for _, cypher := range neo4jRetiredConstraintDrops() {
+			if err := state.execute(ctx, executor, "neo4j_retired_constraint_drops", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
+				failed++
+			}
+		}
+	}
+
 	for _, cypher := range schemaConstraints {
 		cypher = dialect.constraint(cypher)
 		if cypher == "" {
@@ -68,6 +79,16 @@ func ensureSchemaWithBackend(
 	if dialect.includeNeo4jUIDLookupIndexes {
 		for _, cypher := range neo4jUIDLookupIndexes {
 			if err := state.execute(ctx, executor, "neo4j_uid_lookup_indexes", cypher); err != nil {
+				if isSchemaContextFailure(err) {
+					return err
+				}
+				failed++
+			}
+		}
+	}
+	if dialect.retireNarrowUIDConstraints {
+		for _, cypher := range neo4jRetiredConstraintPathIndexes {
+			if err := state.execute(ctx, executor, "neo4j_retired_constraint_path_indexes", cypher); err != nil {
 				if isSchemaContextFailure(err) {
 					return err
 				}
@@ -182,6 +203,9 @@ func (s *schemaExecutionState) execute(
 
 func schemaStatementTotal(dialect schemaDialect) int {
 	total := 0
+	if dialect.retireNarrowUIDConstraints {
+		total += len(neo4jRetiredUniqueConstraints) + len(neo4jRetiredConstraintPathIndexes)
+	}
 	for _, cypher := range schemaConstraints {
 		if dialect.constraint(cypher) != "" {
 			total++

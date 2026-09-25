@@ -48,10 +48,12 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   adoption for NornicDB and disabled adoption for Neo4j. Truthy values require
   inspection support for either backend. False values disable adoption. Adoption
   inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; if every current schema object
-  already exists, it marks the backend/fingerprint as applied and skips the DDL
-  pass. If only some NornicDB objects are missing, the DDL pass forwards only
-  those missing objects and skips every inspected existing constraint/index
-  before it reaches NornicDB. The inspection uses the
+  already exists and no object the schema drops (the Neo4j `DROP CONSTRAINT`
+  statements, #7095) is still present, it marks the backend/fingerprint as
+  applied and skips the DDL pass. A still-present retired object makes
+  adoption incomplete so the DDL pass runs the drop. If only some NornicDB
+  objects are missing, the DDL pass forwards only those missing objects and
+  skips every inspected existing constraint/index before it reaches NornicDB. The inspection uses the
   ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
@@ -70,7 +72,9 @@ are registered. Lifecycle events use `telemetry.EventAttr`:
 `bootstrap.postgres.applied`, `bootstrap.graph.applied`, and
 `bootstrap.graph.skipped` (with `graph_backend`, `schema_fingerprint`, and
 `statement_count` when graph DDL is skipped). Existing-schema adoption emits
-`bootstrap.graph.adoption_incomplete` when objects are missing and
+`bootstrap.graph.adoption_incomplete` when objects are missing or retired
+objects are still present (`retired_schema_objects_present`,
+`first_retired_schema_objects_present`) and
 `bootstrap.graph.adopted` when the backend schema is complete enough to mark.
 Postgres bootstrap uses this runtime's structured logger for each started and
 recorded migration with path, variant, recovery flag, position, duration, and

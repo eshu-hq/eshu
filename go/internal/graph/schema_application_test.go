@@ -40,8 +40,12 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// indexes on Rationale and DocumentationSection, which change no
 			// write identity, so the #6793 tip stays admitted as well. NornicDB
 			// does not get those indexes, so its fingerprint and list are
-			// unchanged.
+			// unchanged. #7095 drops the Neo4j uniqueness constraints narrower
+			// than the canonical uid identity and adds three path indexes; no
+			// write identity changes, so the #7057 tip stays admitted, and
+			// NornicDB is again unchanged.
 			compatible: []string{
+				graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
 				graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
 				graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
 				graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,

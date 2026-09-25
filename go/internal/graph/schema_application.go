@@ -82,9 +82,10 @@ const (
 	// identity, so a writer on the previous schema writes exactly the same
 	// graph -- it merely reads that one route more slowly.
 	// The #6793 tf_module/tf_output evidence_source indexes and the Neo4j-only
-	// #7057 Rationale/DocumentationSection uid indexes are additive too; see
-	// schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "dc9d1cfb57e5cc89f89f6af0cdd8b39842241badf6856742c4b290dbeb986b74"
+	// #7057 Rationale/DocumentationSection uid indexes are additive too, and so
+	// is the Neo4j-only #7095 retirement of the uniqueness constraints narrower
+	// than the canonical uid identity; see schema_predecessors.go.
+	graphSchemaNeo4jFingerprint    = "675dafc901ff633999440f0e02cbefa7c3ff80231832f5a67330aafe565f8d54"
 	graphSchemaNornicDBFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
@@ -362,6 +363,7 @@ var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
 			graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
 			graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
 			graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
