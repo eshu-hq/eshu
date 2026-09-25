@@ -52,8 +52,8 @@ export function ExposureIngressView({
       <div className="exposure-posture-tiles">
         <StatTile
           label="Public entrypoints"
-          value={ingress.publicEntrypoints}
-          sub="observed public hostnames"
+          value={publicEntrypointValue(ingress)}
+          sub={publicEntrypointSub(ingress)}
         />
         <StatTile
           label="Hops to service"
@@ -210,8 +210,8 @@ export function NoExposureChainNotice({
       <div className="exposure-posture-tiles">
         <StatTile
           label="Public entrypoints"
-          value={ingress.publicEntrypoints}
-          sub="observed public hostnames"
+          value={publicEntrypointValue(ingress)}
+          sub={publicEntrypointSub(ingress)}
         />
         <StatTile label="Hops to service" value={ingress.totalHops} sub="proven ingress hops" />
         <PostureTile
@@ -244,6 +244,20 @@ export function NoExposureChainNotice({
       </Panel>
     </div>
   );
+}
+
+// publicEntrypointValue renders the public entrypoint total. A partial total is
+// a lower bound (the server cut the list and sent no total), so it reads "50+".
+function publicEntrypointValue(ingress: ExposureIngress): string | number {
+  return ingress.publicEntrypointsPartial
+    ? `${ingress.publicEntrypoints}+`
+    : ingress.publicEntrypoints;
+}
+
+function publicEntrypointSub(ingress: ExposureIngress): string {
+  return ingress.publicEntrypointsPartial
+    ? "observed public hostnames (partial: server capped the list)"
+    : "observed public hostnames";
 }
 
 function wafSub(ingress: ExposureIngress): string {

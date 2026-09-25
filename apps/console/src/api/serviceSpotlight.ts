@@ -34,6 +34,10 @@ export interface ServiceSpotlight {
   readonly dependencies: readonly ServiceDependency[];
   readonly deploymentGraph: DeploymentGraph;
   readonly graphDependents: readonly ServiceConsumer[];
+  // hostnameCount is the observed hostname total. hostnames is display-bounded
+  // (and the server caps the wire list at 50), so the count reads
+  // result_limits.hostname_count when present and the returned list otherwise.
+  readonly hostnameCount?: number;
   readonly hostnames: readonly ServiceHostname[];
   readonly investigation: ServiceInvestigation;
   readonly lanes: readonly ServiceDeploymentLane[];
@@ -166,6 +170,7 @@ export interface ServiceContextResponse extends ServiceTrafficPathContext {
   readonly repo_name?: string;
   readonly result_limits?: {
     readonly downstream_count?: number;
+    readonly hostname_count?: number;
     readonly upstream_count?: number;
   };
   readonly support_overview?: {
@@ -325,6 +330,10 @@ export function serviceSpotlightFromContext(
     dependencies,
     deploymentGraph: deploymentGraph(name, lanes, dependencies, allConsumers),
     graphDependents,
+    hostnameCount: Math.max(
+      context.result_limits?.hostname_count ?? 0,
+      context.hostnames?.length ?? 0,
+    ),
     hostnames: hostnameRows(context.hostnames ?? []),
     investigation: normalizeServiceInvestigation(context.investigation),
     lanes,

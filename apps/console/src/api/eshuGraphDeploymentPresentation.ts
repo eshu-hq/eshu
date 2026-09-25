@@ -140,6 +140,22 @@ export function addOmissionSummary(
   if (omitted > 0) summaries.push(summaryNode(id, `${omitted} ${family} not shown`, contract));
 }
 
+// cappedListTotal returns the true size of a list the server caps at 50 rows.
+// shown is the merged rows the console holds; reported are the pre-cut totals
+// the server sent (result_limits.*_count, *_limits.total). The largest wins so
+// an older server that sends no total falls back to the rows in hand, and a
+// total never reads below what is already shown (#7169).
+export function cappedListTotal(
+  shown: number,
+  ...reported: readonly (number | undefined)[]
+): number {
+  return reported.reduce<number>(
+    (largest, value) =>
+      typeof value === "number" && Number.isFinite(value) && value > largest ? value : largest,
+    shown,
+  );
+}
+
 export function summaryNode(id: string, label: string, sub?: string): GraphNode {
   return {
     col: 5,

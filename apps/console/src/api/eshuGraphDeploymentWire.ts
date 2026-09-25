@@ -128,6 +128,14 @@ export interface DeploymentCollectionLimits {
   readonly truncated?: boolean;
 }
 
+// CappedListLimits is the trace route's cap metadata for a list it cuts at 50
+// rows (entrypoint_limits, network_path_limits): total is the pre-cut count.
+export interface CappedListLimits {
+  readonly limit?: number;
+  readonly total?: number;
+  readonly truncated?: boolean;
+}
+
 export interface DeploymentRuntimeTopologyLimits {
   readonly instances?: DeploymentCollectionLimits;
   readonly platform_edges?: DeploymentCollectionLimits;
@@ -151,7 +159,9 @@ export interface ServiceDeploymentContextResponse {
   readonly repo_id?: string;
   readonly repo_name?: string;
   readonly result_limits?: DeploymentCollectionLimits & {
+    readonly entrypoint_count?: number;
     readonly instance_count?: number;
+    readonly network_path_count?: number;
   };
   readonly runtime_topology_limits?: DeploymentRuntimeTopologyLimits;
 }
@@ -162,11 +172,13 @@ export interface DeploymentTraceResponse {
   readonly deployment_evidence?: ServiceDeploymentContextResponse["deployment_evidence"];
   readonly deployment_source_limits?: DeploymentCollectionLimits;
   readonly deployment_sources?: readonly DeploymentSourceRecord[];
+  readonly entrypoint_limits?: CappedListLimits;
   readonly entrypoints?: readonly NamedDeploymentRecord[];
   readonly instances?: readonly DeploymentInstanceRecord[];
   readonly k8s_relationships?: readonly KubernetesRelationshipRecord[];
   readonly k8s_resource_limits?: DeploymentCollectionLimits;
   readonly k8s_resources?: readonly KubernetesResourceRecord[];
+  readonly network_path_limits?: CappedListLimits;
   readonly network_paths?: readonly NetworkPathRecord[];
   readonly provisioned_platforms?: readonly DeploymentPlatformRecord[];
   readonly repo_id?: string;
