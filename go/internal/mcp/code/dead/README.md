@@ -51,7 +51,7 @@ API request duration and error metrics (`request.go` in
   required`). The scan and investigate handlers accept one and widen to every
   repository the caller's scope grants, which is why `repo_id` still travels
   as an explicit empty string rather than being dropped.
-- `limit` defaults to 25 here (`defaultLimit`), and the schema advertises the
+- `limit` defaults to 25 here (`DefaultLimit`), and the schema advertises the
   same constant. The value is sized to the MCP response budget: 100 candidate
   rows exceeded it on most measured repositories (#7168). It is deliberately
   lower than the handlers' own default of 100, which they substitute for any

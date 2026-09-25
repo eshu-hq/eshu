@@ -38,7 +38,7 @@ func findDeadCodeTool() toolcontract.ToolDefinition {
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum dead-code candidates to return",
-					"default":     defaultLimit,
+					"default":     DefaultLimit,
 				},
 				"scope": map[string]any{
 					"type":        "string",
@@ -69,7 +69,7 @@ func deadCodeInvestigationTool() toolcontract.ToolDefinition {
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum active dead-code candidates to return after policy filtering",
-					"default":     defaultLimit,
+					"default":     DefaultLimit,
 					"maximum":     500,
 				},
 				"offset": map[string]any{
@@ -114,7 +114,7 @@ func crossRepoDeadCodeTool() toolcontract.ToolDefinition {
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum active producer candidates to classify",
-					"default":     defaultLimit,
+					"default":     DefaultLimit,
 					"maximum":     500,
 				},
 				"exclude_decorated_with": map[string]any{

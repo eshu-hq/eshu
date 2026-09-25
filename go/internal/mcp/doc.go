@@ -39,9 +39,10 @@
 // whose switch held the three arms before the extraction; the delegation is
 // consulted with the other route delegations ahead of the switch, which no
 // caller can observe because every arm claims tool names exactly. The three
-// POST /api/v0/code/dead-code paths, every body key, the limit 100 and
-// offset 0 defaults, and the null-versus-[] absent shapes of
-// exclude_decorated_with and consumer_repo_ids are unchanged, and the three
+// POST /api/v0/code/dead-code paths, every body key, the offset 0 default, and
+// the null-versus-[] absent shapes of exclude_decorated_with and
+// consumer_repo_ids are unchanged. The limit default is the MCP-budget-sized
+// deadcodetools.DefaultLimit (25), not the HTTP handler's 100. The three
 // advertised definitions live in the deadcode child behind the deadCodeTools
 // wrapper in types.go, which preserves the root registration order.
 // The three complexity/quality selections (calculate_cyclomatic_complexity,
