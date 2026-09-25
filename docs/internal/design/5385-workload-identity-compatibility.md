@@ -65,9 +65,8 @@ alone, moves 0 literals and repairs nothing at write time.
 **Recommendation and recorded decision: (a).** It deviates literally from
 rationale point 2 of the 2026-09-08 note (the 52-literal count), because (b)
 deviates from point 3 and from the "per-repo Workload nodes" clause, and
-accuracy outranks compatibility. The owner's re-confirmation of (a) against
-this framing was in progress when this revision was written; if it changes,
-section 3 changes with it.
+accuracy outranks compatibility. **Re-confirmed by the owner on 2026-09-25
+with Option D in view**, after the (b) column above was presented as written.
 
 ## 1. The reconciled identity model
 
@@ -392,7 +391,7 @@ arbiter check that confirmed D1–D3, kept D4 with a corrected justification
 
 | # | Decision | Rationale retained |
 | --- | --- | --- |
-| D1 | **Option (a): re-key both nodes with a readable composite; keep `workload:<name>` as a resolved handle.** Rejected: option (b) Option D / `WorkloadGroup`; name-only plus query guards. Owner re-confirmation against the section 0 framing pending. | Section 0. There is no per-repo node without a per-repo key; (b) leaves the hub a permanent cross-tenant edge surface with last-writer properties and permanent family-5 under-authorization; accuracy outranks compatibility, so the 52-literal deviation from rationale point 2 is accepted. |
+| D1 | **Option (a): re-key both nodes with a readable composite; keep `workload:<name>` as a resolved handle.** Rejected: option (b) Option D / `WorkloadGroup`; name-only plus query guards. Re-confirmed 2026-09-25 with Option D in view. | Section 0. There is no per-repo node without a per-repo key; (b) leaves the hub a permanent cross-tenant edge surface with last-writer properties and permanent family-5 under-authorization; accuracy outranks compatibility, so the 52-literal deviation from rationale point 2 is accepted. |
 | D1a | Readable composite, not an opaque digest. | Section 1.1: ids appear in URLs and responses; no fixed-segment parser exists; parsing is prohibited and a colon in a name or environment is rejected and counted. |
 | D2 | **Hide an ungranted `SAME_NAME` sibling, not even a count.** | Section 1.3: cross-tenant existence is itself a leak; `/catalog` counts admitted siblings only. |
 | D3 | **Fail closed on an ambiguous legacy handle**, everywhere: an ambiguous API response with candidate `repo_id`s; `workload_handle_ambiguous` in the reducer. Never last-writer, never highest-confidence. | Sections 1.4 and 2.3. The coupling — handles work only while the name is unique — is the intended price. |
