@@ -86,6 +86,7 @@ jobs:
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
           ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
         # TestReducerContentionGate* covers the claim/lease/fencing invariants and
         # the claim-batch latency guard (#4704); TestClaimBatchRankOnceRewrite runs
         # the #4703 rank-once candidate-set+order differential (0/0) against real
@@ -146,12 +147,17 @@ jobs:
         # and leaves the row 'claimed' until the drain gate times out. Only real
         # Postgres expires a lease on the wall clock and applies the ack
         # statement's last_attempt_at fence.
+        # TestSupersededGenerationIDs*AgainstPostgres runs the #7121
+        # superseded-generation drain-lookup proofs: the lookup must return only
+        # superseded generations and must defer to in-flight producers and
+        # durable phase-repair rows. Only real Postgres executes that NOT EXISTS
+        # safety predicate. Each test bootstraps its own private schema.
         # The projector and generation-liveness proofs (#6738) run against the
         # same isolated PostgreSQL service; each test creates a private schema.
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
         # the hermetic guard that keeps every live PostgreSQL proof above, and
         # the DSNs they need, inside the -run filter below.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive)' -race -count=1 -timeout 180s -v
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres)' -race -count=1 -timeout 240s -v
       - name: Run story target-support semantics proof
         working-directory: go
         env:

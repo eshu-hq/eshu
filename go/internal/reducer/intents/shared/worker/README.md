@@ -41,7 +41,8 @@ See [doc.go](doc.go) for the full list. The headline entry points are
 `LoadConfig`. This package's own exported names drop the Shared/SharedProjection
 prefix that stuttered against its own `intents/shared/worker` path (issue
 #6061's naming pass): `Runner`, `RunnerConfig`, `LoadConfig`, `IntentReader`,
-`PartitionCandidateReader`, `UnhashedCandidateReader`, `RefreshFenceLookup`,
+`PartitionCandidateReader`, `UnhashedCandidateReader`,
+`SupersededGenerationReader`, `RefreshFenceLookup`,
 `ReadinessPhase`, `Domains`, `AcceptanceTelemetry`, `AcceptanceLookupEvent`,
 `RecordStepDurations`, `MaxIntentWaitSeconds`, `DefaultPollInterval`,
 `DefaultLeaseOwnerPrefix`, `ReadinessKeyspace`, and
@@ -79,6 +80,8 @@ Registers no instruments of its own; it records through the
 `SharedProjectionPartitionHeartbeatMissed`, `SharedAcceptanceLookupDuration`,
 `SharedAcceptanceLookupErrors`, `SharedProjectionStaleIntents`), unchanged by
 this move since the instruments followed their call sites.
+`SharedProjectionStaleIntents` carries a closed `reason` attribute:
+`acceptance_mismatch` or `generation_superseded` (#7121).
 
 ## Gotchas / invariants
 
@@ -93,6 +96,55 @@ call uses the pre-heartbeat context, not the heartbeat-derived one
 `stopHeartbeat` cancels — releasing through the cancelled context silently
 fails and leaves the lease held until its own TTL. See the inline comment on
 `ProcessPartitionOnce` before reordering this.
+
+**Readiness-blocked intents of a superseded generation drain (#7121).** When
+the `IntentReader` also implements `SupersededGenerationReader`,
+`SelectPartitionBatch` runs the acceptance filter, dedupe, and readiness gate
+first, then makes one bounded lookup over the distinct generation ids of the
+BLOCKED rows only (skipped when nothing is blocked) and moves the blocked rows
+whose scope generation is `superseded` and has no in-flight producer into
+`StaleIDs`, out of `BlockedRows`. The reader reports a generation only when no
+`fact_work_items` row of it and no `graph_projection_phase_repair_queue` row of
+it can still publish the prerequisite phase: a reducer item that is
+`claimed`/`running` (re-claimed when its lease expires), a projector item that is
+`pending`/`retrying`/`claimed`/`running`, or a live phase-repair row (a failed
+phase publish awaiting `repair.Repairer`). After the lookup, readiness is re-read
+for only the rows about to drain (`drainSupersededBlockedRows`), so a producer
+that published between the first readiness read and the lookup keeps its row: it
+projects instead of draining. The re-check is one extra bounded round trip, only
+when there are rows to drain. Both reducer
+claim statements supersede unleased older-generation reducer rows instead of
+claiming them, so superseded with no in-flight producer means the phase row is
+never published and the gate would block those rows forever. A producer already
+in flight when the successor activated (for example `workload_materialization`
+mid-run) defers the drain: if it publishes, the row is ready and projects; if
+it ends without publishing, a later pass drains it. This applies to every gated
+domain this package serves, by `ReadinessPhase`: `runs_in`/`handles_route`
+(`workload_materialization`), `invokes_cloud_action`/`inheritance_edges`/
+`sql_relationships`/`shell_exec`/`rationale_edges` (`canonical_nodes`, produced
+by the projector), and `documentation_edges` (`semantic_nodes`); `code_calls`
+selects through its own runner and is not drained. Ready rows (phase row published) and terminal rows
+on a superseded generation are NOT drained and still project: a delta
+successor (`scope_generations.is_delta`) carries only changed-file facts and a
+file-scoped retract, so it never re-emits an untouched file's edge, and
+draining a ready row would lose that edge permanently. Drained rows count as
+progress, so a window full of orphans returns a batch instead of widening the
+scan toward the cap. The predicate is the terminal
+`superseded` status, not "not the active generation": a pending generation's
+intents are selectable before it activates and must not be dropped. A reader
+without the port keeps the old behavior; a lookup error fails the selection.
+`PartitionBatchResult.SupersededGenerationCount` and
+`PartitionProcessResult.SupersededGenerationIntents` carry the subset of the
+stale count that came from this drain. Because the drained rows leave
+`BlockedRows`, `blocked_count` and `blocked_intent_wait_seconds` describe only
+generations that are not superseded, so a large blocked wait is a real
+prerequisite-phase stall; a row deferred for an in-flight producer stays in those
+metrics. Accepted residuals that can still lose a drained edge: a reducer claim
+whose snapshot predates the successor's activation committing after the lookup
+(one claim statement, delta successor only); admin projector replay of a
+superseded generation, which has no generation fence (#7130); and Ack
+re-activating a superseded generation, because the SQL does not enforce that
+`superseded` is terminal on every writer (#7130).
 
 **The repo-wide-retract fence only engages for the fenced domain set**
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without

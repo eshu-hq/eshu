@@ -31,12 +31,16 @@ type PartitionBatchResult struct {
 	// handles_route #2809 terminal-no-endpoint set. They are retracted (to clear
 	// any stale edge whose endpoint vanished) and marked complete, but never
 	// written and never deferred, so a route-only repo cannot stall the backlog.
-	TerminalRows  []sharedintent.Row
-	StaleIDs      []string
-	StaleCount    int
-	SupersededIDs []string
-	BlockedCount  int
-	TerminalCount int
+	TerminalRows []sharedintent.Row
+	StaleIDs     []string
+	StaleCount   int
+	// SupersededGenerationCount is the subset of StaleIDs drained because the
+	// intent's generation is superseded (#7121), as opposed to an acceptance
+	// mismatch. StaleCount is the total.
+	SupersededGenerationCount int
+	SupersededIDs             []string
+	BlockedCount              int
+	TerminalCount             int
 	// IndexedSelection is true when candidates were read through the indexed
 	// partition predicate rather than the in-memory domain scan. It is a bounded
 	// operator signal for diagnosing which selection path a domain used.
@@ -71,11 +75,15 @@ type PartitionProcessorConfig struct {
 // PartitionProcessResult captures the outcome of one partition processing
 // cycle.
 type PartitionProcessResult struct {
-	LeaseAcquired                     bool
-	ProcessedIntents                  int
-	UpsertedRows                      int
-	RetractedRows                     int
-	StaleIntents                      int
+	LeaseAcquired    bool
+	ProcessedIntents int
+	UpsertedRows     int
+	RetractedRows    int
+	StaleIntents     int
+	// SupersededGenerationIntents is the subset of StaleIntents drained because
+	// the intent's scope generation is superseded (#7121). The rest are
+	// acceptance mismatches.
+	SupersededGenerationIntents       int
 	BlockedReadiness                  int
 	MaxIntentWaitSeconds              float64
 	MaxBlockedIntentWaitSeconds       float64
@@ -177,8 +185,8 @@ func SelectPartitionBatch(
 			lookup = resolvedLookup
 		}
 
-		active, staleIDs := FilterAuthoritativeIntents(partitionRows, lookup)
-		latest, supersededIDs := LatestIntentsByRepoAndPartition(active)
+		active, mismatchIDs := FilterAuthoritativeIntents(partitionRows, lookup)
+		latest, supersededIntentIDs := LatestIntentsByRepoAndPartition(active)
 		readyRows, blockedRows, terminalRows, err := FilterRowsByReadiness(
 			ctx,
 			domain,
@@ -191,40 +199,71 @@ func SelectPartitionBatch(
 			return PartitionBatchResult{}, err
 		}
 
+		// Drain only the rows the readiness gate blocked, and only when their
+		// scope generation is superseded with no in-flight producer (#7121): that
+		// phase row never publishes. The reader omits a superseded generation
+		// while its producer is still running, so an in-flight producer defers the
+		// drain to a later pass instead of losing the edge. Readiness is re-read
+		// for the rows about to drain, after the lookup, so a producer that
+		// published between the first readiness read and the lookup keeps its row
+		// (it projects). Ready and terminal rows on a superseded generation keep
+		// projecting, because a delta successor would never re-emit their edge.
+		// The lookup is one bounded round trip over the blocked rows' generation
+		// ids and is skipped when nothing is blocked; the re-check adds one more
+		// only when there are rows to drain.
+		drain, err := drainSupersededBlockedRows(
+			ctx, reader, domain, blockedRows,
+			readinessLookup, readinessPrefetch, endpointPresence,
+		)
+		if err != nil {
+			return PartitionBatchResult{}, err
+		}
+		blockedRows = drain.Blocked
+		generationSupersededIDs := drain.DrainedIDs
+		readyRows = append(readyRows, drain.Ready...)
+		terminalRows = append(terminalRows, drain.Terminal...)
+		staleIDs := make([]string, 0, len(mismatchIDs)+len(generationSupersededIDs))
+		staleIDs = append(staleIDs, mismatchIDs...)
+		staleIDs = append(staleIDs, generationSupersededIDs...)
+
 		// Terminal rows are complete with no edge; draining them promptly (rather
 		// than widening the scan in search of more ready rows) is what keeps a
 		// route-only backlog from stalling, so they count toward returning a batch.
-		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || seenAll {
+		// Blocked rows drained as superseded are progress for the same reason: a
+		// window full of orphans must not widen the scan toward the cap.
+		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || len(generationSupersededIDs) > 0 || seenAll {
 			if len(readyRows) > batchLimit {
 				readyRows = readyRows[:batchLimit]
 			}
 			return PartitionBatchResult{
-				LatestRows:           readyRows,
-				BlockedRows:          blockedRows,
-				TerminalRows:         terminalRows,
-				StaleIDs:             staleIDs,
-				StaleCount:           len(staleIDs),
-				SupersededIDs:        supersededIDs,
-				BlockedCount:         len(blockedRows),
-				TerminalCount:        len(terminalRows),
-				IndexedSelection:     indexed,
-				UnhashedFallbackRows: unhashedFallback,
+				LatestRows:                readyRows,
+				BlockedRows:               blockedRows,
+				TerminalRows:              terminalRows,
+				StaleIDs:                  staleIDs,
+				StaleCount:                len(staleIDs),
+				SupersededGenerationCount: len(generationSupersededIDs),
+				SupersededIDs:             supersededIntentIDs,
+				BlockedCount:              len(blockedRows),
+				TerminalCount:             len(terminalRows),
+				IndexedSelection:          indexed,
+				UnhashedFallbackRows:      unhashedFallback,
 			}, nil
 		}
 
 		if scanLimit >= maxSharedSelectionScanLimit {
 			if indexed {
 				return PartitionBatchResult{
-					LatestRows:           readyRows,
-					BlockedRows:          blockedRows,
-					TerminalRows:         terminalRows,
-					StaleIDs:             staleIDs,
-					StaleCount:           len(staleIDs),
-					SupersededIDs:        supersededIDs,
-					BlockedCount:         len(blockedRows),
-					TerminalCount:        len(terminalRows),
-					IndexedSelection:     indexed,
-					UnhashedFallbackRows: unhashedFallback,
+					LatestRows:                readyRows,
+					BlockedRows:               blockedRows,
+					TerminalRows:              terminalRows,
+					StaleIDs:                  staleIDs,
+					StaleCount:                len(staleIDs),
+					SupersededGenerationCount: len(generationSupersededIDs),
+					SupersededIDs:             supersededIntentIDs,
+					BlockedCount:              len(blockedRows),
+					TerminalCount:             len(terminalRows),
+					IndexedSelection:          indexed,
+					UnhashedFallbackRows:      unhashedFallback,
 				}, nil
 			}
 			return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
@@ -391,6 +430,7 @@ func ProcessPartitionOnce(
 		UpsertedRows:                 len(upsertRows),
 		RetractedRows:                len(retractRows),
 		StaleIntents:                 len(batch.StaleIDs),
+		SupersededGenerationIntents:  batch.SupersededGenerationCount,
 		BlockedReadiness:             batch.BlockedCount + deferred,
 		RefreshFenceDeferred:         deferred,
 		MaxIntentWaitSeconds:         MaxIntentWaitSeconds(now, batch.LatestRows),

@@ -68,7 +68,7 @@ it before touching any file in this directory.
 
 - **Missing `cross_source_anchor_ready` row**: downstream edge domains that
   wait for this phase will block in the shared projection runner and log
-  "skipped intents until semantic readiness is committed". Check whether the
+  "skipped intents until their prerequisite graph phase is committed". Check whether the
   DSL evaluator ran and whether `PublishEvaluationResult` was called with a
   non-nil publisher.
 - **Duplicate `resolved_relationships` rows**: if the evaluator runs multiple

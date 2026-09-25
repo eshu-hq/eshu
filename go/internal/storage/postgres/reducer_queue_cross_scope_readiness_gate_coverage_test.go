@@ -41,6 +41,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the reducer ack reclaim proof DSN (#6162)", workflowPath)
 	}
+	if !bytes.Contains(workflow, []byte("ESHU_SUPERSEDED_GENERATION_PROOF_DSN:")) {
+		t.Fatalf("%s must pass the superseded-generation proof DSN (#7121)", workflowPath)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -96,6 +99,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// reducer. Only real Postgres expires a lease on the wall clock and
 		// applies the ack statement's last_attempt_at fence.
 		"TestReducerQueueAckBatchFencesSupersededClaimLive",
+		// #7121: the superseded-generation drain lookup must defer to in-flight
+		// producers and durable phase-repair rows. Only real Postgres executes
+		// the NOT EXISTS safety predicate, so a skipped proof leaves it untested.
+		"TestSupersededGenerationIDsAgainstPostgres",
+		"TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres",
+		"TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

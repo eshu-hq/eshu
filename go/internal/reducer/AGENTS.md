@@ -158,7 +158,7 @@ before touching any file in this directory.
   cross-reference `graph_projection_phase_state` for
   `backward_evidence_committed` rows.
 - **Missing phase publication causing edge domain blocking**: shared
-  projection logs "skipped intents until semantic readiness is committed"
+  projection logs "skipped intents until their prerequisite graph phase is committed"
   at high frequency. Check `graph_projection_phase_state` for
   `semantic_nodes_committed` or `canonical_nodes_committed` rows for the
   affected `AcceptanceUnitID`.
