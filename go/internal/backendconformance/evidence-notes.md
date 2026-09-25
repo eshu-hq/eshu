@@ -28,15 +28,19 @@ After the Module-only writer change, the exact live conformance case passed on
 both pinned backends: absent File 0 rows, present File 1 contained uid-bearing
 row, canonical import 1 uid-NULL row. The full live conformance test passed
 on each backend, including its other read cases. This is the intended graph
-truth delta. `scripts/verify-golden-corpus-gate.sh` then passed on the pinned
+truth delta. On source commit `f9122222c3138418c5cb74e818998813fe1eee3e`
+(base `cab11116f6a3e7f41d022df9c6bb64653a09c81d`, before this evidence-only
+correction), `scripts/verify-golden-corpus-gate.sh` passed on the pinned
 NornicDB image over 31 staged repositories and all 39 launched cassette scope
 generations: 570 pass, 0 required-fail, 2 advisory timing warnings; terminal
 fact residual, required intents, completion events and dead letters were all
 zero. The snapshot found 74 Module nodes within its [44, 5000] range. The
-first drain took 191 seconds against the gate's 75-second advisory baseline,
-and maintenance drains took 80 seconds against 25; this run does not establish
-their cause or an end-to-end no-regression claim. The full NornicDB/Neo4j
-differential remains separate integration proof.
+first drain took 129 seconds against the gate's 75-second advisory baseline,
+and maintenance drains took 81 seconds against 25. The production Module
+statement source was blob `905f218de8bb7b8b0c06b01fdf5942111bdf3ed4`.
+This run does not establish the timing warnings' cause or an end-to-end
+no-regression claim. The full NornicDB/Neo4j differential remains separate
+integration proof.
 
 Performance Evidence: before implementation, an isolated scratch HTTP
 `tx/commit` shim extracted the exact production Module template and compared
