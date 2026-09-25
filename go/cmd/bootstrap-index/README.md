@@ -80,8 +80,12 @@ acking or failing the stale generation.
 A claim that returns `failure.ErrWorkClaimConflict` (the queue's bounded
 `40P01`/`40001` retries ran out) is logged as
 `failure_class=projector_claim_conflict`, waited out for 500ms, and retried by
-`claimProjectorWork`, like `projector.Service`; every other Claim error still
-ends the run. See `evidence-7122-claim-conflict.md`.
+`claimProjectorWork`, like `projector.Service`. The retry is bounded: after 20
+consecutive conflicting Claim calls (`maxConsecutiveClaimConflicts`; a success
+or a drained result resets the count) the run fails with an error wrapping the
+last conflict and naming the count, so a persistent conflict cannot hang the
+one-shot. Every other Claim error still ends the run immediately. See
+`evidence-7122-claim-conflict.md`.
 
 The `drainingWorkSource` wrapper converts between two modes: while the
 collector goroutine is running, an empty queue triggers a 500ms poll-wait and
@@ -223,8 +227,8 @@ endpoint.
 | Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration`, `collector_kind=bootstrap-index` |
 | Metric | `eshu_dp_content_entity_emitted_total` | `instruments.ContentEntityEmitted`, `source_file_kind` × `collector_kind=bootstrap-index` — per-file-kind content-entity volume (#3678) |
 | Metric | `eshu_dp_bootstrap_pipeline_phase_seconds` | `instruments.BootstrapPipelinePhaseDuration`, `bootstrap_phase` × `collector_kind=bootstrap-index` — per-phase wall time (#3678) |
-| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` |
-| Metric | `eshu_dp_queue_claim_conflict_retries_total` | `postgres.ProjectorQueue.Instruments` (wired in `wiring.go`), `queue=projector` × `failure_class` — claim statements retried after `40P01`/`40001`; a claim that exhausts them logs `failure_class=projector_claim_conflict` (#7122) |
+| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector`; recorded per Claim call, so the conflict wait is not included (#7122) |
+| Metric | `eshu_dp_queue_claim_conflict_retries_total` | `postgres.ProjectorQueue.Instruments` (wired in `wiring.go`), `queue=projector` × `failure_class` — claim statements retried after `40P01`/`40001`; a claim that exhausts them logs `failure_class=projector_claim_conflict` (#7122); wiring `Instruments` also lets the queue emit `eshu_dp_projector_retry_surge_total` from bootstrap-index |
 | Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` |
 | Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` |
 | Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
