@@ -58,6 +58,16 @@ invent an omitted-resource count from that signal. When the handler reuses
 older context rows that were not sentinel-probed, it omits this block and the
 consumer must fail completeness closed.
 
+`hostnames` and `entrypoints` are each capped at 50 rows. `hostname_limits` and
+`entrypoint_limits` report `limit`, the pre-cut `total`, `truncated`, and
+`drilldown_tool` (`get_workload_context`), and `deployment_overview` keeps the
+full `hostname_count` and `entrypoint_count`. `deployment_overview` no longer
+repeats the two arrays; read them from the top level of the response. Workload
+and service context apply the same 50-row cap and report the totals as
+`result_limits.hostname_count` and `result_limits.entrypoint_count`; a cut sets
+`result_limits.truncated` and adds `hostnames_truncated` or
+`entrypoints_truncated` to `partial_reasons`.
+
 `WorkloadInstance`, `INSTANCE_OF`, `RUNS_ON`, and `USES` do not currently carry
 canonical repository ownership. Repository-scoped callers therefore receive no
 runtime-instance, direct-platform, or materialized cloud-resource evidence from
