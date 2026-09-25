@@ -25,5 +25,10 @@ contract.
   (`TestRegistryReasonsCiteRealSymbols` guards this).
 - Adding a type to a family requires the same addition in the writer that
   emits it; the registry never invents coverage the writer lacks.
+- Set `OneEdgePerEndpointPair` on an endpoint constraint only when every
+  writer of that type MERGEs one shared canonical edge per endpoint pair
+  (RUNS_ON, #6671). `assert-edges` then counts that pair's multiplicity across
+  all `evidence_source` stamps. If distinct stamps are distinct edges by
+  design, leave it false.
 - Keep the repo-dependency alternation derived, not relisted
   (`TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt`).

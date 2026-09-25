@@ -260,6 +260,7 @@ func assertMaterializedEdges(
 	endpointErrs := scan.endpointErrs
 	identityErrs := scan.identityErrs
 	propertyErrs := scan.propertyErrs
+	sharedDuplicates := scan.sharedIdentityDuplicates()
 
 	var missing, extra, duplicate []string
 	for key, want := range expectedCounts {
@@ -292,7 +293,7 @@ func assertMaterializedEdges(
 	sort.Strings(identityErrs)
 	sort.Strings(propertyErrs)
 
-	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 && len(identityErrs) == 0 && len(propertyErrs) == 0 {
+	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(sharedDuplicates) == 0 && len(endpointErrs) == 0 && len(identityErrs) == 0 && len(propertyErrs) == 0 {
 		return nil
 	}
 	var b strings.Builder
@@ -312,6 +313,12 @@ func assertMaterializedEdges(
 	if len(duplicate) > 0 {
 		fmt.Fprintf(&b, "\n  duplicate (%d, materialized more times than expected — a concurrent-MERGE race or duplicate writer output):", len(duplicate))
 		for _, k := range duplicate {
+			fmt.Fprintf(&b, "\n    %s", k)
+		}
+	}
+	if len(sharedDuplicates) > 0 {
+		fmt.Fprintf(&b, "\n  shared-identity duplicate (%d, one endpoint pair holds several edges of a type every writer MERGEs as one canonical edge, counted across all evidence_source stamps):", len(sharedDuplicates))
+		for _, k := range sharedDuplicates {
 			fmt.Fprintf(&b, "\n    %s", k)
 		}
 	}

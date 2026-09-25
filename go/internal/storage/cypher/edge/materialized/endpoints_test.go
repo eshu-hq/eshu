@@ -149,3 +149,19 @@ func TestUnconstrainedFamilyReportsAbsenceNotEmptiness(t *testing.T) {
 		t.Errorf("unconstrained family returned a non-nil map %+v", got)
 	}
 }
+
+// TestRunsOnDeclaresOneEdgePerEndpointPair pins the #6671 wiring: RUNS_ON's
+// two writers share one canonical identity, so the live gate must count a
+// pair's multiplicity across every evidence_source stamp. Dropping the flag
+// lets an unstamped duplicate slip past the provenance filter again.
+func TestRunsOnDeclaresOneEdgePerEndpointPair(t *testing.T) {
+	t.Parallel()
+
+	constraints, ok := MaterializedEdgeEndpointLabels("repo_dependency")
+	if !ok {
+		t.Fatal("repo_dependency has no endpoint constraints")
+	}
+	if !constraints["RUNS_ON"].OneEdgePerEndpointPair {
+		t.Fatal("RUNS_ON does not declare OneEdgePerEndpointPair; a duplicate carrying another writer's stamp, or none, is invisible to assert-edges")
+	}
+}
