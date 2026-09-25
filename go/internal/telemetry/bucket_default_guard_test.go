@@ -24,7 +24,7 @@ import (
 // a written reason that the recorded values genuinely span 0..10000 seconds.
 var defaultBucketSecondsAllowlist = map[string]string{}
 
-// histogramRegistration is one meter.Float64Histogram call found in source.
+// histogramRegistration is one meter.Float64Histogram or meter.Int64Histogram call found in source.
 type histogramRegistration struct {
 	Name          string
 	File          string
@@ -36,10 +36,10 @@ type histogramRegistration struct {
 	Unresolved string
 }
 
-// scanHistogramRegistrations returns every Float64Histogram registration in
-// one parsed file. consts maps the package-level string constants of the
-// file's own package directory to their values; see evalStringExpr for what
-// folds.
+// scanHistogramRegistrations returns every Float64Histogram or
+// Int64Histogram registration in one parsed file. consts maps the
+// package-level string constants of the file's own package directory to
+// their values; see evalStringExpr for what folds.
 func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[string]string) []histogramRegistration {
 	var out []histogramRegistration
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -48,7 +48,7 @@ func scanHistogramRegistrations(fset *token.FileSet, file *ast.File, consts map[
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Float64Histogram" || len(call.Args) == 0 {
+		if !ok || (sel.Sel.Name != "Float64Histogram" && sel.Sel.Name != "Int64Histogram") || len(call.Args) == 0 {
 			return true
 		}
 		pos := fset.Position(call.Pos())
@@ -158,7 +158,8 @@ func defaultBucketSecondsViolations(regs []histogramRegistration, allow map[stri
 }
 
 // scanModuleHistograms walks the Go module at root and returns every
-// Float64Histogram registration in non-test production sources.
+// Float64Histogram or Int64Histogram registration in non-test production
+// sources.
 func scanModuleHistograms(t *testing.T, root string) []histogramRegistration {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -193,7 +194,7 @@ func scanModuleHistograms(t *testing.T, root string) []histogramRegistration {
 	return scanParsedFiles(fset, files)
 }
 
-// scanParsedFiles returns every Float64Histogram registration in files.
+// scanParsedFiles returns every Float64Histogram or Int64Histogram registration in files.
 // Constants are collected per package directory, so a same-named constant in
 // an unrelated package cannot change how a registration resolves.
 func scanParsedFiles(fset *token.FileSet, files []*ast.File) []histogramRegistration {
@@ -220,10 +221,10 @@ func scanParsedFiles(fset *token.FileSet, files []*ast.File) []histogramRegistra
 }
 
 // TestSecondsHistogramsHaveExplicitBuckets fails when any production
-// meter.Float64Histogram named *_seconds is registered without
-// metric.WithExplicitBucketBoundaries (#7084). Unlike bucketAuditTable, this
-// scans the source of the whole module, so a new histogram cannot escape by
-// lacking a row in the table.
+// meter.Float64Histogram or meter.Int64Histogram named *_seconds is
+// registered without metric.WithExplicitBucketBoundaries (#7084). Unlike
+// bucketAuditTable, this scans the source of the whole module, so a new
+// histogram cannot escape by lacking a row in the table.
 func TestSecondsHistogramsHaveExplicitBuckets(t *testing.T) {
 	regs := scanModuleHistograms(t, filepath.Join("..", ".."))
 	if len(regs) < 50 {
@@ -251,6 +252,7 @@ func register(meter metric.Meter) {
 	meter.Float64Histogram("eshu_dp_seeded_batch_size")
 	meter.Float64Histogram("eshu_dp_seeded_allowed_seconds")
 	meter.Float64Histogram("eshu_dp_seeded_spread_seconds", opts...)
+	meter.Int64Histogram("eshu_dp_seeded_int_default_seconds", metric.WithUnit("s"))
 }
 `
 	fset := token.NewFileSet()
@@ -262,7 +264,7 @@ func register(meter metric.Meter) {
 	allow := map[string]string{"eshu_dp_seeded_allowed_seconds": "values genuinely span hours"}
 	got := strings.Join(defaultBucketSecondsViolations(regs, allow), "\n")
 
-	for _, want := range []string{"eshu_dp_seeded_default_seconds", "eshu_dp_seeded_const_seconds", "cannot audit histogram registration"} {
+	for _, want := range []string{"eshu_dp_seeded_default_seconds", "eshu_dp_seeded_const_seconds", "eshu_dp_seeded_int_default_seconds", "cannot audit histogram registration"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("guard missed planted violation %q; violations:\n%s", want, got)
 		}
