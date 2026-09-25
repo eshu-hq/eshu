@@ -102,10 +102,22 @@ the `IntentReader` also implements `SupersededGenerationReader`,
 `SelectPartitionBatch` runs the acceptance filter, dedupe, and readiness gate
 first, then makes one bounded lookup over the distinct generation ids of the
 BLOCKED rows only (skipped when nothing is blocked) and moves the blocked rows
-whose scope generation is `superseded` into `StaleIDs`, out of `BlockedRows`.
-Such a generation was superseded before workload materialization ran, so its
-`workload_materialization` phase row is never published and the gate would
-block those rows forever. Ready rows (phase row published) and terminal rows
+whose scope generation is `superseded` and has no in-flight producer into
+`StaleIDs`, out of `BlockedRows`. The reader reports a generation only when no
+`fact_work_items` row of it can still publish the prerequisite phase: a reducer
+item that is `claimed`/`running` (re-claimed when its lease expires) or a
+projector item that is `pending`/`retrying`/`claimed`/`running`. Both reducer
+claim statements supersede unleased older-generation reducer rows instead of
+claiming them, so superseded with no in-flight producer means the phase row is
+never published and the gate would block those rows forever. A producer already
+in flight when the successor activated (for example `workload_materialization`
+mid-run) defers the drain: if it publishes, the row is ready and projects; if
+it ends without publishing, a later pass drains it. This applies to every gated
+domain this package serves, by `ReadinessPhase`: `runs_in`/`handles_route`
+(`workload_materialization`), `invokes_cloud_action`/`inheritance_edges`/
+`sql_relationships`/`shell_exec`/`rationale_edges` (`canonical_nodes`, produced
+by the projector), and `documentation_edges` (`semantic_nodes`); `code_calls`
+selects through its own runner and is not drained. Ready rows (phase row published) and terminal rows
 on a superseded generation are NOT drained and still project: a delta
 successor (`scope_generations.is_delta`) carries only changed-file facts and a
 file-scoped retract, so it never re-emits an untouched file's edge, and
@@ -121,7 +133,8 @@ stale count that came from this drain. Because the drained rows leave
 `BlockedRows`, `blocked_count` and `blocked_intent_wait_seconds` describe only
 generations that are not superseded, so a large blocked wait is a real
 prerequisite-phase stall. The SQL does not yet enforce that `superseded` is
-terminal on every writer; that gap is tracked in #7130.
+terminal on every writer; that gap is tracked in #7130 and is the residual path
+that can still lose a drained edge.
 
 **The repo-wide-retract fence only engages for the fenced domain set**
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without

@@ -16,9 +16,14 @@ import (
 // was superseded (#7121). An IntentReader that also implements it opts in; a
 // reader that does not keeps the pre-#7121 selection behavior byte-identical.
 //
-// The drain applies only to rows the readiness gate blocks: a generation that
-// was superseded before workload materialization ran never publishes its phase
-// row, so its blocked intents would wait forever. Ready rows (the phase row
+// The drain applies only to rows the readiness gate blocks, and only for a
+// superseded generation with no in-flight producer: such a generation never
+// publishes its phase row, so its blocked intents would wait forever. A producer
+// already running when the successor activated (reducer claimed/running, or a
+// projector pending/retrying/claimed/running item) can still publish, so the
+// reader must NOT report that generation until the producer ends; a deferred
+// row is re-checked on the next pass. This holds for every gated domain the
+// shared runner serves ([ReadinessPhase]), not only runs_in and handles_route. Ready rows (the phase row
 // published) and terminal rows on a superseded generation are NOT drained and
 // still project. A delta successor (scope_generations.is_delta) carries only
 // changed-file facts and its retract is file-scoped, so it never re-emits the
@@ -35,7 +40,8 @@ import (
 // #7130.
 type SupersededGenerationReader interface {
 	// SupersededGenerationIDs returns the subset of generationIDs whose scope
-	// generation is superseded. It must cost one bounded round trip per call.
+	// generation is superseded and has no in-flight producer work item. It must
+	// cost one bounded round trip per call.
 	// Ids that are not scope generations (for example relationship-generation
 	// ids) are simply absent from the result, which keeps them selectable.
 	SupersededGenerationIDs(ctx context.Context, generationIDs []string) (map[string]struct{}, error)

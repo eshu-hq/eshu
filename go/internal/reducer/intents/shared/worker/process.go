@@ -200,8 +200,10 @@ func SelectPartitionBatch(
 		}
 
 		// Drain only the rows the readiness gate blocked, and only when their
-		// scope generation is superseded (#7121): that phase row never publishes
-		// for a generation superseded before workload materialization ran. Ready
+		// scope generation is superseded with no in-flight producer (#7121): that
+		// phase row never publishes. The reader omits a superseded generation
+		// while its producer is still running, so an in-flight producer defers the
+		// drain to a later pass instead of losing the edge. Ready
 		// and terminal rows on a superseded generation keep projecting, because a
 		// delta successor would never re-emit their edge. The lookup is one
 		// bounded round trip over the blocked rows' generation ids and is skipped

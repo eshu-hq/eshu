@@ -24,8 +24,13 @@ partial failure.
 
 **Keep the superseded-generation drain behind the readiness gate and limited
 to BLOCKED rows in `SelectPartitionBatch` (#7121).** A generation superseded
-before workload materialization ran never publishes its phase row, so its
-blocked rows wait forever. Ready and terminal rows on a superseded generation
+before its prerequisite-phase producer ran, with no in-flight producer, never
+publishes its phase row, so its blocked rows wait forever. A producer already
+in flight when the successor activated can still publish: the reader must
+report only generations with no claimed/running reducer item and no
+pending/retrying/claimed/running projector item, so an in-flight producer
+defers the drain (a delta successor never re-emits an untouched file's edge).
+The rule covers every `ReadinessPhase` domain `SelectPartitionBatch` serves. Ready and terminal rows on a superseded generation
 must keep projecting: a delta successor never re-emits an untouched file's
 edge, so draining a ready row is permanent edge loss. Key the lookup on the
 terminal `superseded` status only, never on "not the scope's active
