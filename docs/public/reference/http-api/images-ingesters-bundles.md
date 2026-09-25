@@ -100,7 +100,9 @@ gate the package-registry ecosystem browse applies.
   is admitted under the `ESHU_GOVERNANCE_MODE` rules in
   [HTTP API](../http-api.md#all-scope-credentials-on-grant-filtered-routes).
 - `limit` bounds the page and `truncated` is `true` when more matches exist
-  than `limit`. `version_count` is exact for every returned row, `0` included.
+  than `limit`. `version_count` counts the package's version nodes, `0` included; it can exceed
+  the versions the versions route lists while a generation is mid-write or when a
+  version's owning package node was absent at edge-write time.
 
 The route returns matching bundle candidates from the active query backend. It
 does not upload files, mutate graph state, or import `.eshu` archives.

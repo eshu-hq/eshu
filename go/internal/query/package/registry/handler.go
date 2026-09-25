@@ -318,14 +318,14 @@ func (h *Handler) listVersions(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-// attachPackageVersionCounts resolves HAS_VERSION counts for one page of
-// packages as a separate, scoped query and zero-fills any package uid absent
-// from the result. This is deliberately not folded back into
-// packageRegistryPackagesCypher's OPTIONAL MATCH + count(v): on the pinned
-// NornicDB backend that composition silently collapses every zero-version
-// package out of the result set instead of returning it with version_count
-// 0 (see docs/public/reference/nornicdb-pitfalls.md). Skips the round trip
-// entirely when the page is empty.
+// attachPackageVersionCounts resolves version counts (PackageVersion nodes by
+// package_id) for one page of packages as a separate query and zero-fills any
+// package uid absent from the result. The count is deliberately not folded
+// into the anchor reads as OPTIONAL MATCH + count(v): the pinned NornicDB
+// ignores the ORDER BY/LIMIT that follow such an aggregate (see
+// docs/public/reference/nornicdb-aggregate-order-limit.md and
+// docs/public/reference/nornicdb-pitfalls.md). Skips the round trip entirely
+// when the page is empty.
 func (h *Handler) attachPackageVersionCounts(
 	ctx context.Context,
 	results []PackageResult,

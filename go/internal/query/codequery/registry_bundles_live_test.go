@@ -21,7 +21,16 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-const liveBundlesEcosystem = "npm-live-5167-bundles"
+const (
+	liveBundlesEcosystem = "npm-live-5167-bundles"
+	// liveBundlesEcosystemB sorts after liveBundlesEcosystem, so a query-only
+	// read that honours ORDER BY p.ecosystem lists every liveBundlesEcosystem
+	// row before any liveBundlesEcosystemB row.
+	liveBundlesEcosystemB = "npm-live-5167-bundles-b"
+	// liveBundlesNamespace is set on every seeded package so a query-only read
+	// can select exactly the fixture without an ecosystem pin.
+	liveBundlesNamespace = "live5167-ns"
+)
 
 // liveBundlesPackage is one seeded :Package fixture row.
 type liveBundlesPackage struct {
@@ -51,6 +60,22 @@ func liveBundlesFixture() []liveBundlesPackage {
 		scrambled = append(scrambled, all[(i*7)%len(all)])
 	}
 	return scrambled
+}
+
+// liveBundlesSecondEcosystemFixture returns 10 public zero-version packages in
+// liveBundlesEcosystemB named pkg-NN-b. Each name sorts between two
+// liveBundlesEcosystem names, so ordering by name alone interleaves the two
+// ecosystems while ordering by (ecosystem, name, uid) does not.
+func liveBundlesSecondEcosystemFixture() []liveBundlesPackage {
+	out := make([]liveBundlesPackage, 0, 10)
+	for i := 9; i >= 0; i-- {
+		out = append(out, liveBundlesPackage{
+			uid:        fmt.Sprintf("pkg:live5167c:%02d", i),
+			name:       fmt.Sprintf("pkg-%02d-b", i),
+			visibility: "public",
+		})
+	}
+	return out
 }
 
 // liveBundlesRecordingReader wraps the live reader and records the row count
@@ -102,12 +127,18 @@ func openLiveBundlesReader(t *testing.T) *liveBundlesRecordingReader {
 	clean := func() {
 		write(`MATCH (v:PackageVersion) WHERE v.uid STARTS WITH 'ver:live5167b:' DETACH DELETE v`, nil)
 		write(`MATCH (p:Package {ecosystem: $e}) DETACH DELETE p`, map[string]any{"e": liveBundlesEcosystem})
+		write(`MATCH (p:Package {ecosystem: $e}) DETACH DELETE p`, map[string]any{"e": liveBundlesEcosystemB})
 	}
 	clean()
 	t.Cleanup(clean)
-	for _, pkg := range liveBundlesFixture() {
-		props := map[string]any{"uid": pkg.uid, "name": pkg.name, "e": liveBundlesEcosystem}
-		set := `SET p.normalized_name = $name, p.ecosystem = $e, p.registry = 'live', p.namespace = '', p.purl = 'pkg:npm/' + $name`
+	seed := append(liveBundlesFixture(), liveBundlesSecondEcosystemFixture()...)
+	for _, pkg := range seed {
+		ecosystem := liveBundlesEcosystem
+		if strings.HasPrefix(pkg.uid, "pkg:live5167c:") {
+			ecosystem = liveBundlesEcosystemB
+		}
+		props := map[string]any{"uid": pkg.uid, "name": pkg.name, "e": ecosystem, "ns": liveBundlesNamespace}
+		set := `SET p.normalized_name = $name, p.ecosystem = $e, p.registry = 'live', p.namespace = $ns, p.purl = 'pkg:npm/' + $name`
 		if pkg.visibility != "" {
 			set += `, p.visibility = $visibility`
 			props["visibility"] = pkg.visibility
@@ -334,5 +365,48 @@ RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"ids": id
 	propCounts, _ = registry.VersionCountsByPackageID(ctx, reader, ids[:1])
 	if got, want := propCounts[ids[0]], edgeCounts()[ids[0]]+1; got != want {
 		t.Errorf("no-edge window: property count %d, want edge count + 1 = %d", got, want)
+	}
+}
+
+// TestLiveSearchBundlesOrdersAcrossEcosystems proves ORDER BY and LIMIT are
+// honoured by the shapes the ecosystem-pinned test does not reach: a
+// query-only read (ORDER BY p.ecosystem, p.normalized_name, p.uid) and a
+// unique_only read (RETURN DISTINCT in front of the same ORDER BY/LIMIT). The
+// fixture holds 30 packages in one ecosystem and 10 in a later-sorting one,
+// with names interleaving across the two, so a read that ignores the ecosystem
+// key (or the whole ORDER BY) returns a visibly different first page.
+func TestLiveSearchBundlesOrdersAcrossEcosystems(t *testing.T) {
+	const limit = 5
+	want := liveBundlesExpected(false)[:limit] // ecosystem A sorts first: pkg-00..pkg-04
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"query-only", fmt.Sprintf(`{"query": %q, "limit": %d}`, liveBundlesNamespace, limit)},
+		{"unique_only query-only", fmt.Sprintf(`{"query": %q, "unique_only": true, "limit": %d}`, liveBundlesNamespace, limit)},
+		{"unique_only ecosystem-pinned", fmt.Sprintf(`{"ecosystem": %q, "unique_only": true, "limit": %d}`, liveBundlesEcosystem, limit)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := openLiveBundlesReader(t)
+			bundles, truncated := liveBundlesSearch(t, reader, tc.body, nil)
+			if len(reader.rows) == 0 || reader.rows[0] != limit+1 {
+				t.Errorf("anchor statement returned %v rows, want exactly limit+1 = %d (the fixture holds 40)", reader.rows, limit+1)
+			}
+			if !truncated {
+				t.Errorf("truncated = false, want true (40 packages, limit %d)", limit)
+			}
+			if len(bundles) != limit {
+				t.Fatalf("len(bundles) = %d, want %d", len(bundles), limit)
+			}
+			for i, row := range bundles {
+				if got := StringVal(row, "package_id"); got != want[i].uid {
+					t.Errorf("bundles[%d].package_id = %q, want %q (ecosystem, name, uid order)", i, got, want[i].uid)
+				}
+				if got := StringVal(row, "ecosystem"); got != liveBundlesEcosystem {
+					t.Errorf("bundles[%d].ecosystem = %q, want %q first", i, got, liveBundlesEcosystem)
+				}
+			}
+		})
 	}
 }

@@ -52,8 +52,12 @@ LIMIT $limit`, params
 // written in a deferred second write group after the node group commits
 // (package_registry_edge_writer.go). Between those two groups a version node
 // exists whose edge does not, so this count can briefly exceed an edge count
-// mid-materialization; once both groups have committed the two agree (proven
-// live by TestLiveSearchBundlesVersionCountEqualsEdgeCount). The previous
+// mid-materialization. The edge write also MATCHes the owning Package node, so
+// a version whose Package node is absent when the edge group runs keeps its
+// node (and its package_id) but never gets an edge, and the property count then
+// stays above the edge count until that generation reprojects. When the owning
+// Package exists and both groups have committed the two agree (proven live by
+// TestLiveSearchBundlesVersionCountEqualsEdgeCount). The previous
 // UNWIND + HAS_VERSION statement was correct but measured about 260 ms at 51
 // ids and 1 s at 201 ids uncached (p50, 3,000 packages); this one measures
 // 3 ms and 6 ms.

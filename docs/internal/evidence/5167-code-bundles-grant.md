@@ -32,11 +32,15 @@ over a 3,000-package ecosystem returned all 3,000 rows in storage order, so the
 handler's `rows[:limit]` served an arbitrary page and `truncated` meant
 nothing.
 
-The zero-version row collapse that the pending-ledger comment and
-`nornicdb-pitfalls.md` describe does **not** reproduce on this build: two
-zero-version packages and one two-version package under the old statement
-returned three rows, counts 0, 0, 2, each on its own id. The pitfall now says
-so (`docs/public/reference/nornicdb-pitfalls.md`).
+The zero-version row collapse that the pending-ledger comment cited is
+shape-dependent, and the code bundles statement's shape does **not** collapse on
+this build: two zero-version packages and one two-version package under
+`OPTIONAL MATCH ... WITH p, count(v) AS version_count` returned three rows,
+counts 0, 0, 2, each on its own id. The direct `OPTIONAL MATCH ... RETURN p.uid,
+count(v)` form the browse route used still collapses on this pin (the browse
+live tests re-run below capture 1 row where 3 are expected). The pitfall
+(`docs/public/reference/nornicdb-pitfalls.md`) and the new
+`nornicdb-aggregate-order-limit.md` say so.
 
 ## Regression proof (RED then GREEN)
 
@@ -72,11 +76,23 @@ GREEN, on the new statements (exit 0):
 ```
 
 Row-set results the GREEN run asserts: limit 5 returns exactly 6 anchor rows,
-the first five by `(name, uid)`, `truncated = true`, `version_count` exact
-including 0; a scoped caller at limit 200 receives exactly the 10 public rows
+the first five by `(name, uid)`, `truncated = true`, `version_count` equal to the
+seeded count including 0; a scoped caller at limit 200 receives exactly the 10 public rows
 in order and none of the 20 private or visibility-absent ones; `query` /
 `ecosystem` / `unique_only` / scoped-plus-query each return their expected
 counts (30, 0, 10, 10, 0, 30, 4, 0).
+
+`TestLiveSearchBundlesOrdersAcrossEcosystems` covers the shapes the
+ecosystem-pinned test does not reach. The fixture adds 10 public packages in a
+later-sorting second ecosystem, named so that ordering by name alone would
+interleave the two ecosystems. Three cases, each asserting exactly limit+1
+(6) anchor rows, `truncated = true`, and the first five rows in
+`(ecosystem, name, uid)` order: a query-only read at limit 5, the same with
+`unique_only: true` (`RETURN DISTINCT` in front of the same ORDER BY/LIMIT), and
+an ecosystem-pinned `unique_only` read. NornicDB honoured ORDER BY and LIMIT in
+all three; no bug was found. Sensitivity: forcing the ecosystem-pinned sort key
+onto the query-only read turns the query-only and `unique_only` cases red
+(bundles[1] becomes the second ecosystem's `pkg-00-b`).
 
 Handler unit tests on the fake reader
 (`registry_bundles_scope_test.go`): a scoped caller (repository-id grant and
@@ -118,6 +134,19 @@ seeding of the same shape measured the old single statement at 42 ms (limit 51)
 and 49 ms (limit 201) p50, so treat the old column as 20-50 ms; the new pair is
 about 2.7x slower at limit 51 and 7x at limit 201 on this fixture.
 
+Query-only shape (`{"query": ...}`, no ecosystem pin, ORDER BY ecosystem, name,
+uid), same fixture and method, n = 15, unique nonce per run:
+
+| `limit` sent | old single statement | new anchor + count |
+|---:|---|---|
+| 51 | 3,000 rows, p50 102.0 ms (min 96.5, max 111.8) | 51 rows, p50 86.4 ms (min 85.0, max 93.1) |
+| 201 | 3,000 rows, p50 101.4 ms (min 96.3, max 109.4) | 201 rows, p50 92.8 ms (min 91.6, max 95.6) |
+
+The query-only read is dominated by the unindexable `CONTAINS` scan over every
+`Package` (about 85-100 ms for both), so the sort cost seen on the
+ecosystem-pinned shape is small next to it and the pair is not slower here. The
+`CONTAINS` scan is the pre-existing query-only shape.
+
 Statement level, first seeding, n = 15 interleaved, p50 (the anchor here is the
 first version, ordering by ecosystem as well):
 
@@ -150,7 +179,20 @@ index-ordered scan was not available in these measurements.
 The browse route's version counts get the same faster helper, so
 `GET /api/v0/package-registry/packages` drops its count-read cost accordingly;
 its handler tests pass against the new statement (they assert the new text).
-The browse route's own anchor statement is unchanged.
+The browse route's own anchor statement is unchanged. Its live proofs,
+`TestLivePackageRegistryListPackagesReturnsZeroVersionPackages` and
+`TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages`
+(`ESHU_PKG_REGISTRY_PROVE_LIVE=1`), were re-run against the new count statement.
+They failed first: their fixtures created `PackageVersion` nodes with only a
+`uid` and a `HAS_VERSION` edge, and the property-based count read 0 for the
+two-version package. Both production writers set `package_id` on the node, so
+the fixtures now carry it, as the writers' output does; the run then passes. A
+deployed graph whose version nodes lack `package_id` would show 0, which no
+writer produces.
+
+The statement-level and variant tables above come from separate seedings and
+runs than the end-to-end table (different fixtures and n); read each table on its
+own and do not add them.
 
 Version count semantics. The shipped count reads `PackageVersion` nodes by
 `package_id`, not `HAS_VERSION` edges. Both writers set `v.package_id` on the
@@ -158,8 +200,13 @@ node (`canonicalPackageRegistryVersionUpsertCypher`), but the `HAS_VERSION`
 edge is written in a deferred second write group after the node group commits
 (`package_registry_edge_writer.go`). Between the two groups a version node
 exists whose edge does not, and the property count is briefly higher than the
-edge count. Once both groups have committed they agree: on the 3,000-package
-fixture, 2,250 packages have versions and 0 of 3,000 differ between the two
+edge count. The edge write also MATCHes the owning `Package` node, so a version
+whose `Package` is absent when the edge group runs keeps its node and
+`package_id` but never gets an edge, and the property count stays above the edge
+count until that generation reprojects (the versions-list route is edge-based,
+so a `version_count` can then exceed the versions it lists). When the owning
+`Package` exists and both groups have committed the two agree: on the
+3,000-package fixture, 2,250 packages have versions and 0 of 3,000 differ between the two
 counts, and `TestLiveSearchBundlesVersionCountEqualsEdgeCount` asserts equality
 per package plus the no-edge window (a version node with `package_id` and no
 edge counts by property, not by edge).

@@ -45,6 +45,10 @@ import (
 // Run: ESHU_PKG_REGISTRY_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:7687 \
 //
 //	go test ./internal/query -run TestLivePackageRegistryListPackagesReturnsZeroVersionPackages -count=1 -v
+//
+// The seeded PackageVersion nodes carry package_id, as both production writers
+// set it (canonicalPackageRegistryVersionUpsertCypher): the version-count read
+// counts PackageVersion nodes by that property, not HAS_VERSION edges.
 func TestLivePackageRegistryListPackagesReturnsZeroVersionPackages(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_PKG_REGISTRY_PROVE_LIVE")) == "" {
 		t.Skip("set ESHU_PKG_REGISTRY_PROVE_LIVE=1 to run the live package-registry version-count proof")
@@ -92,8 +96,8 @@ func TestLivePackageRegistryListPackagesReturnsZeroVersionPackages(t *testing.T)
 	write(`CREATE (a:Package {uid: $a, ecosystem: $ecosystem, normalized_name: 'a'})
 	       CREATE (b:Package {uid: $b, ecosystem: $ecosystem, normalized_name: 'b'})
 	       CREATE (p:Package {uid: $c, ecosystem: $ecosystem, normalized_name: 'c'})
-	       CREATE (v1:PackageVersion {uid: $c1})
-	       CREATE (v2:PackageVersion {uid: $c2})
+	       CREATE (v1:PackageVersion {uid: $c1, package_id: $c})
+	       CREATE (v2:PackageVersion {uid: $c2, package_id: $c})
 	       CREATE (p)-[:HAS_VERSION]->(v1)
 	       CREATE (p)-[:HAS_VERSION]->(v2)`,
 		map[string]any{
@@ -236,8 +240,8 @@ func TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages(t *t
 
 	write(`CREATE (a:Package {uid: $a, ecosystem: $ecosystem, normalized_name: 'a', visibility: 'public'})
 	       CREATE (b:Package {uid: $b, ecosystem: $ecosystem, normalized_name: 'b', visibility: 'public'})
-	       CREATE (v1:PackageVersion {uid: $b1})
-	       CREATE (v2:PackageVersion {uid: $b2})
+	       CREATE (v1:PackageVersion {uid: $b1, package_id: $b})
+	       CREATE (v2:PackageVersion {uid: $b2, package_id: $b})
 	       CREATE (b)-[:HAS_VERSION]->(v1)
 	       CREATE (b)-[:HAS_VERSION]->(v2)
 	       CREATE (c:Package {uid: $c, ecosystem: $ecosystem, normalized_name: 'c', visibility: 'private'})`,

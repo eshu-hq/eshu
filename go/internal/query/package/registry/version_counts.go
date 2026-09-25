@@ -13,7 +13,7 @@ import (
 // package uids through packageRegistryVersionCountsCypher, the MATCH-only,
 // index-backed statement over PackageVersion.package_id (it counts version
 // nodes by that property, not HAS_VERSION edges; see the statement's doc
-// comment for the window where the two differ). It keeps the aggregate out of
+// comment for the windows where the two differ). It keeps the aggregate out of
 // the anchor reads, where the pinned NornicDB ignores ORDER BY/LIMIT after it
 // (see docs/public/reference/nornicdb-aggregate-order-limit.md).
 // A package uid absent from the returned map has zero versions; callers

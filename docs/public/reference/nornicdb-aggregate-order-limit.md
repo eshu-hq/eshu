@@ -1,19 +1,26 @@
 # NornicDB: `ORDER BY`/`LIMIT` After An Aggregate Is Silently Ignored
 
 This page re-measures the "`OPTIONAL MATCH` + Aggregate" pitfall in
-[NornicDB Pitfalls](nornicdb-pitfalls.md#pitfall-older-pin-only-optional-match-aggregate-collapsed-every-zero-match-group-into-one-row)
+[NornicDB Pitfalls](nornicdb-pitfalls.md#pitfall-optional-match-aggregate-collapses-every-zero-match-group-into-one-row)
 on the current compose pin and records a different defect the same statement
 shape hits.
 
 ## Measured on the current pin
 
-The zero-match row collapse was measured on the older `eshu-nornicdb-pr261` pin.
-It does **not** reproduce on the current compose pin
-(`nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`, NornicDB 1.3.3),
-measured live for #5167 (code bundles): two zero-version packages and one
-two-version package under `OPTIONAL MATCH ... WITH p, count(v) AS version_count`
-returned 3 rows with counts 0, 0, 2, each on its own id. Do not cite the
-collapse as a reason on this pin.
+The zero-match row collapse depends on the statement's shape. On the current
+compose pin (`nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`, NornicDB
+1.3.3), measured live for #5167:
+
+- `OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) RETURN p.uid, count(v)` (the direct
+  form the package-registry browse route used) **still collapses**: 3 packages,
+  1 row, the two-version package's count on the first package's id
+  (`TestLivePackageRegistryListPackagesReturnsZeroVersionPackages` and its
+  scoped twin capture it).
+- `OPTIONAL MATCH ... WITH p, count(v) AS version_count RETURN ...` (the shape
+  the code bundles read used) does **not** collapse: two zero-version packages
+  and one two-version package returned 3 rows, counts 0, 0, 2, each on its own
+  id. Do not cite the collapse as the reason for that shape; its defect is the
+  one below.
 
 What the same shape does still get wrong is the tail of the statement. With
 `WITH p, count(v) AS version_count RETURN ... ORDER BY p.ecosystem,
