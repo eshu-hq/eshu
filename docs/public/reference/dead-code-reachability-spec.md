@@ -179,9 +179,12 @@ Request-level decorator exclusions also set `analysis.user_overrides_applied`.
 ## Response Bounds
 
 The three MCP tools default `limit` to `25`, not `100`. A `limit` of `100`
-produced replies over the MCP response budget on most measured repositories,
-and `candidate_buckets` was 80-93% of those replies. The MCP default is
-independent of the HTTP defaults: an HTTP caller has no byte budget, so
+produced replies over the MCP response budget on most measured repositories.
+In one measured argument set at `limit` 20, `candidate_buckets` was 79.9% of
+the `investigate_dead_code` reply and 89.8% of the `find_cross_repo_dead_code`
+reply. `analyze_code_relationships` with `query_type` `dead_code` reaches the
+same payload and shares the same `25` default. The MCP default is independent
+of the HTTP defaults: an HTTP caller has no byte budget, so
 `POST /api/v0/code/dead-code` and its siblings keep their own default of `100`
 (maximum `500`). Raise `limit` on the MCP tools only when the reply still fits
 the budget, and page `investigate_dead_code` with `offset` and `next_offset`.
@@ -191,6 +194,11 @@ bounded by the smaller of `limit` and `50` on both the investigation and the
 cross-repo routes. `suppressed_limit` reports that bound, and
 `suppressed_truncated` is `true` when rows were dropped, so a short bucket is
 never mistaken for the whole set.
+
+The `suppressed` bucket is a bounded sample, not a census, and it has no
+`offset`. To see more of it, narrow the request with `language` or `repo_id`.
+The top-level `truncated` flag covers the active rows only; check
+`suppressed_truncated` for the suppressed bucket.
 
 The cross-repo route has no `offset`; it is limit-only. To see more of a large
 producer repository, narrow it with a `language` or `consumer_repo_ids`
