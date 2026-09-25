@@ -9,128 +9,198 @@ acceptance key maps to the accepted generation, so a rolled-back row marks the
 newer generation's intents stale and lets older intents project as current
 truth.
 
-## Change
+## What the first fix got wrong (review F1)
 
-`upsertSharedProjectionAcceptanceBatchSuffix` now carries a conflict filter:
+The first version guarded the update with an `EXISTS` over two
+`scope_generations` rows. That subquery reads the statement snapshot. Read
+Committed re-checks an update's condition against the target row's newest
+version after a lock wait, but an updating command "does not see effects of
+those commands on other rows in the database"
+(<https://www.postgresql.org/docs/current/transaction-iso.html#XACT-READ-COMMITTED>).
 
-```sql
-WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
-   OR EXISTS (
-       SELECT 1
-       FROM scope_generations AS incoming
-       JOIN scope_generations AS stored
-         ON stored.generation_id = shared_projection_acceptance.generation_id
-       WHERE incoming.generation_id = EXCLUDED.generation_id
-         AND (incoming.observed_at, incoming.generation_id)
-             > (stored.observed_at, stored.generation_id)
-   )
-RETURNING scope_id, acceptance_unit_id, source_run_id
-```
+Take a multi-row upsert B that blocks on its first key X. Meanwhile
+transaction C commits an older generation and an acceptance row for B's
+second key Y, both after B's snapshot. When B reaches Y, the stored
+generation is invisible to the subquery, `EXISTS` is false, and B's newer
+write is skipped as "stale". Y stays on the older generation. That is the
+#6679 defect again, and the stale counter reports it as benign. The earlier
+claim here, that an invisible generation row makes keeping the stored row
+"the safe direction", was wrong for the stored side.
 
-- Ordering is `scope_generations (observed_at, generation_id)`, the same total
-  order `priorGenerationIDSQL` uses.
-- Same generation: applied. A retry refreshes `accepted_at`/`updated_at` and
-  is not counted as stale.
-- Missing generation row: `EXISTS` is false, so the row is left alone. The
-  stored side cannot be missing for a committed row, because the FK is
-  `ON DELETE CASCADE`. The incoming side is FK-checked on insert. The only way
-  to reach this branch is a generation row the statement snapshot cannot see,
-  and keeping the stored row is the safe direction there.
-- The only writer is `SharedProjectionAcceptanceStore.Upsert` /
-  `UpsertReportingStale`, called from `SharedIntentAcceptanceWriter` (code-call,
-  repo-dependency and every other shared lane; `CodeCallIntentWriter` is an
-  alias). Acceptance keys are deduplicated by
-  `buildSharedProjectionAcceptanceRows`, so no batch carries a duplicate key.
+## Design
 
-Concurrency semantics come from the PostgreSQL docs,
-<https://www.postgresql.org/docs/current/transaction-iso.html> (Read
-Committed) and <https://www.postgresql.org/docs/current/sql-insert.html>. A
-would-be updater "will wait for the first updating transaction to commit or roll
-back", then "the search condition of the command (the WHERE clause) is
-re-evaluated to see if the updated version of the row still matches". For
-upserts, "if a conflict originates in another transaction whose effects are not
-yet visible to the INSERT, the UPDATE clause will affect that row". The
-`condition` "is evaluated last, after a conflict has been identified as a
-candidate to update", and "if a row was locked but not updated because an ON
-CONFLICT DO UPDATE ... WHERE clause condition was not satisfied, the row will
-not be returned". The guard therefore needs no extra lock. Skipped rows stay
-locked until commit, which matches the old behaviour, where every conflicting
-row was locked by its update.
+- **The ordering key lives on the row.** Migration 125 adds
+  `shared_projection_acceptance.generation_ingested_at TIMESTAMPTZ NULL`, and
+  migration 126 backfills it from `scope_generations.ingested_at`. The upsert
+  fills the column for each incoming row with a per-row PK subquery. The
+  incoming generation is committed before its reducer work is enqueued, so it
+  is visible, and the FK still rejects an unknown one.
+- **The guard is row-local.** It compares only `EXCLUDED` (statement
+  constants) with the target row's own columns:
+
+  ```sql
+  WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
+     OR shared_projection_acceptance.generation_ingested_at IS NULL
+     OR (EXCLUDED.generation_ingested_at, EXCLUDED.generation_id)
+        > (shared_projection_acceptance.generation_ingested_at, shared_projection_acceptance.generation_id)
+  RETURNING scope_id, acceptance_unit_id, source_run_id
+  ```
+
+  That is exactly what Read Committed and ON CONFLICT re-check after the lock
+  wait (<https://www.postgresql.org/docs/current/sql-insert.html#SQL-ON-CONFLICT>:
+  the condition "is evaluated last, after a conflict has been identified as a
+  candidate to update"; a row "locked but not updated because an ON CONFLICT
+  DO UPDATE ... WHERE clause condition was not satisfied ... will not be
+  returned").
+- **The ordering is `(ingested_at, generation_id)`**, not `observed_at`.
+  Activation and supersession order by `ingested_at` (#6686). A generation
+  observed earlier but ingested later is the one the projector activates, so
+  ordering by `observed_at` would call its writes stale.
+- **Branch outcomes:**
+  - Same generation: applied, refreshing `accepted_at`/`updated_at` and
+    filling a missing key. Not counted as stale.
+  - NULL stored key (a pre-#6679 binary during a rolling deploy, or a row the
+    backfill skipped): sorts older than anything and is advanced.
+  - NULL incoming key (a generation the statement snapshot cannot see): fails
+    the comparison, so it is skipped and counted, never applied blind.
+- **Batches take locks in one order.** Rows are sorted by primary key in Go
+  (`buildSharedProjectionAcceptanceRows`), and the statement adds
+  `ORDER BY ... COLLATE "C"` (byte order, matching Go). Without the sort, map
+  iteration handed each batch a random key order, and two overlapping
+  batches could deadlock (40P01), aborting the whole intents+acceptance
+  transaction.
+- **Writers:** `SharedIntentAcceptanceWriter` is the only writer. The
+  code-call and repo-dependency lanes reach it (`CodeCallIntentWriter` is an
+  alias).
+
+Deviations from the design ruling, both measured:
+
+1. **Scalar subquery instead of the LEFT JOIN.** The planner hashed the
+   `LEFT JOIN scope_generations` over the whole generations table: a
+   100,000-row seq scan per 500-row batch, 13.2-21.2 ms. The per-row PK
+   subquery is 500 index probes whatever the table size. The semantics are
+   the same.
+2. **The backfill is its own file, 126, not part of 125.** A migration file
+   runs as one multi-statement simple Query, which PostgreSQL executes as one
+   transaction (`schemaConnectionExecutor.execContextWithLockTimeout` passes
+   the whole file to `ExecContext`). In one file, 125's ACCESS EXCLUSIVE lock
+   would be held through the rewrite. Measured: 16-19 s per 1M rows,
+   blocking every acceptance reader and writer. For the same reason, batching
+   UPDATEs inside one file would not release locks. 126 uses
+   `FOR UPDATE SKIP LOCKED`, so it never waits on a writer's row and cannot
+   deadlock one. A skipped row keeps a NULL key and is fixed by its next
+   write.
 
 ## Proof
 
-RED on base `2ae147cf9`, run against a local `postgres:18-alpine`:
+All runs used a local `postgres:18-alpine`. No remote host was available for
+this change.
 
-```text
-ESHU_POSTGRES_TEST_DSN=... go test ./internal/storage/postgres \
-  -run 'TestSharedProjectionAcceptance(Sequential|Concurrent).*Live' -count=1 -v
---- FAIL: TestSharedProjectionAcceptanceSequentialStaleWriteLive
-    accepted generation after stale write = "gen-6679-old", want "gen-6679-new"
---- FAIL: .../absent/new-holds-lock    trial 0: accepted = "gen-6679-old"
---- PASS: .../absent/old-holds-lock    50/50
---- FAIL: .../preseeded/new-holds-lock trial 0: accepted = "gen-6679-old"
---- PASS: .../preseeded/old-holds-lock 50/50
-rc=1
-```
-
-GREEN on the head: the sequential test passes. All four lock-wait variants
-(row absent or preseeded, with G_new or G_old holding the uncommitted lock and
-the other writer seen in `pg_stat_activity` with `wait_event_type = 'Lock'`
-before the holder commits) end on G_new in 50/50 trials each, 200 in total.
-`TestSharedIntentAcceptanceWriterStaleWriteCounterLive` drives the production
-writer through G_new, a late G_old (counted once) and a G_new retry (not
-counted). It exited with `rc=0`. Mutation check: dropping the equal-generation
-branch makes both the same-generation `updated_at` assertion and the counter
-assertion (`= 2, want 1`) fail.
+- **Post-snapshot interleaving.**
+  `TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive` runs L
+  holding X, B's production two-row upsert blocked on X (observed in
+  `wait_event_type = 'Lock'`), then C committing a late generation plus Y
+  before L releases. 10 trials per case.
+  - RED on the snapshot-bound `EXISTS` guard, `rc=1`:
+    `newer-incoming: trial 0: Y = "gen-6679-late-newer-incoming-0", stale = 1 rows; want Y = "gen-6679-new"`.
+    The `older-incoming` mirror passed 10/10.
+  - GREEN on the row-local guard: both cases 10/10, `rc=0`.
+- **Earlier proofs, unchanged and GREEN.**
+  - The sequential test.
+  - The 4 × 50 lock-wait matrix (row absent or preseeded, either generation
+    holding the lock): 200/200 trials end on the newer generation.
+  - The stale-write counter through the production writer: a late older
+    write counts 1, and a same-generation retry does not count.
+- **Deadlocks.**
+  `TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive` runs two
+  production writers over the same 200 keys, one reversed.
+  - GREEN: 20/20 trials, no 40P01, every key on the newer generation.
+  - RED with the Go sort and the SQL `ORDER BY` removed:
+    `trial 1 writer 1 deadlocked: ... deadlock detected (SQLSTATE 40P01)`.
+- **Ordering key.** `TestSharedProjectionAcceptanceOrdersByIngestedAtLive`: a
+  generation observed earlier but ingested later wins.
+- **Backfill.** `TestSharedProjectionAcceptanceGenerationKeyBackfillLive` runs
+  the shipped 126 file with one row locked by another transaction. Every
+  other row is filled, and the locked row is skipped without waiting. A rerun
+  after release fills it. A NULL-key row is advanced.
+- **Hermetic tests.** Rows sort by primary key (RED without the sort: map
+  order differed at attempt 0); an unmapped stale key is labelled `unknown`;
+  the migration checksum manifest and golden digest cover 125/126.
+- **CI enrollment.** The reducer contention gate now runs the seven live
+  tests under `-race` with `ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF=1`, so an
+  unset DSN fails there instead of skipping. The enrollment guard
+  `TestReducerContentionPostgresProofsRunInTheReducerContentionGate` fails if
+  the flag or any test name leaves the workflow (seeded RED for both).
+  Lane-style local run: 77 s of test time under `-race` at host load average
+  about 45.
 
 No-Regression Evidence: `EXPLAIN (ANALYZE, BUFFERS)` inside `BEGIN`/`ROLLBACK`
-on a seeded table with 200 scopes, 4,001 `scope_generations` rows and 4,000
-acceptance rows, all at generation 10. The statement was one production-shaped
-500-row batch: 167 advancing (gen 15), 167 same-generation (gen 10) and 166
-stale (gen 5). Both correlated lookups use `scope_generations_pkey`, and the
-same-generation branch short-circuits the `OR` (333 SubPlan loops for 500 rows).
-Over 3 runs each, execution took 6.8, 9.8 and 10.0 ms for the new statement and
-9.8, 12.0 and 12.4 ms for the old one, so there was no measurable regression.
-Shared buffer hits went from 7,388 to 7,723 (+335, one PK probe per side per
-subplan loop). Planning time went from 0.48 ms to 2.2 ms per statement. Batch
-size, worker count, transaction scope and lock order are unchanged.
+of the final statement, compared with the first fix's `EXISTS` statement on
+the same data. The batch is production-shaped, 500 rows: 167 advancing,
+167 same-generation and 166 stale. The stale rows are removed by the conflict
+filter in every run. The host was heavily loaded (load average 35-49), so
+medians over interleaved runs are the fair comparison:
+
+| Scale | Metric | Final (row-local) | Previous (`EXISTS`) |
+|---|---|---|---|
+| 5,000 scopes, 100,000 generations, 1M acceptance rows | Execution, median of 15 | 9.85 ms | 9.86 ms |
+| same | Shared buffer hits | about 9,223 | about 9,884 |
+| 200 scopes, 4,000 generations, 4,000 acceptance rows | Execution, median of 15 | 17.34 ms | 20.68 ms |
+| same | Shared buffer hits | 7,201 | 7,693 |
+
+The rejected LEFT JOIN shape measured 13.2-21.2 ms at 1M scale. The guard
+itself is now a tuple comparison; the first fix spent two PK probes per
+conflicting row. Batch size, worker count, transaction scope and lock order
+are unchanged, except that lock order is now deterministic.
+
+Migration cost on 1M acceptance rows and 100,000 generations, locally:
+
+- 125 `ALTER TABLE ... ADD COLUMN`: 19 ms (catalog only).
+- 126 backfill: 15.0 s, `UPDATE 1000000`. A rerun is `UPDATE 0` in 0.6 s.
+- The table grew from 163 MB to 335 MB of dead tuples until autovacuum.
+
+The chart's schema-bootstrap Job leaves about 4 minutes for migration work,
+so this fits well below that for tables up to several million rows. A
+production-size run on the remote corpus copy is still owed before rollout.
+
+Final plan at 1M scale:
 
 ```text
-Insert on shared_projection_acceptance (actual time=0.272..8.319 rows=334.00 loops=1)
+ Insert on shared_projection_acceptance (actual time=1.167..7.861 rows=334.00 loops=1)
    Conflict Resolution: UPDATE
    Conflict Arbiter Indexes: shared_projection_acceptance_pkey
-   Conflict Filter: ((shared_projection_acceptance.generation_id = excluded.generation_id) OR EXISTS(SubPlan 1))
+   Conflict Filter: ((shared_projection_acceptance.generation_id = excluded.generation_id) OR (shared_projection_acceptance.generation_ingested_at IS NULL) OR (ROW(excluded.generation_ingested_at, excluded.generation_id) > ROW(shared_projection_acceptance.generation_ingested_at, shared_projection_acceptance.generation_id)))
    Rows Removed by Conflict Filter: 166
    Tuples Inserted: 0
    Conflicting Tuples: 500
-   Buffers: shared hit=7723 dirtied=4 written=4
-   ->  Values Scan on "*VALUES*" (actual time=0.003..0.345 rows=500.00 loops=1)
-   SubPlan 1
-     ->  Nested Loop (actual time=0.003..0.003 rows=0.50 loops=333)
-           Join Filter: (ROW(incoming.observed_at, incoming.generation_id) > ROW(stored.observed_at, stored.generation_id))
-           Rows Removed by Join Filter: 0
-           Buffers: shared hit=1998
-           ->  Index Scan using scope_generations_pkey on scope_generations incoming (actual time=0.002..0.002 rows=1.00 loops=333)
-                 Index Cond: (generation_id = excluded.generation_id)
-                 Index Searches: 333
-                 Buffers: shared hit=999
-           ->  Index Scan using scope_generations_pkey on scope_generations stored (actual time=0.001..0.001 rows=1.00 loops=333)
-                 Index Cond: (generation_id = shared_projection_acceptance.generation_id)
-                 Index Searches: 333
-                 Buffers: shared hit=999
+   Buffers: shared hit=9223 dirtied=5 written=5
+   ->  Subquery Scan on "*SELECT*" (actual time=0.991..1.061 rows=500.00 loops=1)
+         Buffers: shared hit=2003
+         ->  Sort (actual time=0.990..1.017 rows=500.00 loops=1)
+               Sort Key: "*VALUES*".column1 COLLATE "C", "*VALUES*".column2 COLLATE "C", "*VALUES*".column3 COLLATE "C"
+               Sort Method: quicksort  Memory: 72kB
+               Buffers: shared hit=2003
+               ->  Values Scan on "*VALUES*" (actual time=0.026..0.791 rows=500.00 loops=1)
+                     Buffers: shared hit=2000
+                     SubPlan 1
+                       ->  Index Scan using scope_generations_pkey on scope_generations generation (actual time=0.001..0.001 rows=1.00 loops=500)
+                             Index Cond: (generation_id = "*VALUES*".column4)
+                             Index Searches: 500
+                             Buffers: shared hit=2000
  Planning:
-   Buffers: shared hit=282
- Planning Time: 2.219 ms
- Trigger for constraint shared_projection_acceptance_generation_id_fkey: time=1.384 calls=167
+   Buffers: shared hit=284
+ Planning Time: 1.707 ms
 ```
 
-Observability Evidence: a new counter,
-`eshu_dp_shared_acceptance_stale_writes_total{domain}`. It is labelled only by
-the bounded reducer domain set and is recorded by `SharedIntentAcceptanceWriter`
-from the keys missing in `RETURNING`. Each write call that skips at least one
-row emits one WARN line, `shared acceptance stale write skipped; stored
-generation is newer`, carrying `acceptance.scope_id`, `acceptance.unit_id`,
-`acceptance.source_run_id`, `acceptance.generation_id` (for the first skipped
-key), `acceptance.stale_count` and `pipeline_phase=shared`. The existing
-`eshu_dp_shared_acceptance_upserts_total` and
+Observability Evidence: `eshu_dp_shared_acceptance_stale_writes_total{domain}`
+is recorded by `SharedIntentAcceptanceWriter` from the keys missing in
+`RETURNING`. The domain set is the bounded reducer domains plus `unknown` for a
+key with no intent, which is unreachable today. Each write call that skips at
+least one row emits one WARN line, `shared acceptance stale write skipped;
+stored generation is newer`, carrying `acceptance.scope_id`,
+`acceptance.unit_id`, `acceptance.source_run_id`, `acceptance.generation_id`
+(the first skipped key), `acceptance.stale_count` and `pipeline_phase=shared`.
+Migration progress uses the existing `bootstrap.postgres.migration.applying`
+and `bootstrap.postgres.migration.recorded` events, with `duration_ms` for 125
+and 126. The existing `eshu_dp_shared_acceptance_upserts_total` and
 `eshu_dp_shared_acceptance_upsert_duration_seconds` are unchanged.

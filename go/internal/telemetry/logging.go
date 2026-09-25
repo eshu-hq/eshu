@@ -218,7 +218,10 @@ func FailureClassAttr(class string) slog.Attr {
 	return slog.String(LogKeyFailureClass, class)
 }
 
-// AcceptanceStaleCountAttr returns the stale-intent count for acceptance logs.
+// AcceptanceStaleCountAttr returns a stale count for acceptance logs: the
+// stale intents the shared-projection lane filtered out, or (from the
+// acceptance writer, #6679) the acceptance writes the advance-only upsert
+// skipped because the stored generation was newer.
 func AcceptanceStaleCountAttr(count int) slog.Attr {
 	return slog.Int(LogKeyAcceptanceStaleCount, count)
 }

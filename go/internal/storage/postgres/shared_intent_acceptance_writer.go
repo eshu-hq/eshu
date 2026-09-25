@@ -4,9 +4,11 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,6 +130,10 @@ func upsertSharedIntentArtifacts(
 	return nil
 }
 
+// sharedAcceptanceStaleUnknownDomain labels a stale acceptance write whose key
+// maps to no intent domain, so the counter's domain label stays bounded.
+const sharedAcceptanceStaleUnknownDomain = "unknown"
+
 // recordSharedAcceptanceStaleWrites counts acceptance rows the advance-only
 // guard skipped (#6679), labeled by projection domain, and emits one bounded
 // WARN line per write call naming the first skipped key and the total. The
@@ -156,11 +162,16 @@ func recordSharedAcceptanceStaleWrites(
 		}
 		countByDomain := make(map[string]int64, 1)
 		for _, row := range stale {
-			domain := domainByKey[reducer.SharedProjectionAcceptanceKey{
+			domain, ok := domainByKey[reducer.SharedProjectionAcceptanceKey{
 				ScopeID:          row.ScopeID,
 				AcceptanceUnitID: row.AcceptanceUnitID,
 				SourceRunID:      row.SourceRunID,
 			}]
+			if !ok || strings.TrimSpace(domain) == "" {
+				// Unreachable while every acceptance row is built from these
+				// intents; keeps the label set closed if that ever breaks.
+				domain = sharedAcceptanceStaleUnknownDomain
+			}
 			countByDomain[domain]++
 		}
 		for domain, count := range countByDomain {
@@ -239,7 +250,23 @@ func buildSharedProjectionAcceptanceRows(
 	for _, row := range byKey {
 		acceptanceRows = append(acceptanceRows, row)
 	}
+	// Sort by the acceptance primary key so every writer locks conflicting
+	// rows in one global order. Map iteration is random, and two concurrent
+	// batches that lock the same keys in opposite orders deadlock (40P01),
+	// aborting the whole intents+acceptance transaction (#6679).
+	slices.SortFunc(acceptanceRows, compareSharedProjectionAcceptanceKeys)
 	return acceptanceRows, nil
+}
+
+// compareSharedProjectionAcceptanceKeys orders acceptance rows by
+// (scope_id, acceptance_unit_id, source_run_id), the table's primary key and
+// the lock order the upsert statement enforces with its ORDER BY.
+func compareSharedProjectionAcceptanceKeys(a, b SharedProjectionAcceptance) int {
+	return cmp.Or(
+		strings.Compare(a.ScopeID, b.ScopeID),
+		strings.Compare(a.AcceptanceUnitID, b.AcceptanceUnitID),
+		strings.Compare(a.SourceRunID, b.SourceRunID),
+	)
 }
 
 func sharedProjectionAcceptanceKey(

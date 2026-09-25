@@ -15,6 +15,10 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// acceptanceMonotonicRequiredEnv turns a missing DSN into a failure. The
+// reducer contention gate, which enrolls these proofs, sets it to "1".
+const acceptanceMonotonicRequiredEnv = "ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF"
+
 // acceptanceMonotonicTrials is the per-variant repetition count for the
 // concurrent out-of-order writer proof (#6679).
 const acceptanceMonotonicTrials = 50
@@ -29,12 +33,20 @@ type acceptanceMonotonicFixture struct {
 }
 
 // openAcceptanceMonotonicFixture bootstraps an isolated schema on
-// ESHU_POSTGRES_TEST_DSN and seeds G_old < G_new for one scope.
+// ESHU_POSTGRES_TEST_DSN (or ESHU_POSTGRES_DSN) and seeds G_old < G_new for one scope.
 func openAcceptanceMonotonicFixture(t *testing.T) acceptanceMonotonicFixture {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the #6679 acceptance monotonic proof")
+		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	}
+	if dsn == "" {
+		// The reducer contention gate sets the require flag so a renamed DSN
+		// variable fails the lane instead of skipping these proofs there.
+		if os.Getenv(acceptanceMonotonicRequiredEnv) == "1" {
+			t.Fatalf("%s=1 but neither ESHU_POSTGRES_TEST_DSN nor ESHU_POSTGRES_DSN is set", acceptanceMonotonicRequiredEnv)
+		}
+		t.Skip("set ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN to run the #6679 acceptance monotonic proof")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
@@ -286,4 +298,155 @@ func waitForLockWait(t *testing.T, ctx context.Context, database *sql.DB, pid in
 		case <-time.After(2 * time.Millisecond):
 		}
 	}
+}
+
+// TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive is the
+// review F1 interleaving (#6679): a multi-row upsert B blocks on its first
+// key X while transaction C commits a generation and an acceptance row for
+// B's second key Y, both after B's statement snapshot. When B resumes and
+// conflicts on Y, the guard must compare against C's committed row itself,
+// not against a scope_generations lookup pinned to B's older snapshot.
+//
+//   - newer-incoming: C commits an OLDER generation on Y; B carries the newer
+//     one and must advance Y (a snapshot-bound guard wrongly keeps C's older
+//     generation and reports B's write as stale).
+//   - older-incoming (mirror): C commits a NEWER generation on Y; B carries
+//     the older one and must be rejected as stale.
+func TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive(t *testing.T) {
+	fixture := openAcceptanceMonotonicFixture(t)
+	ctx := t.Context()
+
+	var genNewIngestedAt time.Time
+	if err := fixture.db.QueryRowContext(ctx,
+		`SELECT ingested_at FROM scope_generations WHERE generation_id = $1`, fixture.genNew,
+	).Scan(&genNewIngestedAt); err != nil {
+		t.Fatalf("read G_new ingested_at: %v", err)
+	}
+
+	cases := []struct {
+		name          string
+		incomingGen   string
+		lateOffset    time.Duration
+		wantYIncoming bool
+	}{
+		{name: "newer-incoming", incomingGen: fixture.genNew, lateOffset: -time.Second, wantYIncoming: true},
+		{name: "older-incoming", incomingGen: fixture.genOld, lateOffset: time.Hour, wantYIncoming: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for trial := 0; trial < 10; trial++ {
+				runX := fmt.Sprintf("postsnap-%s-%d-x", tc.name, trial)
+				runY := fmt.Sprintf("postsnap-%s-%d-y", tc.name, trial)
+				lateGen := fmt.Sprintf("gen-6679-late-%s-%d", tc.name, trial)
+				lateAt := genNewIngestedAt.Add(tc.lateOffset)
+				stale := runPostSnapshotTrial(t, fixture, runX, runY, tc.incomingGen, lateGen, lateAt)
+
+				gotY := fixture.accepted(t, runY)
+				if tc.wantYIncoming {
+					if gotY != tc.incomingGen || len(stale) != 0 {
+						t.Fatalf("trial %d: Y = %q, stale = %d rows; want Y = %q and no stale rows "+
+							"(a post-snapshot older generation must not block the newer write)",
+							trial, gotY, len(stale), tc.incomingGen)
+					}
+					continue
+				}
+				if gotY != lateGen || len(stale) != 1 || stale[0].SourceRunID != runY {
+					t.Fatalf("trial %d: Y = %q, stale = %+v; want Y = %q and stale = {Y}",
+						trial, gotY, stale, lateGen)
+				}
+			}
+			t.Logf("%s: 10/10 trials held", tc.name)
+		})
+	}
+}
+
+// runPostSnapshotTrial seeds X at the incoming generation, holds X in
+// transaction L, starts B's production two-row upsert [X, Y] and waits until
+// it blocks on X, then commits transaction C (a late generation plus Y at that
+// generation) before releasing L. It returns B's stale set.
+func runPostSnapshotTrial(
+	t *testing.T,
+	fixture acceptanceMonotonicFixture,
+	runX, runY, incomingGen, lateGen string,
+	lateAt time.Time,
+) []SharedProjectionAcceptance {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	at := time.Now().UTC()
+	store := NewSharedProjectionAcceptanceStore(SQLDB{DB: fixture.db})
+	if err := store.Upsert(ctx, []SharedProjectionAcceptance{fixture.row(runX, incomingGen, at)}); err != nil {
+		t.Fatalf("seed X: %v", err)
+	}
+
+	holder, err := fixture.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin L: %v", err)
+	}
+	defer func() { _ = holder.Rollback() }()
+	if _, err := holder.ExecContext(ctx,
+		`UPDATE shared_projection_acceptance SET updated_at = now() WHERE scope_id = $1 AND source_run_id = $2`,
+		fixture.scopeID, runX,
+	); err != nil {
+		t.Fatalf("L lock X: %v", err)
+	}
+
+	upserter, err := fixture.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin B: %v", err)
+	}
+	defer func() { _ = upserter.Rollback() }()
+	var upserterPID int
+	if err := upserter.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&upserterPID); err != nil {
+		t.Fatalf("B pid: %v", err)
+	}
+	type upsertOutcome struct {
+		stale []SharedProjectionAcceptance
+		err   error
+	}
+	done := make(chan upsertOutcome, 1)
+	go func() {
+		stale, err := NewSharedProjectionAcceptanceStore(SQLTx{Tx: upserter}).UpsertReportingStale(ctx,
+			[]SharedProjectionAcceptance{
+				fixture.row(runX, incomingGen, at.Add(time.Second)),
+				fixture.row(runY, incomingGen, at.Add(time.Second)),
+			})
+		done <- upsertOutcome{stale: stale, err: err}
+	}()
+	neverDone := make(chan error) // B reports through done; a stuck wait times out via ctx
+	waitForLockWait(t, ctx, fixture.db, upserterPID, neverDone)
+
+	late, err := fixture.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin C: %v", err)
+	}
+	defer func() { _ = late.Rollback() }()
+	if _, err := late.ExecContext(ctx, `
+INSERT INTO scope_generations
+  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+VALUES ($1, $2, 'manual', $3, $3, 'pending')`,
+		lateGen, fixture.scopeID, lateAt,
+	); err != nil {
+		t.Fatalf("C insert late generation: %v", err)
+	}
+	if err := NewSharedProjectionAcceptanceStore(SQLTx{Tx: late}).Upsert(ctx,
+		[]SharedProjectionAcceptance{fixture.row(runY, lateGen, at)},
+	); err != nil {
+		t.Fatalf("C upsert Y: %v", err)
+	}
+	if err := late.Commit(); err != nil {
+		t.Fatalf("commit C: %v", err)
+	}
+
+	if err := holder.Commit(); err != nil {
+		t.Fatalf("commit L: %v", err)
+	}
+	outcome := <-done
+	if outcome.err != nil {
+		t.Fatalf("B upsert: %v", outcome.err)
+	}
+	if err := upserter.Commit(); err != nil {
+		t.Fatalf("commit B: %v", err)
+	}
+	return outcome.stale
 }

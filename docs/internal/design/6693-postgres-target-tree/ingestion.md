@@ -124,7 +124,7 @@ workflow_run_reconciliation_integration_test.go -> ingestion/workflow_run_reconc
 
 </details>
 
-### `intent/` (11 non-test, 20 test)
+### `intent/` (11 non-test, 23 test)
 
 ```text
 code_call_intent_writer.go -> intent/code_call_writer.go
@@ -158,7 +158,10 @@ shared_intents_refresh_fence_live_test.go -> intent/store_refresh_fence_live_tes
 shared_intents_refresh_fence_test.go -> intent/store_refresh_fence_test.go
 shared_intents_schema_partition_test.go -> intent/store_schema_partition_test.go
 shared_intents_test.go -> intent/store_test.go
+shared_projection_acceptance_contention_live_test.go -> intent/projection_acceptance_contention_live_test.go
+shared_projection_acceptance_monotonic_live_test.go -> intent/projection_acceptance_monotonic_live_test.go
 shared_projection_acceptance_rowcount_test.go -> intent/projection_acceptance_rowcount_test.go
+shared_projection_acceptance_stale_test.go -> intent/projection_acceptance_stale_test.go
 shared_projection_acceptance_test.go -> intent/projection_acceptance_test.go
 shared_projection_lease_blocked_claim_expiry_proof_test.go -> intent/shared_projection_lease_blocked_claim_expiry_proof_test.go   # external test package: imports root
 shared_projection_lease_heartbeat_proof_test.go -> intent/shared_projection_lease_heartbeat_proof_test.go   # external test package: imports root

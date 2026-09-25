@@ -18,6 +18,10 @@ const (
 	acceptanceColumnsPerRow             = 6
 )
 
+// sharedProjectionAcceptanceSchemaSQL mirrors migrations 011 and 125 for
+// EnsureSchema callers. generation_ingested_at is the stored generation's
+// ordering key (see upsertSharedProjectionAcceptanceBatchSuffix); the ALTER
+// keeps EnsureSchema convergent on a table created before #6679.
 const sharedProjectionAcceptanceSchemaSQL = `
 CREATE TABLE IF NOT EXISTS shared_projection_acceptance (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -26,46 +30,74 @@ CREATE TABLE IF NOT EXISTS shared_projection_acceptance (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     accepted_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
+    generation_ingested_at TIMESTAMPTZ NULL,
     PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id)
 );
+ALTER TABLE shared_projection_acceptance
+    ADD COLUMN IF NOT EXISTS generation_ingested_at TIMESTAMPTZ NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_acceptance_scope_idx
     ON shared_projection_acceptance (scope_id, generation_id);
 CREATE INDEX IF NOT EXISTS shared_projection_acceptance_updated_idx
     ON shared_projection_acceptance (updated_at DESC);
 `
 
+// upsertSharedProjectionAcceptanceBatchPrefix opens the batch upsert. Rows
+// arrive as a VALUES list; a per-row scalar subquery resolves each incoming
+// generation's ordering key (ingested_at) by scope_generations primary key.
+// A LEFT JOIN is equivalent but the planner hashes it over the whole
+// generations table (measured: a 100k-row seq scan per 500-row batch), while
+// the subquery stays at one PK probe per row. The incoming generation is
+// committed before its reducer work is enqueued, so it is visible to the
+// statement snapshot; the FK still rejects an unknown generation on insert.
 const upsertSharedProjectionAcceptanceBatchPrefix = `
 INSERT INTO shared_projection_acceptance (
-    scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at
-) VALUES `
+    scope_id, acceptance_unit_id, source_run_id, generation_id,
+    accepted_at, updated_at, generation_ingested_at
+)
+SELECT v.scope_id, v.acceptance_unit_id, v.source_run_id, v.generation_id,
+       v.accepted_at, v.updated_at,
+       (SELECT generation.ingested_at
+        FROM scope_generations AS generation
+        WHERE generation.generation_id = v.generation_id)
+FROM (VALUES `
 
 // upsertSharedProjectionAcceptanceBatchSuffix makes the acceptance row
-// advance-only (#6679). The DO UPDATE fires only when the incoming generation
-// equals the stored one (an idempotent retry that refreshes accepted_at and
-// updated_at) or sorts strictly after it by scope_generations
-// (observed_at, generation_id) — the same total order priorGenerationIDSQL
-// uses. A stale write, including one whose stored or incoming generation row
-// is not visible to the statement snapshot, leaves the row untouched and is
-// omitted from RETURNING, which is how callers count and log stale writes.
+// advance-only (#6679). The DO UPDATE fires only when:
+//   - the incoming generation equals the stored one (an idempotent retry that
+//     refreshes accepted_at/updated_at and fills a missing key), or
+//   - the stored row has no ordering key (written by a pre-#6679 binary or
+//     skipped by the 126 backfill), which sorts as older than anything, or
+//   - (generation_ingested_at, generation_id) of the incoming row sorts
+//     strictly after the stored row's — the order activation and supersession
+//     use (#6686).
 //
-// Under READ COMMITTED a conflicting writer blocks on the row lock and then
-// evaluates this WHERE against the newest committed row version, so the guard
-// needs no extra locking to hold across concurrent out-of-order writers.
+// The comparison reads only EXCLUDED (statement constants) and the target
+// row's own columns. That matters: after a row-lock wait, READ COMMITTED
+// re-checks this condition against the target row's newest committed version,
+// but any other table read here would stay on the statement snapshot and miss
+// a generation committed after it, turning a newer write into a false stale
+// skip (review F1). A NULL incoming key (a generation the snapshot cannot see)
+// fails the comparison and is skipped as stale rather than applied blind.
+// Skipped rows are omitted from RETURNING, which is how callers count them.
+//
+// ORDER BY the primary key makes every batch take row locks in one global
+// order, so two overlapping concurrent batches cannot deadlock. COLLATE "C"
+// is byte order, matching the Go sort in buildSharedProjectionAcceptanceRows
+// that decides which keys share a 500-row batch; with the database collation
+// instead, two writers whose batch boundaries differ could order the same
+// pair of keys oppositely across batches.
 const upsertSharedProjectionAcceptanceBatchSuffix = `
+) AS v(scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
+ORDER BY v.scope_id COLLATE "C", v.acceptance_unit_id COLLATE "C", v.source_run_id COLLATE "C"
 ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE
 SET generation_id = EXCLUDED.generation_id,
     accepted_at = EXCLUDED.accepted_at,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    generation_ingested_at = EXCLUDED.generation_ingested_at
 WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
-   OR EXISTS (
-       SELECT 1
-       FROM scope_generations AS incoming
-       JOIN scope_generations AS stored
-         ON stored.generation_id = shared_projection_acceptance.generation_id
-       WHERE incoming.generation_id = EXCLUDED.generation_id
-         AND (incoming.observed_at, incoming.generation_id)
-             > (stored.observed_at, stored.generation_id)
-   )
+   OR shared_projection_acceptance.generation_ingested_at IS NULL
+   OR (EXCLUDED.generation_ingested_at, EXCLUDED.generation_id)
+      > (shared_projection_acceptance.generation_ingested_at, shared_projection_acceptance.generation_id)
 RETURNING scope_id, acceptance_unit_id, source_run_id
 `
 
@@ -123,7 +155,10 @@ func (s *SharedProjectionAcceptanceStore) EnsureSchema(ctx context.Context) erro
 
 // Upsert writes bounded-unit acceptance rows in batches. Rows whose
 // generation sorts before the stored generation are skipped (see
-// UpsertReportingStale); callers that need that signal use UpsertReportingStale.
+// UpsertReportingStale) and the skipped set is discarded: production writers
+// must call UpsertReportingStale so stale writes reach
+// eshu_dp_shared_acceptance_stale_writes_total; Upsert is for tests and
+// fixtures that only need the row written.
 func (s *SharedProjectionAcceptanceStore) Upsert(ctx context.Context, rows []SharedProjectionAcceptance) error {
 	_, err := s.UpsertReportingStale(ctx, rows)
 	return err
@@ -260,7 +295,7 @@ func upsertSharedProjectionAcceptanceBatch(
 		offset := i * acceptanceColumnsPerRow
 		fmt.Fprintf(
 			&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d)",
+			"($%d::text, $%d::text, $%d::text, $%d::text, $%d::timestamptz, $%d::timestamptz)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 		)
 		args = append(

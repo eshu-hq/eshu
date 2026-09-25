@@ -42,12 +42,10 @@
   newer batch silently overwrites the newer fact_id row (and resurrects its
   payload) purely on commit order; `deduplicateEnvelopes` only protects against
   duplicate `fact_id` values inside one batch, not across batches.
-- **Acceptance rows are advance-only (#6679)** — keep the conflict `WHERE` in
-  `upsertSharedProjectionAcceptanceBatchSuffix`: apply only the same generation
-  or a later one by `scope_generations (observed_at, generation_id)`; skipped
-  keys are absent from `RETURNING` and counted as
-  `eshu_dp_shared_acceptance_stale_writes_total`. Without it a late older
-  writer rolls acceptance back and the newer intents look stale.
+- **Acceptance rows are advance-only (#6679)** — the upsert `WHERE` compares
+  only `EXCLUDED` with the row's own `(generation_ingested_at, generation_id)`;
+  a read of another table there sees the statement snapshot, not the post-wait
+  row (review F1). Keep the key-ordered batches; see the SQL doc comment.
 - **Freshness de-dupe covers in-flight generations** —
   `CommitScopeGeneration` compares the incoming `FreshnessHint` with the newest
   same-scope `pending` or `active` generation, not only `active_generation_id`,

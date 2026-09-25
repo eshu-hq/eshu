@@ -176,7 +176,8 @@ CREATE TABLE semantic_extraction_jobs (
 
 CREATE TABLE shared_projection_acceptance (
     acceptance_id TEXT PRIMARY KEY,
-    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    generation_ingested_at TIMESTAMPTZ NULL
 );
 
 CREATE TABLE graph_projection_phase_state (

@@ -113,7 +113,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_acceptance_lookup_errors_total` | counter | Shared acceptance lookup failures. |
 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | histogram | Shared acceptance write latency. |
 | `eshu_dp_shared_acceptance_upserts_total` | counter | Shared acceptance write volume. |
-| `eshu_dp_shared_acceptance_stale_writes_total` | counter | Shared acceptance writes skipped because the stored row already carries a newer generation, by `domain`. Non-zero means late or out-of-order acceptance writers; each skip kept the newer generation. |
+| `eshu_dp_shared_acceptance_stale_writes_total` | counter | Shared acceptance writes skipped because the stored row already carries a newer generation (ordered by `(generation_ingested_at, generation_id)`), by `domain` (`unknown` if a key maps to no intent). Non-zero means late or out-of-order acceptance writers; each skip kept the newer generation. |
 | `eshu_dp_shared_acceptance_rows` | observable gauge | Durable shared acceptance row count. |
 | `eshu_dp_shared_edge_write_groups_total` | counter | Shared edge write group volume (labels: bounded `domain`, `execution_mode` — `group`, `artifact-sequential`). |
 | `eshu_dp_shared_edge_write_group_duration_seconds` | histogram | Shared edge write group latency (labels: bounded `domain`, `execution_mode`). |

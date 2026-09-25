@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -107,37 +108,68 @@ func TestSharedIntentAcceptanceWriterCountsStaleWritesFromReturning(t *testing.T
 	}
 }
 
-// TestSharedIntentAcceptanceWriterStaleWriteCounterLive drives the production
-// writer against real Postgres: G_new applies, a late G_old is skipped and
-// counted once, and a same-generation G_new retry applies without counting.
-func TestSharedIntentAcceptanceWriterStaleWriteCounterLive(t *testing.T) {
-	fixture := openAcceptanceMonotonicFixture(t)
-	instruments, reader := newStaleWriteInstruments(t)
-	writer := NewSharedIntentAcceptanceWriterWithInstruments(SQLDB{DB: fixture.db}, instruments)
-	ctx := t.Context()
-	base := time.Now().UTC().Truncate(time.Microsecond)
+// TestBuildSharedProjectionAcceptanceRowsSortsByPrimaryKey pins the global
+// lock order: rows come out sorted by (scope_id, acceptance_unit_id,
+// source_run_id) regardless of map iteration order, so concurrent batches
+// over overlapping keys cannot lock them in opposite orders (#6679).
+func TestBuildSharedProjectionAcceptanceRowsSortsByPrimaryKey(t *testing.T) {
+	t.Parallel()
 
-	steps := []struct {
-		name       string
-		generation string
-		at         time.Time
-		wantStale  int64
-	}{
-		{name: "G_new applies", generation: fixture.genNew, at: base, wantStale: 0},
-		{name: "late G_old is skipped", generation: fixture.genOld, at: base.Add(time.Minute), wantStale: 1},
-		{name: "same-generation retry applies", generation: fixture.genNew, at: base.Add(2 * time.Minute), wantStale: 1},
+	now := time.Now().UTC()
+	var intents []reducer.SharedProjectionIntentRow
+	for _, key := range [][3]string{
+		{"scope-b", "unit-a", "run-1"},
+		{"scope-a", "unit-b", "run-1"},
+		{"scope-a", "unit-a", "run-2"},
+		{"scope-a", "unit-a", "run-1"},
+		{"scope-c", "unit-a", "run-1"},
+		{"scope-a", "unit-c", "run-9"},
+	} {
+		intent := staleWriteIntent("gen-1", now)
+		intent.IntentID = key[0] + "|" + key[1] + "|" + key[2]
+		intent.ScopeID, intent.AcceptanceUnitID, intent.SourceRunID = key[0], key[1], key[2]
+		intents = append(intents, intent)
 	}
-	for _, step := range steps {
-		intent := staleWriteIntent(step.generation, step.at)
-		intent.ScopeID = fixture.scopeID
-		if err := writer.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{intent}); err != nil {
-			t.Fatalf("%s: UpsertIntents() error = %v", step.name, err)
+
+	want := []string{
+		"scope-a|unit-a|run-1",
+		"scope-a|unit-a|run-2",
+		"scope-a|unit-b|run-1",
+		"scope-a|unit-c|run-9",
+		"scope-b|unit-a|run-1",
+		"scope-c|unit-a|run-1",
+	}
+	// Map iteration is randomized per run; repeat to make an unsorted
+	// implementation fail with overwhelming probability.
+	for attempt := 0; attempt < 50; attempt++ {
+		rows, err := buildSharedProjectionAcceptanceRows(intents)
+		if err != nil {
+			t.Fatalf("buildSharedProjectionAcceptanceRows() error = %v", err)
 		}
-		if got := staleWritesByDomain(t, reader)[reducer.DomainCodeCalls]; got != step.wantStale {
-			t.Fatalf("%s: %s{domain=%s} = %d, want %d", step.name, staleWritesMetric, reducer.DomainCodeCalls, got, step.wantStale)
+		got := make([]string, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.ScopeID+"|"+row.AcceptanceUnitID+"|"+row.SourceRunID)
 		}
-		if got := fixture.accepted(t, "run-6679"); got != fixture.genNew {
-			t.Fatalf("%s: accepted generation = %q, want %q", step.name, got, fixture.genNew)
+		if !slices.Equal(got, want) {
+			t.Fatalf("attempt %d: row order = %v, want %v", attempt, got, want)
 		}
+	}
+}
+
+// TestRecordSharedAcceptanceStaleWritesLabelsUnmappedKeyUnknown keeps the
+// domain label closed: a stale row whose key maps to no intent is counted
+// under "unknown", never under an empty label.
+func TestRecordSharedAcceptanceStaleWritesLabelsUnmappedKeyUnknown(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := newStaleWriteInstruments(t)
+	stale := []SharedProjectionAcceptance{{
+		ScopeID: "scope-unmapped", AcceptanceUnitID: "unit-unmapped", SourceRunID: "run-unmapped", GenerationID: "gen-1",
+	}}
+	recordSharedAcceptanceStaleWrites(context.Background(), instruments, nil, stale)
+
+	got := staleWritesByDomain(t, reader)
+	if got[sharedAcceptanceStaleUnknownDomain] != 1 || len(got) != 1 {
+		t.Fatalf("stale writes = %v, want {%s: 1}", got, sharedAcceptanceStaleUnknownDomain)
 	}
 }
