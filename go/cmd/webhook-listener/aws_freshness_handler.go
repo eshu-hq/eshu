@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	log "github.com/eshu-hq/eshu/go/pkg/log"

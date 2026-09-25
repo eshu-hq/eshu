@@ -19,10 +19,10 @@ infer service ownership.
 | Binary | `/usr/local/bin/eshu-collector-aws-cloud` |
 | Kubernetes shape | optional `Deployment` |
 | Command package | `go/cmd/collector-aws-cloud/` |
-| Runtime package | `go/internal/collector/awscloud/awsruntime/` |
-| Scanner bindings aggregator | `go/internal/collector/awscloud/awsruntime/bindings/` |
-| Service package root | `go/internal/collector/awscloud/services/` |
-| Per-service binding | `go/internal/collector/awscloud/services/<svc>/runtimebind/` |
+| Runtime package | `go/internal/collector/cloud/aws/runtime/` |
+| Scanner bindings aggregator | `go/internal/collector/cloud/aws/runtime/bindings/` |
+| Service package root | `go/internal/collector/cloud/aws/service/` |
+| Per-service binding | `go/internal/collector/cloud/aws/service/<svc>/bind/` |
 
 ## Operator Path
 
@@ -104,7 +104,7 @@ digests, policy JSON, secret names, parameter names, queue names, object keys,
 or raw AWS error payloads.
 
 Collector Performance Evidence: IAM source-fact expansion is covered by focused
-fixture tests in `go test ./internal/collector/awscloud/services/iam ./internal/collector/awscloud/services/iam/awssdk ./internal/collector/access/posture ./internal/facts -count=1`. The runtime API fan-out remains bounded by the existing managed-policy document cap and by one role/user/OIDC detail read per listed source identity.
+fixture tests in `go test ./internal/collector/cloud/aws/service/iam ./internal/collector/cloud/aws/service/iam/sdk ./internal/collector/access/posture ./internal/facts -count=1`. The runtime API fan-out remains bounded by the existing managed-policy document cap and by one role/user/OIDC detail read per listed source identity.
 
 No-Regression Evidence: The same focused fixture gate covers the changed IAM
 scanner, SDK adapter, secrets/IAM envelope builders, and fact registry with

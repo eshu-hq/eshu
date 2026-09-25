@@ -20,13 +20,13 @@ package main
 // is generated from -- edit those TSVs, then re-run
 // scripts/generate-dirgate-grandfather-go.sh, never this file directly.
 var grandfatheredDirectories = map[string]grandfatherEntry{
-	"internal/collector/awscloud": {FileCount: 154, Digest: "7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd"},
-	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
-	"internal/collector/repo/git": {FileCount: 65, Digest: "c52b52eda6e521c5b56988994f637f36708e6810e1b6c04386d6081d845e78bb"},
-	"internal/mcp":                {FileCount: 93, Digest: "2d88cefb5f7b666fbfd8f55216a1a9a6756de20bc3617ea9c09f0dab6cee1e8b"},
-	"internal/parser":             {FileCount: 45, Digest: "ec26538203a8717bfb5cdc794d85fd02156914c7678f1683f1229d13cf7c6bf5", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
-	"internal/query":              {FileCount: 256, Digest: "04f464101f59ccb8d301135cf56cf55f2ad1cfeeabcaee07819a7d595c809175"},
-	"internal/reducer":            {FileCount: 128, Digest: "d074549cd2d2306c02901ac6eafa52c568bb06c7502bcbd76fcdb3fbf3e85273"},
-	"internal/storage/cypher":     {FileCount: 109, Digest: "e8063838d416354547735422111cdaa416b281a48d60a7a49245ed3abb92660e"},
-	"internal/storage/postgres":   {FileCount: 340, Digest: "4be40a3402762b0f84a574ef6e6cee4d845ff5c64c0a02e7cba61fd7af85ea5a"},
+	"internal/collector/cloud/aws": {FileCount: 154, Digest: "7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd"},
+	"internal/collector/gcpcloud":  {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
+	"internal/collector/repo/git":  {FileCount: 65, Digest: "c52b52eda6e521c5b56988994f637f36708e6810e1b6c04386d6081d845e78bb"},
+	"internal/mcp":                 {FileCount: 93, Digest: "2d88cefb5f7b666fbfd8f55216a1a9a6756de20bc3617ea9c09f0dab6cee1e8b"},
+	"internal/parser":              {FileCount: 45, Digest: "ec26538203a8717bfb5cdc794d85fd02156914c7678f1683f1229d13cf7c6bf5", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
+	"internal/query":               {FileCount: 256, Digest: "04f464101f59ccb8d301135cf56cf55f2ad1cfeeabcaee07819a7d595c809175"},
+	"internal/reducer":             {FileCount: 128, Digest: "d074549cd2d2306c02901ac6eafa52c568bb06c7502bcbd76fcdb3fbf3e85273"},
+	"internal/storage/cypher":      {FileCount: 109, Digest: "e8063838d416354547735422111cdaa416b281a48d60a7a49245ed3abb92660e"},
+	"internal/storage/postgres":    {FileCount: 340, Digest: "4be40a3402762b0f84a574ef6e6cee4d845ff5c64c0a02e7cba61fd7af85ea5a"},
 }

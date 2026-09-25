@@ -41,7 +41,7 @@ observability objects as facts:
 
 | Source object | Scanner (on main) | Emitted as | Identity / anchor |
 | --- | --- | --- | --- |
-| CloudWatch metric alarm | `go/internal/collector/awscloud/services/cloudwatch/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchAlarm`, `aws_cloudwatch_alarm`) + `aws_relationship` (`cloudwatch_alarm_observes_metric`, `cloudwatch_alarm_notifies_sns_topic`) | ARN + name; `CorrelationAnchors: [alarmARN, name]` |
+| CloudWatch metric alarm | `go/internal/collector/cloud/aws/service/cloudwatch/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchAlarm`, `aws_cloudwatch_alarm`) + `aws_relationship` (`cloudwatch_alarm_observes_metric`, `cloudwatch_alarm_notifies_sns_topic`) | ARN + name; `CorrelationAnchors: [alarmARN, name]` |
 | CloudWatch composite alarm | same | `aws_resource` + `cloudwatch_composite_alarm_has_child_alarm` | ARN + name |
 | CloudWatch dashboard | same | `aws_resource` (`ResourceTypeCloudWatchDashboard`), metadata-only (no body JSON) | ARN + name |
 | CloudWatch Logs log group | `.../services/cloudwatchlogs/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchLogsLogGroup`) + `cloudwatch_logs_log_group_uses_kms_key` | log group ARN + name |

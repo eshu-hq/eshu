@@ -12,7 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"

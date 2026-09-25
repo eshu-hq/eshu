@@ -1,0 +1,410 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package ec2
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// Scanner emits EC2 VPC, subnet, security group, security group rule, ENI, EBS
+// volume, and topology relationship facts for one claimed account and region.
+// It also emits, per instance, one metadata-only ec2_instance_posture fact and
+// (#5448) one aws_resource identity fact carrying the launch AMI id plus an
+// instance->AMI aws_relationship fact when an AMI id is present, and (#5717)
+// one aws_resource fact for the AMI itself — deduplicated across every
+// instance in the scan that shares the same AMI id — so the instance->AMI
+// relationship's edge projection resolves against a real CloudResource node.
+// All of these come from the existing DescribeInstances pass, with no
+// additional AWS API call and no user-data content ever read.
+type Scanner struct {
+	Client Client
+}
+
+// Scan observes EC2 network, instance-posture, and volume metadata through the
+// configured client.
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
+	if s.Client == nil {
+		return nil, fmt.Errorf("ec2 scanner client is required")
+	}
+	switch strings.TrimSpace(boundary.ServiceKind) {
+	case "", aws.ServiceEC2:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
+		boundary.ServiceKind = aws.ServiceEC2
+	default:
+		return nil, fmt.Errorf("ec2 scanner received service_kind %q", boundary.ServiceKind)
+	}
+
+	var envelopes []facts.Envelope
+	vpcs, err := s.Client.ListVPCs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 VPCs: %w", err)
+	}
+	for _, vpc := range vpcs {
+		resource, err := aws.NewResourceEnvelope(vpcObservation(boundary, vpc))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, resource)
+	}
+
+	subnets, err := s.Client.ListSubnets(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 subnets: %w", err)
+	}
+	for _, subnet := range subnets {
+		subnetEnvelopes, err := subnetEnvelopes(boundary, subnet)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, subnetEnvelopes...)
+	}
+
+	securityGroups, err := s.Client.ListSecurityGroups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 security groups: %w", err)
+	}
+	for _, securityGroup := range securityGroups {
+		securityGroupEnvelopes, err := securityGroupEnvelopes(boundary, securityGroup)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, securityGroupEnvelopes...)
+	}
+
+	rules, err := s.Client.ListSecurityGroupRules(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 security group rules: %w", err)
+	}
+	for _, rule := range rules {
+		ruleEnvelopes, err := securityGroupRuleEnvelopes(boundary, rule)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, ruleEnvelopes...)
+	}
+
+	networkInterfaces, err := s.Client.ListNetworkInterfaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 network interfaces: %w", err)
+	}
+	for _, networkInterface := range networkInterfaces {
+		networkInterfaceEnvelopes, err := networkInterfaceEnvelopes(boundary, networkInterface)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, networkInterfaceEnvelopes...)
+	}
+
+	instances, err := s.Client.ListInstances(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 instances: %w", err)
+	}
+	// seenAMIIDs dedups the #5717 AMI resource fact across every instance in
+	// this scan: many instances commonly launch from the same AMI, and this
+	// boundary already scopes one account/region, so an AMI id is a valid
+	// dedup key for the whole loop below.
+	seenAMIIDs := make(map[string]struct{})
+	for _, instance := range instances {
+		instanceEnvelopes, err := instancePostureEnvelopes(boundary, instance)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, instanceEnvelopes...)
+
+		identityEnvelopes, err := instanceIdentityEnvelopes(boundary, instance)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, identityEnvelopes...)
+
+		amiEnvelopes, err := amiResourceEnvelopes(boundary, instance, seenAMIIDs)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, amiEnvelopes...)
+	}
+
+	volumes, err := s.Client.ListVolumes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 volumes: %w", err)
+	}
+	for _, volume := range volumes {
+		emittedVolumeEnvelopes, err := volumeEnvelopes(boundary, volume)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, emittedVolumeEnvelopes...)
+	}
+	return envelopes, nil
+}
+
+func vpcObservation(boundary aws.Boundary, vpc VPC) aws.ResourceObservation {
+	vpcID := strings.TrimSpace(vpc.ID)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ResourceID:   vpcID,
+		ResourceType: aws.ResourceTypeEC2VPC,
+		Name:         vpcID,
+		State:        vpc.State,
+		Tags:         vpc.Tags,
+		Attributes: map[string]any{
+			"cidr_block":                   strings.TrimSpace(vpc.CIDRBlock),
+			"dhcp_options_id":              strings.TrimSpace(vpc.DHCPOptionsID),
+			"instance_tenancy":             strings.TrimSpace(vpc.InstanceTenancy),
+			"ipv4_cidr_block_associations": cidrBlockAssociationMaps(vpc.IPv4CIDRBlocks),
+			"ipv6_cidr_block_associations": ipv6CIDRBlockAssociationMaps(vpc.IPv6CIDRBlocks),
+			"is_default":                   vpc.IsDefault,
+			"owner_id":                     strings.TrimSpace(vpc.OwnerID),
+		},
+		CorrelationAnchors: []string{vpcID},
+		SourceRecordID:     vpcID,
+	}
+}
+
+func subnetEnvelopes(boundary aws.Boundary, subnet Subnet) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(subnetObservation(boundary, subnet))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	if relationship, ok := subnetVPCRelationship(boundary, subnet); ok {
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, envelope)
+	}
+	return envelopes, nil
+}
+
+func subnetObservation(boundary aws.Boundary, subnet Subnet) aws.ResourceObservation {
+	subnetID := strings.TrimSpace(subnet.ID)
+	subnetARN := strings.TrimSpace(subnet.ARN)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ARN:          subnetARN,
+		ResourceID:   subnetID,
+		ResourceType: aws.ResourceTypeEC2Subnet,
+		Name:         subnetID,
+		State:        subnet.State,
+		Tags:         subnet.Tags,
+		Attributes: map[string]any{
+			"assign_ipv6_address_on_creation": subnet.AssignIPv6AddressOnCreate,
+			"availability_zone":               strings.TrimSpace(subnet.AvailabilityZone),
+			"availability_zone_id":            strings.TrimSpace(subnet.AvailabilityZoneID),
+			"available_ip_address_count":      subnet.AvailableIPAddressCount,
+			"cidr_block":                      strings.TrimSpace(subnet.CIDRBlock),
+			"default_for_az":                  subnet.DefaultForAZ,
+			"ipv6_cidr_block_associations":    cidrBlockAssociationMaps(subnet.IPv6CIDRBlocks),
+			"ipv6_native":                     subnet.IPv6Native,
+			"map_public_ip_on_launch":         subnet.MapPublicIPOnLaunch,
+			"outpost_arn":                     strings.TrimSpace(subnet.OutpostARN),
+			"owner_id":                        strings.TrimSpace(subnet.OwnerID),
+			"vpc_id":                          strings.TrimSpace(subnet.VPCID),
+		},
+		CorrelationAnchors: []string{subnetARN, subnetID},
+		SourceRecordID:     subnetID,
+	}
+}
+
+func securityGroupEnvelopes(boundary aws.Boundary, group SecurityGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(securityGroupObservation(boundary, group))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	if relationship, ok := securityGroupVPCRelationship(boundary, group); ok {
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, envelope)
+	}
+	return envelopes, nil
+}
+
+func securityGroupObservation(boundary aws.Boundary, group SecurityGroup) aws.ResourceObservation {
+	groupID := strings.TrimSpace(group.ID)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ResourceID:   groupID,
+		ResourceType: aws.ResourceTypeEC2SecurityGroup,
+		Name:         group.Name,
+		Tags:         group.Tags,
+		Attributes: map[string]any{
+			"description": strings.TrimSpace(group.Description),
+			"owner_id":    strings.TrimSpace(group.OwnerID),
+			"vpc_id":      strings.TrimSpace(group.VPCID),
+		},
+		CorrelationAnchors: []string{groupID, strings.TrimSpace(group.Name)},
+		SourceRecordID:     groupID,
+	}
+}
+
+func securityGroupRuleEnvelopes(boundary aws.Boundary, rule SecurityGroupRule) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(securityGroupRuleObservation(boundary, rule))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	if relationship, ok := securityGroupRuleRelationship(boundary, rule); ok {
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, envelope)
+	}
+	posture, err := aws.NewSecurityGroupRuleEnvelope(securityGroupRulePostureObservation(boundary, rule))
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, posture)
+	return envelopes, nil
+}
+
+// securityGroupRulePostureObservation maps the scanner-owned rule into the
+// normalized aws_security_group_rule posture observation. It reuses the rule
+// already fetched for the resource and relationship facts, so the posture fact
+// adds no AWS API calls. The referenced-group id is the only field flattened
+// here; the raw referenced-group metadata stays on the aws_resource fact.
+func securityGroupRulePostureObservation(boundary aws.Boundary, rule SecurityGroupRule) aws.SecurityGroupRuleObservation {
+	referencedSG := ""
+	if rule.ReferencedGroup != nil {
+		referencedSG = strings.TrimSpace(rule.ReferencedGroup.GroupID)
+	}
+	return aws.SecurityGroupRuleObservation{
+		Boundary:     boundary,
+		RuleID:       strings.TrimSpace(rule.ID),
+		GroupID:      strings.TrimSpace(rule.GroupID),
+		GroupOwnerID: strings.TrimSpace(rule.GroupOwnerID),
+		IsEgress:     rule.IsEgress,
+		IPProtocol:   strings.TrimSpace(rule.Protocol),
+		FromPort:     rule.FromPort,
+		ToPort:       rule.ToPort,
+		CIDRIPv4:     strings.TrimSpace(rule.CIDRIPv4),
+		CIDRIPv6:     strings.TrimSpace(rule.CIDRIPv6),
+		PrefixListID: strings.TrimSpace(rule.PrefixListID),
+		ReferencedSG: referencedSG,
+		Description:  strings.TrimSpace(rule.Description),
+	}
+}
+
+func securityGroupRuleObservation(boundary aws.Boundary, rule SecurityGroupRule) aws.ResourceObservation {
+	ruleID := securityGroupRuleID(rule)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ResourceID:   ruleID,
+		ResourceType: aws.ResourceTypeEC2SecurityGroupRule,
+		Name:         ruleID,
+		Tags:         rule.Tags,
+		Attributes: map[string]any{
+			"cidr_ipv4":        strings.TrimSpace(rule.CIDRIPv4),
+			"cidr_ipv6":        strings.TrimSpace(rule.CIDRIPv6),
+			"description":      strings.TrimSpace(rule.Description),
+			"direction":        securityGroupRuleDirection(rule),
+			"from_port":        int32Value(rule.FromPort),
+			"group_id":         strings.TrimSpace(rule.GroupID),
+			"group_owner_id":   strings.TrimSpace(rule.GroupOwnerID),
+			"ip_protocol":      strings.TrimSpace(rule.Protocol),
+			"is_egress":        rule.IsEgress,
+			"prefix_list_id":   strings.TrimSpace(rule.PrefixListID),
+			"referenced_group": referencedSecurityGroupMap(rule.ReferencedGroup),
+			"to_port":          int32Value(rule.ToPort),
+		},
+		CorrelationAnchors: []string{ruleID, strings.TrimSpace(rule.GroupID)},
+		SourceRecordID:     ruleID,
+	}
+}
+
+func networkInterfaceEnvelopes(boundary aws.Boundary, networkInterface NetworkInterface) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(networkInterfaceObservation(boundary, networkInterface))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	for _, observation := range networkInterfaceRelationships(boundary, networkInterface) {
+		relationship, err := aws.NewRelationshipEnvelope(observation)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, relationship)
+	}
+	return envelopes, nil
+}
+
+func networkInterfaceObservation(boundary aws.Boundary, networkInterface NetworkInterface) aws.ResourceObservation {
+	networkInterfaceID := strings.TrimSpace(networkInterface.ID)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ResourceID:   networkInterfaceID,
+		ResourceType: aws.ResourceTypeEC2NetworkInterface,
+		Name:         networkInterfaceID,
+		State:        networkInterface.Status,
+		Tags:         networkInterface.Tags,
+		Attributes: map[string]any{
+			"attachment":                 attachmentMap(networkInterface.Attachment),
+			"availability_zone":          strings.TrimSpace(networkInterface.AvailabilityZone),
+			"description":                strings.TrimSpace(networkInterface.Description),
+			"interface_type":             strings.TrimSpace(networkInterface.InterfaceType),
+			"ipv6_addresses":             cloneStrings(networkInterface.IPv6Addresses),
+			"mac_address":                strings.TrimSpace(networkInterface.MacAddress),
+			"owner_id":                   strings.TrimSpace(networkInterface.OwnerID),
+			"primary_private_ip_address": strings.TrimSpace(networkInterface.PrivateIPAddress),
+			"private_dns_name":           strings.TrimSpace(networkInterface.PrivateDNSName),
+			"private_ip_addresses":       privateIPAddressMaps(networkInterface.PrivateIPAddresses),
+			"requester_id":               strings.TrimSpace(networkInterface.RequesterID),
+			"requester_managed":          networkInterface.RequesterManaged,
+			"security_groups":            securityGroupRefMaps(networkInterface.SecurityGroups),
+			"source_dest_check":          networkInterface.SourceDestCheck,
+			"subnet_id":                  strings.TrimSpace(networkInterface.SubnetID),
+			"vpc_id":                     strings.TrimSpace(networkInterface.VPCID),
+		},
+		CorrelationAnchors: []string{networkInterfaceID},
+		SourceRecordID:     networkInterfaceID,
+	}
+}
+
+func securityGroupRuleID(rule SecurityGroupRule) string {
+	if id := strings.TrimSpace(rule.ID); id != "" {
+		return id
+	}
+	return "security-group-rule:" + facts.StableID("EC2SecurityGroupRule", map[string]any{
+		"cidr_ipv4":      strings.TrimSpace(rule.CIDRIPv4),
+		"cidr_ipv6":      strings.TrimSpace(rule.CIDRIPv6),
+		"from_port":      int32Value(rule.FromPort),
+		"group_id":       strings.TrimSpace(rule.GroupID),
+		"is_egress":      rule.IsEgress,
+		"prefix_list_id": strings.TrimSpace(rule.PrefixListID),
+		"protocol":       strings.TrimSpace(rule.Protocol),
+		"to_port":        int32Value(rule.ToPort),
+	})
+}
+
+func securityGroupRuleDirection(rule SecurityGroupRule) string {
+	if rule.IsEgress {
+		return "egress"
+	}
+	return "ingress"
+}
+
+func int32Value(value *int32) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func timeOrNil(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return value.UTC()
+}

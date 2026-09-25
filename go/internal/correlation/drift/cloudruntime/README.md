@@ -253,7 +253,7 @@ Terraform's `container_definitions` attribute is a JSON-encoded STRING that
 can carry `environment` variables and `secrets` ARN/valueFrom references
 alongside `image`; the AWS collector's own `ecs.task_definition` cloud fact
 carries the same `environment`/`secrets` shape (see
-`go/internal/collector/awscloud/services/ecs/scanner.go` `containerMaps`).
+`go/internal/collector/cloud/aws/service/ecs/scanner.go` `containerMaps`).
 `ExtractDeclaredContainerImages` and `ExtractObservedContainerImages` are the
 ONLY functions permitted to read either shape, and both decode into a
 struct/read a map key that keeps ONLY `image` -- every other field is

@@ -1,0 +1,17 @@
+# services/cloudwatch/bind
+
+Self-registers the CloudWatch metadata scanner into the `runtime` registry
+via `init()`. The collector main and the bindings aggregate package both
+import this package as a blank import; nothing else in the runtime needs to
+change to make CloudWatch reachable.
+
+The binder fails closed when the runtime-provided `RedactionKey` is zero
+because the scanner cannot redact customer-tag-named alarm metric dimensions
+without it.
+
+## Tests
+
+- `register_test.go` asserts `runtime.LookupBuilder(aws.ServiceCloudWatch)`
+  returns a non-nil builder after the package is imported.
+- It also asserts the builder returns a typed error when `RedactionKey` is
+  zero.

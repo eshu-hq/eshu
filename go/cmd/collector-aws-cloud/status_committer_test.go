@@ -15,8 +15,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -48,8 +48,8 @@ func TestAWSStatusCommitterRecordsSuccessfulClaimedCommit(t *testing.T) {
 		t.Fatalf("status commits = %d, want 1", len(statusStore.commits))
 	}
 	commit := statusStore.commits[0]
-	if commit.CommitStatus != awscloud.ScanCommitCommitted {
-		t.Fatalf("commit status = %q, want %q", commit.CommitStatus, awscloud.ScanCommitCommitted)
+	if commit.CommitStatus != aws.ScanCommitCommitted {
+		t.Fatalf("commit status = %q, want %q", commit.CommitStatus, aws.ScanCommitCommitted)
 	}
 	if commit.Boundary.CollectorInstanceID != "aws-prod" || commit.Boundary.FencingToken != 7 {
 		t.Fatalf("boundary = %+v, want collector aws-prod token 7", commit.Boundary)
@@ -82,7 +82,7 @@ func TestAWSStatusCommitterRecordsFailedCommitAndJoinsStatusError(t *testing.T) 
 		t.Fatalf("status commits = %d, want 1", len(statusStore.commits))
 	}
 	commit := statusStore.commits[0]
-	if commit.CommitStatus != awscloud.ScanCommitFailed || commit.FailureClass != "commit_failure" {
+	if commit.CommitStatus != aws.ScanCommitFailed || commit.FailureClass != "commit_failure" {
 		t.Fatalf("failure commit = %+v, want commit failure status", commit)
 	}
 	if strings.Contains(commit.FailureMessage, "123456789012") ||
@@ -155,7 +155,7 @@ func TestAWSStatusCommitterDelegatesAllCommitMethods(t *testing.T) {
 }
 
 // TestAWSStatusCommitterClassifiesStaleFenceCommitAsTerminal proves the
-// commit-side path matches the awsruntime start/observe paths added in
+// commit-side path matches the runtime start/observe paths added in
 // issue #612: when CommitAWSScan is rejected by stale fence, the wrapper
 // classifies the failure as terminal and bumps
 // eshu_dp_aws_scan_status_stale_fence_total{operation=commit}. Without this,
@@ -170,7 +170,7 @@ func TestAWSStatusCommitterClassifiesStaleFenceCommitAsTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() err = %v", err)
 	}
-	statusStore := &recordingAWSScanCommitStatusStore{err: fmt.Errorf("commit: %w", awscloud.ErrScanStatusStaleFence)}
+	statusStore := &recordingAWSScanCommitStatusStore{err: fmt.Errorf("commit: %w", aws.ErrScanStatusStaleFence)}
 	inner := &recordingAWSInnerCommitter{}
 	committer := newAWSStatusCommitter(inner, statusStore, "aws-prod", nil, instruments)
 
@@ -184,16 +184,16 @@ func TestAWSStatusCommitterClassifiesStaleFenceCommitAsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("CommitClaimedScopeGeneration() err = nil, want classified stale fence")
 	}
-	if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
-		t.Fatalf("CommitClaimedScopeGeneration() err = %v, want errors.Is awscloud.ErrScanStatusStaleFence", err)
+	if !errors.Is(err, aws.ErrScanStatusStaleFence) {
+		t.Fatalf("CommitClaimedScopeGeneration() err = %v, want errors.Is aws.ErrScanStatusStaleFence", err)
 	}
 	var classified interface{ FailureClass() string }
-	if !errors.As(err, &classified) || classified.FailureClass() != awsruntime.FailureClassStaleFence {
+	if !errors.As(err, &classified) || classified.FailureClass() != runtime.FailureClassStaleFence {
 		got := ""
 		if classified != nil {
 			got = classified.FailureClass()
 		}
-		t.Fatalf("FailureClass() = %q, want %q (err=%v)", got, awsruntime.FailureClassStaleFence, err)
+		t.Fatalf("FailureClass() = %q, want %q (err=%v)", got, runtime.FailureClassStaleFence, err)
 	}
 	var terminal interface{ TerminalFailure() bool }
 	if !errors.As(err, &terminal) || !terminal.TerminalFailure() {
@@ -212,10 +212,10 @@ func TestAWSStatusCommitterClassifiesStaleFenceCommitAsTerminal(t *testing.T) {
 func commitStaleFenceCounterValue(t *testing.T, rm metricdata.ResourceMetrics) int64 {
 	t.Helper()
 	wantAttrs := map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   aws.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
-		telemetry.MetricDimensionOperation: awsruntime.ScanStatusPhaseCommit,
+		telemetry.MetricDimensionOperation: runtime.ScanStatusPhaseCommit,
 	}
 	for _, scopeMetrics := range rm.ScopeMetrics {
 		for _, record := range scopeMetrics.Metrics {
@@ -255,7 +255,7 @@ func awsScope() scope.IngestionScope {
 		Metadata: map[string]string{
 			"account_id":   "123456789012",
 			"region":       "us-east-1",
-			"service_kind": awscloud.ServiceECR,
+			"service_kind": aws.ServiceECR,
 		},
 	}
 }
@@ -321,13 +321,13 @@ func (c *recordingAWSInnerCommitter) CommitClaimedScopeGenerationWithStreamError
 }
 
 type recordingAWSScanCommitStatusStore struct {
-	commits []awscloud.ScanStatusCommit
+	commits []aws.ScanStatusCommit
 	err     error
 }
 
 func (s *recordingAWSScanCommitStatusStore) CommitAWSScan(
 	_ context.Context,
-	commit awscloud.ScanStatusCommit,
+	commit aws.ScanStatusCommit,
 ) error {
 	s.commits = append(s.commits, commit)
 	return s.err

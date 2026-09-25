@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -157,11 +157,11 @@ func TestAWSRelationshipDoesNotWaitForInstanceNodesWhenNoAMIEdgeIsPresent(t *tes
 func TestAWSRelationshipInstanceNodeGateMatchesTheCollectorConstant(t *testing.T) {
 	t.Parallel()
 
-	if relationshipTypeEC2InstanceUsesAMI != awscloud.RelationshipEC2InstanceUsesAMI {
+	if relationshipTypeEC2InstanceUsesAMI != aws.RelationshipEC2InstanceUsesAMI {
 		t.Fatalf(
-			"reducer copy %q has drifted from awscloud.RelationshipEC2InstanceUsesAMI %q; the readiness gate would stop firing silently",
+			"reducer copy %q has drifted from aws.RelationshipEC2InstanceUsesAMI %q; the readiness gate would stop firing silently",
 			relationshipTypeEC2InstanceUsesAMI,
-			awscloud.RelationshipEC2InstanceUsesAMI,
+			aws.RelationshipEC2InstanceUsesAMI,
 		)
 	}
 }

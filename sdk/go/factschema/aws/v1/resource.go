@@ -22,7 +22,7 @@ import "encoding/json"
 //   - Required (identity): AccountID, ResourceID, Region, ResourceType. The
 //     decode seam rejects a payload missing any of them with a classified
 //     input_invalid error naming the field, matching the collector emitter
-//     (awscloud.NewResourceEnvelope), which validates them non-empty. This is
+//     (aws.NewResourceEnvelope), which validates them non-empty. This is
 //     the accuracy fix — the identity fields are the ones whose silent absence
 //     produced empty-string graph uids.
 //   - Optional (common): ARN, Name, Tags, CorrelationAnchors, State,
@@ -32,7 +32,7 @@ import "encoding/json"
 //   - Optional (pass-through): Attributes carries every top-level payload key
 //     with no named struct field above, UNTYPED, with JSON type fidelity
 //     preserved through the round trip. The collector emitter
-//     (awscloud.NewResourceEnvelope) does NOT flatten service-specific fields to
+//     (aws.NewResourceEnvelope) does NOT flatten service-specific fields to
 //     the top level: it nests them one level deep under a single "attributes"
 //     object (payload["attributes"] = {"engine": …, "role_arns": …}). So the
 //     service-specific fields land at Attributes["attributes"], not directly on

@@ -281,7 +281,7 @@ func TestClaimedSourceIdempotentRetryReusesSameFenceWithoutError(t *testing.T) {
 // nil-safety contract: SourceConfig.Watermarks left unset must not error or
 // change any existing behavior (no gap detection, no ci.warning fact, no
 // runs_backfill_gap metric point) -- matching how a nil Checkpoints store
-// behaves in awsruntime.
+// behaves in runtime.
 func TestClaimedSourceSkipsGapDetectionWithoutWatermarkStore(t *testing.T) {
 	t.Parallel()
 

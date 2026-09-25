@@ -74,7 +74,7 @@
 # digest for a directory so you can update or drop a row honestly.
 #
 # Seeded at #6054 landing from the pre-existing tree (see #6053).
-internal/collector/awscloud	154	7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd
+internal/collector/cloud/aws	154	7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd
 internal/collector/gcpcloud	96	0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3
 internal/collector/repo/git	65	c52b52eda6e521c5b56988994f637f36708e6810e1b6c04386d6081d845e78bb
 internal/mcp	93	2d88cefb5f7b666fbfd8f55216a1a9a6756de20bc3617ea9c09f0dab6cee1e8b

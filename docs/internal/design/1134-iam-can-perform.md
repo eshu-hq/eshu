@@ -366,7 +366,7 @@ No-Regression Evidence: `go test ./internal/reducer/iamcan -run
 -count=1` proves identity grants are emitted only when an attached boundary
 allows them, boundary Deny/conditioned/NotResource/missing-doc cases suppress the
 edge, duplicate boundary evidence converges, and boundary statements without an
-attachment do not grant. `go test ./internal/collector/awscloud/services/iam/awssdk
+attachment do not grant. `go test ./internal/collector/cloud/aws/service/iam/sdk
 -run 'PermissionBoundary|BoundedManagedPolicyStatements' -count=1` proves the
 SDK helper fetches one boundary managed-policy document and preserves the
 existing attached-policy fan-out cap. `go test ./internal/reducer/iamcan -run
@@ -405,12 +405,12 @@ the structured completion log field `conditioned_provenance_only`. The
 condition operator/key names are not metric labels, graph properties, or raw log
 fields, so the signal stays bounded and redaction-safe.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/services/iam/awssdk
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/iam/sdk
 -run 'ConditionOperators|ExtractsStatements' -count=1`,
-`go test ./internal/collector/awscloud ./internal/collector/access/posture -run
+`go test ./internal/collector/cloud/aws ./internal/collector/access/posture -run
 'IAMPermissionEnvelope|ResourcePolicyPermissionEnvelopeCondition|PermissionPolicyEnvelope'
--count=1`, `go test ./internal/collector/awscloud/services/s3/awssdk
-./internal/collector/awscloud/services/kms/awssdk -run
+-count=1`, `go test ./internal/collector/cloud/aws/service/s3/sdk
+./internal/collector/cloud/aws/service/kms/sdk -run
 'Derive.*ResourcePermissionStatements|ClientListKeysDerivesResourcePolicyStatements'
 -count=1`, and `go test ./internal/reducer/iamcan -run
 'Conditioned.*Provenance|ConditionedGrantRecordsProvenanceOnlyMetric' -count=1`

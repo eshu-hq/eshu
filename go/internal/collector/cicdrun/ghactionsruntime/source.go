@@ -56,7 +56,7 @@ type SourceConfig struct {
 	Instruments         *telemetry.Instruments
 	// Watermarks detects a cross-cycle run-collection gap (#5429). It is
 	// optional: a nil Store (the zero value) skips gap detection entirely,
-	// matching awsruntime.ClaimedSource.Checkpoints' nil-safety.
+	// matching runtime.ClaimedSource.Checkpoints' nil-safety.
 	Watermarks runwatermark.Store
 }
 

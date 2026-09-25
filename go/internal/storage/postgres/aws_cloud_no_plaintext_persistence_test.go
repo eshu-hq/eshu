@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/lambda"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -26,10 +26,10 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 		t.Fatalf("NewKey() error = %v, want nil", err)
 	}
 
-	boundary := awscloud.Boundary{
+	boundary := aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLambda,
+		ServiceKind:         aws.ServiceLambda,
 		ScopeID:             "aws:123456789012:us-east-1:lambda",
 		GenerationID:        "aws:123456789012:us-east-1:lambda:1",
 		CollectorInstanceID: "aws-prod",
@@ -104,7 +104,7 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 		databaseURL,
 		logLevel,
 	})
-	assertExecArgsContain(t, argLists, awscloud.RedactionPolicyVersion)
+	assertExecArgsContain(t, argLists, aws.RedactionPolicyVersion)
 }
 
 type lambdaNoPlaintextClient struct {

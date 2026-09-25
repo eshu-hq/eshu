@@ -23,7 +23,7 @@ import (
 	// Blank import installs the full AWS scanner registry via init side
 	// effects. Adding a new scanner means appending one underscore-import to
 	// the bindings package, with no change in this command.
-	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime/bindings"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"

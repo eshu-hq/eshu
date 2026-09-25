@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // The required set matches the security-group-rule collector emitter
-// (awscloud.NewSecurityGroupRuleEnvelope), which validates group_id non-empty
+// (aws.NewSecurityGroupRuleEnvelope), which validates group_id non-empty
 // and always emits account_id, region, direction, ip_protocol, source_kind, and
 // source_value from a boundary and a normalized (kind, value) pair. SourceValue
 // is required (always emitted) but may be the empty string for the "unknown"

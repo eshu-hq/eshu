@@ -52,7 +52,7 @@ func cloudInventoryAccountAliasPayloadRow(t *testing.T, provider, scopeID, uid, 
 // azure_cloud_resource.subscription_id), never against fact_records.scope_id.
 // Every provider's scope_id is a derived, opaque per-shard identifier (for
 // AWS: one shard per account+region+service partition -- see
-// go/internal/collector/awscloud/awsruntime/source.go) that is never
+// go/internal/collector/cloud/aws/runtime/source.go) that is never
 // literally equal to the raw account/project/subscription number, so
 // comparing the alias value straight against scope_id silently matched zero
 // rows for a real multi-shard account, on every provider.

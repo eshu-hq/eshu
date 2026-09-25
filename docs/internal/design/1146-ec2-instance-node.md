@@ -18,7 +18,7 @@ node-then-gated-edge pattern PR-B will follow.
 
 ## Why
 
-The EC2 scanner (`go/internal/collector/awscloud/services/ec2/scanner.go:13-17`,
+The EC2 scanner (`go/internal/collector/cloud/aws/service/ec2/scanner.go`,
 `constants_ec2.go:20-23`) **deliberately does not emit an `aws_resource`
 inventory fact for instances** — it emits VPC / Subnet / SecurityGroup /
 SecurityGroupRule / NetworkInterface `aws_resource` nodes and one metadata-only
@@ -115,7 +115,7 @@ emits — and **nothing else**:
   node.
 - **`instance_type`, `availability_zone`, `vpc_id`, `subnet_id`** — the
   `ec2_instance_posture` fact does **not** carry these fields (verified against
-  `go/internal/collector/awscloud/ec2_posture_envelope.go` and the scanner
+  `go/internal/collector/cloud/aws/ec2_posture_envelope.go` and the scanner
   `Instance` type; `InstanceType`/`SubnetID`/`VPCID` exist on the scanner-owned
   struct but are not projected onto the posture payload). The node therefore does
   **not** assert them — materializing absent data would be fabrication. If a later

@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package ssm
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// Scanner emits SSM Parameter Store metadata facts for one claimed account and
+// region. It never reads parameter values, parameter history, raw policy JSON,
+// or mutates SSM resources.
+type Scanner struct {
+	Client Client
+}
+
+// Scan observes Parameter Store metadata and direct KMS dependency metadata
+// through the configured client.
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
+	if s.Client == nil {
+		return nil, fmt.Errorf("ssm scanner client is required")
+	}
+	switch strings.TrimSpace(boundary.ServiceKind) {
+	case "", aws.ServiceSSM:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
+		boundary.ServiceKind = aws.ServiceSSM
+	default:
+		return nil, fmt.Errorf("ssm scanner received service_kind %q", boundary.ServiceKind)
+	}
+
+	parameters, err := s.Client.ListParameters(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list SSM parameters: %w", err)
+	}
+	var envelopes []facts.Envelope
+	for _, parameter := range parameters {
+		parameterEnvelopes, err := parameterEnvelopes(boundary, parameter)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, parameterEnvelopes...)
+	}
+	return envelopes, nil
+}
+
+func parameterEnvelopes(boundary aws.Boundary, parameter Parameter) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(parameterObservation(boundary, parameter))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	if relationship := kmsRelationship(boundary, parameter); relationship != nil {
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, envelope)
+	}
+	return envelopes, nil
+}
+
+func parameterObservation(boundary aws.Boundary, parameter Parameter) aws.ResourceObservation {
+	parameterARN := strings.TrimSpace(parameter.ARN)
+	name := strings.TrimSpace(parameter.Name)
+	resourceID := parameterResourceID(parameter)
+	return aws.ResourceObservation{
+		Boundary:     boundary,
+		ARN:          parameterARN,
+		ResourceID:   resourceID,
+		ResourceType: aws.ResourceTypeSSMParameter,
+		Name:         name,
+		Tags:         cloneStringMap(parameter.Tags),
+		Attributes: map[string]any{
+			"type":                    strings.TrimSpace(parameter.Type),
+			"tier":                    strings.TrimSpace(parameter.Tier),
+			"data_type":               strings.TrimSpace(parameter.DataType),
+			"key_id":                  strings.TrimSpace(parameter.KeyID),
+			"last_modified_at":        timeOrNil(parameter.LastModifiedAt),
+			"description_present":     parameter.DescriptionPresent,
+			"allowed_pattern_present": parameter.AllowedPatternPresent,
+			"policies":                policyAttributes(parameter.Policies),
+		},
+		CorrelationAnchors: []string{parameterARN, name},
+		SourceRecordID:     resourceID,
+	}
+}
+
+func policyAttributes(policies []PolicyMetadata) []map[string]string {
+	if len(policies) == 0 {
+		return nil
+	}
+	output := make([]map[string]string, 0, len(policies))
+	for _, policy := range policies {
+		entry := map[string]string{
+			"type":   strings.TrimSpace(policy.Type),
+			"status": strings.TrimSpace(policy.Status),
+		}
+		if entry["type"] == "" && entry["status"] == "" {
+			continue
+		}
+		output = append(output, entry)
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return output
+}

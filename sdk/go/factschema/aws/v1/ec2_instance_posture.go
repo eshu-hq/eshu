@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // Only AccountID and Region are required: the collector emitter
-// (awscloud.NewEC2InstancePostureEnvelope) validates instance_id OR arn
+// (aws.NewEC2InstancePostureEnvelope) validates instance_id OR arn
 // non-empty as an either-or identity, so NEITHER InstanceID nor ARN can be
 // required on its own — requiring one would dead-letter a valid fact identified
 // only by the other. The reducer's source-uid derivation already tolerates a

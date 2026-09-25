@@ -10,7 +10,7 @@ import (
 )
 
 // iamRoleCloudResourceType is the CloudResource resource_type the AWS resource
-// projection assigns to IAM roles. It mirrors awscloud.ResourceTypeIAMRole; the
+// projection assigns to IAM roles. It mirrors aws.ResourceTypeIAMRole; the
 // reducer duplicates the literal so it does not import the collector package for
 // one constant, matching the iam_can_assume slice's resolution.
 const iamRoleCloudResourceType = awsv1.ResourceTypeIAMRole

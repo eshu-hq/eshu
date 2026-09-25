@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	// Blank import populates the AWS scanner registry so coordinator-side
 	// SupportsServiceKind checks accept every service the collector ships.
-	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
 	cicdrun "github.com/eshu-hq/eshu/go/internal/coordinator/cicd/run"
 	ociregistry "github.com/eshu-hq/eshu/go/internal/coordinator/oci/registry"

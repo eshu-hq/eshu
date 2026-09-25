@@ -14,7 +14,7 @@ The scope selector is one of:
 - `scope_id` -- the exact canonical ingestion scope id. A scope is one
   collector partition, not the whole provider account: for AWS specifically,
   the collector claims work per account+region+service, so one AWS account can
-  span many scope ids (`go/internal/collector/awscloud/awsruntime/source.go`).
+  span many scope ids (`go/internal/collector/cloud/aws/runtime/source.go`).
   `scope_id` takes precedence when given alongside an account selector.
 - `account_id` (AWS), `project_id` (GCP), or `subscription_id` (Azure) -- the
   raw provider account/tenant identifier. **Requires the matching `provider`

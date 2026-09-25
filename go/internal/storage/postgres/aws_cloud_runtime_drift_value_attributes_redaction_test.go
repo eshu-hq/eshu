@@ -20,7 +20,7 @@ import (
 // redactionMarkerJSON renders the exact JSON object shape the terraform-state
 // collector's redactionMap (go/internal/collector/terraformstate/identity.go)
 // and the AWS-cloud collector's RedactString/ClassifyStackOutput
-// (go/internal/collector/awscloud/redaction.go) both persist in place of a
+// (go/internal/collector/cloud/aws/redaction.go) both persist in place of a
 // fail-closed-redacted scalar: {"marker": "redacted:hmac-sha256:...",
 // "reason": ..., "source": ...}. The hex digest is a fixed fixture value --
 // only the "redacted:hmac-sha256:" prefix is load-bearing for recognition.
@@ -130,7 +130,7 @@ func TestClassifyValueDriftSuppressesRedactionMarkerDeclaredSide(t *testing.T) {
 // symmetric case: the AWS-observed side carries a redaction marker (the
 // AWS-cloud collector's own RedactString/ClassifyStackOutput produce the
 // identical {"marker","reason","source"} shape -- see
-// go/internal/collector/awscloud/redaction.go) while Terraform state
+// go/internal/collector/cloud/aws/redaction.go) while Terraform state
 // declares a real value. Comparing a real declared AMI against an observed
 // marker must not fire image_version_drift either.
 func TestClassifyValueDriftSuppressesRedactionMarkerObservedSide(t *testing.T) {

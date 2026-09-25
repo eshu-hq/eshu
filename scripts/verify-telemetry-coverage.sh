@@ -170,12 +170,19 @@ rg -UPo --no-filename \
 # projector, correlation, content shape, or a collector-* command
 # package. If the base ref is empty (caller passed an unresolvable
 # ref, or the repo is a single-commit fixture) skip the diff entirely.
+#
+# Pair renames explicitly with a raised rename limit: the default
+# detection limit skips pairing on move-heavy diffs, which misreads
+# every moved file as a new stage and demands coverage rows for files
+# that only changed address (#6696 services-to-service rename). An
+# R-paired move is not a new stage, so it must not reach the row
+# check below.
 : >"$new_stages_tmp"
 if [ -n "$base" ]; then
-  if git -C "$repo_root" diff --name-only --diff-filter=A "$base"...HEAD >"$tmp_diff" 2>/dev/null; then
+  if git -C "$repo_root" -c diff.renameLimit=20000 diff --name-only -M --diff-filter=A "$base"...HEAD >"$tmp_diff" 2>/dev/null; then
     :
   else
-    git -C "$repo_root" diff --name-only --diff-filter=A "$base" HEAD >"$tmp_diff"
+    git -C "$repo_root" -c diff.renameLimit=20000 diff --name-only -M --diff-filter=A "$base" HEAD >"$tmp_diff"
   fi
   while IFS= read -r file; do
     [ -n "$file" ] || continue

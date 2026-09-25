@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 )
 
 func TestLoadRuntimeConfigRequiresCentralExternalID(t *testing.T) {
@@ -170,7 +170,7 @@ func TestLoadRuntimeConfigRejectsUnknownAllowedService(t *testing.T) {
 }
 
 func TestValidateAllowedServicesAcceptsRuntimeSupportedServices(t *testing.T) {
-	for _, service := range awsruntime.SupportedServiceKinds() {
+	for _, service := range runtime.SupportedServiceKinds() {
 		t.Run(service, func(t *testing.T) {
 			t.Parallel()
 

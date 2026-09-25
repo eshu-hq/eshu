@@ -7,7 +7,7 @@
    runner selection; record mode short-circuits before pprof and Postgres.
 3. `config.go` - collector instance selection and target-scope parsing.
 4. `fixture_config.go` - declarative fixture-mode config loading
-   (`loadFixtureConfig`) into `awsruntime.FixtureConfig`.
+   (`loadFixtureConfig`) into `runtime.FixtureConfig`.
 5. `service.go` - `buildCollectorService` (fixture) and `buildClaimedService`
    (live) runtime wiring.
 6. `status_committer.go` - commit-side AWS scan status updates after fenced
@@ -15,10 +15,10 @@
 6. `record.go` - `-mode=record`: `buildRecordSource` (the claimed-live source
    minus its three Postgres-backed stores) and `recordCassette` (recorder
    with pseudonymization required, the three `collector.record.*` events).
-7. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
+7. `go/internal/collector/cloud/aws/runtime/README.md` - claim runtime
    contract.
-8. Service `awssdk` README files under
-   `go/internal/collector/awscloud/services/` - SDK adapter contracts.
+8. Service `sdk` README files under
+   `go/internal/collector/cloud/aws/service/` - SDK adapter contracts.
 9. `docs/public/services/collector-aws-cloud.md` - security and
    runtime requirements.
 
@@ -28,7 +28,7 @@
   default would silently change live deployments. `-config` is required in
   fixture mode and rejected in claimed-live and record modes.
 - Keep `buildClaimedService` untouched by record mode. `buildRecordSource`
-  must stay the same `awsruntime.ClaimedSource` literal with `Limiter`,
+  must stay the same `runtime.ClaimedSource` literal with `Limiter`,
   `Checkpoints`, `ScanStatus` and the factory's `Checkpoints` nil;
   `TestRecordSourceIsClaimedLiveWiringMinusStores` pins that.
 - Record mode always pseudonymizes (`RequirePseudonymization`), reads
@@ -44,15 +44,15 @@
 - Reject wildcard AWS regions or service lists. `allowed_services` must name a
   scanner family wired into the runtime registry.
 - Require `ESHU_AWS_REDACTION_KEY` when any allowed service declared
-  `RequiresRedactionKey: true` in its `runtimebind` registration, so
+  `RequiresRedactionKey: true` in its `bind` registration, so
   sensitive-derived fields cannot cross persistence boundaries in plaintext.
   `awsConfigNeedsRedactionKey` and the missing-key error string derive this set
-  from `awsruntime.ServiceKindsRequiringRedactionKey()`; do not reintroduce a
+  from `runtime.ServiceKindsRequiringRedactionKey()`; do not reintroduce a
   hardcoded service switch or literal list in `config.go`. A new
   redaction-requiring scanner declares the requirement only in its own
-  `runtimebind/bind.go`.
-- Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
-  service pagination belongs in service `awssdk` adapters.
+  `bind/register.go`.
+- Keep this command process-only. AWS credentials belong in `runtime`; AWS
+  service pagination belongs in service `sdk` adapters.
 - Keep ELBv2 target health out of stable AWS collector facts; target health is
   live status, not routing topology.
 - Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
@@ -150,16 +150,16 @@
   `us-east-1` metadata mapping and org-aware skip classification.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
-- Preserve the split between scanner-side status in `awsruntime` and
+- Preserve the split between scanner-side status in `runtime` and
   commit-side status in `status_committer.go`.
 
 ## Common Changes
 
 - Add a new AWS service by extending target validation, adding scanner package
-  tests, adding a service `awssdk` adapter, package docs, and branching in
-  `awsruntime.DefaultScannerFactory.Scanner`.
+  tests, adding a service `sdk` adapter, package docs, and branching in
+  `runtime.DefaultScannerFactory.Scanner`.
 - Run `scripts/verify-package-docs.sh` whenever the change adds or edits a Go
-  package under this command or `go/internal/collector/awscloud`.
+  package under this command or `go/internal/collector/cloud/aws`.
 - Run `scripts/verify-performance-evidence.sh` whenever the change touches
   claim concurrency, leases, worker fanout, batching, pagination pressure, or
   downstream graph/materialization cost. The PR must include tracked

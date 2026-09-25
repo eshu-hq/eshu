@@ -292,7 +292,7 @@ func cloudInventoryEqualStringSets(a, b []string) bool {
 // canonical reducer_cloud_resource_identity facts shaped like real collector
 // output for all three providers:
 //   - AWS: two scopes for account 111111111111 (one per account+region+service
-//     partition, matching go/internal/collector/awscloud/awsruntime/source.go's
+//     partition, matching go/internal/collector/cloud/aws/runtime/source.go's
 //     scopeAndGeneration) plus one single-scope account 222222222222
 //     mirroring the issue's single-claim reproduction.
 //   - GCP: one single-scope project "eshu-prod".

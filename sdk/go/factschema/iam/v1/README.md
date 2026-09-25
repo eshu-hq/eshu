@@ -60,8 +60,8 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 
 | Struct | Required identity fields | Why |
 | --- | --- | --- |
-| `Permission` | `AccountID`, `Region`, `PrincipalARN`, `Effect`, `PolicySource` | The collector emitter (`awscloud.NewIAMPermissionEnvelope`) validates `principal_arn`, `effect`, and `policy_source` non-empty and always emits `account_id`/`region` from the scan boundary. `PrincipalARN` anchors every edge the statement can produce. |
-| `ResourcePolicyPermission` | `AccountID`, `Region`, `ResourceARN`, `ResourceType`, `Effect` | The collector emitter (`awscloud.NewResourcePolicyPermissionEnvelope`) validates `resource_arn`, `resource_type`, and `effect` non-empty. `ResourceARN` is the `CAN_PERFORM` edge target identity; `ResourceType` gates that target resolution matches the correct node type. |
+| `Permission` | `AccountID`, `Region`, `PrincipalARN`, `Effect`, `PolicySource` | The collector emitter (`aws.NewIAMPermissionEnvelope`) validates `principal_arn`, `effect`, and `policy_source` non-empty and always emits `account_id`/`region` from the scan boundary. `PrincipalARN` anchors every edge the statement can produce. |
+| `ResourcePolicyPermission` | `AccountID`, `Region`, `ResourceARN`, `ResourceType`, `Effect` | The collector emitter (`aws.NewResourcePolicyPermissionEnvelope`) validates `resource_arn`, `resource_type`, and `effect` non-empty. `ResourceARN` is the `CAN_PERFORM` edge target identity; `ResourceType` gates that target resolution matches the correct node type. |
 | `Principal` | `AccountID`, `Region`, `PrincipalARN`, `PrincipalType` | The collector emitter (`secretsiam.NewPrincipalEnvelope`) validates `principal_arn` and `principal_type` non-empty and always emits `account_id`/`region` from the scan context. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than

@@ -15,7 +15,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/checkpoint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 

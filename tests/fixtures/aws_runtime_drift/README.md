@@ -45,6 +45,6 @@ future tier that seeds the state collector. The gate asserts a **non-empty**
 ## Determinism
 
 Generation ids are derived only from the scope id
-(`awsruntime.FixtureScope.resolvedGenerationID`), never from the clock, so
+(`runtime.FixtureScope.resolvedGenerationID`), never from the clock, so
 re-running the collector re-emits the same fact ids and the gate is
 reproducible.

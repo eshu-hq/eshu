@@ -446,6 +446,25 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh"
 
+# Case 46 (#6696): a paired rename must NOT read as a new stage. The
+# fixture disables rename detection repo-locally (the small-diff equivalent
+# of the detection-limit skip that move-heavy diffs hit in CI): without the
+# verifier's own forced `-M`, the move misreads as Added and fails; with it
+# the R-pair drops out of the added-file diff and the gate passes. The moved
+# file is deliberately row-less (like the sdk/bind files that
+# motivated this): the fixture doc keeps naming only service.go, so nothing
+# but the pairing decision can satisfy the gate.
+case_rename_pair="$(init_repo case-rename-pair)"
+git -C "${case_rename_pair}" config diff.renames false
+printf 'package reducer\n' >"${case_rename_pair}/go/internal/reducer/helper.go"
+git -C "${case_rename_pair}" add go/internal/reducer/helper.go
+git -C "${case_rename_pair}" commit -q -m "row-less fixture stage"
+mkdir -p "${case_rename_pair}/go/internal/reducer/sub"
+git -C "${case_rename_pair}" mv go/internal/reducer/helper.go go/internal/reducer/sub/helper.go
+git -C "${case_rename_pair}" add .
+git -C "${case_rename_pair}" commit -q -m "rename row-less stage with detection off"
+expect_pass "paired rename is not a new stage even with detection off" "${case_rename_pair}"
+
 # Cases 39-45 (#6681 multi-file doc-row coverage): extracted for the same
 # 500-line-cap reason as the row-selection cases above. Sourced, not
 # executed -- reuses the same init_repo/expect_pass/run_verifier/

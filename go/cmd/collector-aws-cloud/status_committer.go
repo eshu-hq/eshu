@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -20,7 +20,7 @@ import (
 )
 
 type awsScanCommitStatusStore interface {
-	CommitAWSScan(context.Context, awscloud.ScanStatusCommit) error
+	CommitAWSScan(context.Context, aws.ScanStatusCommit) error
 }
 
 type awsStatusCommitter struct {
@@ -108,15 +108,15 @@ func (c awsStatusCommitter) recordCommitOutcome(
 	if boundaryErr != nil {
 		return commitErr
 	}
-	statusValue := awscloud.ScanCommitCommitted
+	statusValue := aws.ScanCommitCommitted
 	failureClass := ""
 	failureMessage := ""
 	if commitErr != nil {
-		statusValue = awscloud.ScanCommitFailed
+		statusValue = aws.ScanCommitFailed
 		failureClass = "commit_failure"
-		failureMessage = awscloud.SanitizeScanStatusMessage(commitErr.Error())
+		failureMessage = aws.SanitizeScanStatusMessage(commitErr.Error())
 	}
-	statusErr := c.statusStore.CommitAWSScan(ctx, awscloud.ScanStatusCommit{
+	statusErr := c.statusStore.CommitAWSScan(ctx, aws.ScanStatusCommit{
 		Boundary:       boundary,
 		CommitStatus:   statusValue,
 		FailureClass:   failureClass,
@@ -124,18 +124,18 @@ func (c awsStatusCommitter) recordCommitOutcome(
 		CompletedAt:    c.now(),
 	})
 	// Route a commit-side stale-fence rejection through the same terminal
-	// classifier the awsruntime start/observe paths use. Without this, an
+	// classifier the runtime start/observe paths use. Without this, an
 	// orphaned aws_scan_status row that was reaped by a newer claim's
 	// StartAWSScan but observed by this committer would land back on
 	// failed_retryable and re-enter the same loop issue #612 was opened
 	// to break. Increments eshu_dp_aws_scan_status_stale_fence_total
 	// {operation="commit"} as a side effect.
-	statusErr = awsruntime.ClassifyScanStatusStaleFence(
+	statusErr = runtime.ClassifyScanStatusStaleFence(
 		ctx,
 		statusErr,
 		c.instruments,
 		boundary,
-		awsruntime.ScanStatusPhaseCommit,
+		runtime.ScanStatusPhaseCommit,
 	)
 	if commitErr != nil {
 		return errors.Join(commitErr, statusErr)
@@ -147,14 +147,14 @@ func (c awsStatusCommitter) boundary(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	mutation workflow.ClaimMutation,
-) (awscloud.Boundary, error) {
+) (aws.Boundary, error) {
 	accountID := strings.TrimSpace(scopeValue.Metadata["account_id"])
 	region := strings.TrimSpace(scopeValue.Metadata["region"])
 	serviceKind := strings.TrimSpace(scopeValue.Metadata["service_kind"])
 	if accountID == "" || region == "" || serviceKind == "" {
-		return awscloud.Boundary{}, fmt.Errorf("AWS scope metadata is missing account, region, or service kind")
+		return aws.Boundary{}, fmt.Errorf("AWS scope metadata is missing account, region, or service kind")
 	}
-	return awscloud.Boundary{
+	return aws.Boundary{
 		AccountID:           accountID,
 		Region:              region,
 		ServiceKind:         serviceKind,

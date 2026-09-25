@@ -82,7 +82,7 @@ cd go
 
 go test ./internal/collector/terraformstate -count=1 -run TestParseStream_PeakMemoryGate
 
-go test ./internal/collector/awscloud/awsruntime \
+go test ./internal/collector/cloud/aws/runtime \
   -run 'TestClaimedSourceRecordsEmissionCounters|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
   -count=1 -v
 

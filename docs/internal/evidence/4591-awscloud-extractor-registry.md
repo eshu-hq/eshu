@@ -62,7 +62,7 @@ row in `docs/public/observability/telemetry-coverage.md` carries the
 `No-Observability-Change:` marker and names the signals that already cover AWS
 emission — `eshu_dp_aws_resources_emitted_total` and
 `eshu_dp_aws_scan_duration_seconds` from the AWS cloud row
-(`go/internal/collector/awscloud/awsruntime/source.go:177`), plus
+(`go/internal/collector/cloud/aws/runtime/source.go`), plus
 `eshu_dp_facts_emitted_total` and `eshu_dp_facts_committed_total` from the fact
 commit row (`go/internal/collector/git_source_processing.go:217`). Those stay
 correct when the AWS Config lane registers extractors, because extraction fills

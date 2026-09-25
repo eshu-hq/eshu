@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
 // TestLoadRuntimeConfigRequiresRedactionKeyForElasticBeanstalk confirms that an
 // Elastic Beanstalk-only target scope requires a redaction key because
 // environment option settings may carry secret environment variable values that
 // route through the shared redact library before persistence. The requirement
-// is registry-derived: the elasticbeanstalk runtimebind declares
+// is registry-derived: the elasticbeanstalk bind declares
 // RequiresRedactionKey, so config validation enforces the key with no
 // per-service switch in config.go.
 func TestLoadRuntimeConfigRequiresRedactionKeyForElasticBeanstalk(t *testing.T) {
@@ -44,7 +44,7 @@ func TestLoadRuntimeConfigRequiresRedactionKeyForElasticBeanstalk(t *testing.T) 
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceElasticBeanstalk; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceElasticBeanstalk; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if config.AWSRedactionKey.IsZero() {

@@ -6,12 +6,12 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
 // TestLoadRuntimeConfigDoesNotRequireRedactionKeyForXRay proves an X-Ray-only
 // target loads without an ESHU_AWS_REDACTION_KEY. The X-Ray configuration
-// scanner emits no secret-shaped fields, so its runtimebind sets no
+// scanner emits no secret-shaped fields, so its bind sets no
 // RequiresRedactionKey flag and the command derives no key requirement.
 func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForXRay(t *testing.T) {
 	getenv := mapEnv(map[string]string{
@@ -39,7 +39,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForXRay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceXRay; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceXRay; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

@@ -115,4 +115,4 @@ When a new scanner merges, add its service to the supported table here and to
 [AWS Collector Scanner Coverage](collector-aws-cloud-scanners.md), and remove it
 from the Tier tables above. The supported count in
 [Scope and method](#scope-and-method) must match the number of scanner
-directories under `go/internal/collector/awscloud/services/`.
+directories under `go/internal/collector/cloud/aws/service/`.
