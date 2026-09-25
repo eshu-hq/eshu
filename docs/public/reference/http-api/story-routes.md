@@ -69,6 +69,47 @@ and `GET /api/v0/documentation/findings` keep `findings`, `finding_count`,
 `coverage.source_only_fact_kinds`; `GET /api/v0/documentation/facts` remains
 target-scoped and does not return source-only Confluence rows for the target.
 
+"No structured target refs" means none of `candidate_refs`, `evidence_refs`, or
+`linked_entities` is a non-empty array on the fact; a missing key or a JSON
+`null` counts as no refs. Before #7126 the count treated an absent key as
+unknown and excluded the fact, so it was nonzero only for facts that carried all
+three keys empty. No documentation collector writes those keys on source,
+document, section, or link facts, so the count was always zero and stories
+reported `documentation_target_facts_absent` where external documentation
+existed. This is a user-visible correction: stories now report the real
+`coverage.source_only_count` and `target_link_not_modeled` for those facts.
+The count is an exact statement-snapshot aggregate over facts in the active
+generation of each scope (superseded generations, tombstoned facts, and other
+fact kinds never count). Migration 123 adds a partial index over exactly that
+predicate so the count is index-only.
+
+Performance Evidence: on a disposable postgres:18.6 fixture of 900,000
+`fact_records` rows (100 scopes, three generations each, one active; about
+one third documentation facts, of which 10,000 in the active generations carry
+no refs), the statement dropped from 107.5 ms median (seq/heap scan of every
+active documentation fact, ANY-array kind filter) to 13.2 ms median with the
+partial index (custom plan) and 13.8 ms median forced-generic plan, seven
+interleaved runs with alternating first mover, index 328 kB. The kinds are inlined
+as SQL literals because `fact_kind = ANY($1)` cannot be proven to imply the
+index predicate in a generic plan, and the cached-statement driver may adopt
+one. `TestDocumentationSourceOnlyUsesPartialIndexLive` asserts the index is
+chosen in both plan modes, and `TestDocumentationSourceOnlyIndexMatchesQuery`
+fails if the Go kind list or ref predicate drifts from the migration. The
+ingest cost is one btree entry for a matching row only (documentation facts with
+no refs); other rows evaluate `fact_kind IN (...)` and skip the index.
+
+No-Regression Evidence:
+
+```bash
+cd go && ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=... ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1 \
+  go test ./internal/query -run 'TestDocumentationSourceOnly(CountsFactsWithoutRefKeys|UsesPartialIndex)Live' -count=1
+cd go && go test ./internal/query -run 'Test(DocumentationSourceOnlyIndexMatchesQuery|DocumentationNoStructuredRefsPredicateIsTwoValued|BuildDocumentationSourceOnlySQLStaysAggregateOnly)' -count=1
+```
+
+No-Observability-Change: the read keeps its `count_documentation_source_only_facts`
+span; only the statement text and its index change. No metric, log key, queue,
+worker, or runtime knob changes.
+
 No-Regression Evidence:
 
 ```bash

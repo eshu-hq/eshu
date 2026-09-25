@@ -177,23 +177,69 @@ func TestBuildDocumentationSourceOnlySQLStaysAggregateOnly(t *testing.T) {
 	for _, fragment := range []string{
 		"COUNT(*) AS documentation_source_only_count",
 		"COUNT(*) FILTER (WHERE fact.fact_kind = 'documentation_document') AS documentation_document_fact_count",
-		"fact.fact_kind = ANY($1::text[])",
+		"fact.fact_kind IN ('documentation_source', 'documentation_document', 'documentation_section', 'documentation_link')",
 		"generation.status = 'active'",
-		"fact.scope_id = $2",
-		"fact.payload->>'source_id' = $3",
-		"fact.payload->>'document_id' = $4",
-		"jsonb_array_length",
+		"fact.scope_id = $1",
+		"fact.payload->>'source_id' = $2",
+		"fact.payload->>'document_id' = $3",
+		"COALESCE(jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND fact.payload->'candidate_refs' <> '[]'::jsonb, FALSE)",
 	} {
 		if !strings.Contains(query, fragment) {
 			t.Fatalf("source-only documentation SQL missing fragment %q:\n%s", fragment, query)
 		}
 	}
-	for _, forbidden := range []string{"fact.payload AS", "source_record_id", "ORDER BY", "LIMIT"} {
+	for _, forbidden := range []string{"fact.payload AS", "source_record_id", "ORDER BY", "LIMIT", "ANY($", "jsonb_array_length"} {
 		if strings.Contains(query, forbidden) {
-			t.Fatalf("source-only documentation SQL leaked row-shaped fragment %q:\n%s", forbidden, query)
+			t.Fatalf("source-only documentation SQL leaked fragment %q:\n%s", forbidden, query)
 		}
 	}
-	if len(args) != 4 {
-		t.Fatalf("args len = %d, want fact kind array plus scoped filters", len(args))
+	if len(args) != 3 {
+		t.Fatalf("args len = %d, want the three scoped filters and no fact-kind array", len(args))
+	}
+}
+
+// TestDocumentationSourceOnlyIndexMatchesQuery binds the builder to migration
+// 123. The planner uses the partial index only when it can prove the
+// statement's WHERE implies the index predicate, which needs the same kinds
+// (as literals) and the same no-structured-refs expression. Both are derived
+// from the builder's own helpers, never hand-copied, so drift in either the Go
+// list or the migration fails here instead of silently falling back to the
+// heap scan the index replaces.
+func TestDocumentationSourceOnlyIndexMatchesQuery(t *testing.T) {
+	t.Parallel()
+
+	migration := migrationSQLByName(t, "fact_records_documentation_source_only_idx")
+	for name, fragment := range map[string]string{
+		"kind list":      "fact_kind IN (" + documentationSourceOnlyKindLiterals() + ")",
+		"no-refs clause": documentationNoStructuredRefsPredicate("payload"),
+		"tombstone":      "is_tombstone = FALSE",
+	} {
+		if !strings.Contains(normalizeSQLWhitespace(migration), normalizeSQLWhitespace(fragment)) {
+			t.Fatalf("migration 123 does not carry the query's %s %q:\n%s", name, fragment, migration)
+		}
+	}
+	query, _ := buildDocumentationSourceOnlySQL(documentationFindingFilter{ScopeID: "s"})
+	for _, fragment := range []string{
+		"fact.fact_kind IN (" + documentationSourceOnlyKindLiterals() + ")",
+		documentationNoStructuredRefsPredicate("fact.payload"),
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("source-only SQL missing %q:\n%s", fragment, query)
+		}
+	}
+}
+
+// TestDocumentationNoStructuredRefsPredicateIsTwoValued pins the #7126
+// accuracy fix at the text level: every ref key is wrapped so an absent key
+// cannot turn the NOT into SQL NULL.
+func TestDocumentationNoStructuredRefsPredicateIsTwoValued(t *testing.T) {
+	t.Parallel()
+
+	got := documentationNoStructuredRefsPredicate("p")
+	for _, key := range []string{"candidate_refs", "evidence_refs", "linked_entities"} {
+		want := "COALESCE(jsonb_typeof(p->'" + key + "') = 'array' AND p->'" + key + "' <> '[]'::jsonb, FALSE)"
+		if !strings.Contains(got, want) {
+			t.Fatalf("predicate missing two-valued clause for %s:\n%s", key, got)
+		}
 	}
 }

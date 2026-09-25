@@ -233,6 +233,12 @@ func explainTargetFacts(t *testing.T, ctx context.Context, db *sql.DB, query str
 	if err := db.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query, args...).Scan(&raw); err != nil {
 		t.Fatalf("explain target facts: %v", err)
 	}
+	return parseTargetFactsPlan(t, raw)
+}
+
+// parseTargetFactsPlan decodes an EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) result.
+func parseTargetFactsPlan(t *testing.T, raw []byte) targetFactsPlan {
+	t.Helper()
 	var docs []struct {
 		Plan map[string]any `json:"Plan"`
 	}
