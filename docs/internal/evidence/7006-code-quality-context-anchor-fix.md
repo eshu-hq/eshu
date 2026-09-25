@@ -229,12 +229,11 @@ regardless of `OPTIONAL`. Wave 3 therefore read `repo_id` from the node's own
 shape lost `repo_id`/`repo_name` wherever the nodes carry no `repo_id`
 property and was reverted to the pre-fix Repository hop.
 
-Performance Evidence (clean, uncontended measurements): the final shape
-(single-label anchor + two independent single-hop `OPTIONAL MATCH`es, no
-chaining) resolved a real `Function` id in 0.14s (correct file_path,
-language, line span, repo_id) and a real `Repository` id in 0.37s (correct
-own `CONTAINS` relationships). Both are new lows for this route; no case
-observed above 0.4s once the chained-hop pattern was removed.
+Performance Evidence (Wave 3 shape, not shipped after Wave 5; measured
+before Wave 5): the Wave 3 statement (single-label anchor + two single-hop
+`OPTIONAL MATCH`es, `repo_id` from the node property, no `repo_name`)
+resolved a real `Function` id in 0.14s and a `Repository` id in 0.37s. Not
+re-measured for the shipped shape.
 
 No-Observability-Change: unchanged from the original entry above; the
 handler keeps the same `GraphQuery.RunSingle` adapter and query-duration
@@ -478,11 +477,15 @@ shape, which Wave 5 reverted; an absent id returns no row on both. One repo firs
 drift, byte-identical on a back-to-back re-run.
 
 Reading: nothing timed out before the fix on Neo4j (scope stated in the
-intro). `infra/relationships` improves about 10x to several hundred x in
-server time (0.78s to 1-74ms), `get_entity_context` about 1.2x-2x (its first
-label is still a 445,784-node `NodeByLabelScan` because Neo4j indexes
-`Function.uid`, not `Function.id`; the `uid` anchor is follow-up #7089), and
-complexity/inspect not at all.
+intro). `infra/relationships` first-hit reads improve about 10x to several
+hundred x in server time (0.78s to 0-59ms, measured at `bee2ff4a14`; that
+statement is unchanged since). Another label or a miss now costs the
+fast-path reads plus the pre-fix unlabeled statement (776-783 ms), slower
+than pre-fix. `get_entity_context` has no valid after figure: the 1.2x-2x
+measured the Wave 3 shape, replaced in Wave 5 and not re-measured. Its first
+label is still a 445,784-node `NodeByLabelScan` (Neo4j indexes `Function.uid`,
+not `Function.id`; the `uid` anchor is follow-up #7089). Complexity/inspect
+show no change.
 
 No-Observability-Change: this section adds measurement only; no code, metric,
 span, or log field changed.
