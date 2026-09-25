@@ -21,8 +21,12 @@ three small owner statements.
 | `TerraformStateResource` | a `TerraformResource` with a granted `repo_id` `MATCHES_STATE` it (statement) |
 | anything else | never (deny by default) |
 
-A path is kept only when every node on it is owned. An anchor that is not
-owned renders as unknown. An empty grant issues no graph call.
+A path is kept only when every node on it is owned. A scoped caller's anchor
+identifier resolves to its candidates (every node carrying the id or name, up
+to `deployment.ImpactAnchorCandidateLimit`, in id order); one `Check` judges
+them and the first owned candidate is the anchor, so a name another tenant
+shares cannot shadow the caller's node. When no candidate is owned the anchor
+renders as unknown. An empty grant issues no graph call.
 
 ## Statements and budget
 

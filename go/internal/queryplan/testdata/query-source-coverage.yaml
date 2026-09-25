@@ -323,14 +323,15 @@ source_coverage:
           max_results: 1200
   - file: impact/handler.go
     calls:
-      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 948e328ea6a8853238483dc7c670fd3dd0963315138bb81bd565d7acba9dc6c8, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
-      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: b35c7a45ceacf19f2dd28945b04baa7f84be6089fbdf93b93fe70ed4a160fb6d, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 81d1320d57b301aacb094e27207486ee698bc9bbdf4bbad95ddd29c000d36731, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
+      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: d8468e66a11f2a41ee8f900b78349d17001e750500f5cd8ead8b1dbd56f6a6ff, key_bound: single_key, max_results: 201}}
   - file: impact/ownership/checker.go
     calls:
       - {symbol: "(Checker).runClass", count: 1, non_hot: {class: keyed_support, source_sha256: 0feb627d627d2941349a7851a8511e78dfd4c5ba6e06e7e1c4bdc2a3fd97d15c, key_bound: bounded_key_batch, max_keys: 50, max_results: 800}}
   - file: impact/deployment/impact_anchor_resolve.go
     calls:
       - {symbol: "ResolveImpactAnchorNode", count: 1, non_hot: {class: keyed_support, source_sha256: 781b2c1810d712f7618bc2b7d3b95329f7ad236232a9397c3c8fe2c29625a00d, key_bound: single_key, max_results: 1}}
+      - {symbol: "ResolveImpactAnchorCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 1fad841416b858c3d1830a147bd7cc535c64ee5df9cd3a25ef3609a9cc5f9202, key_bound: single_key, max_results: 32}}
   - file: impact/blast_radius.go
     calls:
       - symbol: "(*Handler).blastRadiusAffected"

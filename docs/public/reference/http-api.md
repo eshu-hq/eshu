@@ -192,6 +192,11 @@ page rather than as one query predicate (#5167):
 - An ungranted start, source, or endpoint renders exactly as an unknown one and
   runs no traversal. An empty grant returns the empty answer without a graph
   read.
+- A start, source, or endpoint given by name resolves, for a scoped caller, to
+  the first node carrying that id or name that the grant owns, in id order
+  among up to 32 matches. A name another tenant also uses therefore cannot
+  hide the caller's own node, and a name only other tenants use still renders
+  as unknown. Unscoped callers keep the first match.
 - `truncated` (`coverage.truncated` on the exposure route) is computed from the
   raw row count before the filter, so a scoped page can hold fewer than `limit`
   paths. It is also true when the page held more nodes to check than the

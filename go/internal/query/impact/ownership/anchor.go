@@ -32,34 +32,46 @@ func FromIdentities(identities []deployment.ImpactNodeIdentity) []Node {
 	return out
 }
 
-// ResolveAnchor runs resolve and, for a scoped caller, returns the anchor only
-// when the grant owns it. An ungranted anchor is returned as nil, the same
-// value an unknown anchor resolves to, so the caller renders both identically
-// and issues no traversal. An empty grant returns nil without calling resolve,
-// so it makes no graph call at all. An unscoped caller is returned whatever
-// resolve returns.
+// ResolveAnchor resolves an impact anchor for access. An unscoped caller gets
+// whatever resolve returns. An empty grant returns nil without a graph call.
+// A scoped caller's identifier is resolved by candidates (every node carrying
+// it, bounded and in a deterministic order); all candidates are judged by one
+// Check and the first one the grant owns is the anchor, so a name another
+// tenant shares cannot shadow the caller's own node. When no candidate is
+// owned the result is nil, the same value an unknown anchor resolves to, so
+// the caller renders both identically and issues no traversal.
 func (c Checker) ResolveAnchor(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	resolve func() (*deployment.ResolvedImpactAnchor, error),
+	candidates func() ([]deployment.ResolvedImpactAnchor, error),
 ) (*deployment.ResolvedImpactAnchor, error) {
 	if access.Empty() {
 		return nil, nil
 	}
-	anchor, err := resolve()
-	if err != nil || anchor == nil || !access.Scoped() {
-		return anchor, err
+	if !access.Scoped() {
+		return resolve()
 	}
-	node := FromAnchor(anchor)
-	verdict, err := c.Check(ctx, access, []Node{node})
+	found, err := candidates()
+	if err != nil || len(found) == 0 {
+		return nil, err
+	}
+	nodes := make([]Node, 0, len(found))
+	for i := range found {
+		nodes = append(nodes, FromAnchor(&found[i]))
+	}
+	verdict, err := c.Check(ctx, access, nodes)
 	if err != nil {
 		return nil, err
 	}
-	if !verdict.Admits(node) {
-		RecordWithheld(ctx, c.Instruments, c.Route, ReasonAnchorUngranted, 1)
-		return nil, nil
+	for i, node := range nodes {
+		if verdict.Admits(node) {
+			anchor := found[i]
+			return &anchor, nil
+		}
 	}
-	return anchor, nil
+	RecordWithheld(ctx, c.Instruments, c.Route, ReasonAnchorUngranted, 1)
+	return nil, nil
 }
 
 // FilterRows keeps the rows of one bounded page whose every path node the

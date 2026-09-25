@@ -6,6 +6,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -77,6 +78,12 @@ type ImpactNodeIdentity struct {
 // identifiers such as a repository name, not the hashed canonical id. Only the
 // branch whose label and property the node actually carries returns a row.
 func impactAnchorResolveCypher(idParam string) string {
+	return impactAnchorResolveUnion(idParam) + "\nRETURN label, id, name, labels, uid, repo_id\nLIMIT 1"
+}
+
+// impactAnchorResolveUnion is the per-label id-or-name CALL{UNION} both
+// anchor resolvers wrap.
+func impactAnchorResolveUnion(idParam string) string {
 	branches := make([]string, 0, len(impactAnchorLabels)*2)
 	for _, label := range impactAnchorLabels {
 		for _, prop := range []string{"id", "name"} {
@@ -85,7 +92,21 @@ func impactAnchorResolveCypher(idParam string) string {
 				label, prop, idParam, label))
 		}
 	}
-	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}\nRETURN label, id, name, labels, uid, repo_id\nLIMIT 1"
+	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}"
+}
+
+// ImpactAnchorCandidateLimit caps the anchor candidates a scoped caller's
+// identifier resolves to (#5167). A name several tenants share resolves to
+// every carrier, and the scoped reader keeps the first one the grant owns;
+// the cap bounds that set, and the (id, label) order keeps it deterministic.
+const ImpactAnchorCandidateLimit = 32
+
+// impactAnchorCandidatesCypher is the scoped-caller form of
+// impactAnchorResolveCypher: the same union, ordered by (id, label) on the
+// RETURN clause and capped at $candidate_limit instead of LIMIT 1.
+func impactAnchorCandidatesCypher(idParam string) string {
+	return impactAnchorResolveUnion(idParam) +
+		"\nRETURN label, id, name, labels, uid, repo_id\nORDER BY id, label\nLIMIT $candidate_limit"
 }
 
 // ImpactRepoPathCypher is the trace-resource-to-code traversal from a resolved
@@ -142,6 +163,54 @@ func ResolveImpactAnchorNode(ctx context.Context, reader querycontract.GraphQuer
 		UID:    querycontract.StringVal(row, "uid"),
 		RepoID: querycontract.StringVal(row, "repo_id"),
 	}, nil
+}
+
+// ResolveImpactAnchorCandidates resolves an identifier (id or name) to every
+// anchor-label node carrying it, up to ImpactAnchorCandidateLimit, sorted by
+// (id, label) and deduplicated by id (a multi-label node matches one branch
+// per label; its first label in that order is kept). A scoped reader judges
+// the candidates against the caller's grant and anchors on the first one the
+// grant owns, so a name another tenant also uses cannot shadow the caller's
+// own node (#5167). It returns nil when nothing carries the identifier.
+func ResolveImpactAnchorCandidates(ctx context.Context, reader querycontract.GraphQuery, idParam, id string) ([]ResolvedImpactAnchor, error) {
+	rows, err := reader.Run(ctx, impactAnchorCandidatesCypher(idParam), map[string]any{
+		idParam: id, "candidate_limit": ImpactAnchorCandidateLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]ResolvedImpactAnchor, 0, len(rows))
+	for _, row := range rows {
+		label := querycontract.StringVal(row, "label")
+		if label == "" {
+			continue
+		}
+		candidates = append(candidates, ResolvedImpactAnchor{
+			ID:     querycontract.StringVal(row, "id"),
+			Name:   querycontract.StringVal(row, "name"),
+			Label:  label,
+			Labels: querycontract.StringSliceVal(row, "labels"),
+			UID:    querycontract.StringVal(row, "uid"),
+			RepoID: querycontract.StringVal(row, "repo_id"),
+		})
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].ID != candidates[j].ID {
+			return candidates[i].ID < candidates[j].ID
+		}
+		return candidates[i].Label < candidates[j].Label
+	})
+	out := make([]ResolvedImpactAnchor, 0, len(candidates))
+	for _, candidate := range candidates {
+		if len(out) > 0 && out[len(out)-1].ID == candidate.ID {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 // ImpactTraceHops builds the trace-resource-to-code hop provenance ({type,

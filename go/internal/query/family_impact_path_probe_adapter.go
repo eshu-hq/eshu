@@ -36,6 +36,15 @@ func (impactPathProbeBackend) ResolveAnchor(
 	return deployment.ResolveImpactAnchorNode(ctx, reader, idParam, id)
 }
 
+// ResolveAnchorCandidates implements impact.PathProbeBackend.
+func (impactPathProbeBackend) ResolveAnchorCandidates(
+	ctx context.Context,
+	reader querycontract.GraphQuery,
+	idParam, id string,
+) ([]deployment.ResolvedImpactAnchor, error) {
+	return deployment.ResolveImpactAnchorCandidates(ctx, reader, idParam, id)
+}
+
 // TraceHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) TraceHops(relsRaw any) []map[string]any {
 	return deployment.ImpactTraceHops(impactRelProvenanceList(relsRaw))

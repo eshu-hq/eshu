@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
@@ -134,6 +135,28 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 // route, sharing the handler's graph port and telemetry.
 func (h *Handler) ownershipChecker(route string) ownership.Checker {
 	return ownership.Checker{Graph: h.Neo4j, Instruments: h.Instruments, Logger: h.Logger, Route: route}
+}
+
+// resolveAnchor resolves one impact path-route anchor (id or name) through the
+// #5167 ownership check. An unscoped caller gets the single-row resolve
+// unchanged; a scoped caller's identifier resolves to its bounded candidate
+// set and the anchor is the first candidate the grant owns, so a name another
+// tenant shares cannot shadow the caller's own node. An identifier whose
+// every candidate is ungranted resolves to nil, exactly like an unknown one.
+func (h *Handler) resolveAnchor(
+	ctx context.Context,
+	checker ownership.Checker,
+	access querycontract.RepositoryAccessFilter,
+	idParam, id string,
+) (*deployment.ResolvedImpactAnchor, error) {
+	return checker.ResolveAnchor(ctx, access,
+		func() (*deployment.ResolvedImpactAnchor, error) {
+			return h.pathProbe().ResolveAnchor(ctx, h.Neo4j, idParam, id)
+		},
+		func() ([]deployment.ResolvedImpactAnchor, error) {
+			return h.pathProbe().ResolveAnchorCandidates(ctx, h.Neo4j, idParam, id)
+		},
+	)
 }
 
 // clampExposureDepth clamps the requested traversal depth into the bounded range.

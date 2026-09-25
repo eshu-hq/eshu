@@ -21,8 +21,9 @@
 // An empty grant makes no graph call.
 //
 // FilterPaths and FilterRows drop a path whole when any node on it is not
-// admitted; ResolveAnchor turns an ungranted anchor into the same nil an
-// unknown anchor resolves to. Withheld paths and ownership statement latency
+// admitted; ResolveAnchor anchors a scoped caller on the first candidate
+// node its grant owns and turns an identifier with no owned candidate into
+// the same nil an unknown anchor resolves to. Withheld paths and ownership statement latency
 // are exported as eshu_dp_query_impact_scoped_paths_withheld_total and
 // eshu_dp_query_impact_ownership_check_duration_seconds.
 package ownership

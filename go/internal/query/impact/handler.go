@@ -151,6 +151,13 @@ type PathProbeBackend interface {
 		reader querycontract.GraphQuery,
 		idParam, id string,
 	) (*deployment.ResolvedImpactAnchor, error)
+	// ResolveAnchorCandidates resolves an id or name to every anchor-label
+	// node carrying it (bounded, deterministic order), for a scoped caller.
+	ResolveAnchorCandidates(
+		ctx context.Context,
+		reader querycontract.GraphQuery,
+		idParam, id string,
+	) ([]deployment.ResolvedImpactAnchor, error)
 	// TraceHops builds trace-resource-to-code hop provenance from a raw
 	// relationships(path) value.
 	TraceHops(relsRaw any) []map[string]any
@@ -248,9 +255,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 	// A scoped caller's anchor must be owned by its grant, or it renders
 	// exactly like an unknown anchor with no traversal (#5167); an empty grant
 	// resolves nothing and makes no graph call.
-	start, err := checker.ResolveAnchor(r.Context(), access, func() (*deployment.ResolvedImpactAnchor, error) {
-		return h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "start_id", req.Start)
-	})
+	start, err := h.resolveAnchor(r.Context(), checker, access, "start_id", req.Start)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
 			return
@@ -368,9 +373,7 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
 	// A scoped caller's endpoints must both be owned by its grant before any
 	// shortestPath runs; otherwise both render the unknown-endpoint 404 (#5167).
-	sourceNode, err := checker.ResolveAnchor(r.Context(), access, func() (*deployment.ResolvedImpactAnchor, error) {
-		return h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "source_id", req.Source)
-	})
+	sourceNode, err := h.resolveAnchor(r.Context(), checker, access, "source_id", req.Source)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
@@ -380,9 +383,7 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	}
 	var targetNode *deployment.ResolvedImpactAnchor
 	if sourceNode != nil {
-		targetNode, err = checker.ResolveAnchor(r.Context(), access, func() (*deployment.ResolvedImpactAnchor, error) {
-			return h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "target_id", req.Target)
-		})
+		targetNode, err = h.resolveAnchor(r.Context(), checker, access, "target_id", req.Target)
 	}
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {

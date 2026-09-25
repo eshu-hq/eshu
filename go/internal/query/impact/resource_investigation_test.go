@@ -33,6 +33,10 @@ func (stubImpactPathProbe) ResolveAnchor(context.Context, querycontract.GraphQue
 	return nil, nil
 }
 
+func (stubImpactPathProbe) ResolveAnchorCandidates(context.Context, querycontract.GraphQuery, string, string) ([]deployment.ResolvedImpactAnchor, error) {
+	return nil, nil
+}
+
 func (stubImpactPathProbe) TraceHops(any) []map[string]any { return []map[string]any{} }
 
 func (stubImpactPathProbe) DependencyHops(_, _ any) []map[string]any {
