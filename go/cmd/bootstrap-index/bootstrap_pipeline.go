@@ -356,7 +356,7 @@ func drainProjectorPipelined(
 	logger *slog.Logger,
 ) error {
 	const maxEmptyPolls = 5
-	const pollInterval = 500 * time.Millisecond
+	const pollInterval = claimConflictWait
 
 	// Use a draining work source wrapper that counts consecutive empty polls
 	// and exits cleanly when the collector is done and queue is drained.

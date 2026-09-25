@@ -194,9 +194,9 @@ func drainProjectorWorkItem(
 ) error {
 	// Claim
 	claimStart := time.Now()
-	work, ok, err := workSource.Claim(ctx)
+	work, ok, err := claimProjectorWork(ctx, workSource, workerID, logger)
 	if err != nil {
-		return fmt.Errorf("bootstrap projector claim (worker %d): %w", workerID, err)
+		return err
 	}
 	if instruments != nil {
 		instruments.QueueClaimDuration.Record(ctx, time.Since(claimStart).Seconds(), metric.WithAttributes(

@@ -126,6 +126,9 @@ func buildBootstrapProjector(
 	projectorQueue.RetryDelay, projectorQueue.MaxAttempts = projectorRetryPolicy.RetryDelay, projectorRetryPolicy.MaxAttempts
 	projectorQueue.MaxRetryDelay = projectorRetryPolicy.MaxRetryDelay
 	projectorQueue.JitterFraction = projectorRetryPolicy.JitterFraction
+	// The queue owns the claim-conflict retry counter; without instruments a
+	// bootstrap claim conflict is invisible to operators (#7122).
+	projectorQueue.Instruments = instruments
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
