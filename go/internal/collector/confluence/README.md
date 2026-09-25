@@ -44,7 +44,10 @@ Transport failures record `failure_class=transport_error` and carry no
 `consecutive_transport_failures`. After `sdk.MaxConsecutiveTransportFailures`
 (20) transport failures in a row with no success or status-class retry between
 them, the failure is returned as fatal (`source_read`), so a wrong host or port
-crash-loops instead of idling; 429 and 503 retries stay unbounded. A 200
+crash-loops instead of idling. With the 1-second base and 1-minute cap on the
+backoff, the 19 waits add up to about 14 minutes (up to about 18 with jitter)
+of wall clock before the exit. 429 and 503
+retries stay unbounded. A 200
 response with an empty body is a content error, not a transport error, and is
 fatal on the first read. The source records
 a bounded sync-failure class, honors `Retry-After` when Confluence supplies it,
