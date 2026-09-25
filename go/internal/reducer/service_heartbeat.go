@@ -91,27 +91,37 @@ func (s Service) startHeartbeat(
 		ticker := time.NewTicker(s.HeartbeatInterval)
 		defer ticker.Stop()
 
-		var heartbeatErr error
 		for {
 			select {
 			case <-heartbeatCtx.Done():
-				done <- heartbeatErr
+				done <- nil
 				return
 			case <-ticker.C:
-				if err := s.Heartbeater.Heartbeat(heartbeatCtx, intent); err != nil {
-					if stopping.Load() && errors.Is(err, context.Canceled) {
-						// The handler already finished and stop cancelled the
-						// in-flight renewal UPDATE. The lease is fenced by the
-						// ack, so drop the self-inflicted error; reporting it
-						// would fail a successful item and stop the process.
-						s.logReducerHeartbeatStopRace(heartbeatCtx, intent, workerID)
-						done <- nil
-						return
-					}
-					heartbeatErr = fmt.Errorf("heartbeat reducer work: %w", err)
-					s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
-					cancel()
+				err := s.Heartbeater.Heartbeat(heartbeatCtx, intent)
+				if err == nil {
+					continue
 				}
+				if stopping.Load() && errors.Is(err, context.Canceled) {
+					// The handler already finished and stop cancelled the
+					// in-flight renewal UPDATE. The lease is fenced by the
+					// ack, so drop the self-inflicted error; reporting it
+					// would fail a successful item and stop the process.
+					s.logReducerHeartbeatStopRace(heartbeatCtx, intent, workerID)
+					done <- nil
+					return
+				}
+				// The first real failure ends the loop. Cancelling heartbeatCtx
+				// makes ctx.Done ready, but a queued ticker.C can still win the
+				// next select; a follow-up tick would then run on the cancelled
+				// context and either be forgiven by the stop guard above or
+				// overwrite this error with context canceled, erasing the real
+				// cause. Returning here makes the first failure the only one
+				// that can be reported.
+				heartbeatErr := fmt.Errorf("heartbeat reducer work: %w", err)
+				s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
+				cancel()
+				done <- heartbeatErr
+				return
 			}
 		}
 	}()

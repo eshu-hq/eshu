@@ -42,6 +42,42 @@ What still surfaces, each pinned by a test:
   the projector's `heartbeatCtx.Err() != nil` form makes that test fail, so the
   distinction between self-stop and parent cancel is exercised, not assumed.
 - The immediate pre-heartbeat failure path is unchanged.
+- A real tick failure is never cleared or replaced (round 2, below): the first
+  real failure ends the tick loop.
+
+## Round 2: a recorded real failure cannot be erased (review finding F1)
+
+Hazard: tick N fails for a real reason, so the goroutine records the error and
+calls `cancel()`. If the ticker channel already holds a queued tick (tick N took
+at least `HeartbeatInterval` to fail), the next `select` sees both `ctx.Done`
+and `ticker.C` ready and Go picks between them at random. Picking `ticker.C`
+ran tick N+1 on the cancelled context. Once `stop` had set `stopping`, the
+guard then did `done <- nil` and dropped the real failure; before `stopping`
+was set, the follow-up tick's `context canceled` overwrote it. Either way
+`stop()` returned nil or a bare `context canceled`, and an item with a real
+heartbeat failure on record could be acked.
+
+Fix: on the first real tick failure the goroutine records it, cancels, sends it
+on `done` and returns. No follow-up tick can run, so nothing can clear or
+replace the failure. Chosen over "first error wins" bookkeeping or a guard that
+checks for a prior error because it removes the interleaving instead of
+handling it, needs no extra state, and cannot change the healthy path. The
+`ctx.Done` branch now sends nil, which is the same value it carried before: the
+only writer of the old `heartbeatErr` was the tick branch that now returns.
+Parent cancellation with no earlier failure still surfaces through the tick
+that observes it (`TestStartHeartbeatSurfacesParentCancelledTick`).
+
+Regression test:
+`TestStartHeartbeatKeepsRealFailureWhenStopCancelsFollowUpTick`
+(`service_heartbeat_first_failure_test.go`). The fake makes tick 2 outlast the
+interval so a tick is queued when it fails, then answers later calls with
+`context.Canceled`. The select choice is random, so each iteration hits the bug
+about half the time; 64 iterations make a miss a 2^-64 event. On the round-1
+head it failed 10 of 10 invocations, for example `iteration 3: stop() error =
+heartbeat reducer work: context canceled, want the recorded real failure
+reducer claim rejected`. With the fix it passed 20 of 20 invocations of the
+heartbeat test set, and restoring the round-1 `service_heartbeat.go` makes it
+fail again.
 
 The ack itself remains the lease fence: `ReducerQueue.Ack` updates by intent
 id, lease owner and claimed-at and returns `ErrReducerClaimRejected` when it
