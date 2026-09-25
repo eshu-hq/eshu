@@ -56,7 +56,7 @@ var neo4jRetiredConstraintPathIndexes = []string{
 // Neo4j uniqueness constraints.
 func isNeo4jRetiredConstraint(cypher string) bool {
 	fields := strings.Fields(cypher)
-	if len(fields) < 3 || fields[0] != "CREATE" || fields[1] != "CONSTRAINT" {
+	if len(fields) < 3 || !strings.EqualFold(fields[0], "CREATE") || !strings.EqualFold(fields[1], "CONSTRAINT") {
 		return false
 	}
 	for _, name := range neo4jRetiredUniqueConstraints {

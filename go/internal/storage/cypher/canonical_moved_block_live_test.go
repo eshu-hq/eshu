@@ -21,7 +21,10 @@ type movedBlockCase struct {
 
 var movedBlockCases = []movedBlockCase{
 	{label: "TerraformModule", name: "mws_parameter_cloudwatch", relPath: "shared/resources.tf"},
+	{label: "HelmChart", name: "mws_parameter_cloudwatch", relPath: "chart/Chart.yaml"},
 	{label: "HelmValues", name: "values", relPath: "chart/values.yaml"},
+	{label: "KustomizeOverlay", name: "overlay", relPath: "overlays/prod/kustomization.yaml"},
+	{label: "TerragruntConfig", name: "config", relPath: "live/prod/terragrunt.hcl"},
 }
 
 func (c movedBlockCase) repoID() string   { return "repository:r_7095_" + strings.ToLower(c.label) }
