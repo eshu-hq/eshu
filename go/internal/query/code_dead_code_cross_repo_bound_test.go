@@ -292,13 +292,7 @@ func crossRepoDeadCodeConsumerPageIndexKeyColumns(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("read the shipped page-rank index migration: %v", err)
 	}
-	statement := ""
-	for _, line := range strings.Split(string(migration), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "--") {
-			continue
-		}
-		statement += " " + line
-	}
+	statement := stripSQLComments(string(migration))
 	_, after, found := strings.Cut(statement, "ON code_reachability_rows (")
 	if !found {
 		t.Fatalf("migration 103 does not index code_reachability_rows:\n%s", statement)
