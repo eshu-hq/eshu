@@ -459,7 +459,7 @@ canonical graph nodes, sharing queue-depth and claim-wait surfaces with the redu
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
-| queue claim | go/internal/projector/service.go:115 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth` | projector runtime |
+| queue claim | go/internal/projector/service.go | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_queue_claim_conflict_retries_total` (#7108: `ProjectorQueue.Claim` retries 40P01/40001 by `failure_class`; a worker that gets `ErrWorkClaimConflict` logs `failure_class=projector_claim_conflict` and polls again), `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth` | projector runtime |
 | projector run | go/internal/projector/service_logging.go:41 | `eshu_dp_projector_run_duration_seconds`, `eshu_dp_projector_stage_duration_seconds`, `eshu_dp_canonical_writes_total` | projector runtime |
 | projection completion | go/internal/projector/service_logging.go:44 | `eshu_dp_projections_completed_total` | projector runtime |
 | fact commit | go/internal/collector/repo/git/source_processing.go | `eshu_dp_fact_emit_duration_seconds`, `eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, `eshu_dp_generation_fact_count` | projector fact commit |

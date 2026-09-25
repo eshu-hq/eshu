@@ -19,3 +19,9 @@ var ErrWorkClaimLost = errors.New("projector work claim lost")
 // while streaming facts. Ack changed nothing and the attempt still owns the
 // work item, so the caller renews the lease and retries the Ack.
 var ErrWorkAckDeferred = errors.New("projector work ack deferred: scope busy")
+
+// ErrWorkClaimConflict reports that a claim statement lost a transient
+// database lock conflict (deadlock or serialization failure) on every bounded
+// retry. The statement rolled back, so no work item changed; the worker waits
+// one poll interval and claims again instead of stopping its siblings.
+var ErrWorkClaimConflict = errors.New("projector work claim conflict")

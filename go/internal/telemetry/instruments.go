@@ -1318,6 +1318,13 @@ type Instruments struct {
 	QueueClaimDuration                   metric.Float64Histogram
 	PostgresQueryDuration                metric.Float64Histogram
 	Neo4jQueryDuration                   metric.Float64Histogram
+
+	// QueueClaimConflictRetries counts claim statements that lost a transient
+	// database lock conflict and were retried by the storage layer, labeled
+	// by queue and failure_class (deadlock or serialization_failure). A
+	// rising rate means claimers contend on shared rows (#7108).
+	QueueClaimConflictRetries metric.Int64Counter
+
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
 	// one of the four handler-wide relationship source-tool breakdown permits.
 	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the
@@ -4275,6 +4282,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueueClaimDuration histogram: %w", err)
+	}
+
+	inst.QueueClaimConflictRetries, err = meter.Int64Counter(
+		"eshu_dp_queue_claim_conflict_retries_total",
+		metric.WithDescription("Queue claim statements retried after a transient deadlock or serialization failure"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueueClaimConflictRetries counter: %w", err)
 	}
 
 	postgresBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}

@@ -140,8 +140,8 @@ high-cardinality repositories running at once.
 - `ClassifyFailure(err, stage)` — maps a projection error to a
   `FailureClassification`; understands Neo4j transient codes, context
   cancellation, network errors, and sentinel error types
-- `ErrWorkSuperseded`, `ErrWorkClaimLost` — sentinels: a newer same-scope
-  generation made the claim obsolete, or another attempt now owns the item
+- `ErrWorkSuperseded`, `ErrWorkClaimLost`, `ErrWorkClaimConflict` — sentinels:
+  work is obsolete, owned elsewhere, or its claim lost a transient DB conflict
 - `StageError`, `InputValidationError`, `ResourceExhaustedError` — typed errors
   the classifier recognizes
 - `EntityTypeLabel(entityType)` — maps content-store entity type strings (e.g.

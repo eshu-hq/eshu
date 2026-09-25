@@ -16,6 +16,35 @@ WITH source_scoped_projector_work AS (
           OR candidate_scope.source_system = $4
       )
 ),
+-- Every maintenance branch locks its rows first with SKIP LOCKED and then
+-- updates only the rows it locked (#7108). A blocking multi-row UPDATE here
+-- let concurrent claimers lock the same stale rows in different orders and
+-- deadlock (40P01). With every row lock non-blocking, the claim statement
+-- never waits on a row lock, so it cannot join a wait cycle. The locking
+-- SELECT repeats each row-self predicate so the EvalPlanQual recheck drops a
+-- row another transaction changed after this statement's snapshot. NO KEY
+-- UPDATE matches the lock the UPDATE takes and stays compatible with the
+-- KEY SHARE locks that foreign-key inserts hold on scope_generations.
+locked_stale_projector_duplicates AS (
+    SELECT stale.work_item_id
+    FROM fact_work_items AS stale
+    JOIN source_scoped_projector_work AS scoped
+      ON scoped.work_item_id = stale.work_item_id
+    WHERE stale.stage = 'projector'
+      AND stale.status IN ('claimed', 'running')
+      AND stale.claim_until <= $1
+      AND EXISTS (
+          SELECT 1
+          FROM fact_work_items AS live
+          WHERE live.stage = 'projector'
+            AND live.scope_id = stale.scope_id
+            AND live.work_item_id <> stale.work_item_id
+            AND live.status IN ('claimed', 'running')
+            AND live.claim_until > $1
+      )
+    ORDER BY stale.work_item_id
+    FOR NO KEY UPDATE OF stale SKIP LOCKED
+),
 reclaimed_stale_projector_duplicates AS (
     UPDATE fact_work_items AS stale
     SET status = 'retrying',
@@ -30,41 +59,28 @@ reclaimed_stale_projector_duplicates AS (
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id
         )
-    FROM source_scoped_projector_work AS scoped
-    WHERE stale.work_item_id = scoped.work_item_id
+    FROM locked_stale_projector_duplicates AS locked
+    WHERE stale.work_item_id = locked.work_item_id
       AND stale.stage = 'projector'
       AND stale.status IN ('claimed', 'running')
       AND stale.claim_until <= $1
-      AND EXISTS (
-          SELECT 1
-          FROM fact_work_items AS live
-          WHERE live.stage = 'projector'
-            AND live.scope_id = stale.scope_id
-            AND live.work_item_id <> stale.work_item_id
-            AND live.status IN ('claimed', 'running')
-            AND live.claim_until > $1
-      )
 ),
-superseded_stale_projector_generations AS (
-    UPDATE fact_work_items AS stale
-    SET status = 'superseded',
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = NULL,
-        next_attempt_at = NULL,
-        updated_at = $1,
-        failure_class = 'projector_superseded_by_newer_generation',
-        failure_message = 'projector work superseded by newer same-scope generation',
-        failure_details = jsonb_build_object(
-            'scope_id', stale.scope_id,
-            'work_item_id', stale.work_item_id
-        )
-    FROM scope_generations AS stale_generation,
-         source_scoped_projector_work AS scoped
+-- supersedable_projector_generations is the snapshot view of stale work.
+-- Supersede then locks each generation row and after it the work row, both
+-- non-blocking, and updates only work rows it locked. The candidate never
+-- claims a supersedable row, even one this statement could not lock; the
+-- oldest-ready-row subquery still skips only rows superseded here, so a scope
+-- whose stale row is busy yields no claim instead of a newer generation.
+supersedable_projector_generations AS (
+    SELECT stale.work_item_id,
+           stale_generation.generation_id
+    FROM fact_work_items AS stale
+    JOIN source_scoped_projector_work AS scoped
+      ON scoped.work_item_id = stale.work_item_id
+    JOIN scope_generations AS stale_generation
+      ON stale_generation.generation_id = stale.generation_id
     WHERE stale.stage = 'projector'
-      AND stale.work_item_id = scoped.work_item_id
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-      AND stale_generation.generation_id = stale.generation_id
       AND stale_generation.status IN ('pending', 'failed')
       AND EXISTS (
           SELECT 1
@@ -83,6 +99,44 @@ superseded_stale_projector_generations AS (
                 )
             )
       )
+),
+locked_stale_scope_generations AS (
+    SELECT supersedable.work_item_id
+    FROM scope_generations AS stale_generation
+    JOIN supersedable_projector_generations AS supersedable
+      ON supersedable.generation_id = stale_generation.generation_id
+    WHERE stale_generation.status IN ('pending', 'failed')
+    ORDER BY stale_generation.generation_id
+    FOR NO KEY UPDATE OF stale_generation SKIP LOCKED
+),
+locked_stale_projector_generations AS (
+    SELECT stale.work_item_id
+    FROM fact_work_items AS stale
+    JOIN locked_stale_scope_generations AS locked_generation
+      ON locked_generation.work_item_id = stale.work_item_id
+    WHERE stale.stage = 'projector'
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+    ORDER BY stale.work_item_id
+    FOR NO KEY UPDATE OF stale SKIP LOCKED
+),
+superseded_stale_projector_generations AS (
+    UPDATE fact_work_items AS stale
+    SET status = 'superseded',
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = NULL,
+        next_attempt_at = NULL,
+        updated_at = $1,
+        failure_class = 'projector_superseded_by_newer_generation',
+        failure_message = 'projector work superseded by newer same-scope generation',
+        failure_details = jsonb_build_object(
+            'scope_id', stale.scope_id,
+            'work_item_id', stale.work_item_id
+        )
+    FROM locked_stale_projector_generations AS locked
+    WHERE stale.work_item_id = locked.work_item_id
+      AND stale.stage = 'projector'
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
     RETURNING stale.work_item_id, stale.generation_id
 ),
 superseded_stale_scope_generations AS (
@@ -116,8 +170,8 @@ candidate AS (
       AND (work.claim_until IS NULL OR work.claim_until <= $1)
       AND NOT EXISTS (
           SELECT 1
-          FROM superseded_stale_projector_generations AS superseded
-          WHERE superseded.work_item_id = work.work_item_id
+          FROM supersedable_projector_generations AS supersedable
+          WHERE supersedable.work_item_id = work.work_item_id
       )
       AND NOT EXISTS (
           SELECT 1
@@ -177,6 +231,19 @@ claimed AS (
     WHERE work.work_item_id = candidate.work_item_id
     RETURNING work.work_item_id, work.scope_id, work.generation_id, work.attempt_count
 ),
+locked_claim_siblings AS (
+    SELECT stale.work_item_id,
+           claimed.work_item_id AS claimed_work_item_id
+    FROM fact_work_items AS stale
+    JOIN claimed
+      ON stale.scope_id = claimed.scope_id
+    WHERE stale.stage = 'projector'
+      AND stale.work_item_id <> claimed.work_item_id
+      AND stale.status IN ('claimed', 'running')
+      AND stale.claim_until <= $1
+    ORDER BY stale.work_item_id
+    FOR NO KEY UPDATE OF stale SKIP LOCKED
+),
 reclaimed_claim_siblings AS (
     UPDATE fact_work_items AS stale
     SET status = 'retrying',
@@ -190,12 +257,11 @@ reclaimed_claim_siblings AS (
         failure_details = jsonb_build_object(
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id,
-            'claimed_work_item_id', claimed.work_item_id
+            'claimed_work_item_id', locked.claimed_work_item_id
         )
-    FROM claimed
-    WHERE stale.stage = 'projector'
-      AND stale.scope_id = claimed.scope_id
-      AND stale.work_item_id <> claimed.work_item_id
+    FROM locked_claim_siblings AS locked
+    WHERE stale.work_item_id = locked.work_item_id
+      AND stale.stage = 'projector'
       AND stale.status IN ('claimed', 'running')
       AND stale.claim_until <= $1
 )
