@@ -5,9 +5,11 @@ package cypher
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
@@ -23,19 +25,36 @@ var nornicDBLegacyPathConstraints = []string{
 	"CREATE CONSTRAINT tg_config_unique IF NOT EXISTS FOR (tg:TerragruntConfig) REQUIRE tg.path IS UNIQUE",
 }
 
+// nornicDBConstraintName returns the name a "CREATE CONSTRAINT <name> ..."
+// statement declares.
+func nornicDBConstraintName(t *testing.T, statement string) string {
+	t.Helper()
+	fields := strings.Fields(statement)
+	if len(fields) < 3 || fields[0] != "CREATE" || fields[1] != "CONSTRAINT" {
+		t.Fatalf("cannot derive a constraint name from %q", statement)
+	}
+	return fields[2]
+}
+
 // nornicDBConstraintNames returns the names SHOW CONSTRAINTS reports. It reads
-// the whole listing because NornicDB ignores a YIELD/WHERE clause on SHOW.
+// the whole listing because NornicDB ignores a YIELD/WHERE clause on SHOW. A row
+// without a string name fails the test: skipping it would let an unreadable
+// listing satisfy the absence check vacuously. Each call sends a unique comment
+// because NornicDB answers a repeated identical SHOW CONSTRAINTS from its result
+// cache, which would hand the pre-bootstrap listing back after the drop.
 func nornicDBConstraintNames(ctx context.Context, t *testing.T, runner *boltRetractTestRunner) map[string]struct{} {
 	t.Helper()
-	rows, err := runner.runCypher(ctx, "SHOW CONSTRAINTS", nil)
+	rows, err := runner.runCypher(ctx, fmt.Sprintf("SHOW CONSTRAINTS /* %d */", time.Now().UnixNano()), nil)
 	if err != nil {
 		t.Fatalf("show constraints: %v", err)
 	}
 	names := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		if name, ok := row["name"].(string); ok {
-			names[name] = struct{}{}
+		name, ok := row["name"].(string)
+		if !ok {
+			t.Fatalf("SHOW CONSTRAINTS row has no string name: %v", row)
 		}
+		names[name] = struct{}{}
 	}
 	return names
 }
@@ -67,13 +86,22 @@ func TestLiveNornicDBMovedCanonicalBlockKeepsOneNode(t *testing.T) {
 			t.Fatalf("seed legacy constraint %q: %v", statement, err)
 		}
 	}
+	// Positive control: the absence check below is vacuous unless the seeded
+	// constraints are visible in the listing it reads.
+	seeded := nornicDBConstraintNames(ctx, t, runner)
+	for _, statement := range nornicDBLegacyPathConstraints {
+		name := nornicDBConstraintName(t, statement)
+		if _, ok := seeded[name]; !ok {
+			t.Fatalf("seeded constraint %s not visible in SHOW CONSTRAINTS; cannot prove the bootstrap drops it", name)
+		}
+	}
 	if err := graph.EnsureSchemaWithBackendStrict(ctx, boltSchemaExecutor{runner: runner}, nil, graph.SchemaBackendNornicDB); err != nil {
 		t.Fatalf("apply nornicdb schema: %v", err)
 	}
 	// The bootstrap must drop the legacy constraints on an existing store.
 	names := nornicDBConstraintNames(ctx, t, runner)
 	for _, statement := range nornicDBLegacyPathConstraints {
-		name := strings.Fields(statement)[2]
+		name := nornicDBConstraintName(t, statement)
 		if _, ok := names[name]; ok {
 			t.Errorf("constraint %s still exists after the schema bootstrap; want it dropped", name)
 		}
