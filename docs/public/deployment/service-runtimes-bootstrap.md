@@ -227,7 +227,9 @@ or GitOps workflow.
 
 Existing-schema adoption inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`, then
 fails closed if inspection errors. Unset adoption is opportunistic for NornicDB
-and disabled for Neo4j; truthy values require adoption support. When inspection
+and disabled for Neo4j; truthy values require adoption support. A graph that
+still has an object the schema drops (the retired Neo4j constraints above) is
+not adopted, so the DDL pass runs the drop. When inspection
 finds an incomplete NornicDB schema, bootstrap forwards only missing objects to
 the strict DDL pass. Existing indexes and constraints are skipped before they
 reach the backend, avoiding repeated populated-index backfills during additive
