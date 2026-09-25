@@ -10,8 +10,9 @@ lease, or concurrency change.
 
 - Baseline: `TestBuildBootstrapCollectorPassesLoggerToSelector` fails on the
   unfixed wiring (`selector logger not wired`), proving the selector dropped
-  the bootstrap logger.
-- After: the same test passes; full `go test ./cmd/bootstrap-index/ -count=1`
+  the bootstrap logger; `TestBuildBootstrapCollectorSelectorEmitsSelectionProgress`
+  fails the same way (no shard progress line in empty logs).
+- After: both tests pass; full `go test ./cmd/bootstrap-index/ -count=1`
   passes; `go test ./internal/collector/repo/git/ -run
   TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitHubWorkflows`
   passes; `go vet ./cmd/bootstrap-index/`, `gofumpt`, and `git diff --check`
@@ -34,7 +35,7 @@ lease, or concurrency change.
   collection) is now emitted through the bootstrap logger before the first
   scope commit, letting an operator distinguish slow-but-active repository
   sync from a blocked dependency.
-- Proven by `TestBuildBootstrapCollectorPassesLoggerToSelector`, which asserts
-  the production constructor output carries the bootstrap logger; the emitted
-  log lines themselves are covered by the existing `git` package selection
-  tests. No new metric or span was needed.
+- Proven by `TestBuildBootstrapCollectorSelectorEmitsSelectionProgress`, which
+  runs selection through the bootstrap-wired selector and asserts the
+  shard-selection progress line reaches the bootstrap logs, alongside the
+  wiring-identity test. No new metric or span was needed.
