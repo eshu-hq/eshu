@@ -68,9 +68,13 @@ type schemaDialect struct {
 	includeMergeLookupIndexes bool
 	// includeNeo4jUIDLookupIndexes adds neo4jUIDLookupIndexes (#7057).
 	includeNeo4jUIDLookupIndexes bool
-	// retireNarrowUIDConstraints drops neo4jRetiredUniqueConstraints before
-	// any other statement and adds their path read indexes (#7095).
-	retireNarrowUIDConstraints bool
+	// retiredConstraints names the uniqueness constraints narrower than the
+	// canonical uid identity that this dialect drops (DROP CONSTRAINT ... IF
+	// EXISTS) before any other statement (#7095, #7097).
+	retiredConstraints []string
+	// retiredConstraintPathIndexes are the non-unique path indexes that keep the
+	// reads the retired constraints served. Empty when no read needs one.
+	retiredConstraintPathIndexes []string
 }
 
 func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
@@ -84,7 +88,8 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 			backend:                      normalized,
 			constraint:                   neo4jSchemaConstraint,
 			includeNeo4jUIDLookupIndexes: true,
-			retireNarrowUIDConstraints:   true,
+			retiredConstraints:           neo4jRetiredUniqueConstraints,
+			retiredConstraintPathIndexes: neo4jRetiredConstraintPathIndexes,
 		}, nil
 	case SchemaBackendNornicDB:
 		return schemaDialect{
@@ -92,6 +97,7 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 			constraint:                nornicDBSchemaConstraint,
 			skipFulltextFallback:      true,
 			includeMergeLookupIndexes: true,
+			retiredConstraints:        nornicDBRetiredUniqueConstraints,
 		}, nil
 	}
 	return schemaDialect{}, fmt.Errorf("unsupported schema backend %q", backend)
@@ -116,6 +122,9 @@ func neo4jSchemaConstraint(cypher string) string {
 }
 
 func nornicDBSchemaConstraint(cypher string) string {
+	if isNornicDBRetiredConstraint(cypher) {
+		return ""
+	}
 	if isCompositeUniqueConstraint(cypher) {
 		// NornicDB's current parser accepts NODE KEY but rejects Neo4j's
 		// composite IS UNIQUE form. Do not translate these constraints to

@@ -360,7 +360,8 @@ knob was added.
   `kustomize_unique`, and `tg_config_unique` at bootstrap
   (`schema_retired_constraints.go`) and adds non-unique `path` indexes for the
   three path-keyed labels, which the delta retract seeks.
-  `TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity` guards the rule.
+  `TestUniqueConstraintsDoNotNarrowCanonicalUIDIdentity` guards the rule on both
+  backends.
   A rollback to a release inside the marker's compatible window skips graph
   DDL, so the constraints stay dropped and that release writes against the
   constraint-free schema. The old DDL runs only with
@@ -369,6 +370,19 @@ knob was added.
   first (`IndexAlreadyExists`), and TerraformModule/HelmChart nodes sharing
   `(name, path)` must be resolved first (`ConstraintCreationFailed`), or the
   strict bootstrap stops.
+  NornicDB retires the three single-property constraints (`kustomize_unique`,
+  `helm_values_unique`, `tg_config_unique`; #7097) the same way, through
+  `nornicDBRetiredUniqueConstraints`. It never created the composite forms.
+  Its violation surfaces as `Neo.TransientError.Transaction.Outdated`, so a
+  moved block retried instead of dead-lettering. NornicDB adds no `path`
+  index: the delta retract's `n.path IN $file_paths` filter, combined with
+  the repo, evidence-source and generation predicates, is a label scan on the
+  pinned NornicDB with or without a `path` index or constraint. NornicDB does
+  seek a `path` index for `path = $p` and for `IN` alone (separate review
+  probe), so the retract is a pre-existing gap, not a shape that cannot be
+  anchored
+  (`docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`).
+  Its fingerprint moved and the previous one stays compatible.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.

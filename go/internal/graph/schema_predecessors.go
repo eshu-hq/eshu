@@ -32,6 +32,18 @@ const graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint = "9041fb74aae9f09afe7
 // compatible: it drops constraints and adds three non-unique path indexes, and
 // changes no MERGE or MATCH identity, so a writer on the previous schema writes
 // exactly the same graph against the new one -- and no longer dead-letters a
-// moved block. The change is Neo4j-only (neo4jRetiredUniqueConstraints), so
-// the NornicDB fingerprint does not move and needs no predecessor.
+// moved block. The Neo4j change is Neo4j-only (neo4jRetiredUniqueConstraints);
+// NornicDB's own retirement (#7097) has its predecessor below.
 const graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint = "dc9d1cfb57e5cc89f89f6af0cdd8b39842241badf6856742c4b290dbeb986b74"
+
+// graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint is the NornicDB
+// digest immediately before #7097 retired the single-property uniqueness
+// constraints narrower than the canonical uid identity (kustomize_unique,
+// helm_values_unique, tg_config_unique; the NornicDB tip after #6793). The bump
+// lists it as compatible: it only drops constraints and adds no statement that
+// changes a MERGE or MATCH identity, so a writer on the previous schema writes
+// exactly the same graph against the new one -- and no longer retries a moved
+// block on a UNIQUE violation. It adds no path index, because the retract's
+// path IN $file_paths filter, combined with the repo, evidence-source and
+// generation predicates, does not seek one on NornicDB.
+const graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"

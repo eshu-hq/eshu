@@ -136,6 +136,16 @@ func TestLiveNeo4jMovedCanonicalBlockKeepsOneNode(t *testing.T) {
 	}
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 100, nil)
 
+	runMovedBlockCases(t, runner, writer)
+}
+
+// runMovedBlockCases writes a block for every movedBlockCases label at line 726,
+// then a delta generation that moves it to line 755, and asserts each label is
+// left with exactly the moved node. It is shared by the Neo4j and NornicDB
+// live proofs, which differ only in how they seed and apply the schema.
+func runMovedBlockCases(t *testing.T, runner *boltRetractTestRunner, writer *CanonicalNodeWriter) {
+	t.Helper()
+	ctx := context.Background()
 	for _, c := range movedBlockCases {
 		t.Run(c.label, func(t *testing.T) {
 			cleanup := func() {

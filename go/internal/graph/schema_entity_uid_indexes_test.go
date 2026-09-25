@@ -20,10 +20,11 @@ var unconstrainedUIDIndexStatements = []string{
 
 // TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly pins the indexes to the Neo4j
 // dialect. NornicDB readers never use the Neo4j anchor, and a NornicDB
-// fingerprint bump forces a full schema re-apply on every existing store,
-// which re-backfills every property index (nornicdb-pitfalls.md). So the
-// NornicDB schema must stay byte-identical to the #7063 base: its fingerprint
-// is the base value f957752d, which digests the ordered statements.
+// fingerprint bump forces a schema re-apply on every existing store
+// (nornicdb-pitfalls.md), so a NornicDB statement needs a reason of its own.
+// The NornicDB fingerprint did move once since, for the #7097 constraint
+// retirement (TestSchemaApplicationsDeclareCompatibilityDecision pins it), but
+// that adds no statement listed here.
 func TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly(t *testing.T) {
 	t.Parallel()
 
@@ -42,15 +43,6 @@ func TestSchemaUnconstrainedUIDIndexesAreNeo4jOnly(t *testing.T) {
 		if slices.Contains(nornic, stmt) {
 			t.Errorf("nornicdb schema must not carry %q", stmt)
 		}
-	}
-
-	app, err := SchemaApplicationForBackend(SchemaBackendNornicDB)
-	if err != nil {
-		t.Fatalf("SchemaApplicationForBackend(nornicdb) error = %v", err)
-	}
-	const baseNornicDBFingerprint = "f957752df4f6114440959c6a48162d7a192e98c724918abfde897b8fd67ecef4"
-	if app.Fingerprint != baseNornicDBFingerprint {
-		t.Errorf("nornicdb fingerprint = %s, want the unchanged base %s", app.Fingerprint, baseNornicDBFingerprint)
 	}
 }
 

@@ -89,11 +89,12 @@ func canonicalUIDMergedLabels(t *testing.T) map[string]struct{} {
 	return labels
 }
 
-// TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity is the #7095
-// guard: on Neo4j, a uid-MERGEd canonical label must not carry a uniqueness
-// constraint narrower than the uid identity, or a moved block dead-letters with
-// ConstraintValidationFailed.
-func TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity(t *testing.T) {
+// TestUniqueConstraintsDoNotNarrowCanonicalUIDIdentity is the #7095 / #7097
+// guard: on every backend, a uid-MERGEd canonical label must not carry a
+// uniqueness constraint narrower than the uid identity, or a moved block
+// fails the delta on the constraint (Neo4j ConstraintValidationFailed,
+// NornicDB Transaction.Outdated) instead of leaving one node.
+func TestUniqueConstraintsDoNotNarrowCanonicalUIDIdentity(t *testing.T) {
 	t.Parallel()
 
 	labels := canonicalUIDMergedLabels(t)
@@ -103,22 +104,28 @@ func TestNeo4jUniqueConstraintsDoNotNarrowCanonicalUIDIdentity(t *testing.T) {
 		}
 	}
 
-	statements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
-	if err != nil {
-		t.Fatalf("SchemaStatementsForBackend(neo4j) error = %v", err)
-	}
-	constraints := 0
-	for _, statement := range statements {
-		if uniqueConstraintPattern.MatchString(statement) {
-			constraints++
-		}
-	}
-	if constraints < 100 {
-		t.Fatalf("parsed %d Neo4j uniqueness constraints, want at least 100; the statement pattern no longer matches the schema", constraints)
-	}
+	for _, backend := range []graph.SchemaBackend{graph.SchemaBackendNeo4j, graph.SchemaBackendNornicDB} {
+		t.Run(string(backend), func(t *testing.T) {
+			t.Parallel()
 
-	if got := narrowUIDIdentityConstraints(statements, labels); len(got) != 0 {
-		t.Fatalf("Neo4j uniqueness constraints narrower than the canonical uid identity: %v", got)
+			statements, err := graph.SchemaStatementsForBackend(backend)
+			if err != nil {
+				t.Fatalf("SchemaStatementsForBackend(%s) error = %v", backend, err)
+			}
+			constraints := 0
+			for _, statement := range statements {
+				if uniqueConstraintPattern.MatchString(statement) {
+					constraints++
+				}
+			}
+			if constraints < 100 {
+				t.Fatalf("parsed %d %s uniqueness constraints, want at least 100; the statement pattern no longer matches the schema", constraints, backend)
+			}
+
+			if got := narrowUIDIdentityConstraints(statements, labels); len(got) != 0 {
+				t.Fatalf("%s uniqueness constraints narrower than the canonical uid identity: %v", backend, got)
+			}
+		})
 	}
 }
 
