@@ -57,7 +57,7 @@ func buildBootstrapCollector(
 
 	source := &git.GitSource{
 		Component: "bootstrap-index",
-		Selector:  git.NativeRepositorySelector{Config: config},
+		Selector:  git.NativeRepositorySelector{Config: config, Logger: logger},
 		Snapshotter: git.NativeRepositorySnapshotter{
 			SCIP:             git.LoadSnapshotSCIPConfig(getenv),
 			ParseWorkers:     config.ParseWorkers,
