@@ -24,3 +24,10 @@ the full `internal/graph` plus rationale-writer suites pass.
 No-Regression Evidence: `go test ./internal/graph/ -run 'TestProductionCypherLiteralsAreGuarded|TestSweepFlagsSeededViolations' -count=1`, `go test ./internal/graph/ -count=1`, and `go test ./internal/storage/cypher/edge/writer/... -count=1` all exit 0; the previously failing sweep now passes with no other finding suppressed.
 
 No-Observability-Change: test-only change; no metric, span, log field, worker, queue, lease, retry, or durable write changed.
+
+## Superseded after #7096
+
+#7096 made the complete Rationale statement statically foldable. The fragment
+allowlist above no longer matched an unresolved write and caused the sweep's
+stale-entry check to fail. The follow-up removes that entry; the complete
+statement remains in the sweep and its indexed `Rationale.uid` write is guarded.
