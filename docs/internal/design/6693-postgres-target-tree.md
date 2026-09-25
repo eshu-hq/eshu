@@ -355,7 +355,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 17. [x] `code/reachability/` (3 files)
 18. [x] `freshness/aws/` (3 files)
 19. [x] `freshness/gcp/` (3 files)
-20. [ ] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
+20. [x] `freshness/incident/` (3 files; removes the three `incident_freshness_*` dirgate markers)
 21. [ ] `lock/` (3 files; after `scope/`)
 22. [ ] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker)
 23. [ ] `crossplane/` (5 files)

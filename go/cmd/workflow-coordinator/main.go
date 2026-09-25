@@ -43,6 +43,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
@@ -168,7 +169,7 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "incident_freshness_triggers",
 	}
-	incidentFreshnessStore := postgres.NewIncidentFreshnessStore(incidentFreshnessDB)
+	incidentFreshnessStore := incidentfreshnessstore.NewIncidentFreshnessStore(incidentFreshnessDB)
 	if err := incidentFreshnessStore.EnsureSchema(parent); err != nil {
 		return err
 	}

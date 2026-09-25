@@ -35,7 +35,7 @@ gosec -include=G201,G202 ./...
   across 181 non-test source files in `go/internal/storage/postgres/`
 - **`fmt.Sprintf` surface**: 23 non-test files invoke `fmt.Sprintf`. All
   reviewed — the two dynamic SQL usages (`freshness/aws/store.go`,
-  `incident_freshness_store.go:211`) construct parameter placeholder sequences
+  `freshness/incident/store.go`) construct parameter placeholder sequences
   (`$1, $2...$N`), not user data. Remaining `fmt.Sprintf` uses are
   non-SQL (error messages, log formatting, telemetry labels).
 - **Commit scanned**: `origin/main` at `50d037f769357d22a95f300df2b3fab154d6ce70`

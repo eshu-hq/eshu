@@ -26,6 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -89,7 +90,7 @@ func run(parent context.Context) error {
 	if err := store.EnsureSchema(parent); err != nil {
 		return err
 	}
-	var incidentFreshnessStore *postgres.IncidentFreshnessStore
+	var incidentFreshnessStore *incidentfreshnessstore.IncidentFreshnessStore
 	if cfg.PagerDutySecret != "" || cfg.JiraSecret != "" {
 		incidentFreshnessDB := &postgres.InstrumentedDB{
 			Inner:       postgres.SQLDB{DB: db},
@@ -97,7 +98,7 @@ func run(parent context.Context) error {
 			Instruments: instruments,
 			StoreName:   "incident_freshness_triggers",
 		}
-		incidentFreshnessStore = postgres.NewIncidentFreshnessStore(incidentFreshnessDB)
+		incidentFreshnessStore = incidentfreshnessstore.NewIncidentFreshnessStore(incidentFreshnessDB)
 		if err := incidentFreshnessStore.EnsureSchema(parent); err != nil {
 			return err
 		}

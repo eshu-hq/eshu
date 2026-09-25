@@ -234,7 +234,7 @@ operational lessons that future storage changes still need to respect.
 - `awsfreshnessstore.AWSFreshnessStore` treats AWS Config and EventBridge
   events as trigger evidence only. The AWS collector must still scan the
   affected service tuple before cloud inventory becomes fresh.
-- `IncidentFreshnessStore` treats PagerDuty and Jira webhooks as source-scoped
+- `incidentfreshnessstore.IncidentFreshnessStore` treats PagerDuty and Jira webhooks as source-scoped
   trigger evidence only. It coalesces repeated delivery events by
   `freshness_key`, claims queued rows with `FOR UPDATE SKIP LOCKED`, and records
   handed-off or failed rows after the workflow coordinator authorizes a
