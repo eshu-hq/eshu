@@ -7,8 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -235,32 +233,6 @@ func TestAWSScanStatusStoreClearsCommitFailureAfterSuccessfulCommit(t *testing.T
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("CommitAWSScan() query missing successful-commit cleanup %q:\n%s", want, query)
-		}
-	}
-}
-
-func assertPostgresPlaceholdersMatchArgs(t *testing.T, query string, argCount int) {
-	t.Helper()
-
-	matches := regexp.MustCompile(`\$(\d+)`).FindAllStringSubmatch(query, -1)
-	seen := make(map[int]bool, len(matches))
-	maxPlaceholder := 0
-	for _, match := range matches {
-		placeholder, err := strconv.Atoi(match[1])
-		if err != nil {
-			t.Fatalf("parse placeholder %q: %v", match[0], err)
-		}
-		seen[placeholder] = true
-		if placeholder > maxPlaceholder {
-			maxPlaceholder = placeholder
-		}
-	}
-	if maxPlaceholder != argCount {
-		t.Fatalf("query max placeholder = $%d, args = %d:\n%s", maxPlaceholder, argCount, query)
-	}
-	for placeholder := 1; placeholder <= maxPlaceholder; placeholder++ {
-		if !seen[placeholder] {
-			t.Fatalf("query skips placeholder $%d:\n%s", placeholder, query)
 		}
 	}
 }
