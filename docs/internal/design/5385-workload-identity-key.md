@@ -1,9 +1,9 @@
 # Workload And WorkloadInstance Identity Keys
 
-Status: accepted for issue #5385 — Option C key (#6179) plus the owner's
-SAME_NAME direction (2026-09-08), reconciled in
-[5385-workload-identity-compatibility.md](5385-workload-identity-compatibility.md).
-No implementation; measurements come from read-only probes and throwaway files.
+Status: accepted Option C (#6179); reconciliation decided 2026-09-25 in
+[5385-workload-identity-compatibility.md](5385-workload-identity-compatibility.md)
+and [5385-workload-identity-migration.md](5385-workload-identity-migration.md),
+which supersede this document's counts. Measurements: read-only probes only.
 
 Owners: reducer, correlation, and graph maintainers.
 
@@ -465,10 +465,9 @@ which never exercises mode two at all, so it bears on mode one only.
 | `testdata/golden/e2e-20repo-snapshot.json` | 33 | 32 | 12 | 6 |
 | `testdata/cassettes/` | 1 (in 1 file) | 1 | 0 | 0 |
 
-One number cannot carry both halves, and the split is what a regenerator needs:
-**39 identifier values that regeneration changes, plus 7 prose mentions in
-snapshot notes that a human has to update by hand.** The 46 raw occurrences are
-the sum of the two. The 32 quoted `workload:` values are 13 `api-svc`, 10
+**Superseded:** the cassette row above predates four cassette files; the
+migration doc §7 carries the current counts (14 cassette literals, 52 in all
+at `2ae147cf9`). The 32 quoted `workload:` values are 13 `api-svc`, 10
 `deployable-config`, 7 `deployable-source`, 1 `claim-honesty-demo` and 1
 `supply-chain-demo-db`; the 6 instance values are all
 `workload-instance:deployable-source:prod` or `:stage`; the cassette's single
@@ -1174,8 +1173,8 @@ retracted and rebuilt rather than rewritten in place.
    `mutations.go` needs no fix — it is unreachable (section 2) and its correct
    disposition is deletion under the repo's own dead-code precedent, separately
    from this work.
-3. **Regenerate the golden artifacts** — 38 identifier values in the B-12
-   snapshot and 1 in the cassettes, moved in the same change per the
+3. **Regenerate the golden artifacts** — the current literal counts are in
+   the migration doc §7 (this revision's 38 + 1 is stale), moved per the
    golden-corpus rules, plus 7 prose mentions in snapshot notes that
    regeneration will not touch (section 3.3).
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
@@ -1433,7 +1432,7 @@ Either way, scoping needs to know which repository owns a workload — so both r
 with the re-key rather than ahead of it.
 
 The case for now is section 3.2: cost scales with the workload population, which
-is 40 nodes, 33 instances, and 39 golden identifier values today. **Both failure modes are
+is 40 nodes, 33 instances, and the golden literals counted in the migration doc §7. **Both failure modes are
 silent.** Mode one merges — one node, ownership reassigned to whoever wrote last,
 cross-repo environments. Mode two drops — the losing repository's workload row
 discarded, so the surviving node carries someone else's kind, classification,
