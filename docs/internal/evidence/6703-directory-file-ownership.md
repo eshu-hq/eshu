@@ -39,6 +39,10 @@ existing five Directory live cases and the new regression passed on each of
 v1.2.1, v1.3.1, and v1.3.3. This proves the behavior through the handler's
 build, graph read, sort/truncate, and repository-name lookup, not by comparing
 only a copied query string. The live proof uses only disposable local stores.
+After the final rebase, the six-case suite passed again on each pinned build.
+The new fixture uses a per-run nonce, removes only its tagged nodes before
+driver close, and checks for residue; its test passed twice in one isolated
+v1.3.3 run.
 
 ## Before and after
 
