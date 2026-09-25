@@ -129,7 +129,7 @@ tests:
   - file: go/cmd/reducer/runs_on_concurrent_writers_nornicdb_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged #6671 barrier proof gated by env Skip, ~2s per concurrent trial (60 trials ~2m per test on the fix-500 pin); TestRunsOnConcurrentWritersOneEdgePerPairLive (multiplicity) is promotable to ci on its own, TestRunsOnConcurrentWritersCrossRepoTupleWinsLive (tuple) fails intermittently on the open lost-update defect #FOLLOWUP-6671 — promote each once a scheduled or ci lane runs it
+    reason: untagged #6671 barrier proof gated by env Skip, ~2s per concurrent trial (60 trials ~2m per test on the fix-500 pin); TestRunsOnConcurrentWritersOneEdgePerPairLive (multiplicity) is promotable to ci on its own, TestRunsOnConcurrentWritersCrossRepoTupleWinsLive (tuple) fails intermittently on the open lost-update defect #7175 — promote each once a scheduled or ci lane runs it
   - file: go/cmd/reducer/workload_dependency_lookup_nornicdb_live_test.go
     tag: ~
     class: scheduled

@@ -6,7 +6,7 @@ not see the second copy. #6634 has since merged keyed canonical identity:
 `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)` in both writers.
 This note reconciles the issue's three acceptance items against that merge. It
 records the live measurements taken on 2026-09-25. The lost-update defect found
-along the way is tracked as #FOLLOWUP-6671.
+along the way is tracked as #7175.
 
 ## Backend under test
 
@@ -40,7 +40,7 @@ pairs, alternating the order. Both tests have a floor of 60 trials per arm, and
 - `TestRunsOnConcurrentWritersCrossRepoTupleWinsLive` covers the #6634 tuple
   contract. It hard-fails unless each pair ends with the cross-repo tuple:
   `resolver/cross-repo`, `0.97`, `argocd`. It is expected to fail
-  intermittently until #FOLLOWUP-6671 is fixed.
+  intermittently until #7175 is fixed.
 
 Shape (F5): each writer call carries one row, and the EdgeWriter batch size is
 1. Production batches repo_dependency rows, so this proves the single-pair
@@ -103,7 +103,7 @@ test is therefore a forward regression guard against a backend or pin change,
 not a demonstrated pre-fix failure. CI does not enforce it until a lane runs
 `scheduled` rows (see CI coverage).
 
-## New finding: a rare lost cross-repo tuple (#FOLLOWUP-6671)
+## New finding: a rare lost cross-repo tuple (#7175)
 
 In one keyed barrier trial out of 450 (run 1, trial 2), the pair ended with a
 single edge carrying the workload tuple: `evidence_source:
@@ -215,6 +215,6 @@ The live test file is registered as `class: scheduled` in
 `.github/workflows/live-backend-tests.yml` runs only `class: ci` rows
 (`scripts/lib/live_backend_test_targets.py`), and no workflow runs `scheduled`
 rows. No CI lane runs either test today. The multiplicity test could be promoted
-to `ci` on its own. The tuple test cannot be promoted until #FOLLOWUP-6671 is
+to `ci` on its own. The tuple test cannot be promoted until #7175 is
 fixed. The `assert-edges` change is unit-tested in `go/cmd/ifa`, which CI's Go
 lanes run.

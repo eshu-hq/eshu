@@ -75,7 +75,7 @@ func TestRunsOnConcurrentWritersOneEdgePerPairLive(t *testing.T) {
 // with the cross-repo tuple.
 //
 // This test is known to fail intermittently on the pinned NornicDB: a rare
-// barrier trial ends with the workload tuple (#FOLLOWUP-6671, see
+// barrier trial ends with the workload tuple (#7175, see
 // docs/internal/evidence/6671-runs-on-concurrent-writers.md). It hard-fails on
 // purpose; a lost cross-repo tuple is not reaped by RetractRepoRunsOnEdgesCypher,
 // so it is an accuracy defect, not noise to log.
