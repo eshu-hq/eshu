@@ -82,3 +82,54 @@ func TestWorkloadContextResultLimitsLeavesWithinCapListsAlone(t *testing.T) {
 		t.Fatalf("partial_reasons = %#v, want none", reasons)
 	}
 }
+
+// TestWorkloadContextResultLimitsCapsNetworkPaths proves network_paths, one row
+// per entrypoint, is cut with the same limit, reports network_path_count as the
+// pre-cut total, and names the cut on partial_reasons (#7169).
+func TestWorkloadContextResultLimitsCapsNetworkPaths(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{"network_paths": hostnameEntrypointRows("path", 671)}
+
+	limits := WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+	if got, want := len(MapSliceValue(ctx, "network_paths")), ContextStoryItemLimit; got != want {
+		t.Fatalf("network_paths len = %d, want %d", got, want)
+	}
+	if got, want := IntVal(limits, "network_path_count"), 671; got != want {
+		t.Fatalf("result_limits.network_path_count = %d, want %d (total before the cut)", got, want)
+	}
+	if !BoolVal(limits, "truncated") {
+		t.Fatal("result_limits.truncated = false next to a cut list, want true")
+	}
+	if reasons := ContextPartialReasons(ctx); !slices.Contains(reasons, "network_paths_truncated") {
+		t.Fatalf("partial_reasons = %#v, want network_paths_truncated", reasons)
+	}
+}
+
+// TestWorkloadContextResultLimitsStorySurfaceReportsCountsWithoutCutting proves
+// the story surface, which emits none of these arrays, reports the totals but
+// neither cuts the lists nor claims truncation (#7169).
+func TestWorkloadContextResultLimitsStorySurfaceReportsCountsWithoutCutting(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{
+		"hostnames":     hostnameEntrypointRows("host", 671),
+		"entrypoints":   hostnameEntrypointRows("entry", 671),
+		"network_paths": hostnameEntrypointRows("path", 671),
+	}
+
+	limits := WorkloadContextResultLimits(ctx, "workload:svc", "story")
+
+	for _, key := range []string{"hostname_count", "entrypoint_count", "network_path_count"} {
+		if got, want := IntVal(limits, key), 671; got != want {
+			t.Fatalf("result_limits.%s = %d, want %d", key, got, want)
+		}
+	}
+	if BoolVal(limits, "truncated") {
+		t.Fatal("result_limits.truncated = true on the story surface, want false")
+	}
+	if reasons := ContextPartialReasons(ctx); len(reasons) != 0 {
+		t.Fatalf("partial_reasons = %#v, want none on the story surface", reasons)
+	}
+}

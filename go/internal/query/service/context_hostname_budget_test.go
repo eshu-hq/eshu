@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // mcpResponseByteBudget mirrors the MCP dispatch budget
@@ -51,6 +50,12 @@ func hostnameEntrypointBudgetFixture() map[string]any {
 		"repo_name":   "svc",
 		"hostnames":   hostnames,
 		"entrypoints": entrypoints,
+		"instances": []map[string]any{{
+			"instance_id":   "inst-1",
+			"platform_name": "eks-qa",
+			"platform_kind": "EKS",
+			"environment":   "qa",
+		}},
 	}
 }
 
@@ -64,15 +69,18 @@ func estimatedWireBytes(t *testing.T, payload map[string]any) int {
 }
 
 // TestHostnameEntrypointOutlierStaysUnderMCPBudget proves the 671-hostname /
-// 671-entrypoint outlier fits the MCP response budget on the three routes
-// that carry it: get_workload_context, get_service_context (both the shared
-// WorkloadContext handler tail) and trace_deployment_chain (#7169).
+// 671-entrypoint outlier, with one matching runtime instance so network_paths
+// carries 671 rows too, fits the MCP response budget on trace_deployment_chain
+// (#7169). The workload and service context routes are proven through their
+// real handlers in package entity
+// (TestGetWorkloadContextCapsHostnameEntrypointAndNetworkPathRows).
 func TestHostnameEntrypointOutlierStaysUnderMCPBudget(t *testing.T) {
 	t.Parallel()
 
 	// Guard against a vacuous fixture: the raw duplicated shape must be over
-	// budget, or the assertions below prove nothing.
+	// budget, or the assertion below proves nothing.
 	raw := hostnameEntrypointBudgetFixture()
+	raw["network_paths"] = buildServiceNetworkPaths(raw, raw["entrypoints"].([]map[string]any))
 	raw["deployment_overview"] = map[string]any{
 		"hostnames":   raw["hostnames"],
 		"entrypoints": raw["entrypoints"],
@@ -80,28 +88,15 @@ func TestHostnameEntrypointOutlierStaysUnderMCPBudget(t *testing.T) {
 	if got := estimatedWireBytes(t, raw); got <= mcpResponseByteBudget {
 		t.Fatalf("fixture est2x = %d, want over the %d budget so the test can discriminate", got, mcpResponseByteBudget)
 	}
+	if got := len(raw["network_paths"].([]map[string]any)); got != 671 {
+		t.Fatalf("fixture network_paths = %d, want 671 (one per entrypoint)", got)
+	}
 
-	t.Run("workload and service context", func(t *testing.T) {
-		t.Parallel()
-		ctx := hostnameEntrypointBudgetFixture()
-		ctx["deployment_overview"] = buildServiceDeploymentOverviewWithContext(newServiceStoryBuildContext(ctx))
-		ctx["result_limits"] = querycontract.WorkloadContextResultLimits(ctx, "workload:svc", "context")
-		ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
-		if got := estimatedWireBytes(t, ctx); got > mcpResponseByteBudget {
-			t.Fatalf("context est2x = %d bytes, want <= %d", got, mcpResponseByteBudget)
-		}
-		if n := len(querycontract.MapSliceValue(ctx, "hostnames")); n != querycontract.ContextStoryItemLimit {
-			t.Fatalf("hostnames len = %d, want %d", n, querycontract.ContextStoryItemLimit)
-		}
-	})
-
-	t.Run("trace deployment chain", func(t *testing.T) {
-		t.Parallel()
-		ctx := hostnameEntrypointBudgetFixture()
-		overview := buildServiceDeploymentOverviewWithContext(newServiceStoryBuildContext(ctx))
-		response := deployment.BuildDeploymentTraceResponse("svc", ctx, overview)
-		if got := estimatedWireBytes(t, response); got > mcpResponseByteBudget {
-			t.Fatalf("trace est2x = %d bytes, want <= %d", got, mcpResponseByteBudget)
-		}
-	})
+	ctx := hostnameEntrypointBudgetFixture()
+	ctx["network_paths"] = buildServiceNetworkPaths(ctx, ctx["entrypoints"].([]map[string]any))
+	overview := buildServiceDeploymentOverviewWithContext(newServiceStoryBuildContext(ctx))
+	response := deployment.BuildDeploymentTraceResponse("svc", ctx, overview)
+	if got := estimatedWireBytes(t, response); got > mcpResponseByteBudget {
+		t.Fatalf("trace est2x = %d bytes, want <= %d", got, mcpResponseByteBudget)
+	}
 }

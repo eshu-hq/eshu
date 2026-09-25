@@ -66,14 +66,22 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if consumerTotal > 0 {
 		ctx["consumer_repositories"] = cappedConsumers
 	}
-	// hostnames and entrypoints are capped in place here, after every
-	// consumer of the full lists has run (network paths, trace paths, hostname
-	// labels, and the overview counts all read them during enrichment), so the
-	// cap changes only what ships (#7169). The pre-cut totals are reported on
-	// result_limits and each cut is named on ctx["limitations"], which
-	// ContextPartialReasons promotes to partial_reasons.
-	hostnameTotal, hostTrunc := capContextRows(ctx, "hostnames", "hostnames_truncated")
-	entrypointTotal, entryTrunc := capContextRows(ctx, "entrypoints", "entrypoints_truncated")
+	// hostnames, entrypoints, and network_paths (one row per entrypoint) are
+	// capped in place here, after every consumer of the full lists has run
+	// (network paths, trace paths, hostname labels, and the overview counts
+	// all read them during enrichment), so the cap changes only what ships
+	// (#7169). The pre-cut totals are reported on result_limits and each cut
+	// is named on ctx["limitations"], which ContextPartialReasons promotes to
+	// partial_reasons. The story surface ships a narrative and none of these
+	// arrays, so it reports the totals but neither cuts nor claims truncation
+	// for lists it does not emit.
+	capRows := capContextRows
+	if surface == "story" {
+		capRows = countContextRows
+	}
+	hostnameTotal, hostTrunc := capRows(ctx, "hostnames", "hostnames_truncated")
+	entrypointTotal, entryTrunc := capRows(ctx, "entrypoints", "entrypoints_truncated")
+	networkPathTotal, pathTrunc := capRows(ctx, "network_paths", "network_paths_truncated")
 	// #5720 PR #5933 review fix (Codex, query_enrichment.go:190):
 	// dependents_truncated, consumer_repositories_truncated, and
 	// provisioning_source_chains_truncated are set on ctx whenever the
@@ -103,24 +111,25 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		BoolVal(ctx, "consumer_repositories_truncated") ||
 		BoolVal(ctx, "provisioning_source_chains_truncated") ||
 		slices.Contains(StringSliceVal(ctx, "limitations"), "infrastructure_truncated")
-	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || upstreamTruncated
+	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || pathTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
 	}
 	return map[string]any{
-		"limit":             ContextStoryItemLimit,
-		"ordering":          "deterministic",
-		"instance_count":    instanceTotal,
-		"dependent_count":   dependentTotal,
-		"consumer_count":    consumerTotal,
-		"hostname_count":    hostnameTotal,
-		"entrypoint_count":  entrypointTotal,
-		"truncated":         truncated,
-		"drilldown_basis":   "resolved_id",
-		"relationship_tool": "get_relationship_evidence",
-		"drilldown_tool":    drilldownTool,
-		"context_path":      "/api/v0/workloads/" + workloadID + "/context",
+		"limit":              ContextStoryItemLimit,
+		"ordering":           "deterministic",
+		"instance_count":     instanceTotal,
+		"dependent_count":    dependentTotal,
+		"consumer_count":     consumerTotal,
+		"hostname_count":     hostnameTotal,
+		"entrypoint_count":   entrypointTotal,
+		"network_path_count": networkPathTotal,
+		"truncated":          truncated,
+		"drilldown_basis":    "resolved_id",
+		"relationship_tool":  "get_relationship_evidence",
+		"drilldown_tool":     drilldownTool,
+		"context_path":       "/api/v0/workloads/" + workloadID + "/context",
 	}
 }
 
@@ -144,4 +153,10 @@ func capContextRows(ctx map[string]any, key, reason string) (int, bool) {
 		ctx["limitations"] = append(limitations, reason)
 	}
 	return total, true
+}
+
+// countContextRows returns the total for ctx[key] without cutting it or
+// recording a limitation, for surfaces that do not emit the list.
+func countContextRows(ctx map[string]any, key, _ string) (int, bool) {
+	return len(MapSliceValue(ctx, key)), false
 }

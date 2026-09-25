@@ -11,9 +11,9 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // reports their totals on result_limits.
 const hostnameEntrypointDrilldownTool = "get_workload_context"
 
-// attachHostnameEntrypointRows emits hostnames and entrypoints on the trace
-// response, each cut to querycontract.ContextStoryItemLimit, and adds
-// hostname_limits and entrypoint_limits (limit, total, truncated) whenever the
+// attachHostnameEntrypointRows emits hostnames, entrypoints, and network_paths
+// (one row per entrypoint) on the trace response, each cut to querycontract.ContextStoryItemLimit, and adds
+// hostname_limits, entrypoint_limits, and network_path_limits (limit, total, truncated) whenever the
 // list is non-empty. The cut happens at emission, after artifact lineage,
 // story, and overview counts have read the full lists, so it changes only what
 // ships (#7169). truncated is true exactly when rows were dropped, so a cut is
@@ -21,6 +21,7 @@ const hostnameEntrypointDrilldownTool = "get_workload_context"
 func (f *deploymentTraceFields) attachHostnameEntrypointRows(response map[string]any) {
 	attachCappedRows(response, "hostnames", "hostname_limits", f.hostnames)
 	attachCappedRows(response, "entrypoints", "entrypoint_limits", f.entrypoints)
+	attachCappedRows(response, "network_paths", "network_path_limits", f.networkPaths)
 }
 
 func attachCappedRows(response map[string]any, key, limitsKey string, rows []map[string]any) {

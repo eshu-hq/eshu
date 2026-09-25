@@ -101,3 +101,40 @@ func TestBuildDeploymentTraceResponseWithinCapReportsUntruncatedLimits(t *testin
 		t.Fatalf("entrypoint_limits = %#v, want absent when there are no entrypoints", got["entrypoint_limits"])
 	}
 }
+
+// TestBuildDeploymentTraceResponseCapsNetworkPaths proves the trace response
+// cuts network_paths (one row per entrypoint) to ContextStoryItemLimit, reports
+// network_path_limits with the pre-cut total, and keeps the overview count at
+// the full total (#7169).
+func TestBuildDeploymentTraceResponseCapsNetworkPaths(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{
+		"id":            "workload-1",
+		"name":          "payments-api",
+		"kind":          "service",
+		"repo_id":       "repo-1",
+		"repo_name":     "payments",
+		"network_paths": traceLimitRows("path", 671),
+	}
+
+	got := BuildDeploymentTraceResponse("payments-api", ctx, map[string]any{})
+
+	if n := len(querycontract.MapSliceValue(got, "network_paths")); n != querycontract.ContextStoryItemLimit {
+		t.Fatalf("network_paths len = %d, want %d", n, querycontract.ContextStoryItemLimit)
+	}
+	limits := querycontract.MapValue(got, "network_path_limits")
+	if limits == nil {
+		t.Fatal("network_path_limits missing, want limit/total/truncated/drilldown_tool")
+	}
+	if g := querycontract.IntVal(limits, "total"); g != 671 {
+		t.Fatalf("network_path_limits.total = %d, want 671", g)
+	}
+	if !querycontract.BoolVal(limits, "truncated") {
+		t.Fatal("network_path_limits.truncated = false next to a cut list, want true")
+	}
+	overview := querycontract.MapValue(got, "deployment_overview")
+	if g := querycontract.IntVal(overview, "network_path_count"); g != 671 {
+		t.Fatalf("deployment_overview.network_path_count = %d, want 671 (full total, not the cut)", g)
+	}
+}
