@@ -229,9 +229,10 @@ current pin.
    backlog that accumulated during the hold, hold live leases on those
    generations, and can turn the request into a drain-timeout error that needs
    a fresh `idempotency_key`. Restoring after the 200 also starts the §4 order
-   from a clean queue. Read `skipped` in the response (`RefinalizeResult.Skipped`
-   in `go/internal/recovery/replay.go`, reported by reason since #7156): a scope
-   the request could not re-enqueue lost its `Workload` nodes in step 5 and
+   from a clean queue. Read `skipped_scopes` in the response (the Go field is
+   `RefinalizeResult.Skipped` in `go/internal/recovery/replay.go`, reported
+   by reason since #7156): a scope the request could not re-enqueue lost its
+   `Workload` nodes in step 5 and
    stays empty until it is re-projected by hand, and the step 9 count assertion
    would only catch that after the irreversible flip.
    This is the rebuild-from-facts path
