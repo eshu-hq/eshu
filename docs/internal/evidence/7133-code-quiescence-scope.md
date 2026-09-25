@@ -101,15 +101,15 @@ extended statistics) before any change.
 ops-qa measurement of this PR's predicate (read-only `EXPLAIN (ANALYZE,
 BUFFERS)` through a `default_transaction_read_only` session, 2026-09-25,
 78,614,620 `fact_records` rows, 794 active git scopes): the gate returns
-false, so the lane unblocks. Cost is 170.6 ms warm (19,095 shared buffers,
-repeatable over three runs) and 1,040 ms on the first, cold run. SubPlan 1 and
+false, so the lane unblocks. Three warm runs took 166.5, 167.3 and 170.5 ms
+(19,095 shared buffers each); the first, cold run took 1,040 ms. SubPlan 1 and
 SubPlan 2 run 794 times each, both through indexes
 (`fact_records_collector_status_active_idx`, `fact_records_scope_generation_idx`,
 `graph_projection_phase_state_pkey`); the uncorrelated SubPlans never execute,
 so there is no whole-table `fact_records` scan. The wedged base
 short-circuited in about 1.6 ms, so each code_calls and repo_dependency cycle
-now pays about 170 ms for the gate. That per-cycle cost is tracked as a
-follow-up.
+now pays about 170 ms for the gate. The predicate cost itself is unchanged
+from a healthy base (see the fixture table above); making it cheaper is #7166.
 
 ## Observability
 
@@ -160,7 +160,7 @@ code-call runner has no superseded-generation handling:
 pending row has an acceptance row equal to its own generation. Candidates are
 ordered `is_refresh_intent DESC, created_at ASC`, so after the unblock those
 rows replay oldest-first as real retract/write cycles. The #7121 fix
-(`fix/7121-superseded-intents`, not yet pushed) adds a
+(PR #7159) adds a
 `SupersededGenerationReader` port only to `worker.SelectPartitionBatch`. The
 code-call runner (`code/call/projection/selection.go`) and the repo-dependency
 runner select without it. The proposal:
@@ -172,7 +172,8 @@ runner select without it. The proposal:
    must keep the rows of the newest full generation and everything after it,
    using the safety conditions #7121 (PR #7159) settled on. `superseded` is
    also not terminal: projector Ack can reactivate it (#7130). A first cut of
-   this drain that missed both points was dropped from this PR in review.
+   this drain that missed both points was dropped from this PR in review;
+   the delta-safe drain is #7165.
 2. `repo_dependency` rows carry resolver relationship-generation ids, not
    scope generation ids, so the #7121 lookup does not match them. Its backlog
    is 9,737 rows. Measure replay cost first, and design a
