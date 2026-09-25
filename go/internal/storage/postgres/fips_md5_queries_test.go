@@ -13,11 +13,10 @@ func TestFIPSAdminMappingAndChangedSinceQueriesAvoidMD5(t *testing.T) {
 	t.Parallel()
 
 	queries := map[string]string{
-		"list mapping":          listAdminIdPGroupMappingsQuery,
-		"create mapping":        createAdminIdPGroupMappingQuery,
-		"delete mapping":        deleteAdminIdPGroupMappingQuery,
-		"changed-since counts":  changedSinceCountsQuery,
-		"changed-since samples": changedSinceSamplesQuery,
+		"list mapping":       listAdminIdPGroupMappingsQuery,
+		"create mapping":     createAdminIdPGroupMappingQuery,
+		"delete mapping":     deleteAdminIdPGroupMappingQuery,
+		"changed-since diff": changedSinceDeltaQuery,
 	}
 	for name, query := range queries {
 		if strings.Contains(strings.ToLower(query), "md5(") {

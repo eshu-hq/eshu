@@ -67,8 +67,16 @@ func TestComputeChangedSinceDeltaRejectsInvalidScopeSelectorsBeforeRead(t *testi
 	}
 }
 
-func countRow(category, classification string, count int64) []any {
-	return []any{category, classification, count}
+// diffRow builds one row of the single-statement changed-since diff: a bucket
+// (category, classification, key_count) joined to one bounded sample handle.
+func diffRow(category, classification string, count int64, key, kind string) []any {
+	return []any{category, classification, count, key, kind}
+}
+
+// diffBucketOnlyRow builds a bucket row whose LATERAL sample join found no key,
+// which the SQL emits as NULL sample columns.
+func diffBucketOnlyRow(category, classification string, count int64) []any {
+	return []any{category, classification, count, nil, nil}
 }
 
 func TestComputeChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testing.T) {
@@ -79,15 +87,12 @@ func TestComputeChangedSinceDeltaUnchangedProducesNoFalseDeltas(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{
 		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
 		{rows: priorRow("gen-prior", prior)},
+		// One statement returns every bucket count and its bounded samples.
 		{rows: [][]any{
-			countRow("files", "unchanged", 12),
-			countRow("content_entities", "unchanged", 8),
-			countRow("facts", "unchanged", 4),
+			diffRow("content_entities", "unchanged", 8, "entity:a", "content_entity"),
+			diffRow("facts", "unchanged", 4, "fact:a", "aws_resource"),
+			diffRow("files", "unchanged", 12, "file:a", "file"),
 		}},
-		// Sample reads for the three unchanged buckets (counts > 0).
-		{rows: [][]any{{"file:a", "file"}}},
-		{rows: [][]any{{"entity:a", "content_entity"}}},
-		{rows: [][]any{{"fact:a", "aws_resource"}}},
 	}}
 	store := NewStatusStore(queryer)
 
@@ -124,19 +129,13 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
 		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
 		{rows: [][]any{
-			countRow("files", "added", 2),
-			countRow("files", "updated", 1),
-			countRow("files", "retired", 1),
-			countRow("files", "superseded", 1),
-			countRow("files", "unchanged", 3),
+			diffRow("files", "added", 2, "file:new1", "file"),
+			diffRow("files", "added", 2, "file:new2", "file"),
+			diffRow("files", "retired", 1, "file:gone", "file"),
+			diffRow("files", "superseded", 1, "file:dropped", "file"),
+			diffRow("files", "unchanged", 3, "file:same", "file"),
+			diffRow("files", "updated", 1, "file:upd", "file"),
 		}},
-		// One sample read per non-zero files classification, ordered as in
-		// ChangedSinceClassifications: added, updated, unchanged, retired, superseded.
-		{rows: [][]any{{"file:new1", "file"}, {"file:new2", "file"}}},
-		{rows: [][]any{{"file:upd", "file"}}},
-		{rows: [][]any{{"file:same", "file"}}},
-		{rows: [][]any{{"file:gone", "file"}}},
-		{rows: [][]any{{"file:dropped", "file"}}},
 	}}
 	store := NewStatusStore(queryer)
 
@@ -165,6 +164,11 @@ func TestComputeChangedSinceDeltaClassifiesAllVerdicts(t *testing.T) {
 	if got := files.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "file:gone" {
 		t.Fatalf("retired samples wrong: %+v", got)
 	}
+	// #7127: the whole diff is one statement, so a request is scope + prior
+	// generation + one diff round trip regardless of how many buckets matched.
+	if got, want := len(queryer.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (scope, prior generation, one diff)", got, want)
+	}
 	if got := files.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "file:dropped" {
 		t.Fatalf("superseded samples wrong: %+v", got)
 	}
@@ -178,8 +182,11 @@ func TestComputeChangedSinceDeltaTruncatesSamples(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{
 		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
 		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
-		{rows: [][]any{countRow("facts", "added", 5)}},
-		{rows: [][]any{{"fact:a", "k"}, {"fact:b", "k"}, {"fact:c", "k"}}},
+		{rows: [][]any{
+			diffRow("facts", "added", 5, "fact:a", "k"),
+			diffRow("facts", "added", 5, "fact:b", "k"),
+			diffRow("facts", "added", 5, "fact:c", "k"),
+		}},
 	}}
 	store := NewStatusStore(queryer)
 
@@ -374,8 +381,7 @@ func TestComputeChangedSinceDeltaObservedAtResolution(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{
 		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
 		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
-		{rows: [][]any{countRow("files", "unchanged", 1)}},
-		{rows: [][]any{{"file:a", "file"}}},
+		{rows: [][]any{diffRow("files", "unchanged", 1, "file:a", "file")}},
 	}}
 	store := NewStatusStore(queryer)
 
@@ -405,7 +411,7 @@ func TestComputeChangedSinceDeltaRequiresQueryer(t *testing.T) {
 	}
 }
 
-func TestComputeChangedSinceDeltaCountsQueryUsesPayloadHashAndFullOuterJoin(t *testing.T) {
+func TestComputeChangedSinceDeltaDiffQueryUsesPayloadHashAndFullOuterJoin(t *testing.T) {
 	t.Parallel()
 
 	observed := time.Date(2026, 6, 9, 15, 0, 0, 0, time.UTC)
@@ -423,15 +429,43 @@ func TestComputeChangedSinceDeltaCountsQueryUsesPayloadHashAndFullOuterJoin(t *t
 	}); err != nil {
 		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
 	}
-	countsQuery := queryer.queries[2]
+	diffQuery := queryer.queries[2]
 	for _, want := range []string{
-		"sha256(convert_to(payload::text, 'UTF8'))",
+		"sha256(convert_to((" + changedSincePayloadDigestInput + ")::text, 'UTF8'))",
+		changedSinceExcludeReducerDerivedKinds,
 		"FULL OUTER JOIN",
 		"is_tombstone = TRUE",
 		"GROUP BY fact_category, classification",
+		"LEFT JOIN LATERAL",
 	} {
-		if !strings.Contains(countsQuery, want) {
-			t.Fatalf("counts query missing %q:\n%s", want, countsQuery)
+		if !strings.Contains(diffQuery, want) {
+			t.Fatalf("diff query missing %q:\n%s", want, diffQuery)
 		}
+	}
+}
+
+func TestComputeChangedSinceDeltaBucketWithoutSampleKeepsCount(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 9, 16, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: scopeRow("s", "repository", "gen-current", observed, false)},
+		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
+		{rows: [][]any{diffBucketOnlyRow("files", "added", 4)}},
+	}}
+	summary, err := NewStatusStore(queryer).ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+		ScopeID:           "s",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
+	}
+	files := summary.Categories[0]
+	if files.Counts.Added != 4 {
+		t.Fatalf("added count = %d, want 4", files.Counts.Added)
+	}
+	if len(files.Samples) != 0 || len(files.Truncated) != 0 {
+		t.Fatalf("bucket without a sample key produced samples %v truncated %v", files.Samples, files.Truncated)
 	}
 }

@@ -86,7 +86,7 @@ FROM active_scopes AS scope
 JOIN LATERAL (
   SELECT
     CASE
-      WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'
+      WHEN fact.fact_kind LIKE ` + reducerDerivedFactKindLikePattern + ` THEN 'reducer_facts'
       ELSE 'source_facts'
     END AS evidence_source,
     COALESCE(NULLIF(BTRIM(fact.source_system), ''), '') AS source_system,

@@ -426,6 +426,15 @@ func (r *fakeRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want float64", i, row[i])
 			}
 			*target = value
+		case *sql.NullString:
+			switch value := row[i].(type) {
+			case nil:
+				*target = sql.NullString{}
+			case string:
+				*target = sql.NullString{String: value, Valid: true}
+			default:
+				return fmt.Errorf("row[%d] type = %T, want string or nil", i, row[i])
+			}
 		case *sql.NullFloat64:
 			switch value := row[i].(type) {
 			case nil:

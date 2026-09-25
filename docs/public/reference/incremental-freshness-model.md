@@ -340,8 +340,26 @@ into evidence categories (files, content entities, and the remaining facts):
 | `retired` | Key active in the prior generation, explicitly tombstoned in the current generation. |
 | `superseded` | Key active in the prior generation, absent entirely from the current generation. |
 
-Retired and superseded are never collapsed into `unchanged`. Counts are exact
-per category; the per-classification sample handles are bounded by `sample_limit`
+Retired and superseded are never collapsed into `unchanged`.
+
+Two normalizations keep the verdicts about repository change (#7127):
+
+- **`content_entity.indexed_at` is ignored.** The git collector stamps each
+  `content_entity` payload with the snapshot time
+  (`go/internal/collector/git/content/envelopes.go`), which changes every run.
+  The digest input drops that one field for `content_entity` rows, so an
+  entity whose other fields are identical is `unchanged`. Other kinds and every
+  other content-entity field still count.
+- **Reducer-derived facts are excluded.** Rows whose `fact_kind` starts with
+  `reducer_` are written into a generation after it activates, so they exist
+  only in generations the reducer has processed. They never appear in any
+  category, matching the route's "persisted fact truth, not graph-materialized
+  correlation" envelope.
+
+The `repository` fact carries a per-run `source_run_id` that reducers consume, so
+it is not normalized: the `repository` key reports `updated` on every new run.
+
+Counts are exact per category; the per-classification sample handles are bounded by `sample_limit`
 (default 25, max 200) and carry a per-classification `truncated` flag. Ordering
 is deterministic by `stable_fact_key`. When generation retention proves the
 prior baseline was pruned, changed-since returns `unavailable=true` with

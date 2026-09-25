@@ -9,6 +9,13 @@
 # database rows nor orchestrates drains.
 # shellcheck disable=SC2154
 
+# The digest input and reducer-kind exclusion the oracle classifies with are
+# generated from the Go constants behind get_changed_since (changed_since_sql.go);
+# a drift test in go/internal/storage/postgres keeps the file equal to them, so
+# the oracle and the live API cannot disagree on what counts as a change (#7127).
+# shellcheck source=scripts/lib/golden-corpus-changed-since-sql-fragments.sh
+. "${BASH_SOURCE[0]%/*}/golden-corpus-changed-since-sql-fragments.sh"
+
 golden_changed_since_scope_id="git-repository-scope:repository:r_b11b6e25"
 golden_changed_since_stable_fact_key="content:repository:r_b11b6e25:config/freshness.cfg"
 golden_changed_since_prior_sentinel="__runtime_changed_since_prior_generation__"
@@ -99,21 +106,23 @@ WITH prior_rows AS MATERIALIZED (
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
+         sha256(convert_to((${golden_changed_since_digest_input})::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${golden_changed_since_prior_generation}'
     AND is_tombstone = FALSE
+    AND ${golden_changed_since_exclude_reducer_kinds}
 ), current_rows AS MATERIALIZED (
   SELECT CASE WHEN fact_kind = 'file' THEN 'files'
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
+         sha256(convert_to((${golden_changed_since_digest_input})::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${current}'
     AND is_tombstone = FALSE
+    AND ${golden_changed_since_exclude_reducer_kinds}
 ), prior_keys AS (
   SELECT category, stable_fact_key,
          ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
@@ -133,6 +142,7 @@ WITH prior_rows AS MATERIALIZED (
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${current}'
     AND is_tombstone = TRUE
+    AND ${golden_changed_since_exclude_reducer_kinds}
 ), classified AS (
   SELECT COALESCE(prior.category, current.category) AS category,
          COALESCE(prior.stable_fact_key, current.stable_fact_key) AS stable_fact_key,

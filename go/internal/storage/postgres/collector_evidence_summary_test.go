@@ -115,7 +115,7 @@ func TestRebuildCollectorEvidenceSQLIsAtomicUpsertDeleteStale(t *testing.T) {
 		"FROM fact_records AS fact",
 		"AND fact.generation_id = scope.generation_id",
 		"AND fact.is_tombstone = FALSE",
-		"WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'",
+		`WHEN fact.fact_kind LIKE 'reducer\_%' THEN 'reducer_facts'`,
 		"COALESCE(NULLIF(BTRIM(fact.source_system), ''), '') AS source_system",
 		"COUNT(*) AS observation_count",
 		"MAX(fact.observed_at) AS last_observed_at",
