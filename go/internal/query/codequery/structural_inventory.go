@@ -130,7 +130,6 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 			"limit":          limit,
 			"offset":         req.Offset,
 			"results":        results,
-			"matches":        results,
 			"count":          len(results),
 			"truncated":      data.truncated,
 			"next_offset":    nextStructuralInventoryOffset(req.Offset, len(results), data.truncated),

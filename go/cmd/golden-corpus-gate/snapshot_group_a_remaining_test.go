@@ -94,10 +94,10 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			values:    map[string]any{"check": "complexity", "repo_id": goRepo, "language": "go", "results[].name": "GoldenDataflowHandler", "results[].file_path": "dataflow_proof.go", "results[].complexity": float64(2)},
 		},
 		{
-			slug: "prod-code-search-fuzzy", key: "POST /api/v0/code/search?proof=fuzzy", http: true, minimum: 1, maximum: 1, resultsField: "matches",
+			slug: "prod-code-search-fuzzy", key: "POST /api/v0/code/search?proof=fuzzy", http: true, minimum: 1, maximum: 1, resultsField: "results",
 			requestBody: map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "exact": false, "limit": float64(1)},
-			required:    []string{"matches", "query", "repo_id", "count", "limit", "truncated", "source_backend"},
-			values:      map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "count": float64(1), "limit": float64(1), "matches[].name": "GoldenDataflowHandler", "matches[].file_path": "dataflow_proof.go", "matches[].labels[]": "Function"},
+			required:    []string{"results", "query", "repo_id", "count", "limit", "truncated", "source_backend"},
+			values:      map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "count": float64(1), "limit": float64(1), "results[].name": "GoldenDataflowHandler", "results[].file_path": "dataflow_proof.go", "results[].labels[]": "Function"},
 		},
 		{
 			slug: "prod-complexity", key: "calculate_cyclomatic_complexity",
@@ -112,10 +112,10 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			values:    map[string]any{"total_identities": float64(1), "by_identity_strength.explicit_digest": float64(1), "scope.digest": imageDigest},
 		},
 		{
-			slug: "prod-content-search", key: "search_file_content", minimum: 1, maximum: 1, resultsField: "matches",
+			slug: "prod-content-search", key: "search_file_content", minimum: 1, maximum: 1, resultsField: "results",
 			arguments: map[string]any{"query": "GoldenDataflowHandler", "repo_id": goRepo, "limit": float64(1)},
-			required:  []string{"matches", "results", "count", "limit", "offset", "truncated", "source_backend"},
-			values:    map[string]any{"count": float64(1), "limit": float64(1), "offset": float64(0), "source_backend": "postgres_content_store", "matches[].repo_id": goRepo, "matches[].relative_path": "dataflow_proof.go"},
+			required:  []string{"results", "count", "limit", "offset", "truncated", "source_backend"},
+			values:    map[string]any{"count": float64(1), "limit": float64(1), "offset": float64(0), "source_backend": "postgres_content_store", "results[].repo_id": goRepo, "results[].relative_path": "dataflow_proof.go"},
 		},
 	}
 
@@ -158,7 +158,7 @@ func TestGoldenSnapshotGroupARemainingBITES(t *testing.T) {
 	}{
 		"advisory-empty":        {snapshot.QueryShapes.HTTP["GET /api/v0/supply-chain/advisories?limit=10&q=CVE-2026-00010"], `{"advisories":[],"count":0,"limit":10,"scope":{"q":"CVE-2026-00010"},"truncated":false}`},
 		"narration-wrong-state": {snapshot.QueryShapes.MCP["get_answer_narration_status"], `{"state":"available","reason":"available","deterministic_fallback_available":true,"canonical_truth_affected":false,"retention_posture":"metadata_only"}`},
-		"content-empty":         {snapshot.QueryShapes.MCP["search_file_content"], `{"matches":[],"results":[],"count":0,"limit":1,"offset":0,"truncated":false,"source_backend":"postgres_content_store"}`},
+		"content-empty":         {snapshot.QueryShapes.MCP["search_file_content"], `{"results":[],"count":0,"limit":1,"offset":0,"truncated":false,"source_backend":"postgres_content_store"}`},
 	} {
 		if finding := EvaluateQueryShape(name, test.shape, []byte(test.body)); finding.OK {
 			t.Errorf("seeded wrong/empty response passed: %+v", finding)

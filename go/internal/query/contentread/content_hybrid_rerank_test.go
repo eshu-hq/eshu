@@ -370,9 +370,12 @@ func decodeContentMatches(t *testing.T, rec *httptest.ResponseRecorder) []map[st
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v; body = %s", err, rec.Body.String())
 	}
-	rawMatches, ok := body["matches"].([]any)
+	if _, ok := body["matches"]; ok {
+		t.Fatalf("matches present, want the alias removed (#7170); body = %s", rec.Body.String())
+	}
+	rawMatches, ok := body["results"].([]any)
 	if !ok {
-		t.Fatalf("matches = %#v, want array", body["matches"])
+		t.Fatalf("results = %#v, want array", body["results"])
 	}
 	matches := make([]map[string]any, 0, len(rawMatches))
 	for _, raw := range rawMatches {

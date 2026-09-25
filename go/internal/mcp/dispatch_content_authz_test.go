@@ -37,7 +37,6 @@ func TestDispatchToolSearchFileContentAllowsScopedContentSearchRoute(t *testing.
 		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"results":   []any{},
-			"matches":   []any{},
 			"count":     0,
 			"limit":     5,
 			"truncated": false,

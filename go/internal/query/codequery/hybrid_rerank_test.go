@@ -88,9 +88,9 @@ func TestCodeSearchContentResultsAreHybridReranked(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v; body = %s", err, rec.Body.String())
 	}
-	matches, ok := body["matches"].([]any)
+	matches, ok := body["results"].([]any)
 	if !ok || len(matches) != 2 {
-		t.Fatalf("matches = %#v, want 2 results", body["matches"])
+		t.Fatalf("results = %#v, want 2 results", body["results"])
 	}
 	first, _ := matches[0].(map[string]any)
 	if got, want := first["entity_id"], "entity-strong"; got != want {

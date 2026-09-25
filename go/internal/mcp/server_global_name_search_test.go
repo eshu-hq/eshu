@@ -26,7 +26,7 @@ func TestHTTPTransportGlobalNameToolsForwardExactContracts(t *testing.T) {
 		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"source": "content", "source_backend": "postgres_content_name_index",
-			"query": "Run", "repo_id": "", "results": []any{}, "matches": []any{},
+			"query": "Run", "repo_id": "", "results": []any{},
 			"count": 0, "limit": 10, "truncated": false,
 		}, query.BuildTruthEnvelope(query.ProfileLocalAuthoritative, "code_search.exact_symbol", query.TruthBasisContentIndex, "exact name proof"))
 	})
@@ -81,7 +81,7 @@ func TestHTTPTransportPreservesExactAndOverflowCodeSearchPages(t *testing.T) {
 		row := map[string]any{"entity_id": "entity-a", "name": body["query"], "labels": []any{"Function"}}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"source": "content", "source_backend": "postgres_content_name_index",
-			"query": body["query"], "repo_id": "", "results": []any{row}, "matches": []any{row},
+			"query": body["query"], "repo_id": "", "results": []any{row},
 			"count": 1, "limit": 1, "truncated": truncated,
 		}, query.BuildTruthEnvelope(
 			query.ProfileLocalAuthoritative,

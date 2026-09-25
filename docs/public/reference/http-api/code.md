@@ -50,7 +50,7 @@ global searches may use names shorter than three characters. The public page
 limit defaults to 50 and is capped at 200. Every response includes `count`,
 `limit`, and `truncated`; the handler reads one extra row internally so
 `truncated=true` means at least one additional ordered match exists beyond the
-returned page. `matches` is the compatibility alias for `results`.
+returned page. `matches` removed; read `results`.
 
 `POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
 `match_mode`, repository/language/entity filters, `limit`, and `offset`.

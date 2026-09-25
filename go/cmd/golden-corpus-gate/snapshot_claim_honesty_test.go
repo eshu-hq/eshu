@@ -48,14 +48,14 @@ func TestGoldenSnapshotMakesThinEvidenceCapabilitiesNonVacuous(t *testing.T) {
 	if got := variable.RequestBody["search_type"]; got != "variable" {
 		t.Errorf("code search request_body[search_type] = %#v, want variable", got)
 	}
-	if got := variable.RequiredJSONValues["matches[].labels[]"]; got != "Variable" {
+	if got := variable.RequiredJSONValues["results[].labels[]"]; got != "Variable" {
 		t.Errorf("code search variable label pin = %#v, want Variable", got)
 	}
 	mcpVariable := snapshot.QueryShapes.MCP["find_code"]
 	if got := mcpVariable.Arguments["query"]; got != "app" {
 		t.Errorf("find_code arguments[query] = %#v, want app", got)
 	}
-	if got := mcpVariable.RequiredJSONValues["matches[].labels[]"]; got != "Variable" {
+	if got := mcpVariable.RequiredJSONValues["results[].labels[]"]; got != "Variable" {
 		t.Errorf("find_code variable label pin = %#v, want Variable", got)
 	}
 
