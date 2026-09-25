@@ -268,19 +268,21 @@ func TestLaneBlockStateReportsOncePerIntervalAndOnRelease(t *testing.T) {
 
 	var state laneBlockState
 	start := time.Unix(1_000, 0)
-	if report, _, _ := state.observe(start, BlockedReasonCanonicalCodeQuiescence); !report {
+	if obs := state.observe(start, BlockedReasonCanonicalCodeQuiescence); !obs.report {
 		t.Fatal("first blocked observation must report")
 	}
-	if report, _, _ := state.observe(start.Add(blockedReportInterval/2), BlockedReasonCanonicalCodeQuiescence); report {
+	if obs := state.observe(start.Add(blockedReportInterval/2), BlockedReasonCanonicalCodeQuiescence); obs.report {
 		t.Fatal("observation inside the interval must not report")
 	}
-	report, blockedFor, _ := state.observe(start.Add(blockedReportInterval), BlockedReasonCanonicalCodeQuiescence)
-	if !report || blockedFor != blockedReportInterval.Seconds() {
-		t.Fatalf("observe at interval = (%v, %v), want (true, %v)", report, blockedFor, blockedReportInterval.Seconds())
+	obs := state.observe(start.Add(blockedReportInterval), BlockedReasonCanonicalCodeQuiescence)
+	if !obs.report || obs.blockedFor != blockedReportInterval.Seconds() {
+		t.Fatalf("observe at interval = (%v, %v), want (true, %v)", obs.report, obs.blockedFor, blockedReportInterval.Seconds())
 	}
-	report, _, replaced := state.observe(start.Add(blockedReportInterval+time.Second), BlockedReasonReducerGraphWork)
-	if !report || replaced != BlockedReasonCanonicalCodeQuiescence {
-		t.Fatalf("reason change = (%v, %q), want (true, %q)", report, replaced, BlockedReasonCanonicalCodeQuiescence)
+	obs = state.observe(start.Add(blockedReportInterval+time.Second), BlockedReasonReducerGraphWork)
+	if !obs.report || obs.replaced != BlockedReasonCanonicalCodeQuiescence ||
+		obs.replacedFor != (blockedReportInterval+time.Second).Seconds() {
+		t.Fatalf("reason change = %+v, want report, replaced %q aged %v",
+			obs, BlockedReasonCanonicalCodeQuiescence, (blockedReportInterval + time.Second).Seconds())
 	}
 	released, reason, _ := state.release(start.Add(2 * blockedReportInterval))
 	if !released || reason != BlockedReasonReducerGraphWork {

@@ -64,7 +64,13 @@ blocked` line with `blocked_reason`, `blocked_seconds`, `blocking_scope_count`
 and up to 10 `blocking_scope_ids`, plus the
 `eshu_dp_shared_projection_lane_blocking_scopes` gauge, both refreshed at most
 once a minute. The first open cycle after an episode logs `code call projection
-lane released` and zeroes the gauge. Before #7133 a blocked cycle emitted
+lane released` and zeroes the gauge. A switch from one blocked reason to
+another closes the replaced episode the same way: it zeroes that reason's gauge
+and logs the same `lane released` line with the old `blocked_reason`, its
+`blocked_seconds`, and `replaced_by` naming the new reason, then starts the new
+episode at zero. The blocker sample is taken from the dependency the gate
+consults (`ReducerGraphDrain` when wired, otherwise `CanonicalQuiescence`),
+never from the other one. Before #7133 a blocked cycle emitted
 nothing, and the lane sat shut on ops-qa for eight days without a signal.
 
 ## Dependencies
