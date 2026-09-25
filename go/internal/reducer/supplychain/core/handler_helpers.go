@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -325,4 +326,35 @@ func supplyChainRemediationCounts(findings []SupplyChainImpactFinding) map[suppl
 		out[supplyChainRemediationKey{confidence: confidence, reason: reason}]++
 	}
 	return out
+}
+
+// emitRetraction records the superseded findings one pass tombstoned (#6831):
+// the eshu_dp_supply_chain_impact_findings_retracted_total counter plus one
+// structured log line naming the (scope, generation), so an operator can see
+// which finding sets are being rewritten without querying fact_records.
+// Nothing is emitted for a pass that retracted nothing.
+func (h SupplyChainImpactHandler) emitRetraction(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	retracted int,
+	partialEvidence bool,
+) {
+	if retracted == 0 {
+		return
+	}
+	if h.Instruments != nil && h.Instruments.SupplyChainImpactFindingsRetracted != nil {
+		h.Instruments.SupplyChainImpactFindingsRetracted.Add(ctx, int64(retracted), metric.WithAttributes(
+			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+		))
+	}
+	if h.Logger != nil {
+		h.Logger.InfoContext(ctx, "supply chain impact superseded findings retracted",
+			slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
+			slog.String("scope_id", intent.ScopeID),
+			slog.String("generation_id", intent.GenerationID),
+			slog.String("intent_id", intent.IntentID),
+			slog.Int("findings_retracted", retracted),
+			slog.Bool("partial_evidence", partialEvidence),
+		)
+	}
 }

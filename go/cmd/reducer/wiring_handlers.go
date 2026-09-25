@@ -41,6 +41,22 @@ func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) reducer.AWSCloudRunt
 	}
 }
 
+// supplyChainImpactWriterFor builds the transaction-backed supply-chain impact
+// writer (#6831: conflict-domain lock, finding upsert, and superseded-finding
+// retraction commit atomically). When the database does not expose a
+// transaction beginner the writer is nil, so the additive-domain gate keeps
+// supply_chain_impact unregistered rather than wiring a writer that cannot
+// retract. Mirrors awsCloudRuntimeDriftWriterFor.
+func supplyChainImpactWriterFor(database db.ExecQueryer) reducer.SupplyChainImpactWriter {
+	beginner := reducerBeginner(database)
+	if beginner == nil {
+		return nil
+	}
+	return reducer.PostgresSupplyChainImpactWriter{
+		DB: postgres.SupplyChainImpactBeginner{Beginner: beginner},
+	}
+}
+
 // buildReducerDriftHandlers assembles the provider config-vs-state and
 // cloud-runtime drift adapters (reducer.DriftHandlers; see
 // internal/reducer/defaults_handlers.go). All three terraform members must be
@@ -196,9 +212,7 @@ func buildReducerSupplyChainSecurityHandlers(
 		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
-		SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
-			DB: database,
-		},
+		SupplyChainImpactWriter: supplyChainImpactWriterFor(database),
 		SecurityAlertReconciliationWriter: securityalert.PostgresSecurityAlertReconciliationWriter{
 			DB: database,
 		},

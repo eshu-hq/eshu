@@ -37,9 +37,11 @@
 // (BuildVulnerabilitySuppressions, EvaluateSupplyChainSuppression,
 // SupplyChainSuppressionDecision), the handler and writers
 // (SupplyChainImpactHandler, PostgresSupplyChainImpactWriter,
-// SupplyChainImpactWinnersMaintainer), and the Go reachability classifier
+// SupplyChainImpactWinnersMaintainer; the writer replaces a (scope,
+// generation)'s finding set in one locked transaction and tombstones the
+// findings a pass no longer derives, #6831), and the Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
-package core //nolint:dirgate // supplychain family for #6061: 71 non-test files vs the 40-file cap; the tree doc names supplychain/core as the single destination and the Suppression-on-SupplyChainImpactFinding field makes finding+core+suppression indivisible, so splitting the directory mid-move would re-create the root<->package cycle the unit move exists to end.
+package core //nolint:dirgate // supplychain family for #6061: 72 non-test files vs the 40-file cap; the tree doc names supplychain/core as the single destination and the Suppression-on-SupplyChainImpactFinding field makes finding+core+suppression indivisible, so splitting the directory mid-move would re-create the root<->package cycle the unit move exists to end.

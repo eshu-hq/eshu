@@ -249,6 +249,13 @@ func (f *supplyChainReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	return supplyChainReadinessTx{database: f}, nil
 }
 
+// Begin satisfies db.Beginner so the transaction-backed supply-chain impact
+// writer (#6831) is wired and the domain registers. The transaction routes
+// straight back to this fake.
+func (f *supplyChainReadinessWiringDB) Begin(context.Context) (db.Transaction, error) {
+	return supplyChainReadinessTx{database: f}, nil
+}
+
 // supplyChainReadinessTx is a pass-through transaction over the fake database.
 type supplyChainReadinessTx struct {
 	database *supplyChainReadinessWiringDB

@@ -428,6 +428,18 @@ type SupplyChainImpactHandler = supplychaincore.SupplyChainImpactHandler
 // [supplychaincore.PostgresSupplyChainImpactWriter].
 type PostgresSupplyChainImpactWriter = supplychaincore.PostgresSupplyChainImpactWriter
 
+// SupplyChainImpactWriter persists reducer-owned impact findings. See
+// [supplychaincore.SupplyChainImpactWriter].
+type SupplyChainImpactWriter = supplychaincore.SupplyChainImpactWriter
+
+// SupplyChainImpactTx is the transaction one impact write runs in. See
+// [supplychaincore.SupplyChainImpactTx].
+type SupplyChainImpactTx = supplychaincore.SupplyChainImpactTx
+
+// SupplyChainImpactBeginner opens the transaction for one impact write. See
+// [supplychaincore.SupplyChainImpactBeginner].
+type SupplyChainImpactBeginner = supplychaincore.SupplyChainImpactBeginner
+
 // SupplyChainImpactWinnersMaintainer keeps the
 // supply_chain_impact_canonical_winners read model reconciled with the active
 // impact facts. See [supplychaincore.SupplyChainImpactWinnersMaintainer].

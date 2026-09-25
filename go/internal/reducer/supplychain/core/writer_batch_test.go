@@ -25,7 +25,7 @@ func TestPostgresSupplyChainImpactWriterPersistsBatchedFacts(t *testing.T) {
 	t.Parallel()
 
 	db := &testutil.FakeExecer{}
-	writer := PostgresSupplyChainImpactWriter{DB: db}
+	writer := PostgresSupplyChainImpactWriter{DB: newFakeImpactBeginner(db)}
 
 	write := SupplyChainImpactWrite{
 		IntentID:     "intent-impact-batch",
@@ -121,7 +121,7 @@ func TestWriteSupplyChainImpactFindingsBoundedExecCount(t *testing.T) {
 	}
 
 	db := &testutil.FakeExecer{}
-	writer := PostgresSupplyChainImpactWriter{DB: db}
+	writer := PostgresSupplyChainImpactWriter{DB: newFakeImpactBeginner(db)}
 
 	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), SupplyChainImpactWrite{
 		IntentID:     "intent-impact-batch",

@@ -7,6 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // Recompute write side of the #3389 canonical dedup materialization. See
@@ -262,3 +265,39 @@ func (s SupplyChainImpactWinnersStore) RebuildAllWinners(ctx context.Context, ma
 	}
 	return nil
 }
+
+// SupplyChainImpactBeginner adapts a postgres Beginner (for example the
+// instrumented reducer DB) into the reducer's supply-chain impact transaction
+// surface (#6831), so the writer commits its conflict-domain lock, finding
+// upsert, and superseded-finding retraction atomically over the shared
+// instrumented connection. Mirrors AWSCloudRuntimeDriftAdmissionBeginner; it lives beside the winners store to keep this directory at its dirgate-pinned file count.
+type SupplyChainImpactBeginner struct {
+	Beginner db.Beginner
+}
+
+// BeginSupplyChainImpactTx opens a transaction wrapped in the reducer's
+// supply-chain impact writer surface.
+func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
+	ctx context.Context,
+) (reducer.SupplyChainImpactTx, error) {
+	tx, err := b.Beginner.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return supplyChainImpactTx{tx: tx}, nil
+}
+
+type supplyChainImpactTx struct {
+	tx db.Transaction
+}
+
+func (t supplyChainImpactTx) ExecContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	return t.tx.ExecContext(ctx, query, args...)
+}
+
+func (t supplyChainImpactTx) Commit() error   { return t.tx.Commit() }
+func (t supplyChainImpactTx) Rollback() error { return t.tx.Rollback() }

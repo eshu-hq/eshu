@@ -71,6 +71,9 @@ func (s *stubSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 type recordingSupplyChainImpactWriter struct {
 	write SupplyChainImpactWrite
 	calls int
+	// retracted is echoed back as FactsRetracted so handler tests can drive
+	// the #6831 retraction telemetry.
+	retracted int
 }
 
 func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
@@ -82,6 +85,7 @@ func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	return SupplyChainImpactWriteResult{
 		CanonicalWrites: supplyChainImpactCanonicalWrites(write.Findings),
 		FactsWritten:    len(write.Findings),
+		FactsRetracted:  w.retracted,
 	}, nil
 }
 
@@ -253,7 +257,7 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	now := time.Date(2026, 5, 16, 16, 0, 0, 0, time.UTC)
 	db := &testutil.FakeExecer{}
 	writer := PostgresSupplyChainImpactWriter{
-		DB:  db,
+		DB:  newFakeImpactBeginner(db),
 		Now: func() time.Time { return now },
 	}
 

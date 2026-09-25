@@ -197,6 +197,9 @@ func TestSupplyChainImpactHandlerFailsOpenWhenSuppressionCandidatesAreTruncated(
 	if !strings.Contains(result.EvidenceSummary, "active_evidence_truncated=true") {
 		t.Fatalf("EvidenceSummary = %q, want truncation marker", result.EvidenceSummary)
 	}
+	if !writer.write.PartialEvidence {
+		t.Fatal("PartialEvidence = false for a truncated evidence load; the writer would retract findings it never reached (#6831)")
+	}
 }
 
 func TestSupplyChainImpactPayloadIncludesSuppressionState(t *testing.T) {

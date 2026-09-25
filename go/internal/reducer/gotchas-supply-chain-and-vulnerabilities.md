@@ -131,6 +131,17 @@ for the same reason.
   active evidence walk by subject or referrer digest, but attachment facts are
   emitted only when explicit SBOM document/component or attestation evidence
   proves the subject.
+- **Supply-chain impact findings are a replace-set per (scope, generation)
+  (#6831)** — finding `fact_id`s embed `repository_id`, so an anchored
+  re-derivation mints a new row. `PostgresSupplyChainImpactWriter` therefore
+  tombstones every active finding of the pass's `(scope, generation)` it did
+  not just write, in the same transaction as the upsert and behind a
+  `pg_advisory_xact_lock` on that pair (without the lock two overlapping
+  passes commit the union of their sets). Truncated passes
+  (`PartialEvidence`) retract nothing. Never switch the keep-set predicate to
+  `fact_id <> ALL($n)`: under pgx's cached generic plan it is a per-row array
+  scan (1.6 s vs 144 ms at 10k rows);
+  see `docs/internal/evidence/6831-supply-chain-impact-replace-set.md`.
 - **Supply-chain impact is evidence-first** —
   `SupplyChainImpactHandler` writes `reducer_supply_chain_impact_finding`
   facts only from explicit vulnerability, affected package, owned

@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // supplyChainImpactBudgetRelPath is the committed cost budget for the
@@ -32,7 +34,9 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // (go/internal/reducer/supplychain/core/writer.go) now calls the shared
 // reducerBatchInsertVersionedFacts bounded
 // chunked bulk insert (issue #5317), so two findings fit in one 1000-row
-// chunk and cost exactly one ExecContext round-trip.
+// chunk and cost one insert round-trip. #6831 wraps that insert in a
+// transaction with a conflict-domain lock before it and a superseded-finding
+// retraction after it, so one pass costs exactly three statements.
 func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 	row := func(id string) reducer.SupplyChainImpactFinding {
 		return reducer.SupplyChainImpactFinding{
@@ -62,17 +66,18 @@ func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 // WriteSupplyChainImpactFindings now calls the shared
 // reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
 // instead of one ExecContext per finding, so two findings fit one chunk and
-// this scenario asserts exactly one write observation. The companion N+1
+// this scenario asserts exactly three write observations (lock, insert,
+// retraction; #6831). The companion N+1
 // negative control below (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget)
 // proves the budget still catches a per-finding regression.
 func TestCostBudget_SupplyChainImpact(t *testing.T) {
 	t.Parallel()
 
 	budget := loadBudgetFrom(t, supplyChainImpactBudgetRelPath)
-	fake := &countingExecQueryer{}
-	db, reader := newInstrumentedReducerDB(t, fake)
+	fake := &postgresExecCountingQueryer{}
+	db, reader := newSupplyChainImpactInstrumentedDB(t, fake)
 	writer := reducer.PostgresSupplyChainImpactWriter{
-		DB:  db,
+		DB:  postgres.SupplyChainImpactBeginner{Beginner: db},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
@@ -115,7 +120,7 @@ func TestCostBudget_SupplyChainImpact(t *testing.T) {
 	}
 
 	// SECONDARY assertion: raw ExecContext call count from the counting fake.
-	execs := fake.totalExecs()
+	execs := fake.count()
 	if maxExecs, ok := budget.Budgets["statements_executed"]; ok {
 		if execs > maxExecs {
 			t.Fatalf(
@@ -150,10 +155,10 @@ func TestCostBudget_SupplyChainImpact_N1_ExceedsBudget(t *testing.T) {
 		t.Fatalf("N+1 control needs >=2 findings to exceed the budget; fixture has %d", len(findings))
 	}
 
-	fake := &countingExecQueryer{}
-	db, reader := newInstrumentedReducerDB(t, fake)
+	fake := &postgresExecCountingQueryer{}
+	db, reader := newSupplyChainImpactInstrumentedDB(t, fake)
 	writer := reducer.PostgresSupplyChainImpactWriter{
-		DB:  db,
+		DB:  postgres.SupplyChainImpactBeginner{Beginner: db},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
@@ -195,4 +200,22 @@ func TestCostBudget_SupplyChainImpact_N1_ExceedsBudget(t *testing.T) {
 			"(N=%d findings, scenario=%s)",
 		writes, maxWrites, len(findings), budget.Scenario,
 	)
+}
+
+// newSupplyChainImpactInstrumentedDB wraps a transaction-capable counting
+// queryer in the production InstrumentedDB shape. #6831 made the writer
+// transactional (conflict-domain lock, batched upsert, superseded-finding
+// retraction), so the fake must satisfy db.Beginner and return a real
+// sql.Result for the retraction's RowsAffected.
+func newSupplyChainImpactInstrumentedDB(
+	t *testing.T,
+	fake *postgresExecCountingQueryer,
+) (*postgres.InstrumentedDB, *sdkmetric.ManualReader) {
+	t.Helper()
+	inst, reader := newManualReaderInstruments(t)
+	return &postgres.InstrumentedDB{
+		Inner:       fake,
+		Instruments: inst,
+		StoreName:   "reducer",
+	}, reader
 }
