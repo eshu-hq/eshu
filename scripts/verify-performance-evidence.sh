@@ -8,6 +8,46 @@ if [ -z "$repo_root" ]; then
 fi
 
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
+# An explicit base must exist in this checkout before anything diffs against
+# it (eshu-hq/eshu#7134). test.yml pins github.event.pull_request.base.sha and
+# checks out the PR merge ref at fetch-depth 2. When main moves before the job
+# starts, GitHub rebuilds the merge ref on the newer main, so the event base
+# SHA is no longer in the clone and every later `git diff "$base"...HEAD` died
+# with `fatal: bad object <sha>` (exit 128). Resolve it explicitly, in this
+# order, and never widen the diff or pass silently:
+#
+#  1. The object is present: use it as pinned.
+#  2. pull_request event and HEAD is a merge commit: use HEAD^1. GitHub builds
+#     refs/pull/N/merge as a merge of the base branch tip (parent 1) and the PR
+#     head (parent 2), so HEAD^1 is exactly the tree the PR was merged onto and
+#     is always inside a depth-2 checkout. It is more accurate than fetching
+#     the stale event SHA: a depth-1 fetch of that SHA shares no visible merge
+#     base with HEAD, forcing the two-dot fallback, which attributes every
+#     commit that landed on main since the event SHA to this PR. When main did
+#     not move, HEAD^1 == the event base SHA, so the pin's original purpose is
+#     preserved. The substitution is announced on stderr.
+#  3. Otherwise fetch the object from origin.
+#  4. If that also fails, fail with an actionable message.
+if [ -n "$base" ] && ! git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
+    git -C "$repo_root" rev-parse --verify --quiet "HEAD^2^{commit}" >/dev/null 2>&1 &&
+    parent_base="$(git -C "$repo_root" rev-parse --verify --quiet "HEAD^1^{commit}" 2>/dev/null)"; then
+    printf 'verify-performance-evidence: base %s is not in this checkout (main moved after the event); using HEAD^1 %s, the tree the PR merge commit was built on\n' \
+      "$base" "$parent_base" >&2
+    base="$parent_base"
+  elif git -C "$repo_root" fetch --no-tags --depth=1 origin "$base" >/dev/null 2>&1 &&
+    git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
+    :
+  else
+    {
+      printf 'verify-performance-evidence: ESHU_PERFORMANCE_EVIDENCE_BASE=%s is not a commit in this checkout and could not be fetched from origin.\n' "$base"
+      printf 'The gate refuses to guess a base: a wider or narrower diff would change which hot-path files it checks.\n'
+      printf 'Fix: fetch the object (git fetch --no-tags origin %s), check out with a deeper fetch-depth,\n' "$base"
+      printf 'or unset ESHU_PERFORMANCE_EVIDENCE_BASE to use the merge base with origin/main.\n'
+    } >&2
+    exit 1
+  fi
+fi
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # An explicit destination refspec is required: `git fetch origin <branch>`
   # with no `:<dst>` only ever updates FETCH_HEAD, never
