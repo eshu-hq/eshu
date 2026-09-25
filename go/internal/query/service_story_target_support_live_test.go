@@ -28,8 +28,9 @@ import (
 //   - the target read orders by observed_at DESC then fact_id DESC, so a tie on
 //     observed_at is broken deterministically;
 //   - a kind listed twice counts its facts once (fact_kind = ANY semantics);
-//   - the source-only rollup includes active source facts with absent or empty
-//     ref arrays, and excludes facts with a nonempty ref array (#6807).
+//   - the source-only rollup counts a fact with no structured refs: a missing
+//     or JSON-null key, an empty array, or a non-array value all mean no refs,
+//     and a nonempty ref array excludes the fact (#6807, #7126).
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
@@ -70,7 +71,7 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	if err := conn.QueryRowContext(ctx, sourceSQL, array.Of(kinds)).Scan(&total, &workItems, &incidents); err != nil {
 		t.Fatalf("source-only query: %v", err)
 	}
-	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "5|4|1"; got != want {
+	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "6|5|1"; got != want {
 		t.Fatalf("source-only counts = %s, want %s", got, want)
 	}
 	support := buildStoryTargetSupportWithSourceOnlySummary(
@@ -84,8 +85,8 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 		},
 	)
 	coverage := mapValue(support, "coverage")
-	if got := IntVal(coverage, "source_only_count"); got != 5 {
-		t.Fatalf("coverage.source_only_count = %d, want 5", got)
+	if got := IntVal(coverage, "source_only_count"); got != 6 {
+		t.Fatalf("coverage.source_only_count = %d, want 6", got)
 	}
 	missing, ok := support["missing_evidence"].([]map[string]any)
 	if !ok || len(missing) != 1 || StringVal(missing[0], "reason") != "support_source_only_not_target_linked" {
@@ -179,6 +180,7 @@ VALUES ($1, $2, 'snapshot', $3, $3, $4, '{}'::jsonb)`, gen.id, gen.scope, base, 
 		{"src-no-ref-keys", "s-b", "g-b", "work_item.record", `{}`, 0, false},
 		{"src-some-ref-keys", "s-b", "g-b", "work_item.record", `{"candidate_refs":[]}`, 0, false},
 		{"src-nonarray-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":{}}`, 0, false},
+		{"src-scalar-ref", "s-b", "g-b", "work_item.record", `{"evidence_refs":"x"}`, 0, false},
 		{"src-nonempty-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":[],"evidence_refs":[{"id":"repo-z"}],"linked_entities":[]}`, 0, false},
 	} {
 		exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,

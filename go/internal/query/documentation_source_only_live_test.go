@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"os"
 	"strings"
@@ -219,6 +220,13 @@ func explainPreparedWithMode(t *testing.T, ctx context.Context, db *sql.DB, quer
 	}
 	literals := make([]string, len(args))
 	for i, a := range args {
+		if valuer, ok := a.(driver.Valuer); ok { // e.g. the array wrapper
+			v, err := valuer.Value()
+			if err != nil {
+				t.Fatalf("render argument %d: %v", i+1, err)
+			}
+			a = v
+		}
 		literals[i] = "'" + strings.ReplaceAll(fmt.Sprint(a), "'", "''") + "'"
 	}
 	exec := "EXECUTE proof_stmt"

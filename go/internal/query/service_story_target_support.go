@@ -178,10 +178,27 @@ CROSS JOIN LATERAL (
   WHERE fact.scope_id = scope.scope_id
     AND fact.generation_id = scope.active_generation_id
     AND fact.fact_kind = kind.fact_kind
+    AND fact.fact_kind IN (` + serviceStoryTargetSupportKindLiterals() + `)
     AND ` + strings.Join(factPredicates, "\n    AND ") + `
   OFFSET 0
 ) AS fact
 WHERE generation.status = 'active'`
+}
+
+// serviceStoryTargetSupportKindLiterals renders the support fact kinds as a SQL
+// literal list for the LATERAL probe. It is redundant with the bound `$1` kind
+// array, which still drives the per-kind probes, but a literal list is what the
+// planner can prove implies migration 124's partial index predicate in a custom
+// or generic plan; `fact_kind = kind.fact_kind` alone is not provable. The kinds
+// are compile-time constants, never caller input. A caller that binds a subset
+// of kinds still counts only that subset, since both conditions must hold.
+func serviceStoryTargetSupportKindLiterals() string {
+	kinds := serviceStoryTargetSupportFactKinds()
+	quoted := make([]string, len(kinds))
+	for i, kind := range kinds {
+		quoted[i] = "'" + kind + "'"
+	}
+	return strings.Join(quoted, ", ")
 }
 
 func serviceStoryTargetSupportFactKinds() []string {

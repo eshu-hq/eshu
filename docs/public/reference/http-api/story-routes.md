@@ -149,6 +149,44 @@ at zero and reports `support_source_only_not_target_linked` with aggregate
 facts whose reference-array keys are absent, empty, or non-array, and excludes
 a fact when any of those arrays is nonempty.
 
+The support source-only count uses the same two-valued "no structured refs"
+rule as the documentation count above: a missing or JSON-null ref key means no
+refs. Before #7126 it excluded any support fact missing a key, so it stayed zero
+for real Jira and PagerDuty facts, none of which carry those keys, and the story
+reported `support_target_facts_absent`; it now reports the real aggregate count
+and `support_source_only_not_target_linked`. The main target-support row read
+still admits a fact only when its `candidate_refs`, `evidence_refs`, or
+`linked_entities` carry a matching ref; that read returns no rows for
+support kinds that never emit those keys, tracked separately in #7138.
+
+Performance Evidence: migration 124 adds a partial index over the twelve
+`work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both
+support statements now carry those kinds as a literal `IN` list inside the
+existing per-(scope, kind) LATERAL so the planner proves the index predicate in
+custom and generic plans (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`
+asserts the index in all four plan/statement combinations). On a disposable
+postgres:18.6 fixture of 600,000 `fact_records` rows (200 scopes, three
+generations each, support kinds about 1% of rows), nine interleaved runs with
+alternating first mover: row read 14.40 ms median / 11,675 buffers to 11.31 ms /
+9,263; source-only count 8.49 ms / 11,675 to 6.85 ms / 9,263. That is a modest
+gain at this scale (about 21%); the fixture bounds the per-scope probe overhead,
+and the win grows with the number of non-support facts sharing each scope. The
+`Kept` `OFFSET 0` and kind cross join from #6794 are unchanged, so a missing or
+invalid index degrades to the previous cost, not worse. Ingest cost is one
+btree entry for a support-kind fact only.
+
+No-Regression Evidence:
+
+```bash
+cd go && ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=... ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1 \
+  go test ./internal/query -run 'TestServiceStoryTargetSupportUsesSupportKindsIndexLive' -count=1
+cd go && ESHU_POSTGRES_DSN=... go test ./internal/query -run 'TestServiceStoryTargetSupportSQLSemanticsLive' -count=1
+cd go && go test ./internal/query -run 'TestServiceStoryTargetSupport(SQLInlinesKindLiteralsForIndex|IndexMatchesQuery|SQLProbesFactKindIndex)' -count=1
+```
+
+No-Observability-Change: statement text and index only; the
+`list_service_story_target_support` span, stage events, and metrics are unchanged.
+
 No-Regression Evidence:
 
 ```bash

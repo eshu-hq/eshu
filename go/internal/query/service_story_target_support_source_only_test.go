@@ -112,7 +112,7 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testin
 		"SELECT DISTINCT unnest($1::text[]) AS fact_kind",
 		"fact.fact_kind = kind.fact_kind",
 		"generation.status = 'active'",
-		"jsonb_array_length",
+		"COALESCE(jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND fact.payload->'candidate_refs' <> '[]'::jsonb, FALSE)",
 	)
 	for _, forbidden := range []string{"fact.payload AS", "source_record_id", "ORDER BY", "LIMIT"} {
 		if strings.Contains(query, forbidden) {

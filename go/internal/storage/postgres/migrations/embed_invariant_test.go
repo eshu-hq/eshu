@@ -25,14 +25,15 @@ import (
 // migration, which is exactly the mistake this golden digest exists to catch
 // -- see README.md and checksum_alias.go. #7007 then added
 // 121_fact_records_content_entity_dependency_variable_repo_idx.sql; #7126 added
-// 123_fact_records_documentation_source_only_idx.sql.
-const goldenBootstrapDefinitionsDigest = "5773c3a2ed9133eae1fc9f248d60fbc30e5128c5d227e2d7c7dbc390d049a2d2"
+// 123_fact_records_documentation_source_only_idx.sql and
+// 124_fact_records_story_support_kinds_idx.sql.
+const goldenBootstrapDefinitionsDigest = "cfd0512e00742ae6300af93f75cbaa3cc427ffaab2d1f5294abc7cbd5a19aef6"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 143
+const goldenBootstrapDefinitionsCount = 144
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

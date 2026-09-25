@@ -287,4 +287,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// structured refs. Numbered 123 because 122 is reserved for the
 	// secret-lines side table (#7125).
 	"fact_records_documentation_source_only_idx",
+	// migration 124 (#7126) gives the story target-support reads a partial
+	// index over the twelve work_item.* and incident_routing.* support kinds.
+	"fact_records_story_support_kinds_idx",
 }
