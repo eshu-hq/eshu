@@ -99,7 +99,11 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
         model = f"; {binding['model']} effort={binding['effort']}" if binding else ""
         lines.append(f"- {name}: {role['description']} ({tier}; {role['access']}{model})")
     if harness == "claude":
-        lines.append("Delegate a bounded phase to its native .claude/agents role when useful.")
+        lines.append(
+            "When delegating a bounded phase, select its named .claude/agents agent type "
+            "and omit a model override unless the goal requests one. Team teammates "
+            "must load named skills explicitly."
+        )
     elif harness in {"codex", "muse"}:
         lines.append(f"When the native child tool cannot select this role and binding, the coordinator can run scripts/agent-roles.py {harness}-exec ROLE TASK.")
     lines.append("Preserve the goal's explicit phases and model choices. Do not assign the whole goal from this hint; the main session model is unchanged.")

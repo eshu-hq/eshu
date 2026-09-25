@@ -54,7 +54,7 @@ def main():
                 assert "tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage\n" in claude
                 assert "disallowedTools:" not in claude
             else:
-                assert "disallowedTools: Agent\n" in claude
+                assert "disallowedTools:" not in claude
                 assert "tools:" not in claude.split("---", 2)[1]
         chosen = manifest["models"]["codex"]["deep"]["model"]
         binding.write_text(binding.read_text().replace('model = "' + chosen + '"', 'model = "wrong"'))

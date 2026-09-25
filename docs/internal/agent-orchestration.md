@@ -189,13 +189,21 @@ Every role can exchange task messages with its coordinator or named peers when
 its harness exposes native agent messaging. This is separate from dispatch:
 leaf roles still do not spawn agents, and a peer message cannot grant user
 approval or change permissions. Claude's read-role tool allowlist includes
-`SendMessage`; its write role inherits that tool while denying `Agent`.
-Codex enables its native multi-agent tools in `.codex/config.toml`; the
-collaboration runtime supplies messaging to spawned roles, including read-only
-ones. Standalone `codex-exec` sessions have no parent peer roster. Muse's
-headless role launcher also has no in-process teammate roster; a Muse session
-can use `muse session-message` only when it knows a target session. The shared
-messaging instruction applies when a role has a reachable coordinator or peer.
+`SendMessage`; its write role inherits the available tool pool without a new
+deny rule. Codex enables multi-agent tools by default; the collaboration
+runtime supplies messaging to spawned roles, including read-only ones, without
+a per-role permission field. Standalone `codex-exec` sessions have no parent
+peer roster. Muse's headless role launcher also has no in-process teammate
+roster; a Muse session can use `muse session-message` only when it knows a target
+session. The shared messaging instruction applies when a role has a reachable
+coordinator or peer.
+
+Claude applies a role's frontmatter only when the named agent type is actually
+selected. A per-invocation model overrides its `model:` field; agent-team
+teammates do not preload its `skills:` field, so their task or role body must
+load the skill explicitly. Check `/tasks` for the running role and model when
+the chosen model matters. A resumed teammate may also lose a project role's
+definition until the agent file's folder is trusted.
 
 | Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |

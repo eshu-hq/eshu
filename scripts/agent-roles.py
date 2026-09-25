@@ -80,10 +80,6 @@ def render_claude(name, spec, model):
     ]
     if spec["access"] == "read":
         lines.append("tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage")
-    else:
-        # Preserve the writer's inherited tool pool, including SendMessage,
-        # while enforcing its leaf-agent prohibition on spawning children.
-        lines.append("disallowedTools: Agent")
     if spec.get("skill"):
         lines.append("skills: " + spec["skill"])
     lines += [

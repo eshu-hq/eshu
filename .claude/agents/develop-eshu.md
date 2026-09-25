@@ -1,7 +1,6 @@
 ---
 name: develop-eshu
 description: "Use for a goal's scoped implementation phase, including work using golang-engineering; leave promotion and publication to the coordinator."
-disallowedTools: Agent
 model: sonnet
 effort: high
 ---

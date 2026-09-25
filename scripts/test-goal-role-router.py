@@ -34,6 +34,8 @@ class GoalRoleRouterTests(unittest.TestCase):
             output = context(f"/goal {goal}", "claude", tmp)
         for marker in ("debug-eshu", "develop-eshu", "review-eshu", "sonnet", "eshu-issue-driver stays", "concurrency-deadlock-rigor is a method"):
             self.assertIn(marker, output)
+        self.assertIn("select its named .claude/agents agent type", output)
+        self.assertIn("omit a model override", output)
 
     def test_muse_goal_text_routes_performance_and_review(self):
         output = context("/goal Drive epic with eshu-issue-driver. Benchmark using eshu-performance-rigor; review final PR using eshu-code-review.", "muse")
