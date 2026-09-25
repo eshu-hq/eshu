@@ -1,7 +1,7 @@
 # Agent Engineering Guide
 
-This maintainer-only guide expands the mandatory root `AGENTS.md` and
-`CLAUDE.md` rules. Keep root guidance mirrored; put detailed workflow guidance
+This maintainer-only guide expands the mandatory root `AGENTS.md` rules, the
+only root canon (there is no `CLAUDE.md`). Put detailed workflow guidance
 here or in scoped package docs.
 
 The rules for a touched surface are mandatory. Read the relevant sections when
@@ -180,7 +180,7 @@ historical incidents.
 
 ### Prove The Theory First
 
-The root `AGENTS.md`/`CLAUDE.md` mandates proving a performance or behavior
+The root `AGENTS.md` mandates proving a performance or behavior
 theory with the cheapest possible shim, against representative data, BEFORE
 writing the real change or dispatching an executor to build it — see that
 gate's text for scope (hot-path Cypher/graph writes, Postgres SQL, schema

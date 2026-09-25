@@ -47,7 +47,6 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 		},
 		"ci-gate-registry": {
 			"AGENTS.md",
-			"CLAUDE.md",
 			"CONTRIBUTING.md",
 			"Makefile",
 			"docs/public/contributing-language-support.md",

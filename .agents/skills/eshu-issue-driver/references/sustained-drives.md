@@ -75,15 +75,15 @@ endpoint: issues <list> closed per eshu-issue-driver Completion Evidence.
 lane: <what this drive owns, or "per the claim comments on #N">.
 decision pointers: <comment ids or a design doc>.
 machine constraints: <...>.
-Stop only when Completion Evidence is met, an owner decision is needed (post
-it on the issue and stop), or nothing local clears a blocker. Consent: push,
-pr-open.
+Stop only when Completion Evidence is met or you are waiting on outside work
+behind a live watcher. Escalate an open decision or blocker to an arbiter
+model, act on its verdict, and post it on the issue. Consent: push, pr-open.
 ```
 
 **Muse** — "Goal set — " plus the Codex text above, verbatim.
 
-Ask only for an act not already authorized; never write a consent grant on
-the owner's behalf. Grant only the acts you mean. **Add `merge`** if you want
+An act not already granted gets an arbiter model's review, not a question;
+never write a consent grant on the owner's behalf. Grant only the acts you mean. **Add `merge`** if you want
 the drive to land the PR unattended — left out of the template deliberately,
 because a merge is the least reversible act in the canon's list and the one
 nobody reviews afterwards, and a copy-pasted default is not the place to

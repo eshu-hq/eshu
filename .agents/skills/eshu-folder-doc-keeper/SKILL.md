@@ -17,7 +17,7 @@ package under `go/internal` or `go/cmd` needs `README.md`, `doc.go`, and
   scope and precedence; add only relevant invariants and change guidance.
 
 Use the request, diff, and `.eshu-doc-state/stale.jsonl` to identify packages.
-Ask for a directory only when the target cannot be inferred. Inspect enough
+When the target cannot be inferred, cover every stale package. Inspect enough
 package source to support each claim; keep discovery within that directory
 (`rg --max-depth 1`) so subpackages do not contaminate its documented surface.
 Rewrite only affected sections and preserve human-authored content elsewhere.
