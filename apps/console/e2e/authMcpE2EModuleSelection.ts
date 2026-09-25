@@ -12,8 +12,11 @@
 //   - shapeA / shapeC / shapeB — the three org-shape modules;
 //   - leakage — the negative-leakage module (depends on shape B's state);
 //   - credentialless — the standalone credential-less negative probes the
-//     mutation-sensitivity gate drives (no browser/wizard/shape state).
-export const KNOWN_MCP_E2E_MODULES = ["shapeA", "shapeC", "shapeB", "leakage", "credentialless"] as const;
+//     mutation-sensitivity gate drives (no browser/wizard/shape state);
+//   - catalog-sweep — the opt-in scoped-token full-catalog sweep (#5167); it
+//     needs only the bootstrap admin session and is never part of the empty
+//     (full-suite) selection.
+export const KNOWN_MCP_E2E_MODULES = ["shapeA", "shapeC", "shapeB", "leakage", "credentialless", "catalog-sweep"] as const;
 
 export type McpE2EModule = (typeof KNOWN_MCP_E2E_MODULES)[number];
 

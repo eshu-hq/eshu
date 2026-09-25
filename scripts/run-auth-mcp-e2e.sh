@@ -23,6 +23,21 @@
 #                                  re-run just the negative/challenge module
 #                                  against a mutated service without paying for
 #                                  the full suite's wall time.
+#                                  `--module catalog-sweep` (issue #5167) is the
+#                                  opt-in scoped-token full-catalog sweep: it
+#                                  derives the tool -> route -> class policy from
+#                                  the Go route-policy predicates
+#                                  (`go test ./internal/mcp -run
+#                                  TestCatalogSweepPolicy`), mints a personal token
+#                                  granted on ONE seeded repository, calls EVERY
+#                                  tools/list tool with the checked-in arguments in
+#                                  go/internal/mcp/testdata/catalog_sweep_args.json,
+#                                  and prints a tool/route/expected/actual table
+#                                  (also written to
+#                                  e2e-artifacts/auth-mcp-e2e-catalog-sweep.txt). A
+#                                  ledger route must refuse with a disclosed 403; a
+#                                  negative control proves an ungranted repository
+#                                  is unreadable. It never runs in the full suite.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -84,6 +99,23 @@ for tool in docker node go; do
     exit 1
   }
 done
+
+# The catalog sweep's expected outcomes come from the Go route policy, not a
+# hand-copied list: derive them before any stack work so a table that no longer
+# matches the registered tools (a new tool without arguments, a route no ledger
+# classifies) fails in seconds instead of after a stack boot.
+if [[ "$runner_module" == "catalog-sweep" ]]; then
+  policy_out="$repo_root/e2e-artifacts/auth-mcp-e2e-catalog-sweep-policy.json"
+  mkdir -p "$repo_root/e2e-artifacts"
+  rm -f "$policy_out"
+  echo "run-auth-mcp-e2e: deriving the catalog-sweep policy from the Go route policy"
+  (cd "$repo_root/go" && ESHU_CATALOG_SWEEP_POLICY_OUT="$policy_out" go test ./internal/mcp -run '^TestCatalogSweepPolicy$' -count=1)
+  if [[ ! -s "$policy_out" ]]; then
+    echo "run-auth-mcp-e2e: TestCatalogSweepPolicy wrote no policy at $policy_out" >&2
+    exit 1
+  fi
+  export ESHU_E2E_CATALOG_SWEEP_POLICY="$policy_out"
+fi
 
 teardown() {
   local exit_code=$?

@@ -22,7 +22,9 @@
 //
 // ESHU_E2E_MCP_MODULE selects a single module to run — "shapeA", "shapeC",
 // "shapeB", or "leakage" (a lone module still needs the earlier shapes' state,
-// so this is mainly for iterative debugging), or the standalone
+// so this is mainly for iterative debugging), the opt-in "catalog-sweep"
+// (issue #5167: every MCP tool called with a scoped personal token and judged
+// against the Go route policy; see authMcpE2ECatalogSweep.ts), or the standalone
 // "credentialless" fast path (no browser/wizard) that
 // scripts/verify-auth-mcp-e2e-sensitivity.sh (step 8) drives against a mutated
 // mcp-server. Empty/unset runs every module.
@@ -39,6 +41,7 @@ import {
 import { startAuthE2EDevServer, stopAuthE2EDevServer, type AuthE2EDevServer } from "./authE2EDevServer.ts";
 import { assertFreshStackShowsSetupWizard, driveSetupWizard } from "./authE2ESetupWizard.ts";
 import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
+import { runCatalogSweep } from "./authMcpE2ECatalogSweep.ts";
 import { chromiumLaunchArgsWithGithub, runShapeC } from "./authMcpE2EGithubFlow.ts";
 import { SEEDED_REPOSITORY_ID, seedGraphRepository } from "./authMcpE2EGraphSeed.ts";
 import { assertCredentialLessProbesDoNotLeak, runLeakageSuite } from "./authMcpE2ELeakage.ts";
@@ -208,6 +211,22 @@ export async function runAuthMcpE2E(): Promise<number> {
       wizardNewPassword,
       breakglassRecoveryCode,
     };
+
+    // The catalog sweep (#5167) is opt-in: it runs only for an explicit
+    // `--module catalog-sweep`, never for the empty full-suite selector, because
+    // it makes ~170 tool calls and needs none of the OIDC/GitHub shape state.
+    if (selectedModule === "catalog-sweep") {
+      await runCatalogSweep(step, adminPage, {
+        mcpBase,
+        apiBase,
+        repoRoot,
+        project: composeProject,
+        nornicHttpBase,
+        navTimeoutMs,
+        artifactsDir,
+        policyPath: (process.env.ESHU_E2E_CATALOG_SWEEP_POLICY ?? "").trim(),
+      });
+    }
 
     let personalToken = "";
     let scopedBearer = "";
