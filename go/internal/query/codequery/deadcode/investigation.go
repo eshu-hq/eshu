@@ -23,7 +23,6 @@ import (
 const (
 	deadCodeInvestigationCapability = "code_quality.dead_code"
 	deadCodeInvestigationMaxOffset  = 2000
-	deadCodeSuppressedBucketLimit   = 50
 )
 
 type DeadCodeInvestigationRequest struct {
@@ -42,6 +41,7 @@ type DeadCodeInvestigationScan struct {
 	DisplayTruncated           bool
 	CandidateScanTruncated     bool
 	SuppressedTruncated        bool
+	SuppressedLimit            int
 	CandidateScanLimit         int
 	CandidateScanLimitPerLabel int
 	CandidateScanPages         int
@@ -113,6 +113,7 @@ func (a *Analyzer) HandleDeadCodeInvestigation(w http.ResponseWriter, r *http.Re
 		"display_truncated":              scan.DisplayTruncated,
 		"candidate_scan_truncated":       scan.CandidateScanTruncated,
 		"suppressed_truncated":           scan.SuppressedTruncated,
+		"suppressed_limit":               scan.SuppressedLimit,
 		"next_offset":                    deadCodeInvestigationNextOffset(req, scan),
 		"candidate_scan_limit":           scan.CandidateScanLimit,
 		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
@@ -168,6 +169,7 @@ func (a *Analyzer) ScanDeadCodeInvestigation(
 		CleanupReady:               make([]map[string]any, 0),
 		Ambiguous:                  make([]map[string]any, 0),
 		Suppressed:                 make([]map[string]any, 0),
+		SuppressedLimit:            suppressedBucketLimit(req.Limit),
 		CandidateScanLimit:         totalLimit,
 		CandidateScanLimitPerLabel: totalLimit,
 	}
@@ -291,16 +293,6 @@ func deadCodeSuppressionReasons(result map[string]any, fallback string) []string
 	return reasons
 }
 
-func (scan *DeadCodeInvestigationScan) addSuppressed(results []map[string]any) {
-	for _, result := range results {
-		if len(scan.Suppressed) >= deadCodeSuppressedBucketLimit {
-			scan.SuppressedTruncated = true
-			return
-		}
-		scan.Suppressed = append(scan.Suppressed, result)
-	}
-}
-
 func (scan *DeadCodeInvestigationScan) addActive(results []map[string]any, req DeadCodeInvestigationRequest) bool {
 	for _, result := range results {
 		scan.ActiveCandidatesSeen++
@@ -392,6 +384,7 @@ func (a *Analyzer) deadCodeInvestigationCoverage(
 		"paging_mode":                "filtered_active_candidate_offset",
 		"truncated":                  scan.DisplayTruncated || scan.CandidateScanTruncated,
 		"suppressed_truncated":       scan.SuppressedTruncated,
+		"suppressed_limit":           scan.SuppressedLimit,
 		"candidate_scan_truncated":   scan.CandidateScanTruncated,
 		"candidate_scan_rows":        scan.CandidateScanRows,
 		"candidate_scan_pages":       scan.CandidateScanPages,

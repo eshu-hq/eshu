@@ -60,6 +60,8 @@ const CrossRepo = `
                     "truncated": {"type": "boolean"},
                     "display_truncated": {"type": "boolean"},
                     "candidate_scan_truncated": {"type": "boolean", "description": "True when the shared candidate scan limit was reached before all selected labels were exhausted."},
+                    "suppressed_truncated": {"type": "boolean", "description": "True when suppressed modeled-root examples exceeded the bounded suppressed bucket, whose size is suppressed_limit."},
+                    "suppressed_limit": {"type": "integer", "description": "Maximum rows the suppressed bucket may carry: the smaller of the request limit and 50."},
                     "candidate_scan_limit": {"type": "integer", "description": "Maximum raw candidate rows the classification may inspect across all selected candidate labels."},
                     "candidate_scan_limit_per_label": {"type": "integer", "description": "Maximum share one candidate label may consume from the classification's shared raw-row limit."},
                     "candidate_scan_pages": {"type": "integer"},

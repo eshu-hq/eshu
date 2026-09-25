@@ -19,9 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const (
-	crossRepoDeadCodeCapability = "code_quality.dead_code"
-)
+const crossRepoDeadCodeCapability = "code_quality.dead_code"
 
 type CrossRepoDeadCodeRequest struct {
 	RepoID               string   `json:"repo_id"`
@@ -72,6 +70,8 @@ type CrossRepoDeadCodeScan struct {
 	PolicyStats                codemodel.DeadCodePolicyStats
 	DisplayTruncated           bool
 	CandidateScanTruncated     bool
+	SuppressedTruncated        bool
+	SuppressedLimit            int
 	CandidateScanLimit         int
 	CandidateScanLimitPerLabel int
 	CandidateScanPages         int
@@ -152,6 +152,8 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		"truncated":                      scan.DisplayTruncated || scan.CandidateScanTruncated,
 		"display_truncated":              scan.DisplayTruncated,
 		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"suppressed_truncated":           scan.SuppressedTruncated,
+		"suppressed_limit":               scan.SuppressedLimit,
 		"candidate_scan_limit":           scan.CandidateScanLimit,
 		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
 		"candidate_scan_pages":           scan.CandidateScanPages,
@@ -205,6 +207,7 @@ func (a *Analyzer) ScanCrossRepoDeadCodeCandidates(
 	scan := CrossRepoDeadCodeScan{
 		Active:                     make([]map[string]any, 0, req.Limit+1),
 		Suppressed:                 make([]map[string]any, 0),
+		SuppressedLimit:            suppressedBucketLimit(req.Limit),
 		CandidateScanLimit:         totalLimit,
 		CandidateScanLimitPerLabel: totalLimit,
 	}
@@ -241,7 +244,7 @@ func (a *Analyzer) ScanCrossRepoDeadCodeCandidates(
 			downgraded,
 		)
 		addDeadCodePolicyStats(&scan.PolicyStats, stats)
-		scan.Suppressed = append(scan.Suppressed, suppressed...)
+		scan.addSuppressed(suppressed)
 		active, err = a.filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdges(ctx, active, page.Label)
 		if err != nil {
 			return scan, err

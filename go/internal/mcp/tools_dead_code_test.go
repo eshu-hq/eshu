@@ -75,3 +75,36 @@ func TestResolveRouteMapsInvestigateDeadCodeToolRoute(t *testing.T) {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
 	}
 }
+
+// TestDeadCodeToolSchemaLimitDefaultsMatchRouteDefaults keeps the advertised
+// schema default and the default the route actually sends as one number. The
+// two were separate literals, so a caller reading tools/list could be told
+// 100 while the dispatcher sent something else. #7168 sized the value to the
+// MCP response budget: 100 candidates overran it on most measured repos.
+func TestDeadCodeToolSchemaLimitDefaultsMatchRouteDefaults(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"find_dead_code", "investigate_dead_code", "find_cross_repo_dead_code"} {
+		tool := requireToolDefinition(t, name)
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("%s InputSchema type = %T, want map[string]any", name, tool.InputSchema)
+		}
+		properties, _ := schema["properties"].(map[string]any)
+		limit, ok := properties["limit"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s has no limit property", name)
+		}
+		route, err := resolveRoute(name, map[string]any{"repo_id": "repo-1"})
+		if err != nil {
+			t.Fatalf("resolveRoute(%s) error = %v, want nil", name, err)
+		}
+		routeLimit := requireRouteBody(t, route)["limit"]
+		if limit["default"] != routeLimit {
+			t.Errorf("%s schema limit default = %#v, route default = %#v, want them equal", name, limit["default"], routeLimit)
+		}
+		if routeLimit != 25 {
+			t.Errorf("%s default limit = %#v, want the budget-sized 25", name, routeLimit)
+		}
+	}
+}
