@@ -46,12 +46,22 @@ baseline manifest is unchanged.
   second outcome, each with a specific `acceptReason`: 21 name a subject the
   fixture does not seed (a workload, service, code symbol, file, or evidence
   packet) and may answer a typed `not_found`; 7 depend on the stack profile
-  (`unsupported_capability` for code divergence and path comparison, `503` for
-  `ask` because `ESHU_ASK_ENABLED` is unset, `component_registry_unavailable`
-  because `ESHU_COMPONENT_HOME` is unset). For those 28 the proof is only that
-  the route is mounted and the grant admitted the call. The Go test rejects
-  such an entry unless its `acceptReason` quotes one of the row's own string
-  arguments or the tool name, and unless every accepted outcome is one it
+  (`unsupported_capability` for code divergence and path comparison, the
+  default-off `503` for `ask` because `ESHU_ASK_ENABLED` is unset, matched on
+  its "ask is not enabled" body so a backend `503` still fails,
+  `component_registry_unavailable` because `ESHU_COMPONENT_HOME` is unset). For
+  those 28 the proof is only that the route is mounted and not refused by the
+  route policy; the answer alone does not tell an unseeded subject from a
+  filtered one. Four of them (`calculate_cyclomatic_complexity`,
+  `get_file_content`, `get_file_lines`, `trace_route_callers`) pass the granted
+  repository and answer `not_found`, so the runner replays each through the
+  all-scope console session, which must answer the same typed `404`: the
+  fixture, not the grant, lacks the subject. The Go test rejects a tolerant
+  entry unless its `acceptReason` quotes one of the row's own unseeded string
+  arguments (a seeded-subject placeholder such as `$REPO`, a seeded id, or the
+  tool name alone does not count), or, for a row that accepts only capability
+  outcomes, names the `ESHU_*` variable, query profile, or graph mode it
+  depends on, and unless every accepted outcome is one it
   lists. The remaining 9 calls reach a ledger or shared-key-only route, which
   must answer the route-policy `403` with a live description that discloses it.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`

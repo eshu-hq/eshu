@@ -6,23 +6,36 @@ that a ledger route refuses a scoped token and says why.
 
 Command: `bash scripts/run-auth-mcp-e2e.sh --module catalog-sweep` (see
 [Scoped-Token MCP Catalog Sweep](../../public/run-locally/mcp-catalog-sweep.md)).
-Run on the fresh `eshu-e2e-auth-mcp` compose stack at code commit `a8c2ed788`,
-exit code 0, 10/10 steps, stack torn down afterwards.
+Run on the fresh `eshu-e2e-auth-mcp` compose stack at code commit `4aa1e23e0`
+(the tip of the code changes; later commits only edit these docs),
+exit code 0, 10/10 steps, stack torn down afterwards. Earlier round-1 runs
+used `a8c2ed788`; this run supersedes them.
 
 ## Result
 
 - 166 tools listed to the scoped personal token; 167 calls (one tool has two
   cases); **167/167 passed**.
 - 130 allowlisted calls answered `ok`. 28 allowlisted calls proved only that the
-  route is mounted and the grant admitted the call: 21 named an unseeded subject
-  and answered a typed `not_found`, 7 are gated by the stack profile
-  (`unsupported_capability` x4, `ask` answering 503 because `ESHU_ASK_ENABLED`
-  is unset, `component_registry_unavailable` x2 because `ESHU_COMPONENT_HOME` is
-  unset). 9 calls reached a pending-row-filtering or shared-key-only route and
+  route is mounted and not refused by the route policy: 21 named an unseeded
+  subject and answered a typed `not_found`, 7 are gated by the stack profile
+  (`unsupported_capability` x4, `ask` answering its default-off 503 body
+  ("ask is not enabled", classified `ask_default_off`; a backend 503 with any
+  other body fails) because `ESHU_ASK_ENABLED` is unset,
+  `component_registry_unavailable` x2 because `ESHU_COMPONENT_HOME` is unset).
+  The answer does not tell an unseeded subject from a filtered one, except for
+  the four rows below that carry an all-scope control. 9 calls reached a pending-row-filtering or shared-key-only route and
   answered the route-policy 403 with a tool description that discloses it.
 - The token was scoped, not shared: the stack has no `ESHU_API_KEY`, and
   `GET /api/v0/auth/profile` showed roles `["e2e_catalog_sweep_reader","owner"]`
   with the permission catalog enforced.
+- All-scope control for the four tolerant rows that pass the GRANTED repository
+  and answered `not_found` (`calculate_cyclomatic_complexity`,
+  `get_file_content`, `get_file_lines`, `trace_route_callers`): the runner
+  replays each call, with the same body, through the all-scope console session,
+  and each answered the same typed 404 (`SAME` x4). So the fixture lacks the
+  file, function, and route; the grant did not hide the repository. The other 24
+  tolerant rows have no such control and claim only the weaker result: 17 name
+  a `sweep-seed-missing` id no seed creates, and 7 are profile-gated.
 - Negative control: the scoped `list_indexed_repositories` returned only
   `e2e-seed-repo-default`; the all-scope session listed both it and
   `e2e-seed-repo-ungranted`. Per single-repository tool (granted / ungranted via
@@ -37,13 +50,25 @@ exit code 0, 10/10 steps, stack torn down afterwards.
 | get_repository_coverage | ok | not_found | 200 |
 | get_repository_freshness | ok | not_found | 200 |
 
+## Shape-A empty-grant check, fixed and rerun
+
+`assertMcpToolCallRowFiltered` (and the twin check in the leakage module) read
+`structuredContent.repositories`, but the MCP payload is the truth envelope, so
+the list is at `structuredContent.data.repositories` and the zero-rows assertion
+could not fail. Both now read `data` through `repositoryListFromEnvelope` and
+throw on an unrecognised shape. `bash scripts/run-auth-mcp-e2e.sh --module
+shapeA` at `4aa1e23e0`: exit 0, 9/9 steps, including
+`shapeA_mcp_tool_call_row_filtered`: "166 tools listed; scoped personal token
+(empty grant) correctly saw 0 repositories (total=0)". The seeded repository
+exists in the graph, so the fixed check reads a real envelope and finds none.
+
 ## Seed and limits
 
 The seed is the graph Repository nodes, one repository-catalog scope per
 repository, one `state_snapshot` scope, and a role granting every feature and
 data class on the granted repository and the state scope. There is no indexed
-content, so the 21 `not_found` rows prove routing and grant admission, not a
-populated answer. The first live run failed 56 of 167 calls, all traced to
+content, so the 21 `not_found` rows prove only that the route is mounted and not
+refused by the route policy, not a populated answer. The first live run failed 56 of 167 calls, all traced to
 missing route selectors in the argument table or to the graph-only seed; none
 was a production defect. The 9 refused routes are the closed
 `pendingRowFilteringRoutes` and `sharedKeyOnlyRoutes` ledgers, so this run
@@ -59,7 +84,7 @@ analyze_code_relationships[find_callers]                 POST /api/v0/code/relat
 analyze_code_relationships[who_modifies_pending_ledger]  POST /api/v0/code/relationships                                          403 disclosed (pending_row_filtering)                     route_denied_403 (disclosed)    PASS
 analyze_infra_relationships                              POST /api/v0/infra/relationships                                         success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 analyze_pre_change_impact                                POST /api/v0/impact/pre-change                                           success (ok)                                              ok                              PASS
-ask                                                      POST /api/v0/ask                                                         success (ok|http_503)                                     http_503                        PASS
+ask                                                      POST /api/v0/ask                                                         success (ok|ask_default_off)                              ask_default_off                 PASS
 build_evidence_citation_packet                           POST /api/v0/evidence/citations                                          success (ok)                                              ok                              PASS
 calculate_cyclomatic_complexity                          POST /api/v0/code/complexity                                             success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 check_documentation_evidence_packet_freshness            GET /api/v0/documentation/evidence-packets/sweep-seed-missing/freshness  success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
@@ -133,13 +158,13 @@ get_operator_control_plane                               GET /api/v0/status/oper
 get_package_registry_package_inventory                   GET /api/v0/package-registry/packages/inventory                          success (ok)                                              ok                              PASS
 get_relationship_evidence                                GET /api/v0/evidence/relationships/sweep-seed-missing                    success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 get_replatforming_rollups                                POST /api/v0/replatforming/rollups                                       success (ok)                                              ok                              PASS
-get_repo_context                                         GET /api/v0/repositories/$REPO/context                                   success (ok)                                              ok                              PASS
-get_repo_story                                           GET /api/v0/repositories/$REPO/story                                     success (ok)                                              ok                              PASS
-get_repo_summary                                         GET /api/v0/repositories/$REPO/stats                                     success (ok)                                              ok                              PASS
-get_repository_coverage                                  GET /api/v0/repositories/$REPO/coverage                                  success (ok)                                              ok                              PASS
-get_repository_freshness                                 GET /api/v0/repositories/$REPO/freshness                                 success (ok)                                              ok                              PASS
+get_repo_context                                         GET /api/v0/repositories/e2e-seed-repo-default/context                   success (ok)                                              ok                              PASS
+get_repo_story                                           GET /api/v0/repositories/e2e-seed-repo-default/story                     success (ok)                                              ok                              PASS
+get_repo_summary                                         GET /api/v0/repositories/e2e-seed-repo-default/stats                     success (ok)                                              ok                              PASS
+get_repository_coverage                                  GET /api/v0/repositories/e2e-seed-repo-default/coverage                  success (ok)                                              ok                              PASS
+get_repository_freshness                                 GET /api/v0/repositories/e2e-seed-repo-default/freshness                 success (ok)                                              ok                              PASS
 get_repository_language_inventory                        GET /api/v0/repositories/language-inventory                              success (ok)                                              ok                              PASS
-get_repository_stats                                     GET /api/v0/repositories/$REPO/stats                                     success (ok)                                              ok                              PASS
+get_repository_stats                                     GET /api/v0/repositories/e2e-seed-repo-default/stats                     success (ok)                                              ok                              PASS
 get_sbom_attestation_attachment_inventory                GET /api/v0/supply-chain/sbom-attestations/attachments/inventory         success (ok)                                              ok                              PASS
 get_security_alert_reconciliation_inventory              GET /api/v0/supply-chain/security-alerts/reconciliations/inventory       success (ok)                                              ok                              PASS
 get_semantic_capability_status                           GET /api/v0/status/semantic-extraction                                   success (ok)                                              ok                              PASS
@@ -194,7 +219,7 @@ list_query_playbooks                                     GET /api/v0/query-playb
 list_reducer_input_invalid_facts                         POST /api/v0/admin/input-invalid-facts/query                             success (ok)                                              ok                              PASS
 list_relationship_edges                                  POST /api/v0/relationships/edges                                         success (ok)                                              ok                              PASS
 list_repositories_by_language                            GET /api/v0/repositories/by-language                                     success (ok)                                              ok                              PASS
-list_repository_files                                    GET /api/v0/repositories/$REPO/tree                                      success (ok)                                              ok                              PASS
+list_repository_files                                    GET /api/v0/repositories/e2e-seed-repo-default/tree                      success (ok)                                              ok                              PASS
 list_sbom_attestation_attachments                        GET /api/v0/supply-chain/sbom-attestations/attachments                   success (ok)                                              ok                              PASS
 list_secrets_iam_identity_trust_chains                   GET /api/v0/secrets-iam/identity-trust-chains                            success (ok)                                              ok                              PASS
 list_secrets_iam_posture_gaps                            GET /api/v0/secrets-iam/posture-gaps                                     success (ok)                                              ok                              PASS
