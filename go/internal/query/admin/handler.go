@@ -59,6 +59,7 @@ type Store interface {
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]WorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]WorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]WorkItem, error)
+	UnsafeReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]UnsafeReplayTarget, error)
 	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
 	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
 	RequestBackfill(ctx context.Context, input BackfillInput) (*BackfillRequest, error)
@@ -202,6 +203,26 @@ type ReplayWorkItemFilter struct {
 	// this set. The replay handler populates it with the unsafe-to-replay
 	// classes unless the operator forces the replay.
 	ExcludeFailureClasses []string
+}
+
+// UnsafeReplayTargetFilter selects the replay-eligible terminal work items,
+// among an explicit id list, whose failure_class is in an unsafe or
+// manual-review class. It carries the same narrowing selectors the replay
+// itself applies so the read and the replay agree on the candidate set.
+type UnsafeReplayTargetFilter struct {
+	WorkItemIDs []string
+	ScopeID     string
+	Stage       string
+	// UnsafeFailureClasses is the set of failure classes that must not be
+	// replayed without force.
+	UnsafeFailureClasses []string
+}
+
+// UnsafeReplayTarget names one replay-eligible terminal work item that sits in
+// an unsafe or manual-review failure class.
+type UnsafeReplayTarget struct {
+	WorkItemID   string
+	FailureClass string
 }
 
 // BackfillInput captures the parameters for a backfill request.

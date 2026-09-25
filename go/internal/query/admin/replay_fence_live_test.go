@@ -92,6 +92,28 @@ INSERT INTO fact_work_items (
 
 	adminStore := store.NewStore(db)
 	replayIDs := []string{"replay-both", "replay-v2", "replay-v3", "replay-plain", "replay-succeeded"}
+	// #7120: the unsafe-target read must name exactly the terminal projection_bug
+	// rows, skip the succeeded row and the unknown id, and honor the stage filter.
+	targets, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
+		WorkItemIDs:          append([]string{"replay-missing"}, replayIDs...),
+		UnsafeFailureClasses: []string{"projection_bug", "resource_exhausted"},
+	})
+	if err != nil {
+		t.Fatalf("read unsafe replay targets: %v", err)
+	}
+	if len(targets) != 4 || targets[0].WorkItemID != "replay-both" || targets[0].FailureClass != "projection_bug" {
+		t.Fatalf("unsafe targets = %+v, want the four terminal projection_bug rows sorted by id", targets)
+	}
+	if wrongStage, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
+		WorkItemIDs: replayIDs, Stage: "projector", UnsafeFailureClasses: []string{"projection_bug"},
+	}); err != nil || len(wrongStage) != 0 {
+		t.Fatalf("stage-mismatched unsafe read = %+v, %v; want none", wrongStage, err)
+	}
+	if safeOnly, err := adminStore.UnsafeReplayTargets(ctx, admin.UnsafeReplayTargetFilter{
+		WorkItemIDs: replayIDs, UnsafeFailureClasses: []string{"input_invalid"},
+	}); err != nil || len(safeOnly) != 0 {
+		t.Fatalf("class-mismatched unsafe read = %+v, %v; want none", safeOnly, err)
+	}
 	items, err := adminStore.ReplayFailedWorkItems(ctx, admin.ReplayWorkItemFilter{
 		WorkItemIDs: replayIDs, Stage: "reducer", FailureClass: "projection_bug",
 		OperatorNote: "fixed FIPS query", Limit: len(replayIDs),

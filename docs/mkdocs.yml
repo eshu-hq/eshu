@@ -99,6 +99,7 @@ nav:
       - HTTP API:
         - Overview: reference/http-api.md
         - Status And Admin: reference/http-api/status-admin.md
+        - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md
         - Ask Eshu: reference/http-api/ask.md
         - Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory.md
