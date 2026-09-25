@@ -823,10 +823,10 @@ type Instruments struct {
 	// sizes, so answers come back truncated.
 	QueryImpactScopedPathsWithheld metric.Int64Counter
 	// QueryImpactOwnershipCheckDuration observes one impact ownership
-	// statement's wall time (one chunk of at most 500 keys), labelled by route,
-	// node_label (WorkloadInstance, CloudResource, TerraformStateResource) and
-	// outcome (ok, error). It is the per-class cost the ownership budget in
-	// impact/ownership/budget.go is sized from.
+	// statement's wall time (one chunk of at most ownership.ChunkSize = 50
+	// keys), labelled by route, node_label (WorkloadInstance, CloudResource,
+	// TerraformStateResource) and outcome (ok, error). It is the per-class
+	// cost the ownership budget in impact/ownership/budget.go is sized from.
 	QueryImpactOwnershipCheckDuration metric.Float64Histogram
 	// QueryScopeGrantInlineCapped counts scoped-token reads whose grant set
 	// overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
