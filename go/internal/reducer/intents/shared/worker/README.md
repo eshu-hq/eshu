@@ -113,7 +113,7 @@ stale count that came from this drain. Because those rows never reach the
 gate, `blocked_count` and `blocked_intent_wait_seconds` describe only
 generations that are not superseded, so a large blocked wait is a real
 prerequisite-phase stall. The SQL does not yet enforce that `superseded` is
-terminal on every writer; that gap is tracked in #TBD.
+terminal on every writer; that gap is tracked in #7130.
 
 **The repo-wide-retract fence only engages for the fenced domain set**
 (`sharedintent.DomainHasRepoWideRetract`). A domain added to that set without

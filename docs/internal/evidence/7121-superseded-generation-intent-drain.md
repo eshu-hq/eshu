@@ -36,7 +36,7 @@ nothing and keep today's behavior. A reader without the port keeps the old
 behavior byte for byte; a lookup error fails the selection. The code_calls and
 repo_dependency runners do not go through `SelectPartitionBatch` and are not
 touched. The SQL does not enforce that `superseded` is terminal on every writer;
-that gap is tracked in #TBD and is independent of this drain.
+that gap is tracked in #7130 and is independent of this drain.
 
 Conflict domain: read-only lookup plus the existing `MarkIntentsCompleted`
 drain of the same `intent_id` rows; no new lock, lease, or worker. Partition

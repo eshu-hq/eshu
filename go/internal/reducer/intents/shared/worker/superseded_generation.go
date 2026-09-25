@@ -24,7 +24,7 @@ import (
 // generation only reaches it after a newer generation took over, and its
 // workload_materialization phase is never published afterwards, so the
 // readiness gate would block its intents forever. The SQL does not yet enforce
-// that terminality on every writer; that gap is tracked in #TBD.
+// that terminality on every writer; that gap is tracked in #7130.
 type SupersededGenerationReader interface {
 	// SupersededGenerationIDs returns the subset of generationIDs whose scope
 	// generation is superseded. It must cost one bounded round trip per call.
