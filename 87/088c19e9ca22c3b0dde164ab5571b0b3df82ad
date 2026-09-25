@@ -1,0 +1,14 @@
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 528-529,696
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "87088c19e9ca22c3b0dde164ab5571b0b3df82ad",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
