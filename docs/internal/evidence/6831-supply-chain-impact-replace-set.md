@@ -35,10 +35,17 @@ Each pass's finding set is now the complete truth for its
    `scope_id`, and `generation_id` where `fact_id NOT IN (SELECT unnest($keep))`
    and `fencing_token <= $token`. Rows are tombstoned and never deleted.
 
-A pass whose active-evidence expansion was truncated
-(`SupplyChainImpactWrite.PartialEvidence`) upserts but does not retract. It has
-not seen the complete evidence set, so hiding a row it did not reach would
-replace a stale row with a missing one.
+A pass whose evidence load hit any bound (`SupplyChainImpactWrite.PartialEvidence`)
+upserts but does not retract. It has not seen the complete evidence set, so
+hiding a row it did not reach would replace a stale row with a missing one. The
+bounded stages that feed the flag are: the active-evidence round and per-call
+row caps, the scanner-analysis-scope pair cap, the resolved-digest cap, the
+peer-identity repository-id cap, and the OS-package advisory target cap. The
+OS-package reader orders by fact id with no rotation, so the stage asks for one
+target beyond the cap (500) and treats loaded plus skipped rows above the cap
+as truncation. The other loads (scope facts, repositories, manifest
+dependencies, JVM reachability, Python file facts) page to completion and have
+no cap.
 
 The read path already excludes tombstones: `ListFindingsQuery`, the aggregate,
 explain, and readiness queries in `go/internal/query/supply/chain/impact`,
@@ -119,8 +126,9 @@ from 1 to 3. The N+1 negative control records 6 and still fails that budget.
 Observability Evidence: `eshu_dp_supply_chain_impact_findings_retracted_total`
 (counter, label `domain` only) counts tombstoned rows per pass. The handler
 logs `supply chain impact superseded findings retracted` with `scope_id`,
-`generation_id`, `intent_id`, `findings_retracted`, and `partial_evidence`
-when a pass retracts anything. The reducer result carries the
+`generation_id`, `intent_id`, and `findings_retracted` when a pass retracts
+anything. A partial-evidence pass retracts nothing and logs nothing here; it
+shows as `active_evidence_truncated=true` in the evidence summary and sub-signal. The reducer result carries the
 `findings_retracted` sub-signal, and the evidence summary carries
 `retracted=N`. Lock waits show up in `pg_locks` as `locktype = 'advisory'`, and
 the lock, upsert, and retraction are timed by the existing

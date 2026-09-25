@@ -54,7 +54,7 @@ Each pass's finding set is the complete truth for its `(scope, generation)`.
 every other active finding row of that `(scope, generation)` in one
 transaction, behind a `pg_advisory_xact_lock` on that pair, so a superseded
 finding -- for example a repo-less row replaced once repository anchoring
-arrived -- stops being served (#6831). A pass with truncated active evidence
+arrived -- stops being served (#6831). A pass whose evidence load hit a cap
 (`SupplyChainImpactWrite.PartialEvidence`) upserts only. Evidence and
 measurements: `docs/internal/evidence/6831-supply-chain-impact-replace-set.md`.
 - Types: `SupplyChainImpactFinding`, `SupplyChainImpactFactFilter`,

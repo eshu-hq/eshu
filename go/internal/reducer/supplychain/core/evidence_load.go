@@ -135,7 +135,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 
 	osPackageAdvisoryStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	osPackageAdvisoryEnvelopes, osPackageAdvisorySkipped, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
+	osPackageAdvisoryEnvelopes, osPackageAdvisorySkipped, osPackageAdvisoryTruncated, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
 	timing.loadOSPackageAdvisoryDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact os package advisory facts: %w", err)
@@ -162,7 +162,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, resolvedDigestEvidenceEnvelopes...)
 	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
-	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
+	// osPackageAdvisoryTruncated joins the same flag as the other bounded
+	// stages: the OS-package load is capped, so hitting the cap makes this pass
+	// a partial view that must not retract (#6831).
+	activeEvidenceTruncated = activeEvidenceTruncated || osPackageAdvisoryTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
 	suppressionEvidenceTruncated = suppressionEvidenceTruncated || resolvedDigestTruncated
 
 	peerIdentityEnvelopes, peerIdentityTruncated, err := h.loadSupplyChainImpactPeerIdentityFacts(ctx, resolvedDigestEvidenceEnvelopes)

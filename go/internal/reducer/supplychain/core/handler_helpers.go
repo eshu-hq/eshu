@@ -252,14 +252,20 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
 	if len(filter.RepositoryIDs) == 0 {
 		return nil, false, nil
 	}
+	// Dropping repository ids past the cap is a bounded view of the peer
+	// identities, so it reports truncation exactly like the resolved-digest
+	// stage does (#6831): an unreported drop let a capped pass retract.
+	capTruncated := false
 	if len(filter.RepositoryIDs) > maxSupplyChainImpactResolvedDigestLoads {
 		filter.RepositoryIDs = filter.RepositoryIDs[:maxSupplyChainImpactResolvedDigestLoads]
+		capTruncated = true
 	}
 	// Clear SubjectDigests from the filter — they only name the scanner's
 	// digest, and the whole point of this stage is to load identities for
 	// the SAME repository with DIFFERENT digests.
 	filter.SubjectDigests = nil
-	return h.loadActiveSupplyChainImpactFacts(ctx, filter)
+	loaded, rowsTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
+	return loaded, capTruncated || rowsTruncated, err
 }
 
 func (h SupplyChainImpactHandler) emitCounters(
@@ -332,12 +338,13 @@ func supplyChainRemediationCounts(findings []SupplyChainImpactFinding) map[suppl
 // the eshu_dp_supply_chain_impact_findings_retracted_total counter plus one
 // structured log line naming the (scope, generation), so an operator can see
 // which finding sets are being rewritten without querying fact_records.
-// Nothing is emitted for a pass that retracted nothing.
+// Nothing is emitted for a pass that retracted nothing. A pass with partial
+// evidence never retracts, so it is visible through the existing
+// active_evidence_truncated evidence-summary marker and sub-signal instead.
 func (h SupplyChainImpactHandler) emitRetraction(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	retracted int,
-	partialEvidence bool,
 ) {
 	if retracted == 0 {
 		return
@@ -354,7 +361,6 @@ func (h SupplyChainImpactHandler) emitRetraction(
 			slog.String("generation_id", intent.GenerationID),
 			slog.String("intent_id", intent.IntentID),
 			slog.Int("findings_retracted", retracted),
-			slog.Bool("partial_evidence", partialEvidence),
 		)
 	}
 }

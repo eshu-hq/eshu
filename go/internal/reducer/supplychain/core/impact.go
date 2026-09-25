@@ -217,7 +217,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
-	h.emitRetraction(ctx, intent, writeResult.FactsRetracted, loaded.activeEvidenceTruncated)
+	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
 	timing.emitCountersDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
 
