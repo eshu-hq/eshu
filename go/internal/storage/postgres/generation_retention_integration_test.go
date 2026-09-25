@@ -131,6 +131,11 @@ func generationRetentionProofTimedCount(
 	return count, time.Since(start)
 }
 
+// generationRetentionProofSchemaSQL is a reduced copy of the migrated tables
+// with the same relation names, key columns, and generation foreign keys the
+// retention SQL touches. Drift from the migrations is caught by
+// generation_retention_migrated_schema_live_test.go, which prepares and runs
+// every retention statement against the real bootstrap schema (#6809).
 const generationRetentionProofSchemaSQL = `
 CREATE TABLE ingestion_scopes (
     scope_id TEXT PRIMARY KEY,
@@ -190,9 +195,13 @@ CREATE TABLE graph_projection_phase_repair_queue (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE
 );
 
-CREATE TABLE iac_reachability (
-    reachability_id TEXT PRIMARY KEY,
-    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE
+CREATE TABLE iac_reachability_rows (
+    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    repo_id TEXT NOT NULL,
+    family TEXT NOT NULL,
+    artifact_path TEXT NOT NULL,
+    PRIMARY KEY (scope_id, generation_id, repo_id, family, artifact_path)
 );
 
 CREATE TABLE shared_projection_intents (
@@ -225,8 +234,9 @@ CREATE TABLE infra_resource_entities (
 CREATE TABLE content_file_references (
     repo_id TEXT NOT NULL,
     relative_path TEXT NOT NULL,
-    reference_id TEXT NOT NULL,
-    PRIMARY KEY (repo_id, relative_path, reference_id)
+    reference_kind TEXT NOT NULL,
+    reference_value TEXT NOT NULL,
+    PRIMARY KEY (repo_id, relative_path, reference_kind, reference_value)
 );
 ` + generationRetentionEventSchemaSQL
 

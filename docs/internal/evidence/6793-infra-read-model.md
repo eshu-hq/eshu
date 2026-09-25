@@ -138,14 +138,16 @@ are not blocked. This is a bounded stall per retention batch, not a
 deadlock: derive holds at most one repository lock and retention acquires its
 set in repo_id order.
 
-The probe could not run on a plain bootstrapped schema.
-`generationRetentionRowCountsQuery` (on main before this change) joins a
-relation `iac_reachability` and counts `content_file_references.reference_id`.
-Neither exists in the bootstrap migrations, which create `iac_reachability_rows`
-and no `reference_id` column. Every retention batch with candidates therefore
-fails at its row count on a real schema. The measurement database added a view
-and a surrogate column to get past that; the probe skips when the relation is
-missing. That defect predates this change and is tracked as #6809.
+The probe could not run on a plain bootstrapped schema when it was measured:
+`generationRetentionRowCountsQuery` joined a relation `iac_reachability` and
+counted `content_file_references.reference_id`. Neither exists in the bootstrap
+migrations, which create `iac_reachability_rows` and no `reference_id` column,
+so every retention batch with candidates failed at its row count. #6809 fixed
+the query (it joins `iac_reachability_rows` and counts `ref.repo_id`) and the
+probe now runs on a bootstrapped database without a skip. The probe analyzes its
+bulk-seeded tables first: on a fresh database the content_entities prune planned
+before autovacuum statistics existed and did not finish inside the test
+deadline.
 
 ## Concurrency
 

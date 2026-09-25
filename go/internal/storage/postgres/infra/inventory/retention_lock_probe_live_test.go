@@ -77,6 +77,14 @@ FROM generate_series(1, $2::int) g, generate_series(1, $3::int) e`,
 	if _, err := inventory.MirrorRepo(ctx, postgres.SQLDB{DB: sqlDB}, repo); err != nil {
 		t.Fatalf("MirrorRepo(%s) error = %v", repo, err)
 	}
+	// Bulk-seeded tables have no planner statistics until autovacuum runs, and
+	// on a fresh database retention can plan its content_entities prune before
+	// that: the anti-join against fact_records then becomes a per-row rescan
+	// and the batch outlives the test deadline (#6809 measurement). Production
+	// tables carry autovacuum statistics, so analyze to match.
+	if _, err := sqlDB.ExecContext(ctx, `ANALYZE fact_records, content_entities, infra_resource_entities`); err != nil {
+		t.Fatalf("analyze seeded tables: %v", err)
+	}
 }
 
 // watchAdvisoryLockHold polls pg_locks on its own connection until stop closes
@@ -142,19 +150,6 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 //	  -run TestRetentionLiveLockHoldAndDeriveWaitCost -count=1 -v
 func TestRetentionLiveLockHoldAndDeriveWaitCost(t *testing.T) {
 	sqlDB, ctx := liveDB(t)
-	// generationRetentionRowCountsQuery joins a relation named iac_reachability
-	// and counts content_file_references.reference_id, but the bootstrap
-	// migrations create iac_reachability_rows and no reference_id column, so
-	// retention fails on a bootstrapped database (#6809). Until that is fixed,
-	// the probe needs the operator to provide both (for example a view over
-	// iac_reachability_rows and a surrogate column) rather than hiding it here.
-	var reachability sql.NullString
-	if err := sqlDB.QueryRowContext(ctx, `SELECT to_regclass('iac_reachability')::text`).Scan(&reachability); err != nil {
-		t.Fatalf("check iac_reachability: %v", err)
-	}
-	if !reachability.Valid {
-		t.Skip("relation iac_reachability is missing: generation retention cannot run on this database")
-	}
 	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewGenerationRetentionStore(database)
 	other := uniqueRepo(t)
