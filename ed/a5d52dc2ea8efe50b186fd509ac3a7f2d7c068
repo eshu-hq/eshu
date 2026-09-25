@@ -1,0 +1,18 @@
+go/internal/graph/schema_retired_constraints.go
+  h_78a442cba0b3e6 59
+go/internal/graph/schema_retired_constraints_test.go
+  h_78a442cba0b3e6 1-28
+go/internal/storage/cypher/canonical_moved_block_live_test.go
+  h_78a442cba0b3e6 24,26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eda5d52dc2ea8efe50b186fd509ac3a7f2d7c068",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
