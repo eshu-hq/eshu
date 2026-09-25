@@ -1,0 +1,14 @@
+go/internal/telemetry/bucket_default_guard_test.go
+  h_78a442cba0b3e6 27,39-42,51,161-162,197,224-227,255,267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5b6a2c960a9d156b9db71588e296a966442c1f7",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
