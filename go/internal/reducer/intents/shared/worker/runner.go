@@ -326,10 +326,11 @@ func (r *Runner) processPartitionWithTelemetry(
 		ctx, "shared_projection", domain, result.SupersededGenerationIntents,
 	)
 	if result.BlockedReadiness > 0 && r.Logger != nil {
-		// blocked_count covers only intents whose scope generation is not
-		// superseded: blocked rows on a superseded generation drain as stale
-		// right after the readiness gate (#7121), so a persistently large blocked_intent_wait_seconds
-		// is a real prerequisite-phase stall, not orphaned work.
+		// Blocked rows on a superseded generation with no in-flight producer
+		// drain as stale after the readiness gate (#7121); rows whose producer is
+		// still in flight stay in blocked_count until they drain or project. A
+		// persistently large blocked_intent_wait_seconds is therefore a real
+		// prerequisite-phase stall or a stuck producer, not orphaned work.
 		readinessPhase, _ := ReadinessPhase(domain)
 		r.Logger.InfoContext(
 			ctx,

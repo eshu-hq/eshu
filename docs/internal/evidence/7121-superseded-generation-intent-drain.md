@@ -34,7 +34,15 @@ WHERE g.generation_id = ANY($1::text[]) AND g.status = 'superseded'
     WHERE w.scope_id = g.scope_id AND w.generation_id = g.generation_id
       AND ((w.stage = 'reducer' AND w.status IN ('claimed', 'running'))
         OR (w.stage = 'projector' AND w.status IN ('pending', 'retrying', 'claimed', 'running'))))
+  AND NOT EXISTS (
+    SELECT 1 FROM graph_projection_phase_repair_queue AS r
+    WHERE r.scope_id = g.scope_id AND r.generation_id = g.generation_id)
 ```
+
+After the lookup, the rows about to drain get a second, fresh readiness read
+(`drainSupersededBlockedRows`); a row whose phase published in between projects
+instead of draining. That read runs only when the lookup returned something to
+drain.
 
 ### Why only blocked rows
 
@@ -219,9 +227,10 @@ carries `stale_reason`; `PartitionProcessResult.SupersededGenerationIntents`
 carries the count. The blocked log line is renamed to `shared projection skipped
 intents until their prerequisite graph phase is committed` (the gate is the
 `workload_materialization` / `canonical_nodes` phase, not semantic readiness) and
-gains `readiness_phase`. Blocked rows on a superseded generation drain right
-after the gate, so `blocked_count` and `blocked_intent_wait_seconds` cover only
-non-superseded generations.
+gains `readiness_phase`. Blocked rows on a superseded generation with no
+in-flight producer drain after the gate, and leave `blocked_count` and
+`blocked_intent_wait_seconds`. Blocked rows on a superseded generation whose
+producer is still in flight stay counted there until they drain or project.
 
 ## Proof
 
@@ -253,5 +262,11 @@ non-superseded generations.
   pending/retrying/claimed/running projector item is NOT returned (RED before
   the guard: 8 in-flight cases returned) and is returned once the item is
   succeeded; unleased, terminal, and other-generation items do not defer it.
+- Review rounds 4 and 5: `TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres`
+  (a live phase-repair row defers the drain; RED before the second NOT EXISTS),
+  `TestSelectPartitionBatchKeepsRowThatTurnedReadyAfterReadinessRead` and
+  `TestSelectPartitionBatchRecheckUsesFreshPrefetch` (the re-check projects a row
+  that turned ready and reads readiness again), and
+  `TestSelectPartitionBatchSkipsRecheckWhenNothingDrains`.
 - `go test ./cmd/reducer -run SupersededGenerationDrain`: the production
   `SharedProjectionRunner.IntentReader` implements the port.
