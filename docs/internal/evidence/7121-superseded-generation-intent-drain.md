@@ -262,6 +262,8 @@ producer is still in flight stay counted there until they drain or project.
   pending/retrying/claimed/running projector item is NOT returned (RED before
   the guard: 8 in-flight cases returned) and is returned once the item is
   succeeded; unleased, terminal, and other-generation items do not defer it.
+  The reducer contention gate sets `ESHU_SUPERSEDED_GENERATION_PROOF_DSN` and
+  names all three live tests in its `-run` filter, so CI executes them.
 - Review rounds 4 and 5: `TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres`
   (a live phase-repair row defers the drain; RED before the second NOT EXISTS),
   `TestSelectPartitionBatchKeepsRowThatTurnedReadyAfterReadinessRead` and

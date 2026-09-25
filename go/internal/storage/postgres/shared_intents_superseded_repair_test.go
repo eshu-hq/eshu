@@ -26,6 +26,12 @@ func openSupersededProofSchema(t *testing.T, ctx context.Context, prefix string)
 	}
 	schema := fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
 	admin := openActiveOCIWarningIndexProofDB(t, dsn)
+	// The content_store bootstrap needs pg_trgm's gin_trgm_ops. The extension is
+	// database-wide, so install it in public (the private schema keeps public on
+	// its search_path) instead of into the throwaway schema that is dropped.
+	if _, err := admin.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
+		t.Fatalf("ensure public pg_trgm extension: %v", err)
+	}
 	if _, err := admin.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
