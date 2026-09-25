@@ -132,7 +132,7 @@ cassette_private_data_patterns() {
 	# first control would misreport as a removed or broken alternative. Name
 	# the missing tool instead; this still fails closed.
 	command -v rg >/dev/null 2>&1 \
-		|| fail "cassette private-data scan: rg (ripgrep) is required and was not found on PATH; install it on this runner (scripts/ci/install-apt-packages.sh ripgrep)"
+		|| fail "cassette private-data scan: rg (ripgrep) is required and was not found on PATH; install ripgrep (CI linux: scripts/ci/install-apt-packages.sh ripgrep; macOS: brew install ripgrep)"
 	# Documentation account forms, shared by three alternatives: the AWS
 	# documentation account, zero-prefixed values, and repdigits. One digit is
 	# bracketed so this source line is not itself a 12-digit run.

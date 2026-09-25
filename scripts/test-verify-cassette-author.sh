@@ -361,8 +361,13 @@ printf 'no-pipefail caller: clean controls pass; uncompilable ipv4 and identifie
 norg_bin="${scratch}/norg-bin"
 mkdir -p "${norg_bin}"
 for tool in mktemp rm cat tr sed head tail wc sort awk env dirname basename printf; do
+	# Builtins (printf) need no PATH entry. Any other listed tool must exist,
+	# or the scrubbed-PATH run would silently prove something different.
+	[[ "$(type -t "${tool}")" == builtin ]] && continue
 	tool_path="$(command -v "${tool}" 2>/dev/null || true)"
-	[[ "${tool_path}" == /* ]] && ln -sf "${tool_path}" "${norg_bin}/${tool}"
+	[[ "${tool_path}" == /* ]] \
+		|| fail "scrubbed-PATH setup: ${tool} is not on PATH; the missing-rg case needs it"
+	ln -sf "${tool_path}" "${norg_bin}/${tool}"
 done
 rc=0
 PATH="${norg_bin}" run_controls_without_pipefail "${lib}" "${scratch}/norg.out" rc
