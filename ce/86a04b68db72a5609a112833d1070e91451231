@@ -1,0 +1,40 @@
+go/internal/storage/cypher/semantic_entity_nornicdb_test.go
+  s_9dfb32458dfa10::t_35fee76390db46 397-398
+  s_9dfb32458dfa10::t_5a9c07d40270da 227,235-240
+  s_9dfb32458dfa10::t_656d3f8ba4b7b1 103,107-108
+  s_9dfb32458dfa10::t_ce7f79a469a46e 234
+go/internal/backendconformance/corpus_semantic_module.go
+  s_9dfb32458dfa10::t_534a13e18e8f83 17-18,20-21,34,184
+  s_9dfb32458dfa10::t_35fee76390db46 25,30-32
+go/internal/backendconformance/evidence-notes.md
+  s_9dfb32458dfa10::t_1527ff782e646c 3-80
+go/internal/storage/cypher/semantic_entity.go
+  s_9dfb32458dfa10::t_d35616dc16a0a5 83
+  s_9dfb32458dfa10::t_ce7f79a469a46e 337
+  s_9dfb32458dfa10::t_32b365c9c81234 84
+go/internal/backendconformance/README.md
+  s_9dfb32458dfa10::t_35fee76390db46 56-57,72-73,76-79,81-83
+go/internal/backendconformance/corpus_semantic_module_test.go
+  s_9dfb32458dfa10::t_534a13e18e8f83 61
+  s_9dfb32458dfa10::t_656d3f8ba4b7b1 75-76,88-89,93-95,103
+go/internal/storage/cypher/semantic_entity_statements.go
+  s_9dfb32458dfa10::t_ce7f79a469a46e 284-289,307,313
+testdata/golden/e2e-20repo-snapshot.json
+  s_9dfb32458dfa10::t_a3c70646afad14 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce86a04b68db72a5609a112833d1070e91451231",
+  "prompts": {},
+  "sessions": {
+    "s_9dfb32458dfa10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d984-da12-7ad1-8a0c-1b335f5e8d81",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
