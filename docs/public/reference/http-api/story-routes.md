@@ -105,8 +105,8 @@ story keeps `evidence_count`, `work_item_count`, and `incident_routing_count`
 at zero and reports `support_source_only_not_target_linked` with aggregate
 `coverage.source_only_count`, `coverage.work_item_source_only_count`, and
 `coverage.incident_routing_source_only_count`. The aggregate includes active
-facts whose reference-array keys are absent or empty, and excludes a fact when
-any of those arrays is nonempty.
+facts whose reference-array keys are absent, empty, or non-array, and excludes
+a fact when any of those arrays is nonempty.
 
 No-Regression Evidence:
 
