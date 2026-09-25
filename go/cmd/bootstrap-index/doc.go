@@ -16,7 +16,10 @@
 // then drives the post-collection passes that the facts-first ordering
 // documented in CLAUDE.md requires.
 // Projector work superseded by a newer same-scope generation exits that worker
-// item without acking stale graph state. Its canonical writer configuration
+// item without acking stale graph state. A transient claim conflict
+// (failure.ErrWorkClaimConflict after the queue's deadlock retries) is logged as
+// failure_class=projector_claim_conflict and retried after a short wait instead
+// of ending the run; any other claim error still ends it. Its canonical writer configuration
 // uses the same graph-property filtering and NornicDB phase-group policy as the
 // ingester path. NornicDB uses row-scoped batched entity containment by default
 // to keep bootstrap and steady-state projection on the same write contract, with

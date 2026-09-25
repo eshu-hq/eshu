@@ -208,6 +208,13 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
 - **Do not treat `projector.ErrWorkSuperseded` as a bootstrap failure.** The
   queue has already moved the stale generation out of the live backlog. The
   worker must return to the claim loop so the newer generation can run.
+- **Do not make `failure.ErrWorkClaimConflict` fatal (#7122).** It means the
+  queue's bounded deadlock/serialization retries ran out and nothing changed.
+  `claimProjectorWork` (`bootstrap_projector_claim.go`) logs
+  `failure_class=projector_claim_conflict`, waits `claimConflictWait`, and
+  claims again without canceling sibling workers, like `projector.Service`.
+  Every other Claim error stays fatal. Keep `projectorQueue.Instruments` wired
+  in `wiring.go`: the queue emits `eshu_dp_queue_claim_conflict_retries_total`.
 - **Do not skip the graph schema marker check.** Direct bootstrap-index runs may
   initialize a missing marker, but incompatible latest markers must stop before
   canonical graph writers open.
