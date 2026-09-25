@@ -117,9 +117,9 @@ the same pair therefore matched the expected set exactly. #6634 added
 `identity_key` to the comparison key, which left that gap open. A2 was not
 satisfied on `cab11116f`.
 
-The fix is `MaterializedEdgeEndpoint.OneEdgePerEndpointPair`
-(`go/internal/storage/cypher/edge/materialized/endpoints.go:53-68`), set for
-RUNS_ON at line 98.
+The fix is `MaterializedEdgeEndpoint.OneEdgePerEndpointPair` in
+`go/internal/storage/cypher/edge/materialized/endpoints.go`, set only for the
+RUNS_ON entry of that file's endpoint registry.
 
 - `countEndpointPair` (`go/cmd/ifa/assert_edges_scan.go:59-60`, defined at line
   110) counts every label-matching edge on a pair before the provenance filter.
@@ -155,7 +155,7 @@ not persist the new relationship stamp". The empty-stamp racing copy seen in
 
 The current shape removes that window. The identity MERGE and an
 ownership-guarded MATCH/SET run in one transaction
-(`go/internal/reducer/workload_materializer.go:431-455`). No Neo4j or NornicDB
+(`batchRuntimePlatformRunsOnEdgeUpsertCypher` and `batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher` in `go/internal/reducer/workload_materializer.go`). No Neo4j or NornicDB
 barrier trial produced an edge with an empty `evidence_source`, and the
 multiplicity test asserts that. The explanation rests on measured behavior; no
 one traced a root cause in NornicDB source.
