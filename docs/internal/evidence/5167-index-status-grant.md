@@ -44,7 +44,11 @@ built from `RepositoryAccessFilter.GraphWhereClause` and `GraphParams`, the
 binding the repository list count already uses. An empty grant answers 0 without
 a graph call. A failed count is a 500 and an unconfigured graph a 503; zero is a
 valid, materially different answer for a scoped caller, so it is never the
-fallback. Shared-key and all-scope callers reach `getIndexStatus` unchanged.
+fallback. Shared-key callers reach `getIndexStatus` unchanged. An all-scope
+bearer or session is now admitted wherever `ESHU_GOVERNANCE_MODE` admits
+all-scope callers on grant-bound routes (local and hosted single-tenant) and
+reads the full deployment-wide report there; before this change it got a 403 in
+every mode. `hosted_multi_tenant` still refuses it.
 
 ## The five promotion steps
 
