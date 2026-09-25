@@ -99,11 +99,17 @@ func gitInit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"init"}, args...)...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1")
+	// #6845: GIT_CONFIG_NOGLOBAL is not a real git knob (verified: the
+	// global file still leaks with it set); GLOBAL=/dev/null is.
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git init %v: %v\n%s", args, err, out)
 	}
+	// #6845: scratch repos never need background maintenance; its detached
+	// writers race scratch-dir cleanup under load on git 2.55.
+	gitOutputIn(t, dir, "config", "maintenance.auto", "false")
+	gitOutputIn(t, dir, "config", "gc.auto", "0")
 }
 
 func gitClone(t *testing.T, ctx context.Context, srcURL, dest string, args ...string) {
@@ -111,7 +117,7 @@ func gitClone(t *testing.T, ctx context.Context, srcURL, dest string, args ...st
 	cmdArgs := append([]string{"clone"}, args...)
 	cmdArgs = append(cmdArgs, srcURL, dest)
 	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1")
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git clone %s -> %s: %v\n%s", srcURL, dest, err, out)
@@ -122,7 +128,7 @@ func gitAddCommit(t *testing.T, dir string, msg string) {
 	t.Helper()
 	gitRunIn(t, dir, "add", "-A")
 	cmd := exec.Command("git", "-C", dir, "commit", "-m", msg, "--allow-empty")
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1",
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
 		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
 	out, err := cmd.CombinedOutput()
@@ -134,7 +140,7 @@ func gitAddCommit(t *testing.T, dir string, msg string) {
 func gitPush(t *testing.T, srcDir, destDir string, branch string) {
 	t.Helper()
 	cmd := exec.Command("git", "-C", srcDir, "push", destDir, branch)
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1")
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git push %s to %s: %v\n%s", branch, destDir, err, out)
@@ -149,7 +155,7 @@ func gitRunIn(t *testing.T, dir string, args ...string) {
 func gitOutputIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1")
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git -C %s %s: %v\n%s", dir, strings.Join(args, " "), err, out)

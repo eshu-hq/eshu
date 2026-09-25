@@ -473,7 +473,10 @@ func managedCopyBenchmarkTreeSize(root string) (int, int64, error) {
 func runGitBenchmark(b *testing.B, repoPath string, args ...string) string {
 	b.Helper()
 	commandArgs := append([]string{"-C", repoPath}, args...)
-	output, err := exec.Command("git", commandArgs...).Output() // #nosec G204 -- benchmark helper with controlled arguments
+	command := exec.Command("git", commandArgs...) // #nosec G204 -- benchmark helper with controlled arguments
+	// #6845: same scratch isolation as runGit.
+	command.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
+	output, err := command.Output()
 	if err != nil {
 		b.Fatalf("git %s: %v", strings.Join(args, " "), err)
 	}

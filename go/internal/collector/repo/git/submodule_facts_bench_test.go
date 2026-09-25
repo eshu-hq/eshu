@@ -79,6 +79,9 @@ func benchRunGit(b *testing.B, repoPath string, args ...string) {
 	b.Helper()
 	cmdArgs := append([]string{"-C", repoPath}, args...)
 	cmd := exec.Command("git", cmdArgs...) // #nosec G204 -- benchmark helper with controlled args
+	// #6845: same scratch isolation as runGit. Fixture setup only, outside
+	// any timing loop, so no benchmark impact.
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		b.Fatalf("git %s: %v\noutput: %s", strings.Join(args, " "), err, output)
 	}

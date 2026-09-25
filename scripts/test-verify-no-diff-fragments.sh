@@ -11,6 +11,29 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate="${script_dir}/verify-no-diff-fragments.sh"
 failures=0
 
+# #6845: isolate scratch repos from the operator's git config. On git 2.55 a
+# global core.fsmonitor, maintenance.*, or gc.autoDetach keeps writing into
+# the scratch .git directory while the case's cleanup runs, failing the
+# suite under load. GIT_CONFIG_NOGLOBAL is not a real git knob (verified:
+# the global file still leaks with it set); GLOBAL=/dev/null is.
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+
+cleanup_repo() {
+  # Stop any detached maintenance writer, then remove with retries: under
+  # load a background git writer can hold .git/objects open between the
+  # case's last git invocation and this removal.
+  local dir="$1" i
+  git -C "$dir" maintenance stop >/dev/null 2>&1 || true
+  for i in 1 2 3 4 5; do
+    if rm -rf "$dir"; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  rm -rf "$dir"
+}
+
 check() {
   # $1 = case name, $2 = expected exit (0|1), $3 = actual exit
   if [ "$2" != "$3" ]; then
@@ -58,7 +81,7 @@ set +e
 rc=$?
 set -e
 check "rejects a diff blob in a Go file" 1 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 2. Clean source passes.
 repo="$(new_repo)"
@@ -69,7 +92,7 @@ set +e
 rc=$?
 set -e
 check "accepts clean source" 0 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 3. Conflict markers are rejected too — same class of corruption.
 repo="$(new_repo)"
@@ -80,7 +103,7 @@ set +e
 rc=$?
 set -e
 check "rejects conflict markers" 1 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 4. Markdown may legitimately SHOW a diff. If this ever starts failing, the
 #    gate has become unusable for docs and someone will disable it entirely.
@@ -101,7 +124,7 @@ set +e
 rc=$?
 set -e
 check "exempts markdown showing a diff" 0 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 5. A .patch file IS a diff.
 repo="$(new_repo)"
@@ -112,7 +135,7 @@ set +e
 rc=$?
 set -e
 check "exempts .patch files" 0 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 6. --staged reads the STAGED blob, not the worktree. This is the case that
 #    matters at commit time: the corruption is in what is about to be committed.
@@ -127,7 +150,7 @@ set +e
 rc=$?
 set -e
 check "--staged reads the staged blob, not the worktree" 1 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 7. A Go left-shift line must not read as a conflict marker.
 repo="$(new_repo)"
@@ -138,7 +161,7 @@ set +e
 rc=$?
 set -e
 check "does not flag a left-shift expression" 0 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 8. A REAL merge conflict under a widened conflict-marker-size. Git's
 #    per-path attribute makes markers longer than seven, and a gate matching
@@ -163,7 +186,7 @@ set +e
 rc=$?
 set -e
 check "rejects widened conflict markers from a real merge" 1 "$rc"
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 # 9. An operational git grep failure must not read as "clean". Treating every
 #    non-zero status as no-matches disabled the check exactly when something was
@@ -182,7 +205,7 @@ if [ "$rc" = "0" ]; then
 else
   printf 'ok   %s\n' "a broken index must not report clean"
 fi
-rm -rf "$repo"
+cleanup_repo "$repo"
 
 if [ "$failures" -gt 0 ]; then
   printf '\ntest-verify-no-diff-fragments: %d case(s) failed\n' "$failures" >&2
