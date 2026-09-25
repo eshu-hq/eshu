@@ -1,0 +1,14 @@
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 408-409,421,427,431,453,457-463,486,489-491
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "efc73202cfd5031c65aa1fdf2f629acad60c8c0d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
