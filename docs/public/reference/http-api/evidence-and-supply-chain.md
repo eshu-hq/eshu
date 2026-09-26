@@ -307,7 +307,7 @@ set `visibility: public` on that collector target.
 
 Performance Evidence: proved against the pinned PR261/compose-default
 NornicDB image (Bolt + HTTP tx/commit) and a live Postgres instance with the
-real `eshu-bootstrap-data-plane` schema, per CLAUDE.md's Prove-The-Theory-First
+real `eshu-bootstrap-data-plane` schema, per AGENTS.md's Prove-The-Theory-First
 gate, before landing the row-filtering code.
 
 - Ecosystem-browse visibility filter (`packageRegistryPackagesScopedEcosystemCypher`):
