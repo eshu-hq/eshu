@@ -153,4 +153,5 @@ deployable-unit intent that the old path would only have deferred.
 
 `servicecatalog.RepositoryScopedResolvedRelationshipLoader`
 (`go/internal/reducer/servicecatalog/service_catalog_correlation_ports.go`) reads
-by repos with no corpus fence at all. This change does not cover it.
+by repos with no corpus fence at all. This change does not cover it; it is
+tracked as #7258.
