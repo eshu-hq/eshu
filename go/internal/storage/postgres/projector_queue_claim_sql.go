@@ -13,9 +13,8 @@ package postgres
 // row in its snapshot, locks the chosen work row and then that fence row (both
 // SKIP LOCKED) joined on fence = snapshot fence, and bumps the fence in the
 // same statement. A claimer that commits first leaves a new fence-row version;
-// the later claimer's EvalPlanQual recheck compares it against its
-// materialized snapshot value, drops the row, and moves on to its next
-// candidate. A claimer still in flight holds the fence row, so the other skips
+// the later claimer's EvalPlanQual recheck compares it against the fence value
+// its snapshot read, drops the row, and moves on to its next candidate. A claimer still in flight holds the fence row, so the other skips
 // it without waiting.
 //
 // The fence lives on its own table, not on ingestion_scopes, because every
@@ -180,9 +179,11 @@ superseded_stale_scope_generations AS (
     WHERE generation.generation_id = stale.generation_id
       AND generation.status IN ('pending', 'failed')
 ),
--- candidate_pool is the snapshot view of claimable rows. It is materialized so
--- snapshot_fence keeps the value this statement's snapshot saw: EvalPlanQual
--- in the lock step re-reads the scope row but never this CTE.
+-- candidate_pool is the snapshot view of claimable rows, with each row's
+-- snapshot fence. EvalPlanQual in the lock step re-reads only the locked work
+-- and fence rows; pool columns keep their snapshot values either way.
+-- MATERIALIZED is a plan choice, not a correctness one: it keeps the pool
+-- evaluated once and stops the planner from inlining it into one join tree.
 candidate_pool AS MATERIALIZED (
     SELECT work.work_item_id,
            work.scope_id,

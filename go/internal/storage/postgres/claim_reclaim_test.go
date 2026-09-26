@@ -120,11 +120,12 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 }
 
 // TestProjectorQueueClaimFencesTheScope pins the #7115 scope claim fence. The
-// candidate pool must stay materialized, so its snapshot_fence is the value
-// the statement snapshot saw and EvalPlanQual cannot refresh it; without
-// MATERIALIZED the planner inlines the pool into one join tree and the fence
-// probe is no longer a pkey lookup per pool row. The lock step must lock the
-// work row and then the scope's projector_scope_claim_fences row, both SKIP
+// candidate pool stays MATERIALIZED for plan shape: without it the planner
+// inlines the pool into one join tree. Correctness does not depend on it,
+// since EvalPlanQual keeps unlocked pool columns at their snapshot values
+// either way (the MATERIALIZED mutation passes every live test). The lock
+// step must lock the work row and then the scope's
+// projector_scope_claim_fences row, both SKIP
 // LOCKED, and join on fence equality so a scope another claimer bumped after
 // the snapshot drops out. LockRows takes row locks in locking-clause order,
 // so FOR UPDATE OF work must come first: a busy work row then leaves the
@@ -328,5 +329,61 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Fatalf("claim query missing %q:\n%s", want, query)
 		}
+	}
+}
+
+// claimSortedPoolBlock is the lock step's sorted read of candidate_pool, as
+// shipped. The sort-then-probe differential swaps it for the whole-pool read
+// the claim shipped with before, deriving that reference from the shipped
+// constant so the two texts differ only in this block.
+const claimSortedPoolBlock = `    FROM (
+        SELECT *
+        FROM candidate_pool
+        ORDER BY
+          reclaim_rank,
+          projector_source_inflight_count ASC,
+          projector_source_fair_rank ASC,
+          updated_at ASC,
+          work_item_id ASC
+    ) AS pool
+`
+
+// sortedPoolRead matches the lock step's subquery read of candidate_pool,
+// whatever its inner ORDER BY, so a mutation of that ORDER BY still derives a
+// reference and is judged by the differential on its result.
+var sortedPoolRead = regexp.MustCompile(`(?s)    FROM \(\n        SELECT \*\n        FROM candidate_pool\n.*?    \) AS pool\n`)
+
+// wholePoolClaimQuery derives the pre-sort-then-probe claim from the shipped
+// claimProjectorWorkQuery by replacing only the lock step's pool read. ok is
+// false when the shipped query does not read the pool through exactly one
+// such subquery.
+func wholePoolClaimQuery() (string, bool) {
+	if len(sortedPoolRead.FindAllStringIndex(claimProjectorWorkQuery, -1)) != 1 {
+		return "", false
+	}
+	return sortedPoolRead.ReplaceAllString(claimProjectorWorkQuery, "    FROM candidate_pool AS pool\n"), true
+}
+
+// TestWholePoolClaimQueryDerivedFromShippedQuery is the hermetic guard for the
+// sort-then-probe differential: the reference text must come from the shipped
+// constant and differ from it only by the lock step's pool read.
+func TestWholePoolClaimQueryDerivedFromShippedQuery(t *testing.T) {
+	t.Parallel()
+
+	if strings.Count(claimProjectorWorkQuery, claimSortedPoolBlock) != 1 {
+		t.Fatalf("claimProjectorWorkQuery no longer reads the pool through claimSortedPoolBlock:\n%s", claimProjectorWorkQuery)
+	}
+	whole, ok := wholePoolClaimQuery()
+	if !ok {
+		t.Fatal("cannot derive the whole-pool reference from claimProjectorWorkQuery; update the differential")
+	}
+	if whole == claimProjectorWorkQuery {
+		t.Fatal("derived whole-pool query equals the shipped query; the differential would compare a query with itself")
+	}
+	if got, want := len(claimProjectorWorkQuery)-len(whole), len(claimSortedPoolBlock)-len("    FROM candidate_pool AS pool\n"); got != want {
+		t.Fatalf("derived query differs from the shipped one by %d bytes, want %d", got, want)
+	}
+	if !strings.Contains(whole, "    FROM candidate_pool AS pool\n    JOIN fact_work_items AS work") {
+		t.Fatalf("derived whole-pool query lost its lock-step join:\n%s", whole)
 	}
 }
