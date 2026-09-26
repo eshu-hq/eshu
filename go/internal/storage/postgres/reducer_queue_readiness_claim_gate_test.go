@@ -13,6 +13,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
@@ -76,6 +77,14 @@ var claimGatedDomainsWithoutAClaimGate = map[string]string{
 	"workload_materialization": "waits on own relationship generation activation " +
 		"via ownResolutionGenerationReady before the resolved read, which a " +
 		"single-keyspace payload-derived CTE row cannot express",
+	// #7258: waits on the corpus-wide relationship fence (every active scope's
+	// current relationship generation active) through the fused by-repos read
+	// in attachServiceRelationshipEvidence, before any write. The awaited
+	// condition spans every scope, not this intent's payload keyspace, so the
+	// handler defer is the only defense, as for the two domains above.
+	"service_catalog_correlation": "waits on the corpus-wide relationship generation " +
+		"fence via the fused GetResolvedRelationshipsForReposWithCorpusFence read " +
+		"before any write, which a single-keyspace payload-derived CTE row cannot express",
 }
 
 // TestReadinessDomainsWithoutAClaimGateAreTheKnownSet keeps the gap from
@@ -219,6 +228,13 @@ var readinessClassOwningDomain = map[string]string{
 	// to another scope's materialization, so no claim-time row keyed on this
 	// intent's own payload can express it.
 	reducer.SharedEdgeTargetNotReadyFailureClass: string(reducer.DomainDeployableUnitCorrelation),
+	// #7258: service catalog correlation defers on the relationship corpus
+	// fence inside its handler, before any write. The fence spans every
+	// active scope's relationship generation, not this intent's payload
+	// keyspace, so no claim-time row expresses it. Placed on its handler's
+	// domain explicitly because the name does not follow the
+	// <domain>_nodes_not_ready convention.
+	servicecatalog.ServiceCatalogCorrelationResolutionNotReadyFailureClass: string(reducer.DomainServiceCatalogCorrelation),
 	// #6785: cross-scope waits inside handlers that already carry their own
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so

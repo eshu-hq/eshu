@@ -32,7 +32,7 @@ signal about where the symbol belongs, not a reason to reach upward:
   `source.ExactURLMatch`/`NormalizeExactURL`, next to the sibling
   `CanonicalURLKey` canonicalizer;
 - a symbol the root genuinely owns as logic AND is still shared by other
-  in-root families — `RepositoryScopedResolvedRelationshipLoader` — is
+  in-root families — `CorpusFencedResolvedRelationshipLoader` — is
   declared locally here instead, structurally identical, per
   `internal/reducer/code/taint/graph_ports.go`'s precedent. Never hoist one of
   these unilaterally; that touches packages this family does not own.
