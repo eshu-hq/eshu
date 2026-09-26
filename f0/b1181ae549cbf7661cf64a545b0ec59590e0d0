@@ -1,0 +1,26 @@
+go/internal/query/language/ownership_neo4j_live_test.go
+  s_b0d7e3abc26c5a::t_7e36a8ed64a534 4
+specs/live-tests.v1.yaml
+  s_b0d7e3abc26c5a::t_7e36a8ed64a534 464-465
+  s_b0d7e3abc26c5a::t_afa4e1506dcf32 466
+docs/internal/evidence/6703-directory-file-ownership.md
+  s_b0d7e3abc26c5a::t_99132e6ad5938f 35-36,46-49,59-62
+scripts/test-run-live-backend-tests.sh
+  s_b0d7e3abc26c5a::t_b2990be1e09bcc 130,134-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f0b1181ae549cbf7661cf64a545b0ec59590e0d0",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
