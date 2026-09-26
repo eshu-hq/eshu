@@ -16,7 +16,9 @@
 // classify and route rows by partition key (legacy/whole-repo/file-scoped);
 // rows.go builds and issues the retract/write batches; lease.go runs the
 // partition-lease heartbeat; telemetry.go records the cycle's metrics, logs,
-// and validation.
+// and validation; blocked.go reports lane-wide gate episodes (the
+// lane-blocked counter every cycle, the blocking-scope sample and log line
+// rate-limited per episode, #7133).
 //
 // The reducer root imports this package as projection. It keeps the
 // exported CodeCallProjectionRunner/CodeCallProjectionRunnerConfig/

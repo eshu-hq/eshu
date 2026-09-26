@@ -220,3 +220,26 @@ func RequiredPhasesForCollector(kind scope.CollectorKind) []PhaseRequirement {
 	}
 	return contract.RequiredPhases
 }
+
+// CollectorKindsRequiringPhase returns, in sorted order, every collector
+// family whose contract requires the given (keyspace, phase). The
+// canonical-code quiescence gate uses it with (code_entities_uid,
+// canonical_nodes_committed) to decide which scopes can hold the code-call
+// lane (#7133): only a scope whose collector is contracted to publish that
+// phase can ever release the gate, so no other scope may hold it.
+func CollectorKindsRequiringPhase(
+	keyspace reducer.GraphProjectionKeyspace,
+	phase reducer.GraphProjectionPhase,
+) []scope.CollectorKind {
+	kinds := make([]scope.CollectorKind, 0, 1)
+	for kind, contract := range collectorContracts {
+		for _, requirement := range contract.RequiredPhases {
+			if requirement.Required && requirement.Keyspace == keyspace && requirement.PhaseName == phase {
+				kinds = append(kinds, kind)
+				break
+			}
+		}
+	}
+	slices.Sort(kinds)
+	return kinds
+}

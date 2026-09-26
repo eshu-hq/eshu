@@ -189,6 +189,8 @@ type Runner struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+
+	blockedLane laneBlockState // lane-wide gate episode, for rate-limited reporting (#7133)
 }
 
 // Run drains code-call work until the context is canceled.
@@ -315,15 +317,17 @@ func (r *Runner) processPartitionOnce(
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
-	blocked, err := r.projectionLaneBlocked(ctx)
+	blockedReason, err := r.projectionLaneBlocked(ctx)
 	if err != nil {
 		return worker.PartitionProcessResult{}, err
 	}
-	if blocked {
+	if blockedReason != "" {
+		r.recordCodeCallLaneBlocked(ctx, blockedReason)
 		result := worker.PartitionProcessResult{BlockedReadiness: 1}
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
 	}
+	r.recordCodeCallLaneReleased(ctx)
 
 	claimStart := time.Now()
 	claimed, err := r.LeaseManager.ClaimPartitionLease(

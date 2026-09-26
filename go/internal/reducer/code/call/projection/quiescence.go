@@ -24,28 +24,37 @@ type CanonicalCodeQuiescenceChecker interface {
 // projectionLaneBlocked checks the profile-gated graph drain when present and
 // otherwise checks canonical-code quiescence directly. Exactly one dependency
 // runs per cycle. This keeps the cross-repository CALLS lane parked until every
-// possible callee repository has committed canonical nodes.
-func (r *Runner) projectionLaneBlocked(ctx context.Context) (bool, error) {
+// possible callee repository has committed canonical nodes. It returns the
+// bounded reason the lane is held (BlockedReasonReducerGraphWork or
+// BlockedReasonCanonicalCodeQuiescence), or an empty string when it is open.
+func (r *Runner) projectionLaneBlocked(ctx context.Context) (string, error) {
 	if r.ReducerGraphDrain != nil {
 		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
 		if err != nil {
-			return false, fmt.Errorf("check reducer graph drain: %w", err)
+			return "", fmt.Errorf("check reducer graph drain: %w", err)
 		}
 		if active {
-			return true, nil
+			return BlockedReasonReducerGraphWork, nil
 		}
 		uncommitted, err := r.ReducerGraphDrain.HasUncommittedCanonicalCodeScopes(ctx)
 		if err != nil {
-			return false, fmt.Errorf("check canonical code quiescence: %w", err)
+			return "", fmt.Errorf("check canonical code quiescence: %w", err)
 		}
-		return uncommitted, nil
+		return blockedReasonIf(uncommitted), nil
 	}
 	if r.CanonicalQuiescence != nil {
 		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
 		if err != nil {
-			return false, fmt.Errorf("check canonical code quiescence: %w", err)
+			return "", fmt.Errorf("check canonical code quiescence: %w", err)
 		}
-		return uncommitted, nil
+		return blockedReasonIf(uncommitted), nil
 	}
-	return false, nil
+	return "", nil
+}
+
+func blockedReasonIf(uncommitted bool) string {
+	if uncommitted {
+		return BlockedReasonCanonicalCodeQuiescence
+	}
+	return ""
 }

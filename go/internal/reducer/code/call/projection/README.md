@@ -35,6 +35,8 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 | `Runner` / `RunnerConfig` | the projection cycle and its tunables |
 | `ReducerGraphDrain` | the optional local-authoritative gate that checks reducer graph work and canonical-code quiescence |
 | `CanonicalCodeQuiescenceChecker` | the backend/profile-independent gate wired when `ReducerGraphDrain` is disabled |
+| `CanonicalCodeQuiescenceDescriber` | the optional port that names the scopes holding that gate; the runner calls it only when a blocked episode starts and at most once a minute after that |
+| `BlockedReasonCanonicalCodeQuiescence` / `BlockedReasonReducerGraphWork` | the closed `reason` label values on `eshu_dp_shared_projection_lane_blocked_total` |
 | `IntentReader` / `PartitionIntentReader` / `PartitionCandidateReader` / `UnhashedCandidateReader` | the intent-listing ports, from broad domain scans down to partition-hashed candidate reads |
 | `HistoryLookup` / `CurrentRunHistoryLookup` / `CurrentRunPartitionHistoryLookup` / `CurrentRunRefreshHistoryLookup` | optional completion-history ports that let a durable store skip a proven no-op retract |
 | `RefreshFenceLookup` | the optional bounded refresh-fence check a durable store can implement instead of loading the whole acceptance unit |
@@ -52,6 +54,18 @@ keeping the `reducer.CodeCallProjectionRunner`/
 code-call stanza of `compat_projection.go`, since cmd/reducer's wiring and
 internal/storage/postgres' compile-time interface assertions and
 partition-key-prefix helper all still name them that way.
+
+## Blocked-lane visibility
+
+When a lane-wide gate holds the lane shut, every blocked partition cycle adds
+to `eshu_dp_shared_projection_lane_blocked_total{domain="code_calls",reason}`.
+blocked.go rate-limits the rest per episode: a WARN `code call projection lane
+blocked` line with `blocked_reason`, `blocked_seconds`, `blocking_scope_count`
+and up to 10 `blocking_scope_ids`, plus the
+`eshu_dp_shared_projection_lane_blocking_scopes` gauge, both refreshed at most
+once a minute. The first open cycle after an episode logs `code call projection
+lane released` and zeroes the gauge. Before #7133 a blocked cycle emitted
+nothing, and the lane sat shut on ops-qa for eight days without a signal.
 
 ## Dependencies
 
