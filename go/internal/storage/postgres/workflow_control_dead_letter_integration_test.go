@@ -67,7 +67,7 @@ func openDeadLetterBridgeIntegrationStore(t *testing.T) (*sql.DB, *WorkflowContr
 		t.Fatalf("ApplyBootstrap() error = %v, want nil", err)
 	}
 	if _, err := db.ExecContext(ctx, `
-TRUNCATE fact_work_items, scope_generations, ingestion_scopes, graph_projection_phase_state
+TRUNCATE fact_work_items, scope_generations, projector_scope_claim_fences, ingestion_scopes, graph_projection_phase_state
 RESTART IDENTITY CASCADE
 `); err != nil {
 		t.Fatalf("TRUNCATE reducer/ingestion tables error = %v, want nil", err)
