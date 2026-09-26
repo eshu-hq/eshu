@@ -36,7 +36,10 @@ export function ServiceSpotlightPanel({
           <div className="service-storyline" aria-label="Service story highlights">
             <StoryPill label="API" value={`${spotlight.api.endpointCount} endpoints`} />
             <StoryPill label="Runtime" value={deploymentHeadline(spotlight)} />
-            <StoryPill label="Entry" value={`${spotlight.hostnames.length} hostnames`} />
+            <StoryPill
+              label="Entry"
+              value={`${spotlight.hostnameCount ?? spotlight.hostnames.length} hostnames`}
+            />
             <StoryPill
               label="Impact"
               value={`${spotlight.relationshipCounts.downstream} downstream`}
@@ -80,7 +83,10 @@ export function ServiceSpotlightPanel({
 
       {activeTab === "traffic" ? (
         <div className="service-atlas-tab-panel">
-          <EntryPointStrip hostnames={spotlight.hostnames} />
+          <EntryPointStrip
+            hostnameCount={spotlight.hostnameCount ?? spotlight.hostnames.length}
+            hostnames={spotlight.hostnames}
+          />
           <ServiceTrafficPathPanel paths={spotlight.trafficPaths} serviceName={spotlight.name} />
           <ServiceConfigInfluencePanel influence={spotlight.configInfluence} />
         </div>
@@ -274,8 +280,10 @@ function LaneCards({
 }
 
 function EntryPointStrip({
+  hostnameCount,
   hostnames,
 }: {
+  readonly hostnameCount: number;
   readonly hostnames: readonly ServiceHostname[];
 }): React.JSX.Element | null {
   if (hostnames.length === 0) {
@@ -283,7 +291,7 @@ function EntryPointStrip({
   }
   return (
     <section aria-label="Service entrypoints" className="service-entrypoints">
-      <PanelHeading detail={`${hostnames.length} observed`} title="Entrypoints" />
+      <PanelHeading detail={`${hostnameCount} observed`} title="Entrypoints" />
       <div>
         {hostnames.slice(0, 6).map((hostname) => (
           <article key={`${hostname.hostname}:${hostname.environment}`}>

@@ -95,6 +95,11 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 	// makes that true. Without this call an infrastructure-read degradation
 	// or truncation landed in "limitations" but never reached the stable
 	// partial-reason field the contract promises HTTP and MCP callers.
+	//
+	// result_limits comes first: it caps hostnames and entrypoints and names the
+	// cut on ctx["limitations"], which ContextPartialReasons then promotes
+	// (#7169). The workload context route does the same.
+	ctx["result_limits"] = querycontract.WorkloadContextResultLimits(ctx, querycontract.SafeStr(ctx, "id"), "context")
 	ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
 	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from service context and platform evidence"))
 }

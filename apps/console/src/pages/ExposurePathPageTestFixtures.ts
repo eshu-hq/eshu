@@ -102,3 +102,44 @@ function serviceOption(id: string, name: string, repo: string) {
     truth: "exact" as const,
   };
 }
+
+// cappedPublicContext mimics the service-context wire after the server caps
+// hostnames, entrypoints, and network_paths at 50 rows (#7169): total public
+// hostname entrypoints exist, only shown are returned, and result_limits
+// carries the pre-cut totals.
+export function cappedPublicContext(total: number, shown: number): Record<string, unknown> {
+  const hosts = Array.from(
+    { length: shown },
+    (_, i) => `svc-${String(i).padStart(3, "0")}.qa.example.test`,
+  );
+  return {
+    name: "checkout",
+    entrypoints: hosts.map((target) => ({
+      type: "hostname",
+      target,
+      environment: "qa",
+      visibility: "public",
+    })),
+    network_paths: hosts.map((from) => ({
+      path_type: "hostname_to_runtime",
+      from_type: "hostname",
+      from,
+      to_type: "runtime_platform",
+      to: "checkout-eks",
+      platform_kind: "eks",
+      environment: "qa",
+      visibility: "public",
+    })),
+    result_limits: {
+      limit: 50,
+      hostname_count: total,
+      entrypoint_count: total,
+      network_path_count: total,
+      truncated: total > shown,
+    },
+    partial_reasons:
+      total > shown
+        ? ["entrypoints_truncated", "hostnames_truncated", "network_paths_truncated"]
+        : [],
+  };
+}

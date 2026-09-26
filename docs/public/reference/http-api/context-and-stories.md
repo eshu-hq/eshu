@@ -75,13 +75,13 @@ sees bounds and missing evidence without falling back to raw Cypher.
 
 - `result_limits` is a drilldown block with a bounded `limit`, deterministic
   `ordering`, fan-out counts (`relationship_count` for entity context;
-  `instance_count`, `dependent_count`, and `consumer_count` for workload
-  context/story), a `truncated` flag, the `drilldown_tool` to call next
+  `instance_count`, `dependent_count`, `consumer_count`, `hostname_count`,
+  `entrypoint_count`, and `network_path_count` for workload/service context and
+  story), a `truncated` flag, the `drilldown_tool` to call next
   (`get_relationship_evidence` for entity context, `get_workload_story` from
   workload context, `get_workload_context` from workload story), the
-  `drilldown_basis`, and the `context_path` for re-reading the route. The entity
-  and workload relationship fan-out is capped in place so the prompt-ready read
-  stays within the route budget and exposes truncation explicitly.
+  `drilldown_basis`, and the `context_path`. The fan-out is capped in place so
+  the read stays within the route budget and exposes truncation.
 - `partial_reasons` is always present (possibly empty) and promotes the context
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.

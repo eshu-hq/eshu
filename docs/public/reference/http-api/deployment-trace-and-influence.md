@@ -58,6 +58,30 @@ invent an omitted-resource count from that signal. When the handler reuses
 older context rows that were not sentinel-probed, it omits this block and the
 consumer must fail completeness closed.
 
+`hostnames`, `entrypoints`, and `network_paths` (one row per entrypoint that
+matches a runtime instance) are each capped at 50 rows. `hostname_limits`,
+`entrypoint_limits`, and `network_path_limits` report `limit`, the pre-cut
+`total`, `truncated`, and `drilldown_tool` (`get_workload_context`); the
+drilldown returns the same 50-row cut and its totals, and no route returns the
+remainder. `deployment_overview` keeps the full `hostname_count`,
+`entrypoint_count`, and `network_path_count`, and no longer repeats the arrays;
+read them from the top level of the response.
+
+Workload and service context apply the same 50-row cap and report the totals as
+`result_limits.hostname_count`, `result_limits.entrypoint_count`, and
+`result_limits.network_path_count`; a cut sets `result_limits.truncated` and adds
+`hostnames_truncated`, `entrypoints_truncated`, or `network_paths_truncated` to
+`partial_reasons`. The workload story route ships a narrative and none of these
+arrays, so it reports the same totals but never a cut for lists it does not emit.
+
+The 50 kept rows are the first 50 in the response's deterministic order. The
+entrypoints sort by `type`, then `target`, so `docs_route` (internal) rows sort
+before `hostname` (public) rows. A service with 50 or more docs routes therefore
+keeps no public hostname entrypoint after the cap; `entrypoints_truncated` and
+`entrypoint_limits.total` disclose the cut, and `hostnames` (sorted by hostname)
+still carries the hostnames themselves. `network_paths` sort by `path_type`, then
+`from`. Read the totals, not the array length, to count entrypoints.
+
 `WorkloadInstance`, `INSTANCE_OF`, `RUNS_ON`, and `USES` do not currently carry
 canonical repository ownership. Repository-scoped callers therefore receive no
 runtime-instance, direct-platform, or materialized cloud-resource evidence from

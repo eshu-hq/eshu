@@ -5,6 +5,7 @@ import type { DeploymentGraphBuildOptions } from "./eshuGraphDeploymentLimits";
 import {
   addIsolatedRecords,
   addOmissionSummary,
+  cappedListTotal,
   compact,
   encodeKey,
   graphTruth,
@@ -377,7 +378,14 @@ export function buildDeploymentStoryGraph(
   addOmissionSummary(
     summaries,
     "network paths",
-    Math.max(0, paths.length - limits.networkPaths),
+    Math.max(
+      0,
+      cappedListTotal(
+        paths.length,
+        context.result_limits?.network_path_count,
+        trace.network_path_limits?.total,
+      ) - limits.networkPaths,
+    ),
     "network_paths",
     omissionContract(
       limits.networkPaths,
@@ -408,7 +416,14 @@ export function buildDeploymentStoryGraph(
   addOmissionSummary(
     summaries,
     "entrypoints",
-    Math.max(0, entrypoints.length - limits.entrypoints),
+    Math.max(
+      0,
+      cappedListTotal(
+        entrypoints.length,
+        context.result_limits?.entrypoint_count,
+        trace.entrypoint_limits?.total,
+      ) - limits.entrypoints,
+    ),
     "entrypoints",
     omissionContract(
       limits.entrypoints,

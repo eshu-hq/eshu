@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { EshuApiHttpError, type EshuApiClient } from "./client";
 import { loadExposureIngress } from "./exposureIngress";
+import { cappedPublicContext } from "../pages/ExposurePathPageTestFixtures";
 
 describe("loadExposureIngress", () => {
   it("builds an internet origin chain for an observed-public entrypoint", async () => {
@@ -191,5 +192,45 @@ describe("loadExposureIngress", () => {
     const ingress = await loadExposureIngress(client, "   ");
     expect(ingress.provenance).toBe("unavailable");
     expect(ingress.error).toContain("service name");
+  });
+});
+
+describe("loadExposureIngress public entrypoint count under the server cap (#7169)", () => {
+  function clientFor(data: Record<string, unknown>): EshuApiClient {
+    return {
+      get: async () => ({ data, error: null, truth: null }),
+    } as unknown as EshuApiClient;
+  }
+
+  it("reads the true total from result_limits when the list is capped at 50", async () => {
+    const ingress = await loadExposureIngress(clientFor(cappedPublicContext(671, 50)), "checkout");
+    expect(ingress.chains).toHaveLength(50);
+    expect(ingress.publicEntrypoints).toBe(671);
+    expect(ingress.publicEntrypointsPartial).toBe(false);
+  });
+
+  it("falls back to the array length and marks it partial when only truncation is reported", async () => {
+    const data = cappedPublicContext(671, 50);
+    delete data.result_limits;
+    const ingress = await loadExposureIngress(clientFor(data), "checkout");
+    expect(ingress.publicEntrypoints).toBe(50);
+    expect(ingress.publicEntrypointsPartial).toBe(true);
+  });
+
+  it("falls back to the array length, not partial, for an older server with no markers", async () => {
+    const data = cappedPublicContext(3, 3);
+    delete data.result_limits;
+    delete data.partial_reasons;
+    const ingress = await loadExposureIngress(clientFor(data), "checkout");
+    expect(ingress.publicEntrypoints).toBe(3);
+    expect(ingress.publicEntrypointsPartial).toBe(false);
+  });
+
+  it("ignores a result_limits without hostname_count (an older limits block)", async () => {
+    const data = cappedPublicContext(3, 3);
+    data.result_limits = { limit: 50, instance_count: 1, truncated: false };
+    const ingress = await loadExposureIngress(clientFor(data), "checkout");
+    expect(ingress.publicEntrypoints).toBe(3);
+    expect(ingress.publicEntrypointsPartial).toBe(false);
   });
 });

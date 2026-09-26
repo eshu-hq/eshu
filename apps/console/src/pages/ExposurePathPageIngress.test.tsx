@@ -3,7 +3,12 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { ExposurePathPage } from "./ExposurePathPage";
-import { internalContext, publicContext, serviceOptions } from "./ExposurePathPageTestFixtures";
+import {
+  cappedPublicContext,
+  internalContext,
+  publicContext,
+  serviceOptions,
+} from "./ExposurePathPageTestFixtures";
 import type { EshuApiClient } from "../api/client";
 
 describe("ExposurePathPage ingress presentation", () => {
@@ -107,5 +112,42 @@ describe("ExposurePathPage ingress presentation", () => {
     expect(screen.getByText("WAF coverage")).toBeInTheDocument();
     expect(screen.getByText("TLS termination")).toBeInTheDocument();
     expect(screen.getByText("platform_impact.context_overview")).toBeInTheDocument();
+  });
+
+  it("shows the true public entrypoint total when the server caps the list at 50", async () => {
+    const client = {
+      get: async () => ({ data: cappedPublicContext(671, 50), error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Ingress chain");
+    const tile = screen.getByText("Public entrypoints").closest(".stat-tile");
+    expect(tile).not.toBeNull();
+    expect(tile).toHaveTextContent("671");
+    expect(tile).not.toHaveTextContent("50");
+  });
+
+  it("marks the count partial when the server cut the list and sent no total", async () => {
+    const data = cappedPublicContext(671, 50);
+    delete data.result_limits;
+    const client = {
+      get: async () => ({ data, error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Ingress chain");
+    const tile = screen.getByText("Public entrypoints").closest(".stat-tile");
+    expect(tile).toHaveTextContent("50+");
+    expect(tile).toHaveTextContent("partial");
   });
 });

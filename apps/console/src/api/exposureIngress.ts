@@ -60,7 +60,14 @@ export interface ExposureIngress {
   readonly service: string;
   readonly chains: readonly IngressChain[];
   readonly posture: IngressPosture;
+  // publicEntrypoints is the number of observed public hostname entrypoints.
+  // The server caps the entrypoints list at 50 rows, so the count comes from
+  // result_limits.hostname_count (every public entrypoint is a hostname) when
+  // present and from the returned list only as a fallback.
   readonly publicEntrypoints: number;
+  // publicEntrypointsPartial is true when the total is unknown and the response
+  // reports the list was cut, so publicEntrypoints is a lower bound.
+  readonly publicEntrypointsPartial: boolean;
   readonly totalHops: number;
   readonly truth: EshuTruth | null;
   readonly provenance: "live" | "empty" | "unavailable";
@@ -103,11 +110,49 @@ interface IngressPostureWire {
   readonly reason?: string;
 }
 
+// ResultLimitsWire is the slice of the service-context result_limits block the
+// exposure view reads: pre-cut totals for the lists the server caps at 50 rows.
+interface ResultLimitsWire {
+  readonly hostname_count?: number;
+  readonly entrypoint_count?: number;
+  readonly network_path_count?: number;
+}
+
 interface ServiceContextWire {
   readonly name?: string;
   readonly entrypoints?: readonly EntrypointWire[] | null;
   readonly network_paths?: readonly NetworkPathWire[] | null;
   readonly ingress_posture?: IngressPostureWire;
+  readonly result_limits?: ResultLimitsWire | null;
+  readonly partial_reasons?: readonly string[] | null;
+}
+
+const entrypointCutReasons: ReadonlySet<string> = new Set([
+  "entrypoints_truncated",
+  "hostnames_truncated",
+]);
+
+interface PublicEntrypointCount {
+  readonly count: number;
+  readonly partial: boolean;
+}
+
+// countPublicEntrypoints resolves the public entrypoint total. Every public
+// entrypoint is a hostname entrypoint, so result_limits.hostname_count is the
+// pre-cut total the server reports; it wins over the capped array. An older
+// server sends no such count, and then the array length is the answer, marked
+// partial only when the response itself says the list was cut.
+function countPublicEntrypoints(
+  wire: ServiceContextWire,
+  entrypoints: readonly EntrypointWire[],
+): PublicEntrypointCount {
+  const listed = entrypoints.filter((entry) => entry.visibility === "public").length;
+  const total = wire.result_limits?.hostname_count;
+  if (typeof total === "number" && Number.isFinite(total) && total >= 0) {
+    return { count: Math.max(total, listed), partial: false };
+  }
+  const cut = (wire.partial_reasons ?? []).some((reason) => entrypointCutReasons.has(reason));
+  return { count: listed, partial: cut };
 }
 
 const postureStates: ReadonlySet<IngressPostureState> = new Set([
@@ -238,13 +283,14 @@ function ingressFromWire(
   const paths = wire.network_paths ?? [];
   const chains = buildChains(entrypoints, paths);
   const posture = postureFromWire(wire.ingress_posture);
-  const publicEntrypoints = entrypoints.filter((entry) => entry.visibility === "public").length;
+  const publicCount = countPublicEntrypoints(wire, entrypoints);
   const totalHops = chains.reduce((sum, chain) => sum + chain.hops.length, 0);
   return {
     service: wire.name ?? fallbackName,
     chains,
     posture,
-    publicEntrypoints,
+    publicEntrypoints: publicCount.count,
+    publicEntrypointsPartial: publicCount.partial,
     totalHops,
     truth,
     provenance: chains.length > 0 ? "live" : "empty",
@@ -335,6 +381,7 @@ function emptyIngress(
       reason: "",
     },
     publicEntrypoints: 0,
+    publicEntrypointsPartial: false,
     totalHops: 0,
     truth: null,
     provenance: "unavailable",
