@@ -4,11 +4,10 @@
 package postgres
 
 import (
-	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -130,104 +129,132 @@ VALUES ($1, $2, 'manual', $3, $4, 'pending')`,
 	}
 }
 
-// TestSharedProjectionAcceptanceGenerationKeyBackfillLive applies the
-// shipped 126 backfill to rows carrying a NULL ordering key (as a pre-#6679
-// binary writes them) while another transaction holds one row locked: the
-// backfill must fill every unlocked row, skip the locked one without waiting,
-// and fill it on a rerun once released. A NULL-key row must still advance.
-func TestSharedProjectionAcceptanceGenerationKeyBackfillLive(t *testing.T) {
-	fixture := openAcceptanceMonotonicFixture(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	defer cancel()
-
-	var backfillSQL string
-	for _, definition := range BootstrapDefinitions() {
-		if strings.HasSuffix(definition.Path, "/126_shared_projection_acceptance_generation_key_backfill.sql") {
-			backfillSQL = definition.SQL
-		}
-	}
-	if backfillSQL == "" {
-		t.Fatal("migration 126 backfill is not in BootstrapDefinitions()")
-	}
-
+// setLegacyNullKey rewrites one acceptance row the way a pre-#6679 binary
+// leaves it: at generationID with no generation_ingested_at.
+func setLegacyNullKey(t *testing.T, fixture acceptanceMonotonicFixture, sourceRunID, generationID string) {
+	t.Helper()
 	now := time.Now().UTC()
-	for key := 0; key < 5; key++ {
-		mustExecAcceptanceFixture(t, fixture.db, `
+	mustExecAcceptanceFixture(t, fixture.db, `
 INSERT INTO shared_projection_acceptance
   (scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at, generation_ingested_at)
-VALUES ($1, $2, 'run-backfill', $3, $4, $4, NULL)`,
-			fixture.scopeID, fmt.Sprintf("unit-%d", key), fixture.genOld, now)
-	}
+VALUES ($1, 'repository:6679', $2, $3, $4, $4, NULL)
+ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE
+SET generation_id = EXCLUDED.generation_id, generation_ingested_at = NULL`,
+		fixture.scopeID, sourceRunID, generationID, now)
+}
 
-	holder, err := fixture.db.BeginTx(ctx, nil)
+// storedGenerationKey reads a row's generation and ordering key; valid is
+// false when the key is NULL.
+func storedGenerationKey(t *testing.T, fixture acceptanceMonotonicFixture, sourceRunID string) (string, time.Time, bool) {
+	t.Helper()
+	var generationID string
+	var key sql.NullTime
+	if err := fixture.db.QueryRowContext(t.Context(), `
+SELECT generation_id, generation_ingested_at FROM shared_projection_acceptance
+WHERE scope_id = $1 AND acceptance_unit_id = 'repository:6679' AND source_run_id = $2`,
+		fixture.scopeID, sourceRunID,
+	).Scan(&generationID, &key); err != nil {
+		t.Fatalf("read %s: %v", sourceRunID, err)
+	}
+	return generationID, key.Time, key.Valid
+}
+
+func generationIngestedAt(t *testing.T, fixture acceptanceMonotonicFixture, generationID string) time.Time {
+	t.Helper()
+	var ingestedAt time.Time
+	if err := fixture.db.QueryRowContext(t.Context(),
+		`SELECT ingested_at FROM scope_generations WHERE generation_id = $1`, generationID,
+	).Scan(&ingestedAt); err != nil {
+		t.Fatalf("read %s ingested_at: %v", generationID, err)
+	}
+	return ingestedAt
+}
+
+// TestSharedProjectionAcceptanceLegacyNullKeyRejectsStaleLive covers rows a
+// pre-#6679 binary wrote (no generation_ingested_at; migration 125 adds the
+// column without a backfill). The guard must resolve the stored generation's
+// key from scope_generations instead of treating NULL as "always older", so a
+// late older write still cannot roll the row back; a same-generation retry
+// applies and fills the key.
+func TestSharedProjectionAcceptanceLegacyNullKeyRejectsStaleLive(t *testing.T) {
+	fixture := openAcceptanceMonotonicFixture(t)
+	store := NewSharedProjectionAcceptanceStore(SQLDB{DB: fixture.db})
+	ctx := t.Context()
+	now := time.Now().UTC()
+
+	t.Run("older-incoming", func(t *testing.T) {
+		setLegacyNullKey(t, fixture, "legacy-stale", fixture.genNew)
+		stale, err := store.UpsertReportingStale(ctx, []SharedProjectionAcceptance{fixture.row("legacy-stale", fixture.genOld, now)})
+		if err != nil {
+			t.Fatalf("UpsertReportingStale() error = %v", err)
+		}
+		gen, _, keyed := storedGenerationKey(t, fixture, "legacy-stale")
+		if gen != fixture.genNew || len(stale) != 1 {
+			t.Fatalf("legacy row: generation = %q, stale = %d; want %q kept and 1 stale write "+
+				"(a NULL stored key must not let an older generation win)", gen, len(stale), fixture.genNew)
+		}
+		if keyed {
+			t.Fatal("a rejected stale write must leave the legacy row untouched, key still NULL")
+		}
+	})
+
+	t.Run("same-generation-fills-key", func(t *testing.T) {
+		setLegacyNullKey(t, fixture, "legacy-same", fixture.genNew)
+		stale, err := store.UpsertReportingStale(ctx, []SharedProjectionAcceptance{fixture.row("legacy-same", fixture.genNew, now)})
+		if err != nil {
+			t.Fatalf("UpsertReportingStale() error = %v", err)
+		}
+		gen, key, keyed := storedGenerationKey(t, fixture, "legacy-same")
+		want := generationIngestedAt(t, fixture, fixture.genNew)
+		if gen != fixture.genNew || len(stale) != 0 || !keyed || !key.Equal(want) {
+			t.Fatalf("same-generation retry: generation = %q, stale = %d, key = %v (valid=%v); want %q, 0 stale, key %v",
+				gen, len(stale), key, keyed, fixture.genNew, want)
+		}
+	})
+}
+
+// TestSharedProjectionAcceptanceLegacyNullKeyAdvancesLive proves a legacy row
+// still moves forward: a newer generation replaces it and fills the key.
+func TestSharedProjectionAcceptanceLegacyNullKeyAdvancesLive(t *testing.T) {
+	fixture := openAcceptanceMonotonicFixture(t)
+	setLegacyNullKey(t, fixture, "legacy-advance", fixture.genOld)
+
+	stale, err := NewSharedProjectionAcceptanceStore(SQLDB{DB: fixture.db}).UpsertReportingStale(t.Context(),
+		[]SharedProjectionAcceptance{fixture.row("legacy-advance", fixture.genNew, time.Now().UTC())})
 	if err != nil {
-		t.Fatalf("begin holder: %v", err)
+		t.Fatalf("UpsertReportingStale() error = %v", err)
 	}
-	defer func() { _ = holder.Rollback() }()
-	if _, err := holder.ExecContext(ctx,
-		`SELECT 1 FROM shared_projection_acceptance WHERE acceptance_unit_id = 'unit-0' FOR UPDATE`,
-	); err != nil {
-		t.Fatalf("lock unit-0: %v", err)
-	}
-
-	started := time.Now()
-	if _, err := fixture.db.ExecContext(ctx, backfillSQL); err != nil {
-		t.Fatalf("backfill with a held row: %v", err)
-	}
-	if waited := time.Since(started); waited > 5*time.Second {
-		t.Fatalf("backfill took %s with a held row; SKIP LOCKED must not wait", waited)
-	}
-	if got := backfillNullKeys(t, fixture); !slices.Equal(got, []string{"unit-0"}) {
-		t.Fatalf("NULL keys after backfill = %v, want only the locked unit-0", got)
-	}
-
-	if err := holder.Rollback(); err != nil {
-		t.Fatalf("release holder: %v", err)
-	}
-	if _, err := fixture.db.ExecContext(ctx, backfillSQL); err != nil {
-		t.Fatalf("backfill rerun: %v", err)
-	}
-	if got := backfillNullKeys(t, fixture); len(got) != 0 {
-		t.Fatalf("NULL keys after rerun = %v, want none", got)
-	}
-
-	// A row still carrying a NULL key (skipped, or written by an old binary)
-	// sorts older than any incoming generation and is advanced.
-	mustExecAcceptanceFixture(t, fixture.db, `
-UPDATE shared_projection_acceptance SET generation_id = $1, generation_ingested_at = NULL
-WHERE acceptance_unit_id = 'unit-1'`, fixture.genNew)
-	stale, err := NewSharedProjectionAcceptanceStore(SQLDB{DB: fixture.db}).UpsertReportingStale(ctx,
-		[]SharedProjectionAcceptance{{
-			ScopeID: fixture.scopeID, AcceptanceUnitID: "unit-1", SourceRunID: "run-backfill",
-			GenerationID: fixture.genOld, AcceptedAt: now, UpdatedAt: now,
-		}})
-	if err != nil || len(stale) != 0 {
-		t.Fatalf("NULL-key row upsert: stale = %d, err = %v; want advanced", len(stale), err)
+	gen, key, keyed := storedGenerationKey(t, fixture, "legacy-advance")
+	want := generationIngestedAt(t, fixture, fixture.genNew)
+	if gen != fixture.genNew || len(stale) != 0 || !keyed || !key.Equal(want) {
+		t.Fatalf("legacy advance: generation = %q, stale = %d, key = %v (valid=%v); want %q, 0 stale, key %v",
+			gen, len(stale), key, keyed, fixture.genNew, want)
 	}
 }
 
-func backfillNullKeys(t *testing.T, fixture acceptanceMonotonicFixture) []string {
-	t.Helper()
-	rows, err := fixture.db.QueryContext(t.Context(), `
-SELECT acceptance_unit_id FROM shared_projection_acceptance
-WHERE source_run_id = 'run-backfill' AND generation_ingested_at IS NULL
-ORDER BY acceptance_unit_id`)
-	if err != nil {
-		t.Fatalf("query NULL keys: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var units []string
-	for rows.Next() {
-		var unit string
-		if err := rows.Scan(&unit); err != nil {
-			t.Fatalf("scan NULL key: %v", err)
+// TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive
+// is the fallback case: an old-binary writer commits a legacy (NULL-key) row
+// at a generation ingested after B's statement snapshot, while B is blocked
+// on an earlier key. B's lookup of that generation finds nothing; without the
+// '-infinity' fallback the row comparison is NULL and B's newer write would be
+// dropped. B must advance, as it would have before #6679.
+func TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive(t *testing.T) {
+	fixture := openAcceptanceMonotonicFixture(t)
+	lateAt := generationIngestedAt(t, fixture, fixture.genNew).Add(-time.Second)
+
+	for trial := 0; trial < 5; trial++ {
+		runX := fmt.Sprintf("invisible-%d-x", trial)
+		runY := fmt.Sprintf("invisible-%d-y", trial)
+		lateGen := fmt.Sprintf("gen-6679-invisible-%d", trial)
+		stale := runPostSnapshotTrial(t, fixture, runX, runY, fixture.genNew, lateGen, lateAt, true)
+		gen, key, keyed := storedGenerationKey(t, fixture, runY)
+		want := generationIngestedAt(t, fixture, fixture.genNew)
+		if gen != fixture.genNew || len(stale) != 0 || !keyed || !key.Equal(want) {
+			t.Fatalf("trial %d: Y = %q, stale = %d, key = %v (valid=%v); want %q advanced with key %v",
+				trial, gen, len(stale), key, keyed, fixture.genNew, want)
 		}
-		units = append(units, unit)
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate NULL keys: %v", err)
-	}
-	return units
+	t.Log("5/5 trials: legacy row at a post-snapshot generation advanced to G_new")
 }
 
 // TestSharedIntentAcceptanceWriterStaleWriteCounterLive drives the production

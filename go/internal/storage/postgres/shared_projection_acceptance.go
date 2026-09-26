@@ -19,9 +19,12 @@ const (
 )
 
 // sharedProjectionAcceptanceSchemaSQL mirrors migrations 011 and 125 for
-// EnsureSchema callers. generation_ingested_at is the stored generation's
-// ordering key (see upsertSharedProjectionAcceptanceBatchSuffix); the ALTER
-// keeps EnsureSchema convergent on a table created before #6679.
+// EnsureSchema callers. generation_ingested_at is a copy of the stored
+// generation's scope_generations.ingested_at, the ordering key the upsert
+// guard compares (see upsertSharedProjectionAcceptanceBatchSuffix). It is NULL
+// on rows written before #6679 and is never backfilled in bulk: the guard
+// resolves a NULL key at write time and every applied write fills it. The
+// ALTER keeps EnsureSchema convergent on a table created before #6679.
 const sharedProjectionAcceptanceSchemaSQL = `
 CREATE TABLE IF NOT EXISTS shared_projection_acceptance (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -65,20 +68,34 @@ FROM (VALUES `
 // advance-only (#6679). The DO UPDATE fires only when:
 //   - the incoming generation equals the stored one (an idempotent retry that
 //     refreshes accepted_at/updated_at and fills a missing key), or
-//   - the stored row has no ordering key (written by a pre-#6679 binary or
-//     skipped by the 126 backfill), which sorts as older than anything, or
 //   - (generation_ingested_at, generation_id) of the incoming row sorts
 //     strictly after the stored row's — the order activation and supersession
 //     use (#6686).
 //
-// The comparison reads only EXCLUDED (statement constants) and the target
-// row's own columns. That matters: after a row-lock wait, READ COMMITTED
-// re-checks this condition against the target row's newest committed version,
-// but any other table read here would stay on the statement snapshot and miss
-// a generation committed after it, turning a newer write into a false stale
-// skip (review F1). A NULL incoming key (a generation the snapshot cannot see)
-// fails the comparison and is skipped as stale rather than applied blind.
-// Skipped rows are omitted from RETURNING, which is how callers count them.
+// For every row the new binary has written, the stored key is the row's own
+// column, so the comparison reads only EXCLUDED (statement constants) and the
+// target row. That matters: after a row-lock wait, READ COMMITTED re-checks
+// this condition against the target row's newest committed version, but a
+// read of another table stays on the statement snapshot and can miss a
+// generation committed after it, turning a newer write into a false stale skip
+// (review F1).
+//
+// A NULL stored key is a legacy row (written before migration 125, or by a
+// pre-#6679 binary during a rolling deploy). COALESCE evaluates only the
+// arguments it needs, so only those rows pay a scope_generations PK probe for
+// the stored generation's ingested_at. A pre-deploy generation is committed
+// before any new-binary statement's snapshot, so the probe resolves to the
+// same value a backfill would have written; the guard stays advance-only for
+// legacy rows. If the probe finds nothing (an old-binary row whose generation
+// was ingested after this statement's snapshot), '-infinity' makes the write
+// advance, as it did before #6679; without it the row comparison is NULL and
+// the newer write would be dropped. The SET fills generation_ingested_at, so a
+// legacy row heals on its first applied write and is never rewritten in bulk.
+//
+// A NULL incoming key (a generation the snapshot cannot see) makes the
+// comparison NULL, so the write is skipped as stale rather than applied
+// blind. Skipped rows are omitted from RETURNING, which is how callers count
+// them.
 //
 // ORDER BY the primary key makes every batch take row locks in one global
 // order, so two overlapping concurrent batches cannot deadlock. COLLATE "C"
@@ -95,9 +112,15 @@ SET generation_id = EXCLUDED.generation_id,
     updated_at = EXCLUDED.updated_at,
     generation_ingested_at = EXCLUDED.generation_ingested_at
 WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
-   OR shared_projection_acceptance.generation_ingested_at IS NULL
    OR (EXCLUDED.generation_ingested_at, EXCLUDED.generation_id)
-      > (shared_projection_acceptance.generation_ingested_at, shared_projection_acceptance.generation_id)
+      > (COALESCE(
+             shared_projection_acceptance.generation_ingested_at,
+             (SELECT stored_generation.ingested_at
+              FROM scope_generations AS stored_generation
+              WHERE stored_generation.generation_id = shared_projection_acceptance.generation_id),
+             '-infinity'::timestamptz
+         ),
+         shared_projection_acceptance.generation_id)
 RETURNING scope_id, acceptance_unit_id, source_run_id
 `
 

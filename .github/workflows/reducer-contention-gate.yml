@@ -157,8 +157,9 @@ jobs:
         # (#6679) prove shared-projection acceptance is advance-only on
         # generation order: sequential and 4x50 lock-wait out-of-order writers,
         # a stored generation committed after the upsert's snapshot, the
-        # ingested_at ordering key, the 126 backfill under a held row lock,
-        # reversed 200-key batches with no 40P01, and the stale-write counter.
+        # ingested_at ordering key, legacy NULL-key rows resolved in the guard
+        # (including a generation committed after the snapshot), reversed
+        # 200-key batches with no 40P01, and the stale-write counter.
         # Only real READ COMMITTED row-lock rechecks and snapshots reproduce
         # them. ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF makes an unset DSN fail
         # these tests here instead of skipping them.

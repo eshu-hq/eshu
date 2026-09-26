@@ -116,7 +116,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestSharedProjectionAcceptanceConcurrentOutOfOrderLive",
 		"TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive",
 		"TestSharedProjectionAcceptanceOrdersByIngestedAtLive",
-		"TestSharedProjectionAcceptanceGenerationKeyBackfillLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyRejectsStaleLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyAdvancesLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive",
 		"TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive",
 		"TestSharedIntentAcceptanceWriterStaleWriteCounterLive",
 	} {

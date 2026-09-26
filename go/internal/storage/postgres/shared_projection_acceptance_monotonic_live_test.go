@@ -339,7 +339,7 @@ func TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive(t *testing.T
 				runY := fmt.Sprintf("postsnap-%s-%d-y", tc.name, trial)
 				lateGen := fmt.Sprintf("gen-6679-late-%s-%d", tc.name, trial)
 				lateAt := genNewIngestedAt.Add(tc.lateOffset)
-				stale := runPostSnapshotTrial(t, fixture, runX, runY, tc.incomingGen, lateGen, lateAt)
+				stale := runPostSnapshotTrial(t, fixture, runX, runY, tc.incomingGen, lateGen, lateAt, false)
 
 				gotY := fixture.accepted(t, runY)
 				if tc.wantYIncoming {
@@ -363,12 +363,15 @@ func TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive(t *testing.T
 // runPostSnapshotTrial seeds X at the incoming generation, holds X in
 // transaction L, starts B's production two-row upsert [X, Y] and waits until
 // it blocks on X, then commits transaction C (a late generation plus Y at that
-// generation) before releasing L. It returns B's stale set.
+// generation) before releasing L. With legacyNullKey, C writes Y the way a
+// pre-#6679 binary does, with no generation_ingested_at. It returns B's stale
+// set.
 func runPostSnapshotTrial(
 	t *testing.T,
 	fixture acceptanceMonotonicFixture,
 	runX, runY, incomingGen, lateGen string,
 	lateAt time.Time,
+	legacyNullKey bool,
 ) []SharedProjectionAcceptance {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -429,7 +432,16 @@ VALUES ($1, $2, 'manual', $3, $3, 'pending')`,
 	); err != nil {
 		t.Fatalf("C insert late generation: %v", err)
 	}
-	if err := NewSharedProjectionAcceptanceStore(SQLTx{Tx: late}).Upsert(ctx,
+	if legacyNullKey {
+		if _, err := late.ExecContext(ctx, `
+INSERT INTO shared_projection_acceptance
+  (scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
+VALUES ($1, 'repository:6679', $2, $3, $4, $4)`,
+			fixture.scopeID, runY, lateGen, at,
+		); err != nil {
+			t.Fatalf("C legacy insert Y: %v", err)
+		}
+	} else if err := NewSharedProjectionAcceptanceStore(SQLTx{Tx: late}).Upsert(ctx,
 		[]SharedProjectionAcceptance{fixture.row(runY, lateGen, at)},
 	); err != nil {
 		t.Fatalf("C upsert Y: %v", err)
