@@ -247,9 +247,8 @@ five ordered steps in a single transaction:
 
 If the claim check rejects a stale attempt, the transaction rolls back the
 scope update. The scope lock serializes same-scope ingestion commits with Ack.
-If step 5 finds the target superseded (#7130), Ack rolls back, marks the work
-item superseded, and returns `ErrWorkSuperseded`; the old generation stays
-retired and the scope pointer does not move. Replay also skips such rows.
+If step 5 finds the target superseded (#7130), Ack rolls back (the scope pointer does not move), marks the
+work item superseded and returns `ErrWorkSuperseded`. Replay also skips such rows.
 
 Because these run in one transaction, a reader never observes two active
 generations for a scope, and supersession of the old generation and activation
