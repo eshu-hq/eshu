@@ -18,8 +18,12 @@ one snapshot, so the verdict and the rows describe the same committed state.
 The reducer's optional `CorpusFencedResolvedRelationshipLoader` interface is
 preferred by `readCorpusFencedResolvedRelationships`, which both the workload
 projection input loader and the deployable-unit correlation handler call. On
-that path the separate fence lookup is not called at all: the pre-read check,
-the read, and the recheck (3 statements) become 1. Stores without the method
+that path the separate fence lookup is not called at all. On the complete
+path the pre-read check, the read, and the recheck (3 statements) become 1.
+On the deferral path the old code ran 1 fence-only statement and the new code
+runs 1 fused statement, which is slightly more expensive (see Plans). The
+own-scope read runs only after a complete verdict, so a deferral never pays
+for it. Stores without the method
 keep the #6730 two-statement fence and recheck. A test in
 `go/internal/storage/postgres` asserts the production store implements the
 interface.
@@ -55,6 +59,13 @@ fence predicate copied verbatim from the shipped constant.
   verdict and succeeded (`error = nil`). After the fix they defer retryably,
   report the holding scopes, and make no unfenced by-repos call.
   `go/internal/reducer/resolved_relationships_corpus_fence_test.go`.
+- Reducer, review F1 (RED on 550a83968, rc=1, `own-scope read calls = 1,
+  want 0 on a deferral`): an incomplete fused verdict must not run the
+  own-scope read in either consumer.
+  `TestWorkloadProjectionInputsSkipOwnReadWhenFencedReadDefers` and
+  `TestDeployableUnitCorrelationHandleSkipsOwnReadWhenFencedReadDefers`.
+  Companion tests cover deployable-unit fused success and fused read error,
+  and a zero-candidate scope that runs neither the fused read nor the lookup.
 - Store, live Postgres, isolated schema per test
   (`go/internal/storage/postgres/resolved_corpus_fence_snapshot_live_test.go`):
   - An uncommitted advance-and-complete in another session is invisible. The
@@ -93,9 +104,16 @@ CTE, then a nested-loop left join over a bitmap-OR of
 `resolved_relationships_target_repo_idx`. Its buffers equal the fence's plus
 the read's (272 + 362 = 634). Before the fix, a pass ran fence, read, and
 recheck: about 7.1 ms of execution in 3 round trips. The fused path is about
-4.0 ms in 1. When the fence is incomplete, the inner read still runs and the
-join filter drops it (400 rows removed). The old path paid the same cost when
-the recheck flipped. A LATERAL `WHERE fence.complete` gate and a
+4.0 ms in 1. That comparison holds only on the complete path.
+
+The deferral path costs more than before. When the fence is incomplete, the
+fused statement still runs the inner read and the join filter drops it (400
+rows removed): 3.568 ms and 597 buffers, from the shim artifact
+explain_fused_false.out. The old code deferred on its pre-read fence alone,
+2.826 ms and 272 buffers, with no read. So each deferral now costs about
+0.7 ms and 325 buffers more on this seed, and a deferring intent re-polls
+until the corpus settles. The old code paid the fused-false cost only when its
+post-read recheck flipped. A LATERAL `WHERE fence.complete` gate and a
 scalar-subquery gate were both tried, and the planner produced the same plan
 for each, so the plain `LEFT JOIN ... ON fence.complete` shape was kept.
 
@@ -118,9 +136,18 @@ fused verdict returns the same `workloadMaterializationResolutionNotReadyError`
 or `deployableUnitCorrelationResolutionNotReadyError` as before, with the same
 non-counting retry failure class. It still names the holding scopes through
 `IncompleteScopesLookup`, so the queue's recorded failure class and the
-deferral error text look exactly as they did for a two-statement deferral. A fused query error is a plain read error,
-`list resolved by repos with corpus fence: ...`, on the existing reducer
-failure path. No metric, span, or log key was added.
+deferral error text look exactly as they did for a two-statement deferral.
+No metric, span, or log key was added.
+
+Failure-class change: on the old path a fence lookup error (Postgres
+unreachable, for example) became a non-counting deferral that carried the
+cause (#6730). On the fused path the fence and the read are one query, so the
+same error is a plain read error, `list resolved by repos with corpus fence:
+...`, which counts against the intent's attempts like any by-repos read error
+always did. A long enough outage can therefore dead-letter a workload or
+deployable-unit intent that the old path would only have deferred.
+`TestWorkloadProjectionInputsFailOnFencedReadError` and
+`TestDeployableUnitCorrelationHandleFailsOnFencedReadError` pin this.
 
 ## Follow-up
 

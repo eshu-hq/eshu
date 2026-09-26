@@ -244,9 +244,12 @@ type corpusFencedResolvedRead struct {
 // the read and re-checked after it (#6730); that fallback still has the
 // residual window a full advance-and-complete cycle between the two checks
 // slips through, which is why the production store implements the fused
-// method (defaults wiring asserts it). A nil loader reads nothing and only
-// evaluates the fence. The own-generation check is the caller's job and
-// must run first.
+// method (TestRelationshipStoreSatisfiesCorpusFencedResolvedRelationshipLoader
+// in go/internal/storage/postgres asserts it on the store type). On the fused
+// path an incomplete verdict returns before the own-scope read, and a fused
+// query error is a read error, not a fenceErr deferral. A nil loader reads
+// nothing and only evaluates the fence. The own-generation check is the
+// caller's job and must run first.
 func readCorpusFencedResolvedRelationships(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
@@ -255,10 +258,6 @@ func readCorpusFencedResolvedRelationships(
 	candidates []WorkloadCandidate,
 ) (corpusFencedResolvedRead, error) {
 	if fenced, ok := loader.(CorpusFencedResolvedRelationshipLoader); ok && len(candidates) > 0 {
-		resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
-		if err != nil {
-			return corpusFencedResolvedRead{}, err
-		}
 		repoResolved, complete, err := fenced.GetResolvedRelationshipsForReposWithCorpusFence(
 			ctx, workloadCandidateRepoIDs(candidates),
 		)
@@ -267,6 +266,14 @@ func readCorpusFencedResolvedRelationships(
 		}
 		if !complete {
 			return corpusFencedResolvedRead{}, nil
+		}
+		// The own-scope read is pinned to the intent's active generation,
+		// whose rows are immutable once active, so reading it after the
+		// verdict loses nothing and a deferral never pays for it (#6740
+		// review F1).
+		resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
+		if err != nil {
+			return corpusFencedResolvedRead{}, err
 		}
 		return corpusFencedResolvedRead{
 			resolved: mergeResolvedRelationships(resolved, repoResolved),

@@ -195,3 +195,124 @@ func TestDeployableUnitCorrelationHandleDefersWhenFencedReadReportsIncompleteCor
 		t.Fatalf("fenced/unfenced read calls = %d/%d, want 1/0", resolvedLoader.fencedCalls, resolvedLoader.repoCalls)
 	}
 }
+
+// TestWorkloadProjectionInputsSkipOwnReadWhenFencedReadDefers pins the
+// deferral-path cost (#6740 review F1): an incomplete fused verdict defers
+// the pass, so the own-scope generation read must not run and be thrown away.
+func TestWorkloadProjectionInputsSkipOwnReadWhenFencedReadDefers(t *testing.T) {
+	t.Parallel()
+
+	resolvedLoader := &stubCorpusFencedResolvedLoader{complete: false}
+	loader := CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:             &stubFactLoader{envelopes: dockerfileLoaderEnvelopes()},
+		ResolvedLoader:         resolvedLoader,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"gen-1": true}),
+	}
+
+	_, _, err := loader.LoadWorkloadProjectionInputs(context.Background(), dockerfileLoaderIntent())
+	var deferral workloadMaterializationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("LoadWorkloadProjectionInputs() error = %v, want resolution-not-ready deferral", err)
+	}
+	if resolvedLoader.calls != 0 {
+		t.Fatalf("own-scope read calls = %d, want 0 on a deferral", resolvedLoader.calls)
+	}
+}
+
+func TestDeployableUnitCorrelationHandleSkipsOwnReadWhenFencedReadDefers(t *testing.T) {
+	t.Parallel()
+
+	resolvedLoader := &stubCorpusFencedResolvedLoader{complete: false}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         resolvedLoader,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error = %v, want resolution-not-ready deferral", err)
+	}
+	if resolvedLoader.calls != 0 {
+		t.Fatalf("own-scope read calls = %d, want 0 on a deferral", resolvedLoader.calls)
+	}
+}
+
+func TestDeployableUnitCorrelationHandleSucceedsOnCompleteFencedRead(t *testing.T) {
+	t.Parallel()
+
+	lookupCalls := 0
+	resolvedLoader := &stubCorpusFencedResolvedLoader{complete: true}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         resolvedLoader,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			lookupCalls++
+			return false, nil
+		},
+	}
+
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil: the fenced read's own snapshot verdict is authoritative", err)
+	}
+	if got.Status != ResultStatusSucceeded {
+		t.Fatalf("Handle().Status = %q, want %q", got.Status, ResultStatusSucceeded)
+	}
+	if lookupCalls != 0 {
+		t.Fatalf("separate fence lookup calls = %d, want 0", lookupCalls)
+	}
+	if resolvedLoader.fencedCalls != 1 || resolvedLoader.calls != 1 || resolvedLoader.repoCalls != 0 {
+		t.Fatalf("fenced/own/unfenced read calls = %d/%d/%d, want 1/1/0",
+			resolvedLoader.fencedCalls, resolvedLoader.calls, resolvedLoader.repoCalls)
+	}
+}
+
+func TestDeployableUnitCorrelationHandleFailsOnFencedReadError(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("fenced read unavailable")
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubCorpusFencedResolvedLoader{err: readErr},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if !errors.Is(err, readErr) {
+		t.Fatalf("Handle() error = %v, want wrapped fenced read error", err)
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if errors.As(err, &deferral) {
+		t.Fatal("fused read error surfaced as a non-counting deferral, want a plain read failure")
+	}
+}
+
+// TestWorkloadProjectionInputsZeroCandidatesSkipFencedRead pins the vacuous
+// case: with no candidates there is no foreign read to fence, so neither the
+// fused statement nor the separate lookup runs.
+func TestWorkloadProjectionInputsZeroCandidatesSkipFencedRead(t *testing.T) {
+	t.Parallel()
+
+	lookupCalls := 0
+	resolvedLoader := &stubCorpusFencedResolvedLoader{complete: false}
+	loader := CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:                &stubFactLoader{envelopes: dockerfileLoaderEnvelopes()[:1]},
+		ResolvedLoader:            resolvedLoader,
+		ResolutionActiveLookup:    stubResolutionActiveLookup(map[string]bool{}),
+		ResolutionsCompleteLookup: alwaysCompleteLookup(&lookupCalls),
+	}
+
+	candidates, _, err := loader.LoadWorkloadProjectionInputs(context.Background(), dockerfileLoaderIntent())
+	if err != nil {
+		t.Fatalf("LoadWorkloadProjectionInputs() error = %v, want nil for a candidate-free scope", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("candidates = %d, want 0", len(candidates))
+	}
+	if resolvedLoader.fencedCalls != 0 || lookupCalls != 0 {
+		t.Fatalf("fenced read/lookup calls = %d/%d, want 0/0 with no candidates", resolvedLoader.fencedCalls, lookupCalls)
+	}
+}
