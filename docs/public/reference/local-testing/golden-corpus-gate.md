@@ -241,9 +241,10 @@ parameters, either a first-hit-wins dispatch (label disjunctions return
 zero rows on the pinned NornicDB build, #7006) or an independent per-label
 fan-out whose rows are concatenated or merged in Go, every label besides
 the owning label misses by construction for a present id. Texts that are
-identical after stripping the leading single-label anchor, and that the
-recordings show executed with byte-identical parameters, form one family
-keyed by the unlabeled text: the family is always-empty only if no member
+identical after stripping the leading single-label anchor and folding a uid
+index-seek conjunct `v.uid = $p AND v.id = $p` to the `v.id = $p` predicate
+it implies (#7089), and that the recordings show executed with
+byte-identical parameters, form one family keyed by the unlabeled text: the family is always-empty only if no member
 ever returned rows, and a read exemption on the unlabeled text covers it.
 Members that never returned rows while their family did are advisory
 (`dispatch-miss`, named for the motivating dispatch case). The rule groups
