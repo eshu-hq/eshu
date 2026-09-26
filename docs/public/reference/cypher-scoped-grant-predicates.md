@@ -63,11 +63,33 @@ On Neo4j (`go/internal/query/infra_scope.go`):
   result never reaches the caller: an ungranted anchor still gets the same 404
   as a missing id.
 
+### Residual: probe timing
+
+The response for an ungranted anchor is byte-identical to the response for a
+missing id: same status, body, errors and logs. The work is not identical. An
+ungranted anchor on a probed label runs one more scoped statement than a
+missing id (14 probes, one scoped labeled read and the scoped fallback, against
+14 probes and the fallback), a few milliseconds warm. A caller with a valid
+scoped token who measures latency statistically over the network could infer
+that an id exists on one of the probed labels. This is rated P3 and accepted;
+it discloses existence only, never a name, id or edge of another tenant.
+
+### Residual: backend must match the configuration
+
+`ESHU_GRAPH_BACKEND` must match the Bolt backend actually behind the graph
+connection. Setting it to `neo4j` while pointing at NornicDB selects the
+list-`EXISTS` form, which leaks on NornicDB. This is the same trust boundary the
+other backend branches in the query layer already rely on; there is no runtime
+cross-check.
+
 The span attribute `eshu.infra_scope_dialect` records which dialect a read used;
 see [Graph-read safety](telemetry/graph-read-safety.md).
 
 ## Proof
 
+- Default-lane pins of the Neo4j predicate text
+  (`infra_scope_predicate_pin_test.go`) and of probe/scoped-read error,
+  fail-closed and shared-deadline behavior (`infra_scope_dialect_errors_test.go`).
 - Row-set equality with SHAPE-A and with an oracle computed from the fixture,
   at g1, g5 and the cap, plus the negative authorization cases:
   `go/internal/query/infra_scope_neo4j_equivalence_live_test.go`.

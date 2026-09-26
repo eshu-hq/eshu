@@ -147,13 +147,13 @@ Prefer backend-neutral Cypher. When behavior diverges, use this order:
 3. Patch NornicDB only for an evidence-backed correctness fix, general backend
    performance win, or measured Eshu runtime win.
 
-Keep backend branches out of reducers, MCP tools, and collectors; a query builder needs live proof.
+Keep backend branches out of reducers, MCP tools, and collectors.
+A query handler may branch on an explicit backend value only with a fail-safe default, a byte-identity test pinning the other dialect's statements (NornicDB stays pinned), and live proof on each backend; see [Scoped Grant Predicates](cypher-scoped-grant-predicates.md).
 
 ## Anti-Patterns
 
-- no baseline, or Neo4j docs cited for NornicDB behavior
-- on Neo4j, a grant predicate copied into every UNION branch or expanded to
-  O(grant) inline pattern terms ([Scoped Grant Predicates](cypher-scoped-grant-predicates.md))
+- no baseline
+- Neo4j docs cited for NornicDB behavior
 - unit tests used as production-cardinality performance proof
 - Compose success without phase timing or queue evidence
 - index changes without write-amplification discussion
