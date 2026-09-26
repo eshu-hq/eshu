@@ -51,8 +51,6 @@ func TestEnrichGraphSearchResultsWithContentMetadata(t *testing.T) {
 		context.Background(),
 		graphResults,
 		"repo-1",
-		"handler",
-		10,
 	)
 	if err != nil {
 		t.Fatalf("enrichGraphSearchResultsWithContentMetadata() error = %v, want nil", err)
@@ -119,8 +117,6 @@ func TestEnrichGraphSearchResultsWithContentMetadataPrefersExistingJavaScriptMet
 		context.Background(),
 		graphResults,
 		"repo-1",
-		"getTab",
-		10,
 	)
 	if err != nil {
 		t.Fatalf("enrichGraphSearchResultsWithContentMetadata() error = %v, want nil", err)

@@ -47,7 +47,7 @@ func TestGraphSearchEnrichesOnlyMatchingEntityIDsInOneRead(t *testing.T) {
 		{"entity_id": "entity-3", "repo_id": "repo-1", "name": "decode", "labels": []string{"Function"}, "file_path": "src/three.py", "start_line": 3},
 	}
 
-	got, err := handler.enrichGraphSearchResultsWithContentMetadata(context.Background(), results, "repo-1", "decode", 3)
+	got, err := handler.enrichGraphSearchResultsWithContentMetadata(context.Background(), results, "repo-1")
 	if err != nil {
 		t.Fatalf("enrich graph search: %v", err)
 	}

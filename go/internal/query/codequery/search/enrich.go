@@ -19,8 +19,6 @@ func EnrichResultsWithContentMetadata(
 	store querycontract.ContentStore,
 	results []map[string]any,
 	repoID string,
-	_ string,
-	_ int,
 ) ([]map[string]any, error) {
 	if len(results) == 0 {
 		return results, nil

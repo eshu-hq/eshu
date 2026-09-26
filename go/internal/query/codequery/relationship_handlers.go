@@ -142,8 +142,6 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		ctx,
 		[]map[string]any{response},
 		StringVal(row, "repo_id"),
-		StringVal(row, "name"),
-		1,
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -240,8 +238,6 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		ctx,
 		[]map[string]any{response},
 		StringVal(row, "repo_id"),
-		StringVal(row, "name"),
-		1,
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())

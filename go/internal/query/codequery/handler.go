@@ -271,7 +271,7 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 		results = append(results, result)
 	}
 
-	return h.enrichGraphSearchResultsWithContentMetadata(ctx, results, repoID, query, limit)
+	return h.enrichGraphSearchResultsWithContentMetadata(ctx, results, repoID)
 }
 
 func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, pattern, language string, limit int, exact bool) ([]map[string]any, error) {

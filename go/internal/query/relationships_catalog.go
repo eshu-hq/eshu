@@ -395,17 +395,16 @@ func (h *InfraHandler) relationshipEdges(
 		params                 map[string]any
 	)
 	if tool != "" {
-		cypher = relationshipEdgesCypherFiltered(entry, access)
 		completeCypher = relationshipEdgesCypherFilteredWithAnchor(entry, access, false)
 		params = map[string]any{"limit": limit + 1, "source_tool": tool}
 	} else {
-		cypher = relationshipEdgesCypher(entry, access)
 		completeCypher = relationshipEdgesCypherWithAnchor(entry, access, false)
 		params = map[string]any{"limit": limit + 1}
 	}
 	indexed := entry.verb == "CALLS" && tool == "" && !access.Scoped()
-	if !indexed {
-		cypher = completeCypher
+	cypher = completeCypher
+	if indexed {
+		cypher = relationshipEdgesCypher(entry, access)
 	}
 	params = access.GraphParams(params)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
