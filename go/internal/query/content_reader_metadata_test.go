@@ -12,19 +12,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 // fingerprintedMetadataJSON is an entity metadata JSONB blob as the store
 // holds it for a fingerprinted function: one real key plus every parser
-// fingerprint key, so a key added to fingerprint.MetadataKeys() is covered
+// fingerprint key, so a key added to entity.FingerprintMetadataKeys() is covered
 // without editing this fixture.
 func fingerprintedMetadataJSON(t *testing.T) []byte {
 	t.Helper()
 
 	metadata := map[string]any{"docstring": "Handles the request."}
-	for _, key := range fingerprint.MetadataKeys() {
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
 		metadata[key] = "store-internal-" + key
 	}
 	raw, err := json.Marshal(metadata)
@@ -44,7 +44,7 @@ func TestDecodeEntityMetadataStripsFingerprintKeys(t *testing.T) {
 	if len(got) != 1 || got["docstring"] != "Handles the request." {
 		t.Fatalf("decodeEntityMetadata() = %#v, want only docstring", got)
 	}
-	for _, key := range fingerprint.MetadataKeys() {
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
 		if _, present := got[key]; present {
 			t.Errorf("decodeEntityMetadata() kept store-internal key %q", key)
 		}
@@ -55,7 +55,7 @@ func TestDecodeEntityMetadataReturnsNilWhenOnlyFingerprintKeysRemain(t *testing.
 	t.Parallel()
 
 	metadata := map[string]any{}
-	for _, key := range fingerprint.MetadataKeys() {
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
 		metadata[key] = "x"
 	}
 	raw, err := json.Marshal(metadata)
@@ -128,7 +128,7 @@ func TestContentReaderEntityReadsOmitFingerprintKeys(t *testing.T) {
 			if got[0].Metadata["docstring"] != "Handles the request." {
 				t.Fatalf("%s() metadata = %#v, want docstring kept", tc.name, got[0].Metadata)
 			}
-			for _, key := range fingerprint.MetadataKeys() {
+			for _, key := range entitycontract.FingerprintMetadataKeys() {
 				if _, present := got[0].Metadata[key]; present {
 					t.Errorf("%s() metadata kept store-internal key %q", tc.name, key)
 				}
@@ -166,7 +166,7 @@ func TestCodeHandlerSearchEntityContentResponseOmitsFingerprintKeys(t *testing.T
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	for _, key := range fingerprint.MetadataKeys() {
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
 		if bytes.Contains(rec.Body.Bytes(), []byte(key)) {
 			t.Errorf("response body contains store-internal key %q: %s", key, rec.Body.String())
 		}

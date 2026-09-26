@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // TestFingerprintRowReadsEveryMetadataKey ties the query layer's strip list to
-// the writer: fingerprint.MetadataKeys is what the API removes from response
+// the writer: querycontract/entity.FingerprintMetadataKeys is what the API removes from response
 // metadata, so each of those keys must be one the writer actually consumes.
 // Dropping any one key from a complete payload must change the row the writer
 // builds; a key the writer ignores would mean the strip list names something
@@ -30,13 +31,13 @@ func TestFingerprintRowReadsEveryMetadataKey(t *testing.T) {
 	if !want.hasFingerprint {
 		t.Fatal("complete metadata must yield a fingerprint row")
 	}
-	keys := fingerprint.MetadataKeys()
+	keys := entitycontract.FingerprintMetadataKeys()
 	if len(keys) != len(full) {
-		t.Fatalf("MetadataKeys() = %v, fixture covers %d keys; update the fixture with the new key", keys, len(full))
+		t.Fatalf("FingerprintMetadataKeys() = %v, fixture covers %d keys; update the fixture with the new key", keys, len(full))
 	}
 	for _, key := range keys {
 		if _, ok := full[key]; !ok {
-			t.Fatalf("MetadataKeys() names %q, which the fixture does not populate", key)
+			t.Fatalf("FingerprintMetadataKeys() names %q, which the fixture does not populate", key)
 		}
 		without := make(map[string]any, len(full))
 		for k, v := range full {

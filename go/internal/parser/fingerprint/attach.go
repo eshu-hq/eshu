@@ -35,28 +35,6 @@ const (
 	StatsKey = "fingerprint_stats"
 )
 
-// MetadataKeys returns the entity-metadata keys the fingerprint attach step
-// writes: the exact and renamed hashes, the MinHash sketch, the shingle
-// identities, and the leaf token count. They are store-internal columns
-// consumed by the content writer's side-table fan-out and the code-divergence
-// reducer, never by an API or MCP caller, so the query layer strips exactly
-// this list from response metadata. StatsKey is a parser payload key, not an
-// entity key, and is not included. Each call returns a fresh slice.
-func MetadataKeys() []string {
-	return []string{KeyExact, KeyRenamed, KeySketch, KeyTokenCount, KeyShingles}
-}
-
-// StripMetadata deletes every MetadataKeys entry from an entity-metadata map
-// in place. The query layer calls it at the single metadata decode seam so API
-// and MCP responses never carry the store-internal fingerprint columns, which
-// were 23-59% of the row bytes on tools over the MCP response budget (#7167).
-// Absent keys are a no-op, and a nil map is safe.
-func StripMetadata(metadata map[string]any) {
-	for _, key := range MetadataKeys() {
-		delete(metadata, key)
-	}
-}
-
 // Skip reasons for the fingerprinted-vs-skipped telemetry counter.
 const (
 	ReasonBelowFloor = "below_floor"

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -20,7 +21,7 @@ import (
 // round trip: a fingerprinted Function goes through the real storage writer,
 // then comes back through ContentReader on a search path and an entity-content
 // path. The API rows must carry the non-fingerprint metadata and none of
-// fingerprint.MetadataKeys(), while the same fingerprint stays present in the
+// entity.FingerprintMetadataKeys(), while the same fingerprint stays present in the
 // code_function_fingerprint side table the divergence report reads. That is
 // the contract the strip rests on: removed from responses, kept in the store.
 //
@@ -58,8 +59,8 @@ func TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive(t *testing.T) {
 	} {
 		metadata[key] = value
 	}
-	if got, want := len(metadata)-1, len(fingerprint.MetadataKeys()); got != want {
-		t.Fatalf("fixture carries %d fingerprint keys, MetadataKeys() has %d; update the fixture", got, want)
+	if got, want := len(metadata)-1, len(entitycontract.FingerprintMetadataKeys()); got != want {
+		t.Fatalf("fixture carries %d fingerprint keys, FingerprintMetadataKeys() has %d; update the fixture", got, want)
 	}
 
 	writer := storagepostgres.NewContentWriter(storagepostgres.SQLDB{DB: db})
@@ -107,7 +108,7 @@ func TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive(t *testing.T) {
 		if got["docstring"] != docstr {
 			t.Errorf("%s metadata = %#v, want docstring %q kept", label, got, docstr)
 		}
-		for _, key := range fingerprint.MetadataKeys() {
+		for _, key := range entitycontract.FingerprintMetadataKeys() {
 			if _, present := got[key]; present {
 				t.Errorf("%s metadata kept store-internal key %q", label, key)
 			}

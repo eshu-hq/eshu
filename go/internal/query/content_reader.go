@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -492,7 +492,7 @@ func decodeEntityMetadata(raw []byte) (map[string]any, error) {
 	if err := json.Unmarshal(raw, &metadata); err != nil {
 		return nil, fmt.Errorf("decode entity metadata: %w", err)
 	}
-	fingerprint.StripMetadata(metadata)
+	entitycontract.StripFingerprintMetadata(metadata)
 	if len(metadata) == 0 {
 		return nil, nil
 	}
