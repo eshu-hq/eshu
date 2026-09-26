@@ -33,6 +33,7 @@ tracked in #7111. `main` now merges through a GitHub merge queue. The queue
 builds each entry on top of the entries ahead of it and runs the required
 contexts on that exact commit (`merge_group`), so correctness no longer
 depends on authors rebasing, and strict mode stays off. Enter the queue from the PR page; do not rebase just because `main` moved.
+A red `main` is reported by the Main Health watcher: one pinned `main is red @<sha>` issue and a `main-health` commit status (see [Main Health Watcher](../public/reference/local-testing/main-health-watcher.md)).
 
 This does **not** weaken the Ifá/Odù protection for contracts, performance, or
 end-to-end behavior. That protection was never fully local to begin with: the

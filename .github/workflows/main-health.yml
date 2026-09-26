@@ -1,0 +1,93 @@
+name: Main Health
+
+# Post-merge watcher (#7111 F2). Nothing used to notice a required workflow
+# going red on `main` after two green PRs merged: the guard-test red sat 4h44m
+# and was found by PR authors, and the scheduled ruleset verifier failed 30/30
+# runs with no owner. This workflow judges the NEWEST main commit after every
+# required workflow finishes (and every 6 hours as a backstop), keeps exactly
+# one pinned `main is red @<sha>` issue in step with the verdict, posts a
+# `main-health` commit status, and closes the issue when main is green. The
+# scheduled `Required Gates` ruleset verification (verify-live-ruleset) routes
+# into the same issue.
+#
+# Like required-gates.yml this is a trusted publisher: workflow_run always
+# runs the default-branch version, it checks out only the default branch, and
+# it never executes pull-request code. The logic and its decisions live in
+# scripts/ci/main-health.sh, exercised hermetically by
+# scripts/test-main-health.sh. The workflow_run list below must equal the
+# aggregator's list plus the aggregator itself; that test enforces it.
+#
+# Reading the result: this job succeeds whenever the evaluation completed,
+# red main or not, so the watcher never adds a red row of its own to main.
+# Dry run: Actions -> Main Health -> Run workflow (dry_run defaults to true)
+# prints the decision and the writes it would make, and makes none.
+on:
+  workflow_run:
+    workflows:
+      - Build Test
+      - End-to-end Tests
+      - Fact Schema Diff
+      - Frontend
+      - Golden Corpus Gate
+      - Ifa Determinism Gate
+      - Live Backend Tests
+      - MCP Schema Drift
+      - Payload Usage Manifest
+      - Product Claim Ledger
+      - Publish Image and Helm Chart
+      - Race Graph Writes
+      - Read API Latency Gate
+      - Reducer Contention Gate
+      - Replay Coverage Gate
+      - Replay Tier (offline NornicDB)
+      - Required Gates
+      - Scorecard Example Conformance
+      - SDK Go Modules
+      - Security Scan
+      - Static Contract Gates
+      - Verify Agent Hygiene
+      - Verify CI Gate Registry
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the decision and the writes it would make; write nothing.
+        type: boolean
+        default: true
+  schedule:
+    - cron: "47 */6 * * *"
+
+concurrency:
+  # One writer at a time so the single issue can never be double-opened. The
+  # verdict is always recomputed from the current tip of main, so a queued run
+  # replacing an older queued run loses nothing.
+  group: main-health
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  statuses: write
+
+jobs:
+  watch:
+    # A run of a fork branch named `main` is not a run of main; the required
+    # aggregator also fires for every push, so only its scheduled run (the
+    # ruleset verifier) is interesting here.
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.event != 'pull_request' && (github.event.workflow_run.name != 'Required Gates' || github.event.workflow_run.event == 'schedule')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Judge the newest main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_HEALTH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          MAIN_HEALTH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/ci/main-health.sh

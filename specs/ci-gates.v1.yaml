@@ -605,6 +605,40 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: main-health-watcher
+    name: Post-merge main-health watcher test mirror
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/main-health.sh"
+      - "scripts/test-main-health.sh"
+      # The mirror asserts the watcher workflow's trigger list equals the
+      # aggregator's, its least-privilege permissions and action pinning, so
+      # an edit to either workflow must select it.
+      - ".github/workflows/main-health.yml"
+      - ".github/workflows/required-gates.yml"
+      # The required-workflow list is derived from this file's
+      # required_status_checks; a registry edit can change the derivation.
+      - "specs/ci-gates.v1.yaml"
+      # The mirror's wiring assertion reads verify-ci-gate-registry.yml.
+      - ".github/workflows/verify-ci-gate-registry.yml"
+    local:
+      # main-health.sh has no non-mutating "real" mode against GitHub that a
+      # local run could use (it reads and writes issues and statuses), so the
+      # hermetic mirror IS the verification: a fake `gh` on PATH serves
+      # recorded JSON for red, green, flapping, superseded, pending and
+      # cancelled shapes and the cases assert the upsert/close decisions. The
+      # live check is the workflow's dry-run dispatch (docs/public/reference/
+      # local-testing/main-health-watcher.md).
+      command: "bash scripts/test-main-health.sh"
+      test_command: ""
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry test mirror"
+    requirements: []
+    ci_only_reason: ""
+
   # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
 
   - id: openapi-surface
@@ -4765,6 +4799,8 @@ hygiene_hooks:
 # release, scheduled-refresh, on-demand, or bot workflows). Each must exist on
 # disk; the drift check fails on a stale entry or an unregistered workflow.
 non_gate_workflows:
+  - file: main-health.yml
+    reason: "post-merge watcher on main (workflow_run + 6h schedule) that files the main-is-red issue and status; its script is gated by main-health-watcher, the workflow itself is not a PR gate"
   - file: bench.yml
     reason: "advisory perf benchmark + regression (BENCH_REGRESSION_ENFORCE=false); not a credential-free local-parity gate"
   - file: bench-baseline-refresh.yml
