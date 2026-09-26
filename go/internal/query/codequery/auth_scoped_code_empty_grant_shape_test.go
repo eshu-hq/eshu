@@ -54,14 +54,14 @@ func codeEmptyGrantShapeRoutes() []codeEmptyGrantShapeRoute {
 			name:    "inspect_structural_inventory",
 			path:    "/api/v0/code/structure/inventory",
 			body:    map[string]any{"inventory_kind": "entity", "language": "go"},
-			fields:  []string{"results", "matches"},
+			fields:  []string{"results"},
 			handler: contentHandler(&structuralInventoryGrantStore{}),
 		},
 		{
 			name:    "inspect_structural_inventory_function_count_by_file",
 			path:    "/api/v0/code/structure/inventory",
 			body:    map[string]any{"inventory_kind": "function_count_by_file", "language": "go"},
-			fields:  []string{"results", "matches"},
+			fields:  []string{"results"},
 			handler: contentHandler(&structuralInventoryGrantStore{}),
 		},
 		{

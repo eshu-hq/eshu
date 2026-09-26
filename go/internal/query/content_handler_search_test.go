@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -374,7 +373,7 @@ func TestContentHandlerSearchFilesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) 
 	}
 }
 
-func TestContentHandlerSearchFilesReturnsCompatibilityAliases(t *testing.T) {
+func TestContentHandlerSearchFilesOmitsRemovedMatchesAlias(t *testing.T) {
 	t.Parallel()
 
 	db, _ := openRecordingContentSearchDB(t, []contentSearchQueryResult{
@@ -416,12 +415,8 @@ func TestContentHandlerSearchFilesReturnsCompatibilityAliases(t *testing.T) {
 	if !ok || len(results) != 1 {
 		t.Fatalf("results = %#v, want one result", resp["results"])
 	}
-	matches, ok := resp["matches"].([]any)
-	if !ok || len(matches) != 1 {
-		t.Fatalf("matches = %#v, want alias for one result", resp["matches"])
-	}
-	if !reflect.DeepEqual(matches, results) {
-		t.Fatalf("matches = %#v, want alias of results %#v", matches, results)
+	if _, ok := resp["matches"]; ok {
+		t.Fatalf("matches present, want the alias removed (#7170); body = %s", w.Body.String())
 	}
 	if got, want := resp["source_backend"], "postgres_content_store"; got != want {
 		t.Fatalf("source_backend = %#v, want %#v", got, want)

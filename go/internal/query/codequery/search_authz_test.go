@@ -51,9 +51,9 @@ func TestCodeSearchGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 	body := decodeCodeSearchAuthzBody(t, rec)
-	matches := body["matches"].([]any)
+	matches := body["results"].([]any)
 	if got, want := len(matches), 1; got != want {
-		t.Fatalf("len(matches) = %d, want %d", got, want)
+		t.Fatalf("len(results) = %d, want %d", got, want)
 	}
 }
 
@@ -140,9 +140,9 @@ func TestCodeSearchContentAppliesScopedAuthWithoutAnyRepoFallback(t *testing.T) 
 		t.Fatalf("repoNameCalls = %#v, want %#v", got, want)
 	}
 	body := decodeCodeSearchAuthzBody(t, rec)
-	matches := body["matches"].([]any)
+	matches := body["results"].([]any)
 	if got, want := len(matches), 1; got != want {
-		t.Fatalf("len(matches) = %d, want %d", got, want)
+		t.Fatalf("len(results) = %d, want %d", got, want)
 	}
 }
 
@@ -173,9 +173,9 @@ func TestCodeSearchContentEmptyGrantReturnsEmptyWithoutBroadScan(t *testing.T) {
 		t.Fatalf("content calls = %+v, want no broad or scoped calls", content)
 	}
 	body := decodeCodeSearchAuthzBody(t, rec)
-	matches := body["matches"].([]any)
+	matches := body["results"].([]any)
 	if got := len(matches); got != 0 {
-		t.Fatalf("len(matches) = %d, want 0", got)
+		t.Fatalf("len(results) = %d, want 0", got)
 	}
 }
 

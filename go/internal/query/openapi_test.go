@@ -458,10 +458,13 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	structuralInventoryOK := testutil.MustMapField(t, structuralInventoryResponses, "200")
 	structuralInventoryContent := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryOK, "content"), "application/json")
 	structuralInventoryResponse := testutil.MustMapField(t, testutil.MustMapField(t, structuralInventoryContent, "schema"), "properties")
-	for _, field := range []string{"results", "matches", "truncated", "next_offset", "source_backend"} {
+	for _, field := range []string{"results", "truncated", "next_offset", "source_backend"} {
 		if _, ok := structuralInventoryResponse[field]; !ok {
 			t.Fatalf("code/structure/inventory response schema missing %s", field)
 		}
+	}
+	if _, ok := structuralInventoryResponse["matches"]; ok {
+		t.Fatalf("code/structure/inventory response schema includes the removed matches alias (#7170)")
 	}
 
 	topicInvestigationPath := testutil.MustMapField(t, paths, "/api/v0/code/topics/investigate")

@@ -469,7 +469,6 @@ func contentSearchResponse(results any, req contentSearchRequest, truncated bool
 	}
 	return map[string]any{
 		"results":        results,
-		"matches":        results,
 		"count":          count,
 		"limit":          req.limit(),
 		"offset":         req.offset(),

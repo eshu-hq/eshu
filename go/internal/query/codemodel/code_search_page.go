@@ -30,7 +30,6 @@ func CodeSearchPagePayload(
 		"query":          query,
 		"repo_id":        repositoryID,
 		"results":        rows,
-		"matches":        rows,
 		"count":          len(rows),
 		"limit":          publicLimit,
 		"truncated":      truncated,

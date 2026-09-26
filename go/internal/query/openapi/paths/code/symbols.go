@@ -104,7 +104,6 @@ const Symbols = `
                     "inventory_kind": {"type": "string"},
                     "entity_kind": {"type": "string"},
                     "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "matches": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},

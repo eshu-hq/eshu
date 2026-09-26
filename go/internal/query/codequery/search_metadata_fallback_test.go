@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -49,12 +48,8 @@ func TestHandleSearchAllowsCrossRepoQueriesWhenRepoScopeIsOmitted(t *testing.T) 
 	if !ok || len(results) != 1 {
 		t.Fatalf("resp[results] = %#v, want one content-name result", resp["results"])
 	}
-	matches, ok := resp["matches"].([]any)
-	if !ok || len(matches) != 1 {
-		t.Fatalf("resp[matches] = %#v, want one compatibility alias result", resp["matches"])
-	}
-	if !reflect.DeepEqual(matches, results) {
-		t.Fatalf("resp[matches] = %#v, want alias of resp[results] %#v", matches, results)
+	if _, ok := resp["matches"]; ok {
+		t.Fatalf("resp[matches] present, want the alias removed (#7170); body = %s", w.Body.String())
 	}
 	if got, want := resp["source_backend"], "postgres_content_name_index"; got != want {
 		t.Fatalf("resp[source_backend] = %#v, want %#v", got, want)

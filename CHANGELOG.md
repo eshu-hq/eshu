@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Code and content search responses drop the `matches` alias
+
+- **`matches` is removed; read `results`**
+  ([#7170](https://github.com/eshu-hq/eshu/issues/7170)). `find_symbol`,
+  `search_entity_content`, `search_file_content`, `find_code`,
+  `inspect_code_inventory`, and their HTTP routes (`POST /api/v0/code/search`,
+  `/code/symbols/search`, `/code/structure/inventory`, and the content search
+  routes) returned the same rows twice, once as `results` and once as the
+  compatibility alias `matches`. That doubled every response and pushed three
+  MCP tools over the response budget (#7129). The alias is gone from HTTP and
+  MCP alike; `results` is unchanged. `resolve_entity` still returns `matches`
+  until the console moves off it (#7173).
+
 ### Compact-by-default catalog and playbook/workflow list responses
 
 - **`get_capability_catalog`, `list_query_playbooks`, and

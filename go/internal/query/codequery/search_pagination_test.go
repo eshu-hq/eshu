@@ -61,9 +61,11 @@ func TestGlobalCodeSearchReportsExactAndOverflowPages(t *testing.T) {
 				t.Fatalf("decode response: %v", err)
 			}
 			results, _ := response["results"].([]any)
-			matches, _ := response["matches"].([]any)
-			if len(results) != 1 || len(matches) != 1 {
-				t.Fatalf("results/matches lengths = %d/%d, want 1/1", len(results), len(matches))
+			if _, ok := response["matches"]; ok {
+				t.Fatalf("response[matches] present, want the alias removed (#7170)")
+			}
+			if len(results) != 1 {
+				t.Fatalf("results length = %d, want 1", len(results))
 			}
 			if response["count"] != float64(1) || response["limit"] != float64(1) ||
 				response["truncated"] != tc.wantTruncated {

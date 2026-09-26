@@ -130,7 +130,6 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 			"limit":          limit,
 			"offset":         req.Offset,
 			"results":        results,
-			"matches":        results,
 			"count":          len(results),
 			"truncated":      data.truncated,
 			"next_offset":    nextStructuralInventoryOffset(req.Offset, len(results), data.truncated),
@@ -161,8 +160,8 @@ func (h *CodeHandler) structuralInventoryData(
 	// entities.
 	//
 	// The empty page is built, not zero-valued: the handler writes this slice
-	// straight into `results` and `matches`, both declared as arrays in the
-	// OpenAPI response, and a nil slice encodes as `null`. Every other branch
+	// straight into `results`, declared as an array in the OpenAPI response,
+	// and a nil slice encodes as `null`. Every other branch
 	// here returns an allocated slice, so a grantless token was the one caller
 	// whose body a generated client could fail to decode.
 	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)

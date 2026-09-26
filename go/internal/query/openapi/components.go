@@ -311,11 +311,6 @@ const components = `  "components": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/EntityContent"}
           },
-          "matches": {
-            "type": "array",
-            "items": {"$ref": "#/components/schemas/EntityContent"},
-            "description": "Compatibility alias for results."
-          },
           "count": {"type": "integer"},
           "limit": {"type": "integer"},
           "offset": {"type": "integer"},
@@ -357,7 +352,7 @@ const components = `  "components": {
       },
       "CodeSearchResponse": {
         "type": "object",
-        "required": ["source", "source_backend", "query", "repo_id", "results", "matches", "count", "limit", "truncated"],
+        "required": ["source", "source_backend", "query", "repo_id", "results", "count", "limit", "truncated"],
         "properties": {
           "source": {"type": "string", "enum": ["graph", "content"]},
           "source_backend": {"type": "string"},
@@ -366,11 +361,6 @@ const components = `  "components": {
           "results": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/CodeSearchResult"}
-          },
-          "matches": {
-            "type": "array",
-            "items": {"$ref": "#/components/schemas/CodeSearchResult"},
-            "description": "Compatibility alias for results."
           },
           "count": {"type": "integer", "description": "Number of rows returned in this page."},
           "limit": {"type": "integer", "minimum": 1, "maximum": 200},
@@ -417,11 +407,6 @@ const components = `  "components": {
           "results": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/SymbolSearchResult"}
-          },
-          "matches": {
-            "type": "array",
-            "items": {"$ref": "#/components/schemas/SymbolSearchResult"},
-            "description": "Compatibility alias for results."
           }
         }
       },

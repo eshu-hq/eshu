@@ -45,7 +45,6 @@ func TestDispatchToolFindCodeAllowsScopedCodeSearchRoute(t *testing.T) {
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"source":  "content",
 			"results": []any{},
-			"matches": []any{},
 		}, query.BuildTruthEnvelope(
 			query.ProfileLocalAuthoritative,
 			"code_search.fuzzy_symbol",

@@ -258,10 +258,11 @@ func TestGoldenSnapshotPinsHTTPCodeSearchOverflow(t *testing.T) {
 	if shape.MinimumResults != 1 {
 		t.Fatalf("minimum_results = %d, want 1", shape.MinimumResults)
 	}
-	// matches/results are aliased rows (eshu-hq/eshu#5566); results_field pins
-	// the asserted one explicitly.
-	if shape.ResultsField != "matches" {
-		t.Fatalf("results_field = %q, want %q", shape.ResultsField, "matches")
+	// results_field pins the asserted collection explicitly (eshu-hq/eshu#5566).
+	// The `matches` alias of `results` was removed in #7170, so `results` is
+	// the only collection this shape can assert.
+	if shape.ResultsField != "results" {
+		t.Fatalf("results_field = %q, want %q", shape.ResultsField, "results")
 	}
 	for key, want := range map[string]any{
 		"count":               float64(1),

@@ -135,7 +135,6 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		"limit":          limit,
 		"offset":         req.Offset,
 		"results":        results,
-		"matches":        results,
 		"count":          len(results),
 		"truncated":      truncated,
 		"source_backend": sourceBackend,
