@@ -316,3 +316,74 @@ func TestServiceRunDropsAckAbandonedAfterBusyScopeWait(t *testing.T) {
 		t.Fatalf("missing abandonment log:\n%s", logs.String())
 	}
 }
+
+// classedSupersededError stands in for a work source's superseded error that
+// names the failure_class it recorded on the work row.
+type classedSupersededError struct{ class string }
+
+func (e classedSupersededError) Error() string        { return "superseded: " + e.class }
+func (e classedSupersededError) Unwrap() error        { return failure.ErrWorkSuperseded }
+func (e classedSupersededError) FailureClass() string { return e.class }
+
+// TestServiceLogsSupersededWorkWithSourceFailureClass pins review F3 (#7130):
+// the superseded log carries the class the work source recorded, so a log
+// search for a row's failure_class finds it, and the heartbeat refusal still
+// cancels the projection without an Ack or Fail. A bare ErrWorkSuperseded keeps
+// the newer-generation class.
+func TestServiceLogsSupersededWorkWithSourceFailureClass(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantClass string
+	}{
+		{
+			name:      "heartbeat_generation_superseded",
+			err:       fmt.Errorf("heartbeat: %w", classedSupersededError{class: "projector_heartbeat_generation_superseded"}),
+			wantClass: "projector_heartbeat_generation_superseded",
+		},
+		{
+			name:      "bare_superseded",
+			err:       failure.ErrWorkSuperseded,
+			wantClass: "projector_superseded_by_newer_generation",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			work := ScopeGenerationWork{
+				Scope:      scope.IngestionScope{ScopeID: "scope-123", ScopeKind: scope.KindRepository},
+				Generation: scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-old"},
+			}
+			sink := &stubProjectorWorkSink{}
+			service := Service{
+				PollInterval:      10 * time.Millisecond,
+				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:         &stubFactStore{},
+				Runner:            &stubProjectionRunner{waitForContextCancellation: true},
+				WorkSink:          sink,
+				Heartbeater:       &stubProjectorWorkHeartbeater{failAfter: 1, err: tc.err},
+				HeartbeatInterval: 5 * time.Millisecond,
+				Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
+				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+			}
+
+			if err := service.Run(context.Background()); err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			if sink.ackCalls != 0 || sink.failCalls != 0 {
+				t.Fatalf("ack=%d fail=%d, want the projection cancelled without Ack or Fail", sink.ackCalls, sink.failCalls)
+			}
+			var supersededLine string
+			for _, line := range strings.Split(logs.String(), "\n") {
+				if strings.Contains(line, `"status":"superseded"`) {
+					supersededLine = line
+				}
+			}
+			if !strings.Contains(supersededLine, `"failure_class":"`+tc.wantClass+`"`) {
+				t.Fatalf("superseded log = %q, want failure_class %s", supersededLine, tc.wantClass)
+			}
+		})
+	}
+}

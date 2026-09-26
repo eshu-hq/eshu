@@ -86,6 +86,10 @@ func (s *specAdminStore) ReplayFailedWorkItems(_ context.Context, _ admin.Replay
 	return nil, nil
 }
 
+func (s *specAdminStore) SupersededReplayTargets(_ context.Context, _ admin.UnsafeReplayTargetFilter) ([]admin.SupersededReplayTarget, error) {
+	return nil, nil
+}
+
 func (s *specAdminStore) UnsafeReplayTargets(_ context.Context, _ admin.UnsafeReplayTargetFilter) ([]admin.UnsafeReplayTarget, error) {
 	return nil, nil
 }

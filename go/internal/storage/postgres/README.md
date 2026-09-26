@@ -110,7 +110,8 @@ High-signal invariants for this package:
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older
   terminal same-scope generations, activating the target generation, updating
-  the scope pointer, and marking work succeeded.
+  the scope pointer, and marking work succeeded. A superseded generation is terminal (#7130): Claim sweeps,
+  Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age

@@ -169,7 +169,10 @@ func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWor
 	}
 }
 
-// Ack marks one claimed projector work item as succeeded.
+// Ack marks one claimed projector work item as succeeded and publishes its
+// generation. It never revives a superseded generation (#7130): the work item
+// is then marked superseded and Ack returns failure.ErrWorkSuperseded, which
+// callers treat like a superseded heartbeat.
 func (q ProjectorQueue) Ack(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
@@ -195,9 +198,9 @@ func (q ProjectorQueue) Ack(
 	if err != nil {
 		return fmt.Errorf("ack projector work: begin: %w", err)
 	}
-	committed := false
+	txDone := false
 	defer func() {
-		if !committed {
+		if !txDone {
 			_ = tx.Rollback()
 		}
 	}()
@@ -246,21 +249,24 @@ func (q ProjectorQueue) Ack(
 			op:    "supersede active generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
-		{
-			query: activateProjectorGenerationQuery,
-			op:    "activate target generation",
-			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
-		},
 	}
 	for _, step := range steps {
 		if _, err := tx.ExecContext(ctx, step.query, step.args...); err != nil {
 			return fmt.Errorf("ack projector work: %s: %w", step.op, err)
 		}
 	}
+	activated, err := q.activateAckGeneration(ctx, tx, work, now)
+	if err != nil {
+		return err
+	}
+	if !activated {
+		txDone = true // refuseSupersededAck rolls the transaction back.
+		return q.refuseSupersededAck(ctx, tx, work, now)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
-	committed = true
+	txDone = true
 
 	q.runCrossplaneRedriveHook(ctx, work)
 	q.runConfigStateDriftTriggerHook(ctx, work)
@@ -276,12 +282,8 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 	}
 
 	now := q.now()
-	superseded, err := q.supersedeRunningWorkIfNewerGenerationExists(ctx, work, now)
-	if err != nil {
+	if err := q.supersedeRunningWork(ctx, work, now); err != nil {
 		return err
-	}
-	if superseded {
-		return failure.ErrWorkSuperseded
 	}
 
 	result, err := q.database.ExecContext(
@@ -305,33 +307,6 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		return ErrProjectorClaimRejected
 	}
 	return nil
-}
-
-func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
-	ctx context.Context,
-	work projector.ScopeGenerationWork,
-	now time.Time,
-) (bool, error) {
-	result, err := q.database.ExecContext(
-		ctx,
-		supersedeRunningProjectorWorkQuery,
-		now,
-		work.Scope.ScopeID,
-		work.Generation.GenerationID,
-		q.LeaseOwner,
-		work.AttemptCount,
-	)
-	if err != nil {
-		return false, fmt.Errorf("supersede running projector work: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("supersede running projector work: rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return false, nil
-	}
-	return true, nil
 }
 
 // Fail marks one claimed projector work item as failed.

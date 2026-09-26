@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -28,7 +30,6 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 
 	database := &recordingExecQueryer{
 		results: []sql.Result{
-			projectorRowsAffectedResult{rowsAffected: 0},
 			projectorRowsAffectedResult{rowsAffected: 1},
 		},
 	}
@@ -48,10 +49,14 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 		t.Fatalf("Heartbeat() error = %v, want nil", err)
 	}
 
-	if got, want := len(database.execs), 2; got != want {
+	// The supersede check returned no row, so Heartbeat renewed the lease.
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d supersede check", got, want)
+	}
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	query := database.execs[1].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'running'",
@@ -62,7 +67,7 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 			t.Fatalf("Heartbeat() query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := database.execs[1].args[0], queue.Now().Add(queue.LeaseDuration); got != want {
+	if got, want := database.execs[0].args[0], queue.Now().Add(queue.LeaseDuration); got != want {
 		t.Fatalf("claim_until arg = %v, want %v", got, want)
 	}
 }
@@ -101,9 +106,7 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	t.Parallel()
 
 	database := &recordingExecQueryer{
-		results: []sql.Result{
-			projectorRowsAffectedResult{rowsAffected: 1},
-		},
+		queryRows: []db.Rows{&singleStringRows{value: "pending"}},
 	}
 	queue := NewProjectorQueue(database, "projector-1", 30*time.Second)
 	queue.Now = func() time.Time {
@@ -120,12 +123,25 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	if !errors.Is(err, failure.ErrWorkSuperseded) {
 		t.Fatalf("Heartbeat() error = %v, want %v", err, failure.ErrWorkSuperseded)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	if got := supersededFailureClass(err); got != "projector_superseded_by_newer_generation" {
+		t.Fatalf("superseded failure class = %q, want projector_superseded_by_newer_generation", got)
+	}
+	if got, want := len(database.execs), 0; got != want {
+		t.Fatalf("exec count = %d, want %d: a superseded heartbeat must not renew", got, want)
+	}
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	supersedeWorkQuery := database.execs[0].query
+	supersedeWorkQuery := database.queries[0].query
 	for _, want := range []string{
+		// #7130: the work's own superseded generation is a trigger by itself,
+		// and the outer statement must match it so the verdict row returns.
+		"current_generation.status = 'superseded'",
+		"projector_heartbeat_generation_superseded",
+		"'generation_status', current_generation.status",
+		"generation.status IN ('pending', 'active', 'superseded')",
+		"RETURNING superseded_work.generation_status",
 		"UPDATE fact_work_items AS work",
 		"status = 'superseded'",
 		"projector_superseded_by_newer_generation",
@@ -174,6 +190,8 @@ type recordingExecQueryer struct {
 	queries    []recordedExecCall
 	result     sql.Result
 	results    []sql.Result
+	// queryRows are returned by QueryContext in order; empty rows once used up.
+	queryRows []db.Rows
 }
 
 type recordedExecCall struct {
@@ -202,7 +220,42 @@ func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, arg
 		query: query,
 		args:  append([]any(nil), args...),
 	})
+	if len(r.queryRows) > 0 {
+		rows := r.queryRows[0]
+		r.queryRows = r.queryRows[1:]
+		return rows, nil
+	}
 	return &recordingRows{}, nil
+}
+
+// singleStringRows yields one row with one text column.
+type singleStringRows struct {
+	value string
+	done  bool
+}
+
+func (r *singleStringRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *singleStringRows) Scan(dest ...any) error {
+	*dest[0].(*string) = r.value
+	return nil
+}
+func (r *singleStringRows) Err() error   { return nil }
+func (r *singleStringRows) Close() error { return nil }
+
+// supersededFailureClass returns the failure class a superseded error carries.
+func supersededFailureClass(err error) string {
+	var classed interface{ FailureClass() string }
+	if errors.As(err, &classed) {
+		return classed.FailureClass()
+	}
+	return ""
 }
 
 type recordingRows struct{}
@@ -239,3 +292,42 @@ func (tx recordingTransaction) QueryContext(ctx context.Context, query string, a
 func (recordingTransaction) Commit() error { return nil }
 
 func (recordingTransaction) Rollback() error { return nil }
+
+// TestProjectorQueueHeartbeatRefusesSupersededGenerationCountsFence covers the
+// #7130 trigger without a database: a verdict row carrying the superseded
+// generation status stops the work, carries the heartbeat failure class, and
+// counts once on eshu_dp_superseded_generation_fence_total.
+func TestProjectorQueueHeartbeatRefusesSupersededGenerationCountsFence(t *testing.T) {
+	t.Parallel()
+
+	database := &recordingExecQueryer{
+		queryRows: []db.Rows{&singleStringRows{value: "superseded"}},
+	}
+	queue := NewProjectorQueue(database, "projector-1", 30*time.Second)
+	instruments, reader := newEnqueueInstruments(t)
+	queue.Instruments = instruments
+	work := projector.ScopeGenerationWork{
+		Scope:      scope.IngestionScope{ScopeID: "scope-123"},
+		Generation: scope.ScopeGeneration{GenerationID: "generation-retired"},
+	}
+
+	err := queue.Heartbeat(context.Background(), work)
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("Heartbeat() error = %v, want %v", err, failure.ErrWorkSuperseded)
+	}
+	if got := supersededFailureClass(err); got != projectorHeartbeatGenerationSupersededClass {
+		t.Fatalf("superseded failure class = %q, want %q", got, projectorHeartbeatGenerationSupersededClass)
+	}
+	if len(database.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0: a superseded heartbeat must not renew", len(database.execs))
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	assertCounterPresentWithLabels(t, rm, "eshu_dp_superseded_generation_fence_total",
+		map[string]string{"failure_class": projectorHeartbeatGenerationSupersededClass})
+	if got := counterTotal(rm, "eshu_dp_superseded_generation_fence_total"); got != 1 {
+		t.Fatalf("superseded generation fence count = %d, want 1", got)
+	}
+}

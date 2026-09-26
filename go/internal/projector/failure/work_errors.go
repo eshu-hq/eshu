@@ -7,6 +7,9 @@ import "errors"
 
 // ErrWorkSuperseded reports that a claimed projector generation was replaced
 // by a newer same-scope generation and should stop without acking or failing.
+// Heartbeat returns it for a live older generation. Ack returns it when the
+// generation is already superseded: Ack refused to re-activate it and marked
+// the work item superseded (#7130).
 var ErrWorkSuperseded = errors.New("projector work superseded")
 
 // ErrWorkClaimLost reports that another attempt now owns a claimed projector

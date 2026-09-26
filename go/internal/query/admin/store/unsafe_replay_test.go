@@ -95,3 +95,56 @@ func TestUnsafeReplayTargetsQueryAppliesFailureClassSelector(t *testing.T) {
 		t.Fatalf("max placeholder index = %d, want %d", got, want)
 	}
 }
+
+// TestReplayFencesSupersededProjectorGenerationsButDeadLetterDoesNot pins
+// which mutation carries the #7130 fence: replay must skip projector rows on
+// superseded generations, while an operator dead-letter still reaches them.
+func TestReplayFencesSupersededProjectorGenerationsButDeadLetterDoesNot(t *testing.T) {
+	t.Parallel()
+
+	replay, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 1, true, "SET status = 'pending'\n")
+	if !strings.Contains(replay, "AND NOT (stage = 'projector' AND EXISTS (") ||
+		!strings.Contains(replay, "fenced_generation.status = 'superseded'") {
+		t.Fatalf("replay query lacks the superseded-generation fence:\n%s", replay)
+	}
+	if strings.Index(replay, "fenced_generation") > strings.Index(replay, "ORDER BY updated_at DESC") {
+		t.Fatalf("fence must sit in the selection before its LIMIT:\n%s", replay)
+	}
+	deadLetter, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 2, false, "SET status = 'dead_letter'\n")
+	if strings.Contains(deadLetter, "fenced_generation") {
+		t.Fatalf("dead-letter query must not carry the replay fence:\n%s", deadLetter)
+	}
+}
+
+func TestSupersededReplayTargetsQueryShapeAndScan(t *testing.T) {
+	t.Parallel()
+
+	database := &recordingAdminExecQueryer{rows: &testutil.ScriptedRows{Data: [][]any{
+		{"wi-a", "gen-old"},
+	}}}
+	store := &postgresStore{database: database, now: func() time.Time { return time.Unix(0, 0).UTC() }}
+
+	got, err := store.SupersededReplayTargets(context.Background(), admin.UnsafeReplayTargetFilter{
+		WorkItemIDs: []string{"wi-a", "wi-b"},
+		ScopeID:     "scope-1",
+		Stage:       "projector",
+	})
+	if err != nil {
+		t.Fatalf("SupersededReplayTargets() error = %v", err)
+	}
+	if len(got) != 1 || got[0].WorkItemID != "wi-a" || got[0].GenerationID != "gen-old" {
+		t.Fatalf("targets = %+v, want wi-a on gen-old", got)
+	}
+	for _, want := range []string{
+		"work.status IN ('dead_letter', 'failed')",
+		"work.work_item_id = ANY($1)",
+		"work.stage = 'projector'",
+		"generation.status = 'superseded'",
+		"work.scope_id = $2",
+		"work.stage = $3",
+	} {
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("superseded read missing %q:\n%s", want, database.query)
+		}
+	}
+}

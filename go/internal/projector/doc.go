@@ -12,7 +12,9 @@
 // partial graph writes must converge on the same graph truth instead of
 // creating hidden second paths. A claimed generation can stop without ack or
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
-// same-scope generation replaced stale local polling work, or drop it when a
+// same-scope generation replaced stale local polling work. Ack returns the same
+// error when the generation is already superseded and was not re-activated
+// (#7130); the work item is then superseded. Workers drop the item when a
 // Heartbeat, Ack, or Fail returns ErrWorkClaimLost because another attempt
 // owns the item. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.
