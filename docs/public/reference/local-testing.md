@@ -25,15 +25,15 @@ Use this fixed promotion order before opening or updating a PR:
 4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
 `make pre-push` is the fast local floor run before every push, scoped to
-changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet, the
+changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet,
+`go vet ./...` on the exact merge of HEAD with `origin/main` (the
+[merge step](local-testing/pre-push-merge.md); a conflict fails closed), the
 registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
 advisory docs-contradiction gate. No race/live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
-in `specs/ci-gates.v1.yaml` run (fast lint, cap, package-docs, perf-evidence,
-telemetry-coverage, and contract-registry gates). Every other gate the diff
-triggers prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in
-`make pre-pr` and blocks merge in CI through `required-gates-complete`.
+in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, contract-registry, and repo-wide sweep gates).
+Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and blocks merge in CI through `required-gates-complete`.
 Measured on a one-line `go/internal/query` change: 400s. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
 reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
