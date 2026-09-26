@@ -19,6 +19,18 @@ type materializedEdgeScan struct {
 	endpointErrs []string
 	identityErrs []string
 	propertyErrs []string
+	// pairs counts, per endpoint pair of a OneEdgePerEndpointPair type, every
+	// label-matching edge regardless of evidence_source or identity, so a
+	// duplicate the provenance filter would skip still surfaces (#6671).
+	pairs map[string]*endpointPairCount
+}
+
+// endpointPairCount is one shared-identity endpoint pair's stamp-blind
+// multiplicity plus the evidence_source values seen on it, for the report.
+type endpointPairCount struct {
+	label   string
+	count   int
+	sources []string
 }
 
 func scanMaterializedEdges(
@@ -30,7 +42,7 @@ func scanMaterializedEdges(
 	expectedPropertyKeys map[string][]string,
 	labels map[string]string,
 ) (materializedEdgeScan, error) {
-	scan := materializedEdgeScan{counts: make(map[string]int)}
+	scan := materializedEdgeScan{counts: make(map[string]int), pairs: make(map[string]*endpointPairCount)}
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
 		if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
@@ -41,6 +53,11 @@ func scanMaterializedEdges(
 		if endpoint, constrained := endpoints[edge.Type]; constrained {
 			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
 				return nil
+			}
+			// Counted before the provenance filter below, which would otherwise
+			// skip the unstamped or other-writer copy of a shared edge.
+			if endpoint.OneEdgePerEndpointPair {
+				scan.countEndpointPair(edge)
 			}
 			// Provenance distinguishes live writers that share a type and labels.
 			if endpoint.EvidenceSource != "" {
@@ -85,6 +102,45 @@ func scanMaterializedEdges(
 		return nil
 	})
 	return scan, err
+}
+
+// countEndpointPair adds one edge to its endpoint pair's stamp-blind count.
+// An edge with an unidentified endpoint is not counted here; the owned-edge
+// path reports it as an endpoint defect.
+func (s *materializedEdgeScan) countEndpointPair(edge graphdump.Edge) {
+	fromID := endpointID(edge.FromProps, edge.FromLabels)
+	toID := endpointID(edge.ToProps, edge.ToLabels)
+	if fromID == "" || toID == "" {
+		return
+	}
+	label := fmt.Sprintf("%s|%s|%s", edge.Type, fromID, toID)
+	pair := s.pairs[label]
+	if pair == nil {
+		pair = &endpointPairCount{label: label}
+		s.pairs[label] = pair
+	}
+	pair.count++
+	source, _ := edge.Props["evidence_source"].(string)
+	if source == "" {
+		source = "<unset>"
+	}
+	pair.sources = append(pair.sources, source)
+}
+
+// sharedIdentityDuplicates reports every OneEdgePerEndpointPair pair holding
+// more than one edge, with the stamps seen, in sorted order.
+func (s *materializedEdgeScan) sharedIdentityDuplicates() []string {
+	var out []string
+	for _, pair := range s.pairs {
+		if pair.count <= 1 {
+			continue
+		}
+		sources := append([]string(nil), pair.sources...)
+		sort.Strings(sources)
+		out = append(out, fmt.Sprintf("%s (graph=%d, want 1; evidence_source values %v)", pair.label, pair.count, sources))
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *materializedEdgeScan) recordEndpointDefect(edge graphdump.Edge, fromUID, toUID string) {

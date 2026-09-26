@@ -149,3 +149,45 @@ func TestUnconstrainedFamilyReportsAbsenceNotEmptiness(t *testing.T) {
 		t.Errorf("unconstrained family returned a non-nil map %+v", got)
 	}
 }
+
+// TestRunsOnDeclaresOneEdgePerEndpointPair pins the #6671 wiring: RUNS_ON's
+// two writers share one canonical identity, so the live gate must count a
+// pair's multiplicity across every evidence_source stamp. Dropping the flag
+// lets an unstamped duplicate slip past the provenance filter again.
+func TestRunsOnDeclaresOneEdgePerEndpointPair(t *testing.T) {
+	t.Parallel()
+
+	constraints, ok := MaterializedEdgeEndpointLabels("repo_dependency")
+	if !ok {
+		t.Fatal("repo_dependency has no endpoint constraints")
+	}
+	if !constraints["RUNS_ON"].OneEdgePerEndpointPair {
+		t.Fatal("RUNS_ON does not declare OneEdgePerEndpointPair; a duplicate carrying another writer's stamp, or none, is invisible to assert-edges")
+	}
+}
+
+// TestOneEdgePerEndpointPairStaysOffWhereStampsPartition pins the negative
+// side: DEPENDS_ON and TARGETS_ENVIRONMENT are partitioned by evidence_source,
+// so the flag must stay false there or the gate would report legitimate
+// parallel edges from another writer as duplicates.
+func TestOneEdgePerEndpointPairStaysOffWhereStampsPartition(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ family, edgeType string }{
+		{family: "repo_dependency", edgeType: "DEPENDS_ON"},
+		{family: "workload_dependency", edgeType: "DEPENDS_ON"},
+		{family: "kubernetes_namespace_environment", edgeType: "TARGETS_ENVIRONMENT"},
+	} {
+		constraints, ok := MaterializedEdgeEndpointLabels(tc.family)
+		if !ok {
+			t.Fatalf("%s has no endpoint constraints", tc.family)
+		}
+		endpoint, ok := constraints[tc.edgeType]
+		if !ok {
+			t.Fatalf("%s has no %s constraint", tc.family, tc.edgeType)
+		}
+		if endpoint.OneEdgePerEndpointPair {
+			t.Errorf("%s %s sets OneEdgePerEndpointPair; its writers are not declared to share one canonical edge per pair", tc.family, tc.edgeType)
+		}
+	}
+}

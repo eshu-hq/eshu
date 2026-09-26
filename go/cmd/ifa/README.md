@@ -146,7 +146,13 @@ session.
   applicable baseline or recovery cell.
   Families sharing a relationship type with another family are
   additionally scoped by endpoint label, so repo_dependency and
-  workload_dependency do not count each other's DEPENDS_ON edges. This is the
+  workload_dependency do not count each other's DEPENDS_ON edges. RUNS_ON is
+  also scoped by the resolver's `evidence_source`. Both RUNS_ON writers share
+  one canonical edge per (WorkloadInstance, Platform) pair
+  (`OneEdgePerEndpointPair`), so the verb first counts every RUNS_ON edge on
+  each pair regardless of stamp. Any pair holding more than one fails (#6671),
+  so an unstamped or workload-stamped duplicate cannot hide behind the
+  provenance filter. This is the
   assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison

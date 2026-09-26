@@ -213,6 +213,7 @@ held transaction committed; after both commits, the graph still contained one
 relationship. Cross-repo continues to write its complete tuple unconditionally,
 so it wins in every ordering. This proof claims the committed identity and tuple,
 not a particular internal blocking or retry mechanism.
+Verified on Neo4j by the #6671 barrier proof: see [6671-runs-on-concurrent-writers.md](6671-runs-on-concurrent-writers.md).
 
 Before the keyed MERGE, each writer deletes every matching pre-upgrade
 propertyless edge in the same graph transaction. The live upgrade fixture seeds

@@ -50,6 +50,22 @@ type MaterializedEdgeEndpoint struct {
 	// $evidence_source`, so the family owns the edges it stamped, not the whole
 	// RUNS_ON population. The gate now asserts what the retract reaps.
 	EvidenceSource string
+	// OneEdgePerEndpointPair, when true, declares that every writer of this
+	// type converges on ONE canonical edge per (source, target) node pair, so
+	// the live gate must count every label-matching edge's multiplicity per
+	// pair BEFORE the EvidenceSource filter drops the other writer's edges.
+	//
+	// RUNS_ON needs it (#6671). Both writers MERGE
+	// `[:RUNS_ON {identity_key: 'canonical'}]` and differ only in the
+	// evidence_source they stamp, so a second edge on the same pair — the
+	// racing copy #6671 observed carried no stamp at all — is a broken shared
+	// identity whichever writer created it. Filtering by provenance first made
+	// that duplicate invisible: the resolver-stamped copy matched the expected
+	// set exactly and the unstamped copy was skipped as "another writer's".
+	//
+	// Leave it false where distinct stamps are distinct edges by design, or
+	// the gate would report legitimate parallel edges as duplicates.
+	OneEdgePerEndpointPair bool
 }
 
 // materializedEdgeEndpointsByFamily holds constraints only for the families that
@@ -72,10 +88,14 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 		// (workload_materializer.go), stamped EvidenceSourceWorkloads. Referencing
 		// the writer's own constant rather than a copied literal means the
 		// assertion cannot drift from what the resolver actually stamps.
+		//
+		// OneEdgePerEndpointPair: both writers share the canonical identity_key,
+		// so a pair's multiplicity is counted across every stamp (#6671).
 		"RUNS_ON": {
-			FromLabel:      "WorkloadInstance",
-			ToLabel:        "Platform",
-			EvidenceSource: reducer.CrossRepoEvidenceSource,
+			FromLabel:              "WorkloadInstance",
+			ToLabel:                "Platform",
+			EvidenceSource:         reducer.CrossRepoEvidenceSource,
+			OneEdgePerEndpointPair: true,
 		},
 	},
 	"workload_dependency": {
