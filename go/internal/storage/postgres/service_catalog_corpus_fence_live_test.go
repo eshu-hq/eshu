@@ -26,7 +26,12 @@ import (
 // negative control wires the pre-fix unfenced by-repos read and shows the
 // spurious removal changed-since then reports.
 //
-// Run with:
+// Both run in the blocking reducer contention gate
+// (.github/workflows/reducer-contention-gate.yml), which sets
+// ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF=1 so an unset DSN fails there
+// instead of skipping (openServiceLineageSchemaLive);
+// TestReducerContentionPostgresProofsRunInTheReducerContentionGate keeps them
+// in that gate's -run filter. Locally:
 //
 //	ESHU_POSTGRES_TEST_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run ServiceCatalogCorpusFence -count=1 -v

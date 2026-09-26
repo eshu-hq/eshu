@@ -48,6 +48,15 @@ legitimate own-scope row, the retry commits a new generation whose
 changed-since deployment delta is `added=1 unchanged=2 retired=0
 superseded=0`.
 
+Both live tests run in the blocking reducer contention gate
+(`.github/workflows/reducer-contention-gate.yml`), which sets
+`ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF=1` so an unset DSN fails there
+instead of skipping. `TestReducerContentionPostgresProofsRunInTheReducerContentionGate`
+keeps them in that gate's `-run` filter, and `specs/live-tests.v1.yaml`
+classifies the file as scheduled. They pass with the gate's flags
+(`-race -count=1 -timeout 300s`, `ESHU_POSTGRES_DSN` plus the require env) on
+a fresh `postgres:18-alpine`: 1.67 s and 1.46 s, 8.0 s for the package run.
+
 Hermetic proof: on the complete path the handler output (correlation write,
 materialization writes, result) was byte-identical JSON before and after the
 change for the same full row set. Unit tests cover deferral with zero writes,
