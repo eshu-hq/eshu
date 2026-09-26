@@ -28,9 +28,10 @@ const (
 
 	// Closed values of the `gauge` label on the eshu_dp_gauge_snapshot_*
 	// metrics; one per Postgres-backed gauge served from a background
-	// snapshot. The reducer_ prefix distinguishes these sources from the
-	// ingester's identically-shaped queue sources in the shared stale
-	// alert, which cannot tell binaries apart otherwise.
+	// snapshot. The reducer_ prefix lets the per-binary stale alerts
+	// attribute fires to the owning binary
+	// (`EshuGraphGaugeSnapshotStale` excludes `ingester_*` gauges;
+	// `EshuIngesterGaugeSnapshotStale` covers them).
 	gaugeQueueDepth              = "reducer_queue_depth"
 	gaugeQueueOldestAge          = "reducer_queue_oldest_age"
 	gaugeSourceQueueDepth        = "reducer_source_queue_depth"
