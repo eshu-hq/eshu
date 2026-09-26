@@ -179,14 +179,31 @@ check "pull_request run on the same sha is ignored" "$(out_has 'state=green' && 
 # 14. verify-live-ruleset failure routes to the same issue while CI is green.
 new_case ruleset-red "${TIP}"
 green_runs
-jq -cn '{workflow_runs:[{id:70,name:"Required Gates",status:"completed",conclusion:"failure",
-	event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",head_branch:"main",
-	html_url:"https://github.example/runs/70"}]}' >"${case_dir}/ruleset-runs.json"
+ruleset_run failure
 failing_job 70 701 'verify-live-ruleset' $'ruleset 19745843 (main protection) does not own one merge_queue rule\n##[error]Process completed with exit code 1.'
 run_watcher
 check "ruleset verifier red with green CI: red" "$(out_has 'state=red' && echo 0 || echo 1)"
 check "ruleset verifier red: routed into the main-health issue with its verdict line" "$(called 'verify-live-ruleset.*does not own one merge_queue rule' && echo 0 || echo 1)"
 check "ruleset verifier red: still exactly one issue" "$([ "$(count_calls "${ISSUES_POST}")" -eq 1 ] && echo 0 || echo 1)"
+
+# P2-1: the ruleset probe fails closed. Any conclusion but success is red
+# (the verifier never ran to a verdict, so drift cannot be ruled out), and
+# no completed scheduled run yet is unknown: never green, issue untouched.
+for concl in startup_failure timed_out cancelled; do
+	new_case "ruleset-${concl}" "${TIP}"
+	green_runs
+	ruleset_run "${concl}"
+	run_watcher
+	check "P2-1: ruleset verification ${concl} with green CI: red" "$(ok out_has 'state=red.*ruleset_red=true')"
+	check "P2-1: ruleset ${concl}: the issue names the conclusion" "$(ok rg -qF "verify-live-ruleset** (scheduled \`Required Gates\`, conclusion \`${concl}\`" "${case_dir}/last-body.txt")"
+done
+new_case ruleset-none "${NEXT}"
+green_runs
+ruleset_run none
+set_issues "$(open_issue 41 'main is red @aaaaaaaaaa' "${TIP}")"
+run_watcher
+check "P2-1: no completed ruleset verification: unknown, not green" "$(ok out_has 'state=unknown')"
+check "P2-1: no completed ruleset verification: the issue stays open" "$(ok not_called "$(patch_of 41)state=closed")"
 
 # 15. two open main-health issues: keep the oldest, close the duplicate.
 new_case duplicates "${TIP}"

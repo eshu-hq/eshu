@@ -16,7 +16,7 @@
 # resurrect or bury a verdict about a newer commit):
 #   red     a required workflow's latest run on the tip failed in a BLOCKING
 #           job, or the latest scheduled ruleset verification (`Required
-#           Gates`) failed
+#           Gates`) did not succeed
 #           -> upsert the single issue, status failure; when the set of
 #              blocking reds changes on an open issue, also comment on it (an
 #              issue edit notifies nobody)
@@ -37,8 +37,10 @@
 #           a check_names entry or matrix "job (...)" name) is
 #           `blocking: false`. An unclaimed job, or a failed run whose jobs
 #           cannot be read, counts as blocking (fail closed). The ruleset
-#           verification is not a registry gate, so it is blocking by the same
-#           rule: it guards the required-status mirror itself.
+#           verification is not a registry gate and is unconditionally
+#           blocking: it guards the required-status mirror itself. Only its
+#           `success` counts as green; any other conclusion is red, and no
+#           completed scheduled run yet is unknown.
 #   green   every required workflow that ran on the tip succeeded or failed
 #           only in advisory jobs, none is pending, and the registry's source
 #           workflow has a verdict
@@ -46,8 +48,9 @@
 #              named in the status and listed in the issue, never red)
 #   pending something still running / the source workflow has not registered
 #           -> leave the issue alone, status pending
-#   unknown a required run was cancelled and never re-run (no verdict), or a
-#           run listing came back truncated (cannot prove green)
+#   unknown a required run was cancelled and never re-run (no verdict), a run
+#           listing came back truncated, or no scheduled ruleset verification
+#           has completed yet (cannot prove green)
 #           -> leave the issue alone, status error
 #
 # The required workflows are not listed here. They are derived from the two
@@ -251,8 +254,18 @@ ruleset_file="$(ruleset_workflow_file)"
 # walk every scheduled run in history (4 a day).
 ruleset_json="$(gh_get "repos/${repo}/actions/workflows/${ruleset_file}/runs?event=schedule&status=completed&branch=${branch}&per_page=1" |
 	jq -c '.workflow_runs[0] // null')"
+# Fail closed: only a success proves the live ruleset still matches the
+# registry. Any other conclusion (failure, timed_out, startup_failure,
+# cancelled, ...) means drift was not ruled out, so it is red. No completed
+# scheduled run yet is unknown: it can never make main green.
+ruleset_conclusion="$(jq -r '.conclusion // "none"' <<<"${ruleset_json}")"
 ruleset_red=false
-[[ "$(jq -r '.conclusion // ""' <<<"${ruleset_json}")" == "failure" ]] && ruleset_red=true
+ruleset_missing=false
+if [[ "${ruleset_json}" == "null" ]]; then
+	ruleset_missing=true
+elif [[ "${ruleset_conclusion}" != "success" ]]; then
+	ruleset_red=true
+fi
 
 n_red="$(jq '[.[] | select(.verdict == "red")] | length' <<<"${verdicts}")"
 n_pending="$(jq '[.[] | select(.verdict == "pending")] | length' <<<"${verdicts}")"
@@ -271,7 +284,7 @@ elif [[ "${truncated}" == "true" ]]; then
 	state=unknown
 elif [[ "${n_pending}" -gt 0 || "${source_seen}" -eq 0 ]]; then
 	state=pending
-elif [[ "${n_unknown}" -gt 0 ]]; then
+elif [[ "${n_unknown}" -gt 0 || "${ruleset_missing}" == "true" ]]; then
 	state=unknown
 else
 	state=green
@@ -347,7 +360,7 @@ red)
 			if [[ "${ruleset_red}" == "true" ]]; then
 				rid="$(jq -r '.id' <<<"${ruleset_json}")"
 				url="$(jq -r '.html_url' <<<"${ruleset_json}")"
-				echo "- **verify-live-ruleset** (scheduled \`Required Gates\`, [run](${url})) — the live ruleset no longer matches specs/ci-gates.v1.yaml:"
+				echo "- **verify-live-ruleset** (scheduled \`Required Gates\`, conclusion \`${ruleset_conclusion}\`, [run](${url})) — the live ruleset was not proven to match specs/ci-gates.v1.yaml:"
 				while IFS=$'\x1f' read -r job step line; do
 					echo "  - job \`${job}\` — verdict: \`${line}\`"
 				done < <(failing_jobs "${rid}")
@@ -415,6 +428,8 @@ unknown)
 	status_state=error
 	if [[ "${truncated}" == "true" ]]; then
 		status_desc="Run listing for ${short} was truncated; cannot prove main green"
+	elif [[ "${ruleset_missing}" == "true" && "${n_unknown}" -eq 0 ]]; then
+		status_desc="No completed scheduled ruleset verification yet; cannot prove main green"
 	else
 		status_desc="A required workflow on ${short} was cancelled and has no verdict; re-run it"
 	fi
@@ -434,7 +449,7 @@ else
 		-f target_url="${status_url}" >/dev/null
 fi
 
-summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} advisory=${n_advisory} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} open_issues=$(jq 'length' <<<"${issues_json}")"
+summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} advisory=${n_advisory} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} ruleset_conclusion=${ruleset_conclusion} open_issues=$(jq 'length' <<<"${issues_json}")"
 echo "${summary}"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	{

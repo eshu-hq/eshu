@@ -192,9 +192,22 @@ new_case() { # <name> <tip-sha>
 	printf '{"sha":"%s"}\n' "$2" >"${case_dir}/tip.json"
 	echo '[]' >"${case_dir}/issues.json"
 	echo '[]' >"${case_dir}/statuses.json"
-	echo '{"workflow_runs":[]}' >"${case_dir}/ruleset-runs.json"
+	ruleset_run success
 	echo '{"workflow_runs":[]}' >"${case_dir}/runs.json"
 	: >"${case_dir}/calls.log"
+}
+
+# ruleset_run <conclusion>: the latest completed scheduled `Required Gates`
+# run (the ruleset verification) has this conclusion; "none" means there is
+# no such run yet. Every case starts from a passing verification.
+ruleset_run() {
+	if [ "$1" = none ]; then
+		echo '{"workflow_runs":[]}' >"${case_dir}/ruleset-runs.json"
+		return 0
+	fi
+	jq -cn --arg c "$1" '{workflow_runs:[{id:70,name:"Required Gates",status:"completed",conclusion:$c,
+		event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",head_branch:"main",
+		html_url:"https://github.example/runs/70"}]}' >"${case_dir}/ruleset-runs.json"
 }
 
 set_runs() { # run-json...

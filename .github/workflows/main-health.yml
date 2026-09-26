@@ -91,8 +91,11 @@ jobs:
     # Concurrency is on the JOB, not the workflow. GitHub documents a
     # workflow-level group as applying to the whole run, so a run whose only
     # job the guard skips could take the one pending slot and evict a queued
-    # live evaluation. That was not measured; placing the group on the job
-    # makes it moot, since only a job the guard lets run is placed in it.
+    # live evaluation. That was not measured. The job-level group assumes
+    # GitHub evaluates `if:` before placing a job in its group (also not
+    # measured); if wrong, a lost pending evaluation is re-created by the
+    # next required-workflow completion or the 6h cron, and each evaluation
+    # judges the current tip, so no verdict is stuck.
     # One live writer at a time so the single issue can never be
     # double-opened, and an in-progress live run is never cancelled. GitHub
     # keeps one pending job per group, so a newer pending live evaluation

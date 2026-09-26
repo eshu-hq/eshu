@@ -14,17 +14,20 @@ whichever workflow woke it up) and publishes a `main-health` commit status:
 
 | Verdict | Condition | Issue | Status |
 | --- | --- | --- | --- |
-| red | a required workflow's latest run on the tip failed in a blocking job, or the latest scheduled `Required Gates` ruleset verification failed | open or update the single `main is red @<sha>` issue; comment on it when the set of blocking reds changes | `failure` |
+| red | a required workflow's latest run on the tip failed in a blocking job, or the latest completed scheduled `Required Gates` ruleset verification did not succeed | open or update the single `main is red @<sha>` issue; comment on it when the set of blocking reds changes | `failure` |
 | green | every required workflow that ran on the tip succeeded or failed only in advisory jobs, none is running, and the aggregator's source workflow has a verdict | close the open issue | `success`, naming any advisory failure |
 | pending | a required workflow is still running, or the source workflow has not registered yet | unchanged | `pending` |
-| unknown | a required run was cancelled and never re-run, or a run listing came back truncated | unchanged | `error` |
+| unknown | a required run was cancelled and never re-run, a run listing came back truncated, or no scheduled ruleset verification has completed yet | unchanged | `error` |
 
 "Latest run" is judged per triggering event, because one workflow can carry
 more than one verdict on a commit. Security Scan's `push` run scans the tree,
 and its `workflow_run` run (fired when `Publish Image and Helm Chart`
-completes) scans the published image; a failed image scan makes `main` red
-even though the push run passed. A red run of one event is never hidden by a
-newer green run of another event. The runs that count are `push`, `schedule`,
+completes) scans the published image. A failed image scan is judged as its
+own verdict even though the push run passed, and a red run of one event is
+never hidden by a newer green run of another event. While the image scan's
+registry gate (`trivy-image`) is `blocking: false`, that failure is advisory:
+`main` stays green with an advisory note (see below). It would make `main`
+red if the gate became blocking. The runs that count are `push`, `schedule`,
 and `workflow_run` runs on the tip. Pull-request and merge-queue runs never
 count. A fully skipped run has no verdict, so it never hides an earlier failed
 run of the same event.
@@ -65,10 +68,18 @@ post-publish evidence and cannot block a merge), so a chronic image-scan
 failure alone leaves `main` green with an advisory note.
 
 The scheduled ruleset verification (`verify-live-ruleset` in
-`required-gates.yml`) is not a registry gate, so the same fail-closed rule
-counts it as blocking. It checks that the live ruleset still requires the
-checks the registry declares; when it fails, merge protection itself has
-drifted.
+`required-gates.yml`) does not go through the registry lookup at all: it is
+not a registry gate, and the watcher treats it as blocking unconditionally.
+It checks that the live ruleset still requires the checks the registry
+declares, so a failure means merge protection itself may have drifted, and
+nothing in the registry could make that advisory.
+
+The ruleset probe fails closed. Only a `success` conclusion proves the
+ruleset matches, so any other conclusion of the latest completed scheduled
+run is red, including `failure`, `timed_out`, `startup_failure`, and
+`cancelled`: none of them ruled drift out. The issue names the conclusion.
+If no scheduled run has completed yet (a new repository), the verdict is
+unknown, never green, and an open issue is left alone.
 
 The issue body records the current set of blocking reds in a hidden marker.
 When a later evaluation finds a different set, with a new red added or a red
@@ -79,7 +90,7 @@ the policy can produce are read back from the marker.
 
 The scheduled ruleset verification is not tied to one commit. Its latest
 result stays in force until the next scheduled `Required Gates` run, so if
-that run failed, the first evaluation after the watcher lands opens an issue
+that run did not succeed, the first evaluation after the watcher lands opens an issue
 even when every workflow on the tip is green. That is intended (#7111): the
 ruleset has drifted and someone needs to know.
 
@@ -108,10 +119,14 @@ issues and the tip's statuses. If a listing returns fewer runs than its
 The concurrency group is set on the job, not the workflow. GitHub documents
 a workflow-level group as applying to the whole run and keeps one pending
 entry per group, so a run whose only job the guard skips could have taken
-the pending slot and evicted a queued live evaluation. That was never
-measured, and it no longer needs to be: with the group on the job, only a
-job that the guard lets run is placed in it. Live evaluations never cancel
-each other in progress. A newer pending live evaluation replaces an older pending one, and
+the pending slot and evicted a queued live evaluation. Neither that nor the
+fix was measured. Setting the group on the job rests on an assumption: that
+GitHub evaluates a job's `if:` before placing the job in its concurrency
+group, so a skipped job never takes the pending slot. If that assumption is
+wrong, the cost is bounded. The evicted evaluation is replaced by the next
+required-workflow completion on `main`, or at the latest by the 6-hour cron.
+Every evaluation judges the current tip, so no verdict stays stuck. Live
+evaluations never cancel each other in progress. A newer pending live evaluation replaces an older pending one, and
 both judge the current tip of `main` when they start. A dry-run dispatch uses
 a separate group, so it cannot evict or wait behind a live run.
 
