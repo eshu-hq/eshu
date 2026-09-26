@@ -46,7 +46,10 @@ jobs:
   contention-gate:
     name: reducer contention gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # main's runs of this job take 10-14 minutes (2026-09-26), so the old
+    # 15-minute cap left no headroom and cancelled a PR run that added live
+    # proofs (#6679). Each step keeps its own -timeout; this is job headroom.
+    timeout-minutes: 25
 
     services:
       postgres:
