@@ -29,8 +29,8 @@ issuing and revoking grants.
 | Stage | Decision site | Emitted by a shipped binary today |
 | --- | --- | --- |
 | `install` | `eshu component install` (`Registry.Install`). | No. The CLI has no observer; the outcome is in command output and exit status. |
-| `readback` | Registry readback, including the worker's activation selection. | Yes, by `collector-component-extension`. The coordinator and API readbacks attach no observer. |
-| `activation` | `eshu component enable` (`Registry.Enable`) and extension-host construction (`NewSource`). | Extension-host construction: yes. `eshu component enable`: no (no observer in the CLI). |
+| `readback` | Registry readback, including the worker's activation selection and the coordinator's activation planning. | Yes, by `collector-component-extension` and by `workflow-coordinator`. The API and MCP server readbacks attach no observer. |
+| `activation` | `eshu component enable` (`Registry.Enable`), extension-host construction (`NewSource`), and the coordinator's reload of a component it plans a claims-enabled instance for. | Extension-host construction and the coordinator: yes. `eshu component enable`: no (no observer in the CLI). |
 | `emission` | The recheck against the live grants on every extension result. | Yes, by `collector-component-extension`. |
 
 An `allow` means the grant covers the kind. It does not mean the install or
@@ -70,7 +70,28 @@ longer matches the manifest, and `grants_unreadable` means the registry could
 not be read. The deny log line carries only the closed reason, never the read
 error or a path; inspect the registry home directly to find the cause.
 
-The worker (`collector-component-extension`) wires readback, activation, and
-emission. The CLI, coordinator, and API construct registries without an
-observer, so their decisions surface in command output and exit status rather
-than this counter.
+## Which processes emit it
+
+| Process | Stages it records | Why |
+| --- | --- | --- |
+| `collector-component-extension` (worker) | `readback`, `activation`, `emission` | It selects the activation, builds the extension host, and rechecks every result. |
+| `workflow-coordinator` | `readback`, `activation` | It reads the registry back at startup and reloads each component it plans a claims-enabled instance for. It has a full telemetry runtime and never emits results. |
+| `eshu component ...` CLI | none | The CLI has no telemetry runtime. Its durable record is `eshu component grants` output plus registry state; the worker records the readback, activation, and emission stages once the component runs. |
+| API and MCP server | none | They read the registry back on every request, so an observer would add one decision per request per family and no new information. |
+
+The coordinator plans an activation only for a component that passes readback
+and has a claims-enabled activation, so its `activation` decision is an allow
+in practice. A revocation that lands between the coordinator's readback and its
+reload records an `activation` deny and the coordinator then fails startup
+closed, as it did before. A component the coordinator skips (any deny at
+`readback`) records that deny and no `activation` decision.
+
+The worker and the coordinator record the same `stage` values for the same
+component activation, so the counter has no process label. Separate them with
+the OTEL `service.name` resource attribute, exported as `service_name`:
+`workflow-coordinator` for the coordinator and `collector-component-extension`
+for the worker, for example
+`sum by (service_name, stage) (increase(eshu_dp_component_producer_grant_decisions_total[1h]))`.
+An unfiltered sum counts each activation once per process that observes it.
+Decisions are made once per process start (readback and activation) or per
+result (emission), never per poll.

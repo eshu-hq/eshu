@@ -180,9 +180,15 @@ nothing.
 | Stage | Decision site | Emitted by a shipped binary today |
 | --- | --- | --- |
 | `install` | `eshu component install` | No (the CLI has no observer) |
-| `readback` | Registry readback, including the worker's activation selection | Worker only |
-| `activation` | `eshu component enable` and extension-host construction | Extension host only; `enable` is not emitted |
+| `readback` | Registry readback, including the worker's activation selection and the coordinator's activation planning | Worker and coordinator |
+| `activation` | `eshu component enable`, extension-host construction, and the coordinator's reload of a planned component | Extension host and coordinator; `enable` is not emitted |
 | `emission` | The recheck on every extension result | Worker |
+
+The CLI emits no grant-decision telemetry because it has no telemetry runtime;
+its durable record is `eshu component grants` output plus registry state. The
+API and MCP server attach no observer because they read the registry back on
+every request. Separate the worker from the coordinator by the OTEL
+`service.name` resource attribute (`service_name`).
 
 An `allow` means the grant covers the kind, not that the install or result was
 accepted; a later check can still fail it.
