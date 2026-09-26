@@ -179,11 +179,29 @@ refusing.
 ### Residual window
 
 A worker whose lease expired can still be projecting `gen-old` when `gen-new`
-is claimed and acked. It keeps writing until its next heartbeat, at most one
-heartbeat interval, and the retract may already have removed `gen-new`'s
-canonical nodes. The fences stop the deterministic path; healing the graph
+is claimed and acked. It keeps writing until a heartbeat runs its supersede
+check: one heartbeat interval, plus every interval in which that check is
+deferred. The check takes the scope row with SKIP LOCKED, so while ingestion,
+Ack or Fail holds the scope row the heartbeat renews the lease instead, and a
+same-scope ingestion streaming facts can extend the window for as long as it
+holds the row. The retract may already have removed `gen-new`'s canonical
+nodes. The fences stop the deterministic path; healing the graph
 after such a refusal is follow-up #7209 (re-project the active generation),
 agreed by the arbiter ruling as a P2 that does not block #7130.
+
+### Accepted side effects
+
+- An expired `claimed`/`running` row on a superseded generation, beside a live
+  lease in the same scope, matches both the duplicate-lease reclaim
+  (`reclaimed_stale_projector_duplicates`, to `retrying`) and the superseded
+  sweep. PostgreSQL applies only one of two updates to the same row in a
+  statement and does not say which. Both outcomes converge: a `retrying` row on
+  a superseded generation is swept by the next claim, and neither is claimed.
+- `failed` and `dead_letter` rows on a superseded generation are never
+  claimable and never replayed, so nothing moves them. They stay in the status
+  and queue dead-letter gauges until generation retention removes them, while
+  `CountDeadLetterBacklog` and drain exclude them and replay reports them as
+  `skipped_superseded_generation`.
 
 ## Tests
 
@@ -206,7 +224,8 @@ agreed by the arbiter ruling as a P2 that does not block #7130.
 - `TestProjectorClaimSweepsSupersededGenerationRow`: pending, retrying and
   both expired-lease zombie rows on a superseded generation are swept, never
   claimed; the sweep frees the scope for a newer pending generation in the same
-  claim; a live lease is left alone. `TestProjectorClaimStillClaimsLiveGenerations`
+  claim; a live lease is left alone; `failed` and `dead_letter` rows keep their
+  status and triage `failure_class`. `TestProjectorClaimStillClaimsLiveGenerations`
   holds the failed/active/pending controls.
 - `TestProjectorClaimSupersededSweepDropsLeaseRenewedAfterSnapshot`: a lease
   renewed and committed while the claim is paused mid-statement survives the
@@ -225,7 +244,8 @@ agreed by the arbiter ruling as a P2 that does not block #7130.
 
 Removing the activate predicate, the replay fence clause, the admin fence flag,
 the explicit-id refusal, the claim's superseded branch, its expired-lease
-inclusion, its lock-step lease recheck, the heartbeat trigger, or the widened
+inclusion, its exclusion of `failed`/`dead_letter` rows, its lock-step lease
+recheck, the heartbeat trigger, or the widened
 heartbeat outer UPDATE each fails at least one of these tests.
 
 ## Evidence
