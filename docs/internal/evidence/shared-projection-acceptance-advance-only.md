@@ -32,7 +32,7 @@ claim here, that an invisible generation row makes keeping the stored row
 - **The ordering key lives on the row.** Migration 125 adds
   `shared_projection_acceptance.generation_ingested_at TIMESTAMPTZ NULL`, a
   copy of `scope_generations.ingested_at`. There is no backfill (see "Why
-  migration 126 was removed"). The upsert fills the column for each incoming
+  the backfill migration was removed"). The upsert fills the column for each incoming
   row with a per-row PK subquery. The incoming generation is committed before
   its reducer work is enqueued, so it is visible, and the FK still rejects an
   unknown one.
@@ -81,6 +81,11 @@ claim here, that an invisible generation row makes keeping the stored row
     it, the row comparison is NULL
     (<https://www.postgresql.org/docs/current/functions-comparisons.html#ROW-WISE-COMPARISON>)
     and a newer write would be dropped.
+  - Stale non-NULL key during a rolling deploy: an old binary that updates a
+    row which already carries a key sets `generation_id` but leaves
+    `generation_ingested_at` at the previous generation's value, so until the
+    next same-generation write refreshes it, a late writer holding a
+    generation that sorts between the two can still pass the guard.
   - NULL incoming key (a generation the statement snapshot cannot see): fails
     the comparison, so it is skipped and counted, never applied blind.
 - **Batches take locks in one order.** Rows are sorted by primary key in Go
@@ -100,20 +105,21 @@ Deviations from the design ruling, both measured:
    100,000-row seq scan per 500-row batch, 13.2-21.2 ms. The per-row PK
    subquery is 500 index probes whatever the table size. The semantics are
    the same.
-2. **No backfill.** The first version of this change shipped a backfill
-   migration, 126, which has since been removed (next section). The branch
-   renumbered 122/123 to 125/126 after main took 122-124; the remote run
-   below measured the same files under their old numbers.
+2. **No backfill.** The first version of this change shipped a separate
+   backfill migration, which has since been removed (next section). Before
+   main took migrations 122-124, this branch numbered the column migration
+   122 and the backfill 123, and the remote backfill run below measured them
+   under those numbers. Only the column migration, now 125, ships.
 
-## Why migration 126 was removed
+## Why the backfill migration was removed
 
-126 backfilled `generation_ingested_at` in one statement with
-`FOR UPDATE SKIP LOCKED`. A remote production-size run (AWS r7a.4xlarge,
-PostgreSQL 18.6, n=1 per size) measured it under 4 live writer clients and
-1 reader. 126 was sent the way the migration runner sends it, one file as one
-implicit transaction:
+The removed backfill migration filled `generation_ingested_at` in one
+statement with `FOR UPDATE SKIP LOCKED`. A remote production-size run (AWS
+r7a.4xlarge, PostgreSQL 18.6, n=1 per size) measured it under 4 live writer
+clients and 1 reader. It was sent the way the migration runner sends it, one
+file as one implicit transaction:
 
-| Acceptance rows | 126 duration | WAL | Table before, then after (heap and indexes) |
+| Acceptance rows | Backfill duration | WAL | Table before, then after (heap and indexes) |
 |---|---|---|---|
 | 1M | 31.4 s | 0.83 GB | 304 MB, then 627 MB |
 | 5M | 190.6 s (3m11s) | 5.69 GB | 1,499 MB, then 3,091 MB |
@@ -122,8 +128,8 @@ implicit transaction:
 - **It stalled every writer for the whole run.** All four writer sessions
   sat in `Lock/transactionid` for essentially the entire run (431, 2,639 and
   5,464 wait samples). The single transaction holds every row lock it takes
-  until it ends. `SKIP LOCKED` stops 126 waiting on writers, but does nothing
-  for writers waiting on 126. Readers were unaffected (PK lookups at most
+  until it ends. `SKIP LOCKED` stops the backfill waiting on writers, but
+  does nothing for writers waiting on it. Readers were unaffected (PK lookups at most
   15.6 ms).
 - **The table doubled permanently.** Every update was non-HOT: the default
   fillfactor leaves no room on packed pages. `VACUUM` did not shrink it, and
@@ -134,15 +140,17 @@ implicit transaction:
   chunks cut the writer stall (at most 0.36 s at 10M), but still took 374 s
   at 10M, wrote 25.9 GB of WAL, and doubled the table.
 
-So 126 was dropped. 125 (catalog-only: 36 ms, 37 ms and 62 ms at 1M, 5M and
-10M rows remotely) is the only migration. NULL keys are resolved lazily in
+So the backfill was dropped. 125 (catalog-only: 36 ms, 37 ms and 62 ms at 1M,
+5M and 10M rows remotely) is the only migration. NULL keys are resolved lazily in
 the guard (above), so legacy rows cost nothing unless they are written, and
 nothing is ever rewritten in bulk.
 
 ## Proof
 
-All runs used a local `postgres:18-alpine`. No remote host was available for
-this change.
+Two environments. The live tests and the plan-shape checks ran on a local
+`postgres:18-alpine` (PostgreSQL 18). The backfill and migration timings and
+both EXPLAIN tables ran on a remote host: AWS r7a.4xlarge (16 vCPU, 128 GiB),
+`postgres:18-alpine` (PostgreSQL 18.6) in Docker on EBS.
 
 - **Post-snapshot interleaving.**
   `TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive` runs L
@@ -197,27 +205,47 @@ this change.
   Lane-style local run (at 8e785b9d7): 77 s of test time under `-race` at
   host load average about 45.
 
-No-Regression Evidence: The EXPLAIN numbers for the lazy-resolve guard
-(COALESCE) are pending a remote run. The measurements below are for the
-8e785b9d7 row-local shape, which this guard reduces to once a row's key is
-filled.
+Performance Evidence: remote host, the shipped statement against the
+statements it replaces. 500-row batch (about 167 advancing, 167
+same-generation and 166 stale rows), `EXPLAIN (ANALYZE, BUFFERS)` inside
+`BEGIN`/`ROLLBACK`, 45 windows per statement per state with the statement
+order rotated, medians in ms, on a quiet host. "Unguarded" is main's
+pre-change statement, `EXISTS` the first fix, and row-local the 8e785b9d7
+shape.
 
-Remote, 500-row batch, median of 15 windows on the same data:
+All stored keys NULL (legacy rows; every conflicting row probes
+`scope_generations`):
 
-| Acceptance rows | Unguarded (pre-#6679) | `EXISTS` (first fix) | Row-local (8e785b9d7) |
+| Acceptance rows | Unguarded | `EXISTS` | Shipped |
 |---|---|---|---|
-| 1M | 31.07 ms, 10,368 buffers | 24.93 ms, 10,065 | 23.79 ms, 9,703 |
-| 5M | 31.84 ms, 10,494 | 24.29 ms, 10,392 | 23.79 ms, 9,696 |
-| 10M | 33.23 ms, 11,018 | 25.46 ms, 10,681 | 24.68 ms, 10,070 |
+| 1M | 33.07 | 25.85 | 29.20 |
+| 5M | 32.06 | 23.80 | 26.67 |
+| 10M | 33.34 | 25.72 | 28.60 |
 
-What the remote run should confirm, per the ruling:
+All stored keys filled:
 
-- With every stored key NULL (the worst case, where every conflicting row
-  probes), the batch is at or below the `EXISTS` figure. `EXISTS` probed
-  every conflicting row twice.
-- With every key filled, the batch equals the row-local figure.
-- A 4-writer soak leaves no table-size delta, since nothing is rewritten in
-  bulk.
+| Acceptance rows | Unguarded | Row-local | Shipped |
+|---|---|---|---|
+| 1M | 31.52 | 24.14 | 24.39 |
+| 5M | 33.73 | 24.54 | 25.31 |
+| 10M | 33.14 | 24.59 | 25.43 |
+
+- The shipped statement is faster than main's pre-change statement in both
+  states: 3.9-5.4 ms faster with NULL keys, 7.1-8.4 ms faster with filled
+  keys.
+- While legacy keys are NULL it is 11-13% (2.9-3.4 ms) slower than the
+  intermediate `EXISTS` design. That state is transient: each row heals on
+  its first accepted write. With filled keys it matches the row-local shape
+  within noise (+0.25 to +0.84 ms; per-shape spread is about 4-6 ms).
+- Migration 125 alone at 10M rows, under 4 writers and 1 reader: 0.038 s and
+  0.043 s, catalog-only, with no lock wait sampled and no writer transaction
+  over 1 s.
+- 4-writer soak at 10M rows (150 s, about 1.5M updates per arm) against a
+  control running the pre-change statement: +14.2 MB (+0.42%) total, which is
+  the 8-byte key on the 1.36M rows it filled. Nothing is rewritten in bulk.
+- Limits: synthetic writers, literal VALUES (custom plan; a generic plan was
+  not checked), and the rolling deploy with an old binary writing
+  concurrently was not measured.
 
 Local plan-shape check (4,000 acceptance rows, one run each; shape only, not
 timing):
