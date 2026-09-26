@@ -49,7 +49,8 @@ flowchart TB
    bring up OTEL tracing, metrics, and the Prometheus handler.
 2. `OpenPostgres(parent, os.Getenv)` opens the Postgres connection using
    the standard Postgres environment variables.
-3. `LoadConfig(os.Getenv)` parses all ESHU_WORKFLOW_COORDINATOR_* and
+3. `LoadConfigObserved(os.Getenv, observer)` (`LoadConfig` plus the
+   producer-grant observer built from the process instruments) parses all ESHU_WORKFLOW_COORDINATOR_* and
    ESHU_COLLECTOR_INSTANCES_JSON env vars and validates the resulting `Config`.
 4. `NewMetrics` registers OTEL instruments against the
    `eshu_dp_workflow_coordinator_` prefix.
@@ -268,6 +269,10 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 
 - OTEL setup: `NewBootstrap("workflow-coordinator")` + `NewProviders`
 - Logger scope and component: `workflow-coordinator`
+- Producer-grant decisions (#7153): `newGrantObserver` reuses the extension
+  worker's `GrantTelemetry` adapter, so config loading records
+  `eshu_dp_component_producer_grant_decisions_total` at the `readback` and
+  `activation` stages; separate it from the worker by `service_name`
 - Domain metrics from `NewMetrics` (see `internal/coordinator/README.md` for
   the full metric list)
 - Admin surface: `/healthz`, `/readyz`, `/metrics`, `/admin/status` mounted by

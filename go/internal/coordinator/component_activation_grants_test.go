@@ -21,6 +21,14 @@ import (
 // registry lets a test then change the grant set before planning.
 func grantedCoreKindHome(t *testing.T) (string, component.Registry) {
 	t.Helper()
+	return grantedCoreKindHomeClaims(t, true)
+}
+
+// grantedCoreKindHomeClaims is grantedCoreKindHome with the activation's
+// claims flag chosen by the caller, so a test can install a component the
+// coordinator reads back but never plans.
+func grantedCoreKindHomeClaims(t *testing.T, claimsEnabled bool) (string, component.Registry) {
+	t.Helper()
 
 	dir := t.TempDir()
 	manifestPath := filepath.Join(dir, "manifest.yaml")
@@ -56,7 +64,7 @@ func grantedCoreKindHome(t *testing.T) (string, component.Registry) {
 	enableScorecardComponent(t, home, component.Activation{
 		InstanceID:    "scorecard-primary",
 		Mode:          "scheduled",
-		ClaimsEnabled: true,
+		ClaimsEnabled: claimsEnabled,
 		ConfigPath:    writeScorecardActivationConfig(t),
 	})
 	return home, registry

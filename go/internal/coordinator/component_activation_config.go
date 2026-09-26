@@ -14,12 +14,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-func componentCollectorInstancesFromEnv(getenv func(string) string) ([]workflow.DesiredCollectorInstance, error) {
+func componentCollectorInstancesFromEnv(getenv func(string) string, observer component.GrantObserver) ([]workflow.DesiredCollectorInstance, error) {
 	home := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	if home == "" {
 		return nil, nil
 	}
-	registry := component.NewRegistry(home)
+	registry := component.NewRegistry(home).WithGrantObserver(observer)
 	readback, err := registry.Readback(componentPolicyFromEnv(getenv))
 	if err != nil {
 		return nil, fmt.Errorf("read component registry: %w", err)
@@ -38,7 +38,15 @@ func componentCollectorInstancesFromEnv(getenv func(string) string) ([]workflow.
 		// because Readback loads its own state and cannot share it; a
 		// revocation landing between the two reads fails closed as a hard
 		// error rather than planning an activation without authorization.
-		manifest, err := registry.LoadInstalledManifest(entry.ID, entry.Version)
+		//
+		// Only a component with a claims-enabled activation is planned to run,
+		// so only it reports activation-stage decisions; the rest report their
+		// readback decision alone.
+		load := registry.LoadInstalledManifest
+		if hasClaimsEnabledActivation(entry) {
+			load = registry.LoadInstalledManifestForActivation
+		}
+		manifest, err := load(entry.ID, entry.Version)
 		if err != nil {
 			return nil, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
 		}
@@ -49,6 +57,17 @@ func componentCollectorInstancesFromEnv(getenv func(string) string) ([]workflow.
 		instances = append(instances, componentInstances...)
 	}
 	return instances, nil
+}
+
+// hasClaimsEnabledActivation reports whether the coordinator would plan at
+// least one collector instance for the component.
+func hasClaimsEnabledActivation(entry component.RegistryReadbackComponent) bool {
+	for _, activation := range entry.Activations {
+		if activation.ClaimsEnabled {
+			return true
+		}
+	}
+	return false
 }
 
 func componentPolicyFromEnv(getenv func(string) string) component.Policy {

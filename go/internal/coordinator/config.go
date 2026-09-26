@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/environment"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
@@ -52,8 +53,17 @@ type Config struct {
 	CollectorInstances      []workflow.DesiredCollectorInstance
 }
 
-// LoadConfig parses the workflow coordinator config from environment.
+// LoadConfig parses the workflow coordinator config from environment without
+// reporting producer-grant decisions.
 func LoadConfig(getenv func(string) string) (Config, error) {
+	return LoadConfigObserved(getenv, nil)
+}
+
+// LoadConfigObserved is LoadConfig that also reports the producer-grant
+// decisions the coordinator makes while planning installed component
+// activations to observer (readback and activation stages). A nil observer
+// disables reporting.
+func LoadConfigObserved(getenv func(string) string, observer component.GrantObserver) (Config, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
@@ -145,7 +155,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
-	componentInstances, err := componentCollectorInstancesFromEnv(getenv)
+	componentInstances, err := componentCollectorInstancesFromEnv(getenv, observer)
 	if err != nil {
 		return Config{}, err
 	}

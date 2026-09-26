@@ -6,7 +6,9 @@
    dark/active branching, exported surface, and metric inventory
 2. `go/internal/coordinator/service.go` — `Service.Run`, `runReconcile`,
    `runReapExpiredClaims`, `runWorkflowReconciliation`, and `tickerChan`
-3. `go/internal/coordinator/config.go` — `LoadConfig`, `Config.Validate`, env
+3. `go/internal/coordinator/config.go` — `LoadConfig`, `LoadConfigObserved`
+   (reports producer-grant decisions; keep it observation-only so a denial
+   still skips or fails startup exactly as before), `Config.Validate`, env
    var names, and the `withDefaults` application order
 4. `go/internal/coordinator/metrics.go` — `otelMetrics`, `NewMetrics`, and the
    type-assertion pattern for `RecordReap`/`RecordRunReconciliation`
