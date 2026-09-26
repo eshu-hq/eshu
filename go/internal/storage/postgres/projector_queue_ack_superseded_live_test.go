@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -212,4 +213,93 @@ SELECT
 			projectorAckGenerationSupersededClass, want.oldGenerationID, want.oldGeneration,
 			want.newGenerationID, want.newGeneration, want.pointer)
 	}
+}
+
+// TestProjectorAckSupersededMarkKeepsOwnerAndAttemptFences pins the mark
+// statement's claim fences (review F2). Between the Ack rollback and the mark,
+// another worker may reclaim the row (new lease_owner) or the same worker may
+// re-claim it (attempt_count + 1). Either way the mark must match no row, so
+// refuseSupersededAck returns ErrProjectorClaimRejected, leaves the row as the
+// new owner holds it, and counts nothing.
+func TestProjectorAckSupersededMarkKeepsOwnerAndAttemptFences(t *testing.T) {
+	dsn := os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN to a disposable Postgres database")
+	}
+	for _, tc := range []struct {
+		name     string
+		owner    string
+		attempts int
+	}{
+		{name: "reclaimed_by_other_owner", owner: "other-worker", attempts: 2},
+		{name: "same_owner_next_attempt", owner: "proof-worker", attempts: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			database := openLivenessProofDB(t, dsn)
+			provisionLivenessSchema(t, database, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES ('scope-f2', 'repository', 'github', 'proof/f2', 'git',
+          'proof/f2', now(), now(), 'active', 'gen-new');
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+    status, activated_at, superseded_at
+) VALUES ('gen-old', 'scope-f2', 'push', now() - interval '1 hour',
+          now() - interval '1 hour', 'superseded', now() - interval '1 hour', now()),
+         ('gen-new', 'scope-f2', 'push', now(), now(), 'active', now(), NULL);
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    attempt_count, lease_owner, claim_until, visible_at, payload,
+    created_at, updated_at
+) VALUES ('refinalize_scope-f2_gen-old', 'scope-f2', 'gen-old', 'projector',
+          'source_local', 'running', `+strconv.Itoa(tc.attempts)+`, '`+tc.owner+`',
+          now() + interval '1 minute', now(), '{}'::jsonb, now(), now());
+`)
+			before := readAckFenceRow(t, database)
+			queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+			instruments, reader := newEnqueueInstruments(t)
+			queue.Instruments = instruments
+			work := projector.ScopeGenerationWork{
+				Scope:        scope.IngestionScope{ScopeID: "scope-f2"},
+				Generation:   scope.ScopeGeneration{GenerationID: "gen-old"},
+				AttemptCount: 2,
+			}
+
+			tx, err := SQLDB{DB: database}.Begin(context.Background())
+			if err != nil {
+				t.Fatalf("begin ack tx: %v", err)
+			}
+			err = queue.refuseSupersededAck(context.Background(), tx, work, time.Now().UTC())
+			if !errors.Is(err, ErrProjectorClaimRejected) || errors.Is(err, failure.ErrWorkSuperseded) {
+				t.Fatalf("refuseSupersededAck() = %v, want only ErrProjectorClaimRejected", err)
+			}
+			if after := readAckFenceRow(t, database); after != before {
+				t.Fatalf("row changed under a lost claim: before %+v, after %+v", before, after)
+			}
+			if got := heartbeatFenceCount(t, reader); got != 0 {
+				t.Fatalf("superseded generation fence count = %d, want 0 for a lost claim", got)
+			}
+		})
+	}
+}
+
+// ackFenceRow is the full mutable state of the F2 row.
+type ackFenceRow struct {
+	status, owner, failureClass, updatedAt, claimUntil string
+	attempts                                           int
+}
+
+func readAckFenceRow(t *testing.T, database *sql.DB) ackFenceRow {
+	t.Helper()
+	var row ackFenceRow
+	if err := database.QueryRowContext(context.Background(), `
+SELECT status, COALESCE(lease_owner, ''), COALESCE(failure_class, ''),
+       updated_at::text, COALESCE(claim_until::text, ''), attempt_count
+FROM fact_work_items WHERE work_item_id = 'refinalize_scope-f2_gen-old'`).Scan(
+		&row.status, &row.owner, &row.failureClass, &row.updatedAt, &row.claimUntil, &row.attempts,
+	); err != nil {
+		t.Fatalf("read F2 row: %v", err)
+	}
+	return row
 }
