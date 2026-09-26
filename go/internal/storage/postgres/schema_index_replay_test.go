@@ -52,48 +52,6 @@ var (
 // definition was indistinguishable from one holding 077's. #6543 applied the
 // 059/068 and 101/102 shape instead -- the surviving predicate is created under
 // a new name and the legacy name only ever dropped, which
-// TestReplayGuardedRedefinitionsAreGuarded holds every exemption in
-// replayGuardedRedefinitions to its shape: exactly one definition drops the
-// name, that drop sits in a DO block behind the recorded guard, and the last
-// create of the name carries the column the guard tests for -- so the guard
-// turns false as soon as the live create has run.
-func TestReplayGuardedRedefinitionsAreGuarded(t *testing.T) {
-	t.Parallel()
-
-	byPath := map[string]string{}
-	createPaths, dropPaths := map[string][]string{}, map[string][]string{}
-	for _, definition := range BootstrapDefinitions() {
-		statements := stripSQLLineComments(definition.SQL)
-		byPath[definition.Path] = statements
-		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
-			createPaths[match[1]] = append(createPaths[match[1]], definition.Path)
-		}
-		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
-			dropPaths[match[1]] = append(dropPaths[match[1]], definition.Path)
-		}
-	}
-	for name, want := range replayGuardedRedefinitions {
-		if got := dropPaths[name]; !slices.Equal(got, []string{want.DropPath}) {
-			t.Errorf("%s is dropped by %v, want only the guarded %s", name, got, want.DropPath)
-		}
-		drop := byPath[want.DropPath]
-		if !strings.Contains(drop, "DO $$") || !strings.Contains(drop, want.Guard) {
-			t.Errorf("%s drops %s without the guard %q inside a DO block; an unguarded drop rebuilds the index on every replay", want.DropPath, name, want.Guard)
-		}
-		creates := createPaths[name]
-		if len(creates) == 0 || creates[len(creates)-1] != want.LivePath {
-			t.Errorf("%s is created by %v, want %s to be the last create", name, creates, want.LivePath)
-			continue
-		}
-		if !strings.Contains(byPath[want.LivePath], want.LiveMarker) {
-			t.Errorf("%s creates %s without %q, so the guard in %s would drop it again on every replay", want.LivePath, name, want.LiveMarker, want.DropPath)
-		}
-		if want.LiveProof == "" {
-			t.Errorf("%s has no live replay proof recorded", name)
-		}
-	}
-}
-
 // TestIdentityEpochIndexIsCreatedOnceAndNeverDropped pins.
 var replayRebuiltIndexNames []string
 
@@ -126,14 +84,14 @@ type replayGuardedRedefinition struct {
 // 025 is shipped and immutable and creates the name on (service_id). Replacing
 // it under a new name would leave 025 recreating the single-active-per-service
 // index on any untracked replay, which FAILS once two ingestion scopes hold an
-// active generation for one service id. So 123 drops the name only while its
-// indexdef lacks scope_id, and 124 recreates it on (scope_id, service_id);
-// after that, 025, 123, and 124 are all no-ops on replay.
+// active generation for one service id. So 124 drops the name only while its
+// indexdef lacks scope_id, and 125 recreates it on (scope_id, service_id);
+// after that, 025, 124, and 125 are all no-ops on replay.
 var replayGuardedRedefinitions = map[string]replayGuardedRedefinition{
 	"service_materialization_generations_active_service_idx": {
-		DropPath:   "go/internal/storage/postgres/migrations/123_service_materialization_generations_active_service_idx_rescope.sql",
+		DropPath:   "go/internal/storage/postgres/migrations/124_service_materialization_generations_active_service_idx_rescope.sql",
 		Guard:      "indexdef NOT LIKE '%scope_id%'",
-		LivePath:   "go/internal/storage/postgres/migrations/124_service_materialization_generations_active_service_idx_v2.sql",
+		LivePath:   "go/internal/storage/postgres/migrations/125_service_materialization_generations_active_service_idx_v2.sql",
 		LiveMarker: "(scope_id, service_id)",
 		LiveProof:  "TestServiceMaterializationActiveIndexReplayConvergesLive",
 	},
@@ -189,6 +147,48 @@ func TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay(t *testing.T) {
 			if !slices.Contains(rebuilt, name) {
 				t.Errorf("index %s no longer has a create/drop pair; remove it from replayRebuiltIndexNames", name)
 			}
+		}
+	}
+}
+
+// TestReplayGuardedRedefinitionsAreGuarded holds every exemption in
+// replayGuardedRedefinitions to its shape: exactly one definition drops the
+// name, that drop sits in a DO block behind the recorded guard, and the last
+// create of the name carries the column the guard tests for -- so the guard
+// turns false as soon as the live create has run.
+func TestReplayGuardedRedefinitionsAreGuarded(t *testing.T) {
+	t.Parallel()
+
+	byPath := map[string]string{}
+	createPaths, dropPaths := map[string][]string{}, map[string][]string{}
+	for _, definition := range BootstrapDefinitions() {
+		statements := stripSQLLineComments(definition.SQL)
+		byPath[definition.Path] = statements
+		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
+			createPaths[match[1]] = append(createPaths[match[1]], definition.Path)
+		}
+		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
+			dropPaths[match[1]] = append(dropPaths[match[1]], definition.Path)
+		}
+	}
+	for name, want := range replayGuardedRedefinitions {
+		if got := dropPaths[name]; !slices.Equal(got, []string{want.DropPath}) {
+			t.Errorf("%s is dropped by %v, want only the guarded %s", name, got, want.DropPath)
+		}
+		drop := byPath[want.DropPath]
+		if !strings.Contains(drop, "DO $$") || !strings.Contains(drop, want.Guard) {
+			t.Errorf("%s drops %s without the guard %q inside a DO block; an unguarded drop rebuilds the index on every replay", want.DropPath, name, want.Guard)
+		}
+		creates := createPaths[name]
+		if len(creates) == 0 || creates[len(creates)-1] != want.LivePath {
+			t.Errorf("%s is created by %v, want %s to be the last create", name, creates, want.LivePath)
+			continue
+		}
+		if !strings.Contains(byPath[want.LivePath], want.LiveMarker) {
+			t.Errorf("%s creates %s without %q, so the guard in %s would drop it again on every replay", want.LivePath, name, want.LiveMarker, want.DropPath)
+		}
+		if want.LiveProof == "" {
+			t.Errorf("%s has no live replay proof recorded", name)
 		}
 	}
 }

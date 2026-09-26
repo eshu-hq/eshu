@@ -102,7 +102,7 @@ func (t ServiceMaterializationSQLTx) Rollback() error { return t.Tx.Rollback() }
 //   - Commits from different scopes for the same service id touch disjoint rows:
 //     supersede and activate both filter on scope_id, so one scope never retires
 //     another scope's generation. Rows with a NULL scope_id (legacy generations
-//     no witness could attribute, migration 122) are never superseded.
+//     no witness could attribute, migration 123) are never superseded.
 //   - The supersede of the prior active generation and the insert of the new
 //     active generation run in one transaction, so a reader never observes zero
 //     or two active generations for one (scope, service).

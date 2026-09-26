@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build integration
-
 package postgres
 
 import (
@@ -18,6 +16,11 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// serviceLineageScopeRequiredEnv makes an unset DSN a failure instead of a
+// skip. The reducer contention gate sets it, so a renamed DSN variable cannot
+// silently disable the #6475 lineage proofs in CI.
+const serviceLineageScopeRequiredEnv = "ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF"
 
 const (
 	serviceLineageTable       = "service_materialization_generations"
@@ -39,7 +42,7 @@ type serviceLineageIndexSnapshot struct {
 }
 
 // TestServiceMaterializationActiveIndexReplayConvergesLive proves the #6475
-// migrations (122-124) against real Postgres through the production bootstrap:
+// migrations (122-125) against real Postgres through the production bootstrap:
 //
 //   - fresh database: ApplyBootstrap leaves the active index on
 //     (scope_id, service_id);
@@ -53,10 +56,10 @@ type serviceLineageIndexSnapshot struct {
 //     replay (a database without eshu_schema_migrations receipts) drops,
 //     rebuilds, or fails on the index while those two actives exist.
 //
-// Run with:
+// It runs in the reducer contention gate. Locally:
 //
-//	ESHU_POSTGRES_TEST_DSN=postgresql://user:pass@localhost:<port>/eshu \
-//	go test -tags integration ./internal/storage/postgres \
+//	ESHU_POSTGRES_DSN=postgresql://user:pass@localhost:<port>/eshu \
+//	go test ./internal/storage/postgres \
 //	  -run TestServiceMaterializationActiveIndexReplayConvergesLive -count=1 -v
 func TestServiceMaterializationActiveIndexReplayConvergesLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
@@ -278,19 +281,34 @@ ANALYZE service_materialization_generations;
 }
 
 // openServiceLineageSchemaLive opens a connection pool whose search_path is a
-// fresh isolated schema (then public, where the bootstrap's extensions live),
-// dropped when the test ends.
+// fresh isolated schema (then public), dropped when the test ends. The DSN is
+// ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN (the reducer contention gate sets
+// the latter); with neither set the test skips, unless
+// serviceLineageScopeRequiredEnv is "1", when it fails.
 func openServiceLineageSchemaLive(ctx context.Context, t *testing.T, prefix string) (*sql.DB, string) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live service lineage replay proof")
+		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	}
+	if dsn == "" {
+		if os.Getenv(serviceLineageScopeRequiredEnv) == "1" {
+			t.Fatalf("%s=1 but neither ESHU_POSTGRES_TEST_DSN nor ESHU_POSTGRES_DSN is set", serviceLineageScopeRequiredEnv)
+		}
+		t.Skip("set ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN to run the live service lineage proofs")
 	}
 	adminDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}
 	t.Cleanup(func() { _ = adminDB.Close() })
+	// The bootstrap's CREATE EXTENSION IF NOT EXISTS pg_trgm would otherwise
+	// install it into this private schema (first on the search_path) and drop
+	// it with the schema, leaving any schema bootstrapped concurrently without
+	// gin_trgm_ops. Pin it to public, as the sibling live helpers do.
+	if _, err := adminDB.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
+		t.Fatalf("install pg_trgm in public: %v", err)
+	}
 	schema := fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)

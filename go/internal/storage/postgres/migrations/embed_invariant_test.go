@@ -30,13 +30,13 @@ import (
 // 124_fact_records_documentation_semantic_target_refs_idx.sql, #6679 added
 // 125_shared_projection_acceptance_generation_key.sql, and #6475 added the
 // service materialization lineage scope migrations.
-const goldenBootstrapDefinitionsDigest = "11614fe383edffefc0888fabb9da624ded7ee435a3220cfcdd433b53e57db920"
+const goldenBootstrapDefinitionsDigest = "3931c1bbdf453bb5ef77e67656635d0c2253257659974466503b78b8189eedbb"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 149
+const goldenBootstrapDefinitionsCount = 150
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

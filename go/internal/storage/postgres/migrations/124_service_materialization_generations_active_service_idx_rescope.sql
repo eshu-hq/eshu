@@ -1,7 +1,7 @@
--- 123_service_materialization_generations_active_service_idx_rescope.sql
+-- 124_service_materialization_generations_active_service_idx_rescope.sql
 --
 -- #6475: drops the single-active-per-service_id definition of
--- service_materialization_generations_active_service_idx so migration 124 can
+-- service_materialization_generations_active_service_idx so migration 125 can
 -- rebuild the SAME NAME on (scope_id, service_id). Two ingestion scopes may
 -- now each hold one active generation for one service id.
 --
@@ -25,10 +25,14 @@
 -- Plain DROP INDEX, not CONCURRENTLY: a DO block runs in a transaction, and
 -- CONCURRENTLY cannot. The table holds one row per service generation, so the
 -- ACCESS EXCLUSIVE lock is brief, and the bootstrap runner bounds its wait
--- with lock_timeout and retries (schema.go). Between this drop and 124's build
--- nothing enforces one active per (scope, service); the writer's supersede and
--- activate run in one transaction, and 124 fails loudly (and is retried) if a
--- duplicate somehow appeared.
+-- with lock_timeout and retries (schema.go). Between this drop and 125's build
+-- nothing enforces one active per (scope, service). The new writer's supersede
+-- and activate run in one transaction, but a reducer of the previous release
+-- still running during the upgrade supersedes by service_id only and writes
+-- NULL-scope rows; if two such writers raced one service inside this window
+-- they could leave two actives, and 125 then fails loudly (and is retried by
+-- the next bootstrap) until the duplicate is superseded. Upgrade with the
+-- previous release's reducers stopped to rule that out.
 DO $$
 BEGIN
     IF EXISTS (

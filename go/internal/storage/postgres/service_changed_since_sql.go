@@ -11,6 +11,18 @@ package postgres
 // flight. A service that has no generations at all yields no row, which the
 // reader maps to not-found.
 //
+// Since #6475 a service id can hold more than one active generation: one per
+// ingestion scope, plus an unattributed legacy row (scope_id IS NULL) whose
+// backfill witness aged out and which the writer never supersedes. Until the
+// reader is scope-aware (#6475 part B) the pick is deterministic and never
+// prefers the stale unattributed row: attributed rows first, then the newest
+// activation, then the generation id. The sort covers only the service's
+// active rows, at most one per scope plus unattributed legacy rows.
+//
+// has_pending ignores scope. A pending row exists only inside the writer's own
+// commit transaction (insert pending, supersede, activate, commit together), so
+// no other session observes one; scoping it would not change the answer.
+//
 // Parameter order:
 //
 //	$1 service_id (required, exact)
@@ -33,6 +45,7 @@ FROM (
 LEFT JOIN service_materialization_generations AS active
     ON active.service_id = gen.service_id
    AND active.status = 'active'
+ORDER BY (active.scope_id IS NULL), active.activated_at DESC NULLS LAST, active.generation_id DESC
 LIMIT 1
 `
 
