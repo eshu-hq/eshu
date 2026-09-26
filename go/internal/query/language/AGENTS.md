@@ -58,6 +58,12 @@ Move evidence.
   behind build tags the default test run does not compile) import this
   package and call it directly; root keeps no forwarder for it because the
   default build would flag one as unused.
+- The Directory branch's `file_count` is scoped by both Directory and File
+  ownership. Keep `d.repo_id` as the indexed seek anchor and match
+  `f.repo_id` to the same unwound repository id inside the File pattern.
+  A trailing `AND f.repo_id = rid` silently returns zero rows on the pinned
+  NornicDB builds; the #6703 live regression and evidence pin the compatible
+  shape. A stale CONTAINS edge or ownerless File must not enter a scoped count.
 - `SupportedLanguages` and `SupportedEntityTypes` are exported (unchanged from
   before the move) because root's `entity_metadata_flux_test.go` and the
   OpenAPI spec assembly call them through the forwarders of the same name in

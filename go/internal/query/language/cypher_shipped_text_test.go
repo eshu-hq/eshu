@@ -167,7 +167,7 @@ var frozenUnscopedRepositoryCypher = frozenCypherLines(
 var frozenUnscopedDirectoryCypher = frozenCypherLines(
 	"",
 	"\t\tUNWIND $repo_ids AS rid",
-	"\t\tMATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)",
+	"\t\tMATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File {repo_id: rid})",
 	"\t\tWHERE f.language IN $languages",
 	"\t",
 	"\t\tWITH d, count(f) as file_count",

@@ -50,7 +50,9 @@ package reaches it only through the `querycontract.ContentStore` and
   `SupportedEntityTypes`. `buildDirectoryCypher` is the one builder that binds
   no `Repository`; the contract its exported dispatcher carries for a caller
   that must supply the resolved repository-id list is on
-  `BuildCypherWithSemanticFilter`'s doc comment.
+  `BuildCypherWithSemanticFilter`'s doc comment. Its indexed Directory owner
+  anchor and File owner pattern must match the same repository id so a stale
+  cross-repository CONTAINS edge cannot change the scoped file count (#6703).
 - `entities.go` -- `buildLanguageResult` (graph row to response shape),
   the three entity-type-family maps, and the unsupported-entity-type response
   writer.

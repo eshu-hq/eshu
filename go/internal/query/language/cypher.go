@@ -208,45 +208,32 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // given language, seeking each granted repository's directories by an indexed
 // `repo_id` rather than walking to a Repository node at all.
 //
-// This is the #6541 shape, and both halves of it are forced by measurement.
+// This retains #6541's indexed Directory seek and adds #6703's File-owner
+// check. Both halves of the Directory read are forced by measurement.
 //
-// What the grant rests on. Row membership is decided by `d.repo_id`, a property
-// the canonical projector writes, and no longer by a path from the File up to a
-// Repository node. That is sound because the projector derives a Directory's
-// repository and its files' repository from ONE value: buildCanonicalMaterialization
-// stamps mat.RepoID onto every FileRow through extractFilesWithQuarantine and
-// onto every DirectoryRow through buildDirectoryChain, which walks those same
-// file paths (all three in go/internal/projector/canonical/builder.go). Within
-// one projection no `(d)-[:CONTAINS]->(f)` edge can cross repositories, so
-// counting files under a directory admitted by repo_id counts only granted files.
-// isRepositoryLocalRelativePath keeps that true for a file fact whose
-// relative_path climbs out of the repository root, which used to walk the
-// directory chain into a SIBLING repository's paths and stamp them with this
-// repository's id; TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot is
-// its regression.
+// What the grant rests on. `d.repo_id` selects the granted directory through
+// directory_repo_id, while `f.repo_id` independently decides whether a File
+// reached through CONTAINS belongs to that repository. Both are matched to
+// the same `rid`; a File whose owner is absent or differs cannot enter the
+// count. The canonical projector writes both properties from mat.RepoID, but
+// a reader may observe phases from different generations.
 //
-// What the graph does NOT enforce, and what a future projector change would
-// break. Directory identity is `path` alone -- `MERGE (d:Directory {path:
-// row.path}) SET d.repo_id = row.repo_id`, canonicalNodeDirectoryNodeCypher --
-// so repo_id is a mutable property, and the production phase-group executor
-// commits the `directories` phase in its OWN transaction ahead of the
+// Why the second ownership check matters. Directory identity is `path` alone:
+// `MERGE (d:Directory {path: row.path}) SET d.repo_id = row.repo_id`
+// (canonicalNodeDirectoryNodeCypher), so repo_id is mutable. The production
+// phase-group executor commits the `directories` phase in its OWN transaction ahead of the
 // `directory_edges` and `files` phases that write this statement's CONTAINS
 // edges (buildPhases in go/internal/storage/cypher/canonical_node_writer.go;
 // one ExecutePhaseGroup per phase in the PhaseGroupExecutor branch of
 // CanonicalNodeWriter.Write). A reader can therefore see a new repo_id on a
 // directory still holding the previous generation's edges, because the prune
 // that clears them is keyed on the CURRENT generation's file paths only
-// (canonicalNodeRefreshCurrentDirectoryFileEdgesCypher). That window cannot
-// disclose a file -- this statement returns Directory rows and an aggregate,
-// never a File's id, name or path -- and the statement it replaced reached the
-// same files through the same File-to-Directory CONTAINS hop, so it is not
-// introduced here. It can inflate file_count. Closing it needs `f.repo_id`,
-// which the projector writes on every File (the canonicalNodeFile* and
-// canonicalNodeRootFile* statements), as a second predicate; that is a change
-// to a measured hot-path statement and belongs with its own plan profile
-// and corpus measurement rather than in this PR. If the projector ever stops
-// making one directory path belong to one repository, this statement stops
-// enforcing the grant and must move to that predicate.
+// (canonicalNodeRefreshCurrentDirectoryFileEdgesCypher). The #6703 fixture
+// proves that window used to inflate file_count. Matching the File's owner
+// inside the same pattern closes that aggregate leak without returning a File
+// id, name, or path. The inline form is required for compatibility: a trailing
+// `AND f.repo_id = rid` silently returns zero rows on the pinned NornicDB
+// builds, as the #6703 evidence records.
 //
 // The seek is why it is fast. The statement it replaced walked
 // `(f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)`
@@ -324,7 +311,7 @@ func buildDirectoryCypher(language, query string, repoIDs []string, params map[s
 
 	cypher := `
 		UNWIND $repo_ids AS rid
-		MATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)
+		MATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File {repo_id: rid})
 		WHERE f.language IN $languages
 	`
 
