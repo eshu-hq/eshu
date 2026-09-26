@@ -1,8 +1,9 @@
 # Workload And WorkloadInstance Identity Keys
 
-Status: design for issue #5385, for owner sign-off. No implementation. The
-measurements come from read-only probes and throwaway test files that are not
-part of this branch.
+Status: accepted Option C (#6179); reconciliation decided 2026-09-25 in
+[5385-workload-identity-compatibility.md](5385-workload-identity-compatibility.md)
+and [5385-workload-identity-migration.md](5385-workload-identity-migration.md),
+which supersede this document's counts. Measurements: read-only probes only.
 
 Owners: reducer, correlation, and graph maintainers.
 
@@ -464,10 +465,9 @@ which never exercises mode two at all, so it bears on mode one only.
 | `testdata/golden/e2e-20repo-snapshot.json` | 33 | 32 | 12 | 6 |
 | `testdata/cassettes/` | 1 (in 1 file) | 1 | 0 | 0 |
 
-One number cannot carry both halves, and the split is what a regenerator needs:
-**39 identifier values that regeneration changes, plus 7 prose mentions in
-snapshot notes that a human has to update by hand.** The 46 raw occurrences are
-the sum of the two. The 32 quoted `workload:` values are 13 `api-svc`, 10
+**Superseded:** the cassette row above predates four cassette files; the
+migration doc §7 carries the current counts (14 cassette literals, 52 in all
+at `2ae147cf9`). The 32 quoted `workload:` values are 13 `api-svc`, 10
 `deployable-config`, 7 `deployable-source`, 1 `claim-honesty-demo` and 1
 `supply-chain-demo-db`; the 6 instance values are all
 `workload-instance:deployable-source:prod` or `:stage`; the cassette's single
@@ -1173,8 +1173,8 @@ retracted and rebuilt rather than rewritten in place.
    `mutations.go` needs no fix — it is unreachable (section 2) and its correct
    disposition is deletion under the repo's own dead-code precedent, separately
    from this work.
-3. **Regenerate the golden artifacts** — 38 identifier values in the B-12
-   snapshot and 1 in the cassettes, moved in the same change per the
+3. **Regenerate the golden artifacts** — the current literal counts are in
+   the migration doc §7 (this revision's 38 + 1 is stale), moved per the
    golden-corpus rules, plus 7 prose mentions in snapshot notes that
    regeneration will not touch (section 3.3).
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
@@ -1432,7 +1432,7 @@ Either way, scoping needs to know which repository owns a workload — so both r
 with the re-key rather than ahead of it.
 
 The case for now is section 3.2: cost scales with the workload population, which
-is 40 nodes, 33 instances, and 39 golden identifier values today. **Both failure modes are
+is 40 nodes, 33 instances, and the golden literals counted in the migration doc §7. **Both failure modes are
 silent.** Mode one merges — one node, ownership reassigned to whoever wrote last,
 cross-repo environments. Mode two drops — the losing repository's workload row
 discarded, so the surviving node carries someone else's kind, classification,
@@ -1452,7 +1452,7 @@ schema-risk change with cassette and B-12 impact.
 | Query-plan gate | `fetchWorkloadRuntimeTopology` is pinned by `source_sha256` with `WorkloadInstance.workload_id` as a required anchor and a retained 75x-regression caveat. Re-proving it is **not** trivial and was unpriced until now. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
 | RUNS_ON scoping | Small once the key is decided; cannot land before it. |
-| Golden regeneration | 39 identifier values across the snapshot and one cassette, plus 7 prose mentions a human updates. |
+| Golden regeneration | 52 `rg -c` matches, 51 of which move, across the snapshot and five cassettes (migration doc §7), plus 7 prose mentions a human updates. |
 | Retract/rebuild proof | Live replay-tier retract coverage per edge family. Moderate. |
 | Collision telemetry | Small. |
 | Consumer breakage | **The largest item.** Public API path/body params, MCP selectors, the Console's bookmarkable URLs, persisted search handles, and provider-asserted ids in the SDK fact contract. Section 6a. |
@@ -1460,44 +1460,29 @@ schema-risk change with cassette and B-12 impact.
 ## 8. Open questions
 
 1. **Which repository owns a workload deployed from a different repository?**
-   **Recommended answer: the defining repository, `WorkloadCandidate.RepoID`.**
-   Section 5 gives the evidence — `DeploymentRepoIDs` is plural, unstable and
-   usually absent, and keying on it makes the node contradict its own `repo_id`
-   and `DEFINES` edge. Every `DEFINES`-paired query tightens under source keying
-   and goes silently false under deployment keying. This is presented as a
-   recommendation rather than a decision: it is the one answer the whole design
-   rests on, so it should be confirmed rather than assumed.
+   **Answered by the #6179 sign-off: the defining repository,
+   `WorkloadCandidate.RepoID`.** Section 5 gives the evidence —
+   `DeploymentRepoIDs` is plural, unstable and usually absent.
 2. **Do stored `workload:<name>` identifiers exist outside the graph?**
    **Answered: yes, on every axis — this is a public contract break, not an
    internal refactor.** See section 6a. No decision needed; the cost is now
    known and is the largest line item in section 7.
-3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?** It is
-   written by `workload_identity_writer.go` into an `entity_keys` array, is the
-   documented fallback for an unmaterialized workload, and a graph-only re-key
-   leaves the two schemes disagreeing. (The repo-basename key an earlier revision
-   attributed here belongs to the separate `shared_followup` fact; section 4 has
-   the split.)
-4. **Now or later for the re-key?** Section 7 gives both cases. There is no
-   separable timing decision beside it: the RUNS_ON scoping fix needs the
-   identity answer, so it rides with the re-key either way.
+3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?**
+   **Answered on the issue (2026-09): no.** Stored `entity_keys` stay
+   legacy-keyed; the repo-scoped graph handle is derived at the repo-aware
+   read/output seams, with identity-only fallback and supply-chain output
+   normalization changing in the same stack. Companion doc, question 7.
+4. **Now or later for the re-key?** **Answered: now**, by the #6179 sign-off.
+   The RUNS_ON scoping needs the identity answer, so it rides with the re-key.
 
-## 9. Sign-off request
+## 9. Decisions recorded
 
-Before any code is written I need:
+The sign-off this section used to request has been given: Option C over A,
+now rather than later, and `WorkloadCandidate.RepoID` as the key (#6179);
+question 3 was answered on the issue afterwards. A later owner note
+(2026-09-08) added explicit `SAME_NAME` correlation edges and asked for no
+identity migration; the companion document reconciles that note with the
+per-repo key this design proposes; its §3 records D1–D4, so none stay open.
 
-- **A decision on Option C over A**, and on timing.
-- **Confirmation of the recommended answer to question 1** — the defining
-  repository, `WorkloadCandidate.RepoID`. It determines the key, and everything
-  else in this design follows from it.
-- **A decision on question 3**, the non-graph identity subsystem.
-
-There is no longer an independent fix to approve. An earlier revision asked to fix
-`mutations.go:119` on its own; that path is unreachable (section 2). A later one
-called the RUNS_ON retract "the real leak", which section 5a disproved — that
-retract is a silent no-op, not an over-broad delete. What remains is the cross-repo
-merge itself, which the name-only key causes directly and which no retract fix
-reaches. Fixing it needs the identity answer, so it belongs to this
-issue rather than beside it.
-
-No production code has been written for this issue and none will be until the
-above is settled. The probe files are throwaway and are not in this branch.
+`mutations.go` has since been deleted from the tree, so section 2's account of
+it is historical. No production code has been written for this issue.
