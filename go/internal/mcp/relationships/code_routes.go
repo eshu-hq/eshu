@@ -86,10 +86,25 @@ func resolveAnalyzeCodeRelationshipsRequest(args routecontract.Arguments) (route
 			"exclude_decorated_with": args.StringSlice("exclude_decorated_with"),
 		}}, nil
 	}
+	return analyzeCodeRelationshipsRouteRequest(args), nil
+}
+
+// analyzeCodeRelationshipsRouteRequest builds the POST
+// /api/v0/code/relationships request for the query types that have no
+// dedicated route (who_modifies, module_deps, variable_scope, find_complexity,
+// find_functions_by_argument, find_functions_by_decorator). It forwards the
+// caller's repo_id so the route's grant selector can reject an ungranted
+// repository, sends target as the name to resolve (the way the
+// relationship-story query types treat it), and forwards an explicit
+// entity_id, which the route prefers over the name. The route has no limit
+// field, so limit is not forwarded; the route bounds its own row ceiling.
+func analyzeCodeRelationshipsRouteRequest(args routecontract.Arguments) routecontract.Request {
 	return routecontract.Request{Method: "POST", Path: "/api/v0/code/relationships", Body: map[string]any{
-		"entity_id":  args.String("target"),
+		"name":       args.String("target"),
+		"entity_id":  args.String("entity_id"),
+		"repo_id":    args.String("repo_id"),
 		"query_type": args.String("query_type"),
-	}}, nil
+	}}
 }
 
 func analyzeCodeRelationshipsCallChainRequest(args routecontract.Arguments) (routecontract.Request, error) {

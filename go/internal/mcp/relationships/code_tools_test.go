@@ -28,11 +28,11 @@ func TestCodeToolsPreserveRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal code relationship tools: %v", err)
 	}
-	const wantDefinitionBytes = 6877
+	const wantDefinitionBytes = 7322
 	if got := len(encoded); got != wantDefinitionBytes {
 		t.Fatalf("serialized code relationship definitions = %d bytes, want %d", got, wantDefinitionBytes)
 	}
-	const wantDefinitionsHash = "31e5a9d06d3f4643728ce9cafd2ef8940e1ff9d08e94f6e4a239bdf102e51cd4"
+	const wantDefinitionsHash = "a74fd12fcb5b5aa1aebae85123f6220390455558c2b53d1343845be22afcd44f"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("code relationship definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

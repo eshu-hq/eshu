@@ -207,7 +207,7 @@ func TestCodeRouteGenericFallbackPreservesQueryType(t *testing.T) {
 			t.Fatalf("CodeRoute(%q) = (_, %v, %v), want handled without error", queryType, handled, err)
 		}
 		want := routecontract.Request{Method: "POST", Path: "/api/v0/code/relationships", Body: map[string]any{
-			"entity_id": "entity-1", "query_type": queryType,
+			"name": "entity-1", "entity_id": "", "repo_id": "", "query_type": queryType,
 		}}
 		if !reflect.DeepEqual(request, want) {
 			t.Errorf("CodeRoute(%q) = %#v, want %#v", queryType, request, want)

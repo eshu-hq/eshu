@@ -130,7 +130,7 @@ const Routes = `
       "post": {
         "tags": ["code"],
         "summary": "Get code relationships",
-        "description": "Returns incoming and outgoing relationships for an entity. This is where the analyze_code_relationships MCP tool sends its who_modifies, module_deps, variable_scope, find_complexity, find_functions_by_argument, and find_functions_by_decorator query types; its relationship-story and call-chain query types go to their own routes. A scoped token reads only its granted repositories. An anchor entity outside the grant answers the same 404 as an entity that does not exist, whether it is named by entity_id or by name; a name without repo_id resolves among the granted repositories only. Neighbours whose repository is outside the grant are omitted from outgoing and incoming, as are neighbours the graph cannot attribute to any repository (no repo_id), and the grant is applied before the per-direction row ceiling, so a clipped set holds granted rows only. A transitive CALLS walk never passes through a node outside the grant, so a granted node reachable only through an ungranted one is not returned. A scoped caller with no grant receives the unknown-entity 404 without either backend being read. An ungranted repo_id selector is rejected with 400 before any read.",
+        "description": "Returns incoming and outgoing relationships for an entity. This is where the analyze_code_relationships MCP tool sends its who_modifies, module_deps, variable_scope, find_complexity, find_functions_by_argument, and find_functions_by_decorator query types; it sends the caller's repo_id, target as name, and an optional exact entity_id, and applies no limit; its relationship-story and call-chain query types go to their own routes. A scoped token reads only its granted repositories. An anchor entity outside the grant answers the same 404 as an entity that does not exist, whether it is named by entity_id or by name; a name without repo_id resolves among the granted repositories only. Neighbours whose repository is outside the grant are omitted from outgoing and incoming, as are neighbours the graph cannot attribute to any repository (no repo_id), and the grant is applied before the per-direction row ceiling, so a clipped set holds granted rows only. A transitive CALLS walk never passes through a node outside the grant, so a granted node reachable only through an ungranted one is not returned. A scoped caller with no grant receives the unknown-entity 404 without either backend being read. An ungranted repo_id selector is rejected with 400 before any read.",
         "x-scoped-token-support": true,
         "operationId": "getCodeRelationships",
         "requestBody": {
@@ -148,6 +148,10 @@ const Routes = `
                   "name": {
                     "type": "string",
                     "description": "Optional entity name fragment when entity_id is not available."
+                  },
+                  "repo_id": {
+                    "type": "string",
+                    "description": "Optional repository selector that scopes name resolution and the read. A scoped token naming a repository outside its grant is rejected with 400."
                   },
                   "direction": {
                     "type": "string",
