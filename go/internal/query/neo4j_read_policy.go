@@ -456,8 +456,13 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		attribute.String(telemetry.SpanAttrGraphReadQueryName, queryName),
 	)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		// Never record the raw driver error: statement errors quote the
+		// offending statement, and ad-hoc routes send it with inline
+		// literals (#7065). Redact exactly like the statement head and
+		// fingerprint (#7035).
+		spanErr := errors.New(statement.Redact(err.Error()))
+		span.RecordError(spanErr)
+		span.SetStatus(codes.Error, spanErr.Error())
 	}
 
 	recordCtx := context.WithoutCancel(ctx)
