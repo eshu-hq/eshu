@@ -58,7 +58,10 @@ VALUES
   ('gen-b-current', 'component:default/api', 'scope-b', 'service_catalog_correlation', now() - interval '1 hour',  now(), 'active',     now() - interval '1 hour', NULL),
   ('gen-api-legacy', 'component:default/api', NULL,     'service_catalog_correlation', now() - interval '30 days', now(), 'active',     now() - interval '30 days', NULL),
   ('gen-legacy-prior',   'component:default/legacy', NULL, 'service_catalog_correlation', now() - interval '31 days', now(), 'superseded', now() - interval '31 days', now() - interval '30 days'),
-  ('gen-legacy-current', 'component:default/legacy', NULL, 'service_catalog_correlation', now() - interval '30 days', now(), 'active',     now() - interval '30 days', NULL)`); err != nil {
+  ('gen-legacy-current', 'component:default/legacy', NULL, 'service_catalog_correlation', now() - interval '30 days', now(), 'active',     now() - interval '30 days', NULL),
+  ('gen-stale-a-old',    'component:default/stale-scope', 'scope-a', 'service_catalog_correlation', now() - interval '40 days', now(), 'superseded', now() - interval '40 days', now() - interval '35 days'),
+  ('gen-stale-legacy-prior', 'component:default/stale-scope', NULL,  'service_catalog_correlation', now() - interval '31 days', now(), 'superseded', now() - interval '31 days', now() - interval '30 days'),
+  ('gen-stale-legacy',   'component:default/stale-scope', NULL,      'service_catalog_correlation', now() - interval '30 days', now(), 'active',     now() - interval '30 days', NULL)`); err != nil {
 		t.Fatalf("seed lineage: %v", err)
 	}
 
@@ -122,6 +125,19 @@ VALUES
 		if !got.Unattributed || got.ScopeID != "" || got.CurrentActiveGenerationID != "gen-legacy-current" ||
 			got.SinceGenerationID != "gen-legacy-prior" {
 			t.Fatalf("summary = %+v; want the unattributed legacy lineage", got)
+		}
+	})
+
+	t.Run("an attributed lineage with no active generation does not shadow the legacy one", func(t *testing.T) {
+		// The ruling is "unattributed is served only when no attributed ACTIVE
+		// lineage exists". scope-a's chain for this id holds only a superseded
+		// generation, so the unscoped caller is served the legacy active one.
+		got := compute(t, changedsince.ServiceFilter{
+			ServiceID: "component:default/stale-scope", SinceGenerationID: "gen-stale-legacy-prior",
+		})
+		if !got.Unattributed || got.CurrentActiveGenerationID != "gen-stale-legacy" ||
+			got.SinceGenerationID != "gen-stale-legacy-prior" || got.Unavailable {
+			t.Fatalf("summary = %+v; want the legacy active lineage, not scope-a's inactive one", got)
 		}
 	})
 

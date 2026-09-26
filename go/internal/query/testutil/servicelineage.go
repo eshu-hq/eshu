@@ -16,7 +16,8 @@ import (
 // id, the lineage's scope_id with the two ingestion_scopes columns its
 // repository-grant arm joins through, and the chain's prior and current
 // generation ids. An empty ScopeID is the unattributed legacy lineage
-// (scope_id IS NULL).
+// (scope_id IS NULL); an empty CurrentGenerationID is a chain with no active
+// generation.
 type ServiceLineageFixtureRow struct {
 	ServiceID           string
 	ScopeID             string
@@ -108,23 +109,39 @@ func (g *GrantMirroringServiceChangedSince) ComputeServiceChangedSinceDelta(
 		attributed = append(attributed, row)
 	}
 
+	var active []ServiceLineageFixtureRow
+	for _, row := range attributed {
+		if row.CurrentGenerationID != "" {
+			active = append(active, row)
+		}
+	}
+	legacyEligible := legacy != nil && !filter.Scoped && filter.ScopeID == ""
 	var chosen ServiceLineageFixtureRow
+	var candidates []ServiceLineageFixtureRow
 	switch {
-	case len(attributed) == 1:
-		chosen = attributed[0]
-	case len(attributed) > 1:
-		ids := make([]string, 0, len(attributed))
-		for _, row := range attributed {
+	case len(active) > 0:
+		candidates = active
+	case legacyEligible && legacy.CurrentGenerationID != "":
+		chosen = *legacy
+	case len(attributed) > 0:
+		candidates = attributed
+	case legacyEligible:
+		chosen = *legacy
+	default:
+		return status.ServiceChangedSinceSummary{OutsideGrant: filter.Scoped && exists}, nil
+	}
+	switch {
+	case len(candidates) == 1:
+		chosen = candidates[0]
+	case len(candidates) > 1:
+		ids := make([]string, 0, len(candidates))
+		for _, row := range candidates {
 			ids = append(ids, row.ScopeID)
 		}
 		sort.Strings(ids)
 		return status.ServiceChangedSinceSummary{
 			ServiceID: filter.ServiceID, SampleLimit: filter.SampleLimit, AmbiguousScopeIDs: ids,
 		}, nil
-	case legacy != nil && !filter.Scoped && filter.ScopeID == "":
-		chosen = *legacy
-	default:
-		return status.ServiceChangedSinceSummary{OutsideGrant: filter.Scoped && exists}, nil
 	}
 
 	summary := status.ServiceChangedSinceSummary{

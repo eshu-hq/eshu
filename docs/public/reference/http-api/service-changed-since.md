@@ -61,8 +61,12 @@ lineage for the id. The route reads exactly one:
   picks one silently. Re-ask with one of the listed scope ids.
 - A lineage written before #6475 whose writing scope could not be recovered is
   unattributed. Only an unscoped caller can read it, and only when the id has
-  no attributed lineage; the response then sets `unattributed=true` and an
-  empty `scope_id`.
+  no attributed lineage with an active generation; the response then sets
+  `unattributed=true` and an empty `scope_id`. Once the service has been
+  re-materialized under a scope, the attributed lineage is served instead, so
+  a pre-upgrade baseline generation id from an unattributed row no longer
+  resolves and returns `not_found`; take a new baseline from the attributed
+  lineage.
 
 The prior generation is looked up inside the lineage the route resolved, so a
 `since_generation_id` from another lineage (including another tenant's)
@@ -88,22 +92,29 @@ follow-up, so their rows materialize once those joins exist. All six service
 evidence families now ship the emitter, category, delta surface, and a
 nil-tolerant loader seam.
 
-Performance Evidence: the diff is bounded by the requested `sample_limit` and
-keyed by `(scope_id, generation_id, stable_fact_key)`. A request evaluates the
-classification diff once: one statement materializes the classified keys and
-returns each non-empty bucket's exact count with its first `sample_limit+1` keys
-by `stable_fact_key` (a lateral join per bucket). It replaces a counts statement
-plus one samples statement per non-empty bucket, each of which re-scanned both
-generations (1+N diffs); rows are identical, and a live differential proves it.
-On a 2.2M-row local fixture the summed `EXPLAIN ANALYZE` time fell from a median
-of 65.12 s (8 statements) to 10.88 s (1 statement); see
-`docs/internal/evidence/7127-changed-since.md`. Each per-generation scan still
-anchors on `fact_records_scope_generation_idx` (`scope_id, generation_id`) with a
-hash join on `stable_fact_key`, and equal minimum digests on duplicate-key groups
-trigger a sorted multiset comparison. One diff stays O(generation size) and is
-tracked in #7127. No whole-graph or cross-scope scan is performed.
+Performance Evidence: a request runs one resolve statement over the requested
+service id's lineage rows, reached through
+`service_materialization_generations_observed_idx` (`service_id` leading), with
+the grant joined through `ingestion_scopes_pkey`. It then runs one prior-generation
+primary-key probe, one counts statement over the two generations'
+`service_evidence_snapshots`, and one samples statement per non-empty
+classification bucket, each capped at `sample_limit + 1` keys. A 409 ambiguity
+answer runs only the resolve statement; a scoped not-found adds one `EXISTS`
+probe on `service_id`. Laptop-local `EXPLAIN (ANALYZE, BUFFERS)` on an
+80,492-row lineage table put the scope-aware resolve at about 0.04 ms slower
+than the single-pick resolve it replaced (median 0.047 ms before, 0.072 to
+0.084 ms after, under 0.3 ms in every sample); see
+`docs/internal/evidence/6475-service-lineage-readers.md`. No whole-graph or
+cross-service scan is performed.
 
-No-Observability-Change: the surface adds the bounded
-`query.freshness_changed_since` span with low-cardinality scope-id,
-since-generation, current-generation, changed-count, and unavailable attributes;
-it adds no worker, queue, graph query, or new metric label.
+Observability Evidence: each request emits one
+`query.freshness_service_changed_since` span carrying the service id, the since
+and current generation ids, the changed count, `unavailable`, and
+`eshu.service_changed_since.unattributed` (the diff read an unattributed legacy
+lineage). A `409` answer records `eshu.service_changed_since.ambiguous_scope_count`,
+a count and never the scope ids. A handler-level refusal records
+`eshu.service_changed_since.grant_refused=true` with
+`eshu.service_changed_since.grant_refused_reason` set to `empty_grant` or
+`not_granted` (the id holds lineage rows, none in a granted scope); the response
+body for either stays the ordinary `service_not_found`. The route adds no
+worker, queue, graph query, or metric label.

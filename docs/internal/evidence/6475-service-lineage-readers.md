@@ -43,7 +43,8 @@ failed; the run exited 1.
   `MaxServiceScopeCandidates` = 20, plus a truncated flag) and no diff. The
   handler answers 409 with error code `ambiguous`.
 - Unattributed lineage: served only to an unscoped caller and only when no
-  attributed lineage exists. Part A's writer never supersedes a NULL-scope
+  attributed lineage has an active generation (an attributed chain holding
+  only superseded generations does not shadow it). Part A's writer never supersedes a NULL-scope
   active row, so beside an attributed lineage it is stale by construction.
   Listing it in the ambiguity answer would make an admin read 409 for every
   service whose legacy row outlived its backfill witness. This refines the

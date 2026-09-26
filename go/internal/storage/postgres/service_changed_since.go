@@ -34,9 +34,10 @@ import (
 //     second case also sets OutsideGrant, for the handler span only.
 //   - More than one admitted attributed lineage with no filter.ScopeID returns
 //     AmbiguousScopeIDs and no diff; the reader never picks one silently. An
-//     unattributed legacy lineage is served only when it is the sole lineage
-//     an (unscoped) caller can see: the writer never supersedes it, so beside
-//     an attributed lineage it is stale by construction.
+//     unattributed legacy lineage is served only to an unscoped caller and
+//     only when no attributed lineage has an active generation: the writer
+//     never supersedes it, so beside an active attributed lineage it is stale
+//     by construction.
 //   - A since reference that resolves to no generation returns an empty
 //     SinceGenerationID so the handler emits not_found.
 //   - A service with no current active generation returns Unavailable=true so the
@@ -157,16 +158,19 @@ type serviceChangedSinceLineage struct {
 // caller's to make. It returns ok=false when nothing the caller may read
 // matched.
 //
-// Attributed lineages decide first. Exactly one is served; more than one is
-// ambiguous unless the caller named a scope (the SQL then returned at most
-// that one). The unattributed legacy lineage is served only when no attributed
-// lineage is visible, and never to a scoped caller -- the SQL already excludes
-// it for one, and the check here keeps that true if the SQL ever regresses.
+// Attributed lineages with an active generation decide first: exactly one is
+// served, and more than one is ambiguous unless the caller named a scope (the
+// SQL then returned at most that one). The unattributed legacy lineage is
+// served only when no attributed ACTIVE lineage is visible, and never to a
+// scoped caller or past an explicit scope selector -- the SQL already
+// excludes it for both, and the check here keeps that true if the SQL ever
+// regresses. Only when neither side has an active generation does an
+// attributed lineage with no active generation answer, as an unavailable diff.
 func selectServiceChangedSinceLineage(
 	filter statuspkg.ServiceChangedSinceFilter,
 	lineages []serviceChangedSinceLineage,
 ) (serviceChangedSinceLineage, []string, bool) {
-	var attributed []serviceChangedSinceLineage
+	var attributed, active []serviceChangedSinceLineage
 	var legacy *serviceChangedSinceLineage
 	for i := range lineages {
 		if lineages[i].unattributed {
@@ -174,22 +178,39 @@ func selectServiceChangedSinceLineage(
 			continue
 		}
 		attributed = append(attributed, lineages[i])
-	}
-	switch {
-	case len(attributed) == 1:
-		return attributed[0], nil, true
-	case len(attributed) > 1:
-		ids := make([]string, 0, len(attributed))
-		for _, lineage := range attributed {
-			ids = append(ids, lineage.scopeID)
+		if lineages[i].currentGenerationID != "" {
+			active = append(active, lineages[i])
 		}
-		sort.Strings(ids)
-		return serviceChangedSinceLineage{}, ids, false
-	case legacy != nil && !filter.Scoped && filter.ScopeID == "":
+	}
+	legacyEligible := legacy != nil && !filter.Scoped && filter.ScopeID == ""
+	switch {
+	case len(active) > 0:
+		return pickServiceChangedSinceLineage(active)
+	case legacyEligible && legacy.currentGenerationID != "":
+		return *legacy, nil, true
+	case len(attributed) > 0:
+		return pickServiceChangedSinceLineage(attributed)
+	case legacyEligible:
 		return *legacy, nil, true
 	default:
 		return serviceChangedSinceLineage{}, nil, false
 	}
+}
+
+// pickServiceChangedSinceLineage serves the only candidate, or reports every
+// candidate's scope id, sorted, when there is more than one.
+func pickServiceChangedSinceLineage(
+	candidates []serviceChangedSinceLineage,
+) (serviceChangedSinceLineage, []string, bool) {
+	if len(candidates) == 1 {
+		return candidates[0], nil, true
+	}
+	ids := make([]string, 0, len(candidates))
+	for _, lineage := range candidates {
+		ids = append(ids, lineage.scopeID)
+	}
+	sort.Strings(ids)
+	return serviceChangedSinceLineage{}, ids, false
 }
 
 func (s StatusStore) resolveServiceChangedSinceLineages(
