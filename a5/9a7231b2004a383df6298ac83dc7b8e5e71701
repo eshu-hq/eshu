@@ -1,0 +1,31 @@
+scripts/test-verify-demo-compose-answers-call-mcp-tool.py
+  s_bc720f29f5e0fd::t_3962bcfd97e617 10,99-119
+  s_bc720f29f5e0fd::t_dae0656bc75ae4 4-5,8,14,120,157,163-172,183-194,196,202-210
+  s_bc720f29f5e0fd::t_d862f7ec216bc1 195
+  s_bc720f29f5e0fd::t_1b0948bcaaf681 23-24
+  s_bc720f29f5e0fd::t_39534a821e42c5 197
+  s_bc720f29f5e0fd::t_3e320ed6ee327a 121-156
+  s_bc720f29f5e0fd::t_4560ff023f5c8e 158-162,173-182,198-201,211-212
+  s_bc720f29f5e0fd::t_0a2ed11dcd365c 213
+scripts/verify-demo-compose-answers.sh
+  s_bc720f29f5e0fd::t_1b0948bcaaf681 199,206,211-212,221,225
+scripts/lib/verify-demo-compose-answers-call-mcp-tool.py
+  s_bc720f29f5e0fd::t_3962bcfd97e617 29,33-34,38-39,55
+  s_bc720f29f5e0fd::t_1b0948bcaaf681 32,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a59a7231b2004a383df6298ac83dc7b8e5e71701",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
