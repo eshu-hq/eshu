@@ -24,7 +24,7 @@ func TestRelationshipEdgeQueriesRequireIndexableSourceAnchor(t *testing.T) {
 		for accessName, access := range accesses {
 			queries := map[string]string{
 				"unfiltered": relationshipEdgesCypher(entry, access),
-				"filtered":   relationshipEdgesCypherFiltered(entry, access),
+				"filtered":   relationshipEdgesCypherFilteredWithAnchor(entry, access, true),
 			}
 			for variant, query := range queries {
 				name := entry.verb + "/" + accessName + "/" + variant

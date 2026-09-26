@@ -96,7 +96,7 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 
 	for _, entry := range relationshipVerbCatalog {
 		unfiltered := relationshipEdgesCypher(entry, scoped)
-		filtered := relationshipEdgesCypherFiltered(entry, scoped)
+		filtered := relationshipEdgesCypherFilteredWithAnchor(entry, scoped, true)
 
 		if entry.verb != "AWS_lambda_function_uses_image" {
 			if strings.Contains(unfiltered, "r.scope_id") {

@@ -39,7 +39,7 @@ func TestManagesTargetIdentityUsesDirectoryPath(t *testing.T) {
 		t.Fatalf("MANAGES edge cypher target_id must resolve t.path first: got %q, want to contain %q", edges, wantTargetID)
 	}
 
-	filtered := relationshipEdgesCypherFiltered(entry, querycontract.RepositoryAccessFilter{AllScopes: true})
+	filtered := relationshipEdgesCypherFilteredWithAnchor(entry, querycontract.RepositoryAccessFilter{AllScopes: true}, true)
 	if !strings.Contains(filtered, wantTargetID) {
 		t.Fatalf("MANAGES filtered edge cypher target_id must resolve t.path first: got %q, want to contain %q", filtered, wantTargetID)
 	}

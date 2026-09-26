@@ -386,7 +386,7 @@ func TestRelationshipEdgesFilteredCypherHasWhereGuard(t *testing.T) {
 	t.Parallel()
 
 	for _, entry := range relationshipVerbCatalog {
-		filtered := relationshipEdgesCypherFiltered(entry, querycontract.RepositoryAccessFilter{AllScopes: true})
+		filtered := relationshipEdgesCypherFilteredWithAnchor(entry, querycontract.RepositoryAccessFilter{AllScopes: true}, true)
 		if !strings.Contains(filtered, "WHERE r.source_tool = $source_tool") {
 			t.Fatalf("filtered edge cypher for %s missing WHERE guard: %s", entry.verb, filtered)
 		}

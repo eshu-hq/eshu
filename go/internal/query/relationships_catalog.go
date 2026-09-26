@@ -438,11 +438,6 @@ func (h *InfraHandler) relationshipEdges(
 	return edges, truncated, nil
 }
 
-// relationshipEdgesCypherFiltered builds a source-tool-filtered edge page.
-func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
-	return relationshipEdgesCypherFilteredWithAnchor(entry, access, true)
-}
-
 func relationshipEdgesCypherFilteredWithAnchor(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter, indexed bool) string {
 	where := "WHERE r.source_tool = $source_tool"
 	if indexed {
