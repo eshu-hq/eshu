@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
@@ -432,4 +433,25 @@ func requireRequestBody(t *testing.T, request routecontract.Request) map[string]
 		t.Fatalf("request.Body type = %T, want map[string]any", request.Body)
 	}
 	return body
+}
+
+// TestCodeRouteDeadCodeAbsentLimitUsesSharedDeadCodeDefault pins the dead_code
+// relationship to the same MCP default as the three dead-code tools. It posts
+// to the same /api/v0/code/dead-code route and returns the same row shape
+// inside the same 256 KiB dispatch budget, so a separate literal 100 would
+// reopen #7168 through this alias.
+func TestCodeRouteDeadCodeAbsentLimitUsesSharedDeadCodeDefault(t *testing.T) {
+	t.Parallel()
+
+	request, handled, err := CodeRoute("analyze_code_relationships", routecontract.Arguments{
+		"query_type": "dead_code",
+		"repo_id":    "repo-1",
+	})
+	if err != nil || !handled {
+		t.Fatalf("CodeRoute(dead_code) = (_, %v, %v), want handled without error", handled, err)
+	}
+	body, _ := request.Body.(map[string]any)
+	if got, want := body["limit"], deadcodetools.DefaultLimit; got != want {
+		t.Fatalf("dead_code absent limit = %#v, want the shared dead-code MCP default %d", got, want)
+	}
 }

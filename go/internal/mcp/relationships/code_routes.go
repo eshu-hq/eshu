@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
@@ -77,9 +78,11 @@ func resolveAnalyzeCodeRelationshipsRequest(args routecontract.Arguments) (route
 	case "call_chain", "find_cross_repo_call_chain":
 		return analyzeCodeRelationshipsCallChainRequest(args)
 	case "dead_code":
+		// Same handler, row shape, and dispatch byte budget as the three
+		// dead-code tools, so it shares their budget-sized default (#7168).
 		return routecontract.Request{Method: "POST", Path: "/api/v0/code/dead-code", Body: map[string]any{
 			"repo_id":                args.String("repo_id"),
-			"limit":                  args.IntOr("limit", 100),
+			"limit":                  args.IntOr("limit", deadcodetools.DefaultLimit),
 			"exclude_decorated_with": args.StringSlice("exclude_decorated_with"),
 		}}, nil
 	}

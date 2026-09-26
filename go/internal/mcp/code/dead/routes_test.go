@@ -140,8 +140,8 @@ func TestRouteAppliesDeadCodeDefaultsForAbsentArguments(t *testing.T) {
 		if !ok {
 			t.Fatalf("Route(%s) body type = %T, want map[string]any", tool, request.Body)
 		}
-		if got := body["limit"]; got != 100 {
-			t.Errorf("%s absent limit -> %#v, want the handler-matching default 100", tool, got)
+		if got := body["limit"]; got != 25 {
+			t.Errorf("%s absent limit -> %#v, want the budget-sized MCP default 25", tool, got)
 		}
 		if got, present := body["repo_id"]; !present || got != "" {
 			t.Errorf("%s absent repo_id -> (%#v, %v), want an explicit empty string", tool, got, present)
@@ -249,9 +249,9 @@ func TestRouteCoercesIntegerArguments(t *testing.T) {
 		{name: "int", value: int(9), want: 9},
 		{name: "int64", value: int64(11), want: 11},
 		{name: "float64", value: float64(13), want: 13},
-		{name: "string falls back", value: "17", want: 100},
-		{name: "bool falls back", value: true, want: 100},
-		{name: "nil falls back", value: nil, want: 100},
+		{name: "string falls back", value: "17", want: 25},
+		{name: "bool falls back", value: true, want: 25},
+		{name: "nil falls back", value: nil, want: 25},
 	}
 
 	for _, tt := range cases {

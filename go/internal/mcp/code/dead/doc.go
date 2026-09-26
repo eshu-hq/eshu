@@ -15,11 +15,12 @@
 //
 // The three tools — find_dead_code, investigate_dead_code, and
 // find_cross_repo_dead_code — share the exclude_decorated_with vocabulary
-// and the limit default 100, the same value the handlers substitute for a
-// nonpositive limit before clamping anything above 500. repo_id and (for
-// investigate) language travel as strings even when empty; only the
-// cross-repo route rejects a blank repo_id, while the scan and investigate
-// routes widen to every repository the caller's scope grants.
+// and the limit default (DefaultLimit, 25), which is sized to the MCP dispatch
+// byte budget. The HTTP handlers keep their own default of 100, which they
+// also substitute for a nonpositive limit before clamping anything above 500.
+// repo_id and (for investigate) language travel as strings even when empty;
+// only the cross-repo route rejects a blank repo_id, while the scan and
+// investigate routes widen to every repository the caller's scope grants.
 //
 // The two list arguments deliberately keep opposite absent shapes on the
 // wire: exclude_decorated_with is a nil []any (JSON null) when absent or

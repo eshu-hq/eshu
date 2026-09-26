@@ -32,8 +32,10 @@
   are `POST` under `/api/v0/code/dead-code` with no query string.
 - Keep every selected string key present even when the caller omitted it, so
   the handler sees an empty filter rather than no field at all.
-- Preserve the dispatcher-side defaults the tests pin: `limit` 100 and
-  `offset` 0.
+- Preserve the dispatcher-side defaults the tests pin: `limit` 25 (the MCP
+  response-budget default, advertised as the schema default too) and
+  `offset` 0. Do not raise it back to the handlers' 100 without re-measuring
+  the reply against the 256 KiB dispatch budget.
 - Preserve the two list arguments' opposite absent shapes:
   `exclude_decorated_with` is nil (JSON `null`) when absent and a non-nil
   empty `[]any` (JSON `[]`) when sent empty; `consumer_repo_ids` is always a
@@ -42,7 +44,8 @@
 - Return the zero request and `handled=false` for unrelated tools, including
   `find_dead_iac`, which shares the `find_dead_` spelling, and
   `analyze_code_relationships`, whose `dead_code` query type selects the same
-  scan path from the relationships child.
+  scan path from the relationships child and takes its omitted-limit default
+  from this package's `DefaultLimit`.
 - Selection stays pure: no HTTP call, no query, no clock, no environment
   read.
 
@@ -64,7 +67,8 @@
 - A dropped `repo_id` fails loudly only on the cross-repo route; on the scan
   and investigate routes it silently widens the result to every repository
   the caller's scope grants. A dropped `language` silently widens the page. A
-  dropped `limit` never fails at all: the handler substitutes its own 100.
+  dropped `limit` never fails at all: the handler substitutes its own 100,
+  which is over the MCP response budget on most repositories.
   The per-key assertions in both test files exist because a request-level
   comparison alone hides which key was lost.
 - Turning `consumer_repo_ids` nil, or `exclude_decorated_with` always-empty,
