@@ -6,16 +6,23 @@ name: Main Health
 # runs with no owner. This workflow judges the NEWEST main commit after every
 # required workflow finishes (and every 6 hours as a backstop), keeps exactly
 # one pinned `main is red @<sha>` issue in step with the verdict, posts a
-# `main-health` commit status, and closes the issue when main is green. The
-# scheduled `Required Gates` ruleset verification (verify-live-ruleset) routes
-# into the same issue.
+# `main-health` commit status, and closes the issue when main is green. Only
+# jobs the registry marks blocking make main red; advisory failures are
+# listed. The scheduled `Required Gates` ruleset verification
+# (verify-live-ruleset) routes into the same issue.
 #
 # Like required-gates.yml this is a trusted publisher: workflow_run always
 # runs the default-branch version, it checks out only the default branch, and
 # it never executes pull-request code. The logic and its decisions live in
 # scripts/ci/main-health.sh, exercised hermetically by
 # scripts/test-main-health.sh. The workflow_run list below must equal the
-# aggregator's list plus the aggregator itself; that test enforces it.
+# workflows the script judges (`main-health.sh --print-required`: the
+# aggregator's list plus the registry's source workflow); that test enforces
+# it. `Required Gates` itself is deliberately NOT a trigger: every one of its
+# publisher runs, PR and merge-queue ones included, reports head_branch main
+# (about 18 a minute measured), so it would flood this workflow. Its scheduled
+# ruleset verification (cron 17 */6) is read on every evaluation, and this
+# workflow's own schedule (cron 47 */6) runs 30 minutes after it.
 #
 # Reading the result: this job succeeds whenever the evaluation completed,
 # red main or not, so the watcher never adds a red row of its own to main.
@@ -40,7 +47,6 @@ on:
       - Reducer Contention Gate
       - Replay Coverage Gate
       - Replay Tier (offline NornicDB)
-      - Required Gates
       - Scorecard Example Conformance
       - SDK Go Modules
       - Security Scan
@@ -58,18 +64,6 @@ on:
   schedule:
     - cron: "47 */6 * * *"
 
-concurrency:
-  # One live writer at a time so the single issue can never be double-opened,
-  # and an in-progress live run is never cancelled. GitHub keeps one pending
-  # run per group, so a newer pending live run replaces an older pending one;
-  # that loses nothing because every run recomputes the verdict from the
-  # current tip of main when it starts. Dry runs (manual dispatch with
-  # dry_run on) get their own group keyed on the same predicate as
-  # MAIN_HEALTH_DRY_RUN below: they write nothing, so they must never evict a
-  # queued live run or wait behind one.
-  group: main-health-${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'dry' || 'live' }}
-  cancel-in-progress: false
-
 permissions:
   actions: read
   contents: read
@@ -79,23 +73,36 @@ permissions:
 jobs:
   watch:
     # Allow-list, not deny-list: only the schedule, a manual dispatch, or a
-    # completed run OF main in this repository wakes the watcher. For a
-    # required workflow that is a push, schedule, or workflow_run (Security
-    # Scan's image scan) run; for Required Gates only its scheduled ruleset
-    # verification, since its workflow_run publisher runs fire hundreds of
-    # times per commit. A run of a fork branch named `main`, and any
-    # pull_request, pull_request_target, issue_comment or merge_group run,
-    # never matches. scripts/test-main-health.sh evaluates this expression
-    # against each of those contexts.
+    # completed push, schedule or workflow_run (Security Scan's image scan)
+    # run of main in this repository wakes the watcher. A run of a fork
+    # branch named `main`, and any pull_request, pull_request_target,
+    # issue_comment or merge_group run, never matches.
+    # scripts/test-main-health.sh evaluates this expression against each of
+    # those contexts. For a workflow_run-type run head_branch is always main
+    # (the default branch at creation), so that test is a floor, not the
+    # filter: the script judges main's tip whatever woke it.
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.head_branch == 'main' &&
-      ((github.event.workflow_run.name == 'Required Gates' && github.event.workflow_run.event == 'schedule') ||
-      (github.event.workflow_run.name != 'Required Gates' &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' ||
-      github.event.workflow_run.event == 'workflow_run'))))
+      github.event.workflow_run.event == 'workflow_run'))
+    # Concurrency is on the JOB, not the workflow. A workflow-level group
+    # holds the whole run, so a run whose only job the guard skips would still
+    # take the one pending slot and evict a queued live evaluation.
+    # A job the guard skips never queues, so only real evaluations meet here.
+    # One live writer at a time so the single issue can never be
+    # double-opened, and an in-progress live run is never cancelled. GitHub
+    # keeps one pending job per group, so a newer pending live evaluation
+    # replaces an older pending one; both judge the current tip of main when
+    # they start, so the survivor reaches the same verdict. Dry runs (manual
+    # dispatch with dry_run on) get their own group keyed on the same
+    # predicate as MAIN_HEALTH_DRY_RUN below: they write nothing, so they must
+    # never evict a queued live run or wait behind one.
+    concurrency:
+      group: main-health-${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'dry' || 'live' }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

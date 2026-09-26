@@ -612,6 +612,7 @@ gates:
     blocking: true
     triggers:
       - "scripts/ci/main-health.sh"
+      - "scripts/lib/main-health-policy.sh"
       - "scripts/test-main-health.sh"
       - "scripts/lib/test-main-health-fake.sh"
       - "scripts/lib/test-main-health-workflow.sh"

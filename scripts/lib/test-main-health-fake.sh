@@ -74,6 +74,21 @@ required_status_checks:
     job: aggregate
     source_workflow: Build Test
     aggregates_blocking_gates: true
+# Blocking-ness is read from here (N2): a failed job counts toward red only
+# when a blocking gate claims it, or when no gate claims it at all.
+gates:
+  - id: go-test
+    blocking: true
+    ci: {workflow: test.yml, job: go-core}
+  - id: gosec
+    blocking: true
+    ci: {workflow: security-scan.yml, job: "gosec (Go static analysis)"}
+  - id: trivy-fs
+    blocking: false
+    ci: {workflow: security-scan.yml, job: "Trivy filesystem scan (vuln + secret + config)"}
+  - id: trivy-image
+    blocking: false
+    ci: {workflow: security-scan.yml, job: "Trivy image scan (ghcr.io/eshu-hq/eshu)"}
 YAML
 
 # --- fake gh -----------------------------------------------------------------
@@ -127,7 +142,7 @@ if [[ "${method}" != "GET" || "${path}" == graphql ]]; then
 fi
 case "${path}" in
 repos/*/commits/main) serve tip.json ;;
-repos/*/commits/*/statuses*) serve statuses.json ;;
+repos/*/commits/*/status) jq '{state: "pending", statuses: .}' "${FIXTURES}/statuses.json" ;;
 repos/*/actions/workflows/required-gates.yml/runs*) runs_filtered ruleset-runs.json ;;
 repos/*/actions/workflows/*/runs*) wf="${path#*/workflows/}"; runs_filtered runs.json "${wf%%/*}" ;;
 repos/*/actions/runs/*/jobs*) id="${path#*/runs/}"; serve "jobs-${id%%/*}.json" ;;
@@ -199,6 +214,13 @@ open_issue() { # <number> <title> <sha-in-body>
 		  body:("<!-- main-health:sha="+$s+" -->\nold body"),labels:[{name:"main-health"}]}'
 }
 
+# red_issue <number> <title> <sha> <red-set-json>: an open watcher issue whose
+# body records the blocking red set of the evaluation that last wrote it.
+red_issue() {
+	open_issue "$1" "$2" "$3" | jq -c --arg s "$3" --arg r "$4" \
+		'.body = ("<!-- main-health:sha=" + $s + " -->\n<!-- main-health:red=" + $r + " -->\nold body")'
+}
+
 set_issues() { printf '%s\n' "$@" | jq -s '.' >"${case_dir}/issues.json"; }
 
 failing_job() { # <run-id> <job-id> <job-name> <log-text> [failed-step-name]
@@ -236,4 +258,5 @@ ISSUES_POST='^api -X POST repos/eshu-hq/eshu/issues( |$)'
 ISSUE_PATCH='^api -X PATCH repos/eshu-hq/eshu/issues/[0-9]+'
 patch_of() { printf '^api -X PATCH repos/eshu-hq/eshu/issues/%s( |$).*' "$1"; }
 STATUS_POST='^api -X POST repos/eshu-hq/eshu/statuses/'
+COMMENT_POST='^api -X POST repos/eshu-hq/eshu/issues/[0-9]+/comments'
 ANY_WRITE='^api -X (POST|PATCH|PUT|DELETE)|^api graphql'

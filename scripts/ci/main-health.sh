@@ -14,19 +14,36 @@
 # Decision, evaluated against the current tip of main every time (never the
 # commit of whichever workflow triggered the run, so a slow old run cannot
 # resurrect or bury a verdict about a newer commit):
-#   red     any required workflow's latest run on the tip failed, or the latest
-#           scheduled ruleset verification (`Required Gates`) failed
-#           -> upsert the single issue, status failure
+#   red     a required workflow's latest run on the tip failed in a BLOCKING
+#           job, or the latest scheduled ruleset verification (`Required
+#           Gates`) failed
+#           -> upsert the single issue, status failure; when the set of
+#              blocking reds changes on an open issue, also comment on it (an
+#              issue edit notifies nobody)
 #           "Latest run" is judged per triggering event, because a workflow can
 #           carry separate verdicts on one commit: Security Scan's push run
 #           scans the tree while its workflow_run run scans the published
-#           image. The events that are runs OF main are push, schedule and
-#           workflow_run (head_branch main); pull_request and merge_group runs
-#           never count. A fully skipped run carries no verdict, so it never
+#           image. Red wins across events. The events that count are push,
+#           schedule and workflow_run on the tip with head_branch main;
+#           pull_request and merge_group runs never count. A workflow_run
+#           run's head_sha/head_branch are main's HEAD when it was created,
+#           whatever fired it, so such a run is attributed to that commit;
+#           Security Scan's image scan only runs for push/dispatch origins
+#           (security-scan.yml), so PR-origin runs are skipped and never
+#           decide. A fully skipped run carries no verdict, so it never
 #           supersedes an earlier run of the same event that has one.
-#   green   every required workflow that ran on the tip succeeded, none is
-#           pending, and the registry's source workflow has a verdict
-#           -> close the open issue(s), status success
+#           Blocking-ness comes from the registry: a failed job is advisory
+#           only when every gate that claims it (same ci.workflow, ci.job or
+#           a check_names entry or matrix "job (...)" name) is
+#           `blocking: false`. An unclaimed job, or a failed run whose jobs
+#           cannot be read, counts as blocking (fail closed). The ruleset
+#           verification is not a registry gate, so it is blocking by the same
+#           rule: it guards the required-status mirror itself.
+#   green   every required workflow that ran on the tip succeeded or failed
+#           only in advisory jobs, none is pending, and the registry's source
+#           workflow has a verdict
+#           -> close the open issue(s), status success (advisory failures are
+#              named in the status and listed in the issue, never red)
 #   pending something still running / the source workflow has not registered
 #           -> leave the issue alone, status pending
 #   unknown a required run was cancelled and never re-run (no verdict), or a
@@ -54,7 +71,8 @@
 # API cost per evaluation is bounded and independent of history length: one
 # commit read, one ruleset probe (a single run), one filtered run listing per
 # event (push, schedule) plus one per required workflow file that has a
-# workflow_run trigger, the open issues, and the tip's statuses.
+# workflow_run trigger, one job listing per failed run, the open issues, and
+# the tip's combined status (one read).
 #
 # Usage: scripts/ci/main-health.sh [--print-required]
 # Exit status is 0 whenever the evaluation itself completed, red or green:
@@ -69,34 +87,8 @@ status_context="main-health"
 aggregator_yml="${repo_root}/.github/workflows/required-gates.yml"
 registry_yml="${repo_root}/specs/ci-gates.v1.yaml"
 
-# required_workflows prints the display names of every workflow whose verdict
-# on main counts, one per line.
-required_workflows() {
-	{
-		yq '.on.workflow_run.workflows[]' "${aggregator_yml}"
-		yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}"
-	} | awk 'NF && $0 != "null"' | sort -u
-}
-
-# workflow_run_files prints the file name of every required workflow whose
-# `on:` declares a workflow_run trigger. Their workflow_run runs are listed per
-# workflow file: a repo-wide workflow_run listing for one commit is dominated
-# by hundreds of Required Gates publisher runs.
-workflow_run_files() {
-	local files=("${repo_root}"/.github/workflows/*.yml "${repo_root}"/.github/workflows/*.yaml)
-	local existing=() f
-	for f in "${files[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
-	[[ ${#existing[@]} -gt 0 ]] || return 0
-	yq -N 'select((.on | tag) == "!!map" and (.on | has("workflow_run"))) | .name + "\t" + filename' "${existing[@]}" |
-		awk -F'\t' 'NR == FNR { want[$0] = 1; next } ($1 in want) { n = split($2, p, "/"); print p[n] }' \
-			<(required_workflows) -
-}
-
-# ruleset_workflow_file prints the workflow file that owns the scheduled
-# ruleset verification: the aggregating status check's workflow.
-ruleset_workflow_file() {
-	yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .workflow' "${registry_yml}" | head -1
-}
+# shellcheck source=scripts/lib/main-health-policy.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/main-health-policy.sh"
 
 if [[ "${1:-}" == "--print-required" ]]; then
 	required_workflows
@@ -108,13 +100,6 @@ if [[ "${dry_run}" != "true" && "${dry_run}" != "false" ]]; then
 	echo "MAIN_HEALTH_DRY_RUN must be true or false" >&2
 	exit 2
 fi
-
-# clean makes untrusted log text safe to embed in an issue: control characters
-# and ANSI removed, no @mentions, no backticks, bounded length.
-clean() {
-	sed -e $'s/\x1b\\[[0-9;]*[A-Za-z]//g' | tr -d '\000-\010\013-\037' |
-		awk '{ gsub(/@/, "(at)"); gsub(/`/, "\x27"); print }' | cut -c1-300
-}
 
 # gh_get reads one page; gh_list follows pagination (only for listings whose
 # size is bounded by their filters); gh_log reads a job log, which carries
@@ -138,20 +123,32 @@ write() {
 	gh api "$@"
 }
 
-# verdict_of prints the single most useful line from a job log: the first Go
-# test failure or panic if there is one, else the last line before the first
-# Actions error annotation, else that annotation.
-verdict_of() {
-	sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z //' |
-		awk '
-			/^(--- FAIL:|FAIL[ \t]|FAIL$|panic: )/ { if (!fail) fail = $0 }
-			/^##\[error\]/ { if (!err) { err = $0; sub(/^##\[error\]/, "", err); before = prev } }
-			NF && !/^##\[/ { prev = $0 }
-			END {
-				if (fail) print fail
-				else if (err ~ /^Process completed with exit code/ && before != "") print before
-				else if (err != "") print err
-			}' | clean
+# run_jobs <run-id> prints the run's latest jobs as a JSON array, read once
+# per run (classification and the issue body share it). An unreadable listing
+# is an empty array, which classify_run treats as blocking.
+cache_dir="$(mktemp -d)"
+trap 'rm -rf "${cache_dir}"' EXIT
+run_jobs() {
+	local f="${cache_dir}/jobs-$1.json"
+	if [[ ! -f "${f}" ]]; then
+		gh_list "repos/${repo}/actions/runs/$1/jobs?filter=latest&per_page=100" 2>/dev/null |
+			jq -s '[.[].jobs[]?]' >"${f}" 2>/dev/null || echo '[]' >"${f}"
+	fi
+	cat "${f}"
+}
+
+# classify_run <run-id> <workflow-file> prints "blocking" or "advisory" for a
+# failed run: advisory only when it has failed jobs and every one is claimed
+# solely by `blocking: false` registry gates of that workflow file.
+classify_run() {
+	run_jobs "$1" | jq -r --arg f "$2" --argjson gates "${gates_json}" '
+		[.[] | select(.conclusion == "failure" or .conclusion == "timed_out")] as $failed
+		| if ($failed | length) == 0 then "blocking"
+		  else [$failed[] | .name as $n
+		        | [$gates[] | select(.workflow == $f and .job != null) | .job as $j
+		           | select($j == $n or (.checks | index([$n])) != null or ($n | startswith($j + " (")))]
+		        | if length == 0 then true else any(.blocking) end]
+		       | if any then "blocking" else "advisory" end end'
 }
 
 # failing_jobs <run-id> prints "job-name US failed-step US verdict" lines (US
@@ -159,7 +156,7 @@ verdict_of() {
 # instead of collapsing it) for up to three failed jobs of the run.
 failing_jobs() {
 	local run_id="$1" jobs_json
-	jobs_json="$(gh_list "repos/${repo}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" 2>/dev/null | jq -s '[.[].jobs[]?]')" || jobs_json='[]'
+	jobs_json="$(run_jobs "${run_id}")"
 	jq -r '.[] | select(.conclusion == "failure" or .conclusion == "timed_out")
 		| [.id, .name, ([.steps[]? | select(.conclusion == "failure") | .name] | first // "")]
 		| map(tostring | gsub("[\u001f\n]"; " ")) | join("\u001f")' <<<"${jobs_json}" |
@@ -206,23 +203,41 @@ fetch_runs "repos/${repo}/actions/runs?head_sha=${tip}&branch=${branch}&event=sc
 for wf_file in $(workflow_run_files); do
 	fetch_runs "repos/${repo}/actions/workflows/${wf_file}/runs?head_sha=${tip}&branch=${branch}&event=workflow_run&per_page=100"
 done
-verdicts="$(jq -c --arg branch "${branch}" --argjson req "$(printf '%s\n' "${required}" | jq -R . | jq -s 'map(select(length > 0))')" '
+req_json="$(printf '%s\n' "${required}" | jq -R . | jq -sc 'map(select(length > 0))')"
+# One entry per (required workflow, event): that event's latest decisive run.
+events="$(jq -c --arg branch "${branch}" --argjson req "${req_json}" '
 	def classify: .conclusion as $c
 		| if .status != "completed" then "pending"
 		elif (["failure","timed_out","startup_failure"] | index([$c])) then "red"
 		elif (["success","neutral","skipped"] | index([$c])) then "ok"
 		else "unknown" end;
-	def rank: {"red": 0, "pending": 1, "unknown": 2, "ok": 3}[.];
 	[.[] | select(.head_sha != null and .head_branch == $branch
 		and (.event as $e | ["push","schedule","workflow_run"] | index([$e])))] as $runs
 	| [$req[] as $name
-	   | [$runs[] | select(.name == $name)] | group_by(.event)
-	   | map((map(select(.conclusion != "skipped")) | if length > 0 then . else null end) as $decisive
-	         | ($decisive // .) | sort_by([.run_number, .run_attempt]) | last
-	         | {run: ., verdict: classify})
-	   | sort_by(.verdict | rank) | first as $w
-	   | {workflow: $name, event: ($w.run.event // null), run_id: ($w.run.id // null),
-	      url: ($w.run.html_url // null), verdict: ($w.verdict // "absent")}]' <<<"${runs_json}")"
+	   | [$runs[] | select(.name == $name)] | group_by(.event)[]
+	   | (map(select(.conclusion != "skipped")) | if length > 0 then . else null end) as $decisive
+	   | ($decisive // .) | sort_by([.run_number, .run_attempt]) | last
+	   | {workflow: $name, event, run_id: .id, file: ((.path // "") | split("/") | last),
+	      url: .html_url, verdict: classify}]' <<<"${runs_json}")"
+
+# A red whose failed jobs are all advisory in the registry becomes "advisory".
+gates_json="$(blocking_gates)"
+classes='{}'
+while IFS=$'\t' read -r rid wf_file; do
+	[[ -n "${rid}" ]] || continue
+	classes="$(jq -c --arg id "${rid}" --arg c "$(classify_run "${rid}" "${wf_file}")" '. + {($id): $c}' <<<"${classes}")"
+done < <(jq -r '.[] | select(.verdict == "red") | "\(.run_id)\t\(.file)"' <<<"${events}")
+events="$(jq -c --argjson cls "${classes}" \
+	'map(if .verdict == "red" and $cls[(.run_id | tostring)] == "advisory" then .verdict = "advisory" else . end)' <<<"${events}")"
+
+# Per workflow, red wins across events, then pending, unknown, advisory, ok.
+verdicts="$(jq -c --argjson req "${req_json}" '
+	def rank: {"red": 0, "pending": 1, "unknown": 2, "advisory": 3, "ok": 4}[.];
+	. as $ev
+	| [$req[] as $name
+	   | [$ev[] | select(.workflow == $name)] | sort_by(.verdict | rank) | first as $w
+	   | {workflow: $name, event: ($w.event // null), run_id: ($w.run_id // null),
+	      url: ($w.url // null), verdict: ($w.verdict // "absent")}]' <<<"${events}")"
 
 # --- scheduled ruleset verification (verify-live-ruleset) -------------------
 ruleset_file="$(ruleset_workflow_file)"
@@ -236,6 +251,12 @@ ruleset_red=false
 n_red="$(jq '[.[] | select(.verdict == "red")] | length' <<<"${verdicts}")"
 n_pending="$(jq '[.[] | select(.verdict == "pending")] | length' <<<"${verdicts}")"
 n_unknown="$(jq '[.[] | select(.verdict == "unknown")] | length' <<<"${verdicts}")"
+n_advisory="$(jq '[.[] | select(.verdict == "advisory")] | length' <<<"${events}")"
+advisory_names="$(jq -r '[.[] | select(.verdict == "advisory") | .workflow] | unique | join(", ")' <<<"${events}")"
+# The blocking red set, recorded in the issue body so the next evaluation can
+# tell a changed set (comment) from an unchanged one (quiet edit).
+red_set="$(jq -c --argjson r "${ruleset_red}" \
+	'[.[] | select(.verdict == "red") | .workflow] | unique + (if $r then ["verify-live-ruleset"] else [] end)' <<<"${events}")"
 source_seen="$(jq --arg s "${source_workflow}" '[.[] | select(.workflow == $s and .verdict != "absent")] | length' <<<"${verdicts}")"
 
 if [[ "${n_red}" -gt 0 || "${ruleset_red}" == "true" ]]; then
@@ -270,25 +291,53 @@ close_issue() { # number, node_id, comment
 	return 0
 }
 
+# event_rows <verdict>: one issue line per failed job of each event run with
+# that verdict.
+event_rows() {
+	local row wf ev rid url job step line
+	while IFS= read -r row; do
+		wf="$(jq -r '.workflow' <<<"${row}")"
+		ev="$(jq -r '.event' <<<"${row}")"
+		rid="$(jq -r '.run_id' <<<"${row}")"
+		url="$(jq -r '.url' <<<"${row}")"
+		while IFS=$'\x1f' read -r job step line; do
+			echo "- **${wf}** (${ev} [run](${url})) — job \`${job}\`, step \`${step:-?}\` — verdict: \`${line}\`"
+		done < <(failing_jobs "${rid}")
+	done < <(jq -c --arg v "$1" '.[] | select(.verdict == $v)' <<<"${events}")
+}
+
+# comment_if_red_set_changed <number>: compare this evaluation's blocking red
+# set with the one recorded in the open issue and comment when it changed.
+# Only names this policy can produce (the required workflows and
+# verify-live-ruleset) are read back, so an edited marker cannot inject text.
+comment_if_red_set_changed() {
+	local universe prev added cleared msg
+	universe="$(jq -c '. + ["verify-live-ruleset"]' <<<"${req_json}")"
+	prev="$(jq -r '.body // ""' <<<"${primary}" | sed -n 's/^<!-- main-health:red=\(.*\) -->$/\1/p' | head -1 |
+		jq -R -c --argjson u "${universe}" '[(fromjson? // [])[]? | strings | select(. as $n | $u | index([$n]))] | unique')"
+	prev="${prev:-[]}"
+	added="$(jq -r --argjson p "${prev}" '. - $p | join(", ")' <<<"${red_set}")"
+	cleared="$(jq -r --argjson r "${red_set}" '. - $r | join(", ")' <<<"${prev}")"
+	[[ -n "${added}" || -n "${cleared}" ]] || return 0
+	msg="The blocking red set changed at [\`${short}\`](https://github.com/${repo}/commit/${tip})."
+	[[ -n "${added}" ]] && msg+=" Newly red: ${added}."
+	[[ -n "${cleared}" ]] && msg+=" Cleared: ${cleared}."
+	msg+=" Still red: $(jq -r 'join(", ")' <<<"${red_set}")."
+	write "comment red-set change on issue #$1" -X POST "repos/${repo}/issues/$1/comments" -f body="${msg}" >/dev/null
+}
+
 case "${state}" in
 red)
 	title="main is red @${short}"
 	body="$(
 		{
 			echo "<!-- main-health:sha=${tip} -->"
+			echo "<!-- main-health:red=${red_set} -->"
 			echo "\`${branch}\` is red at [\`${short}\`](https://github.com/${repo}/commit/${tip}). This issue is managed by the main-health watcher (scripts/ci/main-health.sh): it is updated as the verdict changes and closes itself once \`${branch}\` is green. Do not edit the body."
 			echo
-			echo "Failing required workflows on this commit:"
+			echo "Failing blocking required workflows on this commit:"
 			echo
-			while IFS= read -r row; do
-				wf="$(jq -r '.workflow' <<<"${row}")"
-				ev="$(jq -r '.event' <<<"${row}")"
-				rid="$(jq -r '.run_id' <<<"${row}")"
-				url="$(jq -r '.url' <<<"${row}")"
-				while IFS=$'\x1f' read -r job step line; do
-					echo "- **${wf}** (${ev} [run](${url})) — job \`${job}\`, step \`${step:-?}\` — verdict: \`${line}\`"
-				done < <(failing_jobs "${rid}")
-			done < <(jq -c '.[] | select(.verdict == "red")' <<<"${verdicts}")
+			event_rows red
 			if [[ "${ruleset_red}" == "true" ]]; then
 				rid="$(jq -r '.id' <<<"${ruleset_json}")"
 				url="$(jq -r '.html_url' <<<"${ruleset_json}")"
@@ -296,6 +345,12 @@ red)
 				while IFS=$'\x1f' read -r job step line; do
 					echo "  - job \`${job}\` — verdict: \`${line}\`"
 				done < <(failing_jobs "${rid}")
+			fi
+			if [[ "${n_advisory}" -gt 0 ]]; then
+				echo
+				echo "Advisory failures (every failed job is \`blocking: false\` in specs/ci-gates.v1.yaml; listed, never red):"
+				echo
+				event_rows advisory
 			fi
 		} | sed -e '${/^$/d;}'
 	)"
@@ -321,6 +376,7 @@ red)
 		else
 			action=update-issue
 			write "update-issue #${number} -> '${title}'" -X PATCH "repos/${repo}/issues/${number}" -f title="${title}" -f body="${body}" >/dev/null
+			comment_if_red_set_changed "${number}"
 		fi
 	fi
 	for dup in ${extras}; do
@@ -338,6 +394,7 @@ red)
 green)
 	status_state=success
 	status_desc="All required workflows green on ${short}"
+	[[ "${n_advisory}" -gt 0 ]] && status_desc+="; advisory failure: ${advisory_names}"
 	for n in $(jq -r '.[].number' <<<"${issues_json}"); do
 		action=close-issue
 		close_issue "${n}" "$(jq -r --argjson n "${n}" '.[] | select(.number == $n) | .node_id' <<<"${issues_json}")" \
@@ -360,8 +417,9 @@ esac
 
 # --- commit status (skipped when it would repeat the latest one) ------------
 status_desc="$(printf '%s' "${status_desc}" | cut -c1-140)"
-last_status="$(gh_list "repos/${repo}/commits/${tip}/statuses?per_page=100" 2>/dev/null |
-	jq -s --arg c "${status_context}" '[.[][] | select(.context == $c)] | first // {}' || echo '{}')"
+# The combined status holds the latest status per context in one read.
+last_status="$(gh_get "repos/${repo}/commits/${tip}/status" 2>/dev/null |
+	jq --arg c "${status_context}" '[.statuses[]? | select(.context == $c)] | first // {}' || echo '{}')"
 if [[ "$(jq -r '.state // ""' <<<"${last_status}")" == "${status_state}" && "$(jq -r '.description // ""' <<<"${last_status}")" == "${status_desc}" ]]; then
 	echo "main-health: ${status_context} status already ${status_state} on ${short}; not reposting"
 else
@@ -370,7 +428,7 @@ else
 		-f target_url="${status_url}" >/dev/null
 fi
 
-summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} open_issues=$(jq 'length' <<<"${issues_json}")"
+summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} advisory=${n_advisory} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} open_issues=$(jq 'length' <<<"${issues_json}")"
 echo "${summary}"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	{
@@ -379,5 +437,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 		echo "\`${summary}\`"
 		echo
 		jq -r '.[] | "- \(.workflow): \(.verdict)\(if .event then " (\(.event))" else "" end)"' <<<"${verdicts}"
+		jq -r '.[] | select(.verdict == "advisory") | "- advisory failure: \(.workflow) (\(.event))"' <<<"${events}"
 	} >>"${GITHUB_STEP_SUMMARY}"
 fi

@@ -236,6 +236,8 @@ run_watcher
 check "F1: ruleset probe asks for a single run" "$(ok called '^api repos/eshu-hq/eshu/actions/workflows/required-gates.yml/runs\?.*per_page=1')"
 check "F1: ruleset probe is never paginated" "$(ok not_called '--paginate.*required-gates.yml/runs')"
 check "F1: a green evaluation makes at most 8 gh calls" "$([ "$(wc -l <"${case_dir}/calls.log" | tr -d ' ')" -le 8 ] && echo 0 || echo 1)"
+check "P3-2: the status probe is one read of the combined status" "$(ok called "^api repos/eshu-hq/eshu/commits/${TIP}/status$")"
+check "P3-2: the per-status listing is never walked" "$(ok not_called 'commits/[0-9a-f]+/statuses')"
 
 # 21. F2: Security Scan's image scan runs on the workflow_run event. Recorded
 #     shape of main 022c9bd255 (live): push run success, the workflow_run
@@ -256,10 +258,30 @@ failing_job 36203450563 108294812538 'Trivy image scan (ghcr.io/eshu-hq/eshu)' \
 	$'2026-09-26T00:05:08.3729932Z \e[33mWARN\e[0m\tUsing severities from other vendors\n2026-09-26T00:05:08.3764772Z To suppress version checks, run Trivy scans with the --skip-version-check flag\n2026-09-26T00:05:08.3829032Z ##[error]Process completed with exit code 1.' \
 	'Run Trivy image scan'
 run_watcher
-check "F2: failed workflow_run image scan makes main red" "$(ok out_has 'state=red')"
-check "F2: newer skipped workflow_run runs do not shadow the failure" "$(ok called 'Security Scan.*Trivy image scan')"
-check "F2: the verdict line is read from an ANSI-coloured log" "$(ok called 'To suppress version checks')"
-check "F2: status names Security Scan" "$(ok called "${STATUS_POST}.*state=failure.*description=main is red at aaaaaaaaaa: Security Scan")"
+# N2: trivy-image is `blocking: false` in the registry (post-publish
+# evidence), so this chronic red alone never makes main red: it is reported.
+check "N2: a chronic advisory red alone is green" "$(ok out_has 'state=green')"
+check "N2: newer skipped workflow_run runs do not shadow the advisory failure" "$(ok out_has ' advisory=1 ')"
+check "N2: the green status carries an advisory note naming Security Scan" \
+	"$(ok called "${STATUS_POST}.*state=success.*description=.*advisory failure.*Security Scan")"
+check "N2: an advisory red alone opens no issue" "$(ok not_called "${ISSUES_POST}")"
+
+# N2: a blocking red plus the advisory image scan: red, the image scan is in
+# an "Advisory failures" section (verdict read from an ANSI log), and neither
+# the status nor the recorded red set names it.
+new_case f2-image-scan-in-red "${TIP}"
+set_runs "$(jq -c '.workflow_runs[] | select(.name != "Build Test")' "${work}/f2-image-scan-red/runs.json")" \
+	"$(run 1 'Build Test' completed failure)"
+failing_job 1 501 'go-core (shard 2)' $'--- FAIL: TestGuard (0.01s)'
+cp "${work}/f2-image-scan-red/"{jobs-36203450563.json,log-108294812538.txt} "${case_dir}/"
+run_watcher
+check "N2: blocking red plus advisory red: red" "$(ok out_has 'state=red.*red=1 .*advisory=1 ')"
+check "N2: the advisory failure is listed under Advisory failures" \
+	"$(ok rg -q -U 'Advisory failures[^\n]*\n(.*\n)*.*Security Scan.*Trivy image scan' "${case_dir}/last-body.txt")"
+check "N2: the verdict line is read from an ANSI-coloured log" "$(ok rg -qF 'To suppress version checks' "${case_dir}/last-body.txt")"
+check "N2: the failure status names only the blocking red" \
+	"$(ok called "${STATUS_POST}.*state=failure.*description=main is red at aaaaaaaaaa: Build Test -")"
+check "N2: the recorded red set holds only the blocking red" "$(ok rg -qF '<!-- main-health:red=["Build Test"] -->' "${case_dir}/last-body.txt")"
 
 new_case f2-image-scan-fixed "${TIP}"
 green_runs
@@ -275,9 +297,73 @@ set_runs "$(run 1 'Build Test' completed success)" \
 	"$(run 3 'Frontend' completed success)" \
 	"$(run 4 'Security Scan' completed success 20 1 push)" \
 	"$(run 5 'Security Scan' completed failure 21 1 schedule)"
-failing_job 5 505 'Trivy filesystem scan' $'##[error]Process completed with exit code 1.'
+failing_job 5 505 'gosec (Go static analysis)' $'##[error]Process completed with exit code 1.'
 run_watcher
 check "F2: a failed scheduled run of a required workflow on the tip is red" "$(ok out_has 'state=red')"
+
+# N4: red wins ACROSS events. The failing workflow_run run is older than a
+# successful schedule run of the same workflow on the same tip; latest-wins
+# across events would call this green.
+new_case n4-red-wins-across-events "${TIP}"
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)" \
+	"$(run 40 'Security Scan' completed success 40 1 push)" \
+	"$(run 50 'Security Scan' completed failure 50 1 workflow_run)" \
+	"$(run 60 'Security Scan' completed success 60 1 schedule)"
+failing_job 50 550 'gosec (Go static analysis)' $'--- FAIL: TestSec (0.01s)'
+run_watcher
+check "N4: an older red workflow_run run beats a newer green schedule run: red" "$(ok out_has 'state=red')"
+
+# N2: blocking-ness fails closed. A failed job no registry gate claims, or a
+# failed run whose jobs cannot be read, counts as blocking.
+new_case n2-unregistered-job "${TIP}"
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed failure)"
+run_watcher
+check "N2: a failed run with unreadable jobs is blocking: red" "$(ok out_has 'state=red')"
+failing_job 3 503 'lint (console)' $'##[error]Process completed with exit code 1.'
+run_watcher
+check "N2: a failed job no registry gate claims is blocking: red" "$(ok out_has 'state=red')"
+
+# N2: a change in the BLOCKING red set on an open issue posts a comment (an
+# issue edit notifies nobody); an unchanged set, or an advisory-only change,
+# does not. Names in the comment come from policy, never from the old body.
+two_red() {
+	set_runs "$(run 1 'Build Test' completed failure)" \
+		"$(run 2 'Static Contract Gates' completed "$1")" \
+		"$(run 3 'Frontend' completed success)"
+	failing_job 1 501 'go-core' $'--- FAIL: TestA (0.01s)'
+	failing_job 2 502 'static' $'--- FAIL: TestB (0.01s)'
+}
+new_case n2-new-blocking-red "${NEXT}"
+two_red failure
+set_issues "$(red_issue 41 'main is red @aaaaaaaaaa' "${TIP}" '["Build Test"]')"
+run_watcher
+check "N2: a new blocking red on an open issue posts one comment" "$([ "$(count_calls "${COMMENT_POST}")" -eq 1 ] && echo 0 || echo 1)"
+check "N2: the comment names the newly red workflow" "$(ok called 'issues/41/comments .*[Nn]ewly red.*Static Contract Gates')"
+check "N2: the body is still updated" "$(ok called "$(patch_of 41)title=main is red @bbbbbbbbbb")"
+dry_run_watcher
+check "N2: dry run posts no comment" "$(ok not_called "${ANY_WRITE}")"
+check "N2: dry run reports the comment it would post" "$(ok rg -q 'DRY-RUN would: comment .*#41' "${case_dir}/err.txt")"
+new_case n2-unchanged-set "${NEXT}"
+two_red success
+set_issues "$(red_issue 41 'main is red @aaaaaaaaaa' "${TIP}" '["Build Test"]')"
+run_watcher
+check "N2: an unchanged red set on a newer sha patches the issue" "$(ok called "$(patch_of 41)title=main is red @bbbbbbbbbb")"
+check "N2: an unchanged red set posts no comment" "$(ok not_called "${COMMENT_POST}")"
+new_case n2-cleared "${NEXT}"
+two_red success
+set_issues "$(red_issue 41 'main is red @aaaaaaaaaa' "${TIP}" '["Build Test","Frontend"]')"
+run_watcher
+check "N2: a cleared red while another stays red posts a comment naming it" "$(ok called 'issues/41/comments .*[Cc]leared.*Frontend')"
+new_case n2-forged-marker "${NEXT}"
+two_red success
+set_issues "$(red_issue 41 'main is red @aaaaaaaaaa' "${TIP}" '["Build Test","@evil <b>x</b>"]')"
+run_watcher
+check "N2: a name outside policy in the old marker is ignored: no comment" "$(ok not_called "${COMMENT_POST}")"
+check "N2: a forged marker name never reaches a write" "$(ok not_called '@evil')"
 
 new_case f2-queue-ignored "${TIP}"
 set_runs "$(run 1 'Build Test' completed success)" \
@@ -300,7 +386,7 @@ dry_case green-supersedes "close path"
 dry_case red-newer-sha "update path"
 dry_case duplicates "duplicate-close path"
 dry_case ruleset-red "ruleset-red open path"
-dry_case f2-image-scan-red "image-scan open path"
+dry_case f2-image-scan-in-red "advisory-section open path"
 echo '[{"context":"main-health","state":"failure","description":"stale"}]' >"${work}/green-quiet/statuses.json"
 dry_case green-quiet "changed-status path"
 

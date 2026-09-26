@@ -17,7 +17,7 @@ gh_call_sites() {
 	awk '
 		/^[A-Za-z_][A-Za-z0-9_]*\(\) *\{/ { fn = $1; sub(/\(\).*/, "", fn) }
 		/^[ \t]*#/ { next }
-		/(^|[^A-Za-z0-9_.-])gh[ \t]/ { print (fn == "" ? "<top-level>" : fn) " " NR }
+		/(^|[^A-Za-z0-9_.-])["\047]?gh["\047]?[ \t]/ { print (fn == "" ? "<top-level>" : fn) " " NR }
 		/^\}/ || /^[A-Za-z_][A-Za-z0-9_]*\(\) *\{.*\} *$/ { fn = "" }' "$1"
 }
 
@@ -37,7 +37,11 @@ gh_if_eval() {
 }
 
 # wr_ctx <workflow-name> <workflow_run.event> [head-repo]: a workflow_run
-# context for the watcher's job guard.
+# context for the watcher's job guard. head_branch is always main here: GitHub
+# reports a run's head_branch as the branch it ran on, and a workflow_run-,
+# schedule- or push-triggered run of main runs on main. (A workflow_run run
+# fired by a PR's run also reports main, the default branch; see N3 in the
+# watcher doc.)
 wr_ctx() {
 	jq -cn --arg n "$1" --arg e "$2" --arg r "${3:-eshu-hq/eshu}" \
 		'{github:{event_name:"workflow_run",repository:"eshu-hq/eshu",
@@ -50,17 +54,29 @@ if [ ! -f "${watcher_wf}" ]; then
 	return 0
 fi
 
-# The watcher workflow listens to exactly the aggregator's workflows plus the
-# aggregator itself (the scheduled ruleset verifier), and stays least-privilege.
-want="$( { yq '.on.workflow_run.workflows[]' "${repo_root}/.github/workflows/required-gates.yml"; yq '.name' "${repo_root}/.github/workflows/required-gates.yml"; } | sort -u)"
+# N1: the watcher wakes on exactly the workflows it judges (the script's own
+# derivation), and never on the aggregator. Every Required Gates publisher run
+# reports head_branch main (about 18 a minute live), so as a trigger it would
+# flood the watcher; its scheduled ruleset verification is covered by the
+# watcher's own schedule, which fires after it, and by every evaluation.
+agg_wf="${repo_root}/.github/workflows/required-gates.yml"
+want="$(MAIN_HEALTH_REPO_ROOT="${repo_root}" "${target}" --print-required | sort -u)"
 have="$(yq '.on.workflow_run.workflows[]' "${watcher_wf}" | sort -u)"
-check "workflow: workflow_run list == aggregator list + aggregator" "$([ "${want}" = "${have}" ] && echo 0 || echo 1)"
+check "N1: workflow_run list == the workflows the script judges" "$([ -n "${want}" ] && [ "${want}" = "${have}" ] && echo 0 || echo 1)"
+check "N1: the aggregator itself is never a trigger" \
+	"$(printf '%s\n' "${have}" | rg -qxF -- "$(yq '.name' "${agg_wf}")" && echo 1 || echo 0)"
+agg_cron="$(yq '.on.schedule[0].cron' "${agg_wf}")"
+own_cron="$(yq '.on.schedule[0].cron' "${watcher_wf}")"
+check "N1: the watcher's schedule runs after the ruleset verifier's, same hours" \
+	"$([ "${agg_cron#* }" = "${own_cron#* }" ] && [ "${own_cron%% *}" -gt "${agg_cron%% *}" ] 2>/dev/null && echo 0 || echo 1)"
+check "N1: no workflow-level concurrency (a guard-skipped run would hold it)" "$([ "$(yq '.concurrency' "${watcher_wf}")" = "null" ] && echo 0 || echo 1)"
+check "N1: the watch job owns the concurrency group" "$([ "$(yq '.jobs.watch.concurrency.group // ""' "${watcher_wf}")" != "" ] && echo 0 || echo 1)"
 check "workflow: main-only workflow_run" "$([ "$(yq '.on.workflow_run.branches[0]' "${watcher_wf}")" = "main" ] && echo 0 || echo 1)"
 check "workflow: has a 6h schedule" "$([ -n "$(yq '.on.schedule[0].cron' "${watcher_wf}")" ] && echo 0 || echo 1)"
 check "workflow: workflow_dispatch has a dry_run input" "$([ "$(yq '.on.workflow_dispatch.inputs.dry_run.type' "${watcher_wf}")" = "boolean" ] && echo 0 || echo 1)"
 perms="$(yq -o=json -I=0 '.permissions' "${watcher_wf}")"
 check "workflow: least-privilege permissions" "$([ "${perms}" = '{"actions":"read","contents":"read","issues":"write","statuses":"write"}' ] && echo 0 || echo 1)"
-check "workflow: serialised, never cancelled mid-write" "$([ "$(yq '.concurrency.cancel-in-progress' "${watcher_wf}")" = "false" ] && echo 0 || echo 1)"
+check "workflow: serialised, never cancelled mid-write" "$([ "$(yq '.jobs.watch.concurrency.cancel-in-progress' "${watcher_wf}")" = "false" ] && echo 0 || echo 1)"
 unpinned="$(yq '.jobs[].steps[].uses | select(. != null)' "${watcher_wf}" | rg -v '^actions/(checkout)@v[0-9]+$|@[0-9a-f]{40}$' || true)"
 check "workflow: every action is first-party checkout or SHA-pinned" "$([ -z "${unpinned}" ] && echo 0 || echo 1)"
 check "workflow: never interpolates untrusted context into run:" "$(! yq '.jobs[].steps[].run | select(. != null)' "${watcher_wf}" | rg -q '\$\{\{ *github\.event\.' && echo 0 || echo 1)"
@@ -70,7 +86,7 @@ check "workflow: never interpolates untrusted context into run:" "$(! yq '.jobs[
 # queued dry run evict the queued live run whose trigger will not repeat. The
 # group is keyed on the same predicate that sets MAIN_HEALTH_DRY_RUN.
 dry_pred="github.event_name == 'workflow_dispatch' && inputs.dry_run"
-group="$(yq '.concurrency.group' "${watcher_wf}")"
+group="$(yq '.jobs.watch.concurrency.group' "${watcher_wf}")"
 dry_env="$(yq '.jobs.watch.steps[] | select(.env.MAIN_HEALTH_DRY_RUN != null) | .env.MAIN_HEALTH_DRY_RUN' "${watcher_wf}")"
 check "F4: concurrency group splits dry runs from live runs" \
 	"$([ "${group}" = "main-health-\${{ ${dry_pred} && 'dry' || 'live' }}" ] && echo 0 || echo 1)"
@@ -91,22 +107,27 @@ guard_is true "a manual dispatch" '{"github":{"event_name":"workflow_dispatch","
 guard_is true "a required workflow's push run" "$(wr_ctx 'Build Test' push)"
 guard_is true "a required workflow's scheduled run" "$(wr_ctx 'Security Scan' schedule)"
 guard_is true "Security Scan's workflow_run (image scan) run" "$(wr_ctx 'Security Scan' workflow_run)"
-guard_is true "the scheduled Required Gates ruleset verifier" "$(wr_ctx 'Required Gates' schedule)"
 guard_is false "a fork pull_request run" "$(wr_ctx 'Build Test' pull_request 'fork/eshu')"
 guard_is false "a same-repo pull_request run" "$(wr_ctx 'Build Test' pull_request)"
 guard_is false "a pull_request_target run" "$(wr_ctx 'Build Test' pull_request_target)"
 guard_is false "an issue_comment run" "$(wr_ctx 'Build Test' issue_comment)"
 guard_is false "a merge_group run" "$(wr_ctx 'Build Test' merge_group)"
 guard_is false "a push run from a fork repository" "$(wr_ctx 'Build Test' push 'fork/eshu')"
-guard_is false "a Required Gates workflow_run publisher run" "$(wr_ctx 'Required Gates' workflow_run)"
-guard_is false "a Required Gates push run" "$(wr_ctx 'Required Gates' push)"
 guard_is false "a push of the watcher itself" '{"github":{"event_name":"push","repository":"eshu-hq/eshu"}}'
+
+# P3-1: the call-site detector itself sees quoted and `command` forms.
+probe="$(mktemp)"
+printf 'f() {\n\t"gh" api -X POST x\n}\ng() {\n\tcommand gh api -X POST y\n}\n' >"${probe}"
+check "P3-1: the gh call-site detector sees \"gh\" and command gh" "$([ "$(gh_call_sites "${probe}" | wc -l | tr -d ' ')" -eq 2 ] && echo 0 || echo 1)"
+rm -f "${probe}"
 
 # F3: every gh call in the watcher goes through gh_get / gh_list / gh_log
 # (reads) or write (the one dry-run-guarded mutator). A raw `gh api` anywhere
 # else is a write path the dry-run cases cannot see.
 sites="$(gh_call_sites "${target}")"
 bypass="$(printf '%s\n' "${sites}" | awk 'NF && $1 != "gh_get" && $1 != "gh_list" && $1 != "gh_log" && $1 != "write" { print $1 "@line" $2 }')"
+policy_lib="${repo_root}/scripts/lib/main-health-policy.sh"
+check "F3: the gh-free policy helpers make no gh call" "$([ -f "${policy_lib}" ] && [ -z "$(gh_call_sites "${policy_lib}")" ] && echo 0 || echo 1)"
 check "F3: every gh call goes through gh_get, gh_list, gh_log, or write" "$([ -z "${bypass}" ] && echo 0 || echo 1)"
 [ -z "${bypass}" ] || printf '%s\n' "${bypass}" | sed 's/^/    gh call outside the guarded helpers: /' >&2
 reader_writes="$(awk '/^gh_(get|list|log)\(\)/ && /-X|graphql|--method|--input|-f |-F /' "${target}")"
