@@ -350,7 +350,8 @@ the label that matched, `len(impactRelationshipAnchorLabels)+1` when only the
 unlabeled fallback matched, and the same value on a full miss. Both
 `POST /api/v0/infra/relationships` and `POST /api/v0/infra/resources/search`
 also record `eshu.infra_scope_dialect` (`unscoped`, `shape_a`, or
-`neo4j_list_exists`, #7215). On the `neo4j_list_exists` relationships loop,
+`neo4j_list_exists`, #7215), as do the `GET /api/v0/infra/resources/count` and
+`/inventory` aggregate spans (#7231). On the `neo4j_list_exists` relationships loop,
 `eshu.entity_anchor_probes` counts the unscoped per-label existence probes and
 `eshu.entity_anchor_scoped_reads` counts the scoped statements run (one per
 probe hit, plus the unlabeled fallback), so a slow scoped read shows whether it

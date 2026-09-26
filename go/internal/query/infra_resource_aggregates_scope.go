@@ -61,13 +61,19 @@ func (h *InfraHandler) writeEmptyInfraResourceInventory(
 
 // applyInfraResourceAggregateAccess copies a scoped-token's granted repository
 // and ingestion-scope ids into the filter so the store binds the
-// repository-anchored predicate. Shared / admin / local callers leave the
-// filter unrestricted.
-func applyInfraResourceAggregateAccess(filter InfraResourceAggregateFilter, access querycontract.RepositoryAccessFilter) InfraResourceAggregateFilter {
+// repository-anchored predicate, and selects the Neo4j list-EXISTS dialect
+// when neo4jDialect is set (InfraHandler.scopeUsesNeo4jDialect; #7231).
+// Shared / admin / local callers leave the filter unrestricted.
+func applyInfraResourceAggregateAccess(
+	filter InfraResourceAggregateFilter,
+	access querycontract.RepositoryAccessFilter,
+	neo4jDialect bool,
+) InfraResourceAggregateFilter {
 	if !access.Scoped() {
 		return filter
 	}
 	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
 	filter.AllowedScopeIDs = access.GrantedScopeIDs()
+	filter.neo4jScopeDialect = neo4jDialect
 	return filter
 }

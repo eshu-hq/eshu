@@ -229,12 +229,18 @@ func TestInfraScopeListExistsNeverSelectedOffNeo4j(t *testing.T) {
 			"search":        {infraSearchPath, infraSearchBody},
 			"search/argocd": {infraSearchPath, infraArgoCDSearchBody},
 			"relationships": {infraRelationshipsPath, infraRelationshipsBody},
+			// #7231: the aggregate routes (an empty body is a GET).
+			"count":     {infraCountPath, ""},
+			"inventory": {infraInventoryPath, ""},
 		} {
 			path, body := route[0], route[1]
 			graph := &dialectRecordingGraph{}
 			serveInfraDialect(t, backend, &auth, graph, path, body)
 			if name == "search/argocd" && len(graph.calls) != 2 {
 				t.Fatalf("backend %q: argocd reads = %d, want 2", backend, len(graph.calls))
+			}
+			if len(graph.calls) == 0 {
+				t.Fatalf("backend %q %s: no graph reads; the guard would be vacuous", backend, name)
 			}
 			for _, call := range graph.calls {
 				if strings.Contains(call.Cypher, "$scope_grants") {

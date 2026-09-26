@@ -367,7 +367,6 @@ func (s GraphInfraResourceAggregateStore) countFromGraph(
 ) (InfraResourceAggregateCount, error) {
 	s.recordRead(ctx, "count", InfraResourceAggregateSourceGraph)
 
-	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
 
 	// Per-label count branches each return exactly one count row (0 for an
@@ -387,9 +386,7 @@ func (s GraphInfraResourceAggregateStore) countFromGraph(
 	// identity aggregation. The candidate taxonomy is `allInfraLabels`
 	// (infra.go); TestInfraLabelsAreSinglePrimaryTaxonomy records this
 	// single-label invariant so a taxonomy change surfaces the assumption.
-	totalRows, err := s.Graph.Run(ctx,
-		infraResourceAggregatePerLabelCypher(labels, branchWhere, "RETURN count(n) AS bucket_count", "RETURN bucket_count"),
-		params)
+	totalRows, err := s.Graph.Run(ctx, infraResourceAggregateStatement(labels, filter, ""), params)
 	if err != nil {
 		return InfraResourceAggregateCount{}, fmt.Errorf("count infra resources: %w", err)
 	}
@@ -405,19 +402,19 @@ func (s GraphInfraResourceAggregateStore) countFromGraph(
 		ByLabel:        map[string]int{},
 		Source:         InfraResourceAggregateSourceGraph,
 	}
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
+	if err := s.fillBuckets(ctx, labels, filter, params,
 		infraResourceProviderGroupExpression(filter),
 		out.ByProvider); err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
+	if err := s.fillBuckets(ctx, labels, filter, params,
 		"CASE WHEN n.environment IS NULL OR n.environment = '' THEN 'unknown' ELSE n.environment END",
 		out.ByEnvironment); err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
 	// Group by the node's primary label. `labels(n)` returns a list; we
 	// surface the first label, which is the canonical type for these nodes.
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
+	if err := s.fillBuckets(ctx, labels, filter, params,
 		"head(labels(n))",
 		out.ByLabel); err != nil {
 		return InfraResourceAggregateCount{}, err
@@ -440,7 +437,6 @@ func (s GraphInfraResourceAggregateStore) inventoryFromGraph(
 ) ([]InfraResourceInventoryRow, InfraResourceAggregateSource, error) {
 	s.recordRead(ctx, "inventory", InfraResourceAggregateSourceGraph)
 
-	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
 
 	// Fetch every per-label grouped bucket, then merge, order, and paginate in
@@ -450,9 +446,7 @@ func (s GraphInfraResourceAggregateStore) inventoryFromGraph(
 	// replaces the ORDER BY / SKIP / LIMIT that cannot run over a per-label CALL
 	// subquery without triggering the NornicDB aggregation collapse documented
 	// in infraResourceAggregatePerLabelCypher.
-	cypher := infraResourceAggregatePerLabelCypher(labels, branchWhere,
-		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
-		"RETURN bucket, bucket_count")
+	cypher := infraResourceAggregateStatement(labels, filter, groupExpr)
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, "", fmt.Errorf("inventory infra resources: %w", err)

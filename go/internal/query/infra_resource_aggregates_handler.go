@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -66,11 +68,12 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 		h.writeEmptyInfraResourceCount(w, r)
 		return
 	}
+	span.SetAttributes(attribute.String("eshu.infra_scope_dialect", h.infraScopeDialectLabel(access)))
 	filter, ok := infraResourceAggregateFilterFromRequest(w, r)
 	if !ok {
 		return
 	}
-	filter = applyInfraResourceAggregateAccess(filter, access)
+	filter = applyInfraResourceAggregateAccess(filter, access, h.scopeUsesNeo4jDialect(access))
 	count, err := h.Aggregates.CountInfraResources(r.Context(), filter)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
@@ -147,11 +150,12 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 		h.writeEmptyInfraResourceInventory(w, r, dimension, limit, offset)
 		return
 	}
+	span.SetAttributes(attribute.String("eshu.infra_scope_dialect", h.infraScopeDialectLabel(access)))
 	filter, ok := infraResourceAggregateFilterFromRequest(w, r)
 	if !ok {
 		return
 	}
-	filter = applyInfraResourceAggregateAccess(filter, access)
+	filter = applyInfraResourceAggregateAccess(filter, access, h.scopeUsesNeo4jDialect(access))
 
 	rows, source, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {

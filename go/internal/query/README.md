@@ -670,11 +670,11 @@ empty-grant no-store-read, and grant-propagation tests.
 No-Observability-Change: existing infra resource aggregate query span
 (`SpanQueryInfraResourceAggregate`), truth envelope, per-dimension rollups,
 limits, offsets, truncation, and inventory metadata diagnose the bounded reads.
-Infra search (`POST /api/v0/infra/resources/search`, MCP `find_infra_resources`)
-and relationships (`POST /api/v0/infra/relationships`, MCP
-`analyze_infra_relationships`) reuse `infraResourceScopePredicate` on NornicDB;
+Infra search (`POST /api/v0/infra/resources/search`, MCP `find_infra_resources`),
+relationships (`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`)
+and the count/inventory aggregates reuse `infraResourceScopePredicate` on NornicDB;
 on Neo4j (`InfraHandler.GraphBackend`) they use the hoisted list-EXISTS dialect
-in `infra_scope.go`, same admission and cap (#7215). Search filters its
+in `infra_scope.go`, same admission and cap (#7215, aggregates #7231). Search filters its
 label branches so rows, `count`, `limit`, and `truncated` cover only granted
 resources; an empty-grant scoped token returns the bounded empty page without a
 graph read.

@@ -505,6 +505,10 @@ tests:
     tag: live_infra_scope_neo4j
     class: scheduled
     reason: operator-run #7215 cold/warm measurement on the proof graph; env-gated twice and not a correctness gate
+  - file: go/internal/query/infra_scope_neo4j_aggregate_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md — promote to blocking with timing evidence
   - file: go/internal/query/infra_scope_grant_live_test.go
     tag: live_infra_scope_shape
     class: scheduled

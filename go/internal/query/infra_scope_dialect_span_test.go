@@ -45,6 +45,22 @@ func TestInfraScopeDialectSpanAttributes(t *testing.T) {
 			want: map[string]any{"eshu.infra_scope_dialect": infraScopeDialectUnscoped},
 		},
 		{
+			// #7231: the aggregate routes record the dialect too.
+			name: "neo4j_count", backend: querycontract.GraphBackendNeo4j, auth: &grant,
+			path: infraCountPath,
+			want: map[string]any{"eshu.infra_scope_dialect": infraScopeDialectNeo4jLists},
+		},
+		{
+			name: "nornicdb_inventory", backend: querycontract.GraphBackendNornicDB, auth: &grant,
+			path: infraInventoryPath,
+			want: map[string]any{"eshu.infra_scope_dialect": infraScopeDialectShapeA},
+		},
+		{
+			name: "unscoped_count", backend: querycontract.GraphBackendNeo4j,
+			path: infraCountPath,
+			want: map[string]any{"eshu.infra_scope_dialect": infraScopeDialectUnscoped},
+		},
+		{
 			// The id exists on the 3rd anchor label but is ungranted, so the
 			// loop probes every label, runs 1 scoped labeled read plus the
 			// scoped unlabeled fallback.

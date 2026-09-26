@@ -77,6 +77,14 @@ const InfraResourceAggregateMaxLimit = 500
 // (shared / admin / local), and the rendered Cypher is byte-identical to the
 // pre-scoped query. The handler short-circuits empty-grant scoped tokens before
 // the store is ever called, so a populated filter always has at least one id.
+//
+// A scoped filter renders the grant predicate in one of two dialects (#7231,
+// following #7215): SHAPE-A inline-map terms in every label branch (NornicDB,
+// the zero value, any unknown backend), or on an explicit Neo4j backend one
+// list-EXISTS predicate hoisted after the per-label CALL. Only the handler
+// selects the Neo4j dialect (applyInfraResourceAggregateAccess), from
+// InfraHandler.GraphBackend; the unexported flag keeps a store caller from
+// selecting a form that is a whole-graph leak on NornicDB.
 type InfraResourceAggregateFilter struct {
 	Category             string
 	Kind                 string
@@ -87,12 +95,22 @@ type InfraResourceAggregateFilter struct {
 	ResourceCategory     string
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
+
+	// neo4jScopeDialect selects the hoisted list-EXISTS grant predicate. It
+	// takes effect only on a scoped filter.
+	neo4jScopeDialect bool
 }
 
 // scoped reports whether the filter carries a scoped-token grant set that must
 // bound the aggregate to repository-attributable resources.
 func (f InfraResourceAggregateFilter) scoped() bool {
 	return len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0
+}
+
+// usesNeo4jScopeDialect reports whether a scoped filter renders the Neo4j
+// hoisted list-EXISTS grant predicate instead of SHAPE-A.
+func (f InfraResourceAggregateFilter) usesNeo4jScopeDialect() bool {
+	return f.neo4jScopeDialect && f.scoped()
 }
 
 // InfraResourceAggregateCount is the cheap-summary totals envelope used by
@@ -175,14 +193,12 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 func (s GraphInfraResourceAggregateStore) fillBuckets(
 	ctx context.Context,
 	labels []string,
-	branchWhere string,
+	filter InfraResourceAggregateFilter,
 	params map[string]any,
 	groupExpr string,
 	dst map[string]int,
 ) error {
-	cypher := infraResourceAggregatePerLabelCypher(labels, branchWhere,
-		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
-		"RETURN bucket, bucket_count")
+	cypher := infraResourceAggregateStatement(labels, filter, groupExpr)
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
 		return fmt.Errorf("group infra resources: %w", err)
@@ -268,6 +284,10 @@ func infraResourceAggregateFilterClauses(filter InfraResourceAggregateFilter) []
 	if filter.ResourceCategory != "" {
 		clauses = append(clauses, "n.resource_category = $resource_category")
 	}
+	// Every scoped filter renders SHAPE-A here, whatever its dialect, so a
+	// caller that builds branches from these clauses can never drop the grant.
+	// Only infraResourceAggregateStatement's Neo4j form strips the grant from
+	// its branches, because it applies the list predicate after the CALL.
 	if filter.scoped() {
 		scalars, _ := scopeGrantInlineScalars(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
 		clauses = append(clauses, infraResourceScopePredicate("n", scalars))
@@ -295,7 +315,15 @@ func infraResourceAggregateParams(filter InfraResourceAggregateFilter) map[strin
 	if filter.ResourceCategory != "" {
 		params["resource_category"] = filter.ResourceCategory
 	}
-	if filter.scoped() {
+	if filter.usesNeo4jScopeDialect() {
+		// The Neo4j list-EXISTS predicate reads the grant arrays and the same
+		// capped, sorted $scope_grants slice SHAPE-A inlines; it never
+		// references the scope_grant_<i> scalars, so none are bound.
+		params["allowed_repository_ids"] = append([]string{}, filter.AllowedRepositoryIDs...)
+		params["allowed_scope_ids"] = append([]string{}, filter.AllowedScopeIDs...)
+		scalars, _ := scopeGrantInlineScalars(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
+		params[infraScopeGrantsParam] = append([]string{}, scalars...)
+	} else if filter.scoped() {
 		// Bind both grant arrays unconditionally in scoped mode so the
 		// $allowed_repository_ids / $allowed_scope_ids parameters referenced by
 		// infraResourceScopePredicate always resolve, even when one side is
