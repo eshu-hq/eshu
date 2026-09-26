@@ -6,6 +6,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -41,6 +42,26 @@ type ResolvedImpactAnchor struct {
 // single-clause traversal.
 func (a ResolvedImpactAnchor) Pattern(variable, idParam string) string {
 	return fmt.Sprintf("(%s:%s {id: $%s})", variable, a.Label, idParam)
+}
+
+// SamePhysicalNode reports when both resolutions can bind one graph node.
+// The per-label resolver may choose different rows for a multi-label node;
+// matching id plus any shared label identifies it because ids are unique
+// within each anchor label. Impact's dependency-path handler uses this check
+// before shortestPath, which rejects equal endpoints on Neo4j.
+func (a ResolvedImpactAnchor) SamePhysicalNode(other ResolvedImpactAnchor) bool {
+	if a.ID != other.ID {
+		return false
+	}
+	if a.Label == other.Label {
+		return true
+	}
+	for _, label := range a.Labels {
+		if slices.Contains(other.Labels, label) {
+			return true
+		}
+	}
+	return false
 }
 
 // ImpactRelProvenance is one relationship's provenance decoded from a
