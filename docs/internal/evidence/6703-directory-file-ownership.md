@@ -32,7 +32,8 @@ On v1.3.1, ownerless Files raised the old count from 2 to 3 but did not
 change the selected pattern's count of 1. A Directory with no owned File is
 absent, not returned with a zero count.
 
-The production-path live regression first failed on pinned v1.3.3 with
+Before the backend-priority change, a temporary NornicDB production-path live
+regression first failed on pinned v1.3.3 with
 `file_count = 3` instead of 1: one owned File, one stale cross-repository
 File, and one ownerless File. It passed after the File-pattern edit. The
 existing five Directory live cases and the new regression passed on each of
@@ -42,7 +43,10 @@ only a copied query string. The live proof uses only disposable local stores.
 After the final rebase, the six-case suite passed again on each pinned build.
 The new fixture uses a per-run nonce, removes only its tagged nodes before
 driver close, and checks for residue; its test passed twice in one isolated
-v1.3.3 run.
+v1.3.3 run. That new NornicDB-only test was removed from the final diff;
+the retained recurring regression is the Neo4j-only CI test below. The
+historical NornicDB correctness and timing observations remain evidence,
+not a claim of continuing NornicDB-specific test coverage.
 
 On a disposable Neo4j 2026 Community store, a torn-edge fixture with one
 owned, one cross-repository, and one ownerless File returned `file_count=3`
@@ -52,7 +56,10 @@ Both statements were run with `PROFILE`. The separate
 the production handler on that Neo4j backend: restoring the old match made
 it fail with `file_count=3` (expected 1), then restoring the File-owned match
 passed with `-count=2`;
-it deletes only its nonce-tagged nodes and asserts no fixture residue.
+it deletes only its nonce-tagged nodes and asserts no fixture residue. The
+live-test ledger registers this fixture as a Neo4j-only CI row under the
+runner's existing shared `live_nornicdb_answer_truth` build tag, so the
+blocking live-backend workflow executes it on a fresh Neo4j store.
 This local correctness fixture is separate from the read-only ops-qa timing
 corpus below.
 

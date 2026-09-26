@@ -476,15 +476,10 @@ tests:
     tag: live_nornicdb_language_imports_grant
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/query/language/ownership_live_test.go
-    tag: live_nornicdb_language_imports_grant
-    class: scheduled
-    reason: seeded Directory/File ownership regression measured on a disposable NornicDB v1.3.3 fixture for #6703; not in the blocking runner's answer-truth tag
-    backends: nornicdb
   - file: go/internal/query/language/ownership_neo4j_live_test.go
-    tag: live_neo4j_directory_ownership
-    class: scheduled
-    reason: seeded Directory/File ownership regression passed twice on a disposable Neo4j 2026 fixture for #6703; not in the blocking runner's answer-truth tag
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-tagged Directory/File ownership regression on disposable Neo4j 2026; local cold runs took 2.10-4.04s for #6703; the legacy shared CI tag selects this Neo4j-only row
     backends: neo4j
   - file: go/internal/query/language_query_grant_nornicdb_live_backend_test.go
     tag: live_nornicdb_language_imports_grant
