@@ -98,6 +98,34 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 			}
 		})
 	}
+	t.Run("fact id without scope uses the active generation", func(t *testing.T) {
+		for _, state := range []struct {
+			name, generation string
+			want             []string
+		}{
+			{"active", docFactsGenNew, []string{"fact:" + docFactsGenNew + ":" + facts.SemanticCodeHintFactKind}},
+			{"superseded", docFactsGenOld, nil},
+			{"no active", docFactsGenB, nil},
+		} {
+			t.Run(state.name, func(t *testing.T) {
+				factID := "fact:" + state.generation + ":" + facts.SemanticCodeHintFactKind
+				query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
+					FactKind: facts.SemanticCodeHintFactKind,
+					FactID:   factID,
+					Limit:    20,
+				})
+				got := documentationFactPayloadIDs(t, ctx, db, query, args...)
+				assertDocumentationFactIDs(t, got, state.want)
+			})
+		}
+		factID := "fact:" + docFactsGenOld + ":" + facts.SemanticCodeHintFactKind
+		query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
+			FactKind: facts.SemanticCodeHintFactKind,
+			FactID:   factID, GenerationID: docFactsGenOld, Limit: 20,
+		})
+		assertDocumentationFactIDs(t,
+			documentationFactPayloadIDs(t, ctx, db, query, args...), []string{factID})
+	})
 	t.Run("unscoped pages use the measured active binding shape", func(t *testing.T) {
 		for _, tc := range cases {
 			query, args := tc.build("", "")

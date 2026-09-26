@@ -35,8 +35,11 @@ func buildSemanticEvidenceSQL(filter semanticEvidenceFilter) (string, []any) {
 	}
 
 	addColumnFilter("fact_records.fact_id", filter.FactID)
+	scopeParam := 0
+	if strings.TrimSpace(filter.ScopeID) != "" {
+		scopeParam = len(args) + 1
+	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
-	scopeParam := len(args)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
 	if strings.TrimSpace(filter.GenerationID) == "" && scopeParam > 0 {
 		clauses = append(clauses, documentationActiveScopeClause(scopeParam))

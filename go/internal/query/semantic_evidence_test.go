@@ -225,6 +225,29 @@ func TestBuildSemanticEvidenceSQLFiltersCodeHintsByScopeAndProvider(t *testing.T
 	}
 }
 
+func TestBuildSemanticEvidenceSQLFactIDUsesActualScopeParameter(t *testing.T) {
+	t.Parallel()
+
+	factID := "fact:semantic-hint-1"
+	query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
+		FactKind: facts.SemanticCodeHintFactKind, FactID: factID,
+	})
+	if !strings.Contains(query, documentationFactActiveScopeJoinSQL) ||
+		strings.Contains(query, documentationActiveScopeClause(1)) ||
+		args[0] != factID {
+		t.Fatalf("fact-only read must join active scopes, query=%s args=%#v", query, args)
+	}
+
+	query, args = buildSemanticEvidenceSQL(semanticEvidenceFilter{
+		FactKind: facts.SemanticCodeHintFactKind, FactID: factID, ScopeID: "scope:semantic",
+	})
+	if !strings.Contains(query, documentationActiveScopeClause(2)) ||
+		strings.Contains(query, documentationFactActiveScopeJoinSQL) ||
+		args[0] != factID || args[1] != "scope:semantic" {
+		t.Fatalf("named scope must use the second bound argument, query=%s args=%#v", query, args)
+	}
+}
+
 func TestBuildSemanticEvidenceSQLAppliesScopedRepositoryAuthorizationBeforePaging(t *testing.T) {
 	t.Parallel()
 
