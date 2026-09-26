@@ -17,8 +17,9 @@ baseline manifest is unchanged.
 ## How it decides pass or fail
 
 - **Policy from the Go source.** Before any stack work the script runs
-  `go test ./internal/mcp -run TestCatalogSweepPolicy` with
-  `ESHU_CATALOG_SWEEP_POLICY_OUT` set. The test resolves each tool's route the
+  `go test ./internal/mcp -run TestCatalogSweepPolicy` with its
+  policy-output variable set (named by `catalogSweepPolicyOutEnv` in
+  `dispatch_catalog_sweep_policy_test.go`). The test resolves each tool's route the
   way `dispatchTool` does and classifies it with
   `ScopedHTTPRouteSupportsTenantFilter`, `IsSharedKeyOnlyRoute`, and
   `IsPendingRowFilteringRoute`, so the expected outcome cannot drift from the
@@ -47,7 +48,7 @@ baseline manifest is unchanged.
   fixture does not seed (a workload, service, code symbol, file, or evidence
   packet) and may answer a typed `not_found`; 7 depend on the stack profile
   (`unsupported_capability` for code divergence and path comparison, the
-  default-off `503` for `ask` because `ESHU_ASK_ENABLED` is unset, matched on
+  default-off `503` for `ask` because Ask Eshu is not enabled on the stack, matched on
   its "ask is not enabled" body so a backend `503` still fails,
   `component_registry_unavailable` because `ESHU_COMPONENT_HOME` is unset). For
   those 29 the proof is only that the route is mounted and not refused by the
@@ -67,7 +68,7 @@ baseline manifest is unchanged.
   must answer the route-policy `403` with a live description that discloses it.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
   fails. The runner prints this split in the step detail.
-  The static split is derived from `ESHU_CATALOG_SWEEP_POLICY_OUT`; the last live
+  The static split is derived from that policy output; the last live
   per-row table predates #7183, which promoted
   `POST /api/v0/code/relationships` off the pending-row-filtering ledger, so the
   `who_modifies` row and its all-scope control have not been run live since.
