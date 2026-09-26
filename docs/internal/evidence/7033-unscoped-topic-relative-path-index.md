@@ -17,10 +17,11 @@ finalizer produces the exact index.
 
 ## Performance Evidence
 
-The candidate was measured before implementation with the same local corpus,
-backend, storage state, and interleaved request order. The full query used the
-same unscoped 16-term topic request in every sample; its result digest was
-identical across old and new plans and contained 5,235 rows.
+Performance Evidence: the candidate was measured before implementation with
+the same local corpus, backend, storage state, and interleaved request order.
+The full query used the same unscoped 16-term topic request in every sample;
+its result digest was identical across old and new plans and contained 5,235
+rows.
 
 | Measurement | No path GIN median | Path GIN median | Result |
 | --- | ---: | ---: | --- |
