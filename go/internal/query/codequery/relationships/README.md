@@ -56,3 +56,17 @@ read and forwarders. The name-target resolver already lives in
   `docs/internal/evidence/5167-code-relationships-grant.md`). An
   unscoped caller renders no grant text, so its statements are
   byte-identical to the pre-#5167 ones.
+
+## Truncation flags evidence (#7151)
+
+No-Regression Evidence: the #7151 truncation flags change no Cypher statement
+and move no query-plan digest. The NornicDB one-hop leaf already read limit+1;
+the handler now forwards the flags it computed. Each capped content lookup
+fetches one extra row (21 instead of 20) to detect its ceiling. The flags are
+pinned by `go test ./internal/query ./internal/query/codequery -run
+'Test(HandleRelationshipsNornicDBReturnsTruncationFlags|HandleRelationshipsContentFallbackReturnsTruncationFlags|HandleRelationshipsContentLookupsReportCeilingClip|ContentRelationshipSetLookupClipKeepsScanTelemetryFlag)'
+-count=1`.
+
+No-Observability-Change: the flags are response fields only. They add no graph
+write, queue, worker, metric instrument, metric label, or span, and the entity
+route's existing k8s scan telemetry (`ScanTruncated`) keeps its meaning.
