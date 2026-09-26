@@ -156,7 +156,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	evaluatedCandidateCount := len(evaluation.Results)
 	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
-		return Result{}, err
+		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), nil)
 	}
 	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
 		return Result{}, err

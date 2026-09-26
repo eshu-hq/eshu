@@ -46,6 +46,30 @@ type GraphExistenceProber interface {
 // a target that never appears dead-letters loudly rather than retrying forever.
 const WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass = "workload_materialization_deployment_source_target_not_ready"
 
+// SharedEdgeTargetNotReadyFailureClass classifies a shared-edge batch write
+// deferred because one of its runtime targets is not yet in the graph. The
+// shared-edge writer's target-presence guard
+// (go/internal/storage/cypher/edge/writer/unroutable.go) returns it; the
+// class lives here because the writer imports this package and the queue must
+// not import the writer.
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the target
+// node is committed by another scope's materialization with no happens-before
+// against the batch, so the miss is a timing state, not a payload defect.
+// Counting it toward MaxAttempts dead-lettered deployable_unit_correlation
+// intents whenever that sibling write ran slow, and a dead letter is never
+// reopened, so CORRELATES_DEPLOYABLE_UNIT was lost (#7268, the sibling of
+// #6759). Because a non-counting class freezes attempt_count, the owning
+// handler bounds the wait by elapsed time instead: past
+// sharedEdgeTargetWaitMaxWait (30 minutes, crossscope.ProducerReadinessMaxWait)
+// DeployableUnitCorrelationHandler returns a counting error, so a target that
+// never appears dead-letters loudly. The shared-projection worker domains that
+// hit the same guard (handles_route, runs_in) carry no attempt budget, so the
+// class is inert there.
+const SharedEdgeTargetNotReadyFailureClass = "shared_edge_target_not_ready"
+
 // deploymentSourceTargetMissingError fails a materialization pass whose
 // deployment-source targets are absent from the graph. Retryable() keeps the
 // intent queued: the deployment Repository node is committed by another
@@ -249,12 +273,8 @@ func boundDeploymentSourceDeferral(
 	if !errors.As(err, &missing) {
 		return err
 	}
-	anchor := crossscope.ReadinessCycleAnchor(intent)
-	if anchor.IsZero() {
-		return err
-	}
-	elapsed := now.Sub(anchor)
-	if elapsed < deploymentSourceTargetWaitMaxWait {
+	elapsed, expired := targetDeferralExpired(intent, now, deploymentSourceTargetWaitMaxWait)
+	if !expired {
 		return err
 	}
 	if materializer != nil && materializer.Logger != nil {
@@ -270,4 +290,92 @@ func boundDeploymentSourceDeferral(
 		)
 	}
 	return &deploymentSourceTargetWaitExceededError{elapsed: elapsed, detail: missing.Error()}
+}
+
+// targetDeferralExpired reports how long the intent's repair cycle has been
+// running and whether that is at or past maxWait. It is the one elapsed-time
+// rule both graph-target deferral bounds share (deployment-source #6759,
+// shared-edge #7268). A zero anchor means elapsed time is unknown, not
+// infinite, so it never expires (see crossscope.ReadinessCycleAnchor). The
+// bound is elapsed time because a non-counting class freezes attempt_count,
+// so an attempt comparison could never fire.
+func targetDeferralExpired(intent Intent, now time.Time, maxWait time.Duration) (time.Duration, bool) {
+	anchor := crossscope.ReadinessCycleAnchor(intent)
+	if anchor.IsZero() {
+		return 0, false
+	}
+	elapsed := now.Sub(anchor)
+	return elapsed, elapsed >= maxWait
+}
+
+// sharedEdgeTargetWaitMaxWait bounds the shared-edge target deferral on
+// deployable_unit_correlation by elapsed time since the intent's repair cycle
+// began. It is crossscope.ProducerReadinessMaxWait, the constant every other
+// elapsed-time readiness bound in the reducer shares, so an operator learns
+// one number.
+const sharedEdgeTargetWaitMaxWait = crossscope.ProducerReadinessMaxWait
+
+// sharedEdgeTargetWaitExceededError fails a deployable_unit_correlation pass
+// whose edge target has stayed absent past sharedEdgeTargetWaitMaxWait.
+// Retryable() keeps it queued, but it deliberately carries no FailureClass,
+// so it counts toward MaxAttempts and the ordinary budget dead-letters it
+// loudly.
+//
+// It must not wrap the deferral it replaces: errors.As would find that
+// error's non-counting SharedEdgeTargetNotReadyFailureClass through Unwrap
+// and the bound would silently never count.
+type sharedEdgeTargetWaitExceededError struct {
+	elapsed time.Duration
+	// detail is the replaced deferral's message, kept as text for the
+	// operator (domain, batch size, sample repository and intent).
+	detail string
+}
+
+func (e *sharedEdgeTargetWaitExceededError) Error() string {
+	return fmt.Sprintf(
+		"shared edge target still absent after %s elapsed since the repair cycle began (bound %s); counting this failure toward the retry budget: %s",
+		e.elapsed.Round(time.Second), sharedEdgeTargetWaitMaxWait, e.detail,
+	)
+}
+
+// Retryable opts the bounded failure into the normal counted queue retries.
+func (e *sharedEdgeTargetWaitExceededError) Retryable() bool { return true }
+
+// boundSharedEdgeTargetDeferral converts a shared-edge target-not-ready
+// deferral into a counting failure once the intent's repair cycle is older
+// than sharedEdgeTargetWaitMaxWait (#7268). It recognises the deferral by the
+// failure class the reducer queue would persist, read the same way the queue
+// reads it (the first error in the chain that implements FailureClass), so
+// every error the queue would defer without counting is also bounded. Any
+// other error, including the writer's classless probe fault, and a deferral
+// inside the bound or with an unknown anchor, is returned unchanged. A nil
+// logger uses slog.Default().
+func boundSharedEdgeTargetDeferral(err error, intent Intent, now time.Time, logger *slog.Logger) error {
+	var classed interface{ FailureClass() string }
+	if !errors.As(err, &classed) || classed.FailureClass() != SharedEdgeTargetNotReadyFailureClass {
+		return err
+	}
+	elapsed, expired := targetDeferralExpired(intent, now, sharedEdgeTargetWaitMaxWait)
+	if !expired {
+		return err
+	}
+	var sampleRepoID, sampleIntentID string
+	var sampled interface{ SampleTarget() (string, string) }
+	if errors.As(err, &sampled) {
+		sampleRepoID, sampleIntentID = sampled.SampleTarget()
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.Warn(
+		"shared edge target absent past the wait bound, failing the intent so the retry budget counts it",
+		"domain", string(intent.Domain),
+		"scope_id", intent.ScopeID,
+		"generation_id", intent.GenerationID,
+		"elapsed_since_cycle_start", elapsed,
+		"max_wait", sharedEdgeTargetWaitMaxWait,
+		"sample_repo_id", sampleRepoID,
+		"sample_intent_id", sampleIntentID,
+	)
+	return &sharedEdgeTargetWaitExceededError{elapsed: elapsed, detail: err.Error()}
 }

@@ -152,6 +152,13 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// counting it dead-letters the intent when that lane runs slow, and a
 	// dead letter is never reopened, so DEPLOYMENT_SOURCE is lost.
 	reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass,
+	// #7268: the shared-edge writer's target-presence guard deferring a
+	// deployable_unit_edges batch whose endpoint Repository another scope has
+	// not committed yet. The same timing state as #6759 on the sibling probe:
+	// counting it dead-lettered deployable_unit_correlation and lost
+	// CORRELATES_DEPLOYABLE_UNIT. DeployableUnitCorrelationHandler bounds the
+	// wait by elapsed time since the repair cycle began, not by this budget.
+	reducer.SharedEdgeTargetNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt
