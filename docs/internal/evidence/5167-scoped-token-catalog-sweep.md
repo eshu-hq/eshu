@@ -348,3 +348,9 @@ all-scope controls (granted-repository not_found rows):
   get_file_lines[default] POST /api/v0/content/files/lines: scoped=not_found all-scope=404 SAME
   trace_route_callers[default] POST /api/v0/code/routes/callers: scoped=not_found all-scope=404 SAME
 ```
+
+## Stack change evidence
+
+No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. On that stack, with no suite expectation relaxed, the full auth/MCP suite passed 40/40, the SSO suite passed 24/24, and the manifest and sensitivity gates both passed. The catalog sweep passed 165/167, and its two failures are the open product defect #7215. The one Compose setting that is not a straight backend swap is the Neo4j first-boot healthcheck window (`start_period: 120s`, `retries: 30`), which lets an emulated or loaded host finish booting. It changes no production path.
+
+No-Observability-Change: the change touches only test-stack wiring. It adds no runtime metric, span, log key, status field or worker behaviour. Suite results are reported through the existing e2e runner report and step lines.
