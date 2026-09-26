@@ -258,7 +258,7 @@ func (q ProjectorQueue) refuseSupersededAck(
 	}
 	recordSupersededGenerationFence(ctx, q.Instruments, projectorAckGenerationSupersededClass, 1)
 	return fmt.Errorf("ack projector work: generation %s is superseded: %w",
-		work.Generation.GenerationID, failure.ErrWorkSuperseded)
+		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: projectorAckGenerationSupersededClass})
 }
 
 // recordSupersededGenerationFence counts work a superseded-generation fence
@@ -274,4 +274,69 @@ func recordSupersededGenerationFence(
 	}
 	instruments.SupersededGenerationFence.Add(context.WithoutCancel(ctx), int64(count),
 		metric.WithAttributes(telemetry.AttrFailureClass(failureClass)))
+}
+
+// projectorWorkSupersededError is failure.ErrWorkSuperseded carrying the
+// failure_class the queue wrote on the work row. The projector service logs
+// that class, so a log search for a row's class finds its refusal.
+type projectorWorkSupersededError struct {
+	failureClass string
+}
+
+// Error reports the superseded outcome and its failure class.
+func (e projectorWorkSupersededError) Error() string {
+	return fmt.Sprintf("%s (failure_class=%s)", failure.ErrWorkSuperseded, e.failureClass)
+}
+
+// Unwrap keeps errors.Is(err, failure.ErrWorkSuperseded) true for callers.
+func (e projectorWorkSupersededError) Unwrap() error { return failure.ErrWorkSuperseded }
+
+// FailureClass returns the bounded failure_class recorded on the work row.
+func (e projectorWorkSupersededError) FailureClass() string { return e.failureClass }
+
+// supersedeRunningWork runs Heartbeat's supersede statement. It returns nil
+// when the work may keep running, and an error wrapping
+// failure.ErrWorkSuperseded when the statement ended it: either a newer
+// generation replaces it, or its own generation is already superseded (#7130).
+// The second case counts on eshu_dp_superseded_generation_fence_total.
+func (q ProjectorQueue) supersedeRunningWork(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) error {
+	rows, err := q.database.QueryContext(
+		ctx,
+		supersedeRunningProjectorWorkQuery,
+		now,
+		work.Scope.ScopeID,
+		work.Generation.GenerationID,
+		q.LeaseOwner,
+		work.AttemptCount,
+	)
+	if err != nil {
+		return fmt.Errorf("supersede running projector work: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("supersede running projector work: %w", err)
+		}
+		return nil
+	}
+	var generationStatus string
+	if err := rows.Scan(&generationStatus); err != nil {
+		return fmt.Errorf("supersede running projector work: scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("supersede running projector work: %w", err)
+	}
+
+	class := "projector_superseded_by_newer_generation"
+	if generationStatus == "superseded" {
+		class = projectorHeartbeatGenerationSupersededClass
+		recordSupersededGenerationFence(ctx, q.Instruments, class, 1)
+	}
+	return fmt.Errorf("heartbeat projector work: generation %s: %w",
+		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: class})
 }

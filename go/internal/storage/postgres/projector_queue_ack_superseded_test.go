@@ -81,6 +81,9 @@ func TestProjectorAckSupersededGenerationRollsBackAndMarksWork(t *testing.T) {
 	if !errors.Is(err, failure.ErrWorkSuperseded) {
 		t.Fatalf("Ack() error = %v, want ErrWorkSuperseded", err)
 	}
+	if got := supersededFailureClass(err); got != projectorAckGenerationSupersededClass {
+		t.Fatalf("superseded failure class = %q, want %q (review F3)", got, projectorAckGenerationSupersededClass)
+	}
 	if fake.commits != 0 || fake.rollbacks == 0 {
 		t.Fatalf("commits=%d rollbacks=%d, want the Ack transaction rolled back, never committed",
 			fake.commits, fake.rollbacks)

@@ -1399,10 +1399,14 @@ type Instruments struct {
 	// SupersededGenerationFence counts projector work a superseded-generation
 	// fence stopped (#7130), labeled by a closed failure_class:
 	// projector_ack_generation_superseded (Ack refused to re-activate a
-	// superseded generation and marked the work superseded) and
+	// superseded generation and marked the work superseded),
+	// projector_heartbeat_generation_superseded (Heartbeat stopped running
+	// work whose own generation is superseded, typically a worker whose lease
+	// expired while a newer generation was acked), and
 	// projector_replay_generation_superseded (a replay left a terminal row
-	// whose generation is superseded instead of moving it back to pending).
-	// A nonzero ack rate means superseded-generation work reached a worker.
+	// whose generation is superseded instead of moving it back to pending,
+	// counted per replay call). A nonzero ack or heartbeat rate means
+	// superseded-generation work reached a worker.
 	SupersededGenerationFence metric.Int64Counter
 
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
@@ -4452,7 +4456,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupersededGenerationFence, err = meter.Int64Counter(
 		"eshu_dp_superseded_generation_fence_total",
-		metric.WithDescription("Projector work stopped by a superseded-generation fence, labeled by failure_class: Ack refusals and replay skips (#7130)"),
+		metric.WithDescription("Projector work stopped by a superseded-generation fence, labeled by failure_class: Ack and Heartbeat refusals and replay skips (#7130)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupersededGenerationFence counter: %w", err)

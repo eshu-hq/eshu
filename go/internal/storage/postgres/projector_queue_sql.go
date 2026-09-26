@@ -146,6 +146,16 @@ WHERE stage = 'projector'
 // to a later heartbeat while ingestion, Ack, or Fail owns the scope, and the
 // caller then renews the lease. NO KEY UPDATE still conflicts with those scope
 // writers but not with foreign-key KEY SHARE locks from unrelated child inserts.
+//
+// Two triggers stop the running work. A newer pending or active generation
+// replaces a pending or active one. And the work's own generation is already
+// superseded (#7130): a newer Ack retired it, typically while this worker's
+// lease had expired, so continuing would keep projecting a retired generation
+// and retracting the published one's canonical graph. The statement returns
+// one row, carrying the generation status the work was stopped under, when it
+// superseded the work; Heartbeat reads its verdict and failure class from it.
+// The lock set is unchanged: scope row (SKIP LOCKED), own work row, own
+// generation row.
 const supersedeRunningProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
@@ -161,12 +171,19 @@ SET status = 'superseded',
     visible_at = NULL,
     next_attempt_at = NULL,
     updated_at = $1,
-    failure_class = 'projector_superseded_by_newer_generation',
-    failure_message = 'running projector work superseded by newer same-scope generation',
+    failure_class = CASE
+        WHEN current_generation.status = 'superseded' THEN '` + projectorHeartbeatGenerationSupersededClass + `'
+        ELSE 'projector_superseded_by_newer_generation'
+    END,
+    failure_message = CASE
+        WHEN current_generation.status = 'superseded' THEN 'running projector work stopped: generation already superseded'
+        ELSE 'running projector work superseded by newer same-scope generation'
+    END,
     failure_details = jsonb_build_object(
         'scope_id', work.scope_id,
         'work_item_id', work.work_item_id,
-        'generation_id', work.generation_id
+        'generation_id', work.generation_id,
+        'generation_status', current_generation.status
     )
 FROM locked_scope AS scope,
      scope_generations AS current_generation
@@ -178,32 +195,39 @@ WHERE work.stage = 'projector'
   AND work.status IN ('claimed', 'running')
   AND current_generation.scope_id = work.scope_id
   AND current_generation.generation_id = work.generation_id
-  AND current_generation.status IN ('pending', 'active')
-  AND EXISTS (
-      SELECT 1
-      FROM scope_generations AS newer
-      WHERE newer.scope_id = current_generation.scope_id
-        AND newer.generation_id <> current_generation.generation_id
-        AND newer.status IN ('pending', 'active')
-        AND (
-            newer.ingested_at > current_generation.ingested_at
-            OR (
-                newer.ingested_at = current_generation.ingested_at
-                AND newer.generation_id > current_generation.generation_id
-            )
-        )
+  AND (
+      current_generation.status = 'superseded'
+      OR (
+          current_generation.status IN ('pending', 'active')
+          AND EXISTS (
+              SELECT 1
+              FROM scope_generations AS newer
+              WHERE newer.scope_id = current_generation.scope_id
+                AND newer.generation_id <> current_generation.generation_id
+                AND newer.status IN ('pending', 'active')
+                AND (
+                    newer.ingested_at > current_generation.ingested_at
+                    OR (
+                        newer.ingested_at = current_generation.ingested_at
+                        AND newer.generation_id > current_generation.generation_id
+                    )
+                )
+          )
+      )
   )
-  RETURNING work.generation_id
+  RETURNING work.generation_id, current_generation.status AS generation_status
 )
 UPDATE scope_generations AS generation
 -- An active generation remains published until successor Ack changes the scope
--- pointer in the same transaction. Still update this row so RowsAffected
--- reports the superseded work to Heartbeat for either generation status.
+-- pointer in the same transaction, and a superseded one is terminal. Still
+-- update this row so the statement returns the superseded work to Heartbeat
+-- for every generation status; only a pending generation changes.
 SET status = CASE WHEN generation.status = 'pending' THEN 'superseded' ELSE generation.status END,
     superseded_at = CASE WHEN generation.status = 'pending' THEN $1 ELSE generation.superseded_at END
 FROM superseded_work
 WHERE generation.generation_id = superseded_work.generation_id
-  AND generation.status IN ('pending', 'active')
+  AND generation.status IN ('pending', 'active', 'superseded')
+RETURNING superseded_work.generation_status
 `
 
 const retryProjectorWorkQuery = `
@@ -285,6 +309,11 @@ WHERE work.work_item_id = owned_work.work_item_id
 // projectorAckGenerationSupersededClass is the failure_class Ack records when
 // it refuses to activate a generation that is already superseded (#7130).
 const projectorAckGenerationSupersededClass = "projector_ack_generation_superseded"
+
+// projectorHeartbeatGenerationSupersededClass is the failure_class Heartbeat
+// records when it stops running work whose own generation is already
+// superseded (#7130), as opposed to work a newer pending generation replaces.
+const projectorHeartbeatGenerationSupersededClass = "projector_heartbeat_generation_superseded"
 
 // projectorReplayGenerationSupersededClass labels projector rows a replay left
 // terminal because their generation is superseded (#7130).
