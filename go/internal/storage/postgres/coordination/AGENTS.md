@@ -19,7 +19,8 @@
 - Log events are operator contracts (`bootstrap.postgres.ownership.waiting`,
   `.acquired`, `bootstrap.postgres.migration.lock_wait`, `.lock_recovered`,
   `.concurrent_index_build.starting`, `.finished`); keep their names and
-  attributes stable and document changes in
+  attributes stable (the `lock` attribute is `schema` or `bulk_load`; the
+  latter is the #7125 secret-lines run lock) and document changes in
   `docs/public/observability/telemetry-coverage.md`.
 - `IsSoleConcurrentIndexStatement` must stay conservative for any SQL text
   Postgres would actually execute (#7004): a statement it cannot prove is a

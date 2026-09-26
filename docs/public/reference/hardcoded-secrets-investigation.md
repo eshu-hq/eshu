@@ -32,6 +32,42 @@ is derived from the matched line text, in priority order:
 Detection is pattern-based over indexed file content. A line that does not match
 any known shape is dropped (it is not returned with an empty kind).
 
+## How findings are stored and read
+
+Findings are derived once, when a file is written, not on every request.
+Migration `131` adds the `content_file_secret_lines` table: one row per finding
+line, keyed `(repo_id, relative_path, line_number)` with the file's language,
+the `finding_kind`, the raw line text, and a stored `suppressed` flag. Postgres
+statement-level triggers on `content_files` keep it in step with every insert,
+content or language change, key move, and delete (including generation
+retention), and the migration backfills existing files. The investigation then
+reads only that table, as an ordered primary-key scan that stops at the page
+limit, so cost follows the page size instead of the corpus size. Filters
+(repository or grant, language, `finding_kinds`, suppression) are applied before
+the limit, and the response, ordering, and paging are the same as the earlier
+corpus scan produced.
+
+The detection pattern, the `finding_kind` classification, and the suppression
+rules are part of the stored derivation. Changing any of them needs a new
+migration that replaces `eshu_secret_line_findings`, re-derives the table, and
+updates the `suppressed` expression; the Go definitions in
+`go/internal/query` are bound to the migration by tests, so a Go-only edit fails
+the build. See
+[Bootstrap Runtime Services](../deployment/service-runtimes-bootstrap.md) for
+the one-time migration lock window.
+
+### While the side table is rebuilding
+
+`eshu-bootstrap-index` does not derive findings while it loads content; it
+rebuilds the table afterwards and only then publishes it as ready (see
+[Secret-line finalizer](../deployment/service-runtimes-bootstrap.md#secret-line-finalizer)).
+A read that arrives before that publication is never answered from an incomplete
+table. It runs the earlier scan over `content_files`, returns the same findings
+in the same order, takes longer (seconds to tens of seconds on a large corpus),
+and labels itself: `coverage.read_path` is `legacy_scan` instead of `side_table`,
+`coverage.limitations` says why, and the truth `reason` names the legacy content
+scan. Check `content_file_secret_lines_state.state`; `ready` means the fast path.
+
 ## What is redacted, what is returned
 
 The response carries **metadata only**. There is no field that contains the raw

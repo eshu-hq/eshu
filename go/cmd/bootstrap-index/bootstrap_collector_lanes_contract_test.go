@@ -321,8 +321,9 @@ func TestDrainCollectorSerializesConflictingScopeKeys(t *testing.T) {
 
 // TestEffectiveCommitLanes pins P1 finding 4 from the #5135 review: requested
 // lanes are bounded by the measured 4-lane plateau AND by shared Postgres
-// pool headroom — max(2, projectionWorkers+1) connections stay reserved —
-// without ever dropping below one lane.
+// pool headroom — max(3, projectionWorkers+2) connections stay reserved (the
+// projection workers, one for maintenance, and one pinned by the bulk-load
+// lock, #7125) — without ever dropping below one lane.
 func TestEffectiveCommitLanes(t *testing.T) {
 	t.Parallel()
 
@@ -336,13 +337,28 @@ func TestEffectiveCommitLanes(t *testing.T) {
 		{4, 6, 4, 1},  // budget 6 - max(2,5) = 1
 		{4, 10, 4, 4}, // budget 10 - 5 = 5 -> plateau 4
 		{4, 3, 8, 1},  // budget negative -> floor 1
-		{4, 30, 0, 4}, // no projector: reserve max(2,1)=2
+		{4, 30, 0, 4}, // no projector: reserve max(3,2)=3
+		{4, 9, 4, 3},  // budget 9 - (4+2) = 3: the lock's connection is reserved
+		{4, 6, 0, 3},  // budget 6 - 3 = 3: minimum reserve is three
 		{0, 30, 8, 1}, // floor
 	}
 	for _, tc := range cases {
 		if got := effectiveCommitLanes(tc.requested, tc.maxConns, tc.projWorkers); got != tc.want {
 			t.Fatalf("effectiveCommitLanes(%d, %d, %d) = %d, want %d",
 				tc.requested, tc.maxConns, tc.projWorkers, got, tc.want)
+		}
+	}
+}
+
+// TestCommitLaneReserveHoldsTheBulkLoadLockConnection pins the #7125 pool
+// budget: the run-scoped bulk-load lock pins one connection for the whole run,
+// so the reserve is the projection workers plus maintenance plus that one,
+// never fewer than three.
+func TestCommitLaneReserveHoldsTheBulkLoadLockConnection(t *testing.T) {
+	t.Parallel()
+	for workers, want := range map[int]int{0: 3, 1: 3, 2: 4, 4: 6, 8: 10} {
+		if got := commitLaneReserve(workers); got != want {
+			t.Fatalf("commitLaneReserve(%d) = %d, want %d", workers, got, want)
 		}
 	}
 }

@@ -1757,6 +1757,23 @@ type Instruments struct {
 	// without strace.
 	BootstrapPipelinePhaseDuration metric.Float64Histogram
 
+	// SecretLinesBackfillBatches counts finalizer batches of the hardcoded-secret
+	// side table (#7125) by outcome (committed or retried after a lock or
+	// deadlock yield to a steady-state writer). A rising retried share means the
+	// finalizer is contending with live writers; zero committed while the state
+	// is building means it is stuck.
+	SecretLinesBackfillBatches metric.Int64Counter
+
+	// SecretLinesBackfillFiles counts content_files rows the finalizer re-derived
+	// into content_file_secret_lines, so progress is visible against the corpus
+	// size while the ready state row still reads building.
+	SecretLinesBackfillFiles metric.Int64Counter
+
+	// HardcodedSecretReads counts hardcoded-secret investigation reads by source
+	// (side_table or legacy_scan). Any legacy_scan means a bulk load has not yet
+	// published the side table as ready, and that read pays the full content scan.
+	HardcodedSecretReads metric.Int64Counter
+
 	// WorkflowClaimRunDuration records the wall time of one claimed-service
 	// processing cycle (ClaimedService.processClaimed) in seconds, labeled by
 	// collector_kind, source_system, and outcome. It is the per-collector
@@ -5241,6 +5258,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register BootstrapPipelinePhaseDuration histogram: %w", err)
 	}
 
+	inst.SecretLinesBackfillBatches, err = meter.Int64Counter(
+		"eshu_dp_secret_lines_backfill_batches_total",
+		metric.WithDescription("Finalizer batches of the hardcoded-secret side table by outcome (committed, retried). Retried batches yielded to a concurrent content writer; zero committed while the state is building means the finalizer is stuck."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretLinesBackfillBatches counter: %w", err)
+	}
+
+	inst.SecretLinesBackfillFiles, err = meter.Int64Counter(
+		"eshu_dp_secret_lines_backfill_files_total",
+		metric.WithDescription("content_files rows the finalizer re-derived into the hardcoded-secret side table. Compare against the content_files row count to see finalizer progress."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretLinesBackfillFiles counter: %w", err)
+	}
+
+	inst.HardcodedSecretReads, err = meter.Int64Counter(
+		"eshu_dp_hardcoded_secret_reads_total",
+		metric.WithDescription("Hardcoded-secret investigation reads by source (side_table, legacy_scan). legacy_scan means the side table was not published ready and the read paid the full content scan."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register HardcodedSecretReads counter: %w", err)
+	}
+
 	// Per-collector claimed-service run duration: wide enough for sub-second
 	// lightweight collectors and 30-minute heavyweight git snapshots, with fine
 	// resolution at the low end so fast no-op cycles are visible.
@@ -6351,6 +6392,11 @@ const (
 	// BootstrapPhaseContentIndexFinalization is the post-drain exact content
 	// substring index build, validation, and ANALYZE phase.
 	BootstrapPhaseContentIndexFinalization = "content_index_finalization"
+	// BootstrapPhaseSecretLinesFinalization is the post-drain rebuild of the
+	// hardcoded-secret side table for content written under the deferred
+	// bulk-load session (#7125). It runs concurrently with content index
+	// finalization.
+	BootstrapPhaseSecretLinesFinalization = "secret_lines_finalization"
 )
 
 // AttrBootstrapPhase returns a bootstrap_phase attribute for metric recording.

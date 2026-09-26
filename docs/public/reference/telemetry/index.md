@@ -252,7 +252,7 @@ logs the finalization start and terminal state with `index_state` and
 to identify the total exact-index build, validation, and `ANALYZE` phase as a
 bootstrap long pole. All-repository substring reads fail closed until the
 durable state is `ready` and both catalog indexes validate; repository-scoped
-reads do not depend on this cold-build lifecycle.
+reads do not depend on this cold-build lifecycle. The hardcoded-secret side table has the same bulk-load lifecycle; see [Secret-line finalizer signals](secret-lines.md).
 
 ## Cross-repo activation fence counter
 

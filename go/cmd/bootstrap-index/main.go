@@ -116,6 +116,7 @@ func main() {
 			}
 			return postgres.EnsureContentSearchIndexes(ctx, beginner)
 		},
+		productionSecretLines(),
 		ensureBootstrapGraphSchema,
 		openBootstrapGraph,
 		buildBootstrapCollector,
@@ -136,6 +137,7 @@ func run(
 	openDBFn openBootstrapDBFn,
 	schemaFn applyBootstrapFn,
 	finalizeContentSearchIndexesFn finalizeContentSearchIndexesFn,
+	secretLines secretLinesLifecycle,
 	graphSchemaFn ensureBootstrapGraphSchemaFn,
 	graphFn openGraphFn,
 	collectorFn buildCollectorFn,
@@ -182,7 +184,7 @@ func run(
 		}()
 	}
 
-	database, err := openDBFn(ctx, getenv)
+	database, err := openBootstrapDatabaseWithPoolBudget(ctx, getenv, openDBFn)
 	if err != nil {
 		return err
 	}
@@ -195,7 +197,41 @@ func run(
 		}
 	}()
 
+	// One deferred bulk load at a time: hold the run lock from before the
+	// schema apply until after finalize, on every path. The epoch fence alone
+	// cannot stop an earlier finalizer from publishing ready over a concurrent
+	// load's underived rows, so a second run waits (bounded), then fails naming
+	// the holder (#7125).
+	schemaOptions, err := schemaOptionsFromEnv(getenv, logger)
+	if err != nil {
+		return err
+	}
+	releaseBulkLoad, err := secretLines.lock(ctx, database, logger, schemaOptions.OwnershipWait)
+	if err != nil {
+		logger.ErrorContext(ctx, "secret lines bulk load lock refused",
+			"event_name", "secret_lines.bulk_load_lock_refused",
+			telemetry.FailureClassAttr("secret_lines_bulk_load_lock_refused"),
+			"error", err)
+		return err
+	}
+	defer func() {
+		if releaseErr := releaseBulkLoad(ctx); releaseErr != nil {
+			logger.ErrorContext(ctx, "secret lines bulk load lock release failed",
+				"event_name", "secret_lines.bulk_load_lock_release_failed",
+				telemetry.FailureClassAttr("secret_lines_bulk_load_lock_release_failure"),
+				"error", releaseErr)
+			err = errors.Join(err, releaseErr)
+		}
+	}()
+
 	if err = schemaFn(ctx, database, logger); err != nil {
+		return err
+	}
+	// Every connection of this pool skips the write-time secret-line derivation
+	// (secretlines.DeferredSessionSQL), so readiness must be off, durably,
+	// before the first content write (#7125).
+	secretEpoch, err := secretLines.begin(ctx, database)
+	if err != nil {
 		return err
 	}
 	if err = graphSchemaFn(ctx, database, getenv, logger); err != nil {
@@ -264,28 +300,7 @@ func run(
 		return pipelineErr
 	}
 
-	finalizeStart := time.Now()
-	logger.InfoContext(ctx, "content substring index finalization started", "index_state", "building")
-	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, contentSearchIndexFinalizationTimeout)
-	defer cancelFinalize()
-	if err := finalizeContentSearchIndexesFn(finalizeCtx, database); err != nil {
-		logger.ErrorContext(
-			ctx,
-			"content substring index finalization failed",
-			"index_state", "failed",
-			"duration_seconds", recordContentSearchIndexFinalizationDuration(ctx, instruments, finalizeStart),
-			telemetry.FailureClassAttr("content_substring_index_build_failure"),
-			"error", err,
-		)
-		return err
-	}
-	logger.InfoContext(
-		ctx,
-		"content substring index finalization complete",
-		"index_state", "ready",
-		"duration_seconds", recordContentSearchIndexFinalizationDuration(ctx, instruments, finalizeStart),
-	)
-	return nil
+	return finalizeBootstrapContent(ctx, database, logger, instruments, finalizeContentSearchIndexesFn, secretLines, secretEpoch)
 }
 
 func recordContentSearchIndexFinalizationDuration(

@@ -6,13 +6,12 @@ package query
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -20,8 +19,9 @@ import (
 
 // ContentReader reads file and entity content from the Postgres content store.
 type ContentReader struct {
-	db     *sql.DB
-	tracer trace.Tracer
+	db          *sql.DB
+	tracer      trace.Tracer
+	instruments *telemetry.Instruments
 }
 
 // NewContentReader constructs a Postgres-backed content store reader.
@@ -480,21 +480,4 @@ func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, li
 	defer func() { _ = rows.Close() }()
 
 	return scanEntityContentRows(rows, span, "scan repo entity")
-}
-
-// decodeEntityMetadata is the one metadata JSONB decode; it drops fingerprint keys (#7167).
-func decodeEntityMetadata(raw []byte) (map[string]any, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-
-	var metadata map[string]any
-	if err := json.Unmarshal(raw, &metadata); err != nil {
-		return nil, fmt.Errorf("decode entity metadata: %w", err)
-	}
-	entitycontract.StripFingerprintMetadata(metadata)
-	if len(metadata) == 0 {
-		return nil, nil
-	}
-	return metadata, nil
 }

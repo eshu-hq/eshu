@@ -348,8 +348,9 @@ teardown:
 // finding 4). The #5122 lane shim measured the plateau at 4 lanes (8 was
 // flat), so more than 4 is never a throughput win; and because every lane
 // holds an open transaction on the pool it shares with the concurrent
-// projector, max(2, projectionWorkers+1) connections stay reserved for
-// projection and maintenance before commit concurrency is granted. Never
+// projector, commitLaneReserve connections stay reserved for projection,
+// maintenance, and the bulk-load lock holder before commit concurrency is
+// granted. Never
 // returns less than one lane.
 func effectiveCommitLanes(requested, maxOpenConns, projectionWorkers int) int {
 	lanes := requested
@@ -382,12 +383,13 @@ func postgresMaxOpenConns(getenv func(string) string) int {
 }
 
 // commitLaneReserve is the number of shared-pool connections held back from
-// commit lanes for the concurrent projector and maintenance work: the
-// projection workers plus one, and never fewer than two.
+// commit lanes: the projection workers, one for maintenance work, and one
+// pinned for the whole run by the secret-lines bulk-load lock holder (#7125).
+// It is never fewer than three.
 func commitLaneReserve(projectionWorkers int) int {
-	reserved := projectionWorkers + 1
-	if reserved < 2 {
-		reserved = 2
+	reserved := projectionWorkers + 2
+	if reserved < 3 {
+		reserved = 3
 	}
 	return reserved
 }

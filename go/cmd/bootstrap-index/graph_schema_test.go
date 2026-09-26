@@ -40,6 +40,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 			return nil
 		},
 		func(context.Context, bootstrapDB) error { return nil },
+		noopSecretLines(),
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			if !schemaApplied {
 				t.Fatal("graph schema check ran before postgres schema")
@@ -107,6 +108,7 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 			t.Fatal("content index finalizer should not run after graph schema error")
 			return nil
 		},
+		noopSecretLines(),
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return graphSchemaErr
 		},
