@@ -108,3 +108,21 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 	return r.URL.Path == "/api/v0/freshness/changed-since" ||
 		r.URL.Path == "/api/v0/freshness/generations"
 }
+
+// scopedIndexStatusRoute allows scoped tokens to reach the two index-status
+// routes, GET /api/v0/index-status and GET /api/v0/status/index, which share
+// getIndexStatus. It was a #5167 Group B entry in pendingRowFilteringRoutes
+// until the handler stopped serving a scoped caller the deployment-wide
+// report. A scoped caller now receives only a repository_count bound to the
+// grant inside the Cypher (querycontract.RepositoryAccessFilter.GraphWhereClause
+// plus GraphParams, the same binding the repository list count uses) and a
+// withheld_sections disclosure; an empty grant answers 0 without a graph call.
+// The queue, coordinator, scope-activity, AWS-materialization, semantic and
+// Terraform-state sections are process-global and are withheld the way
+// getOperations (#5137) withholds its aggregates -- not redacted, because a
+// queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id)
+// and stack-wide counts are cross-tenant information on their own.
+func scopedIndexStatusRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		(r.URL.Path == "/api/v0/index-status" || r.URL.Path == "/api/v0/status/index")
+}

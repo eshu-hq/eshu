@@ -51,23 +51,20 @@ import (
 // disclosed in its tool description -- which some entries below will reach by
 // promotion and others by staying here with an honest reason.
 //
+// GET /api/v0/index-status and GET /api/v0/status/index left this ledger by
+// promotion (scopedIndexStatusRoute, auth_scoped_routes_status.go). Neither
+// grant-filtered the deployment-wide report, so the promotion follows the
+// #5137 withhold shape rather than a "keep aggregates, redact ids" one: a
+// scoped caller receives a grant-bound repository_count and a
+// withheld_sections list, and the queue, coordinator, scope-activity, AWS,
+// semantic and Terraform-state sections are never read for it
+// (status_scoped.go).
+//
 // Reference implementation for the real fix: status_operations.go (#5137) --
 // ReadLiveActivity(ctx, limit, allScopes=false, allowedRepositoryIDs,
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
 var pendingRowFilteringRoutes = map[string]struct{}{
-	// #5167 deployment-wide status report. getIndexStatus (status.go) reads no
-	// caller grant: repository_count is an unfiltered MATCH (r:Repository)
-	// RETURN count(r), and the queue, coordinator, scope-activity and AWS
-	// materialization sections are stack-wide aggregates with nothing to
-	// intersect a grant with. A queue_blockages row reports conflict_key as
-	// COALESCE(conflict_key, scope_id), so a raw scope id can appear in the
-	// payload. Promotion waits on a settled scoped payload shape (redact the
-	// identifiers the way scopedCoordinatorToMap does, or drop the aggregates
-	// and grant-filter the repository count); the tool description and the
-	// OpenAPI operation disclose the 403 meanwhile. GET /api/v0/status/index
-	// shares the handler and is not MCP-reachable.
-	"GET /api/v0/index-status": {},
 	// #6475 service lineage ownership. The #5167 freshness workstream landed
 	// this route's handler fence (serviceChangedSinceGrantAdmits), but
 	// service_materialization_generations has no column naming the tenant a

@@ -166,12 +166,19 @@ console session is still admitted only where the modes above admit it:
 
 | Route | Why no grant binds yet |
 | --- | --- |
-| `GET /api/v0/status/index` (legacy alias `GET /api/v0/index-status`) | The report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization aggregates carry no caller grant to intersect, and a `queue_blockages` row reports `conflict_key` as `COALESCE(conflict_key, scope_id)`, so a raw scope id can appear. |
 | `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
 | `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
 | `POST /api/v0/impact/trace-resource-to-code` | The anchor and the infrastructure hops it walks through carry no `repo_id` property. The walk itself is bounded: `max_depth` clamped to 1-20, at most 200 rows. |
 | `POST /api/v0/impact/explain-dependency-path` | Same missing `repo_id` on the anchors and hops along the path. Bounded to one `shortestPath` of at most 8 hops. |
 | `POST /api/v0/impact/trace-exposure-path` | The sink end of the path lands on cloud nodes carrying no `repo_id`. Bounded to `max_depth` 1-10 and at most 25 paths. |
+
+`GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are
+grant-filtered routes of this kind (#5167). A restricted scoped caller does not
+get the deployment-wide report; it gets a `repository_count` counted over its
+granted repositories inside the graph query, plus a `withheld_sections` list
+naming what it does not receive. See
+[Index Status](http-api/index-status.md) for the exact shape. An
+all-scope caller has no grant to bind there and follows the mode rule above.
 
 The rule reaches bearer tokens and browser sessions alike, with one difference:
 it never widens a token's reach. A route absent from the scoped-token allowlist

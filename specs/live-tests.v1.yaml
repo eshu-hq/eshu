@@ -574,6 +574,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/status_index_scoped_nornicdb_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#5167 live row-membership proof for the grant-filtered index-status repository count (seven grant shapes, empty grant makes no graph call); env-gated by ESHU_INDEX_STATUS_NORNICDB_LIVE — promote to blocking with repeated timing evidence"
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
     class: scheduled
