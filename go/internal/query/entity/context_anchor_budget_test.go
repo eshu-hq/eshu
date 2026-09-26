@@ -23,8 +23,8 @@ import (
 // (whose raw request context, per the review, carries no deadline of its
 // own -- cmd/api's http.Server sets no read/handler timeout for this route)
 // would let a genuinely-absent entity, or one whose label sits late in the
-// try order, pay up to len(EntityContextAnchorLabels) x the single-read
-// budget (~140s for 14 labels at 10s each) instead of the one bounded-read
+// try order, pay up to (len(EntityContextAnchorLabels)+1) x the single-read
+// budget (~160s for 16 anchors at 10s each) instead of the one bounded-read
 // budget the pre-fix single-statement handler had.
 //
 // The request context here carries NO deadline (matching the review's
