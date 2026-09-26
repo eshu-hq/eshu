@@ -18,6 +18,10 @@ func mustInitGitRepo(t *testing.T, dir string) {
 	runGit(t, dir, "init", "-b", "main")
 	runGit(t, dir, "config", "user.email", "test@example.com")
 	runGit(t, dir, "config", "user.name", "Test")
+	// #6845: scratch repos never need background maintenance; its detached
+	// writers race scratch-dir cleanup under load on git 2.55.
+	runGit(t, dir, "config", "maintenance.auto", "false")
+	runGit(t, dir, "config", "gc.auto", "0")
 }
 
 func TestGitTrackedFilesListsForceAddedTrackedPath(t *testing.T) {

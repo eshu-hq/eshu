@@ -150,6 +150,8 @@ func TestFetchChurnZombiesDrainedByReaper(t *testing.T) {
 	git := func(dir string, args ...string) {
 		full := append([]string{"-c", "user.email=churn@test", "-c", "user.name=churn", "-c", "init.defaultBranch=main"}, args...)
 		cmd := exec.Command("git", append([]string{"-C", dir}, full...)...)
+		// #6845: same scratch isolation as runGit.
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("fixture git %v: %v: %s", args, err, strings.TrimSpace(string(out)))
 		}

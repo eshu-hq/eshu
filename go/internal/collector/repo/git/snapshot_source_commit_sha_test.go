@@ -429,6 +429,10 @@ func runGit(t *testing.T, repoPath string, args ...string) string {
 	t.Helper()
 	cmdArgs := append([]string{"-C", repoPath}, args...)
 	cmd := exec.Command("git", cmdArgs...) // #nosec G204 -- test helper with controlled args
+	// #6845: isolate scratch repos from the operator's global/system git
+	// config. GIT_CONFIG_NOGLOBAL is not a real git knob (verified: the
+	// global file still leaks with it set); GLOBAL=/dev/null is.
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	output, err := cmd.Output()
 	if err != nil {
 		var stderr string
