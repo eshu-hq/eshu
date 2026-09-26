@@ -27,15 +27,15 @@ refresher rebuilds off the scrape path:
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_gauge_snapshot_refreshes_total` | counter | Refreshes by `gauge` (`edges_by_source_tool`, `files_by_language`, `graph_orphan_nodes`) and `outcome` (`success`, `error`, `timeout`). A rising `timeout` or `error` series means the graph is slow or unreachable and the gauge is stale. |
+| `eshu_dp_gauge_snapshot_refreshes_total` | counter | Refreshes by `gauge` (`edges_by_source_tool`, `files_by_language`, `graph_orphan_nodes`, plus the `reducer_*`/`ingester_*` Postgres families: queue, acceptance, workflow family, active generations, poison) and `outcome` (`success`, `error`, `timeout`). A rising `timeout` or `error` series means the backing read is slow or unreachable and the gauge is stale. |
 | `eshu_dp_gauge_snapshot_refresh_duration_seconds` | histogram | Duration of each refresh by `gauge` and `outcome`; the `timeout` series sits at the configured deadline. |
 | `eshu_dp_gauge_snapshot_age_seconds` | observable gauge | Age of the snapshot each `gauge` is serving right now; absent until the first successful refresh. Alert when it exceeds a few intervals. |
 
 The `EshuGraphGaugeSnapshotStale` alert (`deploy/observability/alerts.yaml`,
 `graph-orphan-prometheus-rule.yaml`) fires when a snapshot is older than 15
 minutes (three default intervals) for 5 minutes, or when a gauge has had failed
-refreshes and no successful one for 30 minutes. If you change
-`ESHU_GRAPH_GAUGE_REFRESH_INTERVAL`, change the threshold in the rule files.
+refreshes and no successful one for 30 minutes. If you change either refresh
+interval (`ESHU_GRAPH_GAUGE_REFRESH_INTERVAL`, `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL`), change the threshold in the rule files.
 
 A failed refresh also logs a WARN (`gauge snapshot refresh failed; keeping the last
 good snapshot until it expires`) with `gauge`, `outcome`, `elapsed_seconds`,
