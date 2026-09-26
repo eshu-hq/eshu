@@ -362,11 +362,116 @@ const supersededProjectorGenerationFence = `(stage = 'projector' AND EXISTS (
           WHERE fenced_generation.generation_id = fact_work_items.generation_id
             AND fenced_generation.status = 'superseded'))`
 
-// countSupersededReplaySkipsTemplate counts the rows the replay fence left in
-// place for the same filter. %s is the unfenced predicate, from $1.
-const countSupersededReplaySkipsTemplate = `
-SELECT COUNT(*) FROM fact_work_items
-WHERE status IN ('dead_letter', 'failed')
-  %s
-  AND ` + supersededProjectorGenerationFence + `
+// replaySkippedProjectorCTE is the body of the skipped CTE for a projector
+// replay: it counts the terminal rows matching the filter that the replay fence
+// leaves in place. %s is the unfenced predicate, with the same placeholders the
+// replay uses, so the count adds no argument. The fenced rows are never touched
+// by the replay UPDATE, so the count is exact in the statement's snapshot.
+const replaySkippedProjectorCTE = `SELECT COUNT(*) AS n FROM fact_work_items
+    WHERE status IN ('dead_letter', 'failed')
+      %s
+      AND ` + supersededProjectorGenerationFence
+
+// replaySkippedNoneCTE is the skipped CTE body for a non-projector replay: the
+// fence is projector-only, so the count is a constant and costs no scan.
+const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
+
+// replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
+// first %s is replaced by the dynamic predicate built from the replay filter
+// (scope, failure class, the manual-review exclusion, and the superseded-
+// generation fence), so every replay variant shares one UPDATE body and the
+// exclusion can never be dropped by a missing hand-written variant. The second
+// %s is the skipped CTE body (replaySkippedProjectorCTE or
+// replaySkippedNoneCTE). $1 is the replay timestamp; the predicate
+// placeholders start at $2.
+//
+// The result carries one skip count per row, and a replay that moved nothing
+// still returns one row with a NULL work_item_id, so the count commits or
+// fails together with the replay (#7130 review).
+const replayFailedWorkItemsTemplate = `
+WITH skipped AS (
+    %[2]s
+), replayed AS (
+    UPDATE fact_work_items
+    SET status = 'pending',
+        attempt_count = GREATEST(attempt_count, 1),
+        container_image_identity_v2_authorized_status = CASE
+            WHEN container_image_identity_v2_required THEN 'pending'
+            ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
+            ELSE ''
+        END,
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = NULL,
+        failure_class = NULL,
+        failure_message = NULL,
+        failure_details = NULL,
+        updated_at = $1
+    WHERE status IN ('dead_letter', 'failed')
+      %[1]s
+    RETURNING work_item_id
+)
+SELECT replayed.work_item_id, skipped.n
+FROM skipped
+LEFT JOIN replayed ON true
+ORDER BY replayed.work_item_id
+`
+
+// replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
+// dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
+// rows by selecting their primary keys in a bounded subquery first, so a
+// Limit=100 drain against thousands of retry_exhausted rows replays exactly 100
+// rows instead of resetting every matching row to pending and recreating the
+// write surge the drain exists to avoid.
+//
+// FOR UPDATE SKIP LOCKED locks only the chosen rows and skips rows another
+// concurrent drain already holds, so two drains never fight over the same rows
+// and the bound stays a true cap under concurrent execution rather than a
+// serialization point. ORDER BY work_item_id makes the selected set
+// deterministic across calls so repeated bounded drains make forward progress.
+//
+// The first %s is the shared replay predicate and the second is the skipped
+// CTE body, exactly as in replayFailedWorkItemsTemplate. $1 is the replay
+// timestamp; $2 is the row limit; the predicate placeholders start at $3.
+const replayFailedWorkItemsBoundedTemplate = `
+WITH skipped AS (
+    %[2]s
+), replayed AS (
+    UPDATE fact_work_items
+    SET status = 'pending',
+        attempt_count = GREATEST(attempt_count, 1),
+        container_image_identity_v2_authorized_status = CASE
+            WHEN container_image_identity_v2_required THEN 'pending'
+            ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
+            ELSE ''
+        END,
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = NULL,
+        failure_class = NULL,
+        failure_message = NULL,
+        failure_details = NULL,
+        updated_at = $1
+    WHERE work_item_id IN (
+        SELECT work_item_id FROM fact_work_items
+        WHERE status IN ('dead_letter', 'failed')
+          %[1]s
+        ORDER BY work_item_id
+        LIMIT $2
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING work_item_id
+)
+SELECT replayed.work_item_id, skipped.n
+FROM skipped
+LEFT JOIN replayed ON true
+ORDER BY replayed.work_item_id
 `

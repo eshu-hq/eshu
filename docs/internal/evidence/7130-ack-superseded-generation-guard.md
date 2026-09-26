@@ -103,8 +103,9 @@ superseded. Reducer rows are not fenced.
 - `RecoveryStore` (runtime `/admin/replay`, `DrainBacklog`):
   `buildReplayPredicate` appends `NOT supersededProjectorGenerationFence`, so
   `CountDeadLetterBacklog` and the replay still select the same rows. After a
-  projector replay, `countSupersededReplaySkips` counts the fenced rows into
-  `ReplayResult.SkippedSupersededGeneration`, `DrainResult`, and the
+  projector replay, the replay statement's `skipped` CTE counts the fenced
+  rows in the same statement, so the count commits or fails with the replay,
+  into `ReplayResult.SkippedSupersededGeneration`, `DrainResult`, and the
   `skipped_superseded_generation` response field.
 - Admin API `/api/v0/admin/replay`: `buildMutatingWorkItemsQuery` adds the same
   fence for replay but not for the dead-letter mutation. Explicit
@@ -269,6 +270,17 @@ per-row primary-key probe when that hash would not fit in `work_mem`. The skip
 count took 10.5 ms (bitmap scan on `(stage, status)` hash-joined to superseded
 generations). Replay and drain are operator and admin actions, not a
 per-work-item path.
+
+The skip count then moved into the replay statement, so a failed count cannot
+fail a replay that already committed. On PostgreSQL 16 with 200,000 work items,
+20,000 generations and 9,524 fenced dead-lettered projector rows
+(`TIMING OFF`, 8 runs each): the unbounded replay was 86-103 ms plus a 6.2 ms
+count before and 99-150 ms after (within noise); the LIMIT 100 replay was 2.4 ms
+plus a 5.5 ms count (about 8 ms) before and about 17.5 ms after. The count costs
+about 3 times more inside a statement with a data-modifying CTE, cause not
+found; a plain SELECT variant added the two. That is about 10 ms per drain
+batch and the same plan shape, and the reducer stage carries `SELECT 0::bigint`
+with no scan.
 
 No-Regression Evidence (claim fence): EXPLAIN (ANALYZE, BUFFERS) of the whole
 claim statement inside BEGIN/ROLLBACK on PostgreSQL 16, 20,000 git scopes,

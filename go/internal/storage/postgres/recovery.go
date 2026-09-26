@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -17,89 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-// replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
-// %s is replaced by the dynamic predicate built from the replay filter (scope,
-// failure class, and the manual-review exclusion), so every replay variant
-// shares one UPDATE body and the exclusion can never be dropped by a missing
-// hand-written variant. $1 is the replay timestamp; the predicate placeholders
-// start at $2.
-const replayFailedWorkItemsTemplate = `
-WITH replayed AS (
-    UPDATE fact_work_items
-    SET status = 'pending',
-        attempt_count = GREATEST(attempt_count, 1),
-        container_image_identity_v2_authorized_status = CASE
-            WHEN container_image_identity_v2_required THEN 'pending'
-            ELSE ''
-        END,
-        container_image_identity_v3_authorized_status = CASE
-            WHEN container_image_identity_v3_required THEN 'pending'
-            ELSE ''
-        END,
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = $1,
-        next_attempt_at = NULL,
-        failure_class = NULL,
-        failure_message = NULL,
-        failure_details = NULL,
-        updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      %s
-    RETURNING work_item_id
-)
-SELECT work_item_id FROM replayed ORDER BY work_item_id
-`
-
-// replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
-// dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
-// rows by selecting their primary keys in a bounded subquery first, so a
-// Limit=100 drain against thousands of retry_exhausted rows replays exactly 100
-// rows instead of resetting every matching row to pending and recreating the
-// write surge the drain exists to avoid.
-//
-// FOR UPDATE SKIP LOCKED locks only the chosen rows and skips rows another
-// concurrent drain already holds, so two drains never fight over the same rows
-// and the bound stays a true cap under concurrent execution rather than a
-// serialization point. ORDER BY work_item_id makes the selected set
-// deterministic across calls so repeated bounded drains make forward progress.
-//
-// The %s is the shared replay predicate. $1 is the replay timestamp; $2 is the
-// row limit; the predicate placeholders start at $3.
-const replayFailedWorkItemsBoundedTemplate = `
-WITH replayed AS (
-    UPDATE fact_work_items
-    SET status = 'pending',
-        attempt_count = GREATEST(attempt_count, 1),
-        container_image_identity_v2_authorized_status = CASE
-            WHEN container_image_identity_v2_required THEN 'pending'
-            ELSE ''
-        END,
-        container_image_identity_v3_authorized_status = CASE
-            WHEN container_image_identity_v3_required THEN 'pending'
-            ELSE ''
-        END,
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = $1,
-        next_attempt_at = NULL,
-        failure_class = NULL,
-        failure_message = NULL,
-        failure_details = NULL,
-        updated_at = $1
-    WHERE work_item_id IN (
-        SELECT work_item_id FROM fact_work_items
-        WHERE status IN ('dead_letter', 'failed')
-          %s
-        ORDER BY work_item_id
-        LIMIT $2
-        FOR UPDATE SKIP LOCKED
-    )
-    RETURNING work_item_id
-)
-SELECT work_item_id FROM replayed ORDER BY work_item_id
-`
 
 // countDeadLetterBacklogTemplate counts the terminal rows a replay with the same
 // filter would touch, before any mutation. It shares the predicate builder with
@@ -202,8 +120,8 @@ func buildReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) re
 }
 
 // buildUnfencedReplayPredicate renders the filter predicates without the
-// superseded-generation fence; countSupersededReplaySkipsTemplate adds the
-// fence in its positive form to count what the replay skipped.
+// superseded-generation fence; replaySkippedProjectorCTE adds the fence in its
+// positive form to count what the replay skipped.
 func buildUnfencedReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) replayPredicate {
 	var (
 		clauses = []string{fmt.Sprintf("AND stage = $%d", startPlaceholder)}
@@ -253,18 +171,23 @@ func nonEmptyClasses(classes []string) []string {
 // zero it uses the unbounded template ($1 timestamp, predicate from $2). The
 // bound lives in SQL, not the Go scan loop, so a drain never resets more rows to
 // pending than it reports (#3652 P3).
+//
+// The same statement counts the fenced rows the replay leaves terminal, so a
+// failed count can never turn a committed replay into an error (#7130). The
+// skipped CTE reuses the replay's placeholders, and a non-projector stage gets
+// a constant zero instead of a scan.
 func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time) (string, []any) {
+	template, args, start := replayFailedWorkItemsTemplate, []any{now.UTC()}, 2
 	if filter.Limit > 0 {
-		predicate := buildReplayPredicate(filter, 3)
-		query := fmt.Sprintf(replayFailedWorkItemsBoundedTemplate, predicate.clause)
-		args := append([]any{now.UTC(), filter.Limit}, predicate.args...)
-		return query, args
+		template, args, start = replayFailedWorkItemsBoundedTemplate, []any{now.UTC(), filter.Limit}, 3
 	}
 
-	predicate := buildReplayPredicate(filter, 2)
-	query := fmt.Sprintf(replayFailedWorkItemsTemplate, predicate.clause)
-	args := append([]any{now.UTC()}, predicate.args...)
-	return query, args
+	predicate := buildReplayPredicate(filter, start)
+	skipped := replaySkippedNoneCTE
+	if filter.Stage == recovery.StageProjector {
+		skipped = fmt.Sprintf(replaySkippedProjectorCTE, buildUnfencedReplayPredicate(filter, start).clause)
+	}
+	return fmt.Sprintf(template, predicate.clause, skipped), append(args, predicate.args...)
 }
 
 // ReplayFailedWorkItems resets terminal work items to pending for the given
@@ -273,6 +196,11 @@ func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time
 // ExcludeFailureClasses (the drain path), those classes are excluded store-side
 // so a broad selector can never replay a manual-review row. A positive
 // filter.Limit bounds the mutation in SQL so only that many rows are replayed.
+//
+// One statement both replays and counts the superseded-generation projector
+// rows it left terminal, so the two commit or fail together. Each result row
+// carries the skip count; work_item_id is NULL on the single row a replay that
+// moved nothing returns.
 func (s RecoveryStore) ReplayFailedWorkItems(
 	ctx context.Context,
 	filter recovery.ReplayFilter,
@@ -290,22 +218,23 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var workItemIDs []string
+	var (
+		workItemIDs []string
+		skipped     int
+	)
 	for rows.Next() {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
+		var id sql.NullString
+		if scanErr := rows.Scan(&id, &skipped); scanErr != nil {
 			return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", scanErr)
 		}
-		workItemIDs = append(workItemIDs, id)
+		if id.Valid {
+			workItemIDs = append(workItemIDs, id.String)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", err)
 	}
 
-	skipped, err := s.countSupersededReplaySkips(ctx, filter)
-	if err != nil {
-		return recovery.ReplayResult{}, err
-	}
 	recordSupersededGenerationFence(ctx, s.instruments, projectorReplayGenerationSupersededClass, skipped)
 
 	return recovery.ReplayResult{
@@ -314,23 +243,6 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		WorkItemIDs:                 workItemIDs,
 		SkippedSupersededGeneration: skipped,
 	}, nil
-}
-
-// countSupersededReplaySkips counts the terminal projector rows matching
-// filter that the replay fence left in place. It runs after the replay, so
-// the rows it counts are exactly those still terminal on superseded
-// generations; a non-projector filter skips nothing and costs no query.
-func (s RecoveryStore) countSupersededReplaySkips(ctx context.Context, filter recovery.ReplayFilter) (int, error) {
-	if filter.Stage != recovery.StageProjector {
-		return 0, nil
-	}
-	predicate := buildUnfencedReplayPredicate(filter, 1)
-	var skipped int
-	if err := queryCount(ctx, s.database, fmt.Sprintf(countSupersededReplaySkipsTemplate, predicate.clause),
-		predicate.args, &skipped); err != nil {
-		return 0, fmt.Errorf("count superseded replay skips: %w", err)
-	}
-	return skipped, nil
 }
 
 // CountDeadLetterBacklog reports how many terminal rows match the filter before

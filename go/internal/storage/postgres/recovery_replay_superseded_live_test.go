@@ -116,6 +116,34 @@ func TestReplayLeavesSupersededGenerationProjectorWork(t *testing.T) {
 	}
 }
 
+// TestReplayWithOnlyFencedRowsStillReportsTheSkipCount proves the replay
+// statement returns the skip count even when it replays nothing: the NULL
+// work_item_id row the LEFT JOIN emits must scan against a real Postgres.
+func TestReplayWithOnlyFencedRowsStillReportsTheSkipCount(t *testing.T) {
+	dsn := os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN to a disposable Postgres database")
+	}
+
+	for _, limit := range []int{0, 10} {
+		database := openLivenessProofDB(t, dsn)
+		provisionLivenessSchema(t, database, replaySupersededSeedSQL)
+		if _, err := database.ExecContext(context.Background(),
+			"DELETE FROM fact_work_items WHERE work_item_id = 'projector-new'"); err != nil {
+			t.Fatalf("limit %d: drop the replayable row: %v", limit, err)
+		}
+		result, err := NewRecoveryStore(SQLDB{DB: database}).ReplayFailedWorkItems(context.Background(),
+			recovery.ReplayFilter{Stage: recovery.StageProjector, Limit: limit}, time.Now())
+		if err != nil {
+			t.Fatalf("limit %d: ReplayFailedWorkItems: %v", limit, err)
+		}
+		if result.Replayed != 0 || len(result.WorkItemIDs) != 0 || result.SkippedSupersededGeneration != 1 {
+			t.Fatalf("limit %d: result = %+v, want nothing replayed and 1 skipped", limit, result)
+		}
+		assertReplayStatus(t, database, "projector-old", "dead_letter")
+	}
+}
+
 func assertReplayStatus(t *testing.T, db *sql.DB, workItemID, want string) {
 	t.Helper()
 	var status string
