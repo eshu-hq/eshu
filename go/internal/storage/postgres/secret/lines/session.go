@@ -64,7 +64,7 @@ type RowQueryer interface {
 // The investigation read serves from the side table only when it is true and
 // otherwise runs the legacy content scan, so a bulk load never yields a silent
 // partial answer. The statement is one primary-key row lookup. When migration
-// 130 has not created the readiness table yet, it reports false without an
+// 131 has not created the readiness table yet, it reports false without an
 // error so a new API or MCP binary uses the legacy scan until migration runs.
 func Ready(ctx context.Context, queryer RowQueryer) (bool, error) {
 	var ready bool
