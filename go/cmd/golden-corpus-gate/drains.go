@@ -371,6 +371,9 @@ var readinessDeferredFailureClasses = map[string]bool{
 	"deployable_unit_correlation_resolution_not_ready":      true,
 	"deployable_unit_correlation_canonical_nodes_not_ready": true,
 	"workload_materialization_resolution_not_ready":         true,
+	// #6759: workload materialization waiting on the deploy Repository node
+	// that another scope's repo_dependency write has not committed yet.
+	"workload_materialization_deployment_source_target_not_ready": true,
 	// #6785: USES waiting on its WorkloadInstance endpoint, which itself can
 	// wait on the maintenance pass; CAN_PERFORM waiting on sibling-scope
 	// target nodes.

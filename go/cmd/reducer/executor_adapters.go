@@ -119,8 +119,8 @@ func newReducerCypherExecutor(session cypherRunner, instruments *telemetry.Instr
 // newProbedWorkloadMaterializer builds the workload materializer with the
 // deployment-source target probe (#6184) wired through the same executor the
 // materializer writes through. The backpressure gate forwards the probe when
-// the wrapped chain supports it; a probe failure fails open to the legacy
-// unconditional write, so wiring is always safe.
+// the wrapped chain supports it; a probe failure fails the pass closed with a
+// retryable, budget-counting error (#6759), never an unverified write.
 func newProbedWorkloadMaterializer(exec reducer.CypherExecutor, logger *slog.Logger, instruments *telemetry.Instruments) *reducer.WorkloadMaterializer {
 	m := reducer.NewWorkloadMaterializer(exec)
 	if prober, ok := exec.(reducer.GraphExistenceProber); ok {

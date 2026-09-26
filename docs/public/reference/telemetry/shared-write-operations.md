@@ -30,7 +30,13 @@ one bounded label:
 
 - `domain` identifies the guarded shared projection domain (`handles_route`,
   `runs_in`, `deployable_unit_edges`, plus `workload_materialization`
-  counted by the deployment-source target guard).
+  counted by the deployment-source target guard, whose deferral carries the
+  non-counting failure class
+  `workload_materialization_deployment_source_target_not_ready` so a slow
+  target lane does not dead-letter it. The deferral is bounded by elapsed time
+  since the repair cycle began, 30 minutes
+  (`crossscope.ProducerReadinessMaxWait`); past it the pass fails with a
+  counting error and dead-letters loudly, #6759).
 
 Read it alongside the `shared edge batch target absent, deferring batch`
 WARN, which carries the evidence source and one sample intent id —

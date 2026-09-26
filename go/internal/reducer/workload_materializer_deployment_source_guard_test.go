@@ -130,25 +130,41 @@ func TestWorkloadMaterializerDeploymentSourceProbeNamesBothEndpoints(t *testing.
 	}
 }
 
-// TestWorkloadMaterializerDeploymentSourceProbeErrorFallsBackToWrite pins
-// the infrastructure failure direction: a failing existence probe must not
-// stall the partition on work that may be perfectly writable.
-func TestWorkloadMaterializerDeploymentSourceProbeErrorFallsBackToWrite(t *testing.T) {
+// TestWorkloadMaterializerDeploymentSourceProbeErrorFailsClosed pins the
+// infrastructure failure direction (#6759): a failing existence probe must not
+// fall through to the unconditional MERGE, because an absent target makes that
+// MERGE a silent no-op still counted as written, the exact silent miss the
+// guard exists to close. The pass fails retryably instead, wraps the probe
+// error, writes nothing, and counts nothing. It must NOT carry the
+// non-counting target-not-ready class: a persistent backend fault has to spend
+// the normal retry budget and dead-letter loudly rather than wait forever.
+func TestWorkloadMaterializerDeploymentSourceProbeErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	executor := &probeScriptMaterializerExecutor{probeErr: errors.New("probe backend unavailable")}
+	probeErr := errors.New("probe backend unavailable")
+	executor := &probeScriptMaterializerExecutor{probeErr: probeErr}
 	m := NewWorkloadMaterializer(executor)
 	m.DeploymentSourceProber = executor
 
 	result, err := m.Materialize(context.Background(), deploymentSourceOnlyProjection())
-	if err != nil {
-		t.Fatalf("Materialize() with a failing probe error = %v, want the legacy fail-open write", err)
+	if err == nil {
+		t.Fatal("Materialize() with a failing probe succeeded, want a retryable error: writing unverified reopens the silent miss")
 	}
-	if result.DeploymentSourcesWritten != 1 {
-		t.Fatalf("DeploymentSourcesWritten = %d, want 1 on the fail-open path", result.DeploymentSourcesWritten)
+	if !IsRetryable(err) {
+		t.Fatalf("Materialize() error = %v, want a retryable error so the intent stays queued", err)
 	}
-	if !executedDeploymentSource(executor.executedCyphers) {
-		t.Fatal("expected the deployment-source write to run when the probe itself fails")
+	if !errors.Is(err, probeErr) {
+		t.Fatalf("Materialize() error = %v, want it to wrap the probe error for the operator", err)
+	}
+	var classed interface{ FailureClass() string }
+	if errors.As(err, &classed) {
+		t.Fatalf("probe-failure error carries failure class %q, want none: a backend fault must count toward the retry budget", classed.FailureClass())
+	}
+	if result.DeploymentSourcesWritten != 0 {
+		t.Fatalf("DeploymentSourcesWritten = %d, want 0 on the fail-closed path", result.DeploymentSourcesWritten)
+	}
+	if executedDeploymentSource(executor.executedCyphers) {
+		t.Fatal("deployment-source statement ran despite a failed probe: no edge statement may run for an unverified batch")
 	}
 }
 

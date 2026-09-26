@@ -242,7 +242,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	materializeResult, err := h.Materializer.Materialize(ctx, projection)
 	timing.graphWriteDuration = time.Since(graphStarted)
 	if err != nil {
-		return Result{}, fmt.Errorf("materialize workloads: %w", err)
+		return Result{}, fmt.Errorf("materialize workloads: %w", boundDeploymentSourceDeferral(err, intent, time.Now(), h.Materializer))
 	}
 
 	// Record property-keyed (repo_id, path) presence for the committed :Endpoint

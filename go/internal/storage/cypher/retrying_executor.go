@@ -102,16 +102,20 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 // error as "unknown", not "zero rows" (see ProbeExecutor's doc).
 //
 // Deliberately does NOT retry, unlike Execute and ExecuteGroup (#5998 review).
-// A probe is a latency optimisation whose fallback is both cheap and always
-// correct: every caller treats an error as "unknown" and runs the DELETE it
-// guards. Routing probes through runWithRetry would inherit the write budget
+// The rationale-retract probe is a latency optimisation whose fallback is both
+// cheap and always correct: that caller treats an error as "unknown" and runs
+// the DELETE it guards. Not every caller has that fallback: the deployment-
+// source target guard (#6759) fails its pass on a probe error instead, and
+// the queue retries the whole pass, so it too needs no in-executor retry.
+// Routing probes through runWithRetry would inherit the write budget
 // -- four attempts, each bounded by ESHU_CANONICAL_WRITE_TIMEOUT (30s by
 // default) -- so a backend sustaining TransientError could hold the partition
 // lease for roughly two minutes before the fail-safe DELETE even starts, to
 // avoid a single DELETE the guard exists to make cheaper. Failing straight
-// through bounds the worst case at that one DELETE instead. The DELETE that
-// follows still retries, so no transient-error resilience is lost on the write
-// path; only the read that decides whether to attempt it gives up early.
+// through bounds the worst case at that one DELETE (or, for the deployment-
+// source guard, at one failed pass the queue retries). The DELETE that follows
+// still retries, so no transient-error resilience is lost on the write path;
+// only the read that decides whether to attempt it gives up early.
 func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
 	pe, ok := r.Inner.(ProbeExecutor)
 	if !ok {

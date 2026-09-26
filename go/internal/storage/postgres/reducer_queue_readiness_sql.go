@@ -146,6 +146,12 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// makes the next attempt ack terminally, so the wait is bounded by the
 	// projector's own lifecycle, not by this budget.
 	reducercontract.GenerationActivationNotReadyFailureClass,
+	// #6759: workload materialization deferred because a deployment-source
+	// target (the deploy Repository node) is not yet committed by another
+	// scope's repo_dependency write. A timing state, not a payload defect:
+	// counting it dead-letters the intent when that lane runs slow, and a
+	// dead letter is never reopened, so DEPLOYMENT_SOURCE is lost.
+	reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

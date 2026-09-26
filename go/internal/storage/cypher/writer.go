@@ -271,9 +271,9 @@ type PhaseGroupExecutor interface {
 // type assertion for either capability fails identically through that seam.
 //
 // Callers MUST treat the absence of this interface, and any error ExecuteProbe
-// returns, as "unknown" -- never as "zero rows" -- and fail safe by running the
-// paired mutating statement unconditionally. A skipped delete can leave stale
-// graph state; a redundant delete only costs time.
+// returns, as "unknown", never "zero rows". A DELETE guard then runs the DELETE
+// anyway (a redundant one only costs time); a MERGE guard, the #6759
+// deployment-source guard, fails the pass, as a MERGE on a missing node no-ops.
 type ProbeExecutor interface {
 	// ExecuteProbe runs stmt as a read-only query and reports whether it
 	// matched at least one row. found is meaningful only when err is nil.
