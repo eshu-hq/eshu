@@ -17,12 +17,20 @@
 #   red     any required workflow's latest run on the tip failed, or the latest
 #           scheduled ruleset verification (`Required Gates`) failed
 #           -> upsert the single issue, status failure
+#           "Latest run" is judged per triggering event, because a workflow can
+#           carry separate verdicts on one commit: Security Scan's push run
+#           scans the tree while its workflow_run run scans the published
+#           image. The events that are runs OF main are push, schedule and
+#           workflow_run (head_branch main); pull_request and merge_group runs
+#           never count. A fully skipped run carries no verdict, so it never
+#           supersedes an earlier run of the same event that has one.
 #   green   every required workflow that ran on the tip succeeded, none is
 #           pending, and the registry's source workflow has a verdict
 #           -> close the open issue(s), status success
 #   pending something still running / the source workflow has not registered
 #           -> leave the issue alone, status pending
-#   unknown a required run was cancelled and never re-run (no verdict)
+#   unknown a required run was cancelled and never re-run (no verdict), or a
+#           run listing came back truncated (cannot prove green)
 #           -> leave the issue alone, status error
 #
 # The required workflows are not listed here. They are derived from the two
@@ -38,6 +46,15 @@
 #   MAIN_HEALTH_BRANCH      branch to judge (default: main)
 #   MAIN_HEALTH_REPO_ROOT   policy checkout root (default: this script's repo)
 #   MAIN_HEALTH_RUN_URL     target_url for the status when no issue applies
+#
+# Every gh call goes through gh_get / gh_list / gh_log (reads) or write (the
+# one mutator, which returns before calling gh in dry-run mode);
+# scripts/test-main-health.sh fails if a gh call appears anywhere else.
+#
+# API cost per evaluation is bounded and independent of history length: one
+# commit read, one ruleset probe (a single run), one filtered run listing per
+# event (push, schedule) plus one per required workflow file that has a
+# workflow_run trigger, the open issues, and the tip's statuses.
 #
 # Usage: scripts/ci/main-health.sh [--print-required]
 # Exit status is 0 whenever the evaluation itself completed, red or green:
@@ -59,6 +76,20 @@ required_workflows() {
 		yq '.on.workflow_run.workflows[]' "${aggregator_yml}"
 		yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}"
 	} | awk 'NF && $0 != "null"' | sort -u
+}
+
+# workflow_run_files prints the file name of every required workflow whose
+# `on:` declares a workflow_run trigger. Their workflow_run runs are listed per
+# workflow file: a repo-wide workflow_run listing for one commit is dominated
+# by hundreds of Required Gates publisher runs.
+workflow_run_files() {
+	local files=("${repo_root}"/.github/workflows/*.yml "${repo_root}"/.github/workflows/*.yaml)
+	local existing=() f
+	for f in "${files[@]}"; do [[ -f "${f}" ]] && existing+=("${f}"); done
+	[[ ${#existing[@]} -gt 0 ]] || return 0
+	yq -N 'select((.on | tag) == "!!map" and (.on | has("workflow_run"))) | .name + "\t" + filename' "${existing[@]}" |
+		awk -F'\t' 'NR == FNR { want[$0] = 1; next } ($1 in want) { n = split($2, p, "/"); print p[n] }' \
+			<(required_workflows) -
 }
 
 # ruleset_workflow_file prints the workflow file that owns the scheduled
@@ -85,24 +116,33 @@ clean() {
 		awk '{ gsub(/@/, "(at)"); gsub(/`/, "\x27"); print }' | cut -c1-300
 }
 
-gh_read() { gh api --paginate "$1"; }
+# gh_get reads one page; gh_list follows pagination (only for listings whose
+# size is bounded by their filters); gh_log reads a job log, which carries
+# ANSI colour: gh >= 2.101 refuses to print escape sequences without
+# --allow-escape-sequences, and an older gh without the flag falls back.
+gh_get() { gh api "$1"; }
+gh_list() { gh api --paginate "$1"; }
+gh_log() { gh api --allow-escape-sequences "$1" 2>/dev/null || gh api "$1"; }
 
-# write runs a mutating gh call, or only reports it in dry-run mode.
-write() { # description, then the gh api args
+# write is the ONLY mutating gh call: every issue, label, pin, comment and
+# status write goes through it, and in dry-run mode it reports the write and
+# returns before calling gh. Args: description, then the gh api args
+# (`-X METHOD path ...` or `graphql ...`).
+write() {
 	local desc="$1"
 	shift
 	if [[ "${dry_run}" == "true" ]]; then
 		echo "DRY-RUN would: ${desc}" >&2
 		return 0
 	fi
-	gh api -X "$@"
+	gh api "$@"
 }
 
 # verdict_of prints the single most useful line from a job log: the first Go
 # test failure or panic if there is one, else the last line before the first
 # Actions error annotation, else that annotation.
 verdict_of() {
-	sed -e 's/^[0-9T:.Z-]* //' |
+	sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z //' |
 		awk '
 			/^(--- FAIL:|FAIL[ \t]|FAIL$|panic: )/ { if (!fail) fail = $0 }
 			/^##\[error\]/ { if (!err) { err = $0; sub(/^##\[error\]/, "", err); before = prev } }
@@ -114,25 +154,27 @@ verdict_of() {
 			}' | clean
 }
 
-# failing_jobs <run-id> prints "job-name<TAB>failed-step<TAB>verdict" lines for
-# up to three failed jobs of the run.
+# failing_jobs <run-id> prints "job-name US failed-step US verdict" lines (US
+# is the \x1f unit separator: a non-whitespace IFS keeps an empty step field
+# instead of collapsing it) for up to three failed jobs of the run.
 failing_jobs() {
 	local run_id="$1" jobs_json
-	jobs_json="$(gh_read "repos/${repo}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" 2>/dev/null | jq -s '[.[].jobs[]?]')" || jobs_json='[]'
+	jobs_json="$(gh_list "repos/${repo}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" 2>/dev/null | jq -s '[.[].jobs[]?]')" || jobs_json='[]'
 	jq -r '.[] | select(.conclusion == "failure" or .conclusion == "timed_out")
-		| [.id, .name, ([.steps[]? | select(.conclusion == "failure") | .name] | first // "")] | @tsv' <<<"${jobs_json}" |
+		| [.id, .name, ([.steps[]? | select(.conclusion == "failure") | .name] | first // "")]
+		| map(tostring | gsub("[\u001f\n]"; " ")) | join("\u001f")' <<<"${jobs_json}" |
 		head -3 |
-		while IFS=$'\t' read -r job_id job_name step_name; do
+		while IFS=$'\x1f' read -r job_id job_name step_name; do
 			local line=""
-			line="$(gh api "repos/${repo}/actions/jobs/${job_id}/logs" 2>/dev/null | verdict_of || true)"
+			line="$(gh_log "repos/${repo}/actions/jobs/${job_id}/logs" | verdict_of || true)"
 			[[ -z "${line}" && -n "${step_name}" ]] && line="step failed: ${step_name}"
 			[[ -z "${line}" ]] && line="no verdict line available (log unreadable)"
-			printf '%s\t%s\t%s\n' "$(printf '%s' "${job_name}" | clean)" "$(printf '%s' "${step_name}" | clean)" "${line}"
+			printf '%s\x1f%s\x1f%s\n' "$(printf '%s' "${job_name}" | clean)" "$(printf '%s' "${step_name}" | clean)" "${line}"
 		done
 }
 
 # --- newest commit on the branch --------------------------------------------
-tip="$(gh api "repos/${repo}/commits/${branch}" | jq -r '.sha')"
+tip="$(gh_get "repos/${repo}/commits/${branch}" | jq -r '.sha')"
 [[ "${tip}" =~ ^[0-9a-f]{40}$ ]] || {
 	echo "could not resolve the tip of ${branch}" >&2
 	exit 1
@@ -140,25 +182,54 @@ tip="$(gh api "repos/${repo}/commits/${branch}" | jq -r '.sha')"
 short="${tip:0:10}"
 
 required="$(required_workflows)"
+n_required="$(printf '%s\n' "${required}" | awk 'NF' | wc -l | tr -d ' ')"
 source_workflow="$(yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}" | head -1)"
 
 # --- classify each required workflow's latest run on the tip ----------------
-runs_json="$(gh_read "repos/${repo}/actions/runs?head_sha=${tip}&per_page=100" | jq -s '[.[].workflow_runs[]?]')"
-verdicts="$(jq -c --arg branch "${branch}" --argjson req "$(printf '%s\n' "${required}" | jq -R . | jq -s .)" '
-	[.[] | select(.event == "push" and .head_branch == $branch)] as $runs
+# Every listing is filtered server-side (head_sha + branch + event, or the
+# workflow file) so its size is bounded by the commit, not by history. A
+# listing whose total_count exceeds what came back (the API stops at 1000
+# results) marks the evaluation truncated: it can still be red, never green.
+runs_json='[]'
+truncated=false
+fetch_runs() { # listing path
+	local page
+	page="$(gh_list "$1" | jq -sc '{total: ([.[].total_count // 0] | max // 0), runs: [.[].workflow_runs[]?]}')"
+	if [[ "$(jq '(.runs | length) < .total' <<<"${page}")" == "true" ]]; then
+		truncated=true
+		echo "::warning::run listing truncated: $1" >&2
+	fi
+	runs_json="$(jq -c --argjson add "$(jq -c '.runs' <<<"${page}")" '. + $add' <<<"${runs_json}")"
+}
+fetch_runs "repos/${repo}/actions/runs?head_sha=${tip}&branch=${branch}&event=push&per_page=100"
+fetch_runs "repos/${repo}/actions/runs?head_sha=${tip}&branch=${branch}&event=schedule&per_page=100"
+for wf_file in $(workflow_run_files); do
+	fetch_runs "repos/${repo}/actions/workflows/${wf_file}/runs?head_sha=${tip}&branch=${branch}&event=workflow_run&per_page=100"
+done
+verdicts="$(jq -c --arg branch "${branch}" --argjson req "$(printf '%s\n' "${required}" | jq -R . | jq -s 'map(select(length > 0))')" '
+	def classify: .conclusion as $c
+		| if .status != "completed" then "pending"
+		elif (["failure","timed_out","startup_failure"] | index([$c])) then "red"
+		elif (["success","neutral","skipped"] | index([$c])) then "ok"
+		else "unknown" end;
+	def rank: {"red": 0, "pending": 1, "unknown": 2, "ok": 3}[.];
+	[.[] | select(.head_sha != null and .head_branch == $branch
+		and (.event as $e | ["push","schedule","workflow_run"] | index([$e])))] as $runs
 	| [$req[] as $name
-	   | ($runs | map(select(.name == $name)) | sort_by([.run_number, .run_attempt]) | last) as $r
-	   | {workflow: $name, run_id: ($r.id // null), url: ($r.html_url // null),
-	      verdict: (if $r == null then "absent"
-	        elif $r.status != "completed" then "pending"
-	        elif (["failure","timed_out","startup_failure"] | index($r.conclusion)) then "red"
-	        elif (["success","neutral","skipped"] | index($r.conclusion)) then "ok"
-	        else "unknown" end)}]' <<<"${runs_json}")"
+	   | [$runs[] | select(.name == $name)] | group_by(.event)
+	   | map((map(select(.conclusion != "skipped")) | if length > 0 then . else null end) as $decisive
+	         | ($decisive // .) | sort_by([.run_number, .run_attempt]) | last
+	         | {run: ., verdict: classify})
+	   | sort_by(.verdict | rank) | first as $w
+	   | {workflow: $name, event: ($w.run.event // null), run_id: ($w.run.id // null),
+	      url: ($w.run.html_url // null), verdict: ($w.verdict // "absent")}]' <<<"${runs_json}")"
 
 # --- scheduled ruleset verification (verify-live-ruleset) -------------------
 ruleset_file="$(ruleset_workflow_file)"
-ruleset_json="$(gh_read "repos/${repo}/actions/workflows/${ruleset_file}/runs?event=schedule&status=completed&per_page=1" |
-	jq -sc '[.[].workflow_runs[]?] | first // null')"
+# One request for one run: never paginate this probe, since --paginate would
+# walk every scheduled run in history (4 a day).
+ruleset_json="$(gh_get "repos/${repo}/actions/workflows/${ruleset_file}/runs?event=schedule&status=completed&branch=${branch}&per_page=1" |
+	jq -c '.workflow_runs[0] // null')"
 ruleset_red=false
 [[ "$(jq -r '.conclusion // ""' <<<"${ruleset_json}")" == "failure" ]] && ruleset_red=true
 
@@ -169,6 +240,8 @@ source_seen="$(jq --arg s "${source_workflow}" '[.[] | select(.workflow == $s an
 
 if [[ "${n_red}" -gt 0 || "${ruleset_red}" == "true" ]]; then
 	state=red
+elif [[ "${truncated}" == "true" ]]; then
+	state=unknown
 elif [[ "${n_pending}" -gt 0 || "${source_seen}" -eq 0 ]]; then
 	state=pending
 elif [[ "${n_unknown}" -gt 0 ]]; then
@@ -178,8 +251,10 @@ else
 fi
 
 # --- open main-health issues -------------------------------------------------
-issues_json="$(gh_read "repos/${repo}/issues?state=open&labels=${label}&per_page=100" |
-	jq -s '[.[][] | select(.pull_request == null)] | sort_by(.number)')"
+# Only issues this watcher wrote (body marker) are managed; anyone with triage
+# can add the label to an unrelated issue, and that issue is never closed here.
+issues_json="$(gh_list "repos/${repo}/issues?state=open&labels=${label}&per_page=100" |
+	jq -s '[.[][] | select(.pull_request == null and ((.body // "") | startswith("<!-- main-health:sha=")))] | sort_by(.number)')"
 primary="$(jq -c 'first // null' <<<"${issues_json}")"
 extras="$(jq -r '.[1:][]?.number' <<<"${issues_json}")"
 
@@ -187,10 +262,11 @@ status_state="" status_desc="" status_url="${MAIN_HEALTH_RUN_URL:-https://github
 action=noop
 
 close_issue() { # number, node_id, comment
-	write "close issue #$1" POST "repos/${repo}/issues/$1/comments" -f body="$3" >/dev/null || true
-	write "close issue #$1" PATCH "repos/${repo}/issues/$1" -f state=closed -f state_reason=completed >/dev/null
-	[[ -n "$2" && "${dry_run}" != "true" ]] &&
-		{ gh api graphql -f query='mutation($id:ID!){unpinIssue(input:{issueId:$id}){issue{number}}}' -f id="$2" >/dev/null 2>&1 || true; }
+	write "comment on issue #$1" -X POST "repos/${repo}/issues/$1/comments" -f body="$3" >/dev/null || true
+	write "close issue #$1" -X PATCH "repos/${repo}/issues/$1" -f state=closed -f state_reason=completed >/dev/null
+	if [[ -n "$2" ]]; then
+		write "unpin issue #$1" graphql -f query='mutation($id:ID!){unpinIssue(input:{issueId:$id}){issue{number}}}' -f id="$2" >/dev/null 2>&1 || true
+	fi
 	return 0
 }
 
@@ -206,17 +282,18 @@ red)
 			echo
 			while IFS= read -r row; do
 				wf="$(jq -r '.workflow' <<<"${row}")"
+				ev="$(jq -r '.event' <<<"${row}")"
 				rid="$(jq -r '.run_id' <<<"${row}")"
 				url="$(jq -r '.url' <<<"${row}")"
-				while IFS=$'\t' read -r job step line; do
-					echo "- **${wf}** ([run](${url})) — job \`${job}\`, step \`${step:-?}\` — verdict: \`${line}\`"
+				while IFS=$'\x1f' read -r job step line; do
+					echo "- **${wf}** (${ev} [run](${url})) — job \`${job}\`, step \`${step:-?}\` — verdict: \`${line}\`"
 				done < <(failing_jobs "${rid}")
 			done < <(jq -c '.[] | select(.verdict == "red")' <<<"${verdicts}")
 			if [[ "${ruleset_red}" == "true" ]]; then
 				rid="$(jq -r '.id' <<<"${ruleset_json}")"
 				url="$(jq -r '.html_url' <<<"${ruleset_json}")"
 				echo "- **verify-live-ruleset** (scheduled \`Required Gates\`, [run](${url})) — the live ruleset no longer matches specs/ci-gates.v1.yaml:"
-				while IFS=$'\t' read -r job step line; do
+				while IFS=$'\x1f' read -r job step line; do
 					echo "  - job \`${job}\` — verdict: \`${line}\`"
 				done < <(failing_jobs "${rid}")
 			fi
@@ -228,12 +305,12 @@ red)
 			echo "DRY-RUN would: open-issue '${title}'"
 			issue_url="${status_url}"
 		else
-			write "create label" POST "repos/${repo}/labels" -f name="${label}" -f color=B60205 \
+			write "create label" -X POST "repos/${repo}/labels" -f name="${label}" -f color=B60205 \
 				-f description="Managed by the main-health watcher" >/dev/null 2>&1 || true
-			created="$(write "open-issue" POST "repos/${repo}/issues" -f title="${title}" -f body="${body}" -f "labels[]=${label}")"
+			created="$(write "open-issue" -X POST "repos/${repo}/issues" -f title="${title}" -f body="${body}" -f "labels[]=${label}")"
 			issue_url="$(jq -r '.html_url' <<<"${created}")"
 			node_id="$(jq -r '.node_id' <<<"${created}")"
-			gh api graphql -f query='mutation($id:ID!){pinIssue(input:{issueId:$id}){issue{number}}}' -f id="${node_id}" >/dev/null 2>&1 ||
+			write "pin issue" graphql -f query='mutation($id:ID!){pinIssue(input:{issueId:$id}){issue{number}}}' -f id="${node_id}" >/dev/null 2>&1 ||
 				echo "::warning::could not pin the main-health issue (pinning is best effort)"
 		fi
 	else
@@ -243,7 +320,7 @@ red)
 			action=noop
 		else
 			action=update-issue
-			write "update-issue #${number} -> '${title}'" PATCH "repos/${repo}/issues/${number}" -f title="${title}" -f body="${body}" >/dev/null
+			write "update-issue #${number} -> '${title}'" -X PATCH "repos/${repo}/issues/${number}" -f title="${title}" -f body="${body}" >/dev/null
 		fi
 	fi
 	for dup in ${extras}; do
@@ -273,23 +350,27 @@ pending)
 	;;
 unknown)
 	status_state=error
-	status_desc="A required workflow on ${short} was cancelled and has no verdict; re-run it"
+	if [[ "${truncated}" == "true" ]]; then
+		status_desc="Run listing for ${short} was truncated; cannot prove main green"
+	else
+		status_desc="A required workflow on ${short} was cancelled and has no verdict; re-run it"
+	fi
 	;;
 esac
 
 # --- commit status (skipped when it would repeat the latest one) ------------
 status_desc="$(printf '%s' "${status_desc}" | cut -c1-140)"
-last_status="$(gh_read "repos/${repo}/commits/${tip}/statuses?per_page=100" 2>/dev/null |
+last_status="$(gh_list "repos/${repo}/commits/${tip}/statuses?per_page=100" 2>/dev/null |
 	jq -s --arg c "${status_context}" '[.[][] | select(.context == $c)] | first // {}' || echo '{}')"
 if [[ "$(jq -r '.state // ""' <<<"${last_status}")" == "${status_state}" && "$(jq -r '.description // ""' <<<"${last_status}")" == "${status_desc}" ]]; then
 	echo "main-health: ${status_context} status already ${status_state} on ${short}; not reposting"
 else
-	write "post ${status_context}=${status_state} on ${short}" POST "repos/${repo}/statuses/${tip}" \
+	write "post ${status_context}=${status_state} on ${short}" -X POST "repos/${repo}/statuses/${tip}" \
 		-f state="${status_state}" -f context="${status_context}" -f description="${status_desc}" \
 		-f target_url="${status_url}" >/dev/null
 fi
 
-summary="main-health: sha=${tip} state=${state} action=${action} required=$(printf '%s' "${required}" | wc -l | tr -d ' ')+1 red=${n_red} pending=${n_pending} unknown=${n_unknown} ruleset_red=${ruleset_red} open_issues=$(jq 'length' <<<"${issues_json}")"
+summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} open_issues=$(jq 'length' <<<"${issues_json}")"
 echo "${summary}"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	{
@@ -297,6 +378,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 		echo
 		echo "\`${summary}\`"
 		echo
-		jq -r '.[] | "- \(.workflow): \(.verdict)"' <<<"${verdicts}"
+		jq -r '.[] | "- \(.workflow): \(.verdict)\(if .event then " (\(.event))" else "" end)"' <<<"${verdicts}"
 	} >>"${GITHUB_STEP_SUMMARY}"
 fi

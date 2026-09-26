@@ -59,10 +59,15 @@ on:
     - cron: "47 */6 * * *"
 
 concurrency:
-  # One writer at a time so the single issue can never be double-opened. The
-  # verdict is always recomputed from the current tip of main, so a queued run
-  # replacing an older queued run loses nothing.
-  group: main-health
+  # One live writer at a time so the single issue can never be double-opened,
+  # and an in-progress live run is never cancelled. GitHub keeps one pending
+  # run per group, so a newer pending live run replaces an older pending one;
+  # that loses nothing because every run recomputes the verdict from the
+  # current tip of main when it starts. Dry runs (manual dispatch with
+  # dry_run on) get their own group keyed on the same predicate as
+  # MAIN_HEALTH_DRY_RUN below: they write nothing, so they must never evict a
+  # queued live run or wait behind one.
+  group: main-health-${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'dry' || 'live' }}
   cancel-in-progress: false
 
 permissions:
@@ -73,10 +78,24 @@ permissions:
 
 jobs:
   watch:
-    # A run of a fork branch named `main` is not a run of main; the required
-    # aggregator also fires for every push, so only its scheduled run (the
-    # ruleset verifier) is interesting here.
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.event != 'pull_request' && (github.event.workflow_run.name != 'Required Gates' || github.event.workflow_run.event == 'schedule')) }}
+    # Allow-list, not deny-list: only the schedule, a manual dispatch, or a
+    # completed run OF main in this repository wakes the watcher. For a
+    # required workflow that is a push, schedule, or workflow_run (Security
+    # Scan's image scan) run; for Required Gates only its scheduled ruleset
+    # verification, since its workflow_run publisher runs fire hundreds of
+    # times per commit. A run of a fork branch named `main`, and any
+    # pull_request, pull_request_target, issue_comment or merge_group run,
+    # never matches. scripts/test-main-health.sh evaluates this expression
+    # against each of those contexts.
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      ((github.event.workflow_run.name == 'Required Gates' && github.event.workflow_run.event == 'schedule') ||
+      (github.event.workflow_run.name != 'Required Gates' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' ||
+      github.event.workflow_run.event == 'workflow_run'))))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

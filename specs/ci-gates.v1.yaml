@@ -613,6 +613,8 @@ gates:
     triggers:
       - "scripts/ci/main-health.sh"
       - "scripts/test-main-health.sh"
+      - "scripts/lib/test-main-health-fake.sh"
+      - "scripts/lib/test-main-health-workflow.sh"
       # The mirror asserts the watcher workflow's trigger list equals the
       # aggregator's, its least-privilege permissions and action pinning, so
       # an edit to either workflow must select it.
@@ -626,9 +628,12 @@ gates:
     local:
       # main-health.sh has no non-mutating "real" mode against GitHub that a
       # local run could use (it reads and writes issues and statuses), so the
-      # hermetic mirror IS the verification: a fake `gh` on PATH serves
-      # recorded JSON for red, green, flapping, superseded, pending and
-      # cancelled shapes and the cases assert the upsert/close decisions. The
+      # hermetic mirror IS the verification: a fake `gh` on PATH that honors
+      # the Actions API query filters serves recorded JSON for red, green,
+      # flapping, superseded, pending, cancelled, truncated and multi-event
+      # (workflow_run image scan) shapes; the cases assert the upsert/close
+      # decisions, zero writes in dry-run on every path, the bounded API
+      # calls, and the workflow's allow-list guard and concurrency group. The
       # live check is the workflow's dry-run dispatch (docs/public/reference/
       # local-testing/main-health-watcher.md).
       command: "bash scripts/test-main-health.sh"

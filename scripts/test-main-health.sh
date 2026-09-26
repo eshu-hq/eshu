@@ -39,149 +39,8 @@ if [ ! -x "${target}" ]; then
 	exit 1
 fi
 
-REPO="eshu-hq/eshu"
-TIP="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-NEXT="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-
-# --- fixture repo root: the source of truth the script must derive from ------
-policy_root="${work}/policy"
-mkdir -p "${policy_root}/.github/workflows" "${policy_root}/specs"
-cat >"${policy_root}/.github/workflows/required-gates.yml" <<'YAML'
-name: Required Gates
-on:
-  workflow_run:
-    workflows:
-      - Build Test
-      - Static Contract Gates
-      - Frontend
-    types: [in_progress, completed]
-YAML
-cat >"${policy_root}/specs/ci-gates.v1.yaml" <<'YAML'
-version: v1
-required_status_checks:
-  - context: go-core-complete
-    workflow: test.yml
-    job: go-core-complete
-    aggregates_blocking_gates: false
-  - context: required-gates-complete
-    workflow: required-gates.yml
-    job: aggregate
-    source_workflow: Build Test
-    aggregates_blocking_gates: true
-YAML
-
-# --- fake gh -----------------------------------------------------------------
-fake_bin="${work}/bin"
-mkdir -p "${fake_bin}"
-cat >"${fake_bin}/gh" <<'FAKE'
-#!/usr/bin/env bash
-# Serves $FIXTURES/<name> for a read endpoint; records every call.
-set -euo pipefail
-jq -cn '$ARGS.positional' --args -- "$@" >>"${FIXTURES}/calls.log"
-[[ "$1" == "api" ]] || { echo "fake gh: unsupported: $*" >&2; exit 2; }
-shift
-method=GET
-path=""
-while [[ $# -gt 0 ]]; do
-	case "$1" in
-	-X) method="$2"; shift 2 ;;
-	-f | -F)
-		[[ "$2" == body=* ]] && printf '%s' "${2#body=}" >"${FIXTURES}/last-body.txt"
-		shift 2 ;;
-	--jq | --input) shift 2 ;;
-	--paginate) shift ;;
-	*) [[ -z "${path}" ]] && path="$1"; shift ;;
-	esac
-done
-serve() { cat "${FIXTURES}/$1" 2>/dev/null || { echo "fake gh: no fixture $1 for ${path}" >&2; exit 1; }; }
-if [[ "${method}" != "GET" || "${path}" == graphql ]]; then
-	[[ -f "${FIXTURES}/write-fails" ]] && grep -qx "${path}" "${FIXTURES}/write-fails" && exit 1
-	echo '{"number":99,"node_id":"N99","html_url":"https://github.example/eshu-hq/eshu/issues/99"}'
-	exit 0
-fi
-case "${path}" in
-repos/*/commits/main) serve tip.json ;;
-repos/*/commits/*/statuses*) serve statuses.json ;;
-repos/*/actions/workflows/*/runs*) serve ruleset-runs.json ;;
-repos/*/actions/runs/*/jobs*) id="${path#*/runs/}"; serve "jobs-${id%%/*}.json" ;;
-repos/*/actions/runs\?*) serve runs.json ;;
-repos/*/actions/jobs/*/logs) id="${path#*/jobs/}"; serve "log-${id%%/*}.txt" ;;
-repos/*/issues\?*) serve issues.json ;;
-*) echo "fake gh: unhandled ${path}" >&2; exit 1 ;;
-esac
-FAKE
-chmod +x "${fake_bin}/gh"
-
-# --- fixture builders --------------------------------------------------------
-# run <id> <name> <status> <conclusion> [run_number] [attempt]
-run() {
-	jq -cn --arg id "$1" --arg name "$2" --arg st "$3" --arg c "$4" \
-		--argjson n "${5:-1}" --argjson a "${6:-1}" --arg sha "${SHA}" \
-		'{id:($id|tonumber),name:$name,status:$st,conclusion:(if $c=="" then null else $c end),
-		  run_number:$n,run_attempt:$a,event:"push",head_branch:"main",head_sha:$sha,
-		  html_url:("https://github.example/runs/"+$id)}'
-}
-
-new_case() { # <name> <tip-sha>
-	case_dir="${work}/$1"
-	mkdir -p "${case_dir}"
-	export FIXTURES="${case_dir}"
-	SHA="$2"
-	printf '{"sha":"%s"}\n' "$2" >"${case_dir}/tip.json"
-	echo '[]' >"${case_dir}/issues.json"
-	echo '[]' >"${case_dir}/statuses.json"
-	echo '{"workflow_runs":[]}' >"${case_dir}/ruleset-runs.json"
-	: >"${case_dir}/calls.log"
-}
-
-set_runs() { # run-json...
-	printf '%s\n' "$@" | jq -s '{workflow_runs: .}' >"${case_dir}/runs.json"
-}
-
-green_runs() {
-	set_runs "$(run 1 'Build Test' completed success)" \
-		"$(run 2 'Static Contract Gates' completed success)" \
-		"$(run 3 'Frontend' completed success)"
-}
-
-open_issue() { # <number> <title> <sha-in-body>
-	jq -cn --argjson n "$1" --arg t "$2" --arg s "$3" \
-		'{number:$n,node_id:("N"+($n|tostring)),title:$t,state:"open",
-		  html_url:("https://github.example/eshu-hq/eshu/issues/"+($n|tostring)),
-		  body:("<!-- main-health:sha="+$s+" -->\nold body"),labels:[{name:"main-health"}]}'
-}
-
-set_issues() { printf '%s\n' "$@" | jq -s '.' >"${case_dir}/issues.json"; }
-
-failing_job() { # <run-id> <job-id> <job-name> <log-text>
-	jq -cn --argjson j "$2" --arg n "$3" \
-		'{jobs:[{id:$j,name:$n,conclusion:"failure",
-		  steps:[{name:"Run tests",conclusion:"failure"}]},
-		  {id:900,name:"other",conclusion:"success",steps:[]}]}' >"${case_dir}/jobs-$1.json"
-	printf '%s\n' "$4" >"${case_dir}/log-$2.txt"
-}
-
-run_watcher() { # extra env assignments via caller; records the exit code
-	set +e
-	MAIN_HEALTH_REPO_ROOT="${policy_root}" GITHUB_REPOSITORY="${REPO}" \
-		PATH="${fake_bin}:${PATH}" "${target}" >"${case_dir}/out.txt" 2>"${case_dir}/err.txt"
-	last_rc=$?
-	set -e
-	[ "${last_rc}" -eq 0 ] || sed 's/^/    watcher stderr: /' "${case_dir}/err.txt" >&2
-	return 0
-}
-
-calls() { jq -r 'join(" ")' "${case_dir}/calls.log"; }
-count_calls() { calls | { rg -c -- "$1" || true; } | awk '{s+=$1} END{print s+0}'; }
-called() { [ "$(count_calls "$1")" -gt 0 ]; }
-not_called() { [ "$(count_calls "$1")" -eq 0 ]; }
-out_has() { rg -q -- "$1" "${case_dir}/out.txt"; }
-
-ISSUES_POST='^api -X POST repos/eshu-hq/eshu/issues( |$)'
-ISSUE_PATCH='^api -X PATCH repos/eshu-hq/eshu/issues/[0-9]+'
-patch_of() { printf '^api -X PATCH repos/eshu-hq/eshu/issues/%s( |$).*' "$1"; }
-STATUS_POST='^api -X POST repos/eshu-hq/eshu/statuses/'
-ANY_WRITE='^api -X (POST|PATCH|PUT|DELETE)|^api graphql'
+# shellcheck source=scripts/lib/test-main-health-fake.sh
+. "${repo_root}/scripts/lib/test-main-health-fake.sh"
 
 # 1. red, no open issue: exactly one issue is opened with the failing job and
 #    verdict line, a failure status is posted on the tip.
@@ -200,10 +59,7 @@ check "red: failure status posted on the tip under main-health" "$(called "${STA
 check "red: decision line printed" "$(out_has 'state=red.*action=open-issue' && echo 0 || echo 1)"
 
 # 2. dry run: same red input, decision printed, zero writes.
-export MAIN_HEALTH_DRY_RUN=true
-: >"${case_dir}/calls.log"
-run_watcher
-unset MAIN_HEALTH_DRY_RUN
+dry_run_watcher
 check "dry-run: exits 0" "${last_rc}"
 check "dry-run: no write call of any kind" "$(not_called "${ANY_WRITE}" && echo 0 || echo 1)"
 check "dry-run: prints the would-be action" "$(out_has 'DRY-RUN.*open-issue' && echo 0 || echo 1)"
@@ -324,7 +180,7 @@ check "pull_request run on the same sha is ignored" "$(out_has 'state=green' && 
 new_case ruleset-red "${TIP}"
 green_runs
 jq -cn '{workflow_runs:[{id:70,name:"Required Gates",status:"completed",conclusion:"failure",
-	event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",
+	event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",head_branch:"main",
 	html_url:"https://github.example/runs/70"}]}' >"${case_dir}/ruleset-runs.json"
 failing_job 70 701 'verify-live-ruleset' $'ruleset 19745843 (main protection) does not own one merge_queue rule\n##[error]Process completed with exit code 1.'
 run_watcher
@@ -371,26 +227,132 @@ check "real repo: derived list includes the aggregator's source workflow" "$(pri
 expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/required-gates.yml")"
 check "real repo: derived list covers every workflow the aggregator listens to" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -ge "${expected_n}" ] && echo 0 || echo 1)"
 
-# 19. the watcher workflow listens to exactly the aggregator's workflows plus
-#     the aggregator itself (the scheduled ruleset verifier), and stays
-#     least-privilege.
-watcher_wf="${repo_root}/.github/workflows/main-health.yml"
-if [ -f "${watcher_wf}" ]; then
-	want="$( { yq '.on.workflow_run.workflows[]' "${repo_root}/.github/workflows/required-gates.yml"; yq '.name' "${repo_root}/.github/workflows/required-gates.yml"; } | sort -u)"
-	have="$(yq '.on.workflow_run.workflows[]' "${watcher_wf}" | sort -u)"
-	check "workflow: workflow_run list == aggregator list + aggregator" "$([ "${want}" = "${have}" ] && echo 0 || echo 1)"
-	check "workflow: main-only workflow_run" "$([ "$(yq '.on.workflow_run.branches[0]' "${watcher_wf}")" = "main" ] && echo 0 || echo 1)"
-	check "workflow: has a 6h schedule" "$([ -n "$(yq '.on.schedule[0].cron' "${watcher_wf}")" ] && echo 0 || echo 1)"
-	check "workflow: workflow_dispatch has a dry_run input" "$([ "$(yq '.on.workflow_dispatch.inputs.dry_run.type' "${watcher_wf}")" = "boolean" ] && echo 0 || echo 1)"
-	perms="$(yq -o=json -I=0 '.permissions' "${watcher_wf}")"
-	check "workflow: least-privilege permissions" "$([ "${perms}" = '{"actions":"read","contents":"read","issues":"write","statuses":"write"}' ] && echo 0 || echo 1)"
-	check "workflow: serialised, never cancelled mid-write" "$([ "$(yq '.concurrency.cancel-in-progress' "${watcher_wf}")" = "false" ] && echo 0 || echo 1)"
-	unpinned="$(yq '.jobs[].steps[].uses | select(. != null)' "${watcher_wf}" | rg -v '^actions/(checkout)@v[0-9]+$|@[0-9a-f]{40}$' || true)"
-	check "workflow: every action is first-party checkout or SHA-pinned" "$([ -z "${unpinned}" ] && echo 0 || echo 1)"
-	check "workflow: never interpolates untrusted context into run:" "$(! yq '.jobs[].steps[].run | select(. != null)' "${watcher_wf}" | rg -q '\$\{\{ *github\.event\.' && echo 0 || echo 1)"
-else
-	check "workflow: .github/workflows/main-health.yml exists" 1
-fi
+# 20. F1: the ruleset probe asks for one run in one request (the paginated
+#     per_page=1 probe walked the whole history: 208 calls, 57 s live), and a
+#     whole evaluation makes a bounded number of gh calls.
+new_case f1-bounded "${TIP}"
+green_runs
+run_watcher
+check "F1: ruleset probe asks for a single run" "$(ok called '^api repos/eshu-hq/eshu/actions/workflows/required-gates.yml/runs\?.*per_page=1')"
+check "F1: ruleset probe is never paginated" "$(ok not_called '--paginate.*required-gates.yml/runs')"
+check "F1: a green evaluation makes at most 8 gh calls" "$([ "$(wc -l <"${case_dir}/calls.log" | tr -d ' ')" -le 8 ] && echo 0 || echo 1)"
+
+# 21. F2: Security Scan's image scan runs on the workflow_run event. Recorded
+#     shape of main 022c9bd255 (live): push run success, the workflow_run
+#     image scan failed, three NEWER workflow_run runs skipped (Publish runs of
+#     other events), and a merge_group run on the queue branch.
+new_case f2-image-scan-red "${TIP}"
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)" \
+	"$(run 36201469063 'Security Scan' completed success 9933 1 push)" \
+	"$(run 36203153460 'Security Scan' completed skipped 9940 1 workflow_run)" \
+	"$(run 36203450563 'Security Scan' completed failure 9941 1 workflow_run)" \
+	"$(run 36204191106 'Security Scan' completed skipped 9948 1 workflow_run)" \
+	"$(run 36204217502 'Security Scan' completed skipped 9949 1 workflow_run)" \
+	"$(run 36204225922 'Security Scan' completed skipped 9950 1 workflow_run)" \
+	"$(run 36200006134 'Security Scan' completed success 9927 1 merge_group | jq -c '.head_branch="gh-readonly-queue/main/pr-7180-850b2f0666"')"
+failing_job 36203450563 108294812538 'Trivy image scan (ghcr.io/eshu-hq/eshu)' \
+	$'2026-09-26T00:05:08.3729932Z \e[33mWARN\e[0m\tUsing severities from other vendors\n2026-09-26T00:05:08.3764772Z To suppress version checks, run Trivy scans with the --skip-version-check flag\n2026-09-26T00:05:08.3829032Z ##[error]Process completed with exit code 1.' \
+	'Run Trivy image scan'
+run_watcher
+check "F2: failed workflow_run image scan makes main red" "$(ok out_has 'state=red')"
+check "F2: newer skipped workflow_run runs do not shadow the failure" "$(ok called 'Security Scan.*Trivy image scan')"
+check "F2: the verdict line is read from an ANSI-coloured log" "$(ok called 'To suppress version checks')"
+check "F2: status names Security Scan" "$(ok called "${STATUS_POST}.*state=failure.*description=main is red at aaaaaaaaaa: Security Scan")"
+
+new_case f2-image-scan-fixed "${TIP}"
+green_runs
+set_runs "$(cat "${case_dir}/../f2-image-scan-red/runs.json" | jq -c '.workflow_runs[]')" \
+	"$(run 36205000000 'Security Scan' completed success 9955 1 workflow_run)" \
+	"$(run 36205000001 'Security Scan' completed skipped 9956 1 workflow_run)"
+run_watcher
+check "F2: a newer successful image scan supersedes the failed one" "$(ok out_has 'state=green')"
+
+new_case f2-schedule-red "${TIP}"
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)" \
+	"$(run 4 'Security Scan' completed success 20 1 push)" \
+	"$(run 5 'Security Scan' completed failure 21 1 schedule)"
+failing_job 5 505 'Trivy filesystem scan' $'##[error]Process completed with exit code 1.'
+run_watcher
+check "F2: a failed scheduled run of a required workflow on the tip is red" "$(ok out_has 'state=red')"
+
+new_case f2-queue-ignored "${TIP}"
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)" \
+	"$(run 6 'Build Test' completed failure 30 1 merge_group | jq -c '.head_branch="gh-readonly-queue/main/pr-1-aaaa"')" \
+	"$(run 7 'Build Test' completed failure 31 1 workflow_dispatch | jq -c '.head_branch="feature"')"
+run_watcher
+check "F2: merge_group and off-main runs on the same sha never count" "$(ok out_has 'state=green')"
+
+# 22. F3: dry run makes zero writes on EVERY path, not only open-issue.
+dry_case() { # <case-name> <description>
+	case_dir="${work}/$1"
+	export FIXTURES="${case_dir}"
+	dry_run_watcher
+	check "F3: dry-run $2: no write call of any kind" "$(ok not_called "${ANY_WRITE}")"
+	check "F3: dry-run $2: still prints the decision" "$(ok out_has '^main-health: sha=')"
+}
+dry_case green-supersedes "close path"
+dry_case red-newer-sha "update path"
+dry_case duplicates "duplicate-close path"
+dry_case ruleset-red "ruleset-red open path"
+dry_case f2-image-scan-red "image-scan open path"
+echo '[{"context":"main-health","state":"failure","description":"stale"}]' >"${work}/green-quiet/statuses.json"
+dry_case green-quiet "changed-status path"
+
+# 23. F5: run listings are filtered server-side (head_sha + branch + event),
+#     never the unfiltered per-sha listing (609 runs / 7 pages live).
+case_dir="${work}/f1-bounded"
+export FIXTURES="${case_dir}"
+listings="$(calls | rg 'actions/(runs|workflows/[^/ ]+/runs)\?' | rg -v 'required-gates.yml/runs' || true)"
+check "F5: the tip's runs are listed" "$([ -n "${listings}" ] && echo 0 || echo 1)"
+check "F5: every run listing filters head_sha, branch and event server-side" \
+	"$(printf '%s\n' "${listings}" | awk -v t="head_sha=${TIP}" 'NF && !(index($0, t) && index($0, "branch=main") && index($0, "event=")) { bad = 1 } END { exit bad }' && echo 0 || echo 1)"
+check "F5: workflow_run runs are listed per workflow file, never repo-wide" \
+	"$(ok not_called '^api.* repos/eshu-hq/eshu/actions/runs\?.*event=workflow_run')"
+new_case f5-truncated "${NEXT}"
+green_runs
+set_issues "$(open_issue 41 'main is red @aaaaaaaaaa' "${TIP}")"
+echo 1500 >"${case_dir}/total-count"
+run_watcher
+check "F5: a truncated run listing is never green" "$(ok out_has 'state=unknown')"
+check "F5: a truncated run listing leaves the issue open" "$(ok not_called "$(patch_of 41)state=closed")"
+
+# 24. P3: an empty failed-step field does not shift the verdict into the step.
+new_case p3-empty-step "${TIP}"
+set_runs "$(run 1 'Build Test' completed failure)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)"
+failing_job 1 501 'go-core' $'--- FAIL: TestY (0.01s)' ''
+run_watcher
+check "P3: no failed step -> step '?' and the verdict stays the verdict" "$(ok called 'step `\?` — verdict: `--- FAIL: TestY')"
+
+# 25. P3: only watcher-authored issues (body marker) are managed.
+new_case p3-foreign-issue "${TIP}"
+green_runs
+set_issues "$(open_issue 41 'main is red @aaaaaaaaaa' "${TIP}" | jq -c '.body="a human report labelled main-health"')"
+run_watcher
+check "P3: a labelled issue without the watcher marker is never closed" "$(ok not_called "${ISSUE_PATCH}")"
+
+# 26. P3: ANSI, carriage return and backticks cannot reach the issue body,
+#     and the summary counts the derived required list exactly.
+new_case p3-sanitise "${TIP}"
+set_runs "$(run 1 'Build Test' completed failure)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)"
+failing_job 1 501 'go-core' $'--- FAIL: TestZ \e[31m`red`\e[0m\r [x](http://e) #12'
+run_watcher
+check "P3: body has no escape or carriage-return byte" "$(! rg -q $'[\x1b\r]' "${case_dir}/last-body.txt" && echo 0 || echo 1)"
+check "P3: backticks in log text are neutralised" "$(ok rg -qF "TestZ 'red'" "${case_dir}/last-body.txt")"
+check "P3: summary counts the derived required list exactly" "$(ok out_has ' required=4 ')"
+
+# 19. static mirror of the workflow and of the script's write discipline.
+# shellcheck source=scripts/lib/test-main-health-workflow.sh
+. "${repo_root}/scripts/lib/test-main-health-workflow.sh"
 
 printf '\ntest-main-health: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" -eq 0 ]
