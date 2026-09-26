@@ -54,27 +54,42 @@ type laneBlockState struct {
 	lastReport time.Time
 }
 
-// observe records a blocked cycle at now. It reports true when this cycle
-// should log and sample: the episode just started, the reason changed, or
-// blockedReportInterval has passed since the last report. blockedFor is the
-// episode age in seconds. replaced is the prior episode's reason when this
-// cycle switched reasons, so its gauge can be zeroed; otherwise empty.
-func (s *laneBlockState) observe(now time.Time, reason string) (report bool, blockedFor float64, replaced string) {
+// blockObservation is the result of one blocked cycle.
+type blockObservation struct {
+	// report is true when this cycle should log and sample: the episode just
+	// started, the reason changed, or blockedReportInterval has passed since
+	// the last report.
+	report bool
+	// blockedFor is the current episode's age in seconds.
+	blockedFor float64
+	// replaced is the prior episode's reason when this cycle switched reasons,
+	// so its gauge can be zeroed and its close logged; otherwise empty.
+	replaced string
+	// replacedFor is the replaced episode's age in seconds at the switch.
+	replacedFor float64
+}
+
+// observe records a blocked cycle at now.
+func (s *laneBlockState) observe(now time.Time, reason string) blockObservation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.reason != reason {
-		replaced = s.reason
+		obs := blockObservation{report: true}
+		if s.reason != "" {
+			obs.replaced = s.reason
+			obs.replacedFor = now.Sub(s.since).Seconds()
+		}
 		s.reason = reason
 		s.since = now
 		s.lastReport = now
-		return true, 0, replaced
+		return obs
 	}
-	blockedFor = now.Sub(s.since).Seconds()
+	obs := blockObservation{blockedFor: now.Sub(s.since).Seconds()}
 	if now.Sub(s.lastReport) >= blockedReportInterval {
 		s.lastReport = now
-		return true, blockedFor, ""
+		obs.report = true
 	}
-	return false, blockedFor, ""
+	return obs
 }
 
 // release ends the episode. released is true only for the first open cycle
@@ -90,16 +105,18 @@ func (s *laneBlockState) release(now time.Time) (released bool, reason string, b
 	return true, reason, blockedFor
 }
 
-// quiescenceDescriber returns whichever wired gate dependency can name its
-// blockers, or nil.
+// quiescenceDescriber returns the describer for the dependency the gate
+// actually consults, or nil. It mirrors projectionLaneBlocked: ReducerGraphDrain
+// when wired, otherwise CanonicalQuiescence. It never falls through to the other
+// dependency, because that one is not what holds the lane and would name the
+// wrong blockers.
 func (r *Runner) quiescenceDescriber() CanonicalCodeQuiescenceDescriber {
-	if describer, ok := r.CanonicalQuiescence.(CanonicalCodeQuiescenceDescriber); ok {
-		return describer
+	var gate any = r.CanonicalQuiescence
+	if r.ReducerGraphDrain != nil {
+		gate = r.ReducerGraphDrain
 	}
-	if describer, ok := r.ReducerGraphDrain.(CanonicalCodeQuiescenceDescriber); ok {
-		return describer
-	}
-	return nil
+	describer, _ := gate.(CanonicalCodeQuiescenceDescriber)
+	return describer
 }
 
 func laneAttributes(reason string) metric.MeasurementOption {
@@ -118,18 +135,19 @@ func (r *Runner) recordCodeCallLaneBlocked(ctx context.Context, reason string) {
 	if r.Instruments != nil && r.Instruments.SharedProjectionLaneBlocked != nil {
 		r.Instruments.SharedProjectionLaneBlocked.Add(ctx, 1, laneAttributes(reason))
 	}
-	report, blockedFor, replaced := r.blockedLane.observe(time.Now(), reason)
-	if replaced != "" {
-		r.zeroLaneBlockerCount(ctx, replaced)
+	obs := r.blockedLane.observe(time.Now(), reason)
+	if obs.replaced != "" {
+		r.zeroLaneBlockerCount(ctx, obs.replaced)
+		r.logLaneEpisodeClosed(ctx, obs.replaced, obs.replacedFor, reason)
 	}
-	if !report {
+	if !obs.report {
 		return
 	}
 
 	logAttrs := []any{
 		log.Domain(string(reducercontract.DomainCodeCalls)),
 		slog.String("blocked_reason", reason),
-		slog.Float64("blocked_seconds", blockedFor),
+		slog.Float64("blocked_seconds", obs.blockedFor),
 		telemetry.PhaseAttr(telemetry.PhaseShared),
 	}
 	if describer := r.quiescenceDescriber(); reason == BlockedReasonCanonicalCodeQuiescence && describer != nil {
@@ -160,14 +178,26 @@ func (r *Runner) recordCodeCallLaneReleased(ctx context.Context) {
 		return
 	}
 	r.zeroLaneBlockerCount(ctx, reason)
-	if r.Logger != nil {
-		r.Logger.InfoContext(ctx, "code call projection lane released",
-			log.Domain(string(reducercontract.DomainCodeCalls)),
-			slog.String("blocked_reason", reason),
-			slog.Float64("blocked_seconds", blockedFor),
-			telemetry.PhaseAttr(telemetry.PhaseShared),
-		)
+	r.logLaneEpisodeClosed(ctx, reason, blockedFor, "")
+}
+
+// logLaneEpisodeClosed writes the close record for a blocked episode: the lane
+// opened (replacedBy empty) or the blocking reason switched to replacedBy. Both
+// carry the closed reason and its age so an operator can total stall time.
+func (r *Runner) logLaneEpisodeClosed(ctx context.Context, reason string, blockedFor float64, replacedBy string) {
+	if r.Logger == nil {
+		return
 	}
+	attrs := []any{
+		log.Domain(string(reducercontract.DomainCodeCalls)),
+		slog.String("blocked_reason", reason),
+		slog.Float64("blocked_seconds", blockedFor),
+		telemetry.PhaseAttr(telemetry.PhaseShared),
+	}
+	if replacedBy != "" {
+		attrs = append(attrs, slog.String("replaced_by", replacedBy))
+	}
+	r.Logger.InfoContext(ctx, "code call projection lane released", attrs...)
 }
 
 func (r *Runner) zeroLaneBlockerCount(ctx context.Context, reason string) {

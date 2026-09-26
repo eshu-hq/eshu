@@ -181,3 +181,25 @@ runner select without it. The proposal:
    matters.
 3. Measure the drain on a scaled fixture before and after, then unblock
    ops-qa.
+
+## Follow-up: blocked-lane sampler precedence and episode close
+
+The #7179 review threads changed only the blocked-lane reporting in
+`go/internal/reducer/code/call/projection/blocked.go`. The gate query, its
+arguments, the partition loop and the claim path are untouched.
+
+No-Regression Evidence: the per-cycle work is unchanged. The sampler still
+calls the blocker describer only when an episode starts, when the reason
+changes, and at most once a minute after that; it now asks the same dependency
+the gate consulted instead of a fixed one. A reason switch adds one INFO log
+line for the replaced episode (zeroing its gauge already happened before this
+change), so the added cost is bounded by the switch rate, the same order as the
+existing blocked WARN. `go test ./internal/reducer/...` passes.
+
+Observability Evidence: a reason switch now logs `code call projection lane
+released` for the replaced reason with its `blocked_seconds` age, so stall time
+has a close record per reason. `blocking_scope_ids` always comes from the
+dependency that holds the lane. Tests: `TestQuiescenceDescriberMirrorsGatePrecedence`,
+`TestQuiescenceDescriberDoesNotBorrowFromANonGateDependency`,
+`TestCodeCallProjectionRunnerLogsClosedEpisodeOnReasonSwitch` (RED before the
+change) and `TestCodeCallProjectionRunnerNonDescribingGateStillReportsBlock`.
