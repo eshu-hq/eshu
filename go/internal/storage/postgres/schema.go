@@ -62,11 +62,14 @@ func BootstrapDefinitionsWithoutContentSearchIndexes() []Definition {
 		// These lifecycle files make conditional decisions while indexes are deferred;
 		// the full pass must revisit them after content_store builds the indexes.
 		switch defs[i].Name {
-		case "content_store", "content_substring_index_state", "content_entity_name_trgm_index":
+		case "content_store", "content_substring_index_state", "content_entity_name_trgm_index", "content_files_relative_path_trgm_index":
 			defs[i].FullChecksum = migrationChecksum(defs[i].SQL)
 			defs[i].Variant = "deferred"
 			if defs[i].Name == "content_store" {
 				defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
+			}
+			if defs[i].Name == "content_files_relative_path_trgm_index" {
+				defs[i].SQL = "SELECT 1;"
 			}
 		}
 	}
@@ -243,9 +246,10 @@ func applyBootstrapDefinitionsWith(
 }
 
 // EnsureContentSearchIndexes creates and validates the trigram indexes that
-// accelerate content file and entity source search. A transaction-scoped
-// advisory lock serializes the complete finalization lifecycle, so concurrent
-// finalizers wait and then recheck durable readiness instead of racing DDL.
+// accelerate content file and path plus entity source and name search. A
+// transaction-scoped advisory lock serializes the complete finalization
+// lifecycle, so concurrent finalizers wait and then recheck durable readiness
+// instead of racing DDL.
 func EnsureContentSearchIndexes(ctx context.Context, database db.Beginner) error {
 	if database == nil {
 		return fmt.Errorf("executor is required")
@@ -330,6 +334,7 @@ func ensureContentSearchIndexesInTransaction(ctx context.Context, exec db.Execut
 		{name: "content_files", sql: contentFilesSearchIndexSchemaSQL},
 		{name: "content_entities", sql: contentEntitiesSearchIndexSchemaSQL},
 		{name: "content_entity_names", sql: contentEntityNamesSearchIndexSchemaSQL},
+		{name: "content_files_relative_path", sql: contentFilesRelativePathSearchIndexSchemaSQL},
 		{name: "analyze", sql: "ANALYZE content_files; ANALYZE content_entities;"},
 	}
 	for _, step := range buildSteps {

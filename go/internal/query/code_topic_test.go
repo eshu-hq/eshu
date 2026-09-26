@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -142,21 +143,135 @@ func TestContentReaderInvestigateCodeTopicBoundsCandidatePoolPerTerm(t *testing.
 	if !strings.Contains(fileProbe, "FROM content_files f") {
 		t.Fatalf("file_probe = %q, want a content_files probe", fileProbe)
 	}
-	// 4 terms join into 4 file branches with 3 UNION ALL separators.
-	if got, want := strings.Count(fileProbe, "UNION ALL"), 3; got != want {
-		t.Fatalf("file_probe UNION ALL count = %d, want %d (one join per term boundary)", got, want)
+	// #7033: each of the four term pools materializes its path matches before
+	// evaluating a content-only probe for the remaining capacity. The final
+	// union has one separator per term plus three between terms.
+	if got, want := strings.Count(fileProbe, "UNION ALL"), 7; got != want {
+		t.Fatalf("file_probe UNION ALL count = %d, want %d (path/content pools plus term boundaries)", got, want)
 	}
-	// Each of the 4 branches carries its own LIMIT candidateCap, not just the
-	// entity_probe side: dropping it per-branch leaves content_files unbounded
-	// again with every other assertion in this test still passing.
+	// A materialized path pool establishes the exact capacity before the content
+	// branch starts. The content pool's count-gated limit is necessary because
+	// UNION ALL plus a later outer LIMIT does not require PostgreSQL to emit the
+	// path branch first.
+	if got, want := strings.Count(fileProbe, "path_pool AS MATERIALIZED"), 4; got != want {
+		t.Fatalf("path pool count = %d, want %d (one materialized path pool per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "LIMIT (SELECT 1000 - count(*) FROM path_pool)"), 4; got != want {
+		t.Fatalf("content remaining-capacity limit count = %d, want %d (one per term)", got, want)
+	}
+	if strings.Contains(fileProbe, ") path_first\n\t\t  LIMIT") {
+		t.Fatalf("file_probe = %q, want no unordered outer path_first LIMIT", fileProbe)
+	}
 	if got, want := strings.Count(fileProbe, "LIMIT 1000"), 4; got != want {
-		t.Fatalf("file_probe LIMIT 1000 count = %d, want %d (one per-term branch cap)", got, want)
+		t.Fatalf("file_probe path LIMIT 1000 count = %d, want %d (one path cap per term)", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
 	}
 	if !rows[0].PoolTruncated {
 		t.Fatalf("rows[0].PoolTruncated = false, want true when the backend reports a capped pool")
+	}
+}
+
+// TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths proves #7033's
+// path-first file candidate partition. It must retain the complete ILIKE match
+// set when a term is uncapped, while a capped term may select a different
+// bounded candidate pool. The path and content probes deliberately use the
+// same term placeholder so wildcard and backslash semantics remain Postgres
+// ILIKE semantics rather than a lossy normalized-string approximation.
+func TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{
+			"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+			"entity_type", "language", "start_line", "end_line", "matched_terms", "score",
+			"pool_truncated",
+		},
+		rows: [][]driver.Value{{
+			"file", "repo-1", "internal/a_c.go", "", "", "", "go", int64(1), int64(1),
+			"a_c", int64(1), true,
+		}},
+	}})
+	reader := NewContentReader(db)
+
+	terms := []string{"path-only", "content-only", "both", "a_c", "a%c", `back\slash`}
+	rows, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
+		AllowedRepositoryIDs: []string{"repo-1"},
+		Language:             "go",
+		Terms:                terms,
+		Limit:                26,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if !rows[0].PoolTruncated {
+		t.Fatal("PoolTruncated = false, want capped file-pool marker preserved")
+	}
+
+	query := recorder.queries[0]
+	fileProbeStart := strings.Index(query, "file_probe AS (")
+	fileMatchesStart := strings.Index(query, "file_matches AS (")
+	if fileProbeStart == -1 || fileMatchesStart == -1 || fileMatchesStart < fileProbeStart {
+		t.Fatalf("query = %q, want a file_probe CTE before file_matches", query)
+	}
+	fileProbe := query[fileProbeStart:fileMatchesStart]
+	if got, want := strings.Count(fileProbe, "f.relative_path ILIKE"), len(terms); got != want {
+		t.Fatalf("path predicate count = %d, want %d (one path probe per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "f.content ILIKE"), len(terms); got != want {
+		t.Fatalf("content predicate count = %d, want %d (one content-only probe per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "f.relative_path NOT ILIKE"), len(terms); got != want {
+		t.Fatalf("path exclusion count = %d, want %d (content probe must exclude path hits)", got, want)
+	}
+
+	// Six terms make the fixed 4,000-row pool budget a 666-row per-term cap.
+	// A materialized path pool makes the remaining content capacity explicit.
+	// When the path pool fills, PostgreSQL can satisfy the zero-row content
+	// limit without scanning that branch; when it does not, the two pools retain
+	// the full path-or-content match set without duplicate path/content hits.
+	if got, want := strings.Count(fileProbe, "path_pool AS MATERIALIZED"), len(terms); got != want {
+		t.Fatalf("path pool count = %d, want %d (one materialized path pool per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "content_pool AS ("), len(terms); got != want {
+		t.Fatalf("content pool count = %d, want %d (one count-gated content pool per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "LIMIT (SELECT 666 - count(*) FROM path_pool)"), len(terms); got != want {
+		t.Fatalf("remaining-capacity limit count = %d, want %d (one per term)", got, want)
+	}
+	if strings.Contains(fileProbe, ") path_first\n\t\t  LIMIT") {
+		t.Fatalf("file_probe = %q, want no unordered outer path_first LIMIT", fileProbe)
+	}
+	if got, want := strings.Count(fileProbe, "LIMIT 666"), len(terms); got != want {
+		t.Fatalf("file_probe path LIMIT count = %d, want %d (one path cap per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "repo_id = ANY($1)"), len(terms)*2; got != want {
+		t.Fatalf("repo filter count = %d, want %d (both file subprobes per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "coalesce(language, '') = $2"), len(terms)*2; got != want {
+		t.Fatalf("language filter count = %d, want %d (both file subprobes per term)", got, want)
+	}
+	if got, want := strings.Count(fileProbe, "eshu_require_content_substring_indexes_ready()"), len(terms)*2; got != want {
+		t.Fatalf("readiness gate count = %d, want %d (both file subprobes per term)", got, want)
+	}
+
+	// Terms start at $3 after repo and language. Each one is the matched-term
+	// value in both subprobes plus path, content, and path-exclusion predicates:
+	// five uses of the exact bound value. In particular, underscores, percent signs, and
+	// backslashes stay ILIKE input rather than being escaped or rewritten.
+	for i, want := range terms {
+		argIndex := i + 3
+		if got := recorder.args[0][argIndex-1]; got != want {
+			t.Fatalf("term arg $%d = %#v, want %#v", argIndex, got, want)
+		}
+		placeholder := fmt.Sprintf("$%d", argIndex)
+		if got, wantUses := strings.Count(fileProbe, placeholder), 5; got != wantUses {
+			t.Fatalf("term placeholder %s uses = %d, want %d (matched values plus path/content/exclusion)", placeholder, got, wantUses)
+		}
 	}
 }
 

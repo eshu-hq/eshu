@@ -294,7 +294,7 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	t.Parallel()
 
-	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1}}
+	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
@@ -308,6 +308,9 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	if !strings.Contains(statement, "content_entities_name_trgm_idx") {
 		t.Fatal("content search index SQL missing entity name trigram index")
 	}
+	if !strings.Contains(statement, "content_files_relative_path_trgm_idx") {
+		t.Fatal("content search index SQL missing relative-path trigram index")
+	}
 	if strings.Contains(statement, "CREATE TABLE") {
 		t.Fatal("content search index SQL unexpectedly creates tables")
 	}
@@ -316,8 +319,8 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 func TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs(t *testing.T) {
 	t.Parallel()
 
-	const dropDisproven = "dropping or replacing content pg_trgm GIN indexes is inaccurate (issues #4862/#4980): " +
-		"both exact indexes are load-bearing for full-content all-repo substring reads"
+	const dropDisproven = "dropping or replacing content pg_trgm GIN indexes is inaccurate (issues #4862/#4980/#7033): " +
+		"the exact indexes are load-bearing for all-repo substring and code-topic reads"
 
 	sql := contentStoreSearchIndexSchemaSQL
 
@@ -335,6 +338,9 @@ func TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs(t *testing.T) {
 	}
 	if !strings.Contains(sql, "content_entities_name_trgm_idx") || !strings.Contains(sql, "gin (entity_name gin_trgm_ops)") {
 		t.Fatalf("contentStoreSearchIndexSchemaSQL missing entity-name GIN: %s", dropDisproven)
+	}
+	if !strings.Contains(sql, "content_files_relative_path_trgm_idx") || !strings.Contains(sql, "gin (relative_path gin_trgm_ops)") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing relative-path GIN: %s", dropDisproven)
 	}
 }
 

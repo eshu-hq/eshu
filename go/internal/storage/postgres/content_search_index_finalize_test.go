@@ -16,7 +16,7 @@ import (
 func TestEnsureContentSearchIndexesPublishesReadyAfterExactBuildAndAnalyze(t *testing.T) {
 	t.Parallel()
 
-	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1}}
+	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
@@ -29,6 +29,7 @@ func TestEnsureContentSearchIndexesPublishesReadyAfterExactBuildAndAnalyze(t *te
 		"CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx",
 		"CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx",
 		"CREATE INDEX IF NOT EXISTS content_entities_name_trgm_idx",
+		"CREATE INDEX IF NOT EXISTS content_files_relative_path_trgm_idx",
 		"ANALYZE content_files",
 		"state = 'ready'",
 	}
@@ -40,8 +41,8 @@ func TestEnsureContentSearchIndexesPublishesReadyAfterExactBuildAndAnalyze(t *te
 			t.Fatalf("statement[%d] = %q, want substring %q", i, exec.statements[i], want)
 		}
 	}
-	if !strings.Contains(exec.statements[8], "eshu_content_substring_indexes_valid()") {
-		t.Fatalf("ready publication does not verify exact indexes: %q", exec.statements[8])
+	if !strings.Contains(exec.statements[9], "eshu_content_substring_indexes_valid()") {
+		t.Fatalf("ready publication does not verify exact indexes: %q", exec.statements[9])
 	}
 }
 
