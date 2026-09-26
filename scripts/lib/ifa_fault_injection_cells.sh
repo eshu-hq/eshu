@@ -136,10 +136,8 @@ cell_expirelease() {
 	# Captured BEFORE the expiry so the assertion after the drain measures what
 	# this expiry caused, not a retry that predated it.
 	reclaimed_before="$(ifa_fault_count_reclaimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
-	log "expire-lease-mid-handler: force claim_until = now() on every claimed/running reducer row (SQL, no kill)"
-	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"UPDATE fact_work_items SET claim_until = now() WHERE stage = 'reducer' AND status IN ('claimed', 'running');" \
-		"${compose_file}" >/dev/null
+	log "expire-lease-mid-handler: force claim_until = now() on every claimed/running reducer row (SQL, no kill, ack lock order)"
+	ifa_fault_expire_reducer_claims "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" >/dev/null
 	run_drain_gate expirelease
 	# The result, not the precondition. claimed_before proves rows were held
 	# when the expiry landed; only a rise in the re-claimed count proves the
