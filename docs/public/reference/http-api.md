@@ -169,6 +169,35 @@ console session is still admitted only where the modes above admit it:
 | `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
 | `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
 
+`GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are
+grant-filtered routes of this kind (#5167). A restricted scoped caller does not
+get the deployment-wide report; it gets a `repository_count` counted over its
+granted repositories inside the graph query, plus a `withheld_sections` list
+naming what it does not receive. See
+[Index Status](http-api/index-status.md) for the exact shape. An
+all-scope caller has no grant to bind there and follows the mode rule above.
+
+The rule reaches bearer tokens and browser sessions alike, with one difference:
+it never widens a token's reach. A route absent from the scoped-token allowlist
+refuses every bearer in every mode, while the modes above do admit an
+owner console session there.
+On the MCP transport — `mcp-server`'s `GET /sse` and `POST /mcp/message` — the
+refusal lands on the handshake, so an all-scope bearer loses the whole MCP
+session rather than the tools that read tenant data. Only bearers reach that
+rule: the transport is wired with no browser-session resolver, so a console
+session cookie is not a credential there at all. See
+[Hosted Governance](../operate/hosted-governance.md).
+
+When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
+configured, `cmd/mcp-server` also publishes an
+[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected
+Resource Metadata document at the unauthenticated
+`/.well-known/oauth-protected-resource` route so OAuth-capable MCP clients can
+discover where to obtain an access token, and adds a
+`WWW-Authenticate: Bearer resource_metadata="…"` challenge to a credential-less
+or unrecognized-credential `401`. A valid credential is served with no
+challenge. See [MCP OAuth 2.1 Discovery](../operate/mcp-oauth-discovery.md).
+
 ### Scoped callers on the impact path routes
 
 `POST /api/v0/impact/trace-resource-to-code`,
@@ -215,35 +244,6 @@ page rather than as one query predicate (#5167):
 - Every scoped response carries `scoped: true` and a static
   `withheld_sections` list. Both are present whether or not anything was
   withheld.
-
-`GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are
-grant-filtered routes of this kind (#5167). A restricted scoped caller does not
-get the deployment-wide report; it gets a `repository_count` counted over its
-granted repositories inside the graph query, plus a `withheld_sections` list
-naming what it does not receive. See
-[Index Status](http-api/index-status.md) for the exact shape. An
-all-scope caller has no grant to bind there and follows the mode rule above.
-
-The rule reaches bearer tokens and browser sessions alike, with one difference:
-it never widens a token's reach. A route absent from the scoped-token allowlist
-refuses every bearer in every mode, while the modes above do admit an
-owner console session there.
-On the MCP transport — `mcp-server`'s `GET /sse` and `POST /mcp/message` — the
-refusal lands on the handshake, so an all-scope bearer loses the whole MCP
-session rather than the tools that read tenant data. Only bearers reach that
-rule: the transport is wired with no browser-session resolver, so a console
-session cookie is not a credential there at all. See
-[Hosted Governance](../operate/hosted-governance.md).
-
-When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
-configured, `cmd/mcp-server` also publishes an
-[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected
-Resource Metadata document at the unauthenticated
-`/.well-known/oauth-protected-resource` route so OAuth-capable MCP clients can
-discover where to obtain an access token, and adds a
-`WWW-Authenticate: Bearer resource_metadata="…"` challenge to a credential-less
-or unrecognized-credential `401`. A valid credential is served with no
-challenge. See [MCP OAuth 2.1 Discovery](../operate/mcp-oauth-discovery.md).
 
 ## Dashboard Browser Sessions
 
