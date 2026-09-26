@@ -257,3 +257,206 @@ ifa_deployable_unit_release_admission_decisions_lock() {
 	wait "${holder_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${holder_pid}"
 }
+
+# ifa_deployable_unit_wait_for_readiness_fence waits, at the database level,
+# until at least one live deployable_unit_correlation row can pass Handle's
+# resolution readiness gate: its own relationship generation is active, and no
+# active scope holds the corpus fence (a current generation row that is not
+# active, or a missing row with live deployment_mapping work). It mirrors
+# incompleteScopeRelationshipGenerationsPredicate
+# (go/internal/storage/postgres/relationship_schema.go).
+#
+# It runs after the before-reducer starts, not before: that reducer's own
+# deployment_mapping work is what activates the generation (run 36125876678:
+# cross-repo resolution started 3 s after the first claims). Until the fence
+# opens, every claim fails readiness with a NON-counting class and never
+# reaches admission_decisions. The census below is the proof of a parked
+# claim; this wait makes a missed fence fail with its own message.
+#
+# Args: cell compose_project use_compose dsn compose_file budget_seconds
+ifa_deployable_unit_wait_for_readiness_fence() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" dsn="$4" compose_file_arg="$5" budget="$6"
+	local raw state query_rc
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: readiness fence budget must be a positive integer, got %q\n' "${cell}" "${budget}" >&2
+		return 1
+	fi
+	if raw="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${dsn}" \
+		"/* deployable_unit readiness fence */ CREATE OR REPLACE FUNCTION pg_temp.ifa_wait_for_deployable_unit_readiness(wait_seconds integer)
+		 RETURNS text LANGUAGE plpgsql AS \$\$
+		 DECLARE
+		   ready_rows bigint;
+		   fence_holders bigint;
+		   deadline timestamptz := clock_timestamp() + make_interval(secs => wait_seconds);
+		 BEGIN
+		   LOOP
+		     SELECT
+		       (SELECT count(*) FROM fact_work_items AS w
+		         WHERE w.stage = 'reducer' AND w.domain = 'deployable_unit_correlation'
+		           AND w.status IN ('pending', 'claimed', 'running', 'retrying')
+		           AND EXISTS (SELECT 1 FROM relationship_generations AS rg
+		                        WHERE rg.generation_id = w.generation_id AND rg.status = 'active')),
+		       (SELECT count(*) FROM ingestion_scopes AS s
+		         WHERE s.status = 'active'
+		           AND (EXISTS (SELECT 1 FROM relationship_generations AS rg
+		                         WHERE rg.scope = s.scope_id AND rg.generation_id = s.active_generation_id
+		                           AND rg.status <> 'active')
+		                OR (NOT EXISTS (SELECT 1 FROM relationship_generations AS rg
+		                                 WHERE rg.scope = s.scope_id AND rg.generation_id = s.active_generation_id)
+		                    AND EXISTS (SELECT 1 FROM fact_work_items AS m
+		                                 WHERE m.stage = 'reducer' AND m.domain = 'deployment_mapping'
+		                                   AND m.scope_id = s.scope_id
+		                                   AND m.status IN ('pending', 'claimed', 'running', 'retrying')))))
+		       INTO ready_rows, fence_holders;
+		     IF ready_rows > 0 AND fence_holders = 0 THEN
+		       RETURN ready_rows || '|0';
+		     END IF;
+		     EXIT WHEN clock_timestamp() >= deadline;
+		     PERFORM pg_sleep(0.05);
+		   END LOOP;
+		   RETURN ready_rows || '|' || fence_holders;
+		 END
+		 \$\$;
+		 SELECT pg_temp.ifa_wait_for_deployable_unit_readiness(${budget});" \
+		"${compose_file_arg}")"; then :; else
+		query_rc=$?
+		printf '%s: readiness fence query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
+		return "${query_rc}"
+	fi
+	state="$(printf '%s\n' "${raw}" | tail -n 1 | tr -d '[:space:]')"
+	if [[ ! "${state}" =~ ^[0-9]+\|[0-9]+$ ]]; then
+		printf '%s: readiness fence returned malformed state %q; state is unknown\n' "${cell}" "${state}" >&2
+		return 1
+	fi
+	if [[ "${state}" == *"|0" && "${state%%|*}" -gt 0 ]]; then
+		printf '%s: readiness fence open: %s deployable_unit_correlation row(s) with an active own generation, 0 corpus-fence holders\n' "${cell}" "${state%%|*}"
+		return 0
+	fi
+	printf '%s: readiness fence did not open within %ss (ready_rows|fence_holders=%s)\n' "${cell}" "${budget}" "${state}" >&2
+	return 1
+}
+
+# ifa_deployable_unit_wait_for_blocked_claim is the kill cell's non-vacuity
+# census. One snapshot must show the labeled admission_decisions holder, at
+# least one backend waiting (NOT granted) on that relation, and exactly as many
+# claimed/running deployable_unit_correlation rows as waiters. Within this gate
+# the handler is the only admission_decisions writer (see the lock helper's
+# header), so each waiter is one parked claim; a claim that is about to fail
+# readiness has no waiter and keeps the census polling. On success the claimed
+# rows are written to output_var as "md5(work_item_id) attempt_count
+# last_attempt_epoch_us" entries joined by commas. The digest keeps arbitrary
+# work-item text out of the shell and out of the later SQL literal.
+#
+# Args: cell compose_project use_compose dsn compose_file budget_seconds output_var
+ifa_deployable_unit_wait_for_blocked_claim() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" dsn="$4" compose_file_arg="$5" budget="$6" output_var="$7"
+	local app_name="ifa_deployable_unit_lock_${cell}" raw state query_rc holders waiters claimed rows
+	if [[ ! "${cell}" =~ ^[a-z0-9_]+$ || ! "${budget}" =~ ^[1-9][0-9]*$ || ! "${output_var}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+		printf 'ifa_deployable_unit_wait_for_blocked_claim: invalid cell %q, budget %q, or output variable %q\n' "${cell}" "${budget}" "${output_var}" >&2
+		return 1
+	fi
+	if raw="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${dsn}" \
+		"/* deployable_unit blocked-claim census */ CREATE OR REPLACE FUNCTION pg_temp.ifa_wait_for_deployable_unit_blocked_claim(wait_seconds integer)
+		 RETURNS text LANGUAGE plpgsql AS \$\$
+		 DECLARE
+		   holders bigint; waiters bigint; claimed bigint; claimed_rows text;
+		   deadline timestamptz := clock_timestamp() + make_interval(secs => wait_seconds);
+		 BEGIN
+		   LOOP
+		     SELECT count(DISTINCT holder.pid) INTO holders
+		       FROM pg_catalog.pg_stat_activity AS holder
+		       JOIN pg_catalog.pg_locks AS held ON held.pid = holder.pid
+		      WHERE holder.application_name = '${app_name}' AND held.granted
+		        AND held.relation = 'admission_decisions'::regclass AND held.mode = 'AccessExclusiveLock';
+		     SELECT count(DISTINCT waiter.pid) INTO waiters
+		       FROM pg_catalog.pg_locks AS lock_row
+		       JOIN pg_catalog.pg_stat_activity AS waiter ON waiter.pid = lock_row.pid
+		      WHERE lock_row.relation = 'admission_decisions'::regclass AND NOT lock_row.granted
+		        AND waiter.wait_event_type = 'Lock' AND waiter.application_name <> '${app_name}';
+		     SELECT count(*), string_agg(md5(work_item_id) || ' ' || attempt_count || ' '
+		              || coalesce((extract(epoch FROM last_attempt_at) * 1000000)::bigint::text, 'null'),
+		              ',' ORDER BY work_item_id)
+		       INTO claimed, claimed_rows
+		       FROM fact_work_items
+		      WHERE stage = 'reducer' AND domain = 'deployable_unit_correlation' AND status IN ('claimed', 'running');
+		     IF holders = 1 AND waiters > 0 AND claimed = waiters THEN
+		       RETURN holders || '|' || waiters || '|' || claimed || '|' || claimed_rows;
+		     END IF;
+		     EXIT WHEN clock_timestamp() >= deadline;
+		     PERFORM pg_sleep(0.01);
+		   END LOOP;
+		   RETURN holders || '|' || waiters || '|' || claimed || '|' || coalesce(claimed_rows, '');
+		 END
+		 \$\$;
+		 SELECT pg_temp.ifa_wait_for_deployable_unit_blocked_claim(${budget});" \
+		"${compose_file_arg}")"; then :; else
+		query_rc=$?
+		printf '%s: blocked-claim census query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
+		return "${query_rc}"
+	fi
+	state="$(printf '%s\n' "${raw}" | tail -n 1)"
+	IFS='|' read -r holders waiters claimed rows <<<"${state}"
+	if [[ ! "${holders}" =~ ^[0-9]+$ || ! "${waiters}" =~ ^[0-9]+$ || ! "${claimed}" =~ ^[0-9]+$ ]]; then
+		printf '%s: blocked-claim census returned malformed state %q; state is unknown\n' "${cell}" "${state}" >&2
+		return 1
+	fi
+	if [[ "${holders}" != "1" || "${waiters}" -eq 0 || "${claimed}" != "${waiters}" ]]; then
+		printf '%s: no claim parked behind the admission_decisions holder within %ss (holders|waiters|claimed=%s|%s|%s); a claimed row with no waiter is a readiness deferral, not an in-flight handler\n' \
+			"${cell}" "${budget}" "${holders}" "${waiters}" "${claimed}" >&2
+		return 1
+	fi
+	_ifa_deployable_unit_validate_killed_rows "${cell}" "${rows}" || return 1
+	printf -v "${output_var}" '%s' "${rows}"
+	printf '%s: non-vacuous: %s claim(s) parked behind the admission_decisions holder (%s waiter(s))\n' "${cell}" "${claimed}" "${waiters}"
+}
+
+_ifa_deployable_unit_validate_killed_rows() {
+	local cell="$1" rows="$2" entry
+	local entry_re='^[0-9a-f]{32} [0-9]+ [0-9]+$'
+	[[ -n "${rows}" ]] || { printf '%s: killed-claim set is empty; state is unknown\n' "${cell}" >&2; return 1; }
+	local -a entries
+	IFS=',' read -r -a entries <<<"${rows}"
+	for entry in "${entries[@]}"; do
+		[[ "${entry}" =~ ${entry_re} ]] || {
+			printf '%s: killed-claim entry %q is not "md5 attempt_count last_attempt_epoch_us"; state is unknown\n' "${cell}" "${entry}" >&2
+			return 1
+		}
+	done
+}
+
+# ifa_deployable_unit_assert_killed_claims_reexecuted proves the replacement
+# reducer re-executed every claim the kill interrupted: each killed work item
+# now has a larger attempt_count and a later last_attempt_at than it had at
+# kill time. Both move in the same claim UPDATE when an expired claimed row is
+# reclaimed (reducerClaimAttemptCountCaseSQL only preserves attempt_count for a
+# 'retrying' row with a non-counting class). This replaces a domain row count
+# compared against a fault-free baseline that is itself 0 or 1 (run
+# 35945606336). Take it right after the post-kill drain, before any
+# maintenance pass can reopen the row and reset attempt_count.
+#
+# Args: cell compose_project use_compose dsn compose_file killed_rows
+ifa_deployable_unit_assert_killed_claims_reexecuted() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" dsn="$4" compose_file_arg="$5" rows="$6"
+	local entry values="" expected=0 raw state query_rc digest attempt epoch
+	_ifa_deployable_unit_validate_killed_rows "${cell}" "${rows}" || return 1
+	local -a entries
+	IFS=',' read -r -a entries <<<"${rows}"
+	for entry in "${entries[@]}"; do
+		read -r digest attempt epoch <<<"${entry}"
+		values+="${values:+,}('${digest}',${attempt},${epoch})"
+		expected=$((expected + 1))
+	done
+	if raw="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${dsn}" \
+		"/* deployable_unit killed-claim re-execution */ WITH killed(digest, attempt_count, last_attempt_us) AS (VALUES ${values}) SELECT count(*)::text || '|' || count(*) FILTER (WHERE w.attempt_count > killed.attempt_count AND (extract(epoch FROM w.last_attempt_at) * 1000000)::bigint > killed.last_attempt_us)::text FROM killed LEFT JOIN fact_work_items AS w ON md5(w.work_item_id) = killed.digest AND w.stage = 'reducer' AND w.domain = 'deployable_unit_correlation';" \
+		"${compose_file_arg}")"; then :; else
+		query_rc=$?
+		printf '%s: killed-claim re-execution query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
+		return "${query_rc}"
+	fi
+	state="$(printf '%s\n' "${raw}" | tail -n 1 | tr -d '[:space:]')"
+	if [[ "${state}" != "${expected}|${expected}" ]]; then
+		printf '%s: killed claims re-executed by the replacement: %s, want %s|%s (killed set: %s)\n' "${cell}" "${state}" "${expected}" "${expected}" "${rows}" >&2
+		return 1
+	fi
+	printf '%s: every killed claim (%s) was reclaimed and re-executed with a new attempt\n' "${cell}" "${expected}"
+}
