@@ -49,9 +49,9 @@ name: Security Scan
 # HEAD as its head_sha whatever fired it. The run name carries the TRIGGERING
 # run's branch and sha, the only place a run listing exposes them, so the
 # main-health watcher (scripts/ci/main-health.sh) judges only scans of main's
-# image at main's tip. For every other event this is empty and GitHub keeps
-# its default run name.
-run-name: "${{ github.event_name == 'workflow_run' && format('Security Scan: triggered by {0} @ {1}', github.event.workflow_run.head_branch, github.event.workflow_run.head_sha) || '' }}"
+# image at main's tip. For every other event this is a single space, the
+# whitespace-only case GitHub documents as keeping its default run name.
+run-name: "${{ github.event_name == 'workflow_run' && format('Security Scan: triggered by {0} @ {1}', github.event.workflow_run.head_branch, github.event.workflow_run.head_sha) || ' ' }}"
 
 on:
   # Merge-queue entries (#7111): every job runs, publication stays off, and
