@@ -12,7 +12,9 @@
   (`handler.go`, `entity_alias.go`, `family_impact_trace_deployment.go`)
   imports this package, so a root import here cycles, including from
   `_test.go` files in this package. Tests that need root doubles use
-  `testutil`, never the root.
+  `testutil`, never the root. `internal/graph` is allowed: it holds the
+  stdlib-only schema tables (`HasUIDUniquenessConstraint` picks the uid
+  anchor for entity context, #7089), not a driver.
 - Import `querycontract`, `selector`, `repository`, `service`, and
   `supplychain`, never the reverse. Those leaves must not import this
   package: several entity files already import them, so a back-import

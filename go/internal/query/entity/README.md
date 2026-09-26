@@ -87,8 +87,11 @@ envelopes, shared bounds, authorization seam), `selector` (selector
 resolution), `testutil`-adjacent fakes in tests only, `repository`
 (tech fingerprint, repo dependency/infrastructure reads), `service` (query
 timing, story/enrichment shaping), `supplychain` (image/SBOM read models),
-and the `telemetry`/`log` packages for handler instruments. It never
-imports the query root or graph drivers.
+and the `telemetry`/`log` packages for handler instruments. It reads
+`graph.HasUIDUniquenessConstraint` from the schema-owning `internal/graph`
+package (standard library only) so `GetEntityContext` anchors uid-constrained
+labels on their uid index (#7089). It never imports the query root or graph
+drivers.
 
 ## Verification
 

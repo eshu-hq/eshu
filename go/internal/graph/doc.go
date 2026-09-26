@@ -21,6 +21,8 @@
 // projector-derived uid identity for those labels while Neo4j keeps the direct
 // composite constraint. SchemaApplicationForBackend exposes the fingerprint and
 // explicit compatibility list that graph-writing runtimes check before startup.
+// HasUIDUniquenessConstraint exposes the uid-constrained label set to readers,
+// so a by-id read can anchor on the uid index only where the schema creates it.
 // Schema setup emits bounded progress logs for every DDL statement and treats context
 // deadline or cancellation as a fail-fast signal. Generic DDL warnings remain
 // non-fatal for permissive callers, while the strict schema helper returns an

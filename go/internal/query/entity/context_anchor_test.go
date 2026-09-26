@@ -43,9 +43,13 @@ func TestGetEntityContextAnchorsOneLabelPerMatch(t *testing.T) {
 			if strings.Contains(cypher, "|") {
 				t.Fatalf("cypher contains a label disjunction, which silently matches zero rows on the pinned NornicDB build:\n%s", cypher)
 			}
+			// A uid-constrained label anchors on
+			// `e.uid = $entity_id AND e.id = $entity_id` (#7089); either
+			// form opens with the single-label pattern.
 			var label string
 			for _, candidate := range EntityContextAnchorLabels {
-				if strings.Contains(cypher, "MATCH (e:"+candidate+") WHERE e.id = $entity_id") {
+				if strings.Contains(cypher, "MATCH (e:"+candidate+") WHERE e.id = $entity_id\n") ||
+					strings.Contains(cypher, "MATCH (e:"+candidate+") WHERE e.uid = $entity_id AND e.id = $entity_id\n") {
 					label = candidate
 					break
 				}

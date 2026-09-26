@@ -295,3 +295,24 @@ var uidConstraintLabels = []string{
 	"OciImageTagObservation",
 	"OciRegistryRepository",
 }
+
+// uidConstrainedLabelSet indexes uidConstraintLabels for
+// HasUIDUniquenessConstraint.
+var uidConstrainedLabelSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(uidConstraintLabels))
+	for _, label := range uidConstraintLabels {
+		set[label] = struct{}{}
+	}
+	return set
+}()
+
+// HasUIDUniquenessConstraint reports whether the graph schema gives label a
+// <label>_uid_unique uniqueness constraint. The constraint is applied on every
+// backend, so on Neo4j a `MATCH (n:<label>) WHERE n.uid = $x` read plans as a
+// unique index seek instead of a label scan. Query handlers use it to decide
+// which by-id reads can anchor on uid (issue #7089). The label match is exact
+// and case-sensitive.
+func HasUIDUniquenessConstraint(label string) bool {
+	_, ok := uidConstrainedLabelSet[label]
+	return ok
+}
