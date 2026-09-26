@@ -83,10 +83,10 @@ those are the answering backend.
 
 ## MCP Result Shape
 
-MCP responses include a short text summary for humans and `structuredContent`
-for clients that need evidence. When the underlying HTTP route returns the
-canonical Eshu envelope, `structuredContent` contains that envelope and MCP also
-returns a resource content block:
+MCP responses include a short text summary for humans and a resource content
+block containing the complete result. By default, they also include
+`structuredContent` with the same data. When the underlying HTTP route returns
+the canonical Eshu envelope, both machine-readable copies contain that envelope:
 
 ```json
 {
@@ -139,9 +139,34 @@ MCP preserves the plain JSON payload in `structuredContent` and in an
 }
 ```
 
-For prompt automation, read `structuredContent` first. Use the resource block
-when the client wants the exact serialized payload. The text block is only a
-summary and should not be treated as the evidence-bearing response.
+The serialized MCP result object has a 256 KiB budget; the enclosing JSON-RPC
+wrapper and transport newline are outside that count. If the two-copy result exceeds
+that budget but the complete embedded resource fits, MCP omits
+`structuredContent` and returns the resource with `isError: false`. The resource
+still contains the full canonical envelope (or full plain JSON payload), with
+no rows removed. For example, a large canonical result has this shape:
+
+```json
+{
+  "content": [
+    {"type": "text", "text": "Eshu query completed."},
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/envelope",
+        "mimeType": "application/eshu.envelope+json",
+        "text": "{\"data\":{},\"truth\":{},\"error\":null}"
+      }
+    }
+  ]
+}
+```
+
+If even the resource-only result exceeds 256 KiB, MCP returns the
+`mcp_response_over_budget` error envelope with narrowing guidance. Programmatic
+clients should read `structuredContent` when present, then fall back to the
+embedded resource's JSON `text`. The human text block is only a summary and
+should not be treated as the evidence-bearing response.
 
 ### Text summaries are a convenience layer, not the canonical contract
 
@@ -157,10 +182,10 @@ never collapses into generic success text.
 
 The text summary is still only a convenience for human readers. It is derived
 from the same envelope, is length-capped, and is never the canonical contract.
-The `structuredContent` and the embedded resource block remain byte-identical to
-the canonical envelope the handler produced; only the text string changes.
-Clients MUST read `structuredContent` (or the resource block) for evidence and
-MUST NOT parse the text summary.
+The machine-readable copy or copies preserve the complete envelope the handler
+produced; only the summary text is shortened. Clients MUST read
+`structuredContent` when present or the resource block otherwise for evidence,
+and MUST NOT parse the text summary.
 
 Citation handles use the same
 [Evidence Citation Handle Contract](evidence-citation-handles.md) across HTTP

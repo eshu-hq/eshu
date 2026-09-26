@@ -10,9 +10,11 @@ import (
 )
 
 type dispatchResult struct {
-	Value    any
-	Envelope *query.ResponseEnvelope
-	IsError  bool
+	Value        any
+	Envelope     *query.ResponseEnvelope
+	IsError      bool
+	ToolName     string
+	ResourceOnly bool
 }
 
 func parseCanonicalEnvelope(body []byte) (*query.ResponseEnvelope, bool) {

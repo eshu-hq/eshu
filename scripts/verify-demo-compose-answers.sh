@@ -40,6 +40,9 @@ die() {
 	exit 1
 }
 
+# Keep the MCP answer parser's resource-only contract in the demo proof path.
+python3 "${repo_root}/scripts/test-verify-demo-compose-answers-call-mcp-tool.py"
+
 torn_down=0
 teardown() {
 	[[ "${torn_down}" -eq 1 ]] && return 0
@@ -178,8 +181,8 @@ assert_container_env_clean mcp-server
 
 # call_mcp_tool posts a tools/call JSON-RPC request to /mcp/message with NO
 # auth header and prints the tool's answer object as JSON. MCP tools return a
-# canonical envelope { data, truth, error } in structuredContent; this unwraps
-# to `data` (the answer body) so callers assert on the answer fields directly.
+# canonical envelope { data, truth, error } in structuredContent or the
+# embedded resource; the helper unwraps it to `data` for answer assertions.
 # A tool that returns a bare object (no envelope) is passed through unchanged.
 # No Authorization header is sent — the demo serves reads open, and the answers
 # coming back are the evidence that open posture works end to end.
@@ -193,20 +196,20 @@ call_mcp_tool() {
 	# the entire heredoc body to a pipe before forking the reader, and
 	# macOS's 512-byte pipe buffer deadlocks on any body over that size
 	# (#5074).
-	python3 "${repo_root}/scripts/lib/verify-demo-compose-answers-call-mcp-tool.py" "$response"
+	printf '%s' "$response" | python3 "${repo_root}/scripts/lib/verify-demo-compose-answers-call-mcp-tool.py"
 }
 
 # assert_fields_present checks each field name is a top-level JSON key in body.
 assert_fields_present() {
 	local label="$1" body="$2"
 	shift 2
-	python3 - "$label" "$body" "$@" <<'PYEOF'
+	printf '%s' "$body" | python3 -c '
 import json
 import sys
 
 label = sys.argv[1]
-doc = json.loads(sys.argv[2])
-fields = sys.argv[3:]
+doc = json.load(sys.stdin)
+fields = sys.argv[2:]
 if not isinstance(doc, dict):
 	sys.stderr.write(f"{label}: response is not a JSON object ({type(doc).__name__})\n")
 	sys.exit(1)
@@ -215,11 +218,11 @@ if missing:
 	sys.stderr.write(f"{label}: missing required fields {missing} in response keys {sorted(doc.keys())}\n")
 	sys.exit(1)
 print(f"{label}: all required fields present ({fields})")
-PYEOF
+' "$label" "$@"
 }
 
 # json_count prints the integer `count` field of a JSON object body.
-json_count() { python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("count",0))' "$1"; }
+json_count() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("count",0))'; }
 
 # Q1 and Q3 assert the answer the manifest's playbooks drive, via their MCP
 # parity tools (get_service_story, get_incident_context) — the manifest records

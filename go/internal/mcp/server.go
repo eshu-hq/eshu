@@ -284,48 +284,10 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 				Result:  mcpToolErrorResult(err),
 			}
 		}
-		if result.Envelope != nil {
-			resourceText, _ := json.Marshal(result.Envelope)
-			return &jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result: mcpToolResult{
-					Content: []mcpContent{
-						{Type: "text", Text: summarizeToolText(params.Name, result.Envelope)},
-						{
-							Type: "resource",
-							Resource: &mcpResource{
-								URI:      "eshu://tool-result/envelope",
-								MimeType: query.EnvelopeMIMEType,
-								Text:     string(resourceText),
-							},
-						},
-					},
-					StructuredContent: result.Envelope,
-					IsError:           result.IsError,
-				},
-			}
-		}
-
-		resultJSON, _ := json.Marshal(result.Value)
 		return &jsonrpcResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Result: mcpToolResult{
-				Content: []mcpContent{
-					{Type: "text", Text: summarizePlainToolText(params.Name, result.Value)},
-					{
-						Type: "resource",
-						Resource: &mcpResource{
-							URI:      "eshu://tool-result/payload",
-							MimeType: "application/json",
-							Text:     string(resultJSON),
-						},
-					},
-				},
-				StructuredContent: result.Value,
-				IsError:           result.IsError,
-			},
+			Result:  renderToolResult(params.Name, result),
 		}
 
 	case "ping":
@@ -333,6 +295,44 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
+	}
+}
+
+// renderToolResult keeps MCP response construction shared by the byte guard
+// and the transport, so the measured shape is the one sent to clients.
+func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
+	var structuredContent any
+	if result.Envelope != nil {
+		resourceText, _ := json.Marshal(result.Envelope)
+		if !result.ResourceOnly {
+			structuredContent = result.Envelope
+		}
+		return mcpToolResult{
+			Content: []mcpContent{
+				{Type: "text", Text: summarizeToolText(toolName, result.Envelope)},
+				{Type: "resource", Resource: &mcpResource{
+					URI: "eshu://tool-result/envelope", MimeType: query.EnvelopeMIMEType,
+					Text: string(resourceText),
+				}},
+			},
+			StructuredContent: structuredContent,
+			IsError:           result.IsError,
+		}
+	}
+	resourceText, _ := json.Marshal(result.Value)
+	if !result.ResourceOnly {
+		structuredContent = result.Value
+	}
+	return mcpToolResult{
+		Content: []mcpContent{
+			{Type: "text", Text: summarizePlainToolText(toolName, result.Value)},
+			{Type: "resource", Resource: &mcpResource{
+				URI: "eshu://tool-result/payload", MimeType: "application/json",
+				Text: string(resourceText),
+			}},
+		},
+		StructuredContent: structuredContent,
+		IsError:           result.IsError,
 	}
 }
 

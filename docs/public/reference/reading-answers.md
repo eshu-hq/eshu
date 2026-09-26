@@ -201,9 +201,9 @@ prompt-ready.
 
 ## MCP text summaries vs structured content
 
-MCP results include a short **text** block and **`structuredContent`** plus a
-resource block. Read the structured content; the text is a convenience layer, not
-the canonical contract.
+MCP results include a short **text** block and a resource block. They normally
+include **`structuredContent`** too. Read `structuredContent` when present, or
+parse the resource's JSON `text` when absent; the human text is a summary.
 
 ```json
 {
@@ -233,10 +233,12 @@ For story, investigation, citation, and status tools the text block is a
 deterministic, bounded summary of the same envelope (truth level, freshness, key
 counts, and any partial/error detail). It is length-capped and derived from the
 envelope, so a rich or degraded result never collapses into generic success text.
-But it is still only a convenience for human readers. The `structuredContent` and
-the resource block stay byte-identical to the canonical envelope; only the text
-string changes. Clients must read `structuredContent` (or the resource block) for
-evidence and must not parse the text summary. See
+But it is still only a convenience for human readers. The 256 KiB MCP budget
+allows the full envelope in the resource without `structuredContent` when the
+two-copy result would exceed the limit; such a result succeeds with
+`isError: false`. If even the resource does not fit, the result carries
+`mcp_response_over_budget`. Clients must read the available machine-readable
+copy for evidence and must not parse the text summary. See
 [MCP Reference](mcp-reference.md#text-summaries-are-a-convenience-layer-not-the-canonical-contract)
 and [MCP Guide](../guides/mcp-guide.md#read-the-envelope).
 

@@ -205,9 +205,8 @@ func TestDeadCodeToolsDefaultResponseStaysWithinBudget(t *testing.T) {
 }
 
 // TestDeadCodeToolsOldDefaultFixtureExceedsBudget proves the fixture is
-// representative: at the retired limit of 100 the same requests are over
-// budget, so the passing default test above is a real bound and not a fixture
-// too small to notice one.
+// representative: at the retired limit of 100 the same requests exceed the
+// two-copy budget, even if the complete resource can be retained alone.
 func TestDeadCodeToolsOldDefaultFixtureExceedsBudget(t *testing.T) {
 	t.Parallel()
 
@@ -230,9 +229,16 @@ func TestDeadCodeToolsOldDefaultFixtureExceedsBudget(t *testing.T) {
 			if err != nil {
 				t.Fatalf("dispatchTool(%s) error = %v, want nil", tool, err)
 			}
-			if result == nil || !result.IsError || result.Envelope == nil || result.Envelope.Error == nil ||
-				result.Envelope.Error.Code != errorCodeResponseOverBudget {
-				t.Fatalf("%s limit=100 = %#v, want the canonical over-budget error", tool, result)
+			if result == nil || result.Envelope == nil {
+				t.Fatalf("%s limit=100 = %#v, want a canonical envelope", tool, result)
+			}
+			if !result.ResourceOnly && (!result.IsError || result.Envelope.Error == nil ||
+				result.Envelope.Error.Code != errorCodeResponseOverBudget) {
+				t.Fatalf("%s limit=100 = %#v, want full-resource fallback or canonical over-budget error", tool, result)
+			}
+			if result.ResourceOnly && (result.IsError || result.Envelope.Error != nil ||
+				estimateResponseBytes(result) > defaultToolResponseByteBudget) {
+				t.Fatalf("%s limit=100 = %#v, want complete in-budget resource", tool, result)
 			}
 		})
 	}

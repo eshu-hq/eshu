@@ -1490,34 +1490,34 @@ repo-scale performance contract. Per-route token budgets (for example the
 relationship-story `token_budget`) bound their own rows, but nothing bounded the
 aggregate tool response.
 
-`applyResponseBudget` measures the serialized envelope/value size and, when it
-exceeds `defaultToolResponseByteBudget` (256 KiB, ~64k tokens at the repo's
-~4-bytes-per-token heuristic), replaces the oversized payload with a small
-bounded error envelope (`error.code=mcp_response_over_budget`) carrying
-`response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name, and
-narrowing guidance. It is the response-size sibling of the dispatch deadline
-guard (#2469) and runs after per-route budgets.
+`applyResponseBudget` measures the serialized MCP result against
+`defaultToolResponseByteBudget` (256 KiB, ~64k tokens at the repo's
+~4-bytes-per-token heuristic). If the normal result exceeds it but the complete
+embedded resource fits alone, dispatch omits `structuredContent` and returns
+success with the full payload. If even the resource-only result exceeds the
+budget, dispatch returns the bounded `mcp_response_over_budget` error envelope
+with size accounting and narrowing guidance. It is the response-size sibling of
+the dispatch deadline guard (#2469) and runs after per-route budgets.
 
-No-Regression Evidence: the budget is a pure post-dispatch in-process size check
-over the already-serialized response; it adds no graph, storage, queue, or HTTP
-round trip and does not change any Cypher shape. The before state is an unbounded
-response body returned verbatim (`dispatch.go` read `rec.Body.Bytes()` with no
-size cap); the after state caps it at 256 KiB and substitutes a bounded
-refusal. Input shape: any tool response routed through `dispatchToolWithOptions`.
-`go test ./internal/mcp -run 'TestDispatchToolResponse|TestDispatchToolZeroBudget|TestDefaultDispatchAppliesResponseBudget' -count=1`
-covers over-budget replacement, within-budget pass-through, disabled-budget
-(`budget<=0`), and default-entrypoint enforcement; `go test ./internal/query
-./internal/mcp ./cmd/api ./cmd/mcp-server -count=1` (3929 tests) stays green,
-proving the 256 KiB budget sits above every honestly bounded read fixture so no
-legitimate response is refused. No live NornicDB/Neo4j benchmark is load-bearing
-because the change is an in-process byte check, not a Cypher change.
+No-Regression Evidence: this check adds no graph, storage, queue, or HTTP work
+and changes no Cypher shape. The old guard bounded unlimited response bodies.
+The resource-only fallback preserves complete bounded results that previously
+triggered refusal. Focused MCP tests cover the ordinary two-copy path, full
+canonical and plain-JSON fallback, a resource that still exceeds the budget,
+the disabled guard, and default-entrypoint enforcement. A local microbenchmark
+on a synthetic 25-row envelope measured 376.8–384.5 µs/op before and
+570.3–570.6 µs/op after across three 250 ms runs, adding about 0.19 ms per
+call. No live NornicDB/Neo4j benchmark is
+load-bearing for this size guard because it does not alter a Cypher query.
 
-Observability Evidence: every budget hit emits the structured log
-`mcp tool response over budget` with `tool`, `response_bytes`, and `budget_bytes`
-fields (3 AM operable), mirroring the dispatch-deadline log precedent, and the
-budget accounting is returned in-band in `error.details`. The `internal/mcp`
-package declares no metric instruments by design, consistent with its existing
-dispatch observability surface.
+Observability Evidence: the resource-only branch emits `mcp tool response
+resource fallback` with `tool`, `response_bytes`, `emitted_bytes`, and
+`budget_bytes`; refusal emits `mcp tool response over budget` with `tool`,
+`response_bytes`, and `budget_bytes` and returns accounting in `error.details`.
+The per-tool `eshu_dp_mcp_response_bytes`,
+`eshu_dp_mcp_response_resource_fallback_total`, and
+`eshu_dp_mcp_response_over_budget_total` signals distinguish attempted size,
+successful fallback, and refusal.
 
 ### CloudResource / Security-Group Retract Source-Anchoring (#4836/#4858/#4881)
 
