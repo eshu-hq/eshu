@@ -565,7 +565,7 @@ source_coverage:
       - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
   - file: repository/handler.go
     calls:
-      - {symbol: "(*Handler).getRepositoryStory", count: 1, non_hot: {class: keyed_support, source_sha256: 5e7254124d0198d41c04ffede5944261c43f0cfab4ffc9c6340ab81c1d6becdd, key_bound: single_key, max_results: 1}}
+      - {symbol: "(*Handler).getRepositoryStory", count: 1, non_hot: {class: keyed_support, source_sha256: 72ab97e234474b0e978230040c06c5c8e1e6a5d0adf9525a45f2adf5e9c8c513, key_bound: single_key, max_results: 1}}
       - symbol: "(*Handler).listRepositories"
         count: 1
         non_hot:

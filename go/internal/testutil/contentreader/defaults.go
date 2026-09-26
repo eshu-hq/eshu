@@ -38,10 +38,6 @@ func contentReaderDefaultRows(query string, results []ReaderQueryResult) driver.
 		!contentReaderHeadHasColumns(results, []string{"count"}) {
 		return &contentReaderRows{columns: []string{"count"}, rows: [][]driver.Value{{int64(0)}}}
 	}
-	if strings.Contains(query, "SELECT count(*) FROM content_entities WHERE repo_id = $1") &&
-		!contentReaderHeadHasColumns(results, []string{"count"}) {
-		return &contentReaderRows{columns: []string{"count"}, rows: [][]driver.Value{{int64(0)}}}
-	}
 	if strings.Contains(query, "SELECT max(indexed_at) as indexed_at") &&
 		!contentReaderHeadHasColumns(results, []string{"indexed_at"}) {
 		return &contentReaderRows{columns: []string{"indexed_at"}, rows: [][]driver.Value{{nil}}}
@@ -53,8 +49,8 @@ func contentReaderDefaultRows(query string, results []ReaderQueryResult) driver.
 	if strings.Contains(query, "SELECT entity_type, count(*) as entity_count") &&
 		strings.Contains(query, "FROM content_entities") &&
 		strings.Contains(query, "GROUP BY entity_type") &&
-		!contentReaderHeadHasColumns(results, []string{"entity_type", "entity_count"}) {
-		return &contentReaderRows{columns: []string{"entity_type", "entity_count"}, rows: nil}
+		!contentReaderHeadHasColumns(results, []string{"entity_type", "entity_count", "indexed_at"}) {
+		return &contentReaderRows{columns: []string{"entity_type", "entity_count", "indexed_at"}, rows: nil}
 	}
 	if strings.Contains(query, "FROM content_entities") &&
 		strings.Contains(query, "entity_type = 'Function'") &&

@@ -195,7 +195,7 @@ func TestBuildDocumentationTargetFactsSQLIsTargetScopedAndBounded(t *testing.T) 
 	})
 
 	for _, fragment := range []string{
-		"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate', 'semantic.documentation_observation')",
+		"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate')",
 		"fact_records.scope_id = $",
 		"fact_records.generation_id = $",
 		"fact_records.payload->>'source_id' = $",

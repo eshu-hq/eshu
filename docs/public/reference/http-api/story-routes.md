@@ -69,6 +69,41 @@ and `GET /api/v0/documentation/findings` keep `findings`, `finding_count`,
 `coverage.source_only_fact_kinds`; `GET /api/v0/documentation/facts` remains
 target-scoped and does not return source-only Confluence rows for the target.
 
+"No structured target refs" means none of `candidate_refs`, `evidence_refs`, or
+`linked_entities` is a non-empty array on the fact; a missing key or a JSON
+`null` counts as no refs. Before #7126 the count treated an absent key as
+unknown and excluded the fact, so it was nonzero only for facts that carried all
+three keys empty. No documentation collector writes those keys on source,
+document, section, or link facts, so the count was always zero and stories
+reported `documentation_target_facts_absent` where external documentation
+existed. This is a user-visible correction: stories now report the real
+`coverage.source_only_count` and `target_link_not_modeled` for those facts.
+The count is an exact statement-snapshot aggregate over facts in the active
+generation of each scope (superseded generations, tombstoned facts, and other
+fact kinds never count). Migration 122 adds a partial index over exactly that
+predicate so the count is index-only.
+
+Performance Evidence: on a disposable postgres:18.6 fixture of 900,000
+`fact_records` rows (100 scopes, three generations each, one active; about
+one third documentation facts, of which 10,000 in the active generations carry
+no refs), the statement dropped from 107.5 ms median (seq/heap scan of every
+active documentation fact, ANY-array kind filter) to 13.2 ms median with the
+partial index (custom plan) and 13.8 ms median forced-generic plan, seven
+interleaved runs with alternating first mover, index 328 kB. The kinds are inlined
+as SQL literals because `fact_kind = ANY($1)` cannot be proven to imply the
+index predicate in a generic plan, and the cached-statement driver may adopt
+one. `TestDocumentationSourceOnlyUsesPartialIndexLive` asserts the index is
+chosen in both plan modes, and `TestDocumentationSourceOnlyIndexMatchesQuery`
+fails if the Go kind list or ref predicate drifts from the migration. The
+ingest cost is one btree entry for a matching row only (documentation facts with
+no refs); other rows evaluate `fact_kind IN (...)` and skip the index.
+
+Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+
+No-Observability-Change: the read keeps its `count_documentation_source_only_facts`
+span; only the statement text and its index change. No metric, log key, queue,
+worker, or runtime knob changes.
+
 No-Regression Evidence:
 
 ```bash
@@ -107,6 +142,35 @@ at zero and reports `support_source_only_not_target_linked` with aggregate
 `coverage.incident_routing_source_only_count`. The aggregate includes active
 facts whose reference-array keys are absent, empty, or non-array, and excludes
 a fact when any of those arrays is nonempty.
+
+The support source-only count uses the same two-valued "no structured refs"
+rule as the documentation count above (the #6807 correction). Since #7126 both
+statements render that rule from one helper, the one whose text migration 122's
+partial index predicate repeats. The main target-support row read still admits
+a fact only when its `candidate_refs`, `evidence_refs`, or `linked_entities`
+carry a matching ref; that read returns no rows for
+support kinds that never emit those keys, tracked separately in #7138.
+
+Performance Evidence: migration 123 adds a partial index over the twelve
+`work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both
+support statements now carry those kinds as a literal `IN` list inside the
+existing per-(scope, kind) LATERAL so the planner proves the index predicate in
+custom and generic plans (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`
+asserts the index in all four plan/statement combinations). On a disposable
+postgres:18.6 fixture of 600,000 `fact_records` rows (200 scopes, three
+generations each, support kinds about 1% of rows), nine interleaved runs with
+alternating first mover: row read 14.40 ms median / 11,675 buffers to 11.31 ms /
+9,263; source-only count 8.49 ms / 11,675 to 6.85 ms / 9,263. That is a modest
+gain at this scale (about 21%); the fixture bounds the per-scope probe overhead,
+and the win grows with the number of non-support facts sharing each scope. The
+`Kept` `OFFSET 0` and kind cross join from #6794 are unchanged, so a missing or
+invalid index degrades to the previous cost, not worse. Ingest cost is one
+btree entry for a support-kind fact only.
+
+Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+
+No-Observability-Change: statement text and index only; the
+`list_service_story_target_support` span, stage events, and metrics are unchanged.
 
 No-Regression Evidence:
 
@@ -270,6 +334,45 @@ structured stage logs under `operation=service_story`, including
 truth/error reporting. The change only aligns response synthesis from already
 bounded API-surface evidence and adds no graph query, collector call, queue
 worker, metric instrument, span name, or deployment knob.
+
+## Story read cost (#7126)
+
+Three story-route reads were the size- or corpus-scaled Postgres cost of the
+repository and service stories; none is graph work.
+
+- Documentation target facts (both stories) are read as two bounded branches
+  joined by `UNION ALL`: the mention and claim kinds, which the partial GIN
+  `fact_records_documentation_target_refs_idx` covers, and the
+  `semantic.documentation_observation` kind on its own, which migration 124's
+  partial GIN `fact_records_documentation_semantic_target_refs_idx` covers (same
+  `jsonb_path_ops` expression, restricted to that kind and non-tombstoned
+  facts). The single earlier statement listed all three kinds, which the index
+  predicate does not cover, so the planner never used the index and filtered
+  every documentation fact. Rows, ordering, and limit are unchanged.
+- Repository coverage derives the entity total, newest `indexed_at`, and type
+  distribution from one grouped `content_entities` pass instead of three scans.
+- Repository story lists the repository's files once (the semantic overview
+  stage) and shares that list with the infrastructure, deployment, narrative,
+  and CI/CD stages. The `content_files` stage log is gone; `semantic_overview`
+  now reports `file_count`.
+
+The semantic overview and file list stay capped at 5,000 rows
+(`RepositorySemanticEntityLimit`), so every stage that shares them sees the same
+rows as before. The read now asks for one more row as a sentinel: only when that
+sentinel row exists does the repository story append
+`repository_semantic_read_truncated_at_5000` to `limitations` and
+`answer_metadata.partial_reasons` and set `answer_metadata.truncated` (the same
+vocabulary as `story_rows_truncated` and `infrastructure_truncated`). A
+repository with exactly 5,000 entities or files, or fewer, gets a response
+without the reason. When the reason is present, the semantic overview counts,
+language and signal totals, and the file-derived infrastructure, deployment,
+narrative, and CI/CD stages are lower bounds. The sentinel raises the two
+`ListRepoEntities` and `ListRepoFiles` limits from 5,000 to 5,001, one extra row
+on the same ordered, repository-scoped read.
+
+Measurements, the migration 122 to 124 write-cost figures, and the proof
+commands for these reads are recorded in
+`docs/internal/evidence/7126-story-read-cost.md`.
 
 ## Investigation packets
 

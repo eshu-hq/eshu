@@ -26,6 +26,13 @@ predicates the `repository` package or staying root stayers call are
 exported; per-family artifact shaping stays unexported. Cross-package test
 pins go through `testutil` or `querycontract`.
 
+The static workflow evidence and the repository-scoped CI/CD evidence have
+listing entry points (`StaticWorkflowArtifactEvidence`,
+`LoadRepositoryScopedCICDEvidence`) and `...FromFiles` entry points that take
+the file list the caller already read. The repository story uses the latter so
+one `ListRepoFiles` read serves the semantic overview and every later stage
+(#7126); the two forms return identical evidence for the same files.
+
 ## Dependencies
 
 Standard library, `querycontract`, and content-parsing libraries, plus

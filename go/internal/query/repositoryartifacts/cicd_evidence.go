@@ -218,6 +218,33 @@ func StaticWorkflowArtifactEvidence(
 			Reason: "workflow_artifact_read_failed",
 		}
 	}
+	return StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files)
+}
+
+// StaticWorkflowArtifactEvidenceFromFiles builds the same static workflow
+// evidence as StaticWorkflowArtifactEvidence from a repository file list the
+// caller already read with ListRepoFiles(repositoryID,
+// querycontract.RepositorySemanticEntityLimit). The repository story passes the
+// list it listed for its semantic overview so the story pays for that read once
+// instead of once per consumer (#7126). The list is only read, never modified.
+func StaticWorkflowArtifactEvidenceFromFiles(
+	ctx context.Context,
+	content querycontract.ContentStore,
+	repositoryID string,
+	files []querycontract.FileContent,
+) CicdStaticWorkflowArtifactEvidence {
+	if repositoryID == "" {
+		return CicdStaticWorkflowArtifactEvidence{
+			State:  "not_checked",
+			Reason: "repository_scope_required",
+		}
+	}
+	if content == nil {
+		return CicdStaticWorkflowArtifactEvidence{
+			State:  "unavailable",
+			Reason: "content_store_unavailable",
+		}
+	}
 
 	count := 0
 	paths := make([]string, 0, len(files))
@@ -302,6 +329,8 @@ func staticWorkflowImageEvidenceCounts(
 
 const cicdStaticWorkflowEvidencePathLimit = 20
 
+// LoadRepositoryScopedCICDEvidence builds the repository-scoped CI/CD evidence
+// summary, listing the repository's files itself for the static workflow read.
 func LoadRepositoryScopedCICDEvidence(
 	ctx context.Context,
 	content querycontract.ContentStore,
@@ -312,6 +341,32 @@ func LoadRepositoryScopedCICDEvidence(
 		return nil, nil
 	}
 	static := StaticWorkflowArtifactEvidence(ctx, content, repositoryID)
+	return loadRepositoryScopedCICDEvidence(ctx, correlations, repositoryID, static)
+}
+
+// LoadRepositoryScopedCICDEvidenceFromFiles is LoadRepositoryScopedCICDEvidence
+// for a caller that already holds the repository file list (see
+// StaticWorkflowArtifactEvidenceFromFiles), so the file list is not read again.
+func LoadRepositoryScopedCICDEvidenceFromFiles(
+	ctx context.Context,
+	content querycontract.ContentStore,
+	correlations querycontract.CICDRunCorrelationStore,
+	repositoryID string,
+	files []querycontract.FileContent,
+) (map[string]any, error) {
+	if repositoryID == "" {
+		return nil, nil
+	}
+	static := StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files)
+	return loadRepositoryScopedCICDEvidence(ctx, correlations, repositoryID, static)
+}
+
+func loadRepositoryScopedCICDEvidence(
+	ctx context.Context,
+	correlations querycontract.CICDRunCorrelationStore,
+	repositoryID string,
+	static CicdStaticWorkflowArtifactEvidence,
+) (map[string]any, error) {
 	if correlations == nil {
 		summary := BuildCICDRunCorrelationEvidenceSummary(static, nil, false, true)
 		return cicdRunCorrelationEvidenceSummaryMap(summary), nil

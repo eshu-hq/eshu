@@ -136,18 +136,6 @@ func TestGetRepositoryStoryIncludesDeploymentArtifactsFromDockerCompose(t *testi
 		},
 		{
 			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{
-				{
-					"repo-deploy", "docker-compose.yaml", "abc123", "",
-					"hash-compose", int64(20), "yaml", "docker_compose",
-				},
-			},
-		},
-		{
-			columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
@@ -178,13 +166,10 @@ func TestGetRepositoryStoryIncludesDeploymentArtifactsFromDockerCompose(t *testi
 		{
 			columns: []string{"payload"},
 			rows:    [][]driver.Value{},
-		},
-		{
-			columns: []string{"payload"},
-			rows:    [][]driver.Value{},
 			queryContains: []string{
 				"FROM fact_records",
-				"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate', 'semantic.documentation_observation')",
+				"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate')",
+				"fact_records.fact_kind = 'semantic.documentation_observation'",
 			},
 		},
 	})

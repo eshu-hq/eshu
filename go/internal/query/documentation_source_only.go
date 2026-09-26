@@ -10,7 +10,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -69,16 +68,12 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 }
 
 func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string, []any) {
-	args := []any{array.Of(documentationSourceOnlyFactKindsList())}
+	var args []any
 	clauses := []string{
-		"fact.fact_kind = ANY($1::text[])",
+		"fact.fact_kind IN (" + documentationSourceOnlyKindLiterals() + ")",
 		"fact.is_tombstone = FALSE",
 		"generation.status = 'active'",
-		`NOT (
-      (jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND jsonb_array_length(fact.payload->'candidate_refs') > 0)
-   OR (jsonb_typeof(fact.payload->'evidence_refs') = 'array' AND jsonb_array_length(fact.payload->'evidence_refs') > 0)
-   OR (jsonb_typeof(fact.payload->'linked_entities') = 'array' AND jsonb_array_length(fact.payload->'linked_entities') > 0)
-  )`,
+		documentationNoStructuredRefsPredicate("fact.payload"),
 	}
 	addColumnFilter := func(column, value string) {
 		value = strings.TrimSpace(value)
@@ -131,6 +126,44 @@ WHERE %s
 		facts.DocumentationLinkFactKind,
 		strings.Join(clauses, " AND "),
 	), args
+}
+
+// documentationSourceOnlyKindLiterals renders the counted documentation fact
+// kinds as a SQL literal list. The list is inlined, never bound as a
+// parameter: migration 122's partial index predicate carries the same literal
+// kinds, and Postgres can prove `fact_kind IN (literals)` implies that
+// predicate in a generic plan, whereas `fact_kind = ANY($1)` cannot be proven
+// until the parameter is known. The kinds are compile-time constants from the
+// facts package, never caller input.
+func documentationSourceOnlyKindLiterals() string {
+	kinds := documentationSourceOnlyFactKindsList()
+	quoted := make([]string, len(kinds))
+	for i, kind := range kinds {
+		quoted[i] = "'" + kind + "'"
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// documentationNoStructuredRefsPredicate renders "this fact carries no
+// structured target refs": none of candidate_refs, evidence_refs, or
+// linked_entities is a non-empty array. A missing or JSON-null key means no
+// refs. The COALESCE keeps the predicate two-valued: with a bare
+// `jsonb_typeof(NULL) = 'array'` the disjunct is SQL NULL for an absent key
+// and NOT(NULL) excludes the row, so the count could only be nonzero for facts
+// that carry all three keys (#7126). `<> '[]'` is "non-empty" for an array and
+// raises no error on a scalar, unlike jsonb_array_length. Migration 122's
+// partial index carries this exact text over the bare `payload` column so the
+// planner can prove the statement implies the index predicate.
+func documentationNoStructuredRefsPredicate(payload string) string {
+	refKey := func(key string) string {
+		return fmt.Sprintf(
+			"COALESCE(jsonb_typeof(%[1]s->'%[2]s') = 'array' AND %[1]s->'%[2]s' <> '[]'::jsonb, FALSE)",
+			payload, key,
+		)
+	}
+	return "NOT (\n      " + refKey("candidate_refs") +
+		"\n   OR " + refKey("evidence_refs") +
+		"\n   OR " + refKey("linked_entities") + "\n  )"
 }
 
 func documentationSourceOnlyFactKindsList() []string {
