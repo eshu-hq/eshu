@@ -116,16 +116,15 @@ and a cap exemption is not worth a second freshness fixture file. Do not add
 an exemption row to `scripts/lib/dirgate-naming-exempt.tsv` for this
 package's own files -- `freshness/` has none and must stay that way.
 
-`service_changed_since_telemetry_test.go`'s fixtures
-(`fakeServiceChangedSinceLineageReader`, `fakeServiceOwnershipProbeResult`)
-deliberately did NOT move to `testutil`: they are minimal single-caller
-doubles sufficient only to land on each of the four closed grant-refusal
-reasons, not a reusable SQL-mirroring fixture. Root's
-`service_changed_since_grant_test.go` keeps its own richer
-`grantMirroringServiceOwnership` (which also depends on root-unexported
-`containsAuthString`, `errServiceCatalogOutsideGrantNeedsAGrant`, and
-`serviceCatalogCorrelationMaxLimit`, which is why that whole file stays in
-root) for the grant-boundary correctness proof; do not try to unify the two.
+The service route's two-tenant fixture, `testutil.GrantMirroringServiceChangedSince`
+with `TwoTenantServiceLineageRows` (`testutil/servicelineage.go`), mirrors
+`resolveServiceChangedSinceScopeQuery`'s grant arms and
+`ComputeServiceChangedSinceDelta`'s lineage choice (#6475). Keep it in
+lockstep with both: a change to the SQL grant arms or to the ambiguity rule
+must change the fake in the same edit, and the live Postgres test
+`TestServiceChangedSinceBindsGrantToLineageScopeLive` is the check that the
+two agree. Do not reintroduce a service-catalog correlation probe on this
+route: the lineage row's `scope_id` is the ownership evidence now.
 
 ## Naming
 

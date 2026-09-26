@@ -250,9 +250,10 @@ const (
 	SpanAttrServiceChangedSinceUnavailable         = contract.SpanAttrServiceChangedSinceUnavailable
 	SpanAttrServiceChangedSinceGrantRefused        = contract.SpanAttrServiceChangedSinceGrantRefused
 	SpanAttrServiceChangedSinceGrantRefusedReason  = contract.SpanAttrServiceChangedSinceGrantRefusedReason
+	SpanAttrServiceChangedSinceUnattributed        = contract.SpanAttrServiceChangedSinceUnattributed
+	SpanAttrServiceChangedSinceAmbiguousScopeCount = contract.SpanAttrServiceChangedSinceAmbiguousScopeCount
 
 	ServiceChangedSinceGrantRefusalEmptyGrant       = contract.ServiceChangedSinceGrantRefusalEmptyGrant
 	ServiceChangedSinceGrantRefusalNotGranted       = contract.ServiceChangedSinceGrantRefusalNotGranted
-	ServiceChangedSinceGrantRefusalSharedOwnership  = contract.ServiceChangedSinceGrantRefusalSharedOwnership
 	ServiceChangedSinceGrantRefusalOwnershipUnwired = contract.ServiceChangedSinceGrantRefusalOwnershipUnwired
 )

@@ -17,9 +17,10 @@ changed-since/generations/service-changed-since reader ports, and the
 causality cause/projection types and helpers. Does not own the capability
 registry or truth-envelope contract (`querycontract`), the caller grant
 resolution (`querycontract.RepositoryAccessFilterFromContext`), the
-service-catalog correlation read model the service-changed-since route's
-grant binds against (`service`), or the Postgres status store that implements
-every reader port (`internal/status`) -- those are separate homes this
+service-catalog correlation store type the service-changed-since route still
+requires to be wired for scoped callers (`service`), or the Postgres status
+store that implements every reader port and binds each route's grant in SQL
+(`internal/status`) -- those are separate homes this
 package calls into. Does not own `StatusHandler.getFreshnessCausality`
 (package query, `status_freshness_causality.go`): its receiver is declared in
 `status.go` and `scopedFreshnessCausalityRoute` is read by
@@ -38,9 +39,12 @@ forwarders.
   `serviceChangedSinceRoute` in `service_changed_since.go`).
 - `changed_since.go` -- `listChangedSince` and its parsing/truth-envelope/
   not-found helpers, the `ChangedSinceReader` port.
-- `service_changed_since.go` -- `listServiceChangedSince`, the #5167 grant
-  binding (`serviceChangedSinceGrantAdmits`, `refuseServiceChangedSinceGrant`),
-  and the `ServiceChangedSinceReader` port.
+- `service_changed_since.go` -- `listServiceChangedSince`, which binds the
+  caller's grant and optional `scope_id` into the lineage read (#6475), the
+  pre-read refusals (`serviceChangedSinceGrantAdmits`,
+  `refuseServiceChangedSinceGrant`), the 409 ambiguity answer
+  (`writeServiceChangedSinceAmbiguous`), and the `ServiceChangedSinceReader`
+  port.
 - `causality.go` -- `Cause`, `NextCheck`, the eight `Cause*` constants,
   `ValidCause`, `CauseNextCheck`, `WithCause`, and
   `NextCheckAsRecommendedCall` -- all thin aliases/forwarders to
@@ -133,12 +137,18 @@ AGENTS.md) -- once `listServiceChangedSince` moved here, swapping root's var
 no longer observed any span this route emits, and the test failed with
 "ended spans = 0, want 1". It moved to this package's own
 `service_changed_since_telemetry_test.go`, swapping `freshnessHandlerTracer`
-instead, with its own minimal fakes rather than reusing
-`testutil`'s SQL-mirroring two-tenant correlation fixture (that
-correctness proof stays where it was, in root's
-`service_changed_since_grant_test.go` -- this proof only needs to land on
-each of the four closed refusal reasons, not re-derive the grant
-intersection).
+instead.
+
+Since #6475 part B the route binds the grant in the lineage SQL on each row's
+`scope_id`, and the correlation probes are gone. Both the telemetry proof and
+`service_changed_since_two_tenant_test.go` drive the handler over
+`testutil.GrantMirroringServiceChangedSince`, which mirrors
+`resolveServiceChangedSinceScopeQuery`'s grant arms and the store's lineage
+choice; the SQL itself is proven against Postgres by
+`TestServiceChangedSinceBindsGrantToLineageScopeLive`
+(`internal/storage/postgres`). Root's
+`service_changed_since_bearer_test.go` proves the admission in front of it
+through the real scoped-token middleware.
 
 No-Regression Evidence: the `go test ./internal/query/...` and
 `go test ./internal/query/freshness/` test-name union (`-list '.*'`) equals
@@ -162,7 +172,11 @@ package's own package-local tracer var (mirroring `languageHandlerTracer` in
 `tracing.HandlerTracer()`; `service_changed_since_telemetry_test.go` (moved
 here for the reason above) proves the handler still emits exactly one span
 per request with the documented attributes, including the
-`eshu.service_changed_since.grant_refused`/`grant_refused_reason` pair.
+`eshu.service_changed_since.grant_refused`/`grant_refused_reason` pair. #6475
+part B removed the `shared_ownership` reason (the refusal it named no longer
+exists) and added `eshu.service_changed_since.unattributed` (a served legacy
+lineage) and `eshu.service_changed_since.ambiguous_scope_count` (the size of a
+409 answer, never the scope ids).
 
 ## Related docs
 

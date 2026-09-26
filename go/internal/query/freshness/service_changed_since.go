@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -73,14 +72,38 @@ func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// #6475. The grant binds the LINEAGE ROW in the query, on its scope_id,
+	// rather than anything the caller typed: an ungranted lineage (and every
+	// unattributed legacy lineage, for a scoped caller) resolves to no row and
+	// falls into the not-found path below, byte-identical to a service id that
+	// does not exist. An explicit scope_id selector is bound the same way.
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
+	filter.Scoped = access.Scoped()
+	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.GrantedScopeIDs()
+
 	summary, err := h.ServiceChangedSince.ComputeServiceChangedSinceDelta(r.Context(), filter)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute service changed-since delta: %v", err))
 		return
 	}
 
-	// An empty resolved service means the named service matched no lineage.
+	// More than one admitted scope holds a lineage for this id and the caller
+	// named none. The route never picks one; it lists the admitted scope ids
+	// so the caller can re-ask with scope_id.
+	if summary.Ambiguous() {
+		h.writeServiceChangedSinceAmbiguous(w, r, summary)
+		return
+	}
+
+	// An empty resolved service means the named service matched no lineage the
+	// caller may read. OutsideGrant separates "the grant excluded an existing
+	// lineage" from "no such lineage" on the span only.
 	if summary.ServiceID == "" {
+		if summary.OutsideGrant {
+			h.refuseServiceChangedSinceGrant(w, r, filter.ServiceID, telemetry.ServiceChangedSinceGrantRefusalNotGranted)
+			return
+		}
 		h.writeServiceChangedSinceNotFound(w, r, filter.ServiceID)
 		return
 	}
@@ -104,6 +127,8 @@ func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request
 
 	body := map[string]any{
 		"service_id":                   summary.ServiceID,
+		"scope_id":                     summary.ScopeID,
+		"unattributed":                 summary.Unattributed,
 		"since_generation_id":          summary.SinceGenerationID,
 		"current_active_generation_id": summary.CurrentActiveGenerationID,
 		"sample_limit":                 summary.SampleLimit,
@@ -120,94 +145,28 @@ func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, h.serviceChangedSinceTruthEnvelope(summary))
 }
 
-// serviceChangedSinceGrantAdmits binds the caller's repository grant to the
-// requested catalog service_id and reports whether the lineage read may run
-// (#5167). It writes the refusal itself when the answer is no.
+// serviceChangedSinceGrantAdmits runs the pre-read refusals for a scoped
+// caller and reports whether the lineage read may run. It writes the refusal
+// itself when the answer is no.
 //
-// GET /api/v0/freshness/services/changed-since is STILL on the
-// pendingRowFilteringRoutes ledger, so no scoped token reaches this code today
-// -- the middleware refuses every bearer, all-scope ones included, first. The
-// one caller shape that does reach it is the tenant-bound all-scope console
-// session browserSessionRouteDenialReason admits wherever cmd/api sets
-// BrowserSessionRoutePolicy.AllowTenantBoundAllScopes (local_no_policy,
-// hosted_single_tenant, unset); access.Scoped() is false for it, so it takes
-// the unscoped branch below and reads the lineage, exactly as it does on every
-// other route of the pending row-filtering ledger. This fence is
-// the first half of the route's promotion and it ships now, tested, so the
-// half that is left is only the schema work in #6475 (see the aged-out gap
-// below). Read every "scoped caller" sentence here as what happens once that
-// lands, and as defense in depth in the meantime.
+// Since #6475 the grant itself binds in the lineage SQL, on the scope_id every
+// service_materialization_generations row now carries
+// (resolveServiceChangedSinceScopeQuery): a scoped caller resolves only the
+// lineages of scopes its grant admits, never an unattributed legacy lineage,
+// and never another scope's prior generation. That retired the two
+// reducer_service_catalog_correlation probes this function used to run --
+// including the shared_ownership refusal that turned away a caller whose
+// service id another tenant also declared. Two tenants holding one catalog id
+// now each read their own lineage.
 //
-// The two sibling freshness routes bind their grant inside the shipped SQL,
-// because their tables join to ingestion_scopes and can filter on
-// scope_kind/source_key. service_materialization_generations and
-// service_evidence_snapshots carry only service_id, so there is nothing there
-// to bind; the reducer knew the owning repository when it wrote the generation
-// but discarded it. The mapping is recovered from the reducer_service_catalog_
-// correlation facts, written from the SAME decision set that produced the
-// generation, through the read model that already applies the caller's grant
-// (ListServiceCatalogCorrelations). The refusal is therefore a pre-read one,
-// and it is the route's ordinary service-not-found so an ungranted service is
-// indistinguishable from one that does not exist.
+// What stays here is fail-closed on the two conditions the SQL cannot see:
 //
-// Admission is exclusive, not existential: it takes one correlation inside the
-// grant AND none outside it. A catalog service id is relative to the catalog
-// that declared it and is never tenant-qualified, so two tenants that both run
-// a service called `api` write the same service_id -- and the lineage tables
-// key on that id alone, with the reducer's writer conflicting on it, so there
-// is one generation lineage for the id and nothing recording whose. Admitting
-// on one granted correlation would serve whichever tenant materialized last.
-// Splitting the lineage needs a scope column on those tables; until that
-// lands, a contested id is refused.
-//
-// Three deliberate fail-closed cases, and one gap that is not closed:
-//
-//   - A generation can outlive its correlation fact. The correlation read
-//     requires the fact's generation to still be its scope's active one, so
-//     removing a catalog entity leaves a scoped caller with not-found for a
-//     service whose lineage rows still exist. That is correct, not a bug: with
-//     the catalog entity gone there is no longer any evidence of who owns the
-//     service, and an unowned service must not be readable by a scoped caller.
-//     An unscoped operator still sees it.
-//   - A nil ServiceOwnership refuses every scoped caller. A deployment that
-//     cannot resolve ownership must not answer instead of resolving it.
-//   - A service id correlated from outside the grant as well as inside it is
-//     refused even though the caller genuinely owns one of the correlations.
-//     Returning the shared lineage would hand the caller another tenant's
-//     counts and evidence keys, and returning a filtered one is impossible:
-//     the lineage carries nothing to filter on.
-//   - One correlation is enough to contest the id when it could not resolve to
-//     a single repository. The reducer's ambiguous branches leave
-//     repository_id empty and list every match in candidate_repository_ids,
-//     and those decisions are still materialized, so a row naming one
-//     repository the caller owns and one it does not reaches the same lineage.
-//     The outside-grant statement reports such a row rather than treating the
-//     one granted candidate as covering it (#6472 review, P1-B). This is why
-//     the two statements are not complements: admission asks whether the
-//     caller has SOME claim, exclusivity asks whether anyone else has ANY.
-//
-// The gap, stated because the contract sentence on this route is bounded to
-// match it (#6475): both correlation reads join ingestion_scopes on the
-// scope's active generation and require generation.status = 'active', so a
-// correlation that has aged out -- the component removed from the other
-// tenant's catalog, that scope deactivated, the tenant offboarded -- is
-// invisible to the exclusivity probe. Its lineage generation, meanwhile, stays
-// the active one for the id, because nothing prunes
-// service_materialization_generations. The id then stops looking contested and
-// the caller is admitted onto that lineage. The writing scope cannot be
-// recovered from the lineage row alone: source_intent_id is nullable, carries
-// no foreign key, and names the reducer's fact_work_items.work_item_id, which
-// cascades away when generation retention deletes its scope generation. #6475
-// part A adds the scope_id column and the (scope_id, service_id) writer key,
-// and migration 127 backfills legacy rows from that work item only while it
-// survives; a row whose witness aged out stays scope_id NULL (unattributed).
-// This handler does not read scope_id yet; binding it to the grant is #6475
-// part B.
-// TestServiceChangedSinceSharedServiceIDIsRefused pins the behaviour so the
-// contract sentence and the code cannot drift apart. This gap is why the route
-// was withdrawn from #6472's promotion: a fence that can be defeated by an
-// aged-out correlation would turn a scoped caller's 403 into a cross-tenant
-// read, and pendingRowFilteringRoutes' header forbids exactly that.
+//   - A scoped caller whose grant names no repository and no scope. The SQL
+//     already resolves nothing for it (`= ANY('{}')` is false), so this is
+//     defense in depth that also names the cause on the span.
+//   - A nil ServiceOwnership. The route no longer reads it, but a deployment
+//     that wires no ownership store has not been provisioned for tenant-scoped
+//     service reads, so scoped callers stay refused there.
 //
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say
@@ -219,13 +178,9 @@ func (h *Handler) serviceChangedSinceGrantAdmits(
 ) bool {
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if !access.Scoped() {
-		// Shared, admin, and local callers have no grant for the correlation
-		// filter to intersect, so the unscoped path issues no extra query.
+		// Shared, admin, and local callers read every lineage.
 		return true
 	}
-	// Load-bearing: ServiceCatalogCorrelationFilter's grant clause collapses to
-	// TRUE when both grant arrays are empty, so a scoped caller with no grant
-	// would read every tenant's correlations. Refuse before the store call.
 	if access.Empty() {
 		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalEmptyGrant)
 		return false
@@ -234,47 +189,54 @@ func (h *Handler) serviceChangedSinceGrantAdmits(
 		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired)
 		return false
 	}
-
-	// One row is the whole answer on both probes: the questions are whether
-	// the grant covers this service at all, and whether anything outside the
-	// grant also claims the id -- never which repository owns it.
-	probe := service.CatalogCorrelationFilter{
-		ServiceID:            serviceID,
-		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
-		AllowedScopeIDs:      access.GrantedScopeIDs(),
-		Limit:                1,
-	}
-
-	granted, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
-	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
-		return false
-	}
-	if len(granted) == 0 {
-		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalNotGranted)
-		return false
-	}
-
-	// The exclusivity half. It runs only once the grant already covers the
-	// service, so an ungranted caller still pays for one query rather than two.
-	//
-	// The two probes are separate statements, so a correlation written between
-	// them is not seen. That window is inherent to checking before the read
-	// rather than to using two statements -- one combined query would leave
-	// the same gap between itself and the lineage read -- and it is bounded by
-	// how long the reducer takes to publish a new catalog generation, which is
-	// far longer than the gap.
-	probe.OutsideGrant = true
-	contested, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
-	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
-		return false
-	}
-	if len(contested) > 0 {
-		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalSharedOwnership)
-		return false
-	}
 	return true
+}
+
+// writeServiceChangedSinceAmbiguous answers a service id that more than one
+// admitted ingestion scope holds a lineage for, when the caller named no
+// scope_id (#6475). It is 409 Conflict with the ordinary `ambiguous` error
+// code; details carries the admitted scope ids (sorted, bounded by
+// changedsince.MaxServiceScopeCandidates) and whether the list was cut. The
+// store never returns a scope outside the caller's grant here, so the list
+// discloses nothing the caller could not already read by selecting it.
+func (h *Handler) writeServiceChangedSinceAmbiguous(
+	w http.ResponseWriter,
+	r *http.Request,
+	summary status.ServiceChangedSinceSummary,
+) {
+	trace.SpanFromContext(r.Context()).SetAttributes(
+		attribute.Int(telemetry.SpanAttrServiceChangedSinceAmbiguousScopeCount, len(summary.AmbiguousScopeIDs)),
+	)
+	message := fmt.Sprintf(
+		"service_id %q has a materialization lineage in more than one ingestion scope; retry with scope_id set to one of details.scope_ids",
+		summary.ServiceID,
+	)
+	details := map[string]any{
+		"status":     "ambiguous",
+		"service_id": summary.ServiceID,
+		"scope_ids":  summary.AmbiguousScopeIDs,
+		"truncated":  summary.AmbiguousTruncated,
+	}
+	if querycontract.AcceptsEnvelope(r) {
+		querycontract.WriteJSON(w, http.StatusConflict, querycontract.ResponseEnvelope{
+			Truth: querycontract.BuildTruthEnvelope(
+				h.profile(),
+				ServiceChangedSinceCapability,
+				querycontract.TruthBasisSemanticFacts,
+				"refused an ambiguous service_id before computing a changed-since diff",
+			),
+			Error: &querycontract.ErrorEnvelope{
+				Code:       querycontract.ErrorCodeAmbiguous,
+				Message:    message,
+				Capability: ServiceChangedSinceCapability,
+				Details:    details,
+			},
+		})
+		return
+	}
+	details["error"] = http.StatusText(http.StatusConflict)
+	details["detail"] = message
+	querycontract.WriteJSON(w, http.StatusConflict, details)
 }
 
 // refuseServiceChangedSinceGrant records the grant refusal on the handler span
@@ -330,6 +292,7 @@ func (h *Handler) writeServiceChangedSinceNotFound(
 func (h *Handler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ServiceChangedSinceFilter, bool) {
 	filter := status.ServiceChangedSinceFilter{
 		ServiceID:         querycontract.QueryParam(r, "service_id"),
+		ScopeID:           querycontract.QueryParam(r, "scope_id"),
 		SinceGenerationID: querycontract.QueryParam(r, "since_generation_id"),
 	}
 
@@ -381,6 +344,7 @@ func serviceChangedSinceSpanAttributes(summary status.ServiceChangedSinceSummary
 	}
 	return []attribute.KeyValue{
 		attribute.String(telemetry.SpanAttrServiceChangedSinceServiceID, summary.ServiceID),
+		attribute.Bool(telemetry.SpanAttrServiceChangedSinceUnattributed, summary.Unattributed),
 		attribute.String(telemetry.SpanAttrServiceChangedSinceSinceGenerationID, summary.SinceGenerationID),
 		attribute.String(telemetry.SpanAttrServiceChangedSinceCurrentGenerationID, summary.CurrentActiveGenerationID),
 		attribute.Int(telemetry.SpanAttrServiceChangedSinceChangedCount, changed),

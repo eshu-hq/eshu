@@ -57,12 +57,6 @@ type ServiceCatalogCorrelationFilter = service.CatalogCorrelationFilter
 // keeps the incident stayer spelling the query name unchanged. See #6060.
 type ServiceCatalogCorrelationRow = service.CatalogCorrelationRow
 
-// errServiceCatalogOutsideGrantNeedsAGrant refuses an outside-grant read
-// that carries no grant at all. Its home is service/; this variable keeps
-// the staying freshness stayers spelling the package-local name unchanged.
-// See #6060.
-var errServiceCatalogOutsideGrantNeedsAGrant = service.ErrServiceCatalogOutsideGrantNeedsAGrant
-
 // ServiceWorkloadSelector is the exported selector for in-process
 // service-story composers. Its home is service/; this alias keeps
 // serviceintelhttp and the staying EntityHandler seam spelling the query
@@ -209,8 +203,3 @@ func buildGraphDependents(candidates []deployment.ProvisioningRepositoryCandidat
 // value lives in querycontract; this declaration keeps the staying
 // documentation stayers compiling unchanged.
 const documentationStoryReadLimit = querycontract.DocumentationStoryReadLimit
-
-// serviceCatalogCorrelationMaxLimit bounds service-catalog correlation
-// pages. The canonical value lives in querycontract; this declaration keeps
-// the staying freshness stayer compiling unchanged.
-const serviceCatalogCorrelationMaxLimit = querycontract.ServiceCatalogCorrelationMaxLimit
