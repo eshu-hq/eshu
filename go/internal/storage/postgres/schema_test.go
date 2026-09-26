@@ -294,7 +294,7 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	t.Parallel()
 
-	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1}}
+	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
@@ -307,6 +307,9 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	}
 	if !strings.Contains(statement, "content_entities_name_trgm_idx") {
 		t.Fatal("content search index SQL missing entity name trigram index")
+	}
+	if !strings.Contains(statement, "content_files_relative_path_trgm_idx") {
+		t.Fatal("content search index SQL missing relative-path trigram index")
 	}
 	if strings.Contains(statement, "CREATE TABLE") {
 		t.Fatal("content search index SQL unexpectedly creates tables")

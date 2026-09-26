@@ -44,6 +44,7 @@ INSERT INTO content_entities (
 		t.Fatalf("EnsureContentSearchIndexes() error = %v", err)
 	}
 	assertContentSearchIndexState(t, db, "ready")
+	assertContentFilesRelativePathIndexDefinition(t, ctx, db)
 
 	var fileCount, entityCount int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM content_files WHERE eshu_require_content_substring_indexes_ready() AND content ILIKE '%fartailneedle%'").Scan(&fileCount); err != nil {
@@ -141,6 +142,7 @@ func TestContentSearchIndexRestartAndFailedBuildLive(t *testing.T) {
 		t.Fatalf("restart EnsureContentSearchIndexes() error = %v", err)
 	}
 	assertContentSearchIndexState(t, db, "ready")
+	assertContentFilesRelativePathIndexDefinition(t, ctx, db)
 
 	if _, err := db.ExecContext(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
 		t.Fatalf("reset disposable proof schema for failure case: %v", err)

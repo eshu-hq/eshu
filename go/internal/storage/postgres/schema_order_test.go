@@ -307,4 +307,9 @@ var orderedBootstrapDefinitionNames = []string{
 	"service_materialization_generations_scope_backfill",
 	"service_materialization_generations_active_service_idx_rescope",
 	"service_materialization_generations_active_service_idx_v2",
+	// migrations 130-131 (#7033) add the all-repository relative_path GIN and
+	// extend the deferred content-index lifecycle to build and validate it only
+	// after the write-heavy content projection drain.
+	"content_files_relative_path_trgm_index",
+	"content_files_relative_path_trgm_index_lifecycle",
 }
