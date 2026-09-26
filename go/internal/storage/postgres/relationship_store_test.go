@@ -820,6 +820,9 @@ func (database *relationshipTestDB) QueryContext(_ context.Context, query string
 	case strings.Contains(query, "FROM relationship_assertions"):
 		return database.queryAssertions(func(_ assertionRecord) bool { return true }), nil
 
+	case strings.Contains(query, "WITH fence AS MATERIALIZED"):
+		return database.queryResolvedForReposWithCorpusFence(args), nil
+
 	case strings.Contains(query, "SELECT s.scope_id"):
 		return newRelationshipRows(database.incompleteActiveScopeRows()), nil
 
@@ -1033,6 +1036,33 @@ func (database *relationshipTestDB) queryResolvedForRepos(repoIDs map[string]str
 			}
 		}
 		rows = append(rows, resolvedRecordRow(r))
+	}
+	return newRelationshipRows(rows)
+}
+
+// queryResolvedForReposWithCorpusFence mirrors the fused fence-and-read
+// statement's result shape: every row leads with the fence verdict, and an
+// incomplete corpus or an empty match yields one filler row with NULL
+// relationship columns (confidence and evidence_count COALESCEd to zero).
+func (database *relationshipTestDB) queryResolvedForReposWithCorpusFence(args []any) *relationshipRows {
+	complete := database.activeScopeGenerationsComplete()
+	filler := [][]any{{complete, nil, nil, nil, nil, nil, 0.0, 0, "", "", nil}}
+	if !complete {
+		return newRelationshipRows(filler)
+	}
+	repoIDs := make(map[string]struct{}, len(args))
+	for _, arg := range args {
+		if repoID, ok := arg.(string); ok {
+			repoIDs[repoID] = struct{}{}
+		}
+	}
+	matched := database.queryResolvedForRepos(repoIDs).data
+	if len(matched) == 0 {
+		return newRelationshipRows(filler)
+	}
+	rows := make([][]any, 0, len(matched))
+	for _, row := range matched {
+		rows = append(rows, append([]any{true}, row...))
 	}
 	return newRelationshipRows(rows)
 }
