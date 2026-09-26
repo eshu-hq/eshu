@@ -6,94 +6,101 @@ that a ledger route refuses a scoped token and says why.
 
 Command: `bash scripts/run-auth-mcp-e2e.sh --module catalog-sweep` (see
 [Scoped-Token MCP Catalog Sweep](../../public/run-locally/mcp-catalog-sweep.md)),
-run with the compose project name overridden to `eshu-e2e-auth-mcp-5167n4j`.
+run twice with `ESHU_E2E_PROJECT_NAME=eshu-e2e-auth-mcp-5167final` (the second
+time with `ESHU_KEEP_COMPOSE_STACK=true`, to diagnose the one failing row).
 
-- **Stack commit:** `7664283f3`, clean worktree. That SHA and `4aa1e23e0`
-  below are local pre-rebase commits that were never pushed, so they do not
-  resolve on the remote: the sweep itself is in #7204 (`348861541`) and the
-  Neo4j stack change is in this PR. The run is on
-  **Neo4j**. `docker-compose.e2e.yaml` now runs its graph on Neo4j instead of
-  NornicDB.
+- **Stack commit:** `136d75646` (`claude/5167-e2e-neo4j`, rebased onto
+  `origin/main` at `f55447c45`, clean worktree). That includes #7226 (#7215),
+  #7221 (#7216) and #7194 (`search_registry_bundles`). The graph is **Neo4j**.
 - **Images:**
   - graph: `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`
-    (Neo4j 2026.08.1, the digest `docker-compose.neo4j.yml` pins);
-  - Postgres: `postgres@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd`
-    (`postgres:18-alpine`);
-  - Eshu: built from that commit by `up --build`.
-- **Host:** the pinned Neo4j digest is amd64-only, so it ran emulated on an
-  arm64 host at a load average of about 17.7. Every absolute time below is from
-  that host, not native.
-- **Exit:** 1, with 9/10 steps. The one failing step is the per-tool step, which
-  failed on the two #7215 rows below. The stack was torn down afterwards.
-
-The earlier run at `4aa1e23e0` was on NornicDB. It predates #7183, #7193 and
-#7191, and this run supersedes it and its per-row table.
+    (the digest `docker-compose.neo4j.yml` pins; unchanged since the earlier run);
+  - Postgres: `postgres:18-alpine@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd`;
+  - Eshu and MCP server: built from that commit by `up --build`
+    (`eshu-e2e-auth-mcp-5167final-eshu`, `...-mcp-server`).
+- **Host:** the Neo4j digest is amd64-only and ran emulated on an arm64 host,
+  at a load average of about 3.5-5 (about 17.7 in the earlier run). Absolute
+  times are not native.
+- **Exit:** 1 both times, with 9/10 steps in 84.8 s and 81.2 s. The one failing
+  step is the per-tool step, on the single row below. The two runs' 167 rows
+  matched row for row. Both stacks were torn down with `down -v`.
 
 ## Result
 
 - 166 tools listed to the scoped personal token; 167 calls (one tool has two
-  cases); **165/167 passed**.
-- **Two rows fail on a product defect, tracked as #7215.** On Neo4j,
-  `find_infra_resources` (`POST /api/v0/infra/resources/search`) and
-  `analyze_infra_relationships` (`POST /api/v0/infra/relationships`) answer
-  `backend_timeout` ("graph query exceeded its deadline") to a scoped token.
-  The graph is nearly empty, so execution is not the problem; planning is.
-  Measured on the kept stack with `EXPLAIN`/`PROFILE` (Neo4j's own `Time:`,
-  host load average 17.7, so these are ranges):
-  - the scoped search query took 21.5-38.0 s to plan cold and 5.1-6.0 s warm,
-    against a 10 s bounded read; the same query unscoped took about 6.0 s cold
-    and 157 ms warm;
-  - each scoped per-label relationships anchor took about 1 s to plan, and
-    about 16 anchors share one 10 s budget.
+  cases); **166/167 passed**.
+- **The four rows the earlier run could not pass now pass live:**
+  - `find_infra_resources` (`POST /api/v0/infra/resources/search`): `ok`, "Returned
+    0 result(s)" (#7226, #7215);
+  - `analyze_infra_relationships` (`POST /api/v0/infra/relationships`): `not_found`,
+    a typed 404 for the unseeded entity (accepted; #7226, #7215);
+  - `search_registry_bundles` (`POST /api/v0/code/bundles`, promoted off the
+    pending ledger by #7194): **`default` returned an empty `ok` page to the
+    scoped token** ("exact/fresh, Returned 0 result(s)"). A scoped caller reads only
+    `visibility = 'public'` packages and the fixture seeds none, so an empty page
+    is the expected answer;
+  - `analyze_code_relationships[who_modifies]` (`POST /api/v0/code/relationships`):
+    `not_found`, dispatched with `name` and `repo_id` (#7221), with the all-scope
+    control below.
+- **One row fails on a product defect, not yet tracked:** `count_infra_resources`
+  (`GET /api/v0/infra/resources/count`) answers `backend_timeout` ("graph query
+  exceeded its deadline") to a scoped token, in both runs. It is a sibling of
+  #7215 that #7226 did not cover. #7226 gave the scoped search and relationships
+  paths a Neo4j dialect; the aggregate path still renders the SHAPE-A inline grant
+  predicate (`infraResourceScopePredicate`) into every one of 27 per-label
+  `UNION ALL` branches, and `countFromGraph` issues four such statements (total,
+  by provider, by environment, by label). Measured on the kept stack with
+  `EXPLAIN` in `cypher-shell` (graph nearly empty, one granted repository and one
+  granted scope; Neo4j's own `Time:` in ms):
 
-  The cause is suspected, not yet proven (#7215): the scoped-grant predicate
-  (`EXISTS` subqueries plus inline map disjunctions) repeated across every label
-  branch. What is measured is that scoped planning is several times slower than
-  unscoped on the same emulated, loaded host; no `PROFILE` proof of the
-  predicate as the cause exists yet. The rows' expectations are left as they
-  are: accepting a timeout would hide the defect.
-- **133 calls must answer `ok`:** 132 did. The 133rd is `find_infra_resources`
-  above.
+  | statement | cold plan | warm plan |
+  | --- | ---: | ---: |
+  | total count, scoped | 5076 | 129 |
+  | by provider, scoped | 4966 | not measured |
+  | by environment, scoped | 5189 | not measured |
+  | by label, scoped | 4816 | not measured |
+  | total count, unscoped (grant clause removed) | 275 | not measured |
+
+  Four cold plans of about 5 s each come to about 20 s, against a 10 s bounded
+  read. What is proven is the planning cost of the scoped statement and its
+  absence without the grant clause. The exact deadline accounting inside
+  `countFromGraph` was not traced. This row passed in the earlier
+  `7664283f3` run; why it did then is not established. Its expectation is left as
+  it is, because accepting a timeout would hide the defect.
+- **133 calls must answer `ok`:** 133 did, 0 short (the static split is now 133
+  `ok` plus `count_infra_resources`, which is the 134th).
 - **30 tolerant calls** prove only that the route is mounted and not refused by
   the route policy:
-  - 22 answered a typed `not_found` for a subject the fixture does not seed;
+  - 23 answered a typed `not_found` for a subject the fixture does not seed
+    (the earlier run's 22 plus `analyze_infra_relationships`);
   - 7 are gated by the stack profile: `unsupported_capability` x4,
     `ask_default_off` x1 (`ESHU_ASK_ENABLED` unset, matched on its "ask is not
     enabled" body) and `component_registry_unavailable` x2
-    (`ESHU_COMPONENT_HOME` unset);
-  - the 30th is `analyze_infra_relationships` above.
-- **4 ledger calls** answered the route-policy 403 with a tool description that
-  discloses it: 2 pending row filtering (`get_service_changed_since`,
-  `search_registry_bundles`) and 2 shared-key only (`execute_cypher_query`,
-  `visualize_graph_query`).
-- **Since this run:** #7194 promoted `POST /api/v0/code/bundles` off the pending
-  ledger, so `search_registry_bundles` is now an allowlisted row that must
-  answer `ok` (a scoped caller reads only `visibility = 'public'` packages, and
-  the fixture seeds none, so the expected answer is an empty page). **That row
-  has not been live-run since its promotion**: the run above recorded it as the
-  ledger 403. The live figures in this document (165/167, 132 of 133, 4 ledger)
-  are that run's and are kept as measured. The current static split is
-  134 `ok`, 30 tolerant, 3 ledger (1 pending row filtering, 2 shared-key
-  only).
-- **The rows promoted off the pending ledger since the NornicDB run now pass
-  live:**
+    (`ESHU_COMPONENT_HOME` unset).
+- **3 ledger calls** answered the route-policy 403 with a tool description that
+  discloses it: 1 pending row filtering (`get_service_changed_since`) and 2
+  shared-key only (`execute_cypher_query`, `visualize_graph_query`).
+  `search_registry_bundles` is no longer one of them.
+- **Rows promoted off the pending ledger since the NornicDB run pass live:**
   - `get_index_status` (#7193): `ok`;
   - `trace_resource_to_code` and `trace_exposure_path` (#7191): `ok`;
   - `explain_dependency_path` (#7191): `not_found`, which it accepts because
     its endpoints are unseeded;
-  - `analyze_code_relationships[who_modifies]` (#7183): `not_found`, with
-    the all-scope control below.
+  - `search_registry_bundles` (#7194): an empty `ok` page, above.
 - **The token was scoped, not shared:** the stack has no `ESHU_API_KEY`, and
-  `GET /api/v0/auth/profile` showed roles
-  `["e2e_catalog_sweep_reader","owner"]` with the permission catalog enforced.
+  `GET /api/v0/auth/profile` showed the token resolving through roles with the
+  permission catalog enforced.
+- **Full suite:** `ESHU_E2E_PROJECT_NAME=eshu-e2e-auth-mcp-5167full bash
+  scripts/run-auth-mcp-e2e.sh` on the same tree passed **40/40** steps in
+  29.3 s, exit 0.
 
 ### All-scope controls
 
 The five tolerant rows that answered `not_found` and name the granted
-repository among their arguments are replayed through the all-scope console session. The replay
-uses the request the MCP dispatcher actually sends (`resolveRoute`'s body and
-query, emitted by `TestCatalogSweepPolicy`), not the raw tool arguments.
-All five answered the same typed 404:
+repository among their arguments are replayed through the all-scope console
+session. The replay uses the request the MCP dispatcher actually sends
+(`resolveRoute`'s body and query, emitted by `TestCatalogSweepPolicy`), not the
+raw tool arguments. All five answered the same typed 404:
 
 ```text
 analyze_code_relationships[who_modifies] POST /api/v0/code/relationships: scoped=not_found all-scope=404 SAME
@@ -103,13 +110,12 @@ get_file_lines[default] POST /api/v0/content/files/lines: scoped=not_found all-s
 trace_route_callers[default] POST /api/v0/code/routes/callers: scoped=not_found all-scope=404 SAME
 ```
 
-The first Neo4j run failed the `who_modifies` control with `400 entity_id or
-name is required`. That was a harness defect, not a product one. The dispatcher
-sends `target` as `entity_id` (and drops `repo_id` for this query type, #7216),
-so for `who_modifies` the replay carries no repository and proves only that the
-entity is absent for every caller. The old replay posted the raw arguments. The other 17 tolerant `not_found`
-rows name a `sweep-seed-missing` id that no seed creates, so they claim only
-the weaker result.
+Since #7221 the `who_modifies` dispatch is `{"entity_id":"","name":"sweepTarget",
+"query_type":"who_modifies","repo_id":"<granted repository>"}` (read from the
+run's policy file), so its control now proves the granted repository lacks the
+entity, not only that the entity is absent for every caller. The other 18
+tolerant `not_found` rows name a `sweep-seed-missing` id that no seed creates, so
+they claim only the weaker result.
 
 ### Negative control
 
@@ -127,6 +133,30 @@ via the all-scope session):
 | get_repository_coverage | ok | not_found | 200 |
 | get_repository_freshness | ok | not_found | 200 |
 
+## Earlier run (history): 165/167 at `7664283f3`
+
+The first Neo4j run, at a local pre-rebase commit that was never pushed (the
+sweep itself is in #7204, `348861541`; the Neo4j stack change is in this PR),
+passed 165/167 at a load average of about 17.7. It predates #7226, #7221 and the
+#7194 promotion, and this run supersedes its figures.
+
+- Its two failures were #7215: scoped `find_infra_resources` and
+  `analyze_infra_relationships` answered `backend_timeout`. Measured then with
+  `EXPLAIN`/`PROFILE`, the scoped search query took 21.5-38.0 s to plan cold and
+  5.1-6.0 s warm against a 10 s read, and each scoped per-label relationships
+  anchor about 1 s to plan with about 16 anchors sharing one budget. #7226
+  fixed both; they pass above.
+- `search_registry_bundles` was then still a ledger row (the disclosed 403),
+  and `count_infra_resources` passed.
+- The `who_modifies` control first failed with `400 entity_id or name is
+  required`: the replay posted the raw arguments and the dispatcher renames
+  `target`. That was a harness defect, fixed by replaying the dispatched
+  request.
+- Its counts were 132 of 133 `ok`, 30 tolerant (22 `not_found`, 7 gated, and
+  the failing `analyze_infra_relationships`), 4 ledger.
+- An earlier run at `4aa1e23e0` was on NornicDB and predates #7183, #7193 and
+  #7191.
+
 ## Shape-A empty-grant check, fixed and rerun
 
 `assertMcpToolCallRowFiltered` (and the twin check in the leakage module) read
@@ -139,7 +169,14 @@ shapeA` at `4aa1e23e0`: exit 0, 9/9 steps, including
 (empty grant) correctly saw 0 repositories (total=0)". The seeded repository
 exists in the graph, so the fixed check reads a real envelope and finds none.
 
-That rerun was on NornicDB. On Neo4j at `7664283f3`, the full suite
+At `136d75646` on Neo4j the full suite passed 40/40 again, with
+`shapeA_mcp_tool_call_row_filtered` ("166 tools listed; scoped personal token
+(empty grant) correctly saw 0 repositories (total=0)") and
+`leakage_cross_scope_row_filter_non_vacuous` both PASS, and
+`scripts/verify-auth-mcp-e2e-manifest.sh` on that report answered "pass (40
+steps, in order, all matching status, within runtime bound)", exit 0.
+
+The earlier rerun was on NornicDB. On Neo4j at `7664283f3`, the full suite
 (`bash scripts/run-auth-mcp-e2e.sh`, no module) passed 40/40 steps. That
 includes `shapeA_mcp_tool_call_row_filtered` ("scoped personal token (empty
 grant) correctly saw 0 repositories (total=0)") and
@@ -160,20 +197,20 @@ The seed consists of the graph Repository nodes (written with
 `docker compose exec neo4j cypher-shell`), one repository-catalog scope per
 repository, one `state_snapshot` scope, and a role granting every feature and
 data class on the granted repository and the state scope. There is no indexed
-content, so the 22 `not_found` rows prove only that the route is mounted and
-not refused by the route policy, not a populated answer. The 4 routes refused in
+content, so the 23 `not_found` rows prove only that the route is mounted and
+not refused by the route policy, not a populated answer. The 3 routes refused in
 this run are the closed `pendingRowFilteringRoutes` and `sharedKeyOnlyRoutes` ledgers.
 
 ## Per-tool table
 
-Run at `7664283f3` on Neo4j:
+Run at `136d75646` on Neo4j (first run; the second run's rows are identical):
 
 ```text
 tool                                             route                                                                    expected                                                  actual                          verdict
 -----------------------------------------------  -----------------------------------------------------------------------  --------------------------------------------------------  ------------------------------  -------
 analyze_code_relationships[find_callers]         POST /api/v0/code/relationships/story                                    success (ok)                                              ok                              PASS
 analyze_code_relationships[who_modifies]         POST /api/v0/code/relationships                                          success (ok|not_found)                                    not_found                       PASS
-analyze_infra_relationships                      POST /api/v0/infra/relationships                                         success (ok|not_found|scope_not_found|service_not_found)  backend_timeout                 FAIL
+analyze_infra_relationships                      POST /api/v0/infra/relationships                                         success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 analyze_pre_change_impact                        POST /api/v0/impact/pre-change                                           success (ok)                                              ok                              PASS
 ask                                              POST /api/v0/ask                                                         success (ok|ask_default_off)                              ask_default_off                 PASS
 build_evidence_citation_packet                   POST /api/v0/evidence/citations                                          success (ok)                                              ok                              PASS
@@ -185,7 +222,7 @@ compose_replatforming_plan                       POST /api/v0/replatforming/plan
 count_ci_cd_run_correlations                     GET /api/v0/ci-cd/run-correlations/count                                 success (ok)                                              ok                              PASS
 count_container_image_identities                 GET /api/v0/supply-chain/container-images/identities/count               success (ok)                                              ok                              PASS
 count_documentation_findings                     GET /api/v0/documentation/findings/count                                 success (ok)                                              ok                              PASS
-count_infra_resources                            GET /api/v0/infra/resources/count                                        success (ok)                                              ok                              PASS
+count_infra_resources                            GET /api/v0/infra/resources/count                                        success (ok)                                              backend_timeout                 FAIL
 count_package_registry_packages                  GET /api/v0/package-registry/packages/count                              success (ok)                                              ok                              PASS
 count_repositories_by_language                   GET /api/v0/repositories/by-language                                     success (ok)                                              ok                              PASS
 count_sbom_attestation_attachments               GET /api/v0/supply-chain/sbom-attestations/attachments/count             success (ok)                                              ok                              PASS
@@ -213,7 +250,7 @@ find_cross_repo_dead_code                        POST /api/v0/code/dead-code/cro
 find_dead_code                                   POST /api/v0/code/dead-code                                              success (ok)                                              ok                              PASS
 find_dead_iac                                    POST /api/v0/iac/dead                                                    success (ok)                                              ok                              PASS
 find_function_call_chain                         POST /api/v0/code/call-chain                                             success (ok)                                              ok                              PASS
-find_infra_resources                             POST /api/v0/infra/resources/search                                      success (ok)                                              backend_timeout                 FAIL
+find_infra_resources                             POST /api/v0/infra/resources/search                                      success (ok)                                              ok                              PASS
 find_most_complex_functions                      POST /api/v0/code/complexity                                             success (ok)                                              ok                              PASS
 find_symbol                                      POST /api/v0/code/symbols/search                                         success (ok)                                              ok                              PASS
 find_unmanaged_resource_owners                   POST /api/v0/replatforming/ownership-packets                             success (ok)                                              ok                              PASS
@@ -331,7 +368,7 @@ resolve_investigation_workflow                   POST /api/v0/investigation-work
 resolve_query_playbook                           POST /api/v0/query-playbooks/resolve                                     success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 search_entity_content                            POST /api/v0/content/entities/search                                     success (ok)                                              ok                              PASS
 search_file_content                              POST /api/v0/content/files/search                                        success (ok)                                              ok                              PASS
-search_registry_bundles                          POST /api/v0/code/bundles                                                403 disclosed (pending_row_filtering)                     route_denied_403 (disclosed)    PASS
+search_registry_bundles                          POST /api/v0/code/bundles                                                success (ok)                                              ok                              PASS
 search_semantic_context                          POST /api/v0/search/semantic                                             success (ok)                                              ok                              PASS
 trace_deployment_chain                           POST /api/v0/impact/trace-deployment-chain                               success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 trace_exposure_path                              POST /api/v0/impact/trace-exposure-path                                  success (ok)                                              ok                              PASS
@@ -339,7 +376,7 @@ trace_resource_to_code                           POST /api/v0/impact/trace-resou
 trace_route_callers                              POST /api/v0/code/routes/callers                                         success (ok|not_found|scope_not_found|service_not_found)  not_found                       PASS
 visualize_graph_query                            POST /api/v0/code/visualize                                              403 disclosed (shared_key_only)                           route_denied_403 (disclosed)    PASS
 
-165/167 calls passed
+166/167 calls passed
 
 all-scope controls (granted-repository not_found rows):
   analyze_code_relationships[who_modifies] POST /api/v0/code/relationships: scoped=not_found all-scope=404 SAME
@@ -351,6 +388,6 @@ all-scope controls (granted-repository not_found rows):
 
 ## Stack change evidence
 
-No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. These results are author-reported from live runs on that stack. At `7664283f3` the full auth/MCP suite passed 40/40 and the SSO suite passed 24/24. Both runs predate the healthcheck window (`start_period: 120s`, `retries: 30`); the sensitivity gate passed after it was added. The catalog sweep passed 165/167, and its two failures are the open product defect #7215. The sweep cases were restated for route promotions, as the sections above describe. Besides the backend swap, the stack drops the host graph ports, renames the graph volume and gives db-migrate a neo4j dependency. It changes no production path.
+No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. These results are author-reported from live runs on that stack. At `7664283f3` the full auth/MCP suite passed 40/40 and the SSO suite passed 24/24. Both runs predate the healthcheck window (`start_period: 120s`, `retries: 30`); the sensitivity gate passed after it was added. At `136d75646` the catalog sweep passed 166/167 and the full suite passed 40/40; the one failure is the unfiled sibling defect in `count_infra_resources` above. The sweep cases were restated for route promotions, as the sections above describe. Besides the backend swap, the stack drops the host graph ports, renames the graph volume and gives db-migrate a neo4j dependency. It changes no production path.
 
 No-Observability-Change: the change touches only test-stack wiring. It adds no runtime metric, span, log key, status field or worker behaviour. Suite results are reported through the existing e2e runner report and step lines.

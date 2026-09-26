@@ -66,9 +66,9 @@ baseline manifest is unchanged.
   answer `not_found`, so the runner replays each through the all-scope console
   session, sending the request the MCP dispatcher sends (the policy carries each
   row's dispatched body and query), which must answer the same typed `404`: the
-  fixture, not the grant, lacks the subject. The `who_modifies` dispatch carries
-  no `repo_id` (#7216), so its control proves the entity is absent for every
-  caller, not that the granted repository lacks it. The Go test rejects a tolerant
+  fixture, not the grant, lacks the subject. The `who_modifies` dispatch sends
+  `name` and `repo_id` (#7221), so its control proves the granted repository
+  lacks the entity. The Go test rejects a tolerant
   entry unless its `acceptReason` quotes one of the row's own unseeded string
   arguments (a seeded-subject placeholder such as `$REPO`, a seeded id, or the
   tool name alone does not count), or, for a row that accepts only capability
@@ -80,19 +80,18 @@ baseline manifest is unchanged.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
   fails. The runner prints this split in the step detail.
   The static split (134 `ok`, 30 tolerant, 3 ledger) is derived from that
-  policy output. The latest live run, on Neo4j, passed 165 of 167 calls,
-  including every row promoted off the pending-row-filtering ledger by #7183,
-  #7193 and #7191. That run predates #7194, which promoted
-  `search_registry_bundles` off the ledger (a scoped caller reads only public
-  packages, so it now expects `ok` with an empty page); the row was a ledger
-  `403` in that run and has not been live-run since its promotion. The two failures are a product defect
-  tracked in #7215:
-  `find_infra_resources` and `analyze_infra_relationships` answer
-  `backend_timeout` to a scoped token. On the sweep host, which ran the amd64
-  Neo4j image emulated and heavily loaded, planning the scoped infrastructure
-  queries took longer than the 10 s bounded read; the cause is unproven
-  (#7215). Their expected
-  outcomes are unchanged, so the sweep keeps failing until #7215 is fixed.
+  policy output. The latest live run, on Neo4j at `136d75646`, passed 166 of 167
+  calls. It includes every row promoted off the pending-row-filtering ledger by
+  #7183, #7193, #7191 and #7194: `search_registry_bundles/default` returned an
+  empty `ok` page to the scoped token (a scoped caller reads only public
+  packages and the fixture seeds none), and `find_infra_resources` and
+  `analyze_infra_relationships` now pass after #7226 (#7215). The one failure is
+  a product defect: `count_infra_resources` answers `backend_timeout` to a
+  scoped token, because the aggregate path still renders the scoped grant
+  predicate into every one of 27 per-label branches, and its four statements each
+  planned for about 5 s cold on the sweep host, which ran the amd64 Neo4j image
+  emulated. Its expected outcome is unchanged, so the sweep keeps failing until
+  that is fixed. The evidence page has the measurements.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
   granted repository only, and each single-repository tool refuses the ungranted
