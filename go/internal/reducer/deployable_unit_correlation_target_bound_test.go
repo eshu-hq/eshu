@@ -62,6 +62,18 @@ func (w *failingDeployableUnitEdgeWriter) WriteEdges(
 // deployable-unit edge whose write fails with writeErr.
 func handleDeployableUnitWithWriteErr(t *testing.T, writeErr error, cycleStartedAt, enqueuedAt time.Time) error {
 	t.Helper()
+	return handleDeployableUnitWithLogger(t, writeErr, cycleStartedAt, enqueuedAt, nil)
+}
+
+// handleDeployableUnitWithLogger is handleDeployableUnitWithWriteErr with the
+// handler's Logger set, so a test can observe where the bound-expiry WARN lands.
+func handleDeployableUnitWithLogger(
+	t *testing.T,
+	writeErr error,
+	cycleStartedAt, enqueuedAt time.Time,
+	logger *slog.Logger,
+) error {
+	t.Helper()
 
 	handler := DeployableUnitCorrelationHandler{
 		FactLoader: &stubDeployableUnitFactLoader{
@@ -85,6 +97,7 @@ func handleDeployableUnitWithWriteErr(t *testing.T, writeErr error, cycleStarted
 		}}},
 		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
 		EdgeWriter:     &failingDeployableUnitEdgeWriter{writeErr: writeErr},
+		Logger:         logger,
 	}
 	intent := deployableUnitIntent("edge-api")
 	intent.CycleStartedAt = cycleStartedAt
@@ -212,5 +225,31 @@ func TestBoundSharedEdgeTargetDeferralLogsTheBoundTrip(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("inside the bound logged %q, want nothing (the writer already WARNs each miss)", buf.String())
+	}
+}
+
+// TestDeployableUnitCorrelationHandlerLogsBoundExpiryToItsLogger pins the
+// operator signal's destination (#7268 review): the bound-expiry WARN must land
+// on the handler's configured Logger, the structured reducer logger main.go
+// wires, and not on slog.Default(), which nothing in production configures.
+func TestDeployableUnitCorrelationHandlerLogsBoundExpiryToItsLogger(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	pastBound := time.Now().UTC().Add(-crossscope.ProducerReadinessMaxWait - time.Minute)
+
+	handleDeployableUnitWithLogger(t, sharedEdgeTargetMissStandIn{}, pastBound, pastBound, logger)
+
+	out := buf.String()
+	for _, want := range []string{
+		"level=WARN",
+		"shared edge target absent past the wait bound",
+		"domain=deployable_unit_correlation",
+		"sample_repo_id=repo-edge-api",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("handler logger missing %q:\n%s", want, out)
+		}
 	}
 }

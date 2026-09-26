@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -48,6 +49,11 @@ type DeployableUnitCorrelationHandler struct {
 	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	// Logger receives the bound-expiry WARN emitted when a shared-edge target
+	// stays absent past the wait bound (#7268). main.go wires the reducer's
+	// structured logger so the WARN carries its trace and service fields; nil
+	// falls back to slog.Default(), kept for test wiring only.
+	Logger *slog.Logger
 }
 
 // Handle executes the deployable-unit correlation reduction path.
@@ -156,7 +162,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	evaluatedCandidateCount := len(evaluation.Results)
 	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
-		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), nil)
+		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
 	}
 	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
 		return Result{}, err
@@ -473,27 +479,4 @@ func deployableUnitStructuralEvidence(
 		})
 	}
 	return evidence
-}
-
-func deployableUnitKeys(candidate WorkloadCandidate) []string {
-	keys := make(map[string]struct{})
-	for _, provenance := range candidate.Provenance {
-		if !strings.HasPrefix(provenance, "dockerfile_runtime:") {
-			continue
-		}
-		path := strings.TrimSpace(strings.TrimPrefix(provenance, "dockerfile_runtime:"))
-		key := deployableUnitKeyFromPath(candidate.RepoName, path)
-		if key == "" {
-			continue
-		}
-		keys[key] = struct{}{}
-	}
-	if len(keys) == 0 {
-		return []string{candidate.RepoName}
-	}
-	values := make([]string, 0, len(keys))
-	for key := range keys {
-		values = append(values, key)
-	}
-	return uniqueSortedStrings(values)
 }

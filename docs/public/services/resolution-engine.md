@@ -167,8 +167,9 @@ non-counting, with the same frozen `attempt_count` and constant retry delay,
 because the node arrives later with no ordering against this intent (#7268).
 The wait is bounded by elapsed time, not attempts: 30 minutes after the
 intent's repair cycle began (`COALESCE(reopened_at, created_at)`), the handler
-logs `shared edge target absent past the wait bound` with
-`elapsed_since_cycle_start` and `max_wait`, and fails with a counting error.
+logs `shared edge target absent past the wait bound` on the reducer's
+structured logger with `elapsed_since_cycle_start` and `max_wait`, and fails
+with a counting error.
 From then on the row spends `ESHU_REDUCER_MAX_ATTEMPTS` and dead-letters, so a
 target that never appears fails loudly. A failing existence probe is not a
 readiness miss. It counts from the first attempt.

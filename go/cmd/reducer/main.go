@@ -227,6 +227,7 @@ func buildReducerService(
 			ResolutionsCompleteLookup: resolutionsComplete,
 			IncompleteScopesLookup:    incompleteScopes,
 			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
+			Logger:                    logger,
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
 			FactLoader:                factStore,

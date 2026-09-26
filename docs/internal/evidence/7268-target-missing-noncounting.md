@@ -103,7 +103,9 @@ and as `fact_work_items.failure_class` on the retrying row. Each detected
 miss still counts in
 `eshu_dp_shared_edge_target_miss_total{domain="deployable_unit_edges"}`, with
 the `shared edge batch target absent, deferring batch` WARN. Past the bound,
-the handler logs `shared edge target absent past the wait bound, failing the
+the handler logs, on the reducer's structured logger (its `Logger` field, wired
+from `cmd/reducer` main; a nil field falls back to `slog.Default()` in tests only),
+`shared edge target absent past the wait bound, failing the
 intent so the retry budget counts it`, with `domain`, `scope_id`,
 `generation_id`, `elapsed_since_cycle_start`, `max_wait`, `sample_repo_id` and
 `sample_intent_id`. It logs elapsed time, never `attempt_count`, which the
