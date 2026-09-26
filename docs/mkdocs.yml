@@ -241,6 +241,7 @@ nav:
         - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
         - Public Collector Proof: reference/local-testing/public-collector-proof.md
         - Verification Gates: reference/local-testing/verification-gates.md
+        - Main Health Watcher: reference/local-testing/main-health-watcher.md
         - Discovery Advisory: reference/local-testing/discovery-advisory.md
         - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
         - Performance Evidence Gate: reference/local-testing/performance-evidence-gate.md
