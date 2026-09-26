@@ -66,7 +66,8 @@ init_queue_remote() {
 shallow_queue_checkout() {
   local remote="$1"
   local position="$2"
-  local checkout="${tmp_root}/checkout-${position}-$(basename "${remote}" .git)"
+  local checkout_name="${3:-${position}}"
+  local checkout="${tmp_root}/checkout-${checkout_name}-$(basename "${remote}" .git)"
 
   git clone -q --depth 2 --branch "queue/${position}" "file://${remote}" "${checkout}"
   # This is the base ref that actions/checkout makes available to the verifier.
@@ -116,6 +117,54 @@ expect_fail() {
   fi
 }
 
+legacy_masked_fetch_merge_base() {
+  # This is the pre-fix resolution loop. It is intentionally test-only: its
+  # `|| true` around a failed explicit base fetch is the false-green behavior
+  # this fixture must distinguish from the shipped verifier.
+  local checkout="$1"
+  local ref="origin/main"
+  local mb
+  local depth=100
+
+  if mb="$(git -C "${checkout}" merge-base "${ref}" HEAD 2>/dev/null)"; then
+    printf '%s\n' "${mb}"
+    return 0
+  fi
+  while [ "${depth}" -le 3200 ]; do
+    git -C "${checkout}" fetch --no-tags --deepen="${depth}" >/dev/null 2>&1 || true
+    git -C "${checkout}" fetch --no-tags --update-shallow --deepen="${depth}" origin \
+      main:refs/remotes/origin/main >/dev/null 2>&1 || true
+    if mb="$(git -C "${checkout}" merge-base "${ref}" HEAD 2>/dev/null)"; then
+      printf '%s\n' "${mb}"
+      return 0
+    fi
+    depth=$((depth * 4))
+  done
+  return 1
+}
+
+make_explicit_base_fetch_failure_wrapper() {
+  local wrapper_dir="$1"
+  mkdir -p "${wrapper_dir}"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    'has_fetch=false' \
+    'has_origin=false' \
+    'has_main_refspec=false' \
+    'for arg in "$@"; do' \
+    '  [ "${arg}" = "fetch" ] && has_fetch=true' \
+    '  [ "${arg}" = "origin" ] && has_origin=true' \
+    '  [ "${arg}" = "main:refs/remotes/origin/main" ] && has_main_refspec=true' \
+    'done' \
+    'if [ "${has_fetch}" = true ] && [ "${has_origin}" = true ] && [ "${has_main_refspec}" = true ]; then' \
+    '  printf "blocked explicit main fetch: %s\\n" "$*" >>"${ESHU_GIT_WRAPPER_LOG}"' \
+    '  exit 1' \
+    'fi' \
+    'exec "${ESHU_REAL_GIT}" "$@"' >"${wrapper_dir}/git"
+  chmod +x "${wrapper_dir}/git"
+}
+
 clean_remote="$(init_queue_remote clean-queue)"
 for position in p1 p2 p3; do
   expect_pass "$(shallow_queue_checkout "${clean_remote}" "${position}")"
@@ -127,11 +176,15 @@ violating_remote="$(init_queue_remote violating-queue true)"
 expect_fail "$(shallow_queue_checkout "${violating_remote}" p2)" "001_widgets.sql was modified"
 expect_fail "$(shallow_queue_checkout "${violating_remote}" p3)" "001_widgets.sql was modified"
 
-# If main moves to unrelated history between checkout and the bounded fetch,
-# there is no safe common ancestor. Fail closed instead of accepting a narrowed
-# diff range.
+# The base is reachable in the stale local checkout but no longer represents
+# remote main. The PATH wrapper fails only the explicit base fetch; anonymous
+# deepening still succeeds and reaches the stale base. The prior masked-fetch
+# loop would therefore pass falsely, while the shipped verifier must fail with
+# its precise failed-deepen diagnostic.
 moving_remote="$(init_queue_remote moving-main)"
-moving_checkout="$(shallow_queue_checkout "${moving_remote}" p3)"
+moving_current_checkout="$(shallow_queue_checkout "${moving_remote}" p3)"
+moving_legacy_checkout="$(shallow_queue_checkout "${moving_remote}" p3 p3-legacy)"
+stale_main="$(git -C "${moving_current_checkout}" rev-parse origin/main)"
 moving_writer="${tmp_root}/moving-main-rewriter"
 git clone -q "file://${moving_remote}" "${moving_writer}"
 git -C "${moving_writer}" config user.email "test@example.invalid"
@@ -141,6 +194,46 @@ printf 'replacement main with unrelated history\n' >"${moving_writer}/replacemen
 git -C "${moving_writer}" add replacement.txt
 git -C "${moving_writer}" commit -q -m 'replacement main'
 git -C "${moving_writer}" push -q --force origin HEAD:main
-expect_fail "${moving_checkout}" "could not resolve a common ancestor"
+remote_main="$(git -C "${moving_remote}" rev-parse refs/heads/main)"
+if [ "${stale_main}" = "${remote_main}" ]; then
+  printf 'expected remote main to move away from the stale reachable base\n' >&2
+  exit 1
+fi
+
+wrapper_dir="${tmp_root}/fail-explicit-base-fetch"
+wrapper_log="${tmp_root}/fail-explicit-base-fetch.log"
+real_git="$(command -v git)"
+make_explicit_base_fetch_failure_wrapper "${wrapper_dir}"
+if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
+  PATH="${wrapper_dir}:${PATH}" \
+  ESHU_GIT_WRAPPER_LOG="${wrapper_log}" \
+  ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${moving_current_checkout}" \
+  ESHU_REAL_GIT="${real_git}" \
+  "${verifier}" >"${out_file}" 2>"${err_file}"; then
+  printf 'expected verifier to fail when the explicit main fetch fails\n' >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings -- "failed to deepen origin/main" "${err_file}"; then
+  printf 'expected failed explicit base fetch diagnostic, got:\n' >&2
+  sed -n '1,120p' "${err_file}" >&2
+  exit 1
+fi
+
+if ! legacy_base="$(PATH="${wrapper_dir}:${PATH}" \
+  ESHU_GIT_WRAPPER_LOG="${wrapper_log}" \
+  ESHU_REAL_GIT="${real_git}" \
+  legacy_masked_fetch_merge_base "${moving_legacy_checkout}")"; then
+  printf 'expected the prior masked-fetch loop to produce its false-green base\n' >&2
+  exit 1
+fi
+if [ "${legacy_base}" != "${stale_main}" ]; then
+  printf 'expected prior masked-fetch loop to reuse stale base %s, got %s\n' \
+    "${stale_main}" "${legacy_base}" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings -- "blocked explicit main fetch" "${wrapper_log}"; then
+  printf 'expected wrapper to block only the explicit base fetch\n' >&2
+  exit 1
+fi
 
 printf 'test-verify-migration-immutability-merge-group: all scenarios passed\n'

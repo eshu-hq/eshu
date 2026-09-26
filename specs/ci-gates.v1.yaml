@@ -276,9 +276,11 @@ gates:
     triggers:
       - "go/internal/storage/postgres/migrations/*.sql"
       - "scripts/test-verify-migration-immutability.sh"
+      - "scripts/test-verify-migration-immutability-merge-group.sh"
       - "scripts/verify-migration-immutability.sh"
     self_test_triggers:
       - "scripts/test-verify-migration-immutability.sh"
+      - "scripts/test-verify-migration-immutability-merge-group.sh"
       - "scripts/verify-migration-immutability.sh"
     local:
       command: "bash scripts/verify-migration-immutability.sh"
