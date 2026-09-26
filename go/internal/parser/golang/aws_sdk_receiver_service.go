@@ -4,6 +4,7 @@
 package golang
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
@@ -34,17 +35,27 @@ var awsSDKConstructorNames = map[string]struct{}{
 // stays correct under import aliasing because the alias is the map key.
 func goAWSSDKServiceAliases(importAliases map[string][]string) map[string]string {
 	serviceAliases := make(map[string]string)
-	for importPath, aliases := range importAliases {
+	// Iterate import paths in sorted order so an alias bound by several SDK
+	// service imports always resolves to the same service (issue #6947); Go
+	// map iteration order is random per process.
+	paths := make([]string, 0, len(importAliases))
+	for importPath := range importAliases {
+		paths = append(paths, importPath)
+	}
+	sort.Strings(paths)
+	for _, importPath := range paths {
 		service := awsSDKServiceFromImportPath(importPath)
 		if service == "" {
 			continue
 		}
-		for _, alias := range aliases {
+		for _, alias := range importAliases[importPath] {
 			alias = strings.TrimSpace(alias)
 			if alias == "" {
 				continue
 			}
-			serviceAliases[alias] = service
+			if _, bound := serviceAliases[alias]; !bound {
+				serviceAliases[alias] = service
+			}
 		}
 	}
 	return serviceAliases

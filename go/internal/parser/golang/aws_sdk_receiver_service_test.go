@@ -202,6 +202,25 @@ func run(ctx context.Context, cfg interface{}, flag bool) {
 	}
 }
 
+// TestGoAWSSDKServiceAliasesDuplicateAliasIsDeterministic pins issue #6947:
+// two SDK service imports sharing one alias must resolve to one stable
+// service (the lexicographically smallest import path wins), not whichever
+// entry a Go map range visits first.
+func TestGoAWSSDKServiceAliasesDuplicateAliasIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	index := map[string][]string{
+		"github.com/aws/aws-sdk-go-v2/service/s3control": {"s3"},
+		"github.com/aws/aws-sdk-go-v2/service/s3":        {"s3"},
+	}
+	for i := 0; i < 100; i++ {
+		got := goAWSSDKServiceAliases(index)
+		if got["s3"] != "s3" {
+			t.Fatalf("iteration %d: serviceAliases[s3] = %q, want stable %q", i, got["s3"], "s3")
+		}
+	}
+}
+
 func TestGoReceiverSDKServiceAbsentForBareVarDeclaration(t *testing.T) {
 	t.Parallel()
 

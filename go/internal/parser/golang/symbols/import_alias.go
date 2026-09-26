@@ -76,6 +76,29 @@ func AliasesForImportPath(index map[string][]string, importPath string) []string
 	return aliases
 }
 
+// ImportPathsForAlias returns the sorted import paths in index that bind
+// alias. Sorting keeps ambiguous aliases (two paths sharing one alias, as in
+// uncompilable or intermediate sources) deterministic: every caller that
+// resolves an alias to a path must pick from this list instead of ranging the
+// index map, whose iteration order is random per process (issue #6947).
+func ImportPathsForAlias(alias string, index map[string][]string) []string {
+	trimmed := strings.TrimSpace(alias)
+	if trimmed == "" {
+		return nil
+	}
+	var paths []string
+	for importPath, aliases := range index {
+		for _, candidate := range aliases {
+			if candidate == trimmed {
+				paths = append(paths, importPath)
+				break
+			}
+		}
+	}
+	slices.Sort(paths)
+	return paths
+}
+
 // AppendUniqueImportAlias appends value to values if it is not already
 // present, preserving insertion order.
 func AppendUniqueImportAlias(values []string, value string) []string {
