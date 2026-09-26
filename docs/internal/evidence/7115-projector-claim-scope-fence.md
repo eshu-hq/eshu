@@ -381,7 +381,6 @@ Existing signals still apply:
     exhausted", and the Job's own retry tries again.
   - Migrations 093, 112 and 120 recreate triggers on `fact_work_items`, which
     carries the same exposure.
-- **Migration number.** The migration is numbered 126: #7126 took 122-124 and
-  #7125 holds 125. Migrations are checksum-tracked and applied in number
-  order, so the gap is harmless. If #7125 lands first, the embed count
-  re-pins from 146 to 147.
+- **Migration number.** The migration is numbered 126, after #6679's 125
+  (`shared_projection_acceptance_generation_key`). The embed ledger pins
+  147 definitions.
