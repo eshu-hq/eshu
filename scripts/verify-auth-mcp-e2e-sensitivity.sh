@@ -29,8 +29,6 @@ api_port="${ESHU_E2E_SENS_API_PORT:-29580}"
 postgres_port="${ESHU_E2E_SENS_POSTGRES_PORT:-29532}"
 postgres_password="change-me"
 mcp_port="${ESHU_E2E_SENS_MCP_PORT:-29581}"
-nornicdb_http_port="${ESHU_E2E_SENS_NORNICDB_HTTP_PORT:-29574}"
-nornicdb_bolt_port="${ESHU_E2E_SENS_NORNICDB_BOLT_PORT:-29587}"
 keep_stack="${ESHU_KEEP_COMPOSE_STACK:-false}"
 
 export ESHU_E2E_PROJECT_NAME="$project"
@@ -39,8 +37,6 @@ export ESHU_E2E_API_PORT="$api_port"
 export ESHU_E2E_POSTGRES_PORT="$postgres_port"
 export ESHU_E2E_POSTGRES_PASSWORD="$postgres_password"
 export ESHU_E2E_MCP_PORT="$mcp_port"
-export ESHU_E2E_NORNICDB_HTTP_PORT="$nornicdb_http_port"
-export ESHU_E2E_NORNICDB_BOLT_PORT="$nornicdb_bolt_port"
 
 api_base="http://${bind_addr}:${api_port}"
 mcp_base="http://${bind_addr}:${mcp_port}"
@@ -84,7 +80,7 @@ run_credentialless() {
 
 echo "verify-auth-mcp-e2e-sensitivity: bringing up the base stack (project $project)"
 docker compose "${base_compose[@]}" up -d --build --wait \
-	postgres nornicdb db-migrate workspace-setup eshu mcp-server
+	postgres neo4j db-migrate workspace-setup eshu mcp-server
 
 for endpoint in "${api_base}/healthz" "${mcp_base}/health"; do
 	code="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "${endpoint}" || true)"

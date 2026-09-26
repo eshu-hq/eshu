@@ -7,7 +7,9 @@ configured identity story on `GET /sse`, `POST /mcp/message`, and
 negative-leakage module.
 
 Run it (owns the `docker-compose.e2e.yaml` stack lifecycle on an isolated
-project + 29xxx ports):
+project + 29xxx ports). The stack's graph is Neo4j (the digest-pinned
+`docker-compose.neo4j.yml` image, no published ports); the runner seeds it with
+`docker compose exec neo4j cypher-shell`:
 
 ```bash
 bash scripts/run-auth-mcp-e2e.sh
@@ -30,7 +32,7 @@ fails, or keeps the Compose stack for debugging.
 | `authMcpE2EShapeB.ts` | Shape B (OIDC via the mock IdP): provider CRUD, discovery-flip poll, precedence regression, `require_sso` flip. |
 | `authMcpE2EOauthClient.ts` | Pure-`fetch` scripted RFC 9728 + RFC 7636 (PKCE) OAuth client — MCP OAuth is a machine flow, no browser. Includes the in-network→localhost URL rewrite the browser gets via Chromium `--host-resolver-rules`. |
 | `authMcpE2ELeakage.ts` + `authMcpE2ELeakageDenials.ts` | Negative-leakage module: credential-less probes, the distinct bad-credential denial matrix, the non-vacuous cross-scope row filter, and the raw-token-absence scan. |
-| `authMcpE2EGraphSeed.ts` | Seeds one `Repository` node into NornicDB over its Neo4j-compatible HTTP endpoint, and parses the resolver's denial-outcome log lines. |
+| `authMcpE2EGraphSeed.ts` | Seeds one `Repository` node into Neo4j with `docker compose exec neo4j cypher-shell`, and parses the resolver's denial-outcome log lines. |
 | `authMcpE2EJsonRpc.ts` / `authMcpE2EPsql.ts` | Shared JSON-RPC-over-HTTP client and psql helpers. |
 
 Verifiers: `scripts/verify-auth-mcp-e2e-manifest.sh` (report vs

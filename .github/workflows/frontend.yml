@@ -94,6 +94,8 @@ on:
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/console-auth-e2e-runtime.mjs"
       - "docker-compose.e2e.yaml"
+      # docker-compose.e2e.yaml extends its neo4j graph service from this file.
+      - "docker-compose.neo4j.yml"
       - "docker-compose.yaml"
       - "Dockerfile"
       - "go/cmd/mock-oidc-idp/**"

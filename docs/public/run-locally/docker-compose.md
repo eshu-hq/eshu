@@ -18,7 +18,7 @@ fast rebuilds without containers.
 | `docker-compose.tier2-tfstate-v25.yaml` | Layers MinIO, two generation-specific MinIO setup jobs, active workflow coordination, and two Terraform state collectors. | You are running the v2.5 Terraform state drift proof across two fixture generations. |
 | `docker-compose.remote-e2e.yaml` | Standalone remote proof stack with runtime services, preflight, workflow coordination, webhook listener, and cloud/package/registry collectors. | You are on an EC2 or VPN-attached host and need a full remote collector proof. |
 | `docker-compose.demo.yaml` | Standalone, credential-free demo stack: corpus staging, one-shot cassette collectors, a deferred-relationship maintenance orchestrator, API, and MCP. Answers the five `specs/demo-first-answers.v1.yaml` questions. | You want a working correlated-graph demo with zero credential env, or you are proving the first-five-minutes onboarding path. |
-| `docker-compose.e2e.yaml` | Standalone, minimal fresh-stack for the browser SSO auth E2E suite: NornicDB, Postgres, migration, workspace setup, the API, and a synthetic mock OIDC IdP. No ingester, reducer, projector, or collectors, and zero seeded local identities. | You are proving the SSO login flow against a fresh, zero-corpus stack (issue #4971). |
+| `docker-compose.e2e.yaml` | Standalone, minimal fresh-stack for the browser SSO auth E2E suite: Neo4j (the digest-pinned image from `docker-compose.neo4j.yml`), Postgres, migration, workspace setup, the API, and a synthetic mock OIDC IdP. No ingester, reducer, projector, or collectors, and zero seeded local identities. | You are proving the SSO login flow against a fresh, zero-corpus stack (issue #4971). |
 
 ## Default Stack
 
@@ -634,13 +634,13 @@ docker compose -f docker-compose.e2e.yaml up -d --build --wait
 ```
 
 The stack is standalone and defaults the Compose project to `eshu-e2e`.
-Reused services (`nornicdb`, `postgres`, `db-migrate`, `workspace-setup`,
-`eshu`) extend their `docker-compose.yaml` definitions; only the ports,
-volumes, and the Postgres/graph DSNs are overridden for stack isolation.
+Reused services extend `docker-compose.yaml` (`neo4j` extends `docker-compose.neo4j.yml`);
+only the ports, volumes, and the Postgres/graph settings are overridden for stack isolation,
+and the graph services point at Neo4j (`ESHU_GRAPH_BACKEND=neo4j`, database `neo4j`).
 
 | Service | Responsibility |
 | --- | --- |
-| `nornicdb` | Graph database. |
+| `neo4j` | Graph database (`neo4j:2026-community`, no published host ports). |
 | `postgres` | Facts, queues, status, content, and recovery state. |
 | `db-migrate` | One-shot Postgres and graph schema bootstrap. |
 | `workspace-setup` | One-shot `/data/.eshu` and `/data/repos` setup. |
@@ -665,8 +665,6 @@ until an operator or test claims the sealed one-time bootstrap credential (see
 | `ESHU_E2E_API_PORT` | `28080` | HTTP API port. |
 | `ESHU_E2E_MOCK_OIDC_PORT` | `28090` | Mock OIDC IdP port. |
 | `ESHU_E2E_MOCK_OIDC_ADMIN_PORT` | `28091` | Admin-mapped mock OIDC IdP (`mock-oidc-idp-admin`) port. |
-| `ESHU_E2E_NORNICDB_HTTP_PORT` | `27474` | NornicDB HTTP port. |
-| `ESHU_E2E_NORNICDB_BOLT_PORT` | `27687` | NornicDB Bolt port. |
 | `ESHU_E2E_POSTGRES_PORT` | `28432` | Postgres port. |
 | `ESHU_E2E_POSTGRES_PASSWORD` | `change-me` | Postgres password for this stack's isolated `postgres` container. |
 | `ESHU_E2E_MOCK_OIDC_ISSUER_URL` | `http://mock-oidc-idp:8080` | The mock IdP's own issuer URL, as Eshu's server-side OIDC connector (on the same Compose network) reaches it. Reaching `/authorize` from a host-side or separately-networked browser needs its own resolvable path to this hostname; that wiring belongs to the browser-auth runner phase, not this foundation. |
@@ -723,6 +721,8 @@ org-shape phases plus a negative-leakage module:
 | Shape C (GitHub, stubbed) | Admin-drawer GitHub provider CRUD against `mock-github`; login DENIED before a team-role mapping, then allowed after; discovery still 404 (GitHub is never a bearer issuer); MCP still works via the personal token; `eshu mcp setup` resolves token posture. |
 | Shape B (OIDC via mock IdP) | Provider CRUD; the live discovery flip to 200; a scripted RFC 9728 + PKCE OAuth chain minting a JWT bearer; the F-2 challenge-precedence regression (valid token → 200 no challenge; expired/wrong-aud → bare `Bearer`; unknown-issuer → `resource_metadata`); the `require_sso` flip keeping tokens and break-glass working. |
 | Negative-leakage | Credential-less probes → 401 with no tool/server/protocol leakage; distinct bad-credential denials (via the oidcbearer resolver's structured-log `outcome` and the F-2 challenge shape); a non-vacuous cross-scope repository row filter; a raw-token-absence scan across logs, audit rows, and the DOM. |
+
+The graph is Neo4j with no published ports; the runner seeds it with `docker compose exec neo4j cypher-shell`.
 
 Two additional verifiers back the suite:
 

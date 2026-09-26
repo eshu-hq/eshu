@@ -4,7 +4,7 @@
 // Why a graph seed at all: list_indexed_repositories (GET /api/v0/repositories)
 // is GRAPH-backed in this stack — RepositoryHandler.Neo4j is wired
 // (go/cmd/mcp-server/wiring_router.go), so the handler runs
-// `MATCH (r:Repository) ...` against NornicDB, NOT the Postgres content store.
+// `MATCH (r:Repository) ...` against the graph, NOT the Postgres content store.
 // A psql seed therefore cannot populate it (the design's "psql cross-tenant
 // seed" wording predates that finding — see runAuthMcpE2E.ts's seed-step
 // comment for the full adaptation). On a zero-corpus stack there is nothing
@@ -24,40 +24,43 @@ const execFileAsync = promisify(execFile);
 // must not (design §5's non-vacuous row-filter proof).
 export const SEEDED_REPOSITORY_ID = "e2e-seed-repo-default";
 
-// seedGraphRepository CREATEs one Repository node in NornicDB over its
-// Neo4j-compatible HTTP transaction endpoint (/db/nornic/tx/commit). Uses a
-// plain single-label CREATE and reads it back with a plain
-// `MATCH (r:Repository)` — deliberately NOT the backtick-quoted label or the
-// label-disjunction shapes NornicDB mishandles (documented pitfalls), and the
-// exact shape the AllScopes RepositoryHandler path runs. neo4j/change-me is
-// the compose default (docker-compose.yaml NEO4J_PASSWORD).
-export async function seedGraphRepository(nornicHttpBase: string, repoId: string): Promise<void> {
-  const body = JSON.stringify({
-    statements: [
-      {
-        statement: "CREATE (r:Repository {id: $id, name: $name}) RETURN r.id",
-        parameters: { id: repoId, name: repoId },
-      },
+// seedGraphRepository CREATEs one Repository node in the stack's Neo4j graph
+// through `docker compose exec neo4j cypher-shell`, the same way the suite
+// seeds Postgres with `exec postgres psql` (authMcpE2EPsql.ts). The neo4j
+// service publishes no host ports (docker-compose.e2e.yaml), so the seed needs
+// no port wiring and cannot hit another stack's graph. Uses a plain
+// single-label CREATE with the id passed as a parameter, the same shape the
+// AllScopes RepositoryHandler path reads back with `MATCH (r:Repository)`.
+// neo4j/change-me is the compose default (docker-compose.neo4j.yml NEO4J_AUTH).
+export async function seedGraphRepository(repoRoot: string, project: string, repoId: string): Promise<void> {
+  const params = `{id: ${JSON.stringify(repoId)}}`;
+  const { stdout } = await execFileAsync(
+    "docker",
+    [
+      "compose",
+      "-p",
+      project,
+      "-f",
+      "docker-compose.e2e.yaml",
+      "exec",
+      "-T",
+      "neo4j",
+      "cypher-shell",
+      "-u",
+      "neo4j",
+      "-p",
+      "change-me",
+      "--format",
+      "plain",
+      "-P",
+      params,
+      "CREATE (r:Repository {id: $id, name: $id}) RETURN r.id AS id",
     ],
-  });
-  const res = await fetch(`${nornicHttpBase}/db/nornic/tx/commit`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // Basic neo4j:change-me
-      Authorization: "Basic bmVvNGo6Y2hhbmdlLW1l",
-    },
-    body,
-  });
-  if (!res.ok) {
-    throw new Error(`seedGraphRepository: CREATE returned ${res.status}: ${await res.text()}`);
-  }
-  const parsed = (await res.json()) as { errors?: readonly unknown[]; results?: readonly unknown[] };
-  if (parsed.errors && parsed.errors.length > 0) {
-    throw new Error(`seedGraphRepository: NornicDB reported errors: ${JSON.stringify(parsed.errors)}`);
-  }
-  if (!parsed.results || parsed.results.length === 0) {
-    throw new Error(`seedGraphRepository: CREATE returned no results: ${JSON.stringify(parsed)}`);
+    { cwd: repoRoot, maxBuffer: 1024 * 1024 },
+  );
+  // Plain format prints the column header, then the quoted value.
+  if (!stdout.includes(JSON.stringify(repoId))) {
+    throw new Error(`seedGraphRepository: CREATE did not return ${repoId}: ${stdout}`);
   }
 }
 
