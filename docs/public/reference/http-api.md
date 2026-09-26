@@ -240,6 +240,12 @@ page rather than as one query predicate (#5167):
   `withheld_sections` list. Both are present whether or not anything was
   withheld.
 
+`explain-dependency-path` returns `400` immediately when a shared caller sends
+identical `source` and `target` arguments. A scoped caller first checks that the
+endpoint is visible; an unknown or ungranted endpoint returns `404`. Distinct
+arguments that resolve to the same entity, such as its name and ID, return
+`400` after resolution.
+
 ## Dashboard Browser Sessions
 
 Moved. See [Dashboard browser sessions](http-api/dashboard-sessions.md) for the

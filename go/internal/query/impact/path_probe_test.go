@@ -6,6 +6,7 @@ package impact
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -57,6 +58,58 @@ func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
 	}
 	if src, _ := data["source"].(map[string]any); querycontract.StringVal(src, "id") != "resource:queue" {
 		t.Fatalf("source = %#v, want resolved resource:queue", data["source"])
+	}
+}
+
+func TestExplainDependencyPathRejectsSameResolvedEndpoint(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		source       string
+		target       string
+		resolveCalls int
+		detail       string
+	}{
+		{name: "same_id", source: "repo:api", target: "repo:api", detail: "source and target must differ"},
+		{name: "name_alias", source: "api", target: "repo:api", resolveCalls: 2, detail: "source and target resolve to the same entity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			pathCalls := 0
+			resolveCalls := 0
+			handler := &Handler{
+				Profile: querycontract.ProfileLocalAuthoritative,
+				Neo4j: graph.FakeGraphReaderWithSingle{
+					RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+						if strings.Contains(cypher, "shortestPath") {
+							pathCalls++
+							return nil, errors.New("The shortest path algorithm does not work when the start and end nodes are the same")
+						}
+						resolveCalls++
+						return map[string]any{"label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}}, nil
+					},
+				},
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path",
+				bytes.NewBufferString(`{"source":"`+tc.source+`","target":"`+tc.target+`"}`))
+			rec := httptest.NewRecorder()
+			handler.explainDependencyPath(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+			}
+			if pathCalls != 0 {
+				t.Fatalf("shortestPath calls = %d, want 0", pathCalls)
+			}
+			if resolveCalls != tc.resolveCalls {
+				t.Fatalf("anchor resolution calls = %d, want %d", resolveCalls, tc.resolveCalls)
+			}
+			if !strings.Contains(rec.Body.String(), tc.detail) {
+				t.Fatalf("missing same-entity explanation: %s", rec.Body.String())
+			}
+		})
 	}
 }
 
