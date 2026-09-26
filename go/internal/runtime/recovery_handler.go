@@ -46,6 +46,9 @@ type replayResponse struct {
 	Stage       string   `json:"stage"`
 	Replayed    int      `json:"replayed"`
 	WorkItemIDs []string `json:"work_item_ids"`
+	// SkippedSupersededGeneration counts projector rows left terminal because
+	// their generation is superseded (#7130).
+	SkippedSupersededGeneration int `json:"skipped_superseded_generation"`
 }
 
 // handleReplay replays failed projector or reducer work items.
@@ -80,6 +83,8 @@ func (h *RecoveryHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 		Stage:       string(result.Stage),
 		Replayed:    result.Replayed,
 		WorkItemIDs: result.WorkItemIDs,
+
+		SkippedSupersededGeneration: result.SkippedSupersededGeneration,
 	})
 }
 

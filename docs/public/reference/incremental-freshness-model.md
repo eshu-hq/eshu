@@ -243,7 +243,7 @@ five ordered steps in a single transaction:
 2. Mark the claimed projector work item succeeded, checking owner and attempt.
 3. Supersede obsolete terminal work and generations for the scope.
 4. Supersede the scope's prior active generation.
-5. Activate the target generation.
+5. Activate the target generation, unless it is already `superseded` (#7130): then Ack rolls back, marks the work item superseded and returns `ErrWorkSuperseded`.
 
 If the claim check rejects a stale attempt, the transaction rolls back the
 scope update. The scope lock serializes same-scope ingestion commits with Ack.

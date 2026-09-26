@@ -101,6 +101,11 @@ type ReplayResult struct {
 	Stage       Stage
 	Replayed    int
 	WorkItemIDs []string
+	// SkippedSupersededGeneration counts terminal projector rows that matched
+	// the filter but were left in place because their scope generation is
+	// superseded (#7130). Replaying one would let Ack try to re-activate a
+	// retired generation.
+	SkippedSupersededGeneration int
 }
 
 // DrainFilter constrains a dead-letter backlog drain. Unlike a raw ReplayFilter,
@@ -171,6 +176,10 @@ type DrainResult struct {
 	Replayed           int
 	BacklogDepthBefore int
 	WorkItemIDs        []string
+	// SkippedSupersededGeneration counts projector rows the drain left
+	// terminal because their generation is superseded (#7130). They are not
+	// part of BacklogDepthBefore.
+	SkippedSupersededGeneration int
 }
 
 // RefinalizeFilter constrains which scopes to re-enqueue for projection.
@@ -377,6 +386,8 @@ func (h *Handler) DrainBacklog(ctx context.Context, filter DrainFilter) (DrainRe
 		Replayed:           result.Replayed,
 		BacklogDepthBefore: depth,
 		WorkItemIDs:        result.WorkItemIDs,
+
+		SkippedSupersededGeneration: result.SkippedSupersededGeneration,
 	}, nil
 }
 

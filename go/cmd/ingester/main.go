@@ -153,7 +153,7 @@ func run(parent context.Context) error {
 		)...,
 	)
 
-	recoveryStore := postgres.NewRecoveryStore(postgres.SQLDB{DB: db})
+	recoveryStore := postgres.NewRecoveryStore(postgres.SQLDB{DB: db}, postgres.WithRecoveryInstruments(instruments))
 	recoveryHandler, err := recovery.NewHandler(recoveryStore)
 	if err != nil {
 		return err

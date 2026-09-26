@@ -30,9 +30,10 @@ func TestRecoveryHandlerReplayReturnsReplayedItems(t *testing.T) {
 
 	store := &fakeRecoveryStore{
 		replayResult: recovery.ReplayResult{
-			Stage:       recovery.StageProjector,
-			Replayed:    2,
-			WorkItemIDs: []string{"item-1", "item-2"},
+			Stage:                       recovery.StageProjector,
+			Replayed:                    2,
+			WorkItemIDs:                 []string{"item-1", "item-2"},
+			SkippedSupersededGeneration: 3,
 		},
 	}
 	handler := mustNewRecoveryHandler(t, store)
@@ -61,6 +62,11 @@ func TestRecoveryHandlerReplayReturnsReplayedItems(t *testing.T) {
 	}
 	if len(resp.WorkItemIDs) != 2 {
 		t.Fatalf("response work_item_ids len = %d, want 2", len(resp.WorkItemIDs))
+	}
+	// #7130: rows left terminal on a superseded generation are reported, not
+	// silently dropped from the replay.
+	if resp.SkippedSupersededGeneration != 3 {
+		t.Fatalf("response skipped_superseded_generation = %d, want 3", resp.SkippedSupersededGeneration)
 	}
 }
 

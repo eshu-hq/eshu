@@ -48,11 +48,30 @@ func (s Service) recordSupersededWork(
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
 		log.WorkerID(fmt.Sprintf("%d", workerID)),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
-		telemetry.FailureClassAttr("projector_superseded_by_newer_generation"),
+		telemetry.FailureClassAttr(supersededFailureClass(heartbeatErr)),
 		log.Err(heartbeatErr),
 	)
 	s.Logger.InfoContext(context.WithoutCancel(ctx), "projector work superseded by newer generation", logAttrs...)
 	return true
+}
+
+// defaultSupersededFailureClass is logged when a superseded error names no
+// failure class of its own.
+const defaultSupersededFailureClass = "projector_superseded_by_newer_generation"
+
+// supersededFailureClass returns the failure_class the work source recorded
+// for a superseded outcome, so the log matches the work row and the fence
+// metric (for example projector_ack_generation_superseded or
+// projector_heartbeat_generation_superseded, #7130). Errors without one fall
+// back to defaultSupersededFailureClass.
+func supersededFailureClass(err error) string {
+	var classed interface{ FailureClass() string }
+	if errors.As(err, &classed) {
+		if class := classed.FailureClass(); class != "" {
+			return class
+		}
+	}
+	return defaultSupersededFailureClass
 }
 
 // recordClaimLostWork reports whether err means another attempt owns the work

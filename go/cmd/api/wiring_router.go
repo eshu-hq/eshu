@@ -288,7 +288,7 @@ func newRouterWithSemanticEmbedding(
 		return router, nil
 	}
 
-	recoveryHandler, err := recovery.NewHandler(pgstatus.NewRecoveryStore(pgstatus.SQLDB{DB: db}))
+	recoveryHandler, err := recovery.NewHandler(pgstatus.NewRecoveryStore(pgstatus.SQLDB{DB: db}, pgstatus.WithRecoveryInstruments(instruments)))
 	if err != nil {
 		return nil, fmt.Errorf("new recovery handler: %w", err)
 	}

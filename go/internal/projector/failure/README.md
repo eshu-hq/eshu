@@ -21,6 +21,9 @@ and runtime own those and call in here to classify what came back.
 - `IsRetryable`, `RetryableError` — the single-error retry question.
 - `TriageFailure`, `TriageClass`, `ManualReviewTriageClasses`,
   `TriageDispositionConflicts` — terminal-failure triage.
+- `ReplayGenerationSupersededClass` — the one `failure_class` spelling the
+  recovery store and the admin replay handler share for the #7130 replay fence
+  (metric label and 422 refusal body).
 - `RetryInjector`, `RetryOnceInjector`, `NewRetryOnceInjector` — the fault
   injection the Ifá gates drive.
 

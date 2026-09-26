@@ -103,6 +103,27 @@ reclaimed_stale_projector_duplicates AS (
 -- claims a supersedable row, even one this statement could not lock; the
 -- oldest-ready-row subquery still skips only rows superseded here, so a scope
 -- whose stale row is busy yields no claim instead of a newer generation.
+--
+-- Two branches (#7130), disjoint by generation status, so UNION ALL adds no
+-- duplicates. A pending or failed generation is stale only once a newer
+-- same-scope generation has projector work. A superseded generation is
+-- terminal by itself: its claimable rows (pending, retrying, and
+-- expired-lease claimed/running, which the reclaim rank would otherwise
+-- re-claim) must never be claimed, because projecting one retracts the
+-- published generation's canonical graph before Ack refuses. A live lease is
+-- left to its heartbeat, which refuses a superseded generation. failed and
+-- dead_letter rows are never claim candidates and replay already leaves them
+-- terminal, so this branch leaves them and their triage failure_class alone,
+-- which also keeps a large legacy dead-letter backlog out of one claim
+-- statement's sweep. The first branch is the pre-#7130 text, so its plan
+-- (newer-sibling EXISTS as an index semi-join) is unchanged. The second scans
+-- work rows through the (status) index and applies the source filter as a
+-- probe that folds away when $4 is empty, instead of hash-joining every
+-- projector row; an OR of the branches, or one shared scan feeding both,
+-- measured slower (see the #7130 evidence note). An expired row beside a live
+-- lease can also match the duplicate reclaim above; PostgreSQL applies one of
+-- the two updates, and either way the row ends superseded by the next claim
+-- at the latest.
 supersedable_projector_generations AS (
     SELECT stale.work_item_id,
            stale_generation.generation_id
@@ -131,23 +152,54 @@ supersedable_projector_generations AS (
                 )
             )
       )
+    UNION ALL
+    SELECT stale.work_item_id,
+           stale_generation.generation_id
+    FROM fact_work_items AS stale
+    JOIN scope_generations AS stale_generation
+      ON stale_generation.generation_id = stale.generation_id
+    WHERE stale.stage = 'projector'
+      AND stale.status IN ('pending', 'retrying', 'claimed', 'running')
+      AND (
+          stale.status IN ('pending', 'retrying')
+          OR stale.claim_until <= $1
+      )
+      AND stale_generation.status = 'superseded'
+      AND (
+          $4 = ''
+          OR EXISTS (
+              SELECT 1
+              FROM ingestion_scopes AS superseded_scope
+              WHERE superseded_scope.scope_id = stale.scope_id
+                AND superseded_scope.source_system = $4
+          )
+      )
 ),
+-- The generation lock step re-reads the locked generation's status, so the
+-- work rows below carry the status EvalPlanQual saw into failure_details.
 locked_stale_scope_generations AS (
-    SELECT supersedable.work_item_id
+    SELECT supersedable.work_item_id,
+           stale_generation.status AS generation_status
     FROM scope_generations AS stale_generation
     JOIN supersedable_projector_generations AS supersedable
       ON supersedable.generation_id = stale_generation.generation_id
-    WHERE stale_generation.status IN ('pending', 'failed')
+    WHERE stale_generation.status IN ('pending', 'failed', 'superseded')
     ORDER BY stale_generation.generation_id
     FOR NO KEY UPDATE OF stale_generation SKIP LOCKED
 ),
+-- The work lock step repeats the widened row-self predicate so EvalPlanQual
+-- drops a row another transaction claimed or renewed after the snapshot.
 locked_stale_projector_generations AS (
-    SELECT stale.work_item_id
+    SELECT stale.work_item_id,
+           locked_generation.generation_status
     FROM fact_work_items AS stale
     JOIN locked_stale_scope_generations AS locked_generation
       ON locked_generation.work_item_id = stale.work_item_id
     WHERE stale.stage = 'projector'
-      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND (
+          stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+          OR (stale.status IN ('claimed', 'running') AND stale.claim_until <= $1)
+      )
     ORDER BY stale.work_item_id
     FOR NO KEY UPDATE OF stale SKIP LOCKED
 ),
@@ -163,14 +215,21 @@ superseded_stale_projector_generations AS (
         failure_message = 'projector work superseded by newer same-scope generation',
         failure_details = jsonb_build_object(
             'scope_id', stale.scope_id,
-            'work_item_id', stale.work_item_id
+            'work_item_id', stale.work_item_id,
+            'generation_id', stale.generation_id,
+            'generation_status', locked.generation_status
         )
     FROM locked_stale_projector_generations AS locked
     WHERE stale.work_item_id = locked.work_item_id
       AND stale.stage = 'projector'
-      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND (
+          stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+          OR (stale.status IN ('claimed', 'running') AND stale.claim_until <= $1)
+      )
     RETURNING stale.work_item_id, stale.generation_id
 ),
+-- A superseded generation is already terminal, so this stays a no-op for the
+-- #7130 branch and never rewrites its superseded_at.
 superseded_stale_scope_generations AS (
     UPDATE scope_generations AS generation
     SET status = 'superseded',

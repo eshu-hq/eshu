@@ -37,6 +37,8 @@ type claimDeadlockOutcome struct {
 	otherErrors  int64
 	firstOther   atomic.Value
 	doubleClaims int64 // distinct overlapping lease pairs
+	superseded   int64 // Heartbeat or Ack refusals on superseded generations (#7130)
+	retiredRows  int64 // refinalize rows seeded on already-superseded generations
 }
 
 // TestProjectorClaimConcurrentLoadHasNoDeadlock drives many concurrent
@@ -50,6 +52,11 @@ type claimDeadlockOutcome struct {
 // projector leases in one scope. Two claimers whose snapshots disagree on the
 // scope's oldest ready row used to lock different rows and both claim (#7115);
 // the scope claim fence now excludes that, so any overlap is a regression.
+//
+// The load also drives the #7130 fences: the producer drops refinalize rows on
+// generations a newer Ack already superseded, which the claim must sweep
+// instead of claiming, and a worker whose lease expired heartbeats before it
+// acks, so the heartbeat's superseded-generation refusal runs under contention.
 // ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_SCOPES widens the scope count, for
 // example to a 10k-scope backlog.
 func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
@@ -84,9 +91,10 @@ func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 	outcome := runClaimDeadlockLoad(t, database, load)
 	time.Sleep(1500 * time.Millisecond) // let backends flush pg_stat counters
 	serverDeadlocks := serverDeadlockCount(t, database) - before
-	t.Logf("workers=%d seconds=%.0f claims=%d server_deadlocks=%d claim_deadlock_errors=%d other_errors=%d overlapping_leases=%d",
+	t.Logf("workers=%d seconds=%.0f claims=%d server_deadlocks=%d claim_deadlock_errors=%d other_errors=%d overlapping_leases=%d superseded_refusals=%d retired_rows_seeded=%d retired_rows_claimed=%d",
 		load.workers, load.duration.Seconds(), outcome.claims, serverDeadlocks, outcome.deadlocks,
-		outcome.otherErrors, outcome.doubleClaims)
+		outcome.otherErrors, outcome.doubleClaims, outcome.superseded, outcome.retiredRows,
+		retiredRowsClaimed(t, database))
 	if first := outcome.firstOther.Load(); first != nil {
 		t.Logf("first other error: %v", first)
 	}
@@ -102,6 +110,22 @@ func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 	if outcome.doubleClaims != 0 {
 		t.Fatalf("concurrent claims granted %d overlapping lease pairs in one scope (#7115)", outcome.doubleClaims)
 	}
+	if claimed := retiredRowsClaimed(t, database); claimed != 0 {
+		t.Fatalf("%d refinalize rows on superseded generations were claimed (#7130)", claimed)
+	}
+}
+
+// retiredRowsClaimed counts refinalize rows the load seeded on superseded
+// generations that a claim ever took: attempt_count only moves on a claim.
+func retiredRowsClaimed(t *testing.T, database *sql.DB) int64 {
+	t.Helper()
+	var claimed int64
+	if err := database.QueryRow(`
+SELECT count(*) FROM fact_work_items
+WHERE work_item_id LIKE 'refinalize\_%' AND attempt_count > 0`).Scan(&claimed); err != nil {
+		t.Fatalf("count claimed retired rows: %v", err)
+	}
+	return claimed
 }
 
 // serverDeadlockCount reads the deadlocks Postgres detected in this database.
@@ -199,6 +223,8 @@ INSERT INTO scope_generations (
 		case errors.Is(err, ErrProjectorClaimRejected):
 		case errors.Is(err, failure.ErrWorkAckDeferred):
 			// Ack's scope lock timeout is a documented deferral the service retries.
+		case errors.Is(err, failure.ErrWorkSuperseded):
+			atomic.AddInt64(&outcome.superseded, 1)
 		default:
 			if atomic.AddInt64(&outcome.otherErrors, 1) == 1 {
 				outcome.firstOther.Store(err)
@@ -215,6 +241,27 @@ INSERT INTO scope_generations (
 			for j := 0; j < 1+rand.IntN(3); j++ {
 				if err := enqueue(scopeID); err != nil {
 					record(err)
+				}
+			}
+			// A refinalize row left on a generation a newer Ack superseded
+			// (#7130). It is seeded unclaimed; the claim must sweep it.
+			if rand.IntN(4) == 0 {
+				result, err := database.ExecContext(context.Background(), `
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    attempt_count, visible_at, payload, created_at, updated_at
+)
+SELECT 'refinalize_' || generation_id, scope_id, generation_id, 'projector',
+       'source_local', 'pending', 0, now(), '{}'::jsonb, now(), now()
+FROM scope_generations
+WHERE scope_id = $1 AND status = 'superseded'
+ORDER BY ingested_at DESC
+LIMIT 1
+ON CONFLICT (work_item_id) DO NOTHING`, scopeID)
+				if err != nil {
+					record(err)
+				} else if n, _ := result.RowsAffected(); n > 0 {
+					atomic.AddInt64(&outcome.retiredRows, n)
 				}
 			}
 			time.Sleep(time.Duration(rand.IntN(3)) * time.Millisecond)
@@ -273,7 +320,16 @@ WHERE a.stage = 'projector' AND b.stage = 'projector'
 				atomic.AddInt64(&outcome.claims, 1)
 				switch rand.IntN(10) {
 				case 0:
-					time.Sleep(200 * time.Millisecond) // lease expires
+					// The lease expires; the stale worker then heartbeats and,
+					// if the heartbeat still holds, acks like the service.
+					time.Sleep(200 * time.Millisecond)
+					if err := queue.Heartbeat(ctx, work); err != nil {
+						record(err)
+						continue
+					}
+					if err := queue.Ack(ctx, work, runtime.Result{}); err != nil {
+						record(err)
+					}
 				case 1:
 					if err := queue.Fail(ctx, work, &retryableTestError{message: "proof retry"}); err != nil {
 						record(err)

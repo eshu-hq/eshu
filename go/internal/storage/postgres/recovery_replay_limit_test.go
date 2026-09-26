@@ -23,7 +23,7 @@ func TestRecoveryStoreReplayFailedWorkItemsLimitBoundsUpdateNotJustScan(t *testi
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"item-1"}, {"item-2"}}},
+			replayRows(0, "item-1", "item-2"),
 		},
 	}
 
@@ -61,7 +61,7 @@ func TestRecoveryStoreReplayFailedWorkItemsUnlimitedUsesSimpleTemplate(t *testin
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"item-1"}, {"item-2"}, {"item-3"}}},
+			replayRows(0, "item-1", "item-2", "item-3"),
 		},
 	}
 
@@ -95,7 +95,7 @@ func TestRecoveryStoreReplayFailedWorkItemsBoundedDrainPlacesPredicateAfterLimit
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"item-1"}}},
+			replayRows(0, "item-1"),
 		},
 	}
 

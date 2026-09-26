@@ -48,7 +48,7 @@ func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilte
 // required identity status authorizations and newer worker claims.
 func (s *postgresStore) DeadLetterWorkItems(ctx context.Context, f admin.DeadLetterFilter) ([]admin.WorkItem, error) {
 	now := s.time()
-	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, `
+	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, false, `
 SET status = 'dead_letter',
     container_image_identity_v2_authorized_status = CASE
         WHEN work.container_image_identity_v2_required THEN 'dead_letter' ELSE ''
@@ -126,7 +126,7 @@ SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 // preserving required identity status authorizations and newer worker claims.
 func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
 	now := s.time()
-	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, `
+	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, true, `
 SET status = 'pending',
     attempt_count = GREATEST(work.attempt_count, 1),
     container_image_identity_v2_authorized_status = CASE

@@ -263,7 +263,7 @@ const Admin = `
           "403": {"description": "Replay requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different parameters"},
           "422": {
-            "description": "Refused without force: the failure_class selector, or at least one explicit work_item_ids row, is in an unsafe or manual-review failure class. A request naming such ids is refused whole, nothing is replayed, the idempotency_key is not consumed, and refused_work_items lists only the offending ids.",
+            "description": "Refused without force: the failure_class selector, or at least one explicit work_item_ids row, is in an unsafe or manual-review failure class. Also refused, even with force: at least one explicit work_item_ids row is a projector row whose scope generation is superseded (failure_class projector_replay_generation_superseded, #7130). A request naming such ids is refused whole, nothing is replayed, the idempotency_key is not consumed, and refused_work_items lists only the offending ids.",
             "content": {
               "application/json": {
                 "schema": {
@@ -283,6 +283,7 @@ const Admin = `
                         "properties": {
                           "work_item_id": {"type": "string"},
                           "failure_class": {"type": "string"},
+                          "generation_id": {"type": "string", "description": "Present for a superseded-generation refusal: the superseded generation the row belongs to."},
                           "reason": {"type": "string", "description": "Operator guidance for the class."}
                         }
                       }

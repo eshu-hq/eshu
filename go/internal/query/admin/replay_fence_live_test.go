@@ -57,6 +57,8 @@ CREATE TEMP TABLE fact_work_items (
     CONSTRAINT fact_work_items_container_image_identity_v3_status_check
         CHECK (NOT container_image_identity_v3_required OR status = container_image_identity_v3_authorized_status)
 );
+-- The replay's #7130 superseded-generation fence reads scope_generations.
+CREATE TEMP TABLE scope_generations (generation_id text PRIMARY KEY, status text NOT NULL);
 CREATE TEMP TABLE fact_replay_events (
     replay_event_id text PRIMARY KEY, work_item_id text NOT NULL,
     scope_id text NOT NULL, generation_id text NOT NULL,
@@ -301,6 +303,7 @@ CREATE TABLE `+schema+`.fact_replay_events (
     failure_class text, operator_note text, created_at timestamptz NOT NULL
 );
 CREATE TABLE `+schema+`.ingestion_scopes (scope_id text PRIMARY KEY, source_key text NOT NULL);
+CREATE TABLE `+schema+`.scope_generations (generation_id text PRIMARY KEY, status text NOT NULL);
 INSERT INTO `+schema+`.ingestion_scopes VALUES ('scope', 'repo');
 INSERT INTO `+schema+`.fact_work_items (
     work_item_id, scope_id, generation_id, stage, domain, status,

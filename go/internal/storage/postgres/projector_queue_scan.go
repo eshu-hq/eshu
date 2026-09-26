@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -197,4 +198,145 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+// activateAckGeneration runs Ack's activation statement and reports whether
+// the target generation was activated. It is the last statement in Ack's lock
+// order (scope row, work row, other generation rows, target generation row)
+// and adds no lock of its own. false means the generation is superseded: the
+// status predicate on the locked row failed, either on this statement's
+// snapshot or on the EvalPlanQual recheck after a concurrent supersede
+// committed.
+func (q ProjectorQueue) activateAckGeneration(
+	ctx context.Context,
+	tx db.Transaction,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) (bool, error) {
+	result, err := tx.ExecContext(ctx, activateProjectorGenerationQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID)
+	if err != nil {
+		return false, fmt.Errorf("ack projector work: activate target generation: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("ack projector work: activate target generation: rows affected: %w", err)
+	}
+	return rows == 1, nil
+}
+
+// refuseSupersededAck handles an Ack whose generation is already superseded.
+// It rolls tx back, which undoes the scope repoint, the work succeeded mark,
+// and any supersede of the published generation the earlier statements made.
+// It then marks the work item superseded in one statement and returns
+// failure.ErrWorkSuperseded.
+//
+// Rolling back instead of using a savepoint keeps subtransactions off the Ack
+// hot path; this branch only runs when replayed or raced work reaches Ack. If
+// the mark statement fails, the item stays claimed until its lease expires and
+// the next attempt's Ack refuses again, so the outcome converges.
+func (q ProjectorQueue) refuseSupersededAck(
+	ctx context.Context,
+	tx db.Transaction,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) error {
+	if err := tx.Rollback(); err != nil {
+		return fmt.Errorf("ack projector work: roll back superseded generation: %w", err)
+	}
+	result, err := q.database.ExecContext(ctx, markProjectorAckSupersededQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount)
+	if err != nil {
+		return fmt.Errorf("ack projector work: mark superseded: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ack projector work: mark superseded: rows affected: %w", err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("ack projector work: %w", ErrProjectorClaimRejected)
+	}
+	recordSupersededGenerationFence(ctx, q.Instruments, projectorAckGenerationSupersededClass, 1)
+	return fmt.Errorf("ack projector work: generation %s is superseded: %w",
+		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: projectorAckGenerationSupersededClass})
+}
+
+// recordSupersededGenerationFence counts work a superseded-generation fence
+// stopped, labeled by its closed failure_class. Nil instruments are a no-op.
+func recordSupersededGenerationFence(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	failureClass string,
+	count int,
+) {
+	if instruments == nil || instruments.SupersededGenerationFence == nil || count <= 0 {
+		return
+	}
+	instruments.SupersededGenerationFence.Add(context.WithoutCancel(ctx), int64(count),
+		metric.WithAttributes(telemetry.AttrFailureClass(failureClass)))
+}
+
+// projectorWorkSupersededError is failure.ErrWorkSuperseded carrying the
+// failure_class the queue wrote on the work row. The projector service logs
+// that class, so a log search for a row's class finds its refusal.
+type projectorWorkSupersededError struct {
+	failureClass string
+}
+
+// Error reports the superseded outcome and its failure class.
+func (e projectorWorkSupersededError) Error() string {
+	return fmt.Sprintf("%s (failure_class=%s)", failure.ErrWorkSuperseded, e.failureClass)
+}
+
+// Unwrap keeps errors.Is(err, failure.ErrWorkSuperseded) true for callers.
+func (e projectorWorkSupersededError) Unwrap() error { return failure.ErrWorkSuperseded }
+
+// FailureClass returns the bounded failure_class recorded on the work row.
+func (e projectorWorkSupersededError) FailureClass() string { return e.failureClass }
+
+// supersedeRunningWork runs Heartbeat's supersede statement. It returns nil
+// when the work may keep running, and an error wrapping
+// failure.ErrWorkSuperseded when the statement ended it: either a newer
+// generation replaces it, or its own generation is already superseded (#7130).
+// The second case counts on eshu_dp_superseded_generation_fence_total.
+func (q ProjectorQueue) supersedeRunningWork(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+	now time.Time,
+) error {
+	rows, err := q.database.QueryContext(
+		ctx,
+		supersedeRunningProjectorWorkQuery,
+		now,
+		work.Scope.ScopeID,
+		work.Generation.GenerationID,
+		q.LeaseOwner,
+		work.AttemptCount,
+	)
+	if err != nil {
+		return fmt.Errorf("supersede running projector work: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("supersede running projector work: %w", err)
+		}
+		return nil
+	}
+	var generationStatus string
+	if err := rows.Scan(&generationStatus); err != nil {
+		return fmt.Errorf("supersede running projector work: scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("supersede running projector work: %w", err)
+	}
+
+	class := "projector_superseded_by_newer_generation"
+	if generationStatus == "superseded" {
+		class = projectorHeartbeatGenerationSupersededClass
+		recordSupersededGenerationFence(ctx, q.Instruments, class, 1)
+	}
+	return fmt.Errorf("heartbeat projector work: generation %s: %w",
+		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: class})
 }
