@@ -52,6 +52,61 @@ func infraResourceAggregatePerLabelCypher(labels []string, branchWhere, innerRet
 	return "CALL {\n" + strings.Join(branches, "\nUNION ALL\n") + "\n}\n" + outerReturn
 }
 
+// infraResourceAggregateStatement renders one graph aggregate read over
+// labels: the per-label total when groupExpr is empty, else per-bucket counts
+// grouped by groupExpr. SHAPE-A filters (NornicDB, unscoped, unknown backends)
+// keep the per-branch infraResourceAggregatePerLabelCypher statement byte for
+// byte; a scoped Neo4j filter gets infraResourceAggregateNeo4jScopedCypher.
+// Both produce rows that mergeInfraResourceAggregateBuckets (or the total's
+// row sum) reduce to the same answer.
+func infraResourceAggregateStatement(labels []string, filter InfraResourceAggregateFilter, groupExpr string) string {
+	if filter.usesNeo4jScopeDialect() {
+		// The branches keep only the property filters; the grant predicate
+		// is applied once after the CALL.
+		propertyOnly := filter
+		propertyOnly.AllowedRepositoryIDs = nil
+		propertyOnly.AllowedScopeIDs = nil
+		return infraResourceAggregateNeo4jScopedCypher(labels, infraResourceAggregateBranchWhere(propertyOnly), groupExpr)
+	}
+	branchWhere := infraResourceAggregateBranchWhere(filter)
+	if groupExpr == "" {
+		return infraResourceAggregatePerLabelCypher(labels, branchWhere,
+			"RETURN count(n) AS bucket_count", "RETURN bucket_count")
+	}
+	return infraResourceAggregatePerLabelCypher(labels, branchWhere,
+		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
+		"RETURN bucket, bucket_count")
+}
+
+// infraResourceAggregateNeo4jScopedCypher is the Neo4j scoped aggregate
+// (#7231). The SHAPE-A statement copies the O(grant) inline-map predicate into
+// every one of up to 27 label branches, and a cold Neo4j plan of one such
+// count statement took 11-25 s at a 5 + 5 grant, so the four count statements
+// blew the 10 s read budget. Here each branch keeps its property filters
+// (branchWhere, which carries no grant clause in this dialect) and returns n;
+// the list-EXISTS grant predicate runs once after the CALL, and the count or
+// grouping runs once over the admitted nodes.
+//
+// UNION ALL keeps SHAPE-A's per-branch counting semantics (a node is counted
+// once per matching label branch; see the single-label invariant on
+// countFromGraph). The outer aggregation is safe on Neo4j; the NornicDB
+// CALL-aggregation collapse that forces per-branch grouping in SHAPE-A never
+// applies because this form is selected only for Neo4j. The total returns one
+// row (0 when nothing is admitted); a grouped read returns one row per bucket,
+// which mergeInfraResourceAggregateBuckets passes through unchanged.
+func infraResourceAggregateNeo4jScopedCypher(labels []string, branchWhere, groupExpr string) string {
+	branches := make([]string, 0, len(labels))
+	for _, label := range labels {
+		branches = append(branches, "MATCH (n:"+label+")"+branchWhere+" RETURN n")
+	}
+	tail := "RETURN count(n) AS bucket_count"
+	if groupExpr != "" {
+		tail = "RETURN " + groupExpr + " AS bucket, count(n) AS bucket_count"
+	}
+	return "CALL {\n" + strings.Join(branches, "\nUNION ALL\n") + "\n}\nWITH n\nWHERE " +
+		infraResourceScopeListPredicate("n") + "\n" + tail
+}
+
 // infraResourceAggregateBranchWhere renders the property and scope filter
 // predicates shared by every per-label branch, without the label predicate
 // (each branch's `MATCH (n:Label)` supplies the label). It returns "" when no

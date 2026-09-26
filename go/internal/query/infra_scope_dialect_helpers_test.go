@@ -75,8 +75,11 @@ func (g dialectGrant) filter() querycontract.RepositoryAccessFilter {
 	return querycontract.RepositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), g.auth()))
 }
 
-// serveInfraDialect drives one POST through the real mounted handler with the
-// given backend, auth and graph, returning the recorder.
+// serveInfraDialect drives one request through the real mounted handler with
+// the given backend, auth and graph, returning the recorder. A non-empty body
+// is a POST (search, relationships); an empty body is a GET (the count and
+// inventory aggregate routes, served by the real graph aggregate store over
+// the same graph).
 func serveInfraDialect(
 	t *testing.T,
 	backend querycontract.GraphBackend,
@@ -85,10 +88,18 @@ func serveInfraDialect(
 	path, body string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := &InfraHandler{GraphBackend: backend, Neo4j: graph}
+	handler := &InfraHandler{
+		GraphBackend: backend,
+		Neo4j:        graph,
+		Aggregates:   NewGraphInfraResourceAggregateStore(graph),
+	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	method := http.MethodPost
+	if body == "" {
+		method = http.MethodGet
+	}
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	if auth != nil {
 		req = req.WithContext(ContextWithAuthContext(req.Context(), *auth))
 	}

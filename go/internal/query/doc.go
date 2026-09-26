@@ -492,4 +492,8 @@
 // search CALL, with an unscoped per-label probe ahead of each scoped
 // relationships statement. The category=argocd search shortcut applies the
 // same list-EXISTS predicate per label on Neo4j. Both forms admit the same rows.
+// The scoped count and inventory aggregates split the same way (#7231): on
+// Neo4j infraResourceAggregateNeo4jScopedCypher keeps the property filters in
+// each label branch, returns n, and applies the list-EXISTS predicate once
+// after the CALL; NornicDB keeps the per-branch SHAPE-A statements.
 package query

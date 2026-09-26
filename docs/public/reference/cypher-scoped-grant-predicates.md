@@ -1,10 +1,12 @@
 # Scoped Grant Predicates
 
 A scoped token may read only the graph nodes its grants authorize. The infra
-search (`POST /api/v0/infra/resources/search`) and infra relationships
-(`POST /api/v0/infra/relationships`) reads enforce that with a grant predicate
-in their Cypher. This page covers why that predicate has two dialects, and what
-each backend receives.
+search (`POST /api/v0/infra/resources/search`), infra relationships
+(`POST /api/v0/infra/relationships`), and infra aggregate
+(`GET /api/v0/infra/resources/count` and `/inventory`, MCP
+`count_infra_resources` and `get_infra_resource_inventory`) reads enforce that
+with a grant predicate in their Cypher. This page covers why that predicate
+has two dialects, and what each backend receives.
 
 ## The SHAPE-A predicate
 
@@ -34,19 +36,25 @@ Two costs multiply on Neo4j:
 - **Per-branch repetition.** The search is a `CALL { ... UNION ... }` over 27
   single-label branches, and SHAPE-A copied the whole predicate into every
   branch. The relationships route copies it into three aliases (`n`, `target`,
-  `source`) on each of up to 15 anchor statements.
+  `source`) on each of up to 15 anchor statements. The aggregate reads copy
+  it into every branch of a 27-label `CALL { ... UNION ALL ... }`, and the
+  count route sends four such statements (total, provider, environment,
+  label).
 
 Measured on `neo4j:2026-community` (#7215): a 5 + 5 grant planned the search in
 22-34 s cold and ran 2.6 s warm even with the plan cached; a 25 + 25 grant did
 not plan inside 240 s. PROFILE shows the repetition directly: 837 `Expand`
-operators at g5 = 27 branches x (30 inline terms + 1 `EXISTS`).
+operators at g5 = 27 branches x (30 inline terms + 1 `EXISTS`). The scoped
+count hit the same wall (#7231): each of its four statements took 10.6-24.7 s
+to plan cold at g5, so the route timed out at the 10 s bounded read.
 
 ## The Neo4j dialect
 
 `InfraHandler.GraphBackend` selects the dialect. Only
 `querycontract.GraphBackendNeo4j` selects the Neo4j form; NornicDB, the zero
 value and any other value keep SHAPE-A byte for byte, pinned by
-`TestInfraScopeNornicDBStatementsByteIdentical`.
+`TestInfraScopeNornicDBStatementsByteIdentical` and, for the aggregates,
+`TestInfraAggregateScopeNornicDBStatementsByteIdentical`.
 
 Anti-pattern on Neo4j: copying a grant predicate into every `UNION` branch, or
 expanding it into O(grant) inline pattern terms.
@@ -66,6 +74,16 @@ On Neo4j (`go/internal/query/infra_scope.go`):
   bound to `$scope_grants` with no `$scope_grant_<i>` params. There is no
   `UNION` to hoist across, and the text is still independent of the grant
   count. NornicDB and unknown backends keep the SHAPE-A statements;
+- the count and inventory aggregates
+  (`infraResourceAggregateNeo4jScopedCypher`,
+  `go/internal/query/infra_resource_aggregates_cypher.go`) keep each label
+  branch's property filters, return `n` from each branch through `UNION ALL`,
+  apply the predicate once after the `CALL`, and count or group once. `UNION
+  ALL` keeps SHAPE-A's per-branch counting, and the Go merge reduces the
+  one-row-per-bucket result to the same answer SHAPE-A's per-branch rows
+  give. The outer aggregation is safe here only because this form never
+  reaches NornicDB, where aggregation over a `CALL` result collapses (see
+  [NornicDB Pitfalls](nornicdb-pitfalls.md));
 - relationships run an unscoped `MATCH (n:<Label>) WHERE n.id = $entity_id
   RETURN 1 AS hit LIMIT 1` probe per anchor label and run the scoped statement
   only for labels that hit, then the scoped unlabeled fallback. The probe
@@ -107,8 +125,24 @@ see [Graph-read safety](telemetry/graph-read-safety.md).
   live row-set equality test against SHAPE-A (g1, g5) and the oracle (g1, g5,
   cap) with a dual-labeled node and negatives
   (`infra_scope_neo4j_argocd_live_test.go`).
+- The aggregates: digests of the NornicDB statements, per-statement Neo4j
+  shape pins, cap parity and the empty-grant no-read case
+  (`infra_scope_aggregate_dialect_test.go`); the shared backend guard
+  (`TestInfraScopeListExistsNeverSelectedOffNeo4j`) lists the count and
+  inventory routes; the `UNION ALL` join count (a bare `UNION` would
+  de-duplicate a dual-labeled node); a live equality test of the total and the
+  provider, environment and label rollups against SHAPE-A and an oracle at g1,
+  g5 and the cap, with a dual-labeled node and negative nodes that must never
+  be counted, plus a cold under-10 s budget test
+  (`infra_scope_neo4j_aggregate_live_test.go`). At g1 and g5 the SHAPE-A
+  reference is the per-branch NornicDB statement. At the cap the per-branch
+  form runs out of heap on Neo4j, so the reference is the hoisted statement
+  with the SHAPE-A predicate substituted after the `CALL`: a predicate
+  equivalence check inside the new structure, not a comparison against the
+  per-branch statement.
 - Before/after timings, cold and warm:
-  `docs/internal/evidence/7215-scoped-infra-neo4j-dialect.md`.
+  `docs/internal/evidence/7215-scoped-infra-neo4j-dialect.md` and
+  `docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md`.
 
 Do not move the list-`EXISTS` form onto NornicDB without a live NornicDB proof
 that it no longer leaks.

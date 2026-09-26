@@ -91,10 +91,10 @@ per-label-loop budget (e.g. `GET /api/v0/entities/{entity_id}/context`,
 `POST /api/v0/infra/relationships`), which the reader classifies as `deadline`
 because it IS the graph-read policy's own budget, just derived once in the
 handler instead of once per read. `POST /api/v0/infra/relationships`'s own
-request span also carries `eshu.entity_anchor_labels_tried`, and both infra
-search and relationships spans carry `eshu.infra_scope_dialect` plus, on the
-Neo4j scoped loop, `eshu.entity_anchor_probes` and
-`eshu.entity_anchor_scoped_reads`. These spans
+request span also carries `eshu.entity_anchor_labels_tried`, and the infra
+search, relationships, count and inventory spans carry
+`eshu.infra_scope_dialect` plus, on the Neo4j scoped loop,
+`eshu.entity_anchor_probes` and `eshu.entity_anchor_scoped_reads`. These spans
 deliberately omit Cypher text and raw driver errors. See
 [Graph-read safety](graph-read-safety.md) for the matching API, MCP, metric,
 and warning contract.
