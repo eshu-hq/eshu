@@ -25,8 +25,8 @@ const (
 	codeTopicCandidatePoolFloor  = 150
 )
 
-// codeTopicCandidateCap returns the per-term LATERAL LIMIT InvestigateCodeTopic
-// applies to each of content_entities and content_files.
+// codeTopicCandidateCap returns the per-term limit InvestigateCodeTopic applies
+// to each static content_entities and content_files branch.
 func codeTopicCandidateCap(termCount int) int {
 	if termCount <= 0 {
 		termCount = 1
@@ -47,13 +47,12 @@ func codeTopicCandidateCap(termCount int) int {
 // changeSurfaceTopicRows; the fallback those callers take without a
 // satisfying store returns an error rather than a slower equivalent result.
 //
-// #7008: entity_probe bounds each per-term match with `CROSS JOIN LATERAL
-// (... LIMIT codeTopicCandidateCap)` -- both its OR branches are indexed, so
-// BitmapOr keeps that cheap. file_probe UNIONs one independently bounded
-// branch per term instead: relative_path has no substring index, and the
-// LATERAL form forced every term's content Seq Scan to run serially with no
-// parallel workers (measured >35s on 9 terms; top-level per-term SELECTs let
-// the planner parallelize each branch, measured ~16-23s for the same 9).
+// #7008/#7033: entity_probe and file_probe each UNION one independently
+// bounded branch per term. The former LATERAL entity form performed a broad
+// content_entities scan for every unscoped term before reaching the indexed
+// ILIKE predicates; static branches let PostgreSQL select the indexed OR
+// predicate before the per-term cap. Keep both OR arms in one predicate: a
+// source-cache-only match is eligible under the same contract as a name match.
 // entity_pool_capped/file_pool_capped detect, from the already-materialized
 // probe rows, whether any term's pool hit its cap; PoolTruncated carries
 // that so a capped search reports an explicit marker, not a silent gap.
@@ -80,16 +79,26 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		where = "AND " + strings.Join(filters, " AND ")
 	}
 
-	termValues := make([]string, len(req.Terms))
+	entityBranches := make([]string, len(req.Terms))
 	fileBranches := make([]string, len(req.Terms))
 	for i, term := range req.Terms {
-		termValues[i] = fmt.Sprintf("($%d)", nextArg)
+		// #nosec G201 -- nextArg/where/candidateCap are integer/placeholder-only; no user data concatenated
+		entityBranches[i] = fmt.Sprintf(`(SELECT $%[1]d AS matched_term, e.repo_id, e.relative_path, e.entity_id,
+		    e.entity_name, e.entity_type, coalesce(e.language, '') AS language, e.start_line, e.end_line
+		  FROM content_entities e
+		  WHERE (e.entity_name ILIKE '%%' || $%[1]d || '%%'
+		         OR e.source_cache ILIKE '%%' || $%[1]d || '%%')
+		  %[2]s
+		  ORDER BY e.entity_id
+		  LIMIT %[3]d)`, nextArg, where, candidateCap)
 		// #nosec G201 -- nextArg/where/candidateCap are integer/placeholder-only; no user data concatenated
 		fileBranches[i] = fmt.Sprintf(`(SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
 		    least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
 		  FROM content_files f
 		  WHERE (f.relative_path ILIKE '%%' || $%[1]d || '%%' OR f.content ILIKE '%%' || $%[1]d || '%%')
-		  %[2]s LIMIT %[3]d)`, nextArg, where, candidateCap)
+		  %[2]s
+		  ORDER BY f.repo_id, f.relative_path
+		  LIMIT %[3]d)`, nextArg, where, candidateCap)
 		args = append(args, term)
 		nextArg++
 	}
@@ -100,22 +109,8 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	// per-term UNION branches above, which contain only $N placeholders
 	// and static SQL; no user data concatenated
 	query := fmt.Sprintf(`
-		WITH terms(term) AS (
-		  VALUES %[1]s
-		),
-		entity_probe AS (
-		  SELECT terms.term AS matched_term, m.repo_id, m.relative_path, m.entity_id,
-		         m.entity_name, m.entity_type, m.language, m.start_line, m.end_line
-		  FROM terms
-		  CROSS JOIN LATERAL (
-		    SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
-		           coalesce(e.language, '') AS language, e.start_line, e.end_line
-		    FROM content_entities e
-		    WHERE (e.entity_name ILIKE '%%' || terms.term || '%%'
-		           OR e.source_cache ILIKE '%%' || terms.term || '%%')
-		    %[2]s
-		    LIMIT %[3]d
-		  ) m
+		WITH entity_probe AS (
+		  %[1]s
 		),
 		entity_matches AS (
 		  SELECT 'entity' AS source_kind, repo_id, relative_path, entity_id, entity_name,
@@ -157,9 +152,9 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		  SELECT * FROM file_matches
 		) matches
 		CROSS JOIN pool_status
-		ORDER BY score DESC, repo_id, relative_path, entity_name, source_kind
+		ORDER BY score DESC, repo_id, relative_path, entity_name, source_kind, entity_id
 		LIMIT $%[5]d OFFSET $%[6]d
-	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg)
+	`, strings.Join(entityBranches, "\n\t\t  UNION ALL\n"), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {

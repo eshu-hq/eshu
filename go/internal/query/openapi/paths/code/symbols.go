@@ -353,7 +353,7 @@ const Symbols = `
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "candidate_pool_truncated": {"type": "boolean", "description": "True when the bounded per-term candidate pool reached its cap for at least one search term (#7008); the corpus may have additional, lower-ranked matches that never entered scoring."},
+                    "candidate_pool_truncated": {"type": "boolean", "description": "True when the bounded per-term candidate pool reached its cap for at least one search term (#7008); additional matches may not have entered scoring."},
                     "source_backend": {"type": "string"},
                     "coverage": {"type": "object", "additionalProperties": true},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}

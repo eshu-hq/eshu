@@ -62,9 +62,9 @@ type CodeTopicEvidenceRow struct {
 	MatchedTerms []string
 	Score        int
 	// PoolTruncated reports whether the bounded per-term candidate pool
-	// (#7008: CROSS JOIN LATERAL ... LIMIT in ContentReader.InvestigateCodeTopic)
+	// (#7008/#7033: static per-term branches in ContentReader.InvestigateCodeTopic)
 	// reached its cap for at least one search term, so this repo/corpus may
-	// have additional, lower-ranked matches that never entered scoring. The
+	// have additional matches that never entered scoring. The
 	// SQL layer computes one value per query and repeats it on every row; a
 	// backend that cannot detect this (search fakes, other stores) leaves it
 	// false, which is correct for an unbounded read.
