@@ -2135,7 +2135,7 @@ per-repo candidate-extraction loop in `ExtractWorkloadCandidates`, and the
 cross-repo deployment-source enrichment path
 (`ExtractOverlayEnvironmentsFromEnvelopes`, consumed by
 `enrichDeploymentRepoEnvironments` in
-`correlated_workload_projection_input_loader.go`) — so a config-only
+`environment_signals.go`) — so a config-only
 deploy-manifests repo referenced as a candidate's `DeploymentRepoID` gets the
 same environment evidence a service repo would.
 
