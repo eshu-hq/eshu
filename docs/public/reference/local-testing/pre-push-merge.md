@@ -41,7 +41,8 @@ The step prints why it skipped instead of passing silently:
 
 `go vet` type-checks every package and its tests, so it reports every compile
 error `go build` would, except link-only errors, and test-file breakage too.
-Measured on this repository (#7111):
+Measured on this repository (#7111) on a shared developer host that was under
+load (load average 14-27), so read these as load-affected figures, not floors:
 
 | Operation | Seconds |
 | --- | --- |
@@ -56,6 +57,34 @@ Go's vet cache is keyed on the source directory. Vetting the same packages in
 a fresh temporary directory took 19.4s against 2.1s in a reused one, so the
 tree lives in one directory per worktree rather than a new temp directory
 per run.
+
+## What it costs beyond time
+
+- **Disk.** The merged tree is a full checkout of the repository, about 148 MiB
+  (`git ls-tree -r -l HEAD`), plus its own Go build and vet cache, kept once
+  per worktree under that worktree's git dir until `git worktree remove`.
+  Separately, the `docs-cli-env-refs` gate now runs on docs pushes and leaves a
+  Go cache of about 1 GB per worktree in `.gocache-docs-cli-env-refs-*`. A
+  machine with many worktrees can fill its disk on these; delete the caches of
+  worktrees you have finished with.
+- **One run per worktree.** Two `make pre-push` runs in the same worktree share
+  one merged-tree directory. The second fails closed with
+  `another pre-push (pid N) is using ...` instead of rewriting the tree under
+  the first; rerun it after the first finishes. A lock left by a dead or killed
+  run is taken over on the next run, and a stale `index.lock` in the merged
+  tree is cleared, so a killed run never wedges later runs. Separate worktrees
+  do not share a tree.
+- **Race step.** `go test -race` runs on the changed packages only, with no
+  cap: 8-54s measured for a single package (the first race build of a package
+  is the slow one); wall time for many packages was not measured. The race and merge-vet steps plus the new floor
+  gates added 32-52s to a full run in the load-matched pair (n=2 per arm; +45s,
+  12% of the total), and an earlier, busier six-round set put the new steps at
+  about 55s. Rerunning an unchanged merge tree is about 10s; after main moves
+  it is 20-30s. A change that touches more than
+  20 packages prints a warning with the count. The
+  threshold is a warning, never a skip, because a skipped race run would read
+  as a pass. The header of `scripts/dev/pre-push.sh` names the environment
+  variable that moves the threshold.
 
 ## Review receipts
 
