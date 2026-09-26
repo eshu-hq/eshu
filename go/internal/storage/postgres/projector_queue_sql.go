@@ -315,10 +315,6 @@ const projectorAckGenerationSupersededClass = "projector_ack_generation_supersed
 // superseded (#7130), as opposed to work a newer pending generation replaces.
 const projectorHeartbeatGenerationSupersededClass = "projector_heartbeat_generation_superseded"
 
-// projectorReplayGenerationSupersededClass labels projector rows a replay left
-// terminal because their generation is superseded (#7130).
-const projectorReplayGenerationSupersededClass = "projector_replay_generation_superseded"
-
 // markProjectorAckSupersededQuery ends a claimed projector work item whose
 // generation Ack refused to activate. It runs after the Ack transaction rolled
 // back, as one statement that locks only the work row, so it cannot join a

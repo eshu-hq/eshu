@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
@@ -98,7 +99,7 @@ func TestReplayLeavesSupersededGenerationProjectorWork(t *testing.T) {
 				t.Fatalf("collect metrics: %v", err)
 			}
 			assertCounterPresentWithLabels(t, rm, "eshu_dp_superseded_generation_fence_total",
-				map[string]string{"failure_class": projectorReplayGenerationSupersededClass})
+				map[string]string{"failure_class": failure.ReplayGenerationSupersededClass})
 
 			// The fence is projector-only: reducer work keeps its own
 			// generation handling and replays as before.

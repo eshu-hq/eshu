@@ -11,6 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -56,7 +57,7 @@ func TestReplayExplicitIDsOnSupersededGenerationRefusedEvenWithForce(t *testing.
 	}
 	first := refused[0].(map[string]any)
 	if first["work_item_id"] != "wi-old-a" || first["generation_id"] != "gen-old" ||
-		first["failure_class"] != supersededGenerationReplayClass || first["reason"] == "" {
+		first["failure_class"] != failure.ReplayGenerationSupersededClass || first["reason"] == "" {
 		t.Fatalf("refused_work_items[0] = %+v, want sorted wi-old-a on gen-old with its class and reason", first)
 	}
 	if store.supersededCalls != 1 || store.supersededFilter.Stage != "projector" {
@@ -110,7 +111,7 @@ func supersededFenceCount(rm metricdata.ResourceMetrics) int64 {
 				continue
 			}
 			for _, point := range sum.DataPoints {
-				if class, _ := point.Attributes.Value("failure_class"); class.AsString() == supersededGenerationReplayClass {
+				if class, _ := point.Attributes.Value("failure_class"); class.AsString() == failure.ReplayGenerationSupersededClass {
 					total += point.Value
 				}
 			}

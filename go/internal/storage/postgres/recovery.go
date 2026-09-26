@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
@@ -235,7 +236,7 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", err)
 	}
 
-	recordSupersededGenerationFence(ctx, s.instruments, projectorReplayGenerationSupersededClass, skipped)
+	recordSupersededGenerationFence(ctx, s.instruments, failure.ReplayGenerationSupersededClass, skipped)
 
 	return recovery.ReplayResult{
 		Stage:                       filter.Stage,

@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -71,11 +72,6 @@ func (h *Handler) refuseUnsafeExplicitReplay(
 	return true
 }
 
-// supersededGenerationReplayClass labels replay refusals for projector work
-// whose generation is superseded. It matches the failure_class the recovery
-// store records for the same fence (#7130).
-const supersededGenerationReplayClass = "projector_replay_generation_superseded"
-
 // refuseSupersededExplicitReplay refuses an explicit work_item_ids replay that
 // names terminal projector rows whose scope generation is superseded. The
 // store fences those rows out of every replay, so without this read the
@@ -113,13 +109,13 @@ func (h *Handler) refuseSupersededExplicitReplay(
 		refused = append(refused, map[string]any{
 			"work_item_id":  target.WorkItemID,
 			"generation_id": target.GenerationID,
-			"failure_class": supersededGenerationReplayClass,
+			"failure_class": failure.ReplayGenerationSupersededClass,
 			"reason":        "the work item's generation is superseded by a newer ingestion of the same scope",
 		})
 	}
 	if h.Instruments != nil && h.Instruments.SupersededGenerationFence != nil {
 		h.Instruments.SupersededGenerationFence.Add(r.Context(), int64(len(targets)),
-			metric.WithAttributes(telemetry.AttrFailureClass(supersededGenerationReplayClass)))
+			metric.WithAttributes(telemetry.AttrFailureClass(failure.ReplayGenerationSupersededClass)))
 	}
 	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "replay_refused_superseded_generation", authCtx, correlationID)
 	querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
