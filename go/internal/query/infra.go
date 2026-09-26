@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const infraSearchMaxLimit = 200
@@ -17,6 +18,12 @@ const infraSearchMaxLimit = 200
 // InfraHandler serves HTTP endpoints for querying infrastructure resources
 // and relationships from the Neo4j canonical graph.
 type InfraHandler struct {
+	// GraphBackend selects the Cypher dialect for the scoped search and
+	// relationship reads (#7215). Only querycontract.GraphBackendNeo4j selects
+	// the hoisted list-EXISTS grant predicate; every other value, including the
+	// zero value, keeps the SHAPE-A inline-map statements NornicDB is proven on,
+	// because the list-EXISTS form is a documented whole-graph leak there.
+	GraphBackend   querycontract.GraphBackend
 	Neo4j          GraphQuery
 	Aggregates     InfraResourceAggregateStore
 	CloudResources CloudResourceListStore
@@ -314,7 +321,14 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if resourceCategory != "" {
 		whereExtra += " AND n.resource_category = $resource_category"
 	}
-	whereExtra += infraSearchScopeClause(access)
+	// #7215: on Neo4j the scoped grant predicate is hoisted out of the
+	// branches (infraSearchNeo4jScopedCypher); every other backend keeps the
+	// per-branch SHAPE-A clause byte for byte.
+	neo4jScoped := h.scopeUsesNeo4jDialect(access)
+	span.SetAttributes(attribute.String("eshu.infra_scope_dialect", h.infraScopeDialectLabel(access)))
+	if !neo4jScoped {
+		whereExtra += infraSearchScopeClause(access)
+	}
 
 	// infraSearchReturnClause (the CALL block's inner RETURN, per branch) and
 	// the outer RETURN's column list are both derived from
@@ -336,6 +350,9 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		ORDER BY name
 		LIMIT $limit
 	`
+	if neo4jScoped {
+		cypher = infraSearchNeo4jScopedCypher(labels, whereExtra)
+	}
 
 	params := map[string]any{"limit": req.Limit + 1}
 	if query != "" {
@@ -357,7 +374,11 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if resourceCategory != "" {
 		params["resource_category"] = resourceCategory
 	}
-	access.GraphParams(params)
+	if neo4jScoped {
+		bindInfraNeo4jScopeParams(params, access)
+	} else {
+		access.GraphParams(params)
+	}
 
 	var rows []map[string]any
 	var err error

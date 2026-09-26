@@ -347,7 +347,15 @@ route. The route's worst case is the loop budget plus one bounded read.
 `eshu.entity_anchor_labels_tried`, an integer count of how many anchor reads
 the loop issued before matching or exhausting the set -- the 1-based index of
 the label that matched, `len(impactRelationshipAnchorLabels)+1` when only the
-unlabeled fallback matched, and the same value on a full miss. `GET /api/v0/entities/{entity_id}/context` logs the
+unlabeled fallback matched, and the same value on a full miss. Both
+`POST /api/v0/infra/relationships` and `POST /api/v0/infra/resources/search`
+also record `eshu.infra_scope_dialect` (`unscoped`, `shape_a`, or
+`neo4j_list_exists`, #7215). On the `neo4j_list_exists` relationships loop,
+`eshu.entity_anchor_probes` counts the unscoped per-label existence probes and
+`eshu.entity_anchor_scoped_reads` counts the scoped statements run (one per
+probe hit, plus the unlabeled fallback), so a slow scoped read shows whether it
+paid for many probes or one heavy scoped statement.
+`GET /api/v0/entities/{entity_id}/context` logs the
 same count as `labels_tried`/`labels_total` structured fields (plus a
 `failure_class` of `deadline` or `graph_read_error`) on its own separate
 handler-level warning when the loop ends in an error before resolving --

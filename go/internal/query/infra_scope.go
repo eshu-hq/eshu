@@ -4,7 +4,9 @@
 package query
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -114,4 +116,183 @@ func (h *InfraHandler) writeEmptyInfraSearch(w http.ResponseWriter, r *http.Requ
 		TruthBasisHybrid,
 		"scoped token grants authorize no repositories; infrastructure search results are empty",
 	))
+}
+
+// Neo4j dialect for the scoped infra search and relationships reads (#7215).
+//
+// On Neo4j the SHAPE-A predicate (infraResourceScopePredicate) is expensive to
+// plan for two reasons that multiply. Its inline-map families expand one
+// pattern term per grant scalar (3 families x up to 128 scalars), and the
+// search copies the whole predicate into every one of its 27 label branches
+// while the relationships route copies it into 3 aliases on each of up to 15
+// anchor statements. Measured on neo4j:2026-community, a 5-repo + 5-scope
+// grant took 33.6 s to plan the search cold and 2.6 s warm; a 25 + 25 grant
+// never planned inside 240 s (docs/internal/evidence/7215-*.md).
+//
+// The Neo4j dialect therefore:
+//
+//   - replaces each inline-map family with one list-EXISTS term over
+//     $scope_grants, so the statement text no longer depends on the grant
+//     count and one plan-cache entry serves every token;
+//   - on search, returns n from each branch and applies the predicate once
+//     after the CALL, then projects once;
+//   - on relationships, probes each anchor label unscoped first and runs the
+//     scoped statement only for labels that hold the id.
+//
+// NornicDB must never receive this dialect: a backward-anchored list EXISTS
+// such as EXISTS { MATCH (n)<-[:USES]-(i:WorkloadInstance) WHERE i.repo_id IN
+// $g } evaluates always-true there, a whole-graph leak (nornicdb-pitfalls.md,
+// "EXISTS {} Subquery Correctness Depends On Anchor Direction"). Only an
+// explicit querycontract.GraphBackendNeo4j selects it; the zero value and any
+// other value keep SHAPE-A.
+
+// infraScopeGrantsParam is the list parameter the Neo4j list-EXISTS terms
+// test against. It carries the same capped, sorted, de-duplicated slice
+// ScopeGrantInlineScalars returns, so admission matches SHAPE-A exactly,
+// including the fail-closed 128 cap.
+const infraScopeGrantsParam = "scope_grants"
+
+// Span attribute values for eshu.infra_scope_dialect.
+const (
+	infraScopeDialectUnscoped   = "unscoped"
+	infraScopeDialectShapeA     = "shape_a"
+	infraScopeDialectNeo4jLists = "neo4j_list_exists"
+)
+
+// scopeUsesNeo4jDialect reports whether this read uses the Neo4j list-EXISTS
+// dialect: a scoped caller on an explicitly configured Neo4j backend.
+func (h *InfraHandler) scopeUsesNeo4jDialect(access querycontract.RepositoryAccessFilter) bool {
+	return h != nil && h.GraphBackend == querycontract.GraphBackendNeo4j && access.Scoped()
+}
+
+// infraScopeDialectLabel names the dialect a read used, for the span.
+func (h *InfraHandler) infraScopeDialectLabel(access querycontract.RepositoryAccessFilter) string {
+	switch {
+	case !access.Scoped():
+		return infraScopeDialectUnscoped
+	case h.scopeUsesNeo4jDialect(access):
+		return infraScopeDialectNeo4jLists
+	default:
+		return infraScopeDialectShapeA
+	}
+}
+
+// infraResourceScopeListPredicate is the Neo4j form of
+// infraResourceScopePredicate: the same five disjunct families in the same
+// order, with the three inline-map OR-chains (USES, MATCHES_STATE, DEFINES)
+// each replaced by one EXISTS over $scope_grants. `x IN $scope_grants` is true
+// exactly when one inline-map term {prop:$scope_grant_i} would match, and a
+// null property is false in both forms. The inner variables carry a scope
+// prefix so they never correlate with an outer alias of the same name.
+func infraResourceScopeListPredicate(alias string) string {
+	return "(" + strings.Join([]string{
+		alias + ".repo_id IN $allowed_repository_ids",
+		alias + ".repo_id IN $allowed_scope_ids",
+		alias + ".id IN $allowed_repository_ids",
+		alias + ".id IN $allowed_scope_ids",
+		"EXISTS { MATCH (" + alias + ")<-[:USES]-(scopeUsesInstance:WorkloadInstance) " +
+			"WHERE scopeUsesInstance.repo_id IN $" + infraScopeGrantsParam + " }",
+		"EXISTS { MATCH (" + alias + ")<-[:MATCHES_STATE]-(scopeStateConfig:TerraformResource) " +
+			"WHERE scopeStateConfig.repo_id IN $" + infraScopeGrantsParam + " }",
+		"EXISTS { MATCH (" + alias + ")-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository) " +
+			"WHERE (scopeDeployRepo.id IN $allowed_repository_ids OR scopeDeployRepo.id IN $allowed_scope_ids) }",
+		"EXISTS { MATCH (" + alias + ")<-[:DEFINES]-(scopeDefiningRepo:Repository) " +
+			"WHERE scopeDefiningRepo.id IN $" + infraScopeGrantsParam + " }",
+	}, " OR ") + ")"
+}
+
+// bindInfraNeo4jScopeParams binds the grant arrays and the capped
+// $scope_grants list for the Neo4j dialect. It deliberately does not call
+// access.GraphParams: that also binds the SHAPE-A scope_grant_<i> scalars,
+// which the Neo4j statements never reference.
+func bindInfraNeo4jScopeParams(params map[string]any, access querycontract.RepositoryAccessFilter) {
+	params["allowed_repository_ids"] = append([]string{}, access.AllowedRepositoryIDs...)
+	params["allowed_scope_ids"] = append([]string{}, access.AllowedScopeIDs...)
+	scalars, _ := access.ScopeGrantInlineScalars()
+	params[infraScopeGrantsParam] = append([]string{}, scalars...)
+}
+
+// infraSearchNeo4jScopedCypher builds the hoisted Neo4j search: one
+// single-label branch per label returning n (still inside CALL, for the same
+// reasons the SHAPE-A search wraps its UNION), the grant predicate applied once
+// after the CALL, and one projection. whereExtra must NOT carry the scope
+// clause. Plain UNION over n de-duplicates by node.
+func infraSearchNeo4jScopedCypher(labels []string, whereExtra string) string {
+	branches := make([]string, 0, len(labels))
+	for _, label := range labels {
+		branches = append(branches, `
+		MATCH (n:`+label+`)
+		WHERE true`+whereExtra+`
+		RETURN n
+	`)
+	}
+	return "CALL {" + strings.Join(branches, "\nUNION") + `
+	}
+	WITH n
+	WHERE ` + infraResourceScopeListPredicate("n") + `
+	WITH n
+	RETURN ` + strings.Join(infraSearchReturnExprs(), ",\n\t       ") + `
+		ORDER BY name
+		LIMIT $limit
+	`
+}
+
+// infraRelationshipAnchorProbeCypher is the unscoped existence probe for one
+// anchor label. Its result only decides whether the scoped statement for that
+// label is worth running; it is never returned to the caller.
+func infraRelationshipAnchorProbeCypher(label string) string {
+	return `
+		MATCH (n:` + label + `) WHERE n.id = $entity_id
+		RETURN 1 AS hit
+		LIMIT 1
+	`
+}
+
+// infraRelationshipNeo4jAnchorRead is the result of the Neo4j scoped anchor
+// loop, with the counts the span records.
+type infraRelationshipNeo4jAnchorRead struct {
+	row         map[string]any
+	labelsTried int
+	probes      int
+	scopedReads int
+}
+
+// resolveNeo4jScopedRelationshipAnchor runs the two-phase anchor loop. For each
+// anchor label in order it probes unscoped, and only on a hit runs the scoped
+// statement; the first scoped row wins. If no labeled scoped read returns a
+// row, the scoped unlabeled (n) fallback runs, as in the SHAPE-A loop. The
+// scoped statement for a label whose probe missed would return no row, so the
+// answer equals the SHAPE-A loop's first-non-null answer. An ungranted anchor
+// whose probe hit still ends with no row and the same 404 a missing id gets.
+// Every read shares ctx, the route's single bounded deadline.
+func (h *InfraHandler) resolveNeo4jScopedRelationshipAnchor(
+	ctx context.Context,
+	entityID string,
+	scopedCypher func(anchor string) string,
+	params map[string]any,
+) (infraRelationshipNeo4jAnchorRead, error) {
+	var read infraRelationshipNeo4jAnchorRead
+	probeParams := map[string]any{"entity_id": entityID}
+	for _, label := range impactRelationshipAnchorLabels {
+		read.labelsTried++
+		read.probes++
+		hit, err := h.Neo4j.RunSingle(ctx, infraRelationshipAnchorProbeCypher(label), probeParams)
+		if err != nil {
+			return read, err
+		}
+		if hit == nil {
+			continue
+		}
+		read.scopedReads++
+		row, err := h.Neo4j.RunSingle(ctx, scopedCypher("(n:"+label+")"), params)
+		if err != nil || row != nil {
+			read.row = row
+			return read, err
+		}
+	}
+	read.labelsTried++
+	read.scopedReads++
+	row, err := h.Neo4j.RunSingle(ctx, scopedCypher("(n)"), params)
+	read.row = row
+	return read, err
 }

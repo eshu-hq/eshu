@@ -702,10 +702,11 @@ paths (both previously shipped as the always-FALSE `n`-last bridge shape
 above, which silently under-authorized every scoped CloudResource and
 name-collision Workload), while the WorkloadInstance-via-DEPLOYMENT_SOURCE
 admission path keeps the one correct forward-anchored `EXISTS` shape.
-`maxScopeGrantInlineTerms` caps the inline-map fan-out with fail-closed
-degradation: past the cap, a token still sees every resource it directly owns
-(O(1) flat `repo_id` / `id` disjuncts), and only loses collision/bridge
-admission for grants beyond the cap -- an under-authorization, never a leak.
+`maxScopeGrantInlineTerms` caps the fan-out fail-closed: past the cap a token
+still sees every resource it directly owns (flat `repo_id` / `id` disjuncts) and
+loses only collision/bridge admission for the overflow, never a leak. Neo4j
+plans this O(grant) form badly, so the infra search and relationships reads use
+a list-EXISTS dialect on Neo4j only ([Scoped Grant Predicates](cypher-scoped-grant-predicates.md)).
 
 ### Validation
 

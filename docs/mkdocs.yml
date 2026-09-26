@@ -289,6 +289,7 @@ nav:
       - NornicDB Write-Shape Pitfalls: reference/nornicdb-write-shape-pitfalls.md
       - NornicDB Order-Limit Pitfalls: reference/nornicdb-order-limit-pitfalls.md
       - Cypher Performance: reference/cypher-performance.md
+      - Scoped Grant Predicates: reference/cypher-scoped-grant-predicates.md
     - Parity Closure Matrix: reference/parity-closure-matrix.md
     - Relationship Mapping: reference/relationship-mapping.md
     - Relationship Evidence And Resolution: reference/relationship-mapping-evidence.md

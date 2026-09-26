@@ -670,14 +670,14 @@ empty-grant no-store-read, and grant-propagation tests.
 No-Observability-Change: existing infra resource aggregate query span
 (`SpanQueryInfraResourceAggregate`), truth envelope, per-dimension rollups,
 limits, offsets, truncation, and inventory metadata diagnose the bounded reads.
-Infra resource search (`POST /api/v0/infra/resources/search`, MCP
-`find_infra_resources`) and infra relationships
-(`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`) run
-their own whole-graph Cypher rather than the aggregate store, so they reuse the
-same `infraResourceScopePredicate` (`infra_scope.go`). Search appends the
-predicate to its `MATCH (n)` WHERE chain so the matched rows, `count`, `limit`,
-and `truncated` flag are computed over only granted-repository resources; an
-empty-grant scoped token returns the bounded empty page without a graph read.
+Infra search (`POST /api/v0/infra/resources/search`, MCP `find_infra_resources`)
+and relationships (`POST /api/v0/infra/relationships`, MCP
+`analyze_infra_relationships`) reuse `infraResourceScopePredicate` on NornicDB;
+on Neo4j (`InfraHandler.GraphBackend`) they use the hoisted list-EXISTS dialect
+in `infra_scope.go`, same admission and cap (#7215). Search filters its
+label branches so rows, `count`, `limit`, and `truncated` cover only granted
+resources; an empty-grant scoped token returns the bounded empty page without a
+graph read.
 The category-only Argo CD snapshot avoids NornicDB's broad OR-label scan by
 reading `ArgoCDApplication` and `ArgoCDApplicationSet` separately under the
 same grant predicate and per-label `limit + 1` bound. The second read excludes

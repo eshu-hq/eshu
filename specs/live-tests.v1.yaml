@@ -477,6 +477,18 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_neo4j_equivalence_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: live Neo4j #7215 dialect equivalence and no-leak proof; about 2 min on an emulated Neo4j — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_neo4j_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: harness and fixture for the live Neo4j #7215 dialect proof; no test of its own
+  - file: go/internal/query/infra_scope_neo4j_timing_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: operator-run #7215 cold/warm measurement on the proof graph; env-gated twice and not a correctness gate
   - file: go/internal/query/infra_scope_grant_live_test.go
     tag: live_infra_scope_shape
     class: scheduled

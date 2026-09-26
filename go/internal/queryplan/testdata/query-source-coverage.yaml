@@ -409,7 +409,7 @@ source_coverage:
       - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: c67a480f903394168d738efb519e61cb3d7ed3686fd5d833af98517c3c966096, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: f261312e577febbae0a05f8eb4f566729e4aa3aeba2e75697a469b9260238185, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
       - symbol: "(*InfraHandler).searchArgoCDCategoryRows"
@@ -446,7 +446,16 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: f8838785b939e5a7741fa8adee2ad96ef17ae1738571c7a42083311809408a34
+          source_sha256: c6b8663d32fe2cf713a92bf7fce619039466d23e6ee09f279110f8f79b4cc5cf
+          key_bound: single_key
+          max_results: 1
+  - file: infra_scope.go
+    calls:
+      - symbol: "(*InfraHandler).resolveNeo4jScopedRelationshipAnchor"
+        count: 3
+        non_hot:
+          class: keyed_support
+          source_sha256: dfbf7d333dada26ce78cfa8efae562034c3e5e95be74bdf88c69fdf21f1654e3
           key_bound: single_key
           max_results: 1
   - file: infra_resource_aggregates.go

@@ -120,11 +120,23 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		anchors = append(anchors, "(n:"+label+")")
 	}
 	anchors = append(anchors, "(n)")
+	// #7215: on Neo4j the three grant predicates use the list-EXISTS form
+	// (infra_scope.go); every other backend keeps SHAPE-A byte for byte.
+	neo4jScoped := h.scopeUsesNeo4jDialect(access)
+	span.SetAttributes(attribute.String("eshu.infra_scope_dialect", h.infraScopeDialectLabel(access)))
+	anchorClause := infraRelationshipAnchorClause(access)
+	targetClause := infraRelationshipNeighborClause(access, "target")
+	sourceClause := infraRelationshipNeighborClause(access, "source")
+	if neo4jScoped {
+		anchorClause = " AND " + infraResourceScopeListPredicate("n")
+		targetClause = " WHERE " + infraResourceScopeListPredicate("target")
+		sourceClause = " WHERE " + infraResourceScopeListPredicate("source")
+	}
 	buildCypher := func(anchor string) string {
 		return `
-		MATCH ` + anchor + ` WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
-		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + infraRelationshipNeighborClause(access, "target") + `
-		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + infraRelationshipNeighborClause(access, "source") + `
+		MATCH ` + anchor + ` WHERE n.id = $entity_id` + anchorClause + `
+		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + targetClause + `
+		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + sourceClause + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
 		       collect(DISTINCT {
 		           direction: 'outgoing',
@@ -146,7 +158,11 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	params := map[string]any{
 		"entity_id": req.EntityID,
 	}
-	access.GraphParams(params)
+	if neo4jScoped {
+		bindInfraNeo4jScopeParams(params, access)
+	} else {
+		access.GraphParams(params)
+	}
 
 	// #7006 review (P1): the per-label loop must share ONE deadline across
 	// every candidate, not let each RunSingle claim its own fresh
@@ -162,11 +178,22 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	var row map[string]any
 	var err error
 	labelsAttempted := 0
-	for _, anchor := range anchors {
-		labelsAttempted++
-		row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
-		if err != nil || row != nil {
-			break
+	if neo4jScoped {
+		// Two-phase: an unscoped per-label probe, then the scoped statement
+		// only where the probe hit. Same shared deadline, same answer.
+		read, readErr := h.resolveNeo4jScopedRelationshipAnchor(ctx, req.EntityID, buildCypher, params)
+		row, err, labelsAttempted = read.row, readErr, read.labelsTried
+		span.SetAttributes(
+			attribute.Int("eshu.entity_anchor_probes", read.probes),
+			attribute.Int("eshu.entity_anchor_scoped_reads", read.scopedReads),
+		)
+	} else {
+		for _, anchor := range anchors {
+			labelsAttempted++
+			row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
+			if err != nil || row != nil {
+				break
+			}
 		}
 	}
 	span.SetAttributes(attribute.Int("eshu.entity_anchor_labels_tried", labelsAttempted))

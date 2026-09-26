@@ -141,6 +141,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
+			GraphBackend:   graphBackend,
 			Neo4j:          neo4jReader,
 			Aggregates:     query.NewInfraResourceAggregateStore(neo4jReader, db, instruments),
 			CloudResources: query.NewPostgresCloudResourceListStore(db),
