@@ -68,8 +68,8 @@ High-signal invariants for this package:
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
-  without the three exact trigram GINs for file content, entity source, and
-  entity names; bootstrap-index builds the identical
+  without the four exact trigram GINs for file content, file relative path,
+  entity source, and entity names; bootstrap-index builds the identical
   indexes after source-local projection drains, runs `ANALYZE`, verifies their
   catalog shape, and only then publishes `ready`. Normal schema bootstrap and
   upgrades retain the indexes and initialize the lifecycle from their actual
@@ -942,7 +942,9 @@ check-and-create boundary with a transaction-scoped advisory lock because
 Postgres does not make concurrent same-name `CREATE INDEX IF NOT EXISTS`
 attempts atomic. The live proof exercises a populated table, lock timeout,
 context interruption, concurrent migration retry, concurrent full bootstrap,
-and the exact three-index validator.
+and the exact three-index validator at that time. #7033 extends the current
+validator to four indexes, including file relative path; its live migration
+tests cover populated upgrades and invalid same-name index recovery.
 
 Observability Evidence: no new metric series or labels were added. Operators
 continue to diagnose schema bootstrap through the one-shot `db-migrate` /

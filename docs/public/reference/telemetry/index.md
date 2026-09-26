@@ -251,7 +251,7 @@ logs the finalization start and terminal state with `index_state` and
 `eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="content_index_finalization",collector_kind="bootstrap-index"}`
 to identify the total exact-index build, validation, and `ANALYZE` phase as a
 bootstrap long pole. All-repository substring reads fail closed until the
-durable state is `ready` and both catalog indexes validate; repository-scoped
+durable state is `ready` and all four catalog indexes validate; repository-scoped
 reads do not depend on this cold-build lifecycle.
 
 ## Cross-repo activation fence counter

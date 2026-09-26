@@ -357,7 +357,7 @@ func assertContentEntityNameIndexDefinition(t *testing.T, ctx context.Context, d
 		t.Fatalf("validate exact content search indexes: %v", err)
 	}
 	if !valid {
-		t.Fatal("eshu_content_substring_indexes_valid() = false, want exact three-index contract")
+		t.Fatal("eshu_content_substring_indexes_valid() = false, want exact four-index contract")
 	}
 	var definition string
 	if err := db.QueryRowContext(
