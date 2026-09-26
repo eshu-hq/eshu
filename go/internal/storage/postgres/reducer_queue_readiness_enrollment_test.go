@@ -93,7 +93,9 @@ type unreadableFailureClassRef struct {
 // returned by a type in internal/reducer or one of its immediate family
 // subpackages (awscloud, iamcan, secgroup, ...) whose Retryable() reports
 // true, mapped to the reducerDir-relative file that declares it, plus every
-// FailureClass() on such a type that the scan could NOT read.
+// FailureClass() on such a type that the scan could NOT read. It also covers a
+// type anywhere else in go/internal whose FailureClass() returns a
+// reducer-tree constant (#7268); those map to a go/internal-relative file.
 //
 // The second return is what keeps the first honest. A class the scan cannot
 // read is indistinguishable from a class that does not exist, so without it a
@@ -161,14 +163,28 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 		t.Fatalf("no non-test Go files parsed under %s (root + immediate subpackages); the guard would pass vacuously", reducerDir)
 	}
 
-	// receiver type name -> true when Retryable() returns true
+	// #7268: a reducer-queue class can be returned from outside the reducer
+	// tree. The shared-edge writer's target-miss error returns
+	// reducer.SharedEdgeTargetNotReadyFailureClass, so the scan also walks the
+	// rest of go/internal for FailureClass() bodies returning a reducer-tree
+	// constant. Outside the tree only such selectors count: a literal
+	// *_not_ready class there belongs to another queue (collectors), not this
+	// one.
+	consts := reducerTreeConstants(reducerDir, parsedFiles)
+	internalDir := filepath.Join(reducerDir, "..")
+	outsideFiles := parseReducerClassReferencesOutsideTree(t, fset, internalDir, parsedFiles)
+
+	// Keys are "<dir>\x00<receiver type>": two packages may declare a type of
+	// the same name, and only the same package's Retryable() may pair with it.
 	retryable := map[string]bool{}
-	// receiver type name -> (class, file)
 	classes := map[string][2]string{}
-	// receiver type name -> the identifier whose value could not be read
 	unreadable := map[string]unreadableFailureClassRef{}
 
-	for path, file := range parsedFiles {
+	scanFile := func(path string, file *ast.File, inTree bool) {
+		location := reducerRelativePath(reducerDir, path)
+		if !inTree {
+			location = reducerRelativePath(internalDir, path)
+		}
 		for _, decl := range file.Decls {
 			fn, isFunc := decl.(*ast.FuncDecl)
 			if !isFunc || fn.Recv == nil || len(fn.Recv.List) == 0 {
@@ -178,24 +194,34 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 			if recv == "" {
 				continue
 			}
+			key := filepath.Dir(path) + "\x00" + recv
 			switch fn.Name.Name {
 			case "Retryable":
 				if returnsTrue(fn) {
-					retryable[recv] = true
+					retryable[key] = true
 				}
 			case "FailureClass":
-				class, unresolvedIdent := returnedStringLiteral(fn)
+				class, unresolvedIdent, isReducerSelector := reducerSelectorClass(file, fn, consts)
+				if !isReducerSelector {
+					if !inTree {
+						continue
+					}
+					class, unresolvedIdent = returnedStringLiteral(fn)
+				}
 				switch {
 				case strings.HasSuffix(class, "_not_ready"):
-					classes[recv] = [2]string{class, reducerRelativePath(reducerDir, path)}
+					classes[key] = [2]string{class, location}
 				case unresolvedIdent != "":
-					unreadable[recv] = unreadableFailureClassRef{
-						ident: unresolvedIdent,
-						file:  reducerRelativePath(reducerDir, path),
-					}
+					unreadable[key] = unreadableFailureClassRef{ident: unresolvedIdent, file: location}
 				}
 			}
 		}
+	}
+	for path, file := range parsedFiles {
+		scanFile(path, file, true)
+	}
+	for path, file := range outsideFiles {
+		scanFile(path, file, false)
 	}
 
 	found := map[string]string{}
