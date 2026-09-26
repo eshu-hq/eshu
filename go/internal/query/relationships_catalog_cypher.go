@@ -258,8 +258,12 @@ func relationshipCountCypher(entry relationshipVerbEntry) string {
 // byte-identical to the pre-#5369 shape. The access filter adds the #5167
 // scope WHERE clause for a scoped caller (empty for shared/admin/local).
 func relationshipEdgesCypher(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
+	return relationshipEdgesCypherWithAnchor(entry, access, true)
+}
+
+func relationshipEdgesCypherWithAnchor(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter, indexed bool) string {
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
-		relationshipEdgesScopeWhereClause(entry, access) +
+		relationshipEdgesScopeWhereClauseWithAnchor(entry, access, indexed) +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
 		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
 		"       " + targetIdentityCoalesce(entry) + " AS target_id,\n" +
@@ -352,22 +356,25 @@ func targetOrderTiebreaker(entry relationshipVerbEntry) string {
 	return coalesceExpr("t", targetOrderTiebreakerProperties(entry))
 }
 
-// relationshipEdgesScopeWhereClause returns the #5167 access-scoping WHERE
-// clause for relationshipEdgesCypher/relationshipEdgesCypherFiltered, or the
-// empty string for a shared/admin/local caller (access.scoped() == false,
-// unscoped Cypher stays byte-identical to the pre-#5167 query). For a scoped
-// caller it always binds the source endpoint s -- entry.sourceLabel is always
-// one of Repository, Workload, WorkloadInstance, or a repo_id-carrying code
-// label, all covered by relationshipEndpointScopePredicate -- which alone
-// ensures a scoped caller never sees an edge sourced from another tenant's
-// entity. It additionally binds target t when entry.targetAttributable is
-// true (see that field's doc comment for which verbs qualify).
-func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
+// relationshipEdgesScopeWhereClauseWithAnchor binds source and target grants.
+// The indexed first page excludes absent source anchors. The complete fallback
+// omits only that anchor guard while preserving the same scope predicates.
+func relationshipEdgesScopeWhereClauseWithAnchor(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter, indexed bool) string {
+	anchor := ""
+	if indexed {
+		anchor = "s." + entry.sourceProperty + " IS NOT NULL"
+	}
 	if !access.Scoped() {
-		return ""
+		if anchor == "" {
+			return ""
+		}
+		return "WHERE " + anchor + "\n"
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return "WHERE " + relationshipEdgesScopeExpr(entry, scalars) + "\n"
+	if anchor != "" {
+		anchor += " AND "
+	}
+	return "WHERE " + anchor + relationshipEdgesScopeExpr(entry, scalars) + "\n"
 }
 
 // relationshipEdgesScopeExpr builds the #5167 access-scope WHERE-body for a
@@ -398,36 +405,6 @@ func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) s
 		clauses = append(clauses, relationshipEndpointScopePredicate("t", scalars))
 	}
 	return strings.Join(clauses, " AND ")
-}
-
-// relationshipEdgesCypherFiltered is the source_tool-filtered variant of
-// relationshipEdgesCypher. It inserts a WHERE clause after the MATCH line that
-// binds $source_tool to r.source_tool, so the index-ordered scan and LIMIT
-// short-circuit are preserved. The $source_tool param must always be provided
-// by the caller; the unfiltered path must NOT call this function.
-//
-// The verb, label, and property are taken from the fixed catalog, never from
-// request input, so the interpolation cannot inject arbitrary patterns.
-func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
-	where := "WHERE r.source_tool = $source_tool"
-	if access.Scoped() {
-		scalars, _ := access.ScopeGrantInlineScalars()
-		// relationshipEdgesScopeExpr returns an atomically parenthesized group
-		// for the edgeScopeAttributable verb and an AND-chain of parenthesized
-		// endpoint predicates otherwise; both AND-combine safely after the
-		// source_tool filter (Cypher AND binds tighter than the inner ORs).
-		where += " AND " + relationshipEdgesScopeExpr(entry, scalars)
-	}
-	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
-		where + "\n" +
-		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
-		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
-		"       " + targetIdentityCoalesce(entry) + " AS target_id,\n" +
-		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
-		"       r.rationale AS evidence,\n" +
-		"       r.source_tool AS source_tool\n" +
-		"ORDER BY s." + entry.sourceProperty + ", " + targetOrderTiebreaker(entry) + "\n" +
-		"LIMIT $limit"
 }
 
 // relationshipEndpointScopePredicate binds a relationships/edges endpoint

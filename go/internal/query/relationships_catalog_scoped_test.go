@@ -301,8 +301,8 @@ func TestGetRelationshipEdgesScopedGrantUnattributableTargetBindsSourceOnly(t *t
 }
 
 // TestGetRelationshipEdgesUnscopedQueryStaysUnfiltered is the no-regression
-// counterpart: a shared/admin caller (no AuthContext) must still issue the
-// byte-identical unscoped query with no WHERE clause.
+// counterpart: a shared/admin caller (no AuthContext) must still issue an
+// unscoped query; the indexable source-anchor guard is not a grant predicate.
 func TestGetRelationshipEdgesUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
@@ -318,8 +318,8 @@ func TestGetRelationshipEdgesUnscopedQueryStaysUnfiltered(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	if strings.Contains(reader.calls[0].cypher, "WHERE") {
-		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", reader.calls[0].cypher)
+	if strings.Contains(reader.calls[0].cypher, "$allowed_repository_ids") || strings.Contains(reader.calls[0].cypher, "$allowed_scope_ids") {
+		t.Fatalf("unscoped/admin query must not bind a grant, got:\n%s", reader.calls[0].cypher)
 	}
 }
 

@@ -717,7 +717,7 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipEdgesCypher
-      source_sha256: 5f41c542959f21a0055fab3dc02224f4fb1d20d689cafb0d8fa3ea920b75f1e0
+      source_sha256: e62ad54ef99fdcf93a9b6e6fe15f5b22b5025340abd7e7d69916f58458d60286
       line_hint: 178
     required_schema:
       - function_uid_unique
@@ -726,7 +726,7 @@ entries:
       - $limit
     requires_order: true
     caveats:
-      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 20-verb family). The ORDER BY targets the indexed source-anchor property (s.uid here, s.<sourceProperty> per verb) so the LIMIT short-circuits the index-ordered scan rather than materializing and sorting the verb's full edge set on a non-indexed coalesce() expression (issue #3429). The secondary coalesce(t.id, t.uid) tie-breaker (per-entry; MANAGES appends t.path since its Directory target has no id/uid, see targetIdentityProperty) makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
+      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 20-verb family). The unscoped, unfiltered CALLS page requires s.uid IS NOT NULL so its ORDER BY can use the source-anchor index and LIMIT can stop early. A short indexed page falls back to the original complete query to preserve null-anchor rows. Other verbs, scoped pages, and source-tool-filtered pages use the original single-read query because sparse results would otherwise pay for two large scans. The secondary coalesce(t.id, t.uid) tie-breaker (per-entry; MANAGES appends t.path since its Directory target has no id/uid, see targetIdentityProperty) makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
     plan:
       operators:
         - LabelScan
@@ -735,7 +735,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "4500651a110f86f506eb8827db50b262278afb98bc987a3f01407ade1613eb73"
+    cypher_sha256: "06e16468d5b5e94368f95850826cca3e343dfe0b80c3e1931c821a9c42434331"
   - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
     domain: relationships
     backend: nornicdb
