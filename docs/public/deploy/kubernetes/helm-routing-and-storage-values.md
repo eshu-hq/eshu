@@ -39,7 +39,7 @@ or independently prove an immutable override, select
 routing workloads to it.
 
 Key defaults: image repository `ghcr.io/eshu-hq/nornicdb-amd64-cpu`, image tag
-`fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1` (self-built from upstream main at the Close-versus-commit fix, carrying the numID counter floor and the conjunct index-seek fix, plus the not-yet-merged ORDER BY key fix from orneryd/NornicDB#502; self-reports 1.3.3),
+`fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be` (an eshu-hq build of plain upstream main `f2163176` — built after orneryd/NornicDB#492 (parser refactor, TCK 100%), #512, and #519 (a LIMIT-after-join row-drop regression fix) — carrying the Close-versus-commit fix, the numID counter floor, the conjunct index-seek fix, and the #500 ORDER BY key fix; self-reports 1.3.3),
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and

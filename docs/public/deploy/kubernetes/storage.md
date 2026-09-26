@@ -78,8 +78,8 @@ schemaBootstrap:
   useHelmHooks: false
 ```
 
-The chart's default bundled image (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c`, pinned
-by digest, self-built from upstream main at the Close-versus-commit fix, which carries the numID counter floor and the conjunct index-seek fix, plus the not-yet-merged ORDER BY key fix from orneryd/NornicDB#502) is the verified default. The capability acknowledgement still stays
+The chart's default bundled image (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176`, pinned
+by digest, an eshu-hq build of plain upstream main `f2163176` — built after orneryd/NornicDB#492 (parser refactor, TCK 100%), #512, and #519 (a LIMIT-after-join row-drop regression fix) — carrying the Close-versus-commit fix, the numID counter floor, the conjunct index-seek fix, and the #500 ORDER BY key fix) is the verified default. The capability acknowledgement still stays
 explicit because it also covers operator-selected external endpoints the chart
 cannot identify. Confirm the selected endpoint uses the verified digest, or
 independently prove an override, before setting it to `true`.

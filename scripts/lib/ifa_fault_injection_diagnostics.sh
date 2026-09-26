@@ -76,7 +76,7 @@ ifa_fault_backend_selection() {
 	ifa_fault_run_bounded jq -er '
 		.services.nornicdb
 		| select(
-			.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+			.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be"
 			and .platform == "linux/amd64"
 		)
 		| [.image, .platform]
@@ -107,9 +107,9 @@ ifa_fault_write_backend_provenance() {
 		| (try ($rendered_image | capture("@(?<digest>sha256:[0-9a-f]{64})$").digest) catch "") as $index_digest
 		| (if $rendered_image == "" then "" else ($rendered_image | repository_from_image) end) as $repository
 		| (
-			if $rendered_image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+			if $rendered_image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be"
 				and $rendered_platform == "linux/amd64"
-			then "sha256:c4a2116e3c1547f750426d5c6c7fae618135f2fc1a3f7bf13fd7811a9c189915"
+			then "sha256:7cabadf4380389b27d96129ae79dd548cb17021010ff1a30bf7c87d231c76f21"
 			else $index_digest
 			end
 		) as $platform_digest
@@ -297,7 +297,7 @@ ifa_fault_capture_failure_diagnostics() {
 		if ifa_fault_capture_command "${manifest}" backend-compose-config \
 			"${work_root}/backend-compose-config.json" \
 			bash -o pipefail -c \
-			'docker compose -p "$1" -f "$2" config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1" and .services.nornicdb.platform == "linux/amd64")'\''' \
+			'docker compose -p "$1" -f "$2" config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be" and .services.nornicdb.platform == "linux/amd64")'\''' \
 			_ "${compose_project}" "${compose_file}"; then
 			backend_selection="$(ifa_fault_backend_selection \
 				"${work_root}/backend-compose-config.json")" || true

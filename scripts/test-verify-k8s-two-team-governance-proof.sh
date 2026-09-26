@@ -14,10 +14,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-k8s-two-team-governance-proof.sh"
 fixtures="${repo_root}/tests/fixtures/governance_k8s_two_team_proof"
-expected_backend_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-expected_index_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-expected_amd64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:c4a2116e3c1547f750426d5c6c7fae618135f2fc1a3f7bf13fd7811a9c189915"
-expected_arm64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:523137af6a6e26e7977c00ef8aeb96aef236a0414334253e63f6aae25fc466ce"
+expected_backend_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be"
+expected_index_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be"
+expected_amd64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:7cabadf4380389b27d96129ae79dd548cb17021010ff1a30bf7c87d231c76f21"
+expected_arm64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:67e3c82c6ff4f3389903a0dd69488a95253379ba44851d669fe94882fa1602e8"
 
 die() {
 	printf 'test-verify-k8s-two-team-governance-proof: %s\n' "$*" >&2
@@ -143,8 +143,8 @@ bash "${verifier}" --artifacts "${index_dir}" >/dev/null \
 
 for mutation in wrong-index wrong-runtime-index wrong-runtime-repository wrong-platform-child wrong-version inferred-source-revision; do
 	case "${mutation}" in
-		wrong-index) replacement='s/fix-500-e022384c@sha256:74a8ed7b/v1.3.1@sha256:74a8ed7b/' ;;
-		wrong-runtime-index) replacement='s/sha256:c4a2116e3c1547f750426d5c6c7fae618135f2fc1a3f7bf13fd7811a9c189915/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
+		wrong-index) replacement='s/fix-6915-f2163176@sha256:a41fa912/v1.3.1@sha256:a41fa912/' ;;
+		wrong-runtime-index) replacement='s/sha256:7cabadf4380389b27d96129ae79dd548cb17021010ff1a30bf7c87d231c76f21/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
 		wrong-runtime-repository) replacement='s#docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@#docker-pullable://example.invalid/nornicdb@#' ;;
 		wrong-platform-child) replacement="s#${expected_amd64_image_id}#${expected_arm64_image_id}#" ;;
 		wrong-version) replacement='s/NornicDB v1\.3\.3/NornicDB v1.3.0/' ;;

@@ -41,7 +41,7 @@ guidance belong in the public Kubernetes docs.
   whose effective environment selects `ESHU_GRAPH_BACKEND=nornicdb` fails closed unless
   `nornicdb.capabilities.relationshipMergePropertyIdentity=true`, including
   external platform-owned endpoints. The bundled default pins the validated
-  `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c` image by digest. The acknowledgement
+  `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176` image by digest. The acknowledgement
   stays off because the chart cannot prove that an operator-selected external
   endpoint uses that artifact; verify the endpoint actually selected before
   turning it on.

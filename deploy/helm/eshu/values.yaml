@@ -1117,12 +1117,13 @@ nornicdb:
     relationshipMergePropertyIdentity: false
   image:
     repository: ghcr.io/eshu-hq/nornicdb-amd64-cpu
-    # Immutable eshu-hq self-built multi-architecture index (linux/amd64,
-    # linux/arm64) from upstream main 6ac958a9 (Close-versus-commit fix #501,
-    # numID counter floor #498, conjunct index-seek fix #491) plus the ORDER BY
-    # key fix (orneryd/NornicDB#502, not yet merged upstream); self-reports 1.3.3.
-    # Aligned with Compose and the R-5 live replay gate.
-    tag: "fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+    # Immutable eshu-hq build of plain upstream main f2163176, multi-architecture
+    # index (linux/amd64, linux/arm64), built after orneryd/NornicDB#492 (parser
+    # refactor, TCK 100%), #512, and #519 (LIMIT-after-join row-drop fix),
+    # carrying the Close-versus-commit fix #501, numID counter floor #498,
+    # conjunct index-seek fix #491, and the #500 ORDER BY key fix; self-reports
+    # 1.3.3. Aligned with Compose and the R-5 live replay gate.
+    tag: "fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
