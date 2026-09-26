@@ -105,7 +105,8 @@ reclaimed_stale_projector_duplicates AS (
 -- whose stale row is busy yields no claim instead of a newer generation.
 --
 -- Two branches (#7130), disjoint by generation status, so UNION ALL adds no
--- duplicates. A pending or failed generation is stale only once a newer
+-- duplicates. An expired row beside a live lease can also match the duplicate
+-- reclaim above; either update converges to superseded by the next claim. A pending or failed generation is stale only once a newer
 -- same-scope generation has projector work. A superseded generation is
 -- terminal by itself: its claimable rows (pending, retrying, and
 -- expired-lease claimed/running, which the reclaim rank would otherwise

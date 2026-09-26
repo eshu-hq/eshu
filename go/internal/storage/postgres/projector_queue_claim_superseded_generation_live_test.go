@@ -203,6 +203,32 @@ func TestProjectorClaimSweepsSupersededGenerationRow(t *testing.T) {
 			t.Fatalf("live lease row = %+v, want running and still owned; the claim must not steal a live lease", state)
 		}
 	})
+
+	// failed and dead_letter rows are never claim candidates and replay keeps
+	// them terminal, so the fence leaves them, and their triage class, alone.
+	// Sweeping them would also put a legacy dead-letter backlog into one claim.
+	for _, status := range []string{"failed", "dead_letter"} {
+		t.Run(status+"_left_alone", func(t *testing.T) {
+			database := openClaimDeadlockProofDB(t, dsn, 2)
+			workItemID := "refinalize_scope-t1t_scope-t1t-gen-old"
+			seedSupersededClaimScope(t, database, "scope-t1t",
+				supersededClaimRow{workItemID: workItemID, status: status})
+			if _, err := database.Exec(
+				`UPDATE fact_work_items SET failure_class = 'triage_x' WHERE work_item_id = $1`, workItemID,
+			); err != nil {
+				t.Fatalf("set triage class: %v", err)
+			}
+			queue := NewProjectorQueue(SQLDB{DB: database}, "claimer", time.Minute)
+
+			if work, ok, err := queue.Claim(ctx); err != nil || ok {
+				t.Fatalf("Claim() = (%s, %v, %v), want no claim", work.Generation.GenerationID, ok, err)
+			}
+			state := readSupersededClaimSweepState(t, database, workItemID)
+			if state.status != status || state.failureClass != "triage_x" || state.attempts != 1 {
+				t.Fatalf("%s row = %+v, want status %s and failure_class triage_x unchanged", status, state, status)
+			}
+		})
+	}
 }
 
 // TestProjectorClaimStillClaimsLiveGenerations holds the controls the fence
