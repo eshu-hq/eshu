@@ -318,9 +318,22 @@ coverage gate passes.
 ## Observability
 
 Observability Evidence: `telemetry.RegisterObservableGauges` registers both
-gauges on the queue-depth cadence whenever the queue observer implements
-`ProjectorClaimInvariantObserver`. `QueueObserverStore`, used by the reducer and
-the ingester, does.
+gauges whenever the queue observer it is handed implements
+`ProjectorClaimInvariantObserver`. Since #7214 no binary hands it the raw
+`QueueObserverStore`; both binaries pass snapshot-cached wrappers, and a wrapper
+that does not implement the interface silently drops the gauges. The reducer's
+Postgres gauge snapshot (`registerPostgresBackedGauges`, snapshot gauge
+`reducer_projector_claim_invariants`) therefore reads both counts on its
+background refresh and its cached queue observer implements the interface, so
+the gauges are served from the last snapshot, never computed on a `/metrics`
+scrape. `TestPostgresBackedGaugesServeProjectorClaimInvariants` drives that
+production wiring path. Only the reducer serves them: both counts are
+database-wide, so one emitter is complete and a second would only repeat the
+query; the ingester's wrappers deliberately do not carry them. The refresh
+cadence is `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL` (default `5m`), and
+`eshu_dp_gauge_snapshot_age_seconds{gauge="reducer_projector_claim_invariants"}`
+shows staleness. Like the other scalar snapshot gauges they report nothing, not
+zero, until the first successful refresh.
 
 - `eshu_dp_projector_scopes_multiple_live_leases`: scopes holding more than one
   unexpired claimed or running projector lease. It should always read zero.
@@ -328,7 +341,8 @@ the ingester, does.
   projector work but no fence row. Such a scope is silently stalled. It should
   always read zero. The query is one anti-join; at 200k projector rows (800k
   `fact_work_items`) it ran as a Hash Anti Join in 8.6 ms with 1,393 shared
-  hits.
+  hits. That cost is paid once per snapshot refresh (default every 5 minutes),
+  not per scrape.
 
 Existing signals still apply:
 
