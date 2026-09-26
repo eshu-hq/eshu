@@ -40,6 +40,9 @@ die() {
 	exit 1
 }
 
+# Keep the MCP answer parser's resource-only contract in the demo proof path.
+python3 "${repo_root}/scripts/test-verify-demo-compose-answers-call-mcp-tool.py"
+
 torn_down=0
 teardown() {
 	[[ "${torn_down}" -eq 1 ]] && return 0
@@ -178,8 +181,8 @@ assert_container_env_clean mcp-server
 
 # call_mcp_tool posts a tools/call JSON-RPC request to /mcp/message with NO
 # auth header and prints the tool's answer object as JSON. MCP tools return a
-# canonical envelope { data, truth, error } in structuredContent; this unwraps
-# to `data` (the answer body) so callers assert on the answer fields directly.
+# canonical envelope { data, truth, error } in structuredContent or the
+# embedded resource; the helper unwraps it to `data` for answer assertions.
 # A tool that returns a bare object (no envelope) is passed through unchanged.
 # No Authorization header is sent — the demo serves reads open, and the answers
 # coming back are the evidence that open posture works end to end.

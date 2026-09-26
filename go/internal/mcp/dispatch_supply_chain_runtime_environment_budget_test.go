@@ -115,17 +115,17 @@ func TestDispatchToolSupplyChainRuntimeEnvironmentEvidenceMaximumPageStaysRowBou
 	if err != nil {
 		t.Fatalf("guarded dispatchTool() error = %v, want nil", err)
 	}
-	if guarded == nil || !guarded.IsError || guarded.Envelope == nil || guarded.Envelope.Error == nil {
-		t.Fatalf("guarded maximum page = %#v, want canonical over-budget error", guarded)
+	if guarded == nil || guarded.IsError || guarded.Envelope == nil || guarded.Envelope.Error != nil || !guarded.ResourceOnly {
+		t.Fatalf("guarded maximum page = %#v, want complete resource fallback", guarded)
 	}
-	if got := guarded.Envelope.Error.Code; got != errorCodeResponseOverBudget {
-		t.Fatalf("guarded maximum page error code = %q, want %q", got, errorCodeResponseOverBudget)
+	if size := estimateResponseBytes(guarded); size > defaultToolResponseByteBudget {
+		t.Fatalf("resource-only maximum page = %d bytes, want <= %d", size, defaultToolResponseByteBudget)
 	}
 	t.Logf(
-		"maximum page evidence_entries=%d legacy_response_bytes=%d guarded_error=%s",
+		"maximum page evidence_entries=%d legacy_response_bytes=%d resource_only_bytes=%d",
 		totalEvidence,
 		legacySize,
-		guarded.Envelope.Error.Code,
+		estimateResponseBytes(guarded),
 	)
 }
 

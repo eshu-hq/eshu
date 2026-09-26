@@ -65,6 +65,49 @@ func collectBudgetMetrics(t *testing.T, reader *sdkmetric.ManualReader, tool str
 	return overBudget, count, sum
 }
 
+// collectResourceFallbacks returns the number of complete resource-only
+// responses emitted for one registered tool.
+func collectResourceFallbacks(t *testing.T, reader *sdkmetric.ManualReader, tool string) int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	var total int64
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_mcp_response_resource_fallback_total" {
+				continue
+			}
+			data, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("fallback metric type = %T, want counter", m.Data)
+			}
+			for _, dp := range data.DataPoints {
+				if v, ok := dp.Attributes.Value("tool"); ok && v.AsString() == tool {
+					total += dp.Value
+				}
+			}
+		}
+	}
+	return total
+}
+
+func TestApplyResponseBudgetRecordsResourceFallbackPerTool(t *testing.T) {
+	// Not parallel: installs a process-global meter provider.
+	reader := budgetMetricsForTest(t)
+	result, err := dispatchWithBudget(t, bigRowsHandler(t, 300, 512), defaultToolResponseByteBudget)
+	if err != nil || result.IsError || !result.ResourceOnly {
+		t.Fatalf("resource fallback = (%+v, %v), want success", result, err)
+	}
+	if got := collectResourceFallbacks(t, reader, "find_code"); got != 1 {
+		t.Fatalf("resource fallback counter = %d, want 1", got)
+	}
+	if over, count, _ := collectBudgetMetrics(t, reader, "find_code"); over != 0 || count != 1 {
+		t.Fatalf("budget metrics = (over %d, count %d), want (0, 1)", over, count)
+	}
+}
+
 // TestApplyResponseBudgetRecordsSizeAndOverBudgetPerTool proves the operator
 // signals for #7129: every budgeted response records its wire size under the
 // tool label, and only a response the guard replaces increments the

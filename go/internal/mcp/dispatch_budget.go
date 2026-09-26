@@ -17,8 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-// defaultToolResponseByteBudget caps the serialized size of any single MCP tool
-// response before it is handed back to the LLM client. A heavy graph-returning
+// defaultToolResponseByteBudget caps the serialized mcpToolResult, excluding
+// the enclosing JSON-RPC response and transport newline. A heavy graph-returning
 // tool (a large subgraph, a wide story, a deep visualization packet) can
 // otherwise serialize an arbitrarily large payload straight into the model
 // context window and blow the repo-scale performance contract. The dispatch
@@ -39,21 +39,38 @@ const errorCodeResponseOverBudget query.ErrorCode = "mcp_response_over_budget"
 
 // applyResponseBudget enforces a serialized response-size budget on a dispatch
 // result. When budget <= 0 the guard is disabled and the result is returned
-// unchanged. When the serialized response exceeds the budget, the oversized
-// payload is replaced with a small, bounded canonical envelope that names the
-// budget, the actual size, the estimated token cost, and how to narrow the
-// query, and the original result is dropped so it never reaches the client.
+// unchanged. If both complete copies exceed the budget but the full embedded
+// resource fits, the structured copy is omitted. If the resource also exceeds
+// the budget, a bounded error envelope replaces the result.
 //
 // The replacement is itself an error envelope (IsError=true) so MCP clients and
 // summarizers treat it as a structured failure, not partial data. A structured
 // log event records every budget hit for 3 AM operability.
 func applyResponseBudget(result *dispatchResult, toolName string, budget int, logger *slog.Logger) *dispatchResult {
-	if result == nil || budget <= 0 {
+	if result == nil {
+		return result
+	}
+	result.ToolName = toolName
+	if budget <= 0 {
 		return result
 	}
 	size := estimateResponseBytes(result)
 	recordResponseBytes(toolName, size)
 	if size <= budget {
+		return result
+	}
+	result.ResourceOnly = true
+	emittedSize := estimateResponseBytes(result)
+	if emittedSize > 0 && emittedSize <= budget {
+		recordResponseResourceFallback(toolName)
+		if logger != nil {
+			logger.Info("mcp tool response resource fallback",
+				"tool", toolName,
+				"response_bytes", size,
+				"emitted_bytes", emittedSize,
+				"budget_bytes", budget,
+			)
+		}
 		return result
 	}
 	recordResponseOverBudget(toolName)
@@ -62,46 +79,26 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 			"mcp tool response over budget",
 			"tool", toolName,
 			"response_bytes", size,
+			"resource_bytes", emittedSize,
 			"budget_bytes", budget,
 		)
 	}
 	return overBudgetResult(toolName, size, budget)
 }
 
-// estimateResponseBytes returns the serialized byte size the dispatch result
-// would occupy in the MCP tools/call wire response. handleMessage emits the same
-// payload twice in a single mcpToolResult: once as the raw structuredContent
-// object and again, JSON-string-escaped, inside the resource.Text block. Sizing
-// only one copy lets a ~130-256 KiB payload clear a 256 KiB guard while shipping
-// ~2x that on the wire, defeating the dispatch budget. So both copies are
-// counted: the canonical envelope when present, otherwise the plain value.
-//
-// The structuredContent copy is the marshaled payload itself. The resource.Text
-// copy is that payload re-encoded as a JSON string, so its on-wire size is the
-// quoted length, which json.Marshal of the string reports exactly (including
-// surrounding quotes and any escaping). A marshal failure yields 0, which fails
-// open (no false-positive truncation) rather than refusing a payload that could
-// not be sized.
+// estimateResponseBytes returns the exact serialized size of mcpToolResult,
+// including the summary, embedded resource, and optional structured copy. It
+// excludes the JSON-RPC wrapper and transport newline, as the old guard did.
+// A marshal failure yields 0 so the guard does not refuse an unsized response.
 func estimateResponseBytes(result *dispatchResult) int {
 	if result == nil {
 		return 0
 	}
-	var payload any
-	if result.Envelope != nil {
-		payload = result.Envelope
-	} else {
-		payload = result.Value
-	}
-	encoded, err := json.Marshal(payload)
+	encoded, err := json.Marshal(renderToolResult(result.ToolName, result))
 	if err != nil {
 		return 0
 	}
-	quoted, err := json.Marshal(string(encoded))
-	if err != nil {
-		return 0
-	}
-	// structuredContent copy + resource.Text (JSON-string-escaped) copy.
-	return len(encoded) + len(quoted)
+	return len(encoded)
 }
 
 // estimateResponseTokens converts a serialized byte size into a conservative
@@ -165,8 +162,9 @@ var responseBytesBuckets = []float64{
 // over-budget counter. Fields stay nil when registration fails (for example
 // before a meter provider is installed); callers nil-check before recording.
 type dispatchBudgetInstruments struct {
-	bytes      metric.Int64Histogram
-	overBudget metric.Int64Counter
+	bytes            metric.Int64Histogram
+	overBudget       metric.Int64Counter
+	resourceFallback metric.Int64Counter
 }
 
 var (
@@ -182,7 +180,7 @@ func dispatchBudgetMetrics() *dispatchBudgetInstruments {
 		inst := &dispatchBudgetInstruments{}
 		if hist, err := meter.Int64Histogram(
 			"eshu_dp_mcp_response_bytes",
-			metric.WithDescription("Serialized MCP tools/call response size in bytes (both wire copies, as the dispatch budget counts them), labeled by tool, recorded for every response the budget guard sizes"),
+			metric.WithDescription("Attempted serialized MCP tools/call result size in bytes, including both wire copies, labeled by tool"),
 			metric.WithUnit("By"),
 			metric.WithExplicitBucketBoundaries(responseBytesBuckets...),
 		); err == nil {
@@ -193,6 +191,12 @@ func dispatchBudgetMetrics() *dispatchBudgetInstruments {
 			metric.WithDescription("MCP tool responses replaced by the mcp_response_over_budget error envelope, labeled by tool, so an operator sees which tool defaults exceed the response budget"),
 		); err == nil {
 			inst.overBudget = counter
+		}
+		if counter, err := meter.Int64Counter(
+			"eshu_dp_mcp_response_resource_fallback_total",
+			metric.WithDescription("MCP tool responses whose full resource was preserved by omitting oversized structuredContent, labeled by tool"),
+		); err == nil {
+			inst.resourceFallback = counter
 		}
 		dispatchBudgetInst = inst
 	})
@@ -225,5 +229,13 @@ func recordResponseBytes(toolName string, size int) {
 func recordResponseOverBudget(toolName string) {
 	if inst := dispatchBudgetMetrics(); inst.overBudget != nil {
 		inst.overBudget.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+	}
+}
+
+// recordResponseResourceFallback counts a complete response emitted as one
+// embedded resource after its two-copy form exceeded the byte budget.
+func recordResponseResourceFallback(toolName string) {
+	if inst := dispatchBudgetMetrics(); inst.resourceFallback != nil {
+		inst.resourceFallback.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
 	}
 }

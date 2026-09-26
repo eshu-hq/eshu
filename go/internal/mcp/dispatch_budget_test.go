@@ -152,21 +152,21 @@ func TestDispatchToolZeroBudgetDisablesEnforcement(t *testing.T) {
 	}
 }
 
-func TestDispatchToolResponseDoubledWireOverBudgetTrips(t *testing.T) {
+func TestDispatchToolResponseDoubledWireUsesFullResource(t *testing.T) {
 	t.Parallel()
 
 	// handleMessage serializes an envelope-backed result onto the wire twice:
 	// once as the embedded resource.Text block and again as StructuredContent.
 	// A response whose single envelope marshal sits in the 130-256 KiB band
 	// passes a naive single-marshal guard yet ships ~2x that on the wire. The
-	// budget must account for the duplicate copy and refuse it.
+	// budget must account for the duplicate copy and retain the full resource.
 	const budget = defaultToolResponseByteBudget // 256 KiB
 
 	// 300 rows * 512 bytes marshals to ~156 KiB once: comfortably under the
 	// 256 KiB budget and inside the 130-256 KiB danger band, so a naive
 	// single-marshal guard would wave it through. The doubled wire payload
-	// (resource.Text + structuredContent) lands near ~320 KiB and must be
-	// refused.
+	// (resource.Text + structuredContent) lands near ~320 KiB, so the
+	// structured copy must be omitted.
 	handler := bigRowsHandler(t, 300, 512)
 
 	result, err := dispatchWithBudget(t, handler, budget)
@@ -174,18 +174,120 @@ func TestDispatchToolResponseDoubledWireOverBudgetTrips(t *testing.T) {
 		t.Fatalf("dispatchToolWithOptions() error = %v, want nil", err)
 	}
 	// Guard the test's own premise: one marshal of this payload must sit under
-	// the budget, so the guard can only trip by counting the duplicate copy.
+	// the budget, so the fallback can only be caused by the duplicate copy.
 	if single := singleEnvelopeMarshalBytes(t, handler); single >= budget {
 		t.Fatalf("test payload single marshal = %d bytes, must stay under %d to prove the duplicate-copy guard", single, budget)
 	}
-	if result.Envelope == nil || result.Envelope.Error == nil {
-		t.Fatalf("doubled wire payload over budget must trip the guard, got %#v", result)
+	if result.Envelope == nil || result.Envelope.Error != nil || result.IsError {
+		t.Fatalf("resource fallback lost the complete envelope: %#v", result)
 	}
-	if got, want := result.Envelope.Error.Code, errorCodeResponseOverBudget; got != want {
-		t.Fatalf("error code = %q, want %q", got, want)
+	if !result.ResourceOnly {
+		t.Fatal("doubled wire payload did not select resource fallback")
 	}
-	if !result.IsError {
-		t.Fatal("over-budget result IsError = false, want true")
+	if size := estimateResponseBytes(result); size > budget {
+		t.Fatalf("resource-only response = %d bytes, want <= %d", size, budget)
+	}
+}
+
+func TestLargeSecretInvestigationKeepsFullResourceWithinBudget(t *testing.T) {
+	t.Parallel()
+
+	// Twenty-five findings with long redacted excerpts fit as one canonical
+	// envelope but exceed the wire budget when sent twice.
+	handler := bigRowsHandler(t, 25, 5500)
+	request := &jsonrpcRequest{JSONRPC: "2.0", ID: float64(7), Method: "tools/call"}
+	params, err := json.Marshal(map[string]any{
+		"name":      "investigate_hardcoded_secrets",
+		"arguments": map[string]any{"repo_id": "repository:largest"},
+	})
+	if err != nil {
+		t.Fatalf("marshal tool arguments: %v", err)
+	}
+	request.Params = params
+	server := NewServer(handler, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	response := server.handleMessage(context.Background(), request, "")
+	if response == nil || response.Error != nil {
+		t.Fatalf("handleMessage() = %#v, want successful tool result", response)
+	}
+	result, ok := response.Result.(mcpToolResult)
+	if !ok {
+		t.Fatalf("result type = %T, want mcpToolResult", response.Result)
+	}
+	if result.IsError {
+		t.Fatalf("large single-copy result unexpectedly failed: %#v", result)
+	}
+	if result.StructuredContent != nil {
+		t.Fatalf("oversized duplicate retained structuredContent: %T", result.StructuredContent)
+	}
+	if len(result.Content) != 2 || result.Content[1].Resource == nil {
+		t.Fatalf("content = %#v, want summary and full envelope resource", result.Content)
+	}
+	var envelope query.ResponseEnvelope
+	if err := json.Unmarshal([]byte(result.Content[1].Resource.Text), &envelope); err != nil {
+		t.Fatalf("resource contains invalid envelope JSON: %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map", envelope.Data)
+	}
+	rows, ok := data["results"].([]any)
+	if !ok || len(rows) != 25 {
+		t.Fatalf("resource rows = %d, want 25", len(rows))
+	}
+	for i, value := range rows {
+		row, ok := value.(map[string]any)
+		if !ok || row["id"] != float64(i) || row["blob"] != strings.Repeat("x", 5500) {
+			t.Fatalf("resource row %d lost evidence: %#v", i, value)
+		}
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	estimated := estimateResponseBytes(&dispatchResult{
+		Value: &envelope, Envelope: &envelope,
+		ToolName: "investigate_hardcoded_secrets", ResourceOnly: true,
+	})
+	if estimated != len(encoded) {
+		t.Fatalf("result-object estimate = %d bytes, serialized result = %d", estimated, len(encoded))
+	}
+	wrapper, err := json.Marshal(response)
+	if err != nil || len(wrapper) <= len(encoded) {
+		t.Fatalf("JSON-RPC wrapper size = %d, result size = %d, err = %v", len(wrapper), len(encoded), err)
+	}
+	if len(encoded) > defaultToolResponseByteBudget {
+		t.Fatalf("result wire size = %d, want <= %d", len(encoded), defaultToolResponseByteBudget)
+	}
+}
+
+func TestPlainJSONResponseKeepsEscapedPayloadInResource(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []any{map[string]any{"body": strings.Repeat("\"", 50000)}},
+		})
+	})
+	result, err := dispatchWithBudget(t, handler, defaultToolResponseByteBudget)
+	if err != nil || result == nil || result.IsError || !result.ResourceOnly {
+		t.Fatalf("plain JSON fallback = (%+v, %v), want complete resource", result, err)
+	}
+	rendered := renderToolResult("find_code", result)
+	if rendered.StructuredContent != nil || len(rendered.Content) != 2 || rendered.Content[1].Resource == nil {
+		t.Fatalf("rendered plain result = %#v, want only summary and resource", rendered)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(rendered.Content[1].Resource.Text), &payload); err != nil {
+		t.Fatalf("plain resource JSON: %v", err)
+	}
+	rows, ok := payload["results"].([]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("plain resource results = %#v, want one row", payload["results"])
+	}
+	encoded, err := json.Marshal(rendered)
+	if err != nil || len(encoded) != estimateResponseBytes(result) || len(encoded) > defaultToolResponseByteBudget {
+		t.Fatalf("plain wire size = %d, estimated = %d, err = %v", len(encoded), estimateResponseBytes(result), err)
 	}
 }
 

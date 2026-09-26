@@ -90,8 +90,8 @@ flowchart TB
     serve["handler.ServeHTTP(rec, req)"]
     timeout["structured MCP error\neshu://tool-error/dispatch"]
     pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
-    envelope["mcpToolResult with\ntext summary + structuredContent + resource block"]
-    plain["mcpToolResult with\ntext summary + structuredContent + JSON resource block"]
+    envelope["mcpToolResult with\ntext summary + resource; structuredContent when it fits"]
+    plain["mcpToolResult with\ntext summary + JSON resource; structuredContent when it fits"]
 
     hm --> parse
     parse --> dt
@@ -132,34 +132,32 @@ logging.
 Issue #3498 adds a tool-agnostic response-size budget at the dispatch boundary
 (`dispatch_budget.go`). Every tool response passes through `dispatchTool`, so the
 budget is enforced there once instead of per route. `applyResponseBudget`
-measures the serialized size of the canonical envelope (or plain value) and, when
-it exceeds `defaultToolResponseByteBudget` (256 KiB, ~64k tokens at the repo's
-conservative ~4-bytes-per-token heuristic), replaces the oversized payload with a
-small bounded canonical envelope (`error.code=mcp_response_over_budget`) carrying
-`response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name, and narrowing
-guidance. The original payload is dropped and never reaches the client, so a
-single heavy graph-returning tool (a large subgraph, a wide story, a deep
-visualization packet) cannot blow the model context budget. Per-route token
-budgets such as the relationship-story `token_budget` still apply first; this is
-the outer, tool-agnostic guard, the response-size sibling of the dispatch
-deadline guard; the [source_cache clip](../../../docs/public/reference/http-api/source-cache-clip.md) (#7171) keeps source rows under it.
+measures the exact serialized MCP result against `defaultToolResponseByteBudget`
+(256 KiB, ~64k tokens at the repo's conservative ~4-bytes-per-token heuristic).
+The normal result carries a bounded text summary, `structuredContent`, and an
+embedded resource holding the complete canonical envelope or plain JSON. When
+the duplicate copies exceed the budget but the complete resource-only result
+fits, dispatch omits `structuredContent` and returns `isError=false`; clients
+must parse the resource's JSON `text` when the structured copy is absent. When
+the resource-only result also exceeds the budget, dispatch replaces the payload
+with a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
+carrying `response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name,
+and narrowing guidance. Per-route token budgets such as the relationship-story
+`token_budget` still apply first; this is the outer, tool-agnostic guard, the
+response-size sibling of the dispatch deadline guard. See the
+[response fallback decision](../../../docs/internal/design/7206-mcp-response-budget-fallback.md)
+and [source_cache clip](../../../docs/public/reference/http-api/source-cache-clip.md).
 
-No-Regression Evidence: the budget is a pure post-dispatch in-process size check
-over the already-serialized response — no new graph, storage, queue, or HTTP work.
-`go test ./internal/mcp -run 'TestDispatchToolResponse|TestDispatchToolZeroBudget|TestDefaultDispatchAppliesResponseBudget' -count=1`
-covers over-budget replacement, within-budget pass-through, the disabled-budget
-(`budget<=0`) path, and that the default `dispatchTool` entrypoint enforces the
-budget. The full `go test ./internal/query ./internal/mcp ./cmd/api ./cmd/mcp-server -count=1`
-(3929 tests) stays green, proving no existing tool fixture trips the 256 KiB
-budget — the budget is sized above every honestly bounded read.
+No-Regression Evidence: this guard adds no I/O. Tests cover both wire shapes,
+25-row secrets, oversized resources, disabled enforcement, and full evidence.
 
-Observability Evidence: every budget hit emits the structured log event
-`mcp tool response over budget` with `tool`, `response_bytes`, and `budget_bytes`
-fields (3 AM operable), mirroring the dispatch-deadline `mcp tool dispatch context
-ended` precedent. The budget accounting is also returned in-band in the
-`error.details` block, so callers see why a response was refused and how to narrow
-it. Per-tool `eshu_dp_mcp_response_bytes` and `eshu_dp_mcp_response_over_budget_total`
-make it visible first (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
+Observability Evidence: the resource-only path emits `mcp tool response resource
+fallback` with `tool`, `response_bytes`, `emitted_bytes`, and `budget_bytes`.
+Refusal emits `mcp tool response over budget` and returns budget accounting and
+narrowing guidance in `error.details`. Per-tool `eshu_dp_mcp_response_bytes`,
+`eshu_dp_mcp_response_resource_fallback_total`, and
+`eshu_dp_mcp_response_over_budget_total` distinguish the attempted size,
+successful fallback, and refusal (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
 
 ## Tool groups
 
@@ -622,16 +620,17 @@ element and sets `repo_id` rather than `repo_ids`.
   and a version bump.
 
 - The `Envelope` field of `dispatchResult` is populated by
-  `parseCanonicalEnvelope` and consumed in `handleMessage` (`server.go:276`,
-  `if result.Envelope != nil`). When it is non-nil, the response is returned as
-  `structuredContent` plus a two-block `mcpToolResult`. Do not substitute the
-  `query.EnvelopeMIMEType` string literal; use the constant.
+  `parseCanonicalEnvelope` and rendered by `handleMessage`. When it is non-nil,
+  the response has a two-block `mcpToolResult` containing the complete envelope
+  resource. `structuredContent` is included when the two-copy result fits the
+  budget. Do not substitute the `query.EnvelopeMIMEType` string literal; use
+  the constant.
 
 - Plain JSON handler payloads are not canonical envelopes, but they still carry
-  evidence. MCP returns those payloads in `structuredContent` and as an
-  `application/json` resource at `eshu://tool-result/payload`. Do not collapse
-  them back to text-only summaries; that breaks API/MCP parity for handlers
-  that have not adopted the canonical envelope shape yet.
+  evidence. MCP returns the complete payload as an `application/json` resource
+  at `eshu://tool-result/payload`, and in `structuredContent` when the duplicate
+  fits. Do not collapse them back to text-only summaries; that breaks API/MCP
+  parity for handlers that have not adopted the canonical envelope shape yet.
 
 ## Text summaries
 
@@ -651,9 +650,10 @@ Rules these summarizers must hold:
 - Lead with truth level + freshness when present; surface the error code +
   reason for errors and the truncation + missing/ambiguous counts for partial
   results.
-- Never mutate the structured content. The text block is a convenience layer;
-  `structuredContent` and the resource block stay byte-identical to the
-  canonical envelope. `summaries_structured_invariance_test.go` asserts this.
+- Never mutate the result while building a summary. The text block is a
+  convenience layer; the available machine-readable copy or copies preserve
+  the complete canonical envelope. `summaries_structured_invariance_test.go`
+  asserts this for the ordinary two-copy shape.
 
 ## Related docs
 

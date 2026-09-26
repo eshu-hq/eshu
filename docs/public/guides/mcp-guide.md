@@ -8,16 +8,21 @@ examples, use [Starter Prompts](starter-prompts.md).
 
 ## Read The Envelope
 
-MCP results normally include a human-readable text block and a resource block
-with `mimeType: application/eshu.envelope+json`. Programmatic clients should
-read the resource block.
+MCP results include a human-readable text block and a resource block with
+`mimeType: application/eshu.envelope+json` for canonical envelopes. Programmatic
+clients should read `structuredContent` when present, or parse the resource's
+JSON `text` when it is absent.
 
 The text block is a convenience layer for human readers, not the canonical
 contract. For story, investigation, citation, and status tools it is a
 deterministic, bounded summary of the same envelope (truth level, freshness,
 key counts, and any partial/error detail), but it is length-capped and never
-authoritative. The `structuredContent` and resource block stay byte-identical to
-the canonical envelope; only the text changes. Do not parse the text summary.
+authoritative. Most responses carry the complete envelope in both
+`structuredContent` and the resource. If that duplicate exceeds the 256 KiB MCP
+response budget but the resource alone fits, the successful response omits
+`structuredContent`; the resource still holds the full envelope. If the resource
+alone exceeds the budget, the result carries `mcp_response_over_budget` and
+narrowing guidance. Do not parse the text summary.
 
 Important envelope fields:
 

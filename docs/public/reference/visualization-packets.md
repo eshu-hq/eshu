@@ -237,9 +237,9 @@ The response data wraps the packet under `visualization_packet`:
 
 When the client requests the canonical Eshu envelope, the route copies
 `source_truth` to the envelope truth and the packet truth. The MCP tool returns
-that same envelope in `structuredContent` and in the
-`application/eshu.envelope+json` resource block; the text summary is only a
-bounded convenience string.
+that same envelope in the `application/eshu.envelope+json` resource block and,
+when the duplicate fits the response budget, in `structuredContent`; the text
+summary is only a bounded convenience string.
 
 ## Reused contracts
 

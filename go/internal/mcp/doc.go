@@ -96,11 +96,13 @@
 // must honor r.Context rather than starting unbounded work; dispatch timeout
 // and cancellation failures are returned as MCP error results with structured
 // content. Dispatch also enforces a response-size budget
-// (defaultToolResponseByteBudget) as a tool-agnostic hub throttle: a response
-// whose serialized size exceeds the budget is replaced with a small bounded
-// envelope carrying error code mcp_response_over_budget plus budget accounting
-// and narrowing guidance, so a single heavy graph-returning tool cannot blow the
-// model context budget. Per-route token budgets still apply first.
+// (defaultToolResponseByteBudget) on the serialized MCP result. It normally
+// includes both structuredContent and a complete embedded resource. If those
+// copies exceed the budget together but the resource-only result fits, dispatch
+// omits structuredContent and returns success with the full payload in the
+// resource. If the resource-only result also exceeds the budget, dispatch
+// returns the mcp_response_over_budget error envelope with budget accounting
+// and narrowing guidance. Per-route token budgets still apply first.
 //
 // In HTTP mode the transport is wrapped with the caller-supplied credential
 // middleware when the server is constructed with WithTransportAuth (issue
@@ -234,8 +236,9 @@
 // Relationship-story tools forward min_confidence unchanged to the query layer
 // so the HTTP handler owns confidence-floor validation and filtering.
 // Relationship-story responses preserve the HTTP per-row provenance block in
-// structuredContent; MCP does not reinterpret confidence, truth, freshness, or
-// bounded-result metadata.
+// structuredContent when it fits, and always in the complete resource on a
+// successful response; MCP does not reinterpret confidence, truth, freshness,
+// or bounded-result metadata.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.

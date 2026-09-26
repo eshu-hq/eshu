@@ -576,9 +576,9 @@ Both are labeled by `route` (the matched route pattern, e.g. `GET /api/v0/iac/re
 encodes the method) and `status_class` (`2xx`, `4xx`, `5xx`, …). The `route` value space is the fixed set of
 registered routes, so cardinality stays bounded; concrete request paths with identifiers are never used as
 labels. Requests that match no route are labeled `route="unmatched"`. The admin surface (probes, `/metrics`)
-is served by a separate mux and is intentionally not counted. MCP `tools/call` responses add two more
-per-tool metrics, `eshu_dp_mcp_response_bytes` (histogram) and `eshu_dp_mcp_response_over_budget_total`
-(counter), both labeled by `tool`; see [MCP Response-Budget Telemetry](mcp-response-budget.md).
+is served by a separate mux and is intentionally not counted. MCP `tools/call` adds
+`eshu_dp_mcp_response_bytes`, `eshu_dp_mcp_response_resource_fallback_total`, and `eshu_dp_mcp_response_over_budget_total`
+with bounded `tool` labels; see [MCP Response-Budget Telemetry](mcp-response-budget.md).
 
 Cloud resource paging also emits route-specific, label-safe signals:
 

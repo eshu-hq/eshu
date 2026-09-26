@@ -186,6 +186,9 @@ jobs:
           set -o pipefail
           go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
 
+      - name: Check MCP resource-only demo client
+        run: python3 scripts/test-verify-demo-compose-answers-call-mcp-tool.py
+
       - name: Run capability docs and product-claim verify
         working-directory: go
         shell: bash
