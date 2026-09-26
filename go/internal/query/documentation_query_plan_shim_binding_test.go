@@ -208,7 +208,7 @@ func TestDocumentationFindingsQueryPlanShimRejectsProductionReadDrift(t *testing
 		},
 		{
 			name:  "ingestion scopes join",
-			query: strings.Replace(query, "LEFT JOIN ingestion_scopes", "INNER JOIN ingestion_scopes", 1),
+			query: strings.Replace(query, "JOIN ingestion_scopes", "LEFT JOIN ingestion_scopes", 1),
 			args:  args,
 		},
 		{

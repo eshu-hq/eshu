@@ -46,7 +46,7 @@ CREATE INDEX fact_records_documentation_sources_observed_idx
   ON fact_records (observed_at DESC, fact_id DESC)
   WHERE fact_kind = 'documentation_source' AND is_tombstone = FALSE;
 INSERT INTO ingestion_scopes(scope_id, active_generation_id, payload)
-VALUES ('scope:findings-proof', NULL, '{"repo":"proof"}'),
+VALUES ('scope:findings-proof', 'generation:findings-proof', '{"repo":"proof"}'),
        ('scope:largest-search-proof', 'generation:search-proof', '{"repo":"proof"}');
 
 \echo FINDINGS_SEED_200000
@@ -102,6 +102,7 @@ FROM fact_records
 LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
 WHERE fact_records.fact_kind = 'documentation_finding'
   AND fact_records.is_tombstone = FALSE
+  AND (SELECT s.active_generation_id FROM ingestion_scopes s WHERE s.scope_id = fact_records.scope_id) = fact_records.generation_id
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT 51 OFFSET 0;
 
@@ -124,7 +125,8 @@ SELECT fact_records.payload
           THEN jsonb_build_object('repo', ingestion_scopes.payload->>'repo')
           ELSE '{}'::jsonb END AS payload
 FROM fact_records
-LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
+JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
+ AND ingestion_scopes.active_generation_id = fact_records.generation_id
 WHERE fact_records.fact_kind = 'documentation_finding'
   AND fact_records.is_tombstone = FALSE
   AND fact_records.payload->>'finding_type' = 'target_type'

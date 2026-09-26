@@ -50,12 +50,17 @@ type DocumentationFindingFilter struct {
 // Coverage, RelatedFacts, and MissingEvidence are populated only for a
 // target-anchored query. An unanchored listing leaves them zero, and the
 // response omits the whole readback block rather than emitting empty fields.
+// Binding, Freshness, and EmptyReason describe the generation lifecycle of
+// both finding rows and the related target readback.
 type DocumentationFindingListReadModel struct {
 	Findings        []map[string]any
 	NextCursor      string
 	RelatedFacts    []map[string]any
 	Coverage        DocumentationTargetCoverage
 	MissingEvidence []DocumentationMissingEvidence
+	Binding         DocumentationFactGenerationBinding
+	Freshness       DocumentationFactFreshness
+	EmptyReason     string
 }
 
 // DocumentationFactFilter selects documentation facts for one listing.

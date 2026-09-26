@@ -29,7 +29,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Surface inventory readiness (`GET /api/v0/surface-inventory`) | [Surface Inventory](surface-inventory.md#drift-gate) |
 | Dashboard browser sessions, SAML SSO, and CSRF-safe Console auth | [Dashboard browser sessions](http-api/dashboard-sessions.md) |
 | Component extension inventory and diagnostics | [Status and admin routes](http-api/status-admin.md#component-extension-inventory) and [Component Package Manager](component-package-manager.md) |
-| Optional semantic observations and code hints | [Semantic evidence routes](http-api/semantic-evidence.md) |
+| Optional semantic observations and code hints, bound to active generations by default | [Semantic evidence routes](http-api/semantic-evidence.md) |
 | Repository-bounded semantic retrieval over curated search documents | [Semantic search route](http-api/semantic-search.md) |
 | Deployment evidence, admission decisions, citations, live evidence bundle, documentation findings, packages, CI/CD, SBOM, vulnerability impact with read-time runtime corroboration, codeowners ownership | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
 | Investigation evidence packets for supply-chain impact, deployable-unit truth, and runtime drift | [Investigation Evidence Packet Contract](investigation-evidence-packet.md#http-and-mcp-surfaces) |

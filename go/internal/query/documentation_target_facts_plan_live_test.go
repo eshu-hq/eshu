@@ -184,6 +184,11 @@ SELECT 'generation:proof:' || s || ':' || g, 'scope:proof:' || s, 'proof', clock
        CASE WHEN g = $2::int THEN 'active' ELSE 'superseded' END, clock_timestamp()
 FROM generate_series(1, $1::int) AS s, generate_series(1, $2::int) AS g`, []any{shape.Scopes, shape.Generations}}, {
 		`
+UPDATE ingestion_scopes
+SET active_generation_id = 'generation:proof:' || substring(scope_id FROM 13) || ':' || $1::int::text`,
+		[]any{shape.Generations},
+	}, {
+		`
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, collector_kind,
                           source_system, source_fact_key, observed_at, ingested_at, payload)
 SELECT 'proof:' || s || ':' || g || ':' || n, 'scope:proof:' || s, 'generation:proof:' || s || ':' || g,
@@ -201,17 +206,19 @@ FROM generate_series(1, $1::int) AS s, generate_series(1, $2::int) AS g, generat
 	execProofStatements(t, ctx, db, []proofStatement{{`
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, collector_kind,
                           source_system, source_fact_key, observed_at, ingested_at, payload)
-SELECT 'proof:semantic:' || n, 'scope:proof:' || (1 + n % $1::int), 'generation:proof:' || (1 + n % $1::int) || ':1',
+SELECT 'proof:semantic:' || n, 'scope:proof:' || (1 + n % $1::int), 'generation:proof:' || (1 + n % $1::int) || ':' || $4::int,
        'semantic.documentation_observation', 'proof:semantic:' || n, 'proof', 'proof', 'proof:semantic:' || n,
        timestamptz '2026-02-01 00:00:00+00' + n * interval '1 second', clock_timestamp(),
        jsonb_build_object('candidate_refs', jsonb_build_array(jsonb_build_object('kind', 'repository',
          'id', CASE WHEN n <= $3::int THEN 'repo:probe-target' ELSE 'repo:r' || (n % 5000) END)))
-FROM generate_series(1, $2::int) AS n`, []any{shape.Scopes, shape.Semantic, shape.SemanticHit}}, {`
+FROM generate_series(1, $2::int) AS n`, []any{shape.Scopes, shape.Semantic, shape.SemanticHit, shape.Generations}}, {`
 UPDATE fact_records SET payload = jsonb_build_object(
     'candidate_refs', jsonb_build_array(jsonb_build_object('kind', 'repository', 'id', 'repo:probe-target')),
     'document_id', 'doc:probe')
-WHERE fact_id IN (SELECT fact_id FROM fact_records WHERE fact_kind IN
-      ('documentation_entity_mention', 'documentation_claim_candidate') ORDER BY fact_id LIMIT $1::int)`, []any{shape.TargetHits}}, {`ANALYZE fact_records`, nil}})
+WHERE fact_id IN (SELECT f.fact_id FROM fact_records f
+      JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
+      WHERE f.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate')
+      ORDER BY f.fact_id LIMIT $1::int)`, []any{shape.TargetHits}}, {`ANALYZE fact_records`, nil}})
 }
 
 // proofStatement is one parameterized statement of a seed script; the driver

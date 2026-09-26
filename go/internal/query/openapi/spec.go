@@ -114,6 +114,7 @@ func Spec() string {
 			impact.Rest+
 			impact.Exposure+
 			evidence.Routes+
+			evidence.Documentation+
 			evidence.Bundle+
 			evidence.DocumentationFindingAggregate+
 			repository.PackageRegistry+

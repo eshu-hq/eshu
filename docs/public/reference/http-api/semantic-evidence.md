@@ -19,6 +19,17 @@ Both routes require at least one scope or semantic filter such as `scope_id`,
 `observed_at DESC, fact_id DESC`, use `limit` from 1 to 200, and return
 `truncated` plus `next_cursor` when another page exists.
 
+Without `generation_id`, each route reads only the active generation of each
+matching scope before paging. An explicit `generation_id` reads that exact
+generation, including superseded rows. `generation_binding` identifies the
+mode and generation, while the page's `truth.freshness` labels a historical,
+pending, or unavailable generation. An empty scope with no active generation
+returns no current rows and reports `no_active_generation` in `states`. A row's
+own `freshness_state` remains its collector-provided provenance; it does not
+replace the page's generation freshness. An offset cursor does not pin a
+generation: if a new one activates between pages, repeat or skipped rows are
+possible at that boundary.
+
 Rows include the explicit `truth_basis` (`semantic_observation` or `code_hint`)
 plus source, chunk, provider profile, prompt version, redaction version, policy
 state, freshness state, and admission or corroboration state. Responses do not

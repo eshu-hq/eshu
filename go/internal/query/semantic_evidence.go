@@ -71,8 +71,11 @@ type semanticEvidenceFilter struct {
 }
 
 type semanticEvidenceListReadModel struct {
-	Rows       []map[string]any
-	NextCursor string
+	Rows        []map[string]any
+	NextCursor  string
+	Binding     querycontract.DocumentationFactGenerationBinding
+	Freshness   querycontract.DocumentationFactFreshness
+	EmptyReason string
 }
 
 // Mount registers semantic evidence routes.
@@ -146,12 +149,14 @@ func (h *SemanticEvidenceHandler) list(
 	var hasAuthorizedRows bool
 	filter, hasAuthorizedRows = semanticEvidenceFilterWithRepositoryAccess(r.Context(), filter)
 	if !hasAuthorizedRows {
-		WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, semanticEvidenceListReadModel{}, page), BuildTruthEnvelope(
-			h.profile(),
-			capability,
-			TruthBasisSemanticFacts,
-			"resolved from durable semantic evidence facts",
-		))
+		state := documentationFactUngrantedPageState(documentationFactFilter{
+			ScopeID: filter.ScopeID, GenerationID: filter.GenerationID,
+		})
+		empty := semanticEvidenceListReadModel{
+			Binding: state.Binding, Freshness: state.Freshness, EmptyReason: state.EmptyReason,
+		}
+		WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, empty, page, filter),
+			semanticEvidenceTruth(h.profile(), capability, empty))
 		return
 	}
 	store, ok := h.semanticStore()
@@ -178,12 +183,16 @@ func (h *SemanticEvidenceHandler) list(
 		)
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, readModel, page), BuildTruthEnvelope(
-		h.profile(),
-		capability,
-		TruthBasisSemanticFacts,
-		"resolved from durable semantic evidence facts",
-	))
+	WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, readModel, page, filter),
+		semanticEvidenceTruth(h.profile(), capability, readModel))
+}
+
+func semanticEvidenceTruth(
+	profile QueryProfile, capability string, readModel semanticEvidenceListReadModel,
+) *TruthEnvelope {
+	truth := BuildTruthEnvelope(profile, capability, TruthBasisSemanticFacts,
+		"resolved from durable semantic evidence facts")
+	return withDocumentationGenerationFreshness(truth, readModel.Freshness)
 }
 
 func semanticEvidenceFilterWithRepositoryAccess(
@@ -272,16 +281,19 @@ func semanticEvidenceResponse(
 	responseKey string,
 	readModel semanticEvidenceListReadModel,
 	page documentationPage,
+	filter semanticEvidenceFilter,
 ) map[string]any {
 	rows := readModel.Rows
 	if rows == nil {
 		rows = []map[string]any{}
 	}
 	body := map[string]any{
-		responseKey: rows,
-		"count":     len(rows),
-		"limit":     page.limit,
-		"truncated": strings.TrimSpace(readModel.NextCursor) != "",
+		responseKey:          rows,
+		"count":              len(rows),
+		"limit":              page.limit,
+		"truncated":          strings.TrimSpace(readModel.NextCursor) != "",
+		"states":             documentationGenerationReadStates(len(rows) == 0, "no_semantic_evidence", readModel.EmptyReason),
+		"generation_binding": documentationGenerationBindingResponse(filter.GenerationID, readModel.Binding),
 	}
 	if readModel.NextCursor != "" {
 		body["next_cursor"] = readModel.NextCursor
@@ -355,10 +367,25 @@ func (cr *ContentReader) SemanticEvidence(
 		span.RecordError(err)
 		return semanticEvidenceListReadModel{}, fmt.Errorf("query semantic evidence: %w", err)
 	}
+	if err := rows.Close(); err != nil {
+		span.RecordError(err)
+		return semanticEvidenceListReadModel{}, fmt.Errorf("close semantic evidence rows: %w", err)
+	}
 	nextCursor := ""
 	if len(out) > limit {
 		out = out[:limit]
 		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
-	return semanticEvidenceListReadModel{Rows: out, NextCursor: nextCursor}, nil
+	state, err := cr.documentationFactPageState(ctx, span, documentationFactFilter{
+		ScopeID: filter.ScopeID, GenerationID: filter.GenerationID,
+		AllowedRepositoryIDs: filter.AllowedRepositoryIDs,
+		AllowedScopeIDs:      filter.AllowedScopeIDs,
+	}, out)
+	if err != nil {
+		return semanticEvidenceListReadModel{}, err
+	}
+	return semanticEvidenceListReadModel{
+		Rows: out, NextCursor: nextCursor,
+		Binding: state.Binding, Freshness: state.Freshness, EmptyReason: state.EmptyReason,
+	}, nil
 }

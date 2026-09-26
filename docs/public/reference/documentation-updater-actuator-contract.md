@@ -55,12 +55,18 @@ may use the short forms `source`, `document`, `section`, `link`,
 
 ### Generation binding
 
-`list_documentation_facts` and `GET /api/v0/documentation/facts` read the
+`list_documentation_facts`, `list_documentation_findings`, and their HTTP routes read the
 scope's active generation (each scope's active generation for anchor-only
 requests) unless `generation_id` is set, so a superseded generation is never
 returned as a current fact. `generation_id` reads that exact generation,
 including a superseded one, and `generation_binding`
 (`{mode, generation_id, is_active}`) plus `truth.freshness` label what was read:
+
+The findings route applies the same binding to findings, target-related facts,
+and source-only coverage. Its empty `states` include `no_documentation_findings`
+and, when proven, `scope_not_found` or `no_active_generation`. An explicit
+historical generation keeps its own source-only coverage rather than mixing it
+with the current generation.
 
 | `generation_id` names | `truth.freshness.state` |
 | --- | --- |

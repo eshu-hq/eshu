@@ -18,7 +18,7 @@ const SemanticEvidence = `
         "parameters": [
           {"name": "fact_id", "in": "query", "schema": {"type": "string"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "generation_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Omit to read each scope's active generation; set to read one exact generation, including a superseded one. Page binding and truth freshness label it."},
           {"name": "repo", "in": "query", "schema": {"type": "string"}},
           {"name": "target_kind", "in": "query", "schema": {"type": "string"}},
           {"name": "target_id", "in": "query", "schema": {"type": "string"}},
@@ -60,7 +60,7 @@ const SemanticEvidence = `
         "parameters": [
           {"name": "fact_id", "in": "query", "schema": {"type": "string"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "generation_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Omit to read each scope's active generation; set to read one exact generation, including a superseded one. Page binding and truth freshness label it."},
           {"name": "repo", "in": "query", "schema": {"type": "string"}},
           {"name": "target_kind", "in": "query", "schema": {"type": "string"}},
           {"name": "target_id", "in": "query", "schema": {"type": "string"}},

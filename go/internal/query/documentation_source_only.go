@@ -72,8 +72,12 @@ func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string,
 	clauses := []string{
 		"fact.fact_kind IN (" + documentationSourceOnlyKindLiterals() + ")",
 		"fact.is_tombstone = FALSE",
-		"generation.status = 'active'",
 		documentationNoStructuredRefsPredicate("fact.payload"),
+	}
+	activeJoin := ""
+	if strings.TrimSpace(filter.GenerationID) == "" {
+		clauses = append(clauses, "generation.status = 'active'")
+		activeJoin = " AND scope.active_generation_id = fact.generation_id"
 	}
 	addColumnFilter := func(column, value string) {
 		value = strings.TrimSpace(value)
@@ -113,8 +117,7 @@ SELECT
     COUNT(*) FILTER (WHERE fact.fact_kind = '%s') AS documentation_link_fact_count
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
+  ON scope.scope_id = fact.scope_id%s
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
@@ -124,6 +127,7 @@ WHERE %s
 		facts.DocumentationDocumentFactKind,
 		facts.DocumentationSectionFactKind,
 		facts.DocumentationLinkFactKind,
+		activeJoin,
 		strings.Join(clauses, " AND "),
 	), args
 }

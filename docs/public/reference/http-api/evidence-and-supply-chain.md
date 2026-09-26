@@ -149,9 +149,9 @@ internals directly.
 facts are persisted by a caller or data-plane runtime. Unsupported claim
 families stay visible as `unsupported_claim_type`.
 
-`GET /api/v0/documentation/findings` accepts filters for finding type, source,
-document, status, truth level, freshness state, scope, generation, repository,
-updated time, limit, and cursor.
+`GET /api/v0/documentation/findings` accepts finding, source, document,
+status, truth, freshness, scope, generation, repository, time, limit, and cursor
+filters. Defaults bind to active generations; [generation labels](../documentation-updater-actuator-contract.md#generation-binding) explain historical and empty reads.
 
 `GET /api/v0/documentation/facts` accepts source, document, section, repository,
 target, service, scope, generation, search, updated time, limit, and cursor
