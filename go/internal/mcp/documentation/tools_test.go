@@ -37,7 +37,9 @@ func TestToolsPreserveDocumentationRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal documentation tools: %v", err)
 	}
-	const wantDefinitionsHash = "51ee1b7788fce89e28d89aabe738b8e497f21bc9e92cb1cbc2d99bd3a3d8eb02"
+	// Re-pinned for #7128: list_documentation_facts now documents that a call
+	// without generation_id reads the scope's active generation.
+	const wantDefinitionsHash = "2d1925a9c2459764c9d535c54e9786c2a4509a7ddc472d5a77ac4ca3085c7717"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("documentation tool definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

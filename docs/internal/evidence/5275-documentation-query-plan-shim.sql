@@ -18,6 +18,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 
 CREATE TABLE ingestion_scopes (
   scope_id TEXT PRIMARY KEY,
+  active_generation_id TEXT NULL,
   payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE TABLE fact_records (
@@ -44,9 +45,9 @@ CREATE INDEX fact_records_scope_generation_idx
 CREATE INDEX fact_records_documentation_sources_observed_idx
   ON fact_records (observed_at DESC, fact_id DESC)
   WHERE fact_kind = 'documentation_source' AND is_tombstone = FALSE;
-INSERT INTO ingestion_scopes(scope_id, payload)
-VALUES ('scope:findings-proof', '{"repo":"proof"}'),
-       ('scope:largest-search-proof', '{"repo":"proof"}');
+INSERT INTO ingestion_scopes(scope_id, active_generation_id, payload)
+VALUES ('scope:findings-proof', NULL, '{"repo":"proof"}'),
+       ('scope:largest-search-proof', 'generation:search-proof', '{"repo":"proof"}');
 
 \echo FINDINGS_SEED_200000
 INSERT INTO fact_records (
@@ -335,6 +336,10 @@ WHERE fact_records.is_tombstone = FALSE
     'documentation_claim_candidate', 'semantic.documentation_observation'
   )
   AND fact_records.scope_id = 'scope:largest-search-proof'
+  AND fact_records.generation_id = (
+    SELECT active_generation_id FROM ingestion_scopes
+    WHERE scope_id = 'scope:largest-search-proof'
+  )
   AND LOWER(
     COALESCE(fact_records.payload->>'display_name', '') || ' ' ||
     COALESCE(fact_records.payload->>'title', '') || ' ' ||
@@ -358,6 +363,10 @@ FROM (
       'documentation_claim_candidate', 'semantic.documentation_observation'
     )
     AND scope_id = 'scope:largest-search-proof'
+    AND generation_id = (
+      SELECT active_generation_id FROM ingestion_scopes
+      WHERE scope_id = 'scope:largest-search-proof'
+    )
     AND LOWER(
       COALESCE(payload->>'display_name', '') || ' ' ||
       COALESCE(payload->>'title', '') || ' ' ||
@@ -400,6 +409,10 @@ FROM (
       'documentation_claim_candidate', 'semantic.documentation_observation'
     )
     AND scope_id = 'scope:largest-search-proof'
+    AND generation_id = (
+      SELECT active_generation_id FROM ingestion_scopes
+      WHERE scope_id = 'scope:largest-search-proof'
+    )
     AND LOWER(
       COALESCE(payload->>'display_name', '') || ' ' ||
       COALESCE(payload->>'title', '') || ' ' ||
@@ -465,6 +478,10 @@ FROM (
       'documentation_claim_candidate', 'semantic.documentation_observation'
     )
     AND scope_id = 'scope:largest-search-proof'
+    AND generation_id = (
+      SELECT active_generation_id FROM ingestion_scopes
+      WHERE scope_id = 'scope:largest-search-proof'
+    )
     AND LOWER(
       COALESCE(payload->>'display_name', '') || ' ' ||
       COALESCE(payload->>'title', '') || ' ' ||

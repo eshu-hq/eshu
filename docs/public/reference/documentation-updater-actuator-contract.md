@@ -53,6 +53,36 @@ documentation link `target_uri` values within the requested scope. `fact_kind`
 may use the short forms `source`, `document`, `section`, `link`,
 `entity_mention`, and `claim_candidate`.
 
+### Generation binding
+
+`list_documentation_facts` and `GET /api/v0/documentation/facts` read the
+scope's active generation (each scope's active generation for anchor-only
+requests) unless `generation_id` is set, so a superseded generation is never
+returned as a current fact. `generation_id` reads that exact generation,
+including a superseded one, and `generation_binding`
+(`{mode, generation_id, is_active}`) plus `truth.freshness` label what was read:
+
+| `generation_id` names | `truth.freshness.state` |
+| --- | --- |
+| the active generation | `fresh` |
+| a superseded, completed, or failed generation | `stale`; `detail` names the generation and scope |
+| a pending generation | `building` (`pending_repo_generation`) |
+| an id no scope generation has | `unavailable` |
+
+A scope with no active generation returns an empty page with the
+`no_active_generation` state instead of falling back to another generation; its
+`truth.freshness` is `unavailable` (`dead_lettered_domain`) for a failed scope
+and `building` (`pending_repo_generation`) for one that has not activated yet.
+An unknown `scope_id` returns `scope_not_found`. For a scoped token these labels
+honor its grants: a scope or generation it is not granted is labelled exactly
+like one that does not exist (`scope_not_found`, or `unavailable` for a named
+generation), with no generation id, lifecycle state, or owning scope. A named
+generation whose page returns rows the token may read is labelled normally,
+since those rows already carry their scope and generation. `cursor` is an integer offset
+that names no generation, so a cursor issued before a new generation activates
+pages over the newer active generation and can repeat or skip a row at the page
+boundary.
+
 Repo-hosted documentation collected by the Git collector appears on this route as
 source-neutral documentation facts linked to the repository target, including
 API contract sections, bounded DOCX summaries, bounded CSV/TSV table summaries,

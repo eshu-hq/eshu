@@ -152,8 +152,37 @@ func (cr *ContentReader) DocumentationFacts(
 		factRows = factRows[:limit]
 		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
-	return documentationFactListReadModel{Facts: factRows, NextCursor: nextCursor}, nil
+	// The page rows are closed before the label lookup so the connection is
+	// free for it.
+	if err := rows.Close(); err != nil {
+		span.RecordError(err)
+		return documentationFactListReadModel{}, fmt.Errorf("query documentation facts: %w", err)
+	}
+	state, err := cr.documentationFactPageState(ctx, span, filter, factRows)
+	if err != nil {
+		return documentationFactListReadModel{}, err
+	}
+	return documentationFactListReadModel{
+		Facts:       factRows,
+		NextCursor:  nextCursor,
+		Binding:     state.Binding,
+		Freshness:   state.Freshness,
+		EmptyReason: state.EmptyReason,
+	}, nil
 }
+
+const (
+	// documentationFactActiveScopeJoinSQL carries both the active-generation
+	// bind and, for a scoped token, the scope payload the authorization
+	// predicates read.
+	documentationFactActiveScopeJoinSQL = "\nJOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id" +
+		" AND ingestion_scopes.active_generation_id = fact_records.generation_id"
+	// documentationFactActiveProbeClause probes each candidate row's scope by
+	// primary key without turning the probe into a join, so the ordered scan and
+	// its early stop survive.
+	documentationFactActiveProbeClause = "(SELECT s.active_generation_id FROM ingestion_scopes s" +
+		" WHERE s.scope_id = fact_records.scope_id) = fact_records.generation_id"
+)
 
 // DocumentationEvidencePacket returns the latest packet for one finding.
 func (cr *ContentReader) DocumentationEvidencePacket(
@@ -290,13 +319,37 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		args = append(args, value)
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
-	if strings.TrimSpace(filter.FactKind) != "" {
+	if strings.TrimSpace(filter.FactKind) == facts.DocumentationSourceFactKind {
+		// A literal, not a parameter: a generic plan cannot prove the
+		// documentation_source partial index predicate from `fact_kind = $n`,
+		// so a parameterized source page loses the ordered early stop that
+		// index gives it (#7128). The value is the package constant, never
+		// caller input.
+		clauses = append(clauses, "fact_records.fact_kind = '"+facts.DocumentationSourceFactKind+"'")
+	} else if strings.TrimSpace(filter.FactKind) != "" {
 		addColumnFilter("fact_records.fact_kind", filter.FactKind)
 	} else {
 		clauses = append(clauses, "fact_records.fact_kind IN ("+documentationCollectedFactKindSQLList()+")")
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
-	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	scopeArg := len(args)
+	bindingForm := documentationFactBindingForm(filter)
+	switch bindingForm {
+	case documentationFactBindingExplicit:
+		// An explicit generation keeps the exact read it always had, whatever
+		// its lifecycle status; the handler labels it (#7128).
+		addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	case documentationFactBindingActiveScope:
+		// The scalar subquery is a constant to the planner, so the read walks
+		// fact_records_scope_generation_keyset_idx backward in ORDER BY order
+		// and stops after LIMIT rows. It reuses the scope_id parameter.
+		clauses = append(clauses, fmt.Sprintf(
+			"fact_records.generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $%d)",
+			scopeArg,
+		))
+	case documentationFactBindingActiveProbe:
+		clauses = append(clauses, documentationFactActiveProbeClause)
+	}
 	clauses, args = appendDocumentationTargetClause(
 		clauses,
 		args,
@@ -333,7 +386,12 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		limit = 50
 	}
 	scopeJoin := ""
-	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+	switch {
+	case bindingForm == documentationFactBindingActiveJoin:
+		// One INNER JOIN carries both the active-generation bind and, for a
+		// scoped token, the payload the authorization predicates read.
+		scopeJoin = documentationFactActiveScopeJoinSQL
+	case documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs):
 		scopeJoin = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
 	}
 	args = append(args, limit+1, filter.Offset)

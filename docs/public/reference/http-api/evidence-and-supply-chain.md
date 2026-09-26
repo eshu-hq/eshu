@@ -155,9 +155,9 @@ updated time, limit, and cursor.
 
 `GET /api/v0/documentation/facts` accepts source, document, section, repository,
 target, service, scope, generation, search, updated time, limit, and cursor
-filters. Responses return `facts`, page `count`, normalized `limit`,
-`truncated`, `missing_evidence`, `states`, and `next_cursor` only when the
-bounded page has more rows.
+filters, and returns `facts`, `count`, `limit`, `truncated`, `missing_evidence`,
+`states`, `generation_binding`, and `next_cursor` on a truncated page. Without
+`generation_id` it reads the active generation ([generation binding](../documentation-updater-actuator-contract.md#generation-binding)).
 The optional `fact_kind` filter accepts the canonical
 `semantic.documentation_observation` kind plus `semantic_observation` and
 `documentation_observation` aliases. These rows remain provenance-only semantic
