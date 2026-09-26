@@ -68,10 +68,8 @@ build_fixture() {
 	rm -rf "${fixture}"
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
-	cp "${repo_root}"/scripts/lib/pre-pr-lane.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-fixture-consumers.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-test-selection.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-go-paths.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
 	cat > "${fixture}/scripts/dev/precommit-go.sh" <<'PRECOMMIT'
@@ -155,10 +153,8 @@ build_fixture_deleted_package() {
 	rm -rf "${fixture}"
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go/internal/deleted" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
-	cp "${repo_root}"/scripts/lib/pre-pr-lane.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-fixture-consumers.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-test-selection.sh "${fixture}/scripts/lib/"
-	cp "${repo_root}"/scripts/lib/pre-pr-go-paths.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
 	cat > "${fixture}/scripts/dev/precommit-go.sh" <<'PRECOMMIT'
@@ -216,5 +212,9 @@ status="$(run_fixture "${fixture}" 0)"
 rg -q -- '^precommit-go (fmt|lint) .*go/internal/deleted/pkg\.go' "${fixture}.args" && \
 	{ cat "${fixture}.args" >&2; fail "case D: the deleted file must never reach precommit-go.sh fmt/lint"; }
 true
+
+# ── Cases E-I: the merge-tree step (#7111 F5) ──
+# shellcheck source=lib/test-pre-push-merge-cases.sh
+source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"
 
 printf 'test-pre-push: pass\n'

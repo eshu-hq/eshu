@@ -11,6 +11,14 @@
 #   (b) the 500-line Go file cap on changed files;
 #   (c) gofumpt, golangci-lint, go build, and go vet scoped to changed Go
 #       packages, for fast first feedback;
+#   (c2) `go vet ./...` on the exact merge of the committed HEAD with the base
+#       (origin/main unless ESHU_PRE_PUSH_BASE is set), built with
+#       `git merge-tree` into a stable directory under this worktree's git
+#       dir (scripts/lib/pre-push-merge.sh). A conflict fails closed. It is
+#       skipped, with a message, when HEAD already contains the base or when
+#       the merge's Go inputs equal the base's. It catches a head that compiles
+#       alone but not on the main it will land on (#7053); it cannot catch a
+#       combination that still compiles but behaves differently;
 #   (d) the registry-selected blocking exactness/telemetry/hygiene/docs gates
 #       for changed paths, at tier pre-pr, WITHOUT the whole-module prelude
 #       (that prelude, and the whole-module go-build it adds, are `make pre-pr`'s
@@ -22,9 +30,10 @@
 #       not accidental duplication. Also passes `--pre-push` to
 #       run-selected-gates.sh, which makes the gate step an ALLOWLIST: only
 #       gates registered `local.pre_push: floor` in specs/ci-gates.v1.yaml run
-#       (24 fast gates chosen from 67 local pre-pr timing reports: lint, file
+#       (fast gates chosen from 67 local pre-pr timing reports: lint, file
 #       and directory caps, package docs, perf-evidence, telemetry coverage,
-#       the contract registries). Every other triggered gate prints
+#       the contract registries, plus the repo-wide sweep tests #7111 F5
+#       added). Every other triggered gate prints
 #       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
 #       A denylist of the slowest gates was tried first and still took more
 #       than 15 minutes on a one-line Go change; the allowlist took 400s;
@@ -64,6 +73,8 @@ source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
 source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 # shellcheck source=../lib/pre-pr-go-paths.sh
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
+# shellcheck source=../lib/pre-push-merge.sh
+source "${repo_root}/scripts/lib/pre-push-merge.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 # ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
@@ -199,12 +210,18 @@ else
 	run_step "go test (changed packages)" step_test
 	run_step "500-line file cap" step_filecap
 	run_step "gofumpt + lint + build + vet (changed packages)" step_fmt_lint_build_vet
+	run_step "go vet on HEAD merged with ${base} (merge tree)" step_merge_vet
 	run_step "selected local gates (exactness/telemetry/hygiene/docs)" step_exactness
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 
 printf '\n\033[1m==== pre-push summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
+if [[ -n "${pre_push_merge_tree}" ]]; then
+	printf 'merge tree: %s (HEAD %s + %s %s)\n' "${pre_push_merge_tree}" \
+		"$(git -C "${repo_root}" rev-parse --short=12 HEAD)" "${base}" \
+		"$(git -C "${repo_root}" rev-parse --short=12 "${base}^{commit}")"
+fi
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-push: failures above — fix before pushing.\033[0m\n'
 else
