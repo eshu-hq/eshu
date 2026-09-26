@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -18,6 +19,12 @@ import (
 )
 
 const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
+
+type hardcodedSecretReadinessHookContextKey struct{}
+
+type hardcodedSecretQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
 
 // The compile-time half of the #6060 interface-export tripwire for the
 // source-reporting form of the secrets investigation read; the plain form is
@@ -44,7 +51,10 @@ func (cr *ContentReader) InvestigateHardcodedSecrets(
 // its finalizer has not completed) the read runs the legacy content_files scan,
 // returns identical rows more slowly, and says so through the returned source,
 // the read-source counter, and a span attribute. It never returns a partial
-// side-table answer. The detection pattern (hardcodedSecretSQLPattern) and
+// side-table answer: a ready side-table read rechecks readiness and reads rows
+// through one read-only repeatable-read snapshot. A changed readiness state
+// releases that snapshot before the legacy scan. The detection pattern
+// (hardcodedSecretSQLPattern) and
 // suppression rules (hardcodedSecretSQLSuppressionPredicate) stay the Go
 // sources of truth that both paths and the migration are bound to. Suppressed
 // rows are filtered unless req.IncludeSuppressed is set; Suppressions and
@@ -72,6 +82,35 @@ func (cr *ContentReader) InvestigateHardcodedSecretsWithSource(
 		span.RecordError(err)
 		return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)
 	}
+	if hook, _ := ctx.Value(hardcodedSecretReadinessHookContextKey{}).(func()); hook != nil {
+		hook()
+	}
+	queryer := hardcodedSecretQueryer(cr.db)
+	var snapshot *sql.Tx
+	if ready {
+		tx, err := cr.db.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+			ReadOnly:  true,
+		})
+		if err != nil {
+			span.RecordError(err)
+			return nil, source, fmt.Errorf("begin hardcoded secret read snapshot: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		ready, err = secretlines.Ready(ctx, tx)
+		if err != nil {
+			span.RecordError(err)
+			return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)
+		}
+		if ready {
+			snapshot = tx
+			queryer = snapshot
+		} else if err := tx.Rollback(); err != nil {
+			span.RecordError(err)
+			return nil, source, fmt.Errorf("rollback stale hardcoded secret read snapshot: %w", err)
+		}
+	}
 	var (
 		query string
 		args  []any
@@ -89,7 +128,7 @@ func (cr *ContentReader) InvestigateHardcodedSecretsWithSource(
 		attribute.String("eshu.hardcoded_secret.read_source", string(source)),
 	)
 	cr.recordHardcodedSecretRead(ctx, source)
-	rows, err := cr.db.QueryContext(ctx, query, args...)
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)
@@ -118,6 +157,16 @@ func (cr *ContentReader) InvestigateHardcodedSecretsWithSource(
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return results, source, err
+	}
+	if err := rows.Close(); err != nil {
+		span.RecordError(err)
+		return results, source, fmt.Errorf("close hardcoded secret result: %w", err)
+	}
+	if snapshot != nil {
+		if err := snapshot.Commit(); err != nil {
+			span.RecordError(err)
+			return results, source, fmt.Errorf("commit hardcoded secret read snapshot: %w", err)
+		}
 	}
 	span.SetAttributes(attribute.Int("db.rows.hardcoded_secret_findings", len(results)))
 	return results, source, nil

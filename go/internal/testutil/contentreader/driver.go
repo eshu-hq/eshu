@@ -109,6 +109,25 @@ func (c *contentReaderConn) Begin() (driver.Tx, error) {
 	return nil, fmt.Errorf("Begin not implemented")
 }
 
+// BeginTx accepts transaction options so query tests can exercise read paths
+// that use a database/sql snapshot. The fake keeps its FIFO queue on the same
+// connection, but does not model isolation or rollback visibility.
+func (c *contentReaderConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
+	return contentReaderTx{}, nil
+}
+
+// contentReaderTx is the fake driver's no-op transaction. Its connection owns
+// the queued query results, so Commit and Rollback only satisfy database/sql.
+type contentReaderTx struct{}
+
+func (contentReaderTx) Commit() error {
+	return nil
+}
+
+func (contentReaderTx) Rollback() error {
+	return nil
+}
+
 // QueryContext answers one read.
 //
 // An incidental read the test did not queue a result for -- a readiness probe,

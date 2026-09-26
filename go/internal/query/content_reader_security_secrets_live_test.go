@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-func openSecretProofDatabase(t *testing.T) (context.Context, *sql.DB) {
+func openSecretProofDatabase(t testing.TB) (context.Context, *sql.DB) {
 	t.Helper()
 	ctx, db := postgresproof.OpenDisposableDatabase(
 		t,

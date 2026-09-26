@@ -7,7 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -102,6 +104,75 @@ func TestHardcodedSecretReadFallsBackUntilReadyLive(t *testing.T) {
 	counts := hardcodedSecretReadCounts(t, manual)
 	if counts["legacy_scan"] == 0 || counts["side_table"] == 0 {
 		t.Fatalf("eshu_dp_hardcoded_secret_reads_total by source = %v, want both legacy_scan and side_table recorded", counts)
+	}
+}
+
+// TestHardcodedSecretReadDoesNotUseSideTableAfterReadinessChangesLive proves a
+// bulk load that starts after the initial readiness check cannot make the
+// investigation return the now-incomplete side table. The hook is a test-only
+// interleave seam between that initial check and the production query choice.
+func TestHardcodedSecretReadDoesNotUseSideTableAfterReadinessChangesLive(t *testing.T) {
+	ctx, db := openSecretProofDatabase(t)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	reader := NewContentReader(db)
+	sqlDB := storagepostgres.SQLDB{DB: db}
+
+	readyReached := make(chan struct{})
+	releaseRead := make(chan struct{})
+	readCtx := context.WithValue(ctx, hardcodedSecretReadinessHookContextKey{}, func() {
+		close(readyReached)
+		select {
+		case <-releaseRead:
+		case <-ctx.Done():
+		}
+	})
+	type readResult struct {
+		rows   []codequery.HardcodedSecretFindingRow
+		source codequery.HardcodedSecretReadSource
+		err    error
+	}
+	result := make(chan readResult, 1)
+	go func() {
+		rows, source, err := reader.InvestigateHardcodedSecretsWithSource(
+			readCtx, codequery.HardcodedSecretInvestigationRequest{RepoID: "repo-race", Limit: 10},
+		)
+		result <- readResult{rows: rows, source: source, err: err}
+	}()
+
+	select {
+	case <-readyReached:
+	case <-ctx.Done():
+		t.Fatalf("reader did not reach readiness seam: %v", ctx.Err())
+	}
+
+	if _, err := secretlines.BeginDeferral(ctx, sqlDB); err != nil {
+		t.Fatal(err)
+	}
+	deferred := openDeferredSecretPool(t, ctx, db)
+	secretProofWriter{
+		t: t, ctx: ctx, writer: storagepostgres.NewContentWriter(storagepostgres.SQLDB{DB: deferred}),
+	}.write([]secretProofFile{{
+		repo: "repo-race", path: "src/race.go", language: "go", body: "token = \"race-secret-123456\"\n",
+	}}, false)
+	close(releaseRead)
+
+	var got readResult
+	select {
+	case got = <-result:
+	case <-ctx.Done():
+		t.Fatalf("reader did not finish after release: %v", ctx.Err())
+	}
+	if got.err != nil {
+		t.Fatalf("read after deferral = %v", got.err)
+	}
+	if got.source != codequery.HardcodedSecretReadLegacyScan {
+		t.Fatalf("source after readiness changed = %q, want %q", got.source, codequery.HardcodedSecretReadLegacyScan)
+	}
+	if !slices.ContainsFunc(got.rows, func(row codequery.HardcodedSecretFindingRow) bool {
+		return row.RepoID == "repo-race" && row.RelativePath == "src/race.go"
+	}) {
+		t.Fatalf("legacy rows = %+v, want deferred content row", got.rows)
 	}
 }
 

@@ -128,6 +128,22 @@ primary-key prefix (the inert `finding_kind` tiebreak) streams and stops at
 LIMIT. A hermetic guard also fails if the query text ever names `content_files`
 or `regexp_split_to_table`.
 
+No-Regression Evidence: the #7206 readiness/result atomicity fix adds one
+short read-only repeatable-read transaction and one state-row recheck only when
+the initial probe says `ready`. On disposable PostgreSQL 18.6 with 250 matching
+rows, a 1 s Go benchmark measured limit 25 from 0.388 ms to 0.535 ms
+(+0.148 ms) and limit 200 from 0.664 ms to 0.841 ms (+0.177 ms). If the
+recheck is no longer ready, the transaction rolls back before the legacy scan,
+so the slower path does not retain a snapshot or a pool connection. The
+deterministic live interleave in
+`TestHardcodedSecretReadDoesNotUseSideTableAfterReadinessChangesLive` blocks
+after the initial ready probe, starts deferred content writing, then releases
+the reader; it returned `side_table` before the fix and now returns the deferred
+row through `legacy_scan`. PostgreSQL's [transaction isolation documentation](https://www.postgresql.org/docs/14/transaction-iso.html)
+specifies that repeatable-read statements share the snapshot established by the
+first read, while read committed allows successive statements to observe
+different commits.
+
 ## Write-path cost
 
 Performance Evidence: the write-time derivation is a per-file regex over the file's

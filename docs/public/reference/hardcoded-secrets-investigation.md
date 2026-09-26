@@ -66,7 +66,12 @@ table. It runs the earlier scan over `content_files`, returns the same findings
 in the same order, takes longer (seconds to tens of seconds on a large corpus),
 and labels itself: `coverage.read_path` is `legacy_scan` instead of `side_table`,
 `coverage.limitations` says why, and the truth `reason` names the legacy content
-scan. Check `content_file_secret_lines_state.state`; `ready` means the fast path.
+scan. A request that initially sees `ready` rechecks it in the same short,
+read-only repeatable-read snapshot that serves side-table rows. If a bulk load
+changes readiness before that snapshot begins, the request takes the legacy
+path. If it starts later, the side-table result reflects the earlier snapshot.
+The snapshot is released before a slower legacy scan.
+Check `content_file_secret_lines_state.state`; `ready` means the fast path.
 
 ## What is redacted, what is returned
 

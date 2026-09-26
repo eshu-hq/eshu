@@ -18,6 +18,7 @@ func TestContentReaderInvestigateHardcodedSecretsReturnsClassifiedRows(t *testin
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		secretLinesReadinessResult(true),
+		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
 			rows: [][]driver.Value{
@@ -55,6 +56,7 @@ func TestContentReaderInvestigateHardcodedSecretsDoesNotDropFetchedSuppressedRow
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		secretLinesReadinessResult(true),
+		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
 			rows: [][]driver.Value{
@@ -85,6 +87,7 @@ func TestContentReaderInvestigateHardcodedSecretsPagesAfterSQLSuppressionFilter(
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(true),
 		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
@@ -151,6 +154,40 @@ func TestContentReaderInvestigateHardcodedSecretsServesLegacyScanUntilReady(t *t
 	}
 	if len(results) != 1 || results[0].FindingKind != "api_token" {
 		t.Fatalf("results = %+v, want the one classified row", results)
+	}
+}
+
+// TestContentReaderInvestigateHardcodedSecretsRechecksReadyBeforeSideTableRead
+// proves a ready result that changes before the snapshot begins uses the legacy
+// scan instead of an incomplete side table.
+func TestContentReaderInvestigateHardcodedSecretsRechecksReadyBeforeSideTableRead(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(true),
+		secretLinesReadinessResult(false),
+		{
+			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
+			rows: [][]driver.Value{
+				{"repo-1", "cmd/api/config.go", "go", int64(42), `token := "sk_live_1234567890abcdef"`, "api_token"},
+			},
+			queryContainsInOrder: []string{"WITH candidate_files AS", "FROM content_files", "regexp_split_to_table"},
+		},
+	})
+	reader := NewContentReader(db)
+
+	results, source, err := reader.InvestigateHardcodedSecretsWithSource(context.Background(), codequery.HardcodedSecretInvestigationRequest{
+		RepoID: "repo-1",
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateHardcodedSecretsWithSource() error = %v, want nil", err)
+	}
+	if source != codequery.HardcodedSecretReadLegacyScan {
+		t.Fatalf("source = %q, want %q", source, codequery.HardcodedSecretReadLegacyScan)
+	}
+	if len(results) != 1 || results[0].FindingKind != "api_token" {
+		t.Fatalf("results = %+v, want the one legacy-scan row", results)
 	}
 }
 
