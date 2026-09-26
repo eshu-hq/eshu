@@ -54,7 +54,16 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: aff14629da23ff0f3d1bb4a83abed64973bdbe3326ba84b7de2505b9690d0659
+          source_sha256: 596ecdf9250f7d74fd276be27dbd77bde6bb70862959fe8b5683b7a587297c4c
+          # #7006 review F6: label is the worst-case (unscoped, no repo_id)
+          # shape complexityListAnchor renders -- a bare MATCH (e:Function)
+          # full-corpus inventory scan. When scoped or repo_id is set, the
+          # SAME symbol instead anchors on Repository first
+          # (MATCH (repo:Repository) WHERE ... MATCH (repo)-[:REPO_CONTAINS]->
+          # (f:File)-[:CONTAINS]->(e:Function)), a materially cheaper,
+          # keyed-not-inventory shape this single non_hot entry does not have
+          # a separate slot for; Function stays the admitted label because it
+          # bounds the widest case, not because it is the only one.
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
@@ -184,15 +193,17 @@ source_coverage:
   - file: dependency/handler.go
     calls:
       - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: d53c1e4f6705525935967f097d8d140f7e7d0d5bf1bd66e9c7b6dd80cc169c6d, entry_ids: [QP-SC-DEPS]}
-  - file: entity/handler.go
+  - file: entity/context_handler.go
     calls:
       - symbol: "(*Handler).GetEntityContext"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: cdff58d5d803e0ead3dedeae8b9186ac244c58f4fd65062c27bcd2d61bcbdd25
+          source_sha256: 000e8388ca47382bf21d5f4b159eb8f4a48a4203e8f67119bcad4d50df4db6c9
           key_bound: single_key
           max_results: 1
+  - file: entity/handler.go
+    calls:
       - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 5c4a6153f21d3ef702bc7a10e8c5eeaabc447e7d9d16f8a59c08b8cac4eba252, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity/resolve_workload.go
     calls:
@@ -427,7 +438,13 @@ source_coverage:
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_relationship_filter.go
     calls:
-      - {symbol: "(*InfraHandler).getRelationships", count: 1, non_hot_reason: "unlabeled relationship-detail lookup is inventoried but cannot be admitted until its production anchor is typed"}
+      - symbol: "(*InfraHandler).getRelationships"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: f8838785b939e5a7741fa8adee2ad96ef17ae1738571c7a42083311809408a34
+          key_bound: single_key
+          max_results: 1
   - file: infra_resource_aggregates.go
     calls:
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}

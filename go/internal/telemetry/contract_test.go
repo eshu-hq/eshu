@@ -326,6 +326,7 @@ func TestLogKeys(t *testing.T) {
 		"attempts",
 		"duration_s",
 		"post_callback_duration_s",
+		"graph_query_name",
 		"semantic_extraction.status",
 		"semantic_extraction.source_class",
 		"semantic_extraction.provider_kind",

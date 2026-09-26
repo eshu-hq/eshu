@@ -610,7 +610,13 @@ func TestHandleComplexityListsMostComplexFunctionsWhenSelectorOmitted(t *testing
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "MATCH (e:Function)") {
+				// A repo_id-scoped list seeds the walk from Repository (#7006:
+				// the prior Function-first anchor paid a whole-corpus scan on
+				// every repo-scoped call). See complexity_list_anchor_test.go.
+				if !strings.Contains(cypher, "MATCH (repo:Repository)") {
+					t.Fatalf("cypher = %q, want a Repository-first anchor for a repo_id-scoped list", cypher)
+				}
+				if !strings.Contains(cypher, "(f:File)-[:CONTAINS]->(e:Function)") {
 					t.Fatalf("cypher = %q, want function-only complexity listing", cypher)
 				}
 				if !strings.Contains(cypher, "ORDER BY complexity DESC") {

@@ -82,10 +82,17 @@ Webhook traces also use bounded attributes such as `provider`, `event_kind`,
 
 Graph-read `neo4j.query` spans use `eshu.graph_read.outcome` (`success`, `slow`,
 `recovered`, `deadline`, `caller_deadline`, `unavailable`, `canceled`, or
-`error`), `eshu.graph_read.attempts` (1-2), and
-`eshu.graph_read.configured_deadline_ms`. `caller_deadline` preserves the
-enclosing request's attribution instead of counting it as a graph-policy
-deadline. These spans deliberately omit Cypher text and raw driver errors. See
+`error`), `eshu.graph_read.attempts` (1-2),
+`eshu.graph_read.configured_deadline_ms`, and `eshu.graph_read.query_name` (a
+bounded, low-cardinality caller-supplied route/handler identifier, defaulting
+to `unnamed`). `caller_deadline` preserves the enclosing request's attribution
+instead of counting it as a graph-policy deadline -- except for a shared
+per-label-loop budget (e.g. `GET /api/v0/entities/{entity_id}/context`,
+`POST /api/v0/infra/relationships`), which the reader classifies as `deadline`
+because it IS the graph-read policy's own budget, just derived once in the
+handler instead of once per read. `POST /api/v0/infra/relationships`'s own
+request span also carries `eshu.entity_anchor_labels_tried`. These spans
+deliberately omit Cypher text and raw driver errors. See
 [Graph-read safety](graph-read-safety.md) for the matching API, MCP, metric,
 and warning contract.
 

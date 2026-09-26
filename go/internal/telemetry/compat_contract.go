@@ -70,6 +70,8 @@ const (
 	SpanAttrGraphReadStatementFingerprint = contract.SpanAttrGraphReadStatementFingerprint
 	LogKeyGraphReadStatementFingerprint   = contract.LogKeyGraphReadStatementFingerprint
 	LogKeyGraphReadStatementHead          = contract.LogKeyGraphReadStatementHead
+	SpanAttrGraphReadQueryName            = contract.SpanAttrGraphReadQueryName
+	LogKeyGraphReadQueryName              = contract.LogKeyGraphReadQueryName
 )
 
 // Kubernetes correlation query span (from contract/kubernetes.go).

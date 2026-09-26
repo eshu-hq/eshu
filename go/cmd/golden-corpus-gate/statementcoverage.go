@@ -79,7 +79,9 @@ func runStatementCoverage(o options, stdout io.Writer, r *Report) error {
 
 // printCoverageReport writes the per-backend coverage detail: executed,
 // never-executed, and exempted manifest keys, always-empty and failed-only
-// reads, advisory counter gaps, and unattributed executions. Failures print
+// reads, advisory same-parameter sibling misses (dispatch-miss), advisory
+// counter gaps, and
+// unattributed executions. Failures print
 // in full (they are usually few); advisory lists are capped.
 func printCoverageReport(report backendconformance.StatementCoverageReport, stdout io.Writer) {
 	backends := make([]string, 0, len(report.ByBackend))
@@ -96,6 +98,7 @@ func printCoverageReport(report backendconformance.StatementCoverageReport, stdo
 		printCoverageList(stdout, "exempted", coverage.Exempted, 0)
 		printCoverageList(stdout, "always-empty-read", coverage.AlwaysEmptyReads, 0)
 		printCoverageList(stdout, "failed-read", coverage.FailedReads, maxReportedCoverageLines)
+		printCoverageList(stdout, "dispatch-miss", coverage.DispatchMisses, maxReportedCoverageLines)
 		printCoverageList(stdout, "write-without-counters", coverage.WritesWithoutCounters, maxReportedCoverageLines)
 		printCoverageList(stdout, "unattributed", coverage.Unattributed, maxReportedCoverageLines)
 	}

@@ -31,4 +31,18 @@ const (
 	// literal is replaced with <REDACTED> (booleans and null are kept); it never
 	// carries a parameter or an inline literal value.
 	LogKeyGraphReadStatementHead = "graph_read.statement_head"
+
+	// SpanAttrGraphReadQueryName reports the bounded, low-cardinality caller
+	// name for the query (e.g. "code_quality.complexity",
+	// "code_quality.refactoring", "entity.context",
+	// "platform_impact.deployment_chain"), threaded through the request
+	// context by querycontract.WithGraphQueryName.
+	// Defaults to "unnamed" when no caller set one, so this attribute is
+	// always present rather than sometimes absent (issue #7006). It names the
+	// route/handler, never raw Cypher text or entity identifiers.
+	SpanAttrGraphReadQueryName = "eshu.graph_read.query_name"
+	// LogKeyGraphReadQueryName is the query.graph_read.warning structured log
+	// field carrying the same bounded query name as SpanAttrGraphReadQueryName,
+	// for a slow/deadline/unavailable read (issue #7006 review F2).
+	LogKeyGraphReadQueryName = "graph_query_name"
 )

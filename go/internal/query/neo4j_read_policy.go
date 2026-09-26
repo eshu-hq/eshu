@@ -25,7 +25,11 @@ import (
 )
 
 const (
-	defaultGraphReadTimeout        = 10 * time.Second
+	// defaultGraphReadTimeout mirrors querycontract.DefaultGraphReadTimeout
+	// so the two never drift; that constant is what a caller issuing several
+	// sequential reads for one request (e.g. a per-label anchor loop) shares
+	// across the whole loop via querycontract.WithBoundedGraphReadDeadline.
+	defaultGraphReadTimeout        = querycontract.DefaultGraphReadTimeout
 	defaultGraphReadSlowThreshold  = time.Second
 	defaultGraphReadRetryDelay     = 25 * time.Millisecond
 	graphReadSessionCloseTimeout   = time.Second
@@ -379,6 +383,19 @@ func graphReadResult(
 ) (graphReadOutcome, error) {
 	if parentErr := parentCtx.Err(); parentErr != nil {
 		if errors.Is(parentErr, context.DeadlineExceeded) {
+			// A deadline whose cause is querycontract's
+			// WithBoundedGraphReadDeadline(For) budget (the shared deadline a
+			// per-label anchor loop derives once) IS the graph-read policy's
+			// own budget. It expires a few microseconds before readCtx below,
+			// so without this check every timeout on such a route
+			// misclassified as caller_deadline: no query.graph_read.warning,
+			// no graph_query_name, and a raw context.DeadlineExceeded instead
+			// of ErrGraphReadDeadline (#7006 review F1). It checks
+			// context.Cause, so a shorter caller deadline set outside the
+			// bounded ctx still classifies as caller_deadline (F7).
+			if querycontract.IsBoundedGraphReadDeadline(parentCtx) {
+				return graphReadOutcomeDeadline, &graphReadError{public: ErrGraphReadDeadline, cause: parentErr}
+			}
 			return graphReadOutcomeCallerDeadline, parentErr
 		}
 		return graphReadOutcomeCanceled, parentErr
@@ -431,10 +448,12 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 	statementFingerprint string,
 	cypher string,
 ) {
+	queryName := querycontract.GraphQueryNameFromContext(ctx)
 	span.SetAttributes(
 		attribute.String(telemetry.SpanAttrGraphReadOutcome, string(outcome)),
 		attribute.Int(telemetry.SpanAttrGraphReadAttempts, attempts),
 		attribute.String(telemetry.SpanAttrGraphReadStatementFingerprint, statementFingerprint),
+		attribute.String(telemetry.SpanAttrGraphReadQueryName, queryName),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -469,5 +488,6 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		slog.Float64("duration_seconds", duration.Seconds()),
 		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
 		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
+		slog.String(telemetry.LogKeyGraphReadQueryName, queryName),
 	)
 }

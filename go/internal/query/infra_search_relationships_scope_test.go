@@ -304,8 +304,15 @@ func TestInfraRelationshipsScopedOutOfGrantReturnsNotFound(t *testing.T) {
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if graph.singleN != 1 {
-		t.Fatalf("graph RunSingle calls = %d, want 1", graph.singleN)
+	// #7006: a genuine miss tries every fast-path label (one MATCH per
+	// label, never a disjunction), then the unlabeled pre-#7006 anchor so an
+	// id on any other label still resolves. The fallback is the last read and
+	// must carry the same scoped predicates.
+	if want := len(impactRelationshipAnchorLabels) + 1; graph.singleN != want {
+		t.Fatalf("graph RunSingle calls = %d, want %d", graph.singleN, want)
+	}
+	if !strings.Contains(graph.lastSingle.Cypher, "MATCH (n) WHERE n.id = $entity_id") {
+		t.Fatalf("last read is not the unlabeled fallback anchor:\n%s", graph.lastSingle.Cypher)
 	}
 	if !strings.Contains(graph.lastSingle.Cypher, "n.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped relationships Cypher missing anchor predicate:\n%s", graph.lastSingle.Cypher)
@@ -392,8 +399,15 @@ func TestInfraRelationshipsUnscopedCypherUnchanged(t *testing.T) {
 	if strings.Contains(cypher, "scopeRepo") {
 		t.Fatalf("unscoped relationships Cypher must not traverse repositories:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (n) WHERE n.id = $entity_id") {
-		t.Fatalf("unscoped relationships Cypher must keep the pinned anchor:\n%s", cypher)
+	// #7006: one label per MATCH, never the disjunction string -- a
+	// disjunction silently matches zero rows on the pinned NornicDB build.
+	// The fake answers on the first label tried
+	// (impactRelationshipAnchorLabels[0]).
+	if strings.Contains(cypher, "|") {
+		t.Fatalf("unscoped relationships Cypher contains a label disjunction, which silently matches zero rows on the pinned NornicDB build:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (n:"+impactRelationshipAnchorLabels[0]+") WHERE n.id = $entity_id") {
+		t.Fatalf("unscoped relationships Cypher must keep a single-label anchor (#7006):\n%s", cypher)
 	}
 }
 

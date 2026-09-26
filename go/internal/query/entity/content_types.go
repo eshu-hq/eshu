@@ -44,6 +44,43 @@ var globalGraphOnlyEntityTypes = map[string]struct{}{
 	"file":       {},
 }
 
+// EntityContextAnchorLabelDisjunction is the fast-path label set
+// GetEntityContext tries, one label per MATCH, before its unlabeled fallback
+// (issue #7006).
+//
+// It covers every label resolve_entity can return with no content-store
+// fallback row -- querycontract.GraphBackedEntityTypes (Repository,
+// Directory, File, Module, Function, Class, Struct, Enum, Union, Macro,
+// TypeAnnotation) plus Workload (resolverOnlyGraphEntityTypes above) -- and
+// the other common id-indexed labels a caller holds ids for: Interface and
+// TypeAlias from call-chain responses, WorkloadInstance from workload
+// context. It is a latency list, not a completeness list: the pre-#7006
+// `MATCH (e) WHERE e.id = $entity_id` matched an id on any label, so
+// GetEntityContext finishes with that unlabeled read when every label here
+// misses, and an id on any other label still resolves.
+//
+// This is kept as a "|"-joined string (rather than only the slice below) so
+// TestEntityContextAnchorLabelDisjunctionCoversEveryGraphOnlyResolveEntityType
+// can assert set membership independent of iteration order. It must NOT be
+// interpolated directly into a Cypher label position: on the pinned
+// NornicDB build a label DISJUNCTION in one MATCH (`MATCH (n:A|B)`, with
+// either a trailing WHERE or an inline property map) silently matches zero
+// rows for an id a single-label MATCH resolves correctly -- live-proven on
+// ops-qa for both a code-entity and an infra-entity id (issue #7006). Use
+// EntityContextAnchorLabels to iterate one label per MATCH instead.
+const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Workload|WorkloadInstance|Interface|TypeAlias"
+
+// EntityContextAnchorLabels is EntityContextAnchorLabelDisjunction's labels,
+// ordered most-common-first (the six code-entity labels
+// codequery/chain.AnchorLabelDisjunction already prioritizes, then the rarer
+// structural/infra types) so GetEntityContext's per-label anchor loop
+// resolves the common case on its first try.
+var EntityContextAnchorLabels = []string{
+	"Function", "Class", "Struct", "Interface", "TypeAlias", "File",
+	"Repository", "Directory", "Module", "Enum", "Union", "Macro", "TypeAnnotation", "Workload",
+	"WorkloadInstance",
+}
+
 func knownResolveEntityType(typeName string) bool {
 	if _, ok := globalGraphOnlyEntityTypes[typeName]; ok {
 		return true

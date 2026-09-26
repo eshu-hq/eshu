@@ -4,9 +4,12 @@
 package query
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,6 +23,14 @@ import (
 // concrete relationship types that exist in the graph so the handler can bound
 // its Cypher to the requested edges instead of returning every relationship
 // regardless of the argument (#3492).
+
+// impactRelationshipAnchorLabels is deployment.ImpactAnchorLabelDisjunction's
+// labels, split for one-label-per-MATCH iteration. getRelationships must NOT
+// interpolate the disjunction string directly into a MATCH label position: on
+// the pinned NornicDB build that silently matches zero rows for an id a
+// single-label MATCH resolves correctly (issue #7006, live-proven with a real
+// Workload id).
+var impactRelationshipAnchorLabels = strings.Split(deployment.ImpactAnchorLabelDisjunction, "|")
 
 // getRelationships returns the relationships for a given entity, optionally
 // filtered to a single relationship kind.
@@ -85,8 +96,33 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 
 	typeFilter := infraRelationshipTypeClause(relationshipTypes)
-	cypher := `
-		MATCH (n) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
+	// The bare `MATCH (n)` anchor scans every node in the graph -- proven
+	// live on ops-qa's NornicDB deployment (issue #7006) to blow the 10s
+	// bounded-read deadline.
+	//
+	// A single-clause label DISJUNCTION (`MATCH (n:A|B) WHERE n.id = $id`,
+	// deployment.ImpactAnchorLabelDisjunction interpolated directly) is
+	// live-proven unsafe on this NornicDB pin: it silently returns ZERO rows
+	// for an id a single-label MATCH resolves correctly (reproduced with a
+	// real Workload id). A many-branch `CALL{UNION}` did not return within
+	// 15s for 28 branches.
+	//
+	// So the anchor is a fast path plus an exact fallback: one single-label
+	// MATCH per impactRelationshipAnchorLabels entry, stopping at the first
+	// row, then -- only if every label misses -- the pre-#7006 unlabeled
+	// `MATCH (n)`. The old read resolved an id on ANY label (this route is
+	// also called with code-entity ids such as a Function), so a short label
+	// list alone would turn those into a silent 404. An impact-label hit never
+	// pays the whole-graph scan; any other id pays what the pre-#7006 read
+	// paid, under the shared deadline below.
+	anchors := make([]string, 0, len(impactRelationshipAnchorLabels)+1)
+	for _, label := range impactRelationshipAnchorLabels {
+		anchors = append(anchors, "(n:"+label+")")
+	}
+	anchors = append(anchors, "(n)")
+	buildCypher := func(anchor string) string {
+		return `
+		MATCH ` + anchor + ` WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
 		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + infraRelationshipNeighborClause(access, "target") + `
 		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + infraRelationshipNeighborClause(access, "source") + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
@@ -105,14 +141,49 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		           source_labels: labels(source)
 		       }) as incoming
 	`
+	}
 
 	params := map[string]any{
 		"entity_id": req.EntityID,
 	}
 	access.GraphParams(params)
 
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
+	// #7006 review (P1): the per-label loop must share ONE deadline across
+	// every candidate, not let each RunSingle claim its own fresh
+	// Neo4jReader.runRead window -- production's raw request context
+	// carries no deadline of its own for this route, so an unbounded loop
+	// could pay up to (len(impactRelationshipAnchorLabels)+1) x the single-read
+	// budget (~150s for 15 anchors at 10s each) instead of the one
+	// bounded-read budget the pre-fix single-statement handler had.
+	ctx, cancel := querycontract.WithBoundedGraphReadDeadline(
+		querycontract.WithGraphQueryName(r.Context(), "platform_impact.deployment_chain"),
+	)
+	defer cancel()
+	var row map[string]any
+	var err error
+	labelsAttempted := 0
+	for _, anchor := range anchors {
+		labelsAttempted++
+		row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
+		if err != nil || row != nil {
+			break
+		}
+	}
+	span.SetAttributes(attribute.Int("eshu.entity_anchor_labels_tried", labelsAttempted))
 	if err != nil {
+		// #7006 review F1: Neo4jReader.runRead's graphReadResult now
+		// classifies a spent WithBoundedGraphReadDeadline budget as the
+		// graph-read policy's own deadline and returns the wrapped
+		// querycontract.ErrGraphReadDeadline sentinel directly, so this
+		// translation is normally a no-op against the real reader. It stays
+		// as a defensive fallback: fakeRepoGraphReader (this package's unit
+		// tests) and any other GraphQuery implementation that bypasses
+		// Neo4jReader can still return a raw context.DeadlineExceeded, and
+		// that must never fall through to a generic 500 or -- worse -- be
+		// treated as a silent not-found.
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = querycontract.ErrGraphReadDeadline
+		}
 		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 			return
 		}

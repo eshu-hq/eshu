@@ -22,8 +22,9 @@ func TestHandleCodeQualityInspectionFindsLongFunctionsWithHandles(t *testing.T) 
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				for _, want := range []string{
-					"MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)",
+					"MATCH (repo:Repository)",
 					"repo.id = $repo_id",
+					"MATCH (repo)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:Function)",
 					"line_count >= $min_lines",
 					"ORDER BY line_count DESC, e.name, e.id",
 					"SKIP $offset",

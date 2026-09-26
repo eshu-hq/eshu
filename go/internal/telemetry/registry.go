@@ -230,6 +230,7 @@ var logKeys = []string{
 	LogKeyFileGroupAttempts,
 	LogKeyFileGroupDuration,
 	LogKeyFileGroupPostCallbackDuration,
+	LogKeyGraphReadQueryName,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.
