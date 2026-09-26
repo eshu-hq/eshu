@@ -4,7 +4,7 @@ Issue #5167 asks that every MCP tool succeeds with a personal token whose role
 covers it, and that a route which cannot be tenant-filtered refuses a scoped
 token and says why. The opt-in `catalog-sweep` module of the MCP-identity E2E
 harness proves both on a fresh `docker-compose.e2e.yaml` stack (project
-`eshu-e2e-auth-mcp`, 29xxx ports; see
+`eshu-e2e-auth-mcp`, 29xxx ports, graph on Neo4j; see
 [Docker Compose](docker-compose.md#mcp-identity-auth-e2e-stack)).
 
 ```bash
@@ -32,6 +32,13 @@ baseline manifest is unchanged.
   when a case resolves to a route no ledger classifies, and when a route that
   refuses scoped tokens is not disclosed in its tool description. The runner
   repeats the tool-name comparison against the live `tools/list`.
+- **A route promotion cannot go unnoticed.** Each case's route class is checked
+  in beside it, in `go/internal/mcp/testdata/catalog_sweep_expected_classes.json`
+  (keyed `<tool>/<label>`). The test derives the class from the live predicates
+  and fails when it differs, so a route promoted off (or onto) a ledger stops
+  `go test ./internal/mcp` until the case's arguments and accepted outcomes are
+  revisited and the expectation is updated. The derived policy is still never
+  checked in; only the class each case was written against is.
 - **Scoped, not shared.** The stack has no shared `ESHU_API_KEY`. The module
   seeds a role granting every feature and data class plus a repository target
   for one seeded repository, mints a personal token through `/profile`, and
@@ -41,37 +48,49 @@ baseline manifest is unchanged.
   seeded identifiers. The seed gives the granted repository a graph node and a
   repository-catalog scope, adds an ungranted repository the same way, and adds
   one `state_snapshot` scope; there is no indexed content. Of the 167
-  checked-in calls, 130 allowlisted calls must answer `ok`: they name the
+  checked-in calls, 134 allowlisted calls must answer `ok`: they name the
   seeded repository or scope, or need no subject, so a grant filter that wrongly
-  hid the seeded subject would fail them. 29 allowlisted calls may also answer a
-  second outcome, each with a specific `acceptReason`: 22 name a subject the
+  hid the seeded subject would fail them. 30 allowlisted calls may also answer a
+  second outcome, each with a specific `acceptReason`: 23 name a subject the
   fixture does not seed (a workload, service, code symbol, file, or evidence
   packet) and may answer a typed `not_found`; 7 depend on the stack profile
   (`unsupported_capability` for code divergence and path comparison, the
   default-off `503` for `ask` because Ask Eshu is not enabled on the stack, matched on
   its "ask is not enabled" body so a backend `503` still fails,
   `component_registry_unavailable` because `ESHU_COMPONENT_HOME` is unset). For
-  those 29 the proof is only that the route is mounted and not refused by the
+  those 30 the proof is only that the route is mounted and not refused by the
   route policy; the answer alone does not tell an unseeded subject from a
   filtered one. Five of them (`analyze_code_relationships` for `who_modifies`,
   `calculate_cyclomatic_complexity`, `get_file_content`, `get_file_lines`,
-  `trace_route_callers`) pass the granted
-  repository and answer `not_found`, so the runner replays each through the
-  all-scope console session, which must answer the same typed `404`: the
-  fixture, not the grant, lacks the subject. The Go test rejects a tolerant
+  `trace_route_callers`) name the granted repository in their arguments and
+  answer `not_found`, so the runner replays each through the all-scope console
+  session, sending the request the MCP dispatcher sends (the policy carries each
+  row's dispatched body and query), which must answer the same typed `404`: the
+  fixture, not the grant, lacks the subject. The `who_modifies` dispatch carries
+  no `repo_id` (#7216), so its control proves the entity is absent for every
+  caller, not that the granted repository lacks it. The Go test rejects a tolerant
   entry unless its `acceptReason` quotes one of the row's own unseeded string
   arguments (a seeded-subject placeholder such as `$REPO`, a seeded id, or the
   tool name alone does not count), or, for a row that accepts only capability
   outcomes, names the `ESHU_*` variable, query profile, or graph mode it
   depends on, and unless every accepted outcome is one it
-  lists. The remaining 8 calls reach a ledger or shared-key-only route, which
+  lists. The remaining 3 calls reach a ledger or shared-key-only route (1
+  pending row filtering, 2 shared-key only), which
   must answer the route-policy `403` with a live description that discloses it.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
   fails. The runner prints this split in the step detail.
-  The static split is derived from that policy output; the last live
-  per-row table predates #7183, which promoted
-  `POST /api/v0/code/relationships` off the pending-row-filtering ledger, so the
-  `who_modifies` row and its all-scope control have not been run live since.
+  The static split (134 `ok`, 30 tolerant, 3 ledger) is derived from that
+  policy output. The latest live run, on Neo4j, passed 165 of 167 calls,
+  including every row promoted off the pending-row-filtering ledger by #7183,
+  #7193 and #7191. That run predates #7194, which promoted
+  `search_registry_bundles` off the ledger (a scoped caller reads only public
+  packages, so it now expects `ok` with an empty page); the row was a ledger
+  `403` in that run and has not been live-run since its promotion. The two failures are a product defect
+  tracked in #7215:
+  `find_infra_resources` and `analyze_infra_relationships` answer
+  `backend_timeout` to a scoped token, because Neo4j takes longer than the
+  bounded read to plan the scoped infrastructure queries. Their expected
+  outcomes are unchanged, so the sweep keeps failing until #7215 is fixed.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
   granted repository only, and each single-repository tool refuses the ungranted
