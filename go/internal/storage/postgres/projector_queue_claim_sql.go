@@ -105,8 +105,7 @@ reclaimed_stale_projector_duplicates AS (
 -- whose stale row is busy yields no claim instead of a newer generation.
 --
 -- Two branches (#7130), disjoint by generation status, so UNION ALL adds no
--- duplicates. An expired row beside a live lease can also match the duplicate
--- reclaim above; either update converges to superseded by the next claim. A pending or failed generation is stale only once a newer
+-- duplicates. A pending or failed generation is stale only once a newer
 -- same-scope generation has projector work. A superseded generation is
 -- terminal by itself: its claimable rows (pending, retrying, and
 -- expired-lease claimed/running, which the reclaim rank would otherwise
@@ -121,7 +120,10 @@ reclaimed_stale_projector_duplicates AS (
 -- work rows through the (status) index and applies the source filter as a
 -- probe that folds away when $4 is empty, instead of hash-joining every
 -- projector row; an OR of the branches, or one shared scan feeding both,
--- measured slower (see the #7130 evidence note).
+-- measured slower (see the #7130 evidence note). An expired row beside a live
+-- lease can also match the duplicate reclaim above; PostgreSQL applies one of
+-- the two updates, and either way the row ends superseded by the next claim
+-- at the latest.
 supersedable_projector_generations AS (
     SELECT stale.work_item_id,
            stale_generation.generation_id

@@ -198,10 +198,16 @@ agreed by the arbiter ruling as a P2 that does not block #7130.
   statement and does not say which. Both outcomes converge: a `retrying` row on
   a superseded generation is swept by the next claim, and neither is claimed.
 - `failed` and `dead_letter` rows on a superseded generation are never
-  claimable and never replayed, so nothing moves them. They stay in the status
-  and queue dead-letter gauges until generation retention removes them, while
-  `CountDeadLetterBacklog` and drain exclude them and replay reports them as
-  `skipped_superseded_generation`.
+  claimable and never replayed, so nothing moves them until generation
+  retention deletes them. The status snapshot still counts them: the queue
+  `dead_letter_count`/`failed_count`, the stage counts, the per-domain backlog
+  and the latest-failure row read `active_fact_work_items`, whose
+  stale-generation exclusion covers reducer rows only
+  (`activeFactWorkItemsFromWhere`). `eshu_dp_queue_depth` does not count them,
+  because `queueDepthQuery` reads only pending, claimed, running and retrying
+  rows, and the poison dead-letter gauges skip dead letters whose scope has a
+  newer generation. `CountDeadLetterBacklog` and drain exclude them, and replay
+  reports them as `skipped_superseded_generation`.
 
 ## Tests
 
