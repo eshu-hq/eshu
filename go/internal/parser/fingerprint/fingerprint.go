@@ -285,6 +285,16 @@ func bands(sketch []uint64) []string {
 // would be pure waste at corpus scale. FingerprintBody never fails, so it
 // returns just the result.
 func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) *Result {
+	return FingerprintBodies(lang, []*tree_sitter.Node{body}, src)
+}
+
+// FingerprintBodies fingerprints the concatenated leaf stream of several
+// body nodes in order (issue #6865: every defining equation of a Haskell
+// function feeds one fingerprint). A single body hashes exactly as
+// FingerprintBody: both funnel into this one core, so single-equation output
+// is byte-identical. Nil bodies are skipped; an all-nil or empty list yields
+// the zero-leaf result the caller maps to its below-floor skip.
+func FingerprintBodies(lang string, bodies []*tree_sitter.Node, src []byte) *Result {
 	normalized := strings.ToLower(strings.TrimSpace(lang))
 	if alias, ok := productionLangAliases[normalized]; ok {
 		normalized = alias
@@ -298,7 +308,12 @@ func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) *Result {
 		comments = map[string]bool{}
 	}
 	var leaves []leaf
-	collectLeaves(body, src, comments, &leaves)
+	for _, body := range bodies {
+		if body == nil {
+			continue
+		}
+		collectLeaves(body, src, comments, &leaves)
+	}
 	exact, renamed := classify(leaves, tab.literals)
 	res := &Result{
 		Exact:      hashTokens(exact),

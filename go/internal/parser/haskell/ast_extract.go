@@ -39,6 +39,13 @@ type haskellExtractor struct {
 	// the final complexity is 1 + total decisions + (equations - 1).
 	funcDecisions map[string]int
 	funcEquations map[string]int
+	// funcBodies collects every defining equation node per function key in
+	// walk (source) order. The post-walk applyFingerprints attaches one
+	// fingerprint per row over the concatenated equations, so edits to any
+	// equation change the row's fingerprint (issue #6865). Nodes stay live
+	// for the whole extract walk; aggregation runs before the caller closes
+	// the tree.
+	funcBodies map[string][]*tree_sitter.Node
 }
 
 // newHaskellExtractor builds an extractor bound to one parsed file.
@@ -63,6 +70,7 @@ func newHaskellExtractor(
 		functionItems: make(map[string]map[string]any),
 		funcDecisions: make(map[string]int),
 		funcEquations: make(map[string]int),
+		funcBodies:    make(map[string][]*tree_sitter.Node),
 	}
 }
 
@@ -83,6 +91,25 @@ func (e *haskellExtractor) extract(root *tree_sitter.Node) {
 		e.walkDeclarations(declarations, "", "")
 	}
 	e.applyComplexity()
+	e.applyFingerprints()
+}
+
+// applyFingerprints attaches one fingerprint per function row over the
+// concatenated leaf stream of every defining equation collected during the
+// walk (issue #6865). A single-equation function hashes exactly as before,
+// since one body through the shared core is FingerprintBody. Rows with no
+// defining equation (class-signature rows) keep the no-body skip. This is one
+// record per key, collapsing the old double-record in signature+binding and
+// split below-floor rows; every row is still accounted exactly once.
+func (e *haskellExtractor) applyFingerprints() {
+	for key, item := range e.functionItems {
+		bodies := e.funcBodies[key]
+		if len(bodies) == 0 {
+			fingerprint.Attach("haskell", e.fpHasError, nil, e.source, item, e.fpStats)
+			continue
+		}
+		fingerprint.AttachBodies("haskell", e.fpHasError, bodies, e.source, item, e.fpStats)
+	}
 }
 
 // applyComplexity sets the McCabe cyclomatic complexity on each function row that
@@ -249,9 +276,9 @@ func (e *haskellExtractor) handleSignature(node *tree_sitter.Node, classContext,
 		"decorators":           []string{},
 		"dead_code_root_kinds": []string{"haskell.typeclass_method"},
 	}
-	// Type signatures carry no body: record the no-body skip so per-file
-	// telemetry accounts every function row.
-	fingerprint.Attach("haskell", e.fpHasError, nil, e.source, item, e.fpStats)
+	// Type signatures carry no body. The post-walk applyFingerprints records
+	// the no-body skip for rows with no defining equation, so per-file
+	// telemetry still accounts every function row.
 	e.functionItems[key] = item
 	shared.AppendBucket(e.payload, "functions", item)
 }
@@ -273,15 +300,12 @@ func (e *haskellExtractor) handleBinding(node *tree_sitter.Node, classContext, i
 	e.funcDecisions[key] += haskellEquationDecisions(node, e.source)
 	e.funcEquations[key]++
 
-	if item, fresh := e.ensureFunctionItem(key, name, context, rootKinds, startLine, endLine, sourceEndLine); fresh {
-		fingerprint.Attach("haskell", e.fpHasError, node, e.source, item, e.fpStats)
-	} else if _, ok := item[fingerprint.KeyExact]; !ok {
-		// A class-body signature pre-created this row under the same key
-		// (handleSignature runs before the default-implementation binding),
-		// so the real body still needs attaching. When a previous binding
-		// already set keys this is a no-op by the KeyExact check above.
-		fingerprint.Attach("haskell", e.fpHasError, node, e.source, item, e.fpStats)
-	}
+	// Every defining equation feeds the post-walk fingerprint aggregation
+	// (applyFingerprints); nothing attaches here, so the first equation no
+	// longer wins (issue #6865).
+	e.ensureFunctionItem(key, name, context, rootKinds, startLine, endLine, sourceEndLine)
+	body := *node
+	e.funcBodies[key] = append(e.funcBodies[key], &body)
 	params := haskellTreeFunctionParameters(node, e.source)
 	e.appendBindingVariables(node)
 	e.appendBindingCalls(name, context, params, startLine, endLine)
