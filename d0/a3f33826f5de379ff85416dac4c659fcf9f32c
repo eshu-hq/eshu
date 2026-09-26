@@ -1,0 +1,83 @@
+go/internal/query/content_reader.go
+  s_bc720f29f5e0fd::t_06b488f352a5c8 14,22-24
+go/internal/storage/postgres/secret/lines/backfill.go
+  s_b0d7e3abc26c5a::t_5ea3f5b4ccbfd0 471
+scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+  s_bc720f29f5e0fd::t_a92ee5f0e6c0ae 221
+  s_bc720f29f5e0fd::t_5405e673401448 219-220
+scripts/lib/ifa_fault_generic_runner_wait.sh
+  s_bc720f29f5e0fd::t_a92ee5f0e6c0ae 269,356-357
+  s_bc720f29f5e0fd::t_5405e673401448 339,341,345,347,349
+scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh
+  s_bc720f29f5e0fd::t_e47aeae2263060 40
+  s_bc720f29f5e0fd::t_a92ee5f0e6c0ae 58-59,127,149
+  s_bc720f29f5e0fd::t_512b9f3ccfda35 9-10,57,64,114-120,122-126,128-135,137-143,145-148,150-155,157-159
+  s_bc720f29f5e0fd::t_5405e673401448 60-63,77,121,136,144
+  s_bc720f29f5e0fd::t_898ae73a25b3a2 156
+  s_bc720f29f5e0fd::t_8c0ccfc4e3223f 11,160-183
+go/internal/storage/postgres/secret/lines/session_test.go
+  s_bc720f29f5e0fd::t_86e8aeba81763a 1-16,18-43
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_a5ac17c89a8b56 9,11-12,55-57,66,68,72-75
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_72bfd94fb35022 383,386-392,396,398-400,405-406,409-415
+go/internal/query/README.md
+  s_bc720f29f5e0fd::t_6897adcd9bd4d6 1159
+  s_bc720f29f5e0fd::t_2dd96af774d6ff 1155,1157-1158
+  s_bc720f29f5e0fd::t_057ec726d53b8b 1161-1162
+docs/public/reference/environment-runtime-storage.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 112
+go/cmd/bootstrap-index/README.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 414
+docs/public/reference/environment-ingestion-queues.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 94
+go/cmd/bootstrap-index/main.go
+  s_bc720f29f5e0fd::t_7ff7bca22cc828 187
+go/cmd/bootstrap-index/main_connection_budget_test.go
+  s_bc720f29f5e0fd::t_bb5080c5e28e59 1-37
+docs/public/deployment/service-runtimes-bootstrap.md
+  s_bc720f29f5e0fd::t_ab069d65b6dc27 72,74
+go/cmd/bootstrap-index/bootstrap_pool_budget.go
+  s_bc720f29f5e0fd::t_1309764d908c46 1-22
+go/internal/storage/postgres/README.md
+  s_bc720f29f5e0fd::t_13d7ff737f4137 70
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_a28ab70bf1afeb 51-59
+go/internal/query/content_reader_entity.go
+  s_bc720f29f5e0fd::t_f72aa9cc223da8 9,16,342-357
+  s_b0d7e3abc26c5a::t_f6538d7bcf66fb 358
+go/internal/storage/postgres/schema_order_test.go
+  s_bc720f29f5e0fd::t_260a4d48f1c351 310-311
+  s_bc720f29f5e0fd::t_419f811cd56a2d 312
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_bc720f29f5e0fd::t_260a4d48f1c351 182
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_bc720f29f5e0fd::t_876805c1f903bc 35
+  s_bc720f29f5e0fd::t_260a4d48f1c351 33-34,41
+specs/live-tests.v1.yaml
+  s_bc720f29f5e0fd::t_260a4d48f1c351 47-50,352-363,1360-1371,1860-1879
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d0a3f33826f5de379ff85416dac4c659fcf9f32c",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
