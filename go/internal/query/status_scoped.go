@@ -51,7 +51,7 @@ const indexStatusScopedCompleteness = "scoped_repository_count_only"
 // indexStatusWithheldSections lists every key the unscoped index-status
 // payload carries beyond version and repository_count. A scoped caller is told
 // these were withheld rather than left to infer a partial report is the whole
-// one. TestGetIndexStatusScopedBodyWithholdsDeploymentWideSections derives the
+// one. TestServeIndexStatusScopedBodyWithholdsDeploymentWideSections derives the
 // expected list from a real unscoped response, so adding a section to
 // getIndexStatus without listing it here fails the build.
 var indexStatusWithheldSections = []string{

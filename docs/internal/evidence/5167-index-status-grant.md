@@ -24,7 +24,7 @@ Exactly this body, and nothing else:
 ```
 
 `withheld_sections` is every key the unscoped payload carries beyond `version`
-and `repository_count`. `TestGetIndexStatusScopedBodyWithholdsDeploymentWideSections`
+and `repository_count`. `TestServeIndexStatusScopedBodyWithholdsDeploymentWideSections`
 derives the expected set from a real unscoped response, so a section added to
 `getIndexStatus` without being listed fails the build.
 
@@ -92,7 +92,7 @@ count read 2 with one granted repository, and the body carried the other
 tenant's raw scope id from `queue_blockages.conflict_key`, its coordinator
 instance id, and its display name. This is the leak the withhold shape closes.
 
-GREEN: `TestGetIndexStatusScoped*` and `TestGetIndexStatusSharedCallerPayloadUnchanged`
+GREEN: `TestServeIndexStatusScoped*` and `TestServeIndexStatusSharedCallerPayloadUnchanged`
 in `go/internal/query/status_index_scoped_test.go`:
 
 - N1: repository_count 1 with a two-repository graph, and the fake graph saw a

@@ -123,10 +123,10 @@ func getIndexStatusBody(t *testing.T, h http.Handler, path string) (int, []byte)
 	return rec.Code, rec.Body.Bytes()
 }
 
-// TestGetIndexStatusScopedCallerCountsOnlyGrantedRepositoriesInCypher is N1:
+// TestServeIndexStatusScopedCallerCountsOnlyGrantedRepositoriesInCypher is N1:
 // the grant is bound in the count statement, not applied to an unfiltered
 // count afterwards.
-func TestGetIndexStatusScopedCallerCountsOnlyGrantedRepositoriesInCypher(t *testing.T) {
+func TestServeIndexStatusScopedCallerCountsOnlyGrantedRepositoriesInCypher(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range indexStatusScopedPaths {
@@ -165,8 +165,8 @@ func TestGetIndexStatusScopedCallerCountsOnlyGrantedRepositoriesInCypher(t *test
 	}
 }
 
-// TestGetIndexStatusScopedEmptyGrantSkipsGraph is N2.
-func TestGetIndexStatusScopedEmptyGrantSkipsGraph(t *testing.T) {
+// TestServeIndexStatusScopedEmptyGrantSkipsGraph is N2.
+func TestServeIndexStatusScopedEmptyGrantSkipsGraph(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range indexStatusScopedPaths {
@@ -194,12 +194,12 @@ func TestGetIndexStatusScopedEmptyGrantSkipsGraph(t *testing.T) {
 	}
 }
 
-// TestGetIndexStatusScopedBodyWithholdsDeploymentWideSections is N3: the body
+// TestServeIndexStatusScopedBodyWithholdsDeploymentWideSections is N3: the body
 // is exactly the settled scoped shape, withheld_sections is exactly the keys
 // the unscoped payload carries beyond it, and nothing of another tenant
 // appears anywhere in the serialized body -- including a queue blockage whose
 // conflict_key is that tenant's raw scope id.
-func TestGetIndexStatusScopedBodyWithholdsDeploymentWideSections(t *testing.T) {
+func TestServeIndexStatusScopedBodyWithholdsDeploymentWideSections(t *testing.T) {
 	t.Parallel()
 
 	graph := &indexStatusRepoGraph{repos: []string{indexStatusRepoA, indexStatusRepoB}}
@@ -280,10 +280,10 @@ func TestGetIndexStatusScopedBodyWithholdsDeploymentWideSections(t *testing.T) {
 	}
 }
 
-// TestGetIndexStatusScopedDoesNotReadStatusSnapshot proves the process-global
+// TestServeIndexStatusScopedDoesNotReadStatusSnapshot proves the process-global
 // snapshot is never loaded for a scoped caller: nothing it holds is disclosed,
 // so reading it would only cost a status query for a caller who cannot see it.
-func TestGetIndexStatusScopedDoesNotReadStatusSnapshot(t *testing.T) {
+func TestServeIndexStatusScopedDoesNotReadStatusSnapshot(t *testing.T) {
 	t.Parallel()
 
 	reader := &selectionRecordingReader{snapshot: indexStatusOtherTenantSnapshot(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC))}
@@ -303,9 +303,9 @@ func TestGetIndexStatusScopedDoesNotReadStatusSnapshot(t *testing.T) {
 	}
 }
 
-// TestGetIndexStatusScopedGraphFailureIsNotZero: a failed count must surface,
+// TestServeIndexStatusScopedGraphFailureIsNotZero: a failed count must surface,
 // because zero is a valid, materially different answer for a scoped caller.
-func TestGetIndexStatusScopedGraphFailureIsNotZero(t *testing.T) {
+func TestServeIndexStatusScopedGraphFailureIsNotZero(t *testing.T) {
 	t.Parallel()
 
 	handler := &StatusHandler{
@@ -326,9 +326,9 @@ func TestGetIndexStatusScopedGraphFailureIsNotZero(t *testing.T) {
 	}
 }
 
-// TestGetIndexStatusSharedCallerPayloadUnchanged is N4's handler half: a
+// TestServeIndexStatusSharedCallerPayloadUnchanged is N4's handler half: a
 // shared-key caller keeps the full unfiltered report and the unfiltered count.
-func TestGetIndexStatusSharedCallerPayloadUnchanged(t *testing.T) {
+func TestServeIndexStatusSharedCallerPayloadUnchanged(t *testing.T) {
 	t.Parallel()
 
 	graph := &indexStatusRepoGraph{repos: []string{indexStatusRepoA, indexStatusRepoB}}
