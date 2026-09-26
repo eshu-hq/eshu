@@ -112,6 +112,16 @@ type HardcodedSecretInvestigationRequest = codequery.HardcodedSecretInvestigatio
 // code move set. See #6060.
 type HardcodedSecretInvestigator = codequery.HardcodedSecretInvestigator
 
+// HardcodedSecretReadSource is the exported seam for
+// codequery.HardcodedSecretReadSource, which content_reader_security_secrets.go
+// returns from outside the code move set (#7125).
+type HardcodedSecretReadSource = codequery.HardcodedSecretReadSource
+
+// HardcodedSecretSourceInvestigator is the exported seam for
+// codequery.HardcodedSecretSourceInvestigator, which content_reader.go
+// asserts *ContentReader against (#7125).
+type HardcodedSecretSourceInvestigator = codequery.HardcodedSecretSourceInvestigator
+
 // LanguageQueryGrant is the exported seam for languageQueryGrant, which
 // language/handler.go and language/metadata.go read from outside the
 // code move set. See #6060.

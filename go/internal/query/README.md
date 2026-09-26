@@ -1152,14 +1152,14 @@ live in [evidence-notes.md](evidence-notes.md).
   performance bounds do not blur result-list pagination with raw scan coverage.
   Unsupported language metadata and repository-root
   `test/`, `tests/`, and `__tests__/` paths stay out of default cleanup results.
-- Hardcoded-secret investigation applies test, fixture, example, and placeholder
-  suppression inside the Postgres query before `LIMIT` and `OFFSET`
-  (`content_reader_security_secrets.go`). The SQL predicate and Go suppression
-  notes both derive from `hardcodedSecretSuppressionRules`, and
-  `code_security_secrets.go` treats the returned content-store rows as the
-  already-paged result window; do not move suppression back into either Go row
-  loop, because that makes `truncated` and offset paging describe the
-  pre-suppression row set instead of the visible results.
+- Ready-state hardcoded-secret reads scan `content_file_secret_lines`
+  (migration 131, #7125) by primary key to `LIMIT`
+  (`content_reader_security_secrets.go`), applying scope, kind, and suppression
+  before `LIMIT` and `OFFSET`. Until ready, the legacy `content_files` scan
+  preserves results. The Go pattern and `hardcodedSecretSQLSuppressionPredicate()`
+  are bound to migration 131 by `hardcoded_secret_migration_binding_test.go`;
+  changes need a new re-derivation migration. Keep suppression in SQL and
+  `content_files` scans confined to the unready fallback.
 - Content reads return `source_backend=unavailable` when Postgres does not have
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.

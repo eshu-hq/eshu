@@ -159,7 +159,7 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	contentReader := query.NewContentReader(rawDB)
+	contentReader := query.NewContentReader(rawDB).WithInstruments(instruments)
 	statusReader := status.WithSemanticProviderProfiles(
 		newStatusStore(newStatusQueryer(rawDB, instruments), instruments),
 		semanticProviderProfiles...,

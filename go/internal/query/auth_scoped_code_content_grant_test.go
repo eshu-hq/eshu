@@ -320,7 +320,7 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 				filters, _, _ := hardcodedSecretFilters(HardcodedSecretInvestigationRequest{RepoID: codeGrantGrantedRepo})
 				return filters
 			},
-			want: "repo_id = ANY($1)",
+			want: "s.repo_id = ANY($1)",
 		},
 		{
 			name: "symbol_search",

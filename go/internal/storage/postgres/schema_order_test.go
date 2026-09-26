@@ -307,9 +307,11 @@ var orderedBootstrapDefinitionNames = []string{
 	"service_materialization_generations_scope_backfill",
 	"service_materialization_generations_active_service_idx_rescope",
 	"service_materialization_generations_active_service_idx_v2",
-	// migration 130 (#7115) adds projector_scope_claim_fences, the per-scope
+	// Migration 130 (#7115) adds projector_scope_claim_fences, the per-scope
 	// claim fence only the projector claim locks and bumps, with an AFTER
-	// INSERT trigger on ingestion_scopes and a backfill. Numbered 130, after
-	// #6475's 126-129.
+	// INSERT trigger on ingestion_scopes and a backfill.
 	"projector_scope_claim_fences",
+	// Migration 131 (#7125) derives hardcoded-secret findings at content write
+	// time and serves investigations from the side table.
+	"content_file_secret_lines",
 }

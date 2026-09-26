@@ -216,8 +216,9 @@ _ifa_symbol_runtime_cell_killworker() {
 		|| die "${cell}: replacement did not claim every captured partition under its distinct process owner"
 	run_drain_gate "${cell}"
 	ifa_fault_require_runner_leases_reclaimed "${cell}" "${family}" "${durable_snapshot}" \
-		|| die "${cell}: captured dead-owner durable leases were not reclaimed and released"
-	printf '%s: durable reclaim: dead-owner leases stayed fenced until expiry, then replacement PID %s claimed and released them\n' \
+		"${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${reducer_after}" \
+		|| die "${cell}: expected replacement PID durable releases were missing after its valid transitions"
+	printf '%s: durable reclaim: dead-owner leases stayed fenced until expiry, then replacement PID %s transitioned and released every captured partition\n' \
 		"${cell}" "${reducer_after}"
 	ifa_fault_drop_runner_lease_audit "${cell}" \
 		|| die "${cell}: could not remove the test-local durable lease transition audit"

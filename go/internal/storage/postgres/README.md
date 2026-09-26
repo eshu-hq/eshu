@@ -66,6 +66,8 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- `content_file_secret_lines` (migration 131, #7125) is trigger-derived and
+  readiness-gated; see [secret/lines](secret/lines/README.md) for its invariants.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the three exact trigram GINs for file content, entity source, and

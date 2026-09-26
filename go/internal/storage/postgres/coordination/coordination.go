@@ -25,12 +25,23 @@ type Locker interface {
 
 // OwnershipPolicy bounds WaitForOwnership: Wait is the total time to wait
 // for another bootstrapper, Poll the try cadence, LogEvery how often the
-// holder is logged while waiting.
+// holder is logged while waiting. Subject names what is being owned in the
+// messages and Lock labels the events' lock attribute; empty values mean the
+// schema bootstrap lock ("schema bootstrap" and "schema"), so the #6956 texts
+// stay byte-identical. The secret-lines bulk-load run lock (#7125) passes
+// "secret lines bulk load" and "bulk_load".
 type OwnershipPolicy struct {
 	Wait     time.Duration
 	Poll     time.Duration
 	LogEvery time.Duration
+	Subject  string
+	Lock     string
 }
+
+const (
+	defaultOwnershipSubject = "schema bootstrap"
+	defaultOwnershipLock    = "schema"
+)
 
 // LockRetryPolicy bounds RetryOnLockTimeout: the backoff doubles from
 // InitialBackoff up to MaxBackoff, and the statement fails once the next
@@ -81,18 +92,26 @@ func WaitForOwnership(
 	sleep Sleeper,
 	now func() time.Time,
 ) error {
+	subject, lockName := policy.Subject, policy.Lock
+	if subject == "" {
+		subject = defaultOwnershipSubject
+	}
+	if lockName == "" {
+		lockName = defaultOwnershipLock
+	}
 	started := now()
 	var lastLog time.Time
 	polls := 0
 	for {
 		locked, err := locker.TryLock(ctx)
 		if err != nil {
-			return fmt.Errorf("acquire schema bootstrap ownership: %w", err)
+			return fmt.Errorf("acquire %s ownership: %w", subject, err)
 		}
 		if locked {
 			if polls > 0 {
-				logger.InfoContext(ctx, "postgres schema bootstrap ownership acquired after waiting",
+				logger.InfoContext(ctx, "postgres "+subject+" ownership acquired after waiting",
 					telemetry.EventAttr("bootstrap.postgres.ownership.acquired"),
+					"lock", lockName,
 					"waited_ms", now().Sub(started).Milliseconds(),
 					"polls", polls,
 				)
@@ -103,13 +122,14 @@ func WaitForOwnership(
 		current := now()
 		waited := current.Sub(started)
 		if waited > policy.Wait {
-			return fmt.Errorf("acquire schema bootstrap ownership: another bootstrapper (%s) held it for more than %s", describeHolder(ctx, locker), policy.Wait)
+			return fmt.Errorf("acquire %s ownership: another bootstrapper (%s) held it for more than %s", subject, describeHolder(ctx, locker), policy.Wait)
 		}
 		// The holder is queried only when it is about to be logged: on the
 		// first failed poll and then every LogEvery.
 		if lastLog.IsZero() || current.Sub(lastLog) >= policy.LogEvery {
-			logger.InfoContext(ctx, "postgres schema bootstrap waiting for ownership",
+			logger.InfoContext(ctx, "postgres "+subject+" waiting for ownership",
 				telemetry.EventAttr("bootstrap.postgres.ownership.waiting"),
+				"lock", lockName,
 				"holder", describeHolder(ctx, locker),
 				"waited_ms", waited.Milliseconds(),
 				"wait_ms", policy.Wait.Milliseconds(),
@@ -117,7 +137,7 @@ func WaitForOwnership(
 			lastLog = current
 		}
 		if err := sleep(ctx, policy.Poll); err != nil {
-			return fmt.Errorf("acquire schema bootstrap ownership: %w", err)
+			return fmt.Errorf("acquire %s ownership: %w", subject, err)
 		}
 	}
 }

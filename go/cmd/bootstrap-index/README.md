@@ -54,7 +54,7 @@ flowchart TD
     F --> G["IaC reachability: MaterializeIaCReachability\n(bootstrap_pipeline.go)\ncorpus-wide active-generation classification"]
     G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(bootstrap_pipeline.go)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
     H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(bootstrap_pipeline.go)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
-    H2 --> I["finalize exact content substring indexes\nANALYZE + durable ready state"]
+    H2 --> I["finalize exact content substring indexes\nANALYZE + durable ready state\n(concurrently) rebuild the hardcoded-secret\nside table + publish ready (bootstrap_finalize.go)"]
     I --> J["exit 0"]
 ```
 
@@ -288,7 +288,7 @@ with the bounded `index_state` (`building`, `ready`, or `failed`) and terminal
 `content_substring_index_state` row distinguishes `not_built`, `building`,
 `ready`, and `failed` across process crashes. The existing bootstrap phase
 histogram records the total build, validation, and `ANALYZE` duration under
-`bootstrap_phase=content_index_finalization`.
+`bootstrap_phase=content_index_finalization`. The hardcoded-secret side table follows the same bulk-load shape (#7125): every connection runs `secretlines.DeferredSessionSQL`, `secretLinesLifecycle.begin` turns readiness off before any write, and `finalizeBootstrapContent` runs `secretlines.Finalize` beside the index build (`bootstrap_phase=secret_lines_finalization`, `failure_class=secret_lines_backfill_failure`, run fails on error, reads stay correct on the legacy scan); `run` holds `secretLinesLifecycle.lock` (the session advisory lock `(5318,1)` from `secretlines.AcquireBulkLoadLock`, one pinned pool connection counted in `commitLaneReserve`) from right after the database opens, before the schema apply and `BeginDeferral`, until after the finalizers, on every path, so a second bootstrap-index waits (`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`) and then fails naming the holder; see `go/internal/storage/postgres/secret/lines/README.md`.
 
 Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 
@@ -411,7 +411,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | DEFAULT_DATABASE | `nornic` | Bolt database name |
 | `ESHU_NEO4J_BATCH_SIZE` | backend default | Canonical node batch size |
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Concurrent projection goroutines |
-| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; one pooled connection per batch, so set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
+| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; one pooled connection per batch. Bootstrap-index requires `ESHU_POSTGRES_MAX_OPEN_CONNS>=2` because its run-scoped bulk-load lock pins one connection. |
 | `ESHU_DISCOVERY_REPORT` | `""` | File path to write discovery advisory JSON; empty disables |
 | `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB); unset (Neo4j) | Graph write transaction timeout. Neo4j applies it only when set to a positive duration. |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |

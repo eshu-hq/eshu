@@ -238,7 +238,7 @@ func wireAPI(
 	// Capture the read seam when a session is open. Undriven readers stay
 	// undecorated so lightweight profiles keep their graph-free responses.
 	graphReader := captureSession.ReaderIfConfigured(neo4jReader)
-	contentReader := query.NewContentReader(rawDB)
+	contentReader := query.NewContentReader(rawDB).WithInstruments(instruments)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted, then start the #6793 infra read
 	// model backfill in the background. Graph-disabled profiles skip both.
