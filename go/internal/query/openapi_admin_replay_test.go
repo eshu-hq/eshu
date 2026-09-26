@@ -33,7 +33,8 @@ func TestOpenAPIAdminReplayDocuments422RefusedWorkItems(t *testing.T) {
 	props := testutil.MustMapField(t, schema, "properties")
 	items := testutil.MustMapField(t, testutil.MustMapField(t, props, "refused_work_items"), "items")
 	itemProps := testutil.MustMapField(t, items, "properties")
-	for _, field := range []string{"work_item_id", "failure_class", "reason"} {
+	// generation_id carries the #7130 superseded-generation refusal.
+	for _, field := range []string{"work_item_id", "failure_class", "generation_id", "reason"} {
 		if _, ok := itemProps[field]; !ok {
 			t.Fatalf("refused_work_items item schema missing %q: %v", field, itemProps)
 		}

@@ -87,6 +87,8 @@
   once a newer generation is visible, or local polling can spend minutes writing
   graph state that will be immediately obsolete. It demotes only a `pending`
   generation; an `active` one keeps the scope pointer until successor Ack.
+  Ack never revives a `superseded` generation and replay skips its projector
+  rows: see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate

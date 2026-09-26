@@ -225,8 +225,12 @@ missing-state patterns without reading raw facts.
 
 `POST /admin/replay` replays failed projector or reducer work through the Go
 recovery handler. The request accepts `stage`, `scope_ids`, `failure_class`,
-and `limit`. The response includes `status`, `stage`, `replayed`, and
-`work_item_ids`.
+and `limit`. The response includes `status`, `stage`, `replayed`,
+`work_item_ids`, and `skipped_superseded_generation`. That count is the
+projector rows matching the filter that were left `dead_letter` or `failed`
+because their scope generation is superseded (#7130). Replaying one would let
+the projector Ack try to re-activate a retired generation, so the replay and the
+dead-letter backlog count both exclude them.
 
 `POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
 response includes `status`, `enqueued`, and `scope_ids`, plus

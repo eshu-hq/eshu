@@ -35,6 +35,20 @@ then replay with `force=true` and a `reason` that says what was fixed.
 Broad selectors (`scope_id`, `stage`) still skip refused classes silently and
 replay the rest; they do not name specific rows.
 
+## Superseded-generation projector rows
+
+A projector row whose scope generation is `superseded` is never replayed
+(#7130). A newer ingestion of the same scope already replaced that generation,
+and acking the replayed row would try to re-activate it. Broad selectors skip
+these rows. A request naming them in `work_item_ids` gets a `422` whose
+`refused_work_items` entries carry `work_item_id`, `generation_id`,
+`failure_class: projector_replay_generation_superseded`, and a `reason`.
+
+`force=true` does not apply to this refusal, and it runs before the unsafe-class
+check. Drop the named ids and retry. The governance audit reason code is
+`replay_refused_superseded_generation`. Reducer rows on a superseded generation
+are not affected.
+
 ## Behavior that does not change
 
 - **Mixed requests are refused whole.** If any named id is in a refused class,
@@ -47,7 +61,8 @@ replay the rest; they do not name specific rows.
 - **Ids that do not exist, or are not `dead_letter` or `failed`, are not
   refused.** They are simply not replayed. A `200` with `replayed_count: 0`
   therefore means nothing matched, never that matched rows were skipped.
-- **`force=true` skips the check.** The named rows replay as before.
+- **`force=true` skips the unsafe-class check.** The named rows replay as
+  before, unless one is a superseded-generation projector row.
 - **The check honors `scope_id` and `stage`.** An id outside the requested scope
   or stage is not a candidate and does not cause a refusal, because the check
   applies the same selectors as the replay.
