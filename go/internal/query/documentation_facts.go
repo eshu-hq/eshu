@@ -4,11 +4,16 @@
 package query
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -121,13 +126,23 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	span.SetAttributes(attribute.String(documentationGenerationBindingAttr, documentationFactBindingForm(filter)))
 	filter, ok = documentationFactFilterWithRepositoryAccess(r.Context(), filter)
 	if !ok {
-		empty := documentationFactListReadModel{}
+		// A token with no grants sees what an ungranted scope or generation
+		// gets from the store, so its denial is indistinguishable from an
+		// unknown id (#7128).
+		state := documentationFactUngrantedPageState(filter)
+		empty := documentationFactListReadModel{
+			Binding:     state.Binding,
+			Freshness:   state.Freshness,
+			EmptyReason: state.EmptyReason,
+		}
 		WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(empty, page, filter), documentationFactsTruth(h.profile(), empty))
 		return
 	}
+	// Recorded from the filter the store builds its SQL from: the access filter
+	// above can move a read from the probe to the join (#7128).
+	span.SetAttributes(attribute.String(documentationGenerationBindingAttr, documentationFactBindingForm(filter)))
 	store, ok := h.documentationStore(w, r)
 	if !ok {
 		return
@@ -161,6 +176,116 @@ func documentationFactsTruth(profile QueryProfile, readModel documentationFactLi
 		WithFreshnessCause(truth, freshness.Cause)
 	}
 	return truth
+}
+
+// documentationFactPageState labels the generation a page was read from. A
+// non-empty active read adds no statement: every returned row already belongs
+// to the bound generation. An empty scope read runs one primary-key lookup on
+// ingestion_scopes, and an explicit read runs one on scope_generations, so the
+// label is proven rather than assumed.
+//
+// Both lookups honor the caller's grants (#7128 review F1). For a scoped token
+// a scope or generation outside its grants is not found, so its label is the
+// label of an id that does not exist and discloses nothing about it. The one
+// exception is an explicit read that returned rows: those rows passed the full
+// facts authorization predicate and carry their own scope and generation ids,
+// so the caller may learn the lifecycle of the generation it is reading.
+func (cr *ContentReader) documentationFactPageState(
+	ctx context.Context,
+	span trace.Span,
+	filter documentationFactFilter,
+	factRows []map[string]any,
+) (querycontract.DocumentationFactPageState, error) {
+	scopeID := strings.TrimSpace(filter.ScopeID)
+	switch documentationFactBindingForm(filter) {
+	case documentationFactBindingExplicit:
+		generationID := strings.TrimSpace(filter.GenerationID)
+		query, args := buildDocumentationFactGenerationLabelSQL(filter, len(factRows) > 0)
+		var foundScope, status string
+		err := cr.db.QueryRowContext(ctx, query, args...).Scan(&foundScope, &status)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			span.RecordError(err)
+			return querycontract.DocumentationFactPageState{}, fmt.Errorf("query documentation facts generation state: %w", err)
+		}
+		return querycontract.DocumentationFactExplicitGenerationState(
+			generationID, err == nil, foundScope, scopeID, status), nil
+	case documentationFactBindingActiveScope:
+		if len(factRows) > 0 {
+			generationID, _ := factRows[0]["generation_id"].(string)
+			return querycontract.DocumentationFactPageState{
+				Binding: querycontract.DocumentationFactGenerationBinding{GenerationID: generationID, IsActive: true},
+			}, nil
+		}
+		query, args := buildDocumentationFactScopeLabelSQL(filter)
+		var status string
+		var active sql.NullString
+		err := cr.db.QueryRowContext(ctx, query, args...).Scan(&status, &active)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			span.RecordError(err)
+			return querycontract.DocumentationFactPageState{}, fmt.Errorf("query documentation facts scope state: %w", err)
+		}
+		state := querycontract.DocumentationFactEmptyScopeState(err == nil, status, strings.TrimSpace(active.String))
+		span.AddEvent("documentation.empty_page", trace.WithAttributes(
+			attribute.String("reason", state.EmptyReason),
+			attribute.Bool("scoped_grant", documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)),
+		))
+		return state, nil
+	default:
+		// Every row of an anchor-only read is active by construction.
+		return querycontract.DocumentationFactPageState{
+			Binding: querycontract.DocumentationFactGenerationBinding{IsActive: true},
+		}, nil
+	}
+}
+
+// documentationFactUngrantedPageState is the page state of a read that sees
+// nothing: the label a scope or generation outside the caller's grants gets
+// from documentationFactPageState. A token with no grants at all gets it
+// without a statement, so it cannot tell its denial from an unknown id.
+func documentationFactUngrantedPageState(filter documentationFactFilter) querycontract.DocumentationFactPageState {
+	switch documentationFactBindingForm(filter) {
+	case documentationFactBindingExplicit:
+		return querycontract.DocumentationFactExplicitGenerationState(
+			strings.TrimSpace(filter.GenerationID), false, "", strings.TrimSpace(filter.ScopeID), "")
+	case documentationFactBindingActiveScope:
+		return querycontract.DocumentationFactEmptyScopeState(false, "", "")
+	default:
+		return querycontract.DocumentationFactPageState{
+			Binding: querycontract.DocumentationFactGenerationBinding{IsActive: true},
+		}
+	}
+}
+
+// buildDocumentationFactScopeLabelSQL reads the ingestion_scopes row that
+// explains an empty scope page, restricted to the caller's scope grants.
+func buildDocumentationFactScopeLabelSQL(filter documentationFactFilter) (string, []any) {
+	args := []any{strings.TrimSpace(filter.ScopeID)}
+	clauses := []string{"ingestion_scopes.scope_id = $1"}
+	clauses, args = appendDocumentationScopeGrantClause(
+		clauses, args, "ingestion_scopes.scope_id", "ingestion_scopes",
+		filter.AllowedRepositoryIDs, filter.AllowedScopeIDs,
+	)
+	return "SELECT ingestion_scopes.status, ingestion_scopes.active_generation_id\nFROM ingestion_scopes\nWHERE " +
+		strings.Join(clauses, " AND "), args
+}
+
+// buildDocumentationFactGenerationLabelSQL reads the scope_generations row of
+// a caller-named generation. It is restricted to the caller's scope grants
+// unless the page returned rows, which already passed the facts authorization
+// predicate.
+func buildDocumentationFactGenerationLabelSQL(filter documentationFactFilter, rowsReturned bool) (string, []any) {
+	args := []any{strings.TrimSpace(filter.GenerationID)}
+	clauses := []string{"scope_generations.generation_id = $1"}
+	join := ""
+	if !rowsReturned && documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+		join = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = scope_generations.scope_id"
+		clauses, args = appendDocumentationScopeGrantClause(
+			clauses, args, "scope_generations.scope_id", "ingestion_scopes",
+			filter.AllowedRepositoryIDs, filter.AllowedScopeIDs,
+		)
+	}
+	return "SELECT scope_generations.scope_id, scope_generations.status\nFROM scope_generations" + join +
+		"\nWHERE " + strings.Join(clauses, " AND "), args
 }
 
 func documentationFactRequestFilter(

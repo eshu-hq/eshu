@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -425,7 +424,6 @@ func TestContentReaderDocumentationFactsEmptyScopeExplainsScopeState(t *testing.
 func TestContentReaderDocumentationFactsExplicitGenerationLabelsLifecycle(t *testing.T) {
 	t.Parallel()
 
-	superseded := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		name          string
 		rows          [][]driver.Value
@@ -433,11 +431,11 @@ func TestContentReaderDocumentationFactsExplicitGenerationLabelsLifecycle(t *tes
 		wantCause     querycontract.FreshnessCause
 		wantActive    bool
 	}{
-		{"active", [][]driver.Value{{"docs-scope", "active", nil}}, "", "", true},
-		{"superseded", [][]driver.Value{{"docs-scope", "superseded", superseded}}, querycontract.FreshnessStale, "", false},
-		{"completed", [][]driver.Value{{"docs-scope", "completed", nil}}, querycontract.FreshnessStale, "", false},
-		{"failed", [][]driver.Value{{"docs-scope", "failed", nil}}, querycontract.FreshnessStale, "", false},
-		{"pending", [][]driver.Value{{"docs-scope", "pending", nil}}, querycontract.FreshnessBuilding, querycontract.FreshnessCausePendingRepoGeneration, false},
+		{"active", [][]driver.Value{{"docs-scope", "active"}}, "", "", true},
+		{"superseded", [][]driver.Value{{"docs-scope", "superseded"}}, querycontract.FreshnessStale, "", false},
+		{"completed", [][]driver.Value{{"docs-scope", "completed"}}, querycontract.FreshnessStale, "", false},
+		{"failed", [][]driver.Value{{"docs-scope", "failed"}}, querycontract.FreshnessStale, "", false},
+		{"pending", [][]driver.Value{{"docs-scope", "pending"}}, querycontract.FreshnessBuilding, querycontract.FreshnessCausePendingRepoGeneration, false},
 		{"unknown generation", nil, querycontract.FreshnessUnavailable, "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -446,7 +444,7 @@ func TestContentReaderDocumentationFactsExplicitGenerationLabelsLifecycle(t *tes
 			db := openContentReaderTestDB(t, []contentReaderQueryResult{
 				{columns: []string{"payload"}, rows: [][]driver.Value{{factRowJSON("gen-old")}}},
 				{
-					columns:       []string{"scope_id", "status", "superseded_at"},
+					columns:       []string{"scope_id", "status"},
 					rows:          tc.rows,
 					queryContains: []string{"FROM scope_generations", "generation_id = $1"},
 					wantArgs:      []driver.Value{"gen-old"},

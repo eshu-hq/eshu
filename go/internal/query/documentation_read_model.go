@@ -5,8 +5,6 @@ package query
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -171,59 +169,6 @@ func (cr *ContentReader) DocumentationFacts(
 		Freshness:   state.Freshness,
 		EmptyReason: state.EmptyReason,
 	}, nil
-}
-
-// documentationFactPageState labels the generation a page was read from. A
-// non-empty active read adds no statement: every returned row already belongs
-// to the bound generation. An empty scope read runs one primary-key lookup on
-// ingestion_scopes, and an explicit read runs one on scope_generations, so the
-// label is proven rather than assumed.
-func (cr *ContentReader) documentationFactPageState(
-	ctx context.Context,
-	span trace.Span,
-	filter documentationFactFilter,
-	factRows []map[string]any,
-) (querycontract.DocumentationFactPageState, error) {
-	scopeID := strings.TrimSpace(filter.ScopeID)
-	switch documentationFactBindingForm(filter) {
-	case documentationFactBindingExplicit:
-		generationID := strings.TrimSpace(filter.GenerationID)
-		var foundScope, status string
-		var supersededAt sql.NullTime
-		err := cr.db.QueryRowContext(ctx,
-			`SELECT scope_id, status, superseded_at FROM scope_generations WHERE generation_id = $1`,
-			generationID).Scan(&foundScope, &status, &supersededAt)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			span.RecordError(err)
-			return querycontract.DocumentationFactPageState{}, fmt.Errorf("query documentation facts generation state: %w", err)
-		}
-		return querycontract.DocumentationFactExplicitGenerationState(
-			generationID, err == nil, foundScope, scopeID, status), nil
-	case documentationFactBindingActiveScope:
-		if len(factRows) > 0 {
-			generationID, _ := factRows[0]["generation_id"].(string)
-			return querycontract.DocumentationFactPageState{
-				Binding: querycontract.DocumentationFactGenerationBinding{GenerationID: generationID, IsActive: true},
-			}, nil
-		}
-		var status string
-		var active sql.NullString
-		err := cr.db.QueryRowContext(ctx,
-			`SELECT status, active_generation_id FROM ingestion_scopes WHERE scope_id = $1`,
-			scopeID).Scan(&status, &active)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			span.RecordError(err)
-			return querycontract.DocumentationFactPageState{}, fmt.Errorf("query documentation facts scope state: %w", err)
-		}
-		state := querycontract.DocumentationFactEmptyScopeState(err == nil, status, strings.TrimSpace(active.String))
-		span.AddEvent("documentation.empty_page", trace.WithAttributes(attribute.String("reason", state.EmptyReason)))
-		return state, nil
-	default:
-		// Every row of an anchor-only read is active by construction.
-		return querycontract.DocumentationFactPageState{
-			Binding: querycontract.DocumentationFactGenerationBinding{IsActive: true},
-		}, nil
-	}
 }
 
 const (

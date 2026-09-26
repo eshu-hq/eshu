@@ -61,14 +61,12 @@ func appendDocumentationAuthorizationClause(
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
 	inList := strings.Join(placeholders, ", ")
-	predicates := []string{
-		fmt.Sprintf("%s.scope_id IN (%s)", factAlias, inList),
-		fmt.Sprintf("%s.payload->>'repo' IN (%s)", scopeAlias, inList),
-		fmt.Sprintf("%s.payload->>'repo_id' IN (%s)", scopeAlias, inList),
+	predicates := documentationScopeGrantPredicates(factAlias+".scope_id", scopeAlias, inList)
+	predicates = append(predicates,
 		fmt.Sprintf("%s.payload->>'repository_id' IN (%s)", factAlias, inList),
 		fmt.Sprintf("%s.payload->>'repo_id' IN (%s)", factAlias, inList),
 		fmt.Sprintf("%s.payload->'source'->>'repository_id' IN (%s)", factAlias, inList),
-	}
+	)
 	for _, placeholder := range placeholders {
 		predicates = append(
 			predicates,
@@ -78,6 +76,46 @@ func appendDocumentationAuthorizationClause(
 		)
 	}
 	return append(clauses, "("+strings.Join(predicates, " OR ")+")"), args
+}
+
+// appendDocumentationScopeGrantClause appends the scope-level half of the
+// documentation authorization predicate for statements that read a scope or
+// generation row rather than fact rows: the generation labels of a facts page
+// (#7128). A scope is granted when its id, or its payload repo or repo_id, is
+// in the caller's grants; these are the same three predicates the facts read
+// applies through appendDocumentationAuthorizationClause. The fact-payload
+// predicates of that clause describe individual facts, not a scope, so they
+// have no scope-level meaning here. With no grants the clauses are returned
+// unchanged, which is the unscoped (shared key, admin) path.
+func appendDocumentationScopeGrantClause(
+	clauses []string,
+	args []any,
+	scopeIDColumn string,
+	scopeAlias string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) ([]string, []any) {
+	ids := uniqueDocumentationAccessIDs(allowedRepositoryIDs, allowedScopeIDs)
+	if len(ids) == 0 {
+		return clauses, args
+	}
+	placeholders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	predicates := documentationScopeGrantPredicates(scopeIDColumn, scopeAlias, strings.Join(placeholders, ", "))
+	return append(clauses, "("+strings.Join(predicates, " OR ")+")"), args
+}
+
+// documentationScopeGrantPredicates is the scope-level grant: the scope id, or
+// the scope payload's repo or repo_id, is one of the granted ids in inList.
+func documentationScopeGrantPredicates(scopeIDColumn string, scopeAlias string, inList string) []string {
+	return []string{
+		fmt.Sprintf("%s IN (%s)", scopeIDColumn, inList),
+		fmt.Sprintf("%s.payload->>'repo' IN (%s)", scopeAlias, inList),
+		fmt.Sprintf("%s.payload->>'repo_id' IN (%s)", scopeAlias, inList),
+	}
 }
 
 func documentationAuthorizationApplies(allowedRepositoryIDs []string, allowedScopeIDs []string) bool {
