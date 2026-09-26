@@ -5,12 +5,15 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -37,16 +40,21 @@ type GraphExistenceProber interface {
 // no happens-before against this pass, so the miss is a timing state. Counting
 // it toward MaxAttempts dead-lettered the intent whenever that lane ran slow,
 // and the succeeded-only reopen path never reopens a dead letter (#6759).
+// Because a non-counting class freezes attempt_count, the deferral is bounded
+// by elapsed time instead: past deploymentSourceTargetWaitMaxWait (30 minutes,
+// crossscope.ProducerReadinessMaxWait) the handler returns a counting error so
+// a target that never appears dead-letters loudly rather than retrying forever.
 const WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass = "workload_materialization_deployment_source_target_not_ready"
 
 // deploymentSourceTargetMissingError fails a materialization pass whose
 // deployment-source targets are absent from the graph. Retryable() keeps the
 // intent queued: the deployment Repository node is committed by another
 // scope's materialization with no happens-before against this batch, so a
-// later pass binds it and the re-run writes the edge. It must never be
-// terminalized — an absent target here is a timing state, not a payload
-// defect. DeploymentSourcesWritten stays zero on this path: the deferred
-// batch counts nothing as written.
+// later pass binds it and the re-run writes the edge. It is never terminal
+// on its own: an absent target here is a timing state, not a payload defect.
+// Only the handler's elapsed-time bound (boundDeploymentSourceDeferral) may
+// end the wait, by replacing it with a counting error. DeploymentSourcesWritten
+// stays zero on this path: the deferred batch counts nothing as written.
 type deploymentSourceTargetMissingError struct {
 	batchRows      int
 	sampleInstance string
@@ -60,7 +68,11 @@ func (e *deploymentSourceTargetMissingError) Error() string {
 	)
 }
 
-// Retryable opts the miss into bounded queue retries.
+// Retryable keeps the miss queued. The retries are not bounded by the attempt
+// budget, because its failure class is non-counting; the bound is elapsed
+// time since the repair cycle began, enforced by boundDeploymentSourceDeferral
+// in the workload materialization handler, which converts a deferral older
+// than deploymentSourceTargetWaitMaxWait into a counting error.
 func (e *deploymentSourceTargetMissingError) Retryable() bool { return true }
 
 // FailureClass tags the miss with the non-counting readiness class so the
@@ -183,4 +195,79 @@ func checkDeploymentSourceTargets(
 		sampleInstance: rows[0].InstanceID,
 		sampleRepoID:   rows[0].DeploymentRepoID,
 	}
+}
+
+// deploymentSourceTargetWaitMaxWait bounds the deployment-source target
+// deferral by elapsed time since the intent's repair cycle began. It reuses
+// crossscope.ProducerReadinessMaxWait, the constant every other elapsed-time
+// readiness bound in the reducer already shares (the cross-scope floor and
+// the #6785 waits), so an operator learns one number.
+const deploymentSourceTargetWaitMaxWait = crossscope.ProducerReadinessMaxWait
+
+// deploymentSourceTargetWaitExceededError fails a workload materialization
+// pass whose deployment-source target has stayed absent past
+// deploymentSourceTargetWaitMaxWait. Retryable() keeps it queued, but it
+// deliberately carries no FailureClass, so it counts toward MaxAttempts and
+// the ordinary budget dead-letters it loudly. The deferral it replaces is
+// non-counting, which freezes attempt_count, so a count comparison could never
+// bound it (see crossscope.ProducerReadinessMaxWait).
+//
+// It must not wrap the deploymentSourceTargetMissingError it replaces:
+// errors.As would find that error's non-counting class through Unwrap and the
+// bound would silently never count.
+type deploymentSourceTargetWaitExceededError struct {
+	elapsed time.Duration
+	// detail is the replaced deferral's message, kept as text for the
+	// operator (batch size, sample instance and repo).
+	detail string
+}
+
+func (e *deploymentSourceTargetWaitExceededError) Error() string {
+	return fmt.Sprintf(
+		"deployment-source target still absent after %s elapsed since the repair cycle began (bound %s); counting this failure toward the retry budget: %s",
+		e.elapsed.Round(time.Second), deploymentSourceTargetWaitMaxWait, e.detail,
+	)
+}
+
+// Retryable opts the bounded failure into the normal counted queue retries.
+func (e *deploymentSourceTargetWaitExceededError) Retryable() bool { return true }
+
+// boundDeploymentSourceDeferral converts a deployment-source target-not-ready
+// deferral into a counting failure once the intent's repair cycle is older
+// than deploymentSourceTargetWaitMaxWait. Any other error, and a deferral
+// inside the bound or with an unknown anchor, is returned unchanged. The
+// materializer supplies the logger and may be nil. A zero
+// anchor means elapsed time is unknown, not infinite, so it keeps deferring
+// (see crossscope.ReadinessCycleAnchor).
+func boundDeploymentSourceDeferral(
+	err error,
+	intent Intent,
+	now time.Time,
+	materializer *WorkloadMaterializer,
+) error {
+	var missing *deploymentSourceTargetMissingError
+	if !errors.As(err, &missing) {
+		return err
+	}
+	anchor := crossscope.ReadinessCycleAnchor(intent)
+	if anchor.IsZero() {
+		return err
+	}
+	elapsed := now.Sub(anchor)
+	if elapsed < deploymentSourceTargetWaitMaxWait {
+		return err
+	}
+	if materializer != nil && materializer.Logger != nil {
+		materializer.Logger.Warn(
+			"deployment-source target absent past the wait bound, failing the pass so the retry budget counts it",
+			"domain", string(intent.Domain),
+			"scope_id", intent.ScopeID,
+			"generation_id", intent.GenerationID,
+			"elapsed_since_cycle_start", elapsed,
+			"max_wait", deploymentSourceTargetWaitMaxWait,
+			"sample_instance_id", missing.sampleInstance,
+			"sample_deployment_repo_id", missing.sampleRepoID,
+		)
+	}
+	return &deploymentSourceTargetWaitExceededError{elapsed: elapsed, detail: missing.Error()}
 }
