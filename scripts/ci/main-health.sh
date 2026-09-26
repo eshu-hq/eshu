@@ -186,6 +186,8 @@ n_required="$(printf '%s\n' "${required}" | awk 'NF' | wc -l | tr -d ' ')"
 source_workflow="$(yq '.required_status_checks[] | select(.aggregates_blocking_gates == true) | .source_workflow' "${registry_yml}" | head -1)"
 
 # --- classify each required workflow's latest run on the tip ----------------
+# Run JSON is never passed through argv (jq --arg/--argjson): only values
+# bounded by policy, not by run count or history, may be.
 # Every listing is filtered server-side (head_sha + branch + event, or the
 # workflow file) so its size is bounded by the commit, not by history. A
 # listing whose total_count exceeds what came back (the API stops at 1000
@@ -199,7 +201,9 @@ fetch_runs() { # listing path
 		truncated=true
 		echo "::warning::run listing truncated: $1" >&2
 	fi
-	runs_json="$(jq -c --argjson add "$(jq -c '.runs' <<<"${page}")" '. + $add' <<<"${runs_json}")"
+	# Both operands travel on stdin: a listing can hold hundreds of run objects,
+	# far past the single-argument cap (Linux 128 KiB) that --argjson would hit.
+	runs_json="$(printf '%s\n%s\n' "${runs_json}" "${page}" | jq -sc '.[0] + .[1].runs')"
 }
 fetch_runs "repos/${repo}/actions/runs?head_sha=${tip}&branch=${branch}&event=push&per_page=100"
 fetch_runs "repos/${repo}/actions/runs?head_sha=${tip}&branch=${branch}&event=schedule&per_page=100"
