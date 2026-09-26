@@ -31,6 +31,18 @@ this blind: `go build ./...` is the tripwire, and it stays green
 only while this rule holds. Allowed: stdlib plus the leaves named in
 [doc.go](doc.go).
 
+## Bundles read (`registry_bundles.go`)
+
+- `searchRegistryBundlesCypher` MUST stay anchor-only: no `OPTIONAL MATCH`,
+  no `WITH ... count()`. The pinned NornicDB silently ignores the `ORDER BY`
+  and `LIMIT` that follow a `WITH p, count(v)`, so the count comes from
+  `registry.VersionCountsByPackageID` for the returned page (#5167).
+- A scoped caller gets `p.visibility = 'public'`; an empty grant returns an
+  empty page with no graph call. Do not add a repository-id predicate: a
+  `Package` node carries no repository key.
+- `package/registry` is imported for that one exported function only. It
+  imports no `codequery`, so the direction stays legal; do not import more.
+
 ## Export discipline (export-minimal)
 
 Every export exists because a staying root caller, the seam, or a

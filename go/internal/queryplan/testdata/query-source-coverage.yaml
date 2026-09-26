@@ -121,7 +121,7 @@ source_coverage:
           max_results: 101
   - file: codequery/registry_bundles.go
     calls:
-      - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*CodeHandler).handleSearchBundles", count: 1, non_hot: {class: label_inventory, source_sha256: 49736854fec277cb80ec38df0d4d5e8b38b9270fed903eaa7e9b7278a167762d, label: "Package", max_results: 201}}
   - file: codequery/story_reads.go
     calls:
       - {symbol: "(*CodeHandler).relationshipStoryClassMethods", count: 1, non_hot: {class: keyed_support, source_sha256: 9aa6a5ab37553b88875eb73b4aa711b1b36265f038d10ab5e72d65fd9a09f98b, key_bound: single_key, max_results: 201}}
@@ -515,14 +515,6 @@ source_coverage:
           delegate: graph_session
   - file: package/registry/handler.go
     calls:
-      - symbol: "(*Handler).attachPackageVersionCounts"
-        count: 1
-        non_hot:
-          class: keyed_support
-          source_sha256: 55f9d0d61f475942712d73fac751b234bbad2971f562bfd59209b38a48c1dd75
-          key_bound: bounded_key_batch
-          max_keys: 200
-          max_results: 200
       - symbol: "(*Handler).listPackages"
         count: 1
         non_hot:
@@ -537,6 +529,16 @@ source_coverage:
           source_sha256: abc452acf92f1a18f0604822323ef638008d545b65c0e12130f8e932f960ba25
           key_bound: single_key
           max_results: 201
+  - file: package/registry/version_counts.go
+    calls:
+      - symbol: "VersionCountsByPackageID"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: f79339bbffe2b78c0c61dffdcd6447cdf1a838a2e6fe0b8820b4c7e776998198
+          key_bound: bounded_key_batch
+          max_keys: 200
+          max_results: 200
   - file: package/registry/aggregates.go
     calls:
       - symbol: "(GraphAggregateStore).CountPackageRegistryPackages"

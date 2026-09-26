@@ -296,6 +296,10 @@ func TestBoundedVisualizationCypher_TerminalCap(t *testing.T) {
 func TestHandleSearchBundles_SearchesRegistryPackages(t *testing.T) {
 	stub := fakeGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "v.package_id IN $package_ids") {
+				// The page's version counts arrive as their own statement.
+				return []map[string]any{{"package_id": "pkg-1", "version_count": int64(3)}}, nil
+			}
 			if strings.Contains(cypher, ":Repository") || strings.Contains(cypher, "r.repo_id") {
 				t.Fatalf("cypher = %q, want package registry bundle query, not repository-name search", cypher)
 			}
@@ -312,8 +316,8 @@ func TestHandleSearchBundles_SearchesRegistryPackages(t *testing.T) {
 				t.Fatalf("params[query] = %#v, want %#v", got, want)
 			}
 			return []map[string]any{
-				{"package_id": "pkg-1", "name": "react", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react@18", "version_count": int64(3)},
-				{"package_id": "pkg-2", "name": "react-dom", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react-dom@18", "version_count": int64(2)},
+				{"package_id": "pkg-1", "name": "react", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react@18"},
+				{"package_id": "pkg-2", "name": "react-dom", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react-dom@18"},
 			}, nil
 		},
 	}
@@ -349,6 +353,9 @@ func TestHandleSearchBundles_SearchesRegistryPackages(t *testing.T) {
 	}
 	if got, want := first["package_id"], "pkg-1"; got != want {
 		t.Fatalf("bundle package_id = %#v, want %#v", got, want)
+	}
+	if got, want := first["version_count"], float64(3); got != want {
+		t.Fatalf("bundle version_count = %#v, want %#v (from the separate count statement)", got, want)
 	}
 	if _, hasRepoID := first["repo_id"]; hasRepoID {
 		t.Fatalf("bundle leaked repo_id field: %#v", first)
@@ -489,7 +496,7 @@ func TestSearchRegistryBundlesCypherAlwaysScoped(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cypher, params := searchRegistryBundlesCypher(tc.query, tc.ecosystem, false, 51)
+			cypher, params := searchRegistryBundlesCypher(tc.query, tc.ecosystem, false, false, 51)
 			hasQueryPredicate := strings.Contains(cypher, "$query")
 			hasEcosystemPredicate := strings.Contains(cypher, "$ecosystem")
 			if !hasQueryPredicate && !hasEcosystemPredicate {
@@ -502,6 +509,20 @@ func TestSearchRegistryBundlesCypherAlwaysScoped(t *testing.T) {
 				t.Fatalf("params[ecosystem] = %#v, want %#v", params["ecosystem"], tc.ecosystem)
 			}
 		})
+	}
+}
+
+// TestSearchRegistryBundlesCypherOrdering proves the ordering contract per
+// shape: an ecosystem-pinned read orders by (name, uid), because every row
+// shares the ecosystem; a query-only read must still order by ecosystem first.
+func TestSearchRegistryBundlesCypherOrdering(t *testing.T) {
+	pinned, _ := searchRegistryBundlesCypher("react", "npm", false, false, 51)
+	if !strings.Contains(pinned, "ORDER BY p.normalized_name, p.uid\nLIMIT $limit") {
+		t.Fatalf("ecosystem-pinned cypher = %q, want ORDER BY p.normalized_name, p.uid", pinned)
+	}
+	open, _ := searchRegistryBundlesCypher("react", "", false, false, 51)
+	if !strings.Contains(open, "ORDER BY p.ecosystem, p.normalized_name, p.uid\nLIMIT $limit") {
+		t.Fatalf("query-only cypher = %q, want ORDER BY p.ecosystem, p.normalized_name, p.uid", open)
 	}
 }
 

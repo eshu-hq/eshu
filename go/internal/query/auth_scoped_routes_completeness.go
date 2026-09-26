@@ -262,6 +262,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"POST /api/v0/code/structure/inventory":                                         scopedRouteGrantBound,
 	"POST /api/v0/code/symbols/search":                                              scopedRouteGrantBound,
 	"POST /api/v0/code/language-query":                                              scopedRouteGrantBound,
+	"POST /api/v0/code/bundles":                                                     scopedRouteGrantBound,
 	"POST /api/v0/code/call-chain":                                                  scopedRouteGrantBound,
 	"POST /api/v0/code/call-chain/compare":                                          scopedRouteGrantBound,
 	"POST /api/v0/code/relationships":                                               scopedRouteGrantBound,

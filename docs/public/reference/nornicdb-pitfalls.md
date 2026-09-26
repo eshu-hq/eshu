@@ -494,9 +494,9 @@ before/after and the fan-in timing.
 
 ### Observed shape
 
-Measured directly over the HTTP `tx/commit` endpoint and independently via
-`neo4j-go-driver/v5` (both paths reproduce it) against the then-current
-`eshu-nornicdb-pr261:149245885258` pin:
+Measured over `tx/commit` and `neo4j-go-driver/v5` on the `eshu-nornicdb-pr261`
+pin and re-confirmed on the current compose pin for the direct `RETURN p.uid,
+count(v)` form below; a `WITH p, count(v)` form does not collapse, see [#5167](nornicdb-aggregate-order-limit.md):
 
 ```cypher
 CREATE (:Package {uid:"pkg:mini:1", ecosystem:"npm-mini", normalized_name:"a"});
@@ -561,25 +561,24 @@ added to the fixture:
   returns `0`.
 
 The fix that measured correctly in every case (0-version, mixed 3-package,
-and a 200-package/100-with-version corpus) is a separate, single-clause,
-inner-join `MATCH` scoped to the already-resolved page via `UNWIND`, merged in
-Go with the anchor read (the established "run as a SEPARATE single-clause
-query merged in Go" pattern from the relationship-existence pitfall above):
+and a 200-package/100-with-version corpus) is a separate single-clause `MATCH`
+scoped to the resolved page and merged in Go with the anchor read (the "run as a
+SEPARATE single-clause query merged in Go" pattern above). It counts
+`PackageVersion` nodes through the `package_version_package_id` index. The
+`UNWIND` + `HAS_VERSION` edge form first shipped was also correct but measured
+about 260 ms at 51 ids and 1 s at 201 uncached (3,000 packages):
 
 ```cypher
-UNWIND $package_ids AS candidate_package_id
-MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion)
-RETURN p.uid AS package_id, count(r) AS version_count
+MATCH (v:PackageVersion) WHERE v.package_id IN $package_ids
+RETURN v.package_id AS package_id, count(v) AS version_count
 ```
 
-Any package uid absent from this query's result has zero matches; the caller
-zero-fills it (`packageRegistryVersionCountsCypher` +
-`registry.Handler.attachPackageVersionCounts` in
-`go/internal/query/package/registry/handler.go`). Do not reintroduce
-`OPTIONAL MATCH` + aggregate over an anchor's own projected columns on this
-backend; do not "fix" it with a pattern comprehension or a `WITH`+`collect`
-without proving it live first, both silently under-count in a way that looks
-correct on a same-cardinality-only fixture.
+Any package uid absent from this result has zero versions; the caller zero-fills
+it (`registry.VersionCountsByPackageID`, `packageRegistryVersionCountsCypher`).
+Do not reintroduce `OPTIONAL MATCH` + aggregate over an anchor's own projected
+columns on this backend; do not "fix" it with a pattern comprehension or a
+`WITH`+`collect` without proving it live first, both silently under-count in a
+way that looks correct on a same-cardinality-only fixture.
 
 ### Validation
 

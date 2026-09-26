@@ -489,11 +489,9 @@ and both are rejected before the handler runs.
 or `ecosystem` scope and rejects unscoped requests. It does not upload files,
 import `.eshu` archives, or mutate graph state.
 
-The handler never intersects the caller's repository grant, and a `Package` node
-carries `visibility` and `scope_id` but no repository key to bind one to, so
-scoped tokens are refused with a `403`, all-scope bearer tokens included, and so
-is every browser session except a tenant-bound all-scope console session under
-`local_no_policy`, `hosted_single_tenant`, or an unset `ESHU_GOVERNANCE_MODE`
-(`hosted_multi_tenant` and any unrecognized value refuse it too). Promotion
-applies the package-registry visibility gate the ecosystem browse route already
-ships (#5167).
+A `Package` node carries no repository key, so a scoped token is admitted and
+gated on visibility, as the ecosystem browse route does (#5167): it sees only
+`visibility = public` packages, a package with no visibility stays hidden, and
+an empty grant returns an empty page. Results are ordered by `ecosystem`,
+`name`, `package_id`; details are in
+[Bundle Search](images-ingesters-bundles.md#bundle-search).

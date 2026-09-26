@@ -19,7 +19,10 @@
 // codemodel, querycontract, auth, tracing, rows,
 // selector, testutil, contentread, entitysemantics, codeshaping,
 // codeprovenance, facts, parser, reducer, the internal/search* ranking
-// packages, telemetry -- but NEVER root package query itself, which would
+// packages, telemetry, and package/registry (only its exported
+// VersionCountsByPackageID, which the bundles read reuses for its page's
+// version counts; package/registry imports no codequery) -- but NEVER root
+// package query itself, which would
 // create an import cycle (root imports this package for the alias and
 // seam). Language-specific queries live in the sibling leaf
 // go/internal/query/language (language.Handler, aliased by root as

@@ -73,19 +73,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	// contesting the service_id. Promote it once #6475 gives the lineage rows
 	// an ownership column the grant can bind; see scopedFreshnessDeltaRoute.
 	"GET /api/v0/freshness/services/changed-since": {},
-	// #5167 package-registry catalog read. handleSearchBundles
-	// (code_registry_bundles.go) never reads the caller's grant, and the
-	// Package nodes it answers from carry visibility and scope_id but no
-	// repository key, so AllowedRepositoryIDs has nothing to bind to. The
-	// promotion shape is the package-registry visibility gate that already
-	// ships for the ecosystem browse route (packageRegistryPackagesGate
-	// short-circuits an empty grant and
-	// packageRegistryPackagesScopedEcosystemCypher forces visibility =
-	// 'public' for a scoped caller, both in the registry family), plus a
-	// scope_id IN $allowed_scope_ids disjunct if tenants ever get registry
-	// scopes. Promoting it means disclosing that a package whose fact carries
-	// no visibility stays hidden from a scoped caller.
-	"POST /api/v0/code/bundles": {},
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:

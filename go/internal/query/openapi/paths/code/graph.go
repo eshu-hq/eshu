@@ -117,8 +117,9 @@ const Graph = `
       "post": {
         "tags": ["code"],
         "summary": "Search package registry bundle candidates",
-        "description": "Searches the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL, optionally scoped to one ecosystem. A non-empty query or ecosystem scope is required; an unscoped request returns 400. This route does not upload bundle archives or mutate graph state. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the handler never intersects the caller's repository grant and a Package node carries visibility and scope_id but no repository key to bind one to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Searches the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL, optionally scoped to one ecosystem. A non-empty query or ecosystem scope is required; an unscoped request returns 400. This route does not upload bundle archives or mutate graph state. A scoped-token caller sees only packages whose visibility is exactly public: a private package, and a package whose fact carries no visibility at all, are hidden from it, and it is not served correlation-granted private packages either. A package node carries no repository key to bind a grant to, so the read is gated on that visibility, and a scoped token with an empty grant gets an empty page without a graph read. Results are ordered by ecosystem, normalized name, and package id; truncated reports whether more matches exist than the limit. The shared key and all-scope callers see every package.",
         "operationId": "searchCodeBundles",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

@@ -318,33 +318,25 @@ func (h *Handler) listVersions(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-// attachPackageVersionCounts resolves HAS_VERSION counts for one page of
-// packages as a separate, scoped query and zero-fills any package uid absent
-// from the result. This is deliberately not folded back into
-// packageRegistryPackagesCypher's OPTIONAL MATCH + count(v): on the pinned
-// NornicDB backend that composition silently collapses every zero-version
-// package out of the result set instead of returning it with version_count
-// 0 (see docs/public/reference/nornicdb-pitfalls.md). Skips the round trip
-// entirely when the page is empty.
+// attachPackageVersionCounts resolves version counts (PackageVersion nodes by
+// package_id) for one page of packages as a separate query and zero-fills any
+// package uid absent from the result. The count is deliberately not folded
+// into the anchor reads as OPTIONAL MATCH + count(v): the pinned NornicDB
+// ignores the ORDER BY/LIMIT that follow such an aggregate (see
+// docs/public/reference/nornicdb-aggregate-order-limit.md and
+// docs/public/reference/nornicdb-pitfalls.md). Skips the round trip entirely
+// when the page is empty.
 func (h *Handler) attachPackageVersionCounts(
 	ctx context.Context,
 	results []PackageResult,
 ) error {
-	if len(results) == 0 {
-		return nil
-	}
 	packageIDs := make([]string, len(results))
 	for i, result := range results {
 		packageIDs[i] = result.PackageID
 	}
-	cypher, params := packageRegistryVersionCountsCypher(packageIDs)
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	counts, err := VersionCountsByPackageID(ctx, h.Neo4j, packageIDs)
 	if err != nil {
 		return err
-	}
-	counts := make(map[string]int, len(rows))
-	for _, row := range rows {
-		counts[querycontract.StringVal(row, "package_id")] = querycontract.IntVal(row, "version_count")
 	}
 	for i := range results {
 		results[i].VersionCount = counts[results[i].PackageID]
