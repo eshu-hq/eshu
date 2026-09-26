@@ -24,7 +24,8 @@
 //
 // It also owns the binding shapes the grammar settles on its own: import,
 // require and re-export entry rows (ImportEntries, RequireImportEntries,
-// ReExportEntries and their helpers) and `new`-expression receiver typing
+// ReExportEntries, ReExportAttributeEntries and their helpers) and
+// `new`-expression receiver typing
 // (CollectNewExpressionVariableType, FunctionReturnTypes,
 // CallInferredObjectType). Those moved here for issue #6771 so the
 // dead-code analysis could become its own package: they were the edges that

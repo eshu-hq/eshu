@@ -47,12 +47,16 @@ does not import its sibling `project` either — the two are independent.
   `IdentifierName` — member-expression decomposition
 - `ParameterCount` — declared parameter count for a signature
 - `ImportEntries`, `NamespaceImportAlias`, `RequireImportEntries`,
-  `RequireModuleSource` — import and `require` entry rows
+  `RequireModuleSource` — import and `require` entry rows (`ImportEntries`
+  also covers the TypeScript `import x = require("...")` clause, see #7059)
 - `ReExportEntries`, `ReExportSource`, `ReExportSpecifiers`, `IsStarReExport`,
   `ReExportSpecifier` — re-export rows and their specifier pairs
   (`ReExportSource` reads only the grammar's string-literal `source` field, and
   the specifier text fallback never reads a declaration export's body; there is
   no text scan for `from`, see #7056)
+- `ReExportAttributeEntries` — re-export rows for `with`/`assert` attribute
+  exports, recovered from the grammars' error shapes with a synthesized
+  `full_import_name` (never node text), see #7059
 - `CollectNewExpressionVariableType`, `FunctionReturnTypes`,
   `CallInferredObjectType`, `NewExpressionConstructorName`,
   `TypedBindingName`, `DeclaredTypeName` — receiver typing from local syntax

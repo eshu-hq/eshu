@@ -152,7 +152,11 @@ Not claimed today:
   has no payload map to carry a `js_parse_bounded` row.
 - A re-export import row comes only from a real `export { ... } from "m"`,
   `export * from "m"`, `export * as ns from "m"`, or `export type { ... } from
-  "m"` statement whose module specifier is a single string literal. Declaration
+  "m"` statement whose module specifier is a single string literal. Trailing
+  import-attribute clauses (`with`/`assert`) do not block the row, and
+  TypeScript `import x = require("m")` and `export import X = require("m")`
+  produce `require` import rows
+  ([#7059](https://github.com/eshu-hq/eshu/issues/7059)). Declaration
   exports (`export class`, `export const`, `export default`, ...) never produce
   one, whatever text their bodies, comments, or strings contain
   ([#7056](https://github.com/eshu-hq/eshu/issues/7056)).
