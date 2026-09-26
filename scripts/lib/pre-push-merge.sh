@@ -88,6 +88,7 @@ pre_push_merge_inputs_unchanged() {
 # developer-invoked runs in one worktree, so this is accepted.
 pre_push_merge_lock() {
 	local lock="$1" holder claimed got
+	[[ "${lock}" == /* ]] || { printf 'pre-push: lock path %s is not absolute\n' "${lock}" >&2; return 1; }
 	# An earlier revision kept the lock as a directory holding a pid file. `ln`
 	# would create the new link inside it and report success, so clear one whose
 	# holder is gone (a live one is honoured below through the same path).
@@ -100,7 +101,7 @@ pre_push_merge_lock() {
 		rm -rf "${lock}"
 	fi
 	holder=""
-	if ln -sn "$$" "${lock}" 2>/dev/null; then
+	if ln -sn -- "$$" "${lock}" 2>/dev/null; then
 		return 0
 	fi
 	holder="$(readlink "${lock}" 2>/dev/null || true)"
@@ -114,14 +115,14 @@ pre_push_merge_lock() {
 		if [[ "${got}" != "${holder}" ]]; then
 			# A racing run took the lock between our read and our rename: put
 			# it back (ln -s cannot overwrite) and yield.
-			[[ -n "${got}" ]] && ln -sn "${got}" "${lock}" 2>/dev/null
+			[[ -n "${got}" ]] && ln -sn -- "${got}" "${lock}" 2>/dev/null
 			rm -rf "${claimed}"
 			printf 'pre-push: another pre-push (pid %s) took %s first; rerun after it finishes.\n' "${got}" "${lock%.lock}" >&2
 			return 1
 		fi
 		rm -rf "${claimed}"
 	fi
-	if ! ln -sn "$$" "${lock}" 2>/dev/null; then
+	if ! ln -sn -- "$$" "${lock}" 2>/dev/null; then
 		printf 'pre-push: another pre-push (pid %s) took %s first; rerun after it finishes.\n' \
 			"$(readlink "${lock}" 2>/dev/null || true)" "${lock%.lock}" >&2
 		return 1
