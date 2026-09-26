@@ -33,10 +33,9 @@ type relationshipVerbEntry struct {
 	// id/uid/name (e.g. MANAGES targets Directory, which has only path). When
 	// set, the builder moves this property to the front of the target_id
 	// projection and appends it to the ORDER BY tie-breaker. When empty
-	// (the default for every other verb), the emitted Cypher for both
-	// relationshipEdgesCypher and relationshipEdgesCypherFiltered is
-	// byte-identical to the pre-#5369 shape, preserving the query-plan gate's
-	// pinned cypher_sha256 for every unaffected entry.
+	// (the default for every other verb), the target projection and order
+	// tie-breaker retain their original shape. The indexed edge builder adds
+	// a source-anchor predicate independently of this target identity choice.
 	targetIdentityProperty string
 	// targetIdentityExpr overrides the whole target_id projection with a literal
 	// Cypher expression, for a target whose identity is more than one property
@@ -254,9 +253,9 @@ func relationshipCountCypher(entry relationshipVerbEntry) string {
 // first-page set. entry.targetIdentityProperty appends a verb-specific
 // fallback (see targetOrderTiebreakerProperties) for target labels whose
 // canonical identity is not id/uid/name, e.g. MANAGES -> Directory (path
-// only). Leaving targetIdentityProperty empty keeps this function's output
-// byte-identical to the pre-#5369 shape. The access filter adds the #5167
-// scope WHERE clause for a scoped caller (empty for shared/admin/local).
+// only). Leaving targetIdentityProperty empty preserves the original
+// target projection and tie-breaker. The indexed builder adds a source-anchor
+// predicate; the access filter adds the #5167 scope predicate when scoped.
 func relationshipEdgesCypher(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
 	return relationshipEdgesCypherWithAnchor(entry, access, true)
 }
@@ -277,9 +276,9 @@ func relationshipEdgesCypherWithAnchor(entry relationshipVerbEntry, access query
 // targetIdentityCoalesceProperties returns the coalesce() property order for
 // the target_id projection. The default order (id, uid, name, path) is
 // identical for every catalog entry that leaves targetIdentityProperty unset,
-// which is what keeps their emitted Cypher byte-identical to the pre-#5369
-// shape. When targetIdentityProperty is set, it is moved to the front so the
-// target's canonical identity resolves before the generic fallbacks (e.g.
+// preserving the target_id projection. When targetIdentityProperty is set,
+// it moves to the front so the target's canonical identity resolves before
+// the generic fallbacks (e.g.
 // MANAGES needs t.path first because its Directory target has no id/uid).
 func targetIdentityCoalesceProperties(entry relationshipVerbEntry) []string {
 	order := []string{"id", "uid", "name", "path"}
