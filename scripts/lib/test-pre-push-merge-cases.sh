@@ -21,6 +21,12 @@ case "${1:-}" in
 	build | vet) ;;
 	*) exit 0 ;;
 esac
+# Case K: move the fixture's HEAD while the merged tree is being vetted, the
+# way a concurrent commit or amend would.
+if [[ -n "${FAKE_GO_MOVE_HEAD_REPO:-}" && "${PWD}" == *eshu-pre-push-merge* ]]; then
+	git -C "${FAKE_GO_MOVE_HEAD_REPO}" -c core.hooksPath=/dev/null -c user.name=Test \
+		-c user.email=test@example.invalid commit -q --allow-empty -m "moved mid-run"
+fi
 if rg -q --glob '*.go' 'p\.Old\(' . && ! rg -q --glob '*.go' '^func Old\(' .; then
 	printf 'internal/r/call.go:5:12: undefined: p.Old\n' >&2
 	exit 1
@@ -161,3 +167,16 @@ rg -q -- 'Go inputs are identical' "${fixture}.log" || { cat "${fixture}.log" >&
 [[ -z "$(merged_go_calls "${fixture}")" ]] || fail "case J: nothing to vet when the merged Go inputs equal the base's"
 rg -q -- '^go test -race' "${fixture}.args" && fail "case J: no race run without a changed Go package"
 true
+
+# ── Case K: HEAD moves while the merge is vetted (a concurrent commit or
+# amend). The summary must name the HEAD that was merged and vetted, not
+# whatever HEAD is when the summary prints.
+fixture="$(build_merge_fixture case-k clean)"
+vetted_head="$(git -C "${fixture}" rev-parse --short=12 HEAD)"
+: > "${fixture}.args"
+status=0
+FAKE_GO_MOVE_HEAD_REPO="${fixture}" DRIVER_ARGS_LOG="${fixture}.args" PATH="${fixture}/bin:${PATH}" \
+	bash "${fixture}/scripts/dev/pre-push.sh" > "${fixture}.log" 2>&1 || status=$?
+[[ "$(git -C "${fixture}" rev-parse --short=12 HEAD)" != "${vetted_head}" ]] || fail "case K: the fake go did not move HEAD"
+rg -q -- "^merge tree: [0-9a-f]{40} \\(HEAD ${vetted_head} \\+ origin/main " "${fixture}.log" || \
+	{ rg -- '^merge tree' "${fixture}.log" >&2; fail "case K: the summary must name the vetted HEAD ${vetted_head}"; }

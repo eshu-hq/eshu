@@ -34,12 +34,17 @@
 # The committed HEAD is what is merged, because a push sends commits. Any
 # uncommitted edit is reported and is not part of the merged tree.
 #
-# Sets pre_push_merge_tree to the tested merge tree id (empty when skipped
-# before a merge was computed) so the caller can print and bind it.
+# Sets pre_push_merge_tree to the merge tree id and pre_push_merge_summary to
+# "<tree> (HEAD <sha> + <base> <sha>)", both empty when no merge was computed.
+# The summary is captured when the merge is computed, so a HEAD that moves
+# later in the run (a concurrent commit or amend) cannot relabel what was
+# vetted.
 # shellcheck disable=SC2154  # repo_root and base are set by the sourcing caller.
 
 # shellcheck disable=SC2034  # read by scripts/dev/pre-push.sh's summary.
 pre_push_merge_tree=""
+# shellcheck disable=SC2034  # read by scripts/dev/pre-push.sh's summary.
+pre_push_merge_summary=""
 
 # pre_push_merge_go_inputs prints the tree paths `go vet` reads: go/ and the
 # local replace targets go/go.mod names (`replace x => ../sdk/...`), resolved
@@ -111,6 +116,8 @@ step_merge_vet() {
 	esac
 	# shellcheck disable=SC2034  # read by scripts/dev/pre-push.sh's summary.
 	pre_push_merge_tree="${tree}"
+	# shellcheck disable=SC2034  # read by scripts/dev/pre-push.sh's summary.
+	pre_push_merge_summary="${tree} (HEAD ${head:0:12} + ${base} ${base_commit:0:12})"
 	head_tree="$(git -C "${repo_root}" rev-parse "${head}^{tree}")"
 	if [[ "${tree}" == "${head_tree}" ]]; then
 		printf 'HEAD already contains %s (%s): merge tree %s is HEAD'"'"'s own tree, covered by the build/vet above.\n' \

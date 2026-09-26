@@ -239,10 +239,8 @@ fi
 
 printf '\n\033[1m==== pre-push summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
-if [[ -n "${pre_push_merge_tree}" ]]; then
-	printf 'merge tree: %s (HEAD %s + %s %s)\n' "${pre_push_merge_tree}" \
-		"$(git -C "${repo_root}" rev-parse --short=12 HEAD)" "${base}" \
-		"$(git -C "${repo_root}" rev-parse --short=12 "${base}^{commit}")"
+if [[ -n "${pre_push_merge_summary}" ]]; then
+	printf 'merge tree: %s\n' "${pre_push_merge_summary}"
 fi
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-push: failures above — fix before pushing.\033[0m\n'
