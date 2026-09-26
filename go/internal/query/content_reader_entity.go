@@ -6,12 +6,14 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -336,4 +338,21 @@ func cleanEntityContentIDs(entityIDs []string) []string {
 		cleaned = append(cleaned, entityID)
 	}
 	return cleaned
+}
+
+// decodeEntityMetadata is the one metadata JSONB decode; it drops fingerprint keys (#7167).
+func decodeEntityMetadata(raw []byte) (map[string]any, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal(raw, &metadata); err != nil {
+		return nil, fmt.Errorf("decode entity metadata: %w", err)
+	}
+	entitycontract.StripFingerprintMetadata(metadata)
+	if len(metadata) == 0 {
+		return nil, nil
+	}
+	return metadata, nil
 }

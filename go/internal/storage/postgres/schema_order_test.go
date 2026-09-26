@@ -326,4 +326,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"changed_since_link_ledger",
 	// Migration 137 (#7248) bounds repository tree reads by a literal path prefix under ICU.
 	"content_files_repo_path_pattern_idx",
+	// Migration 138 (#7125) creates the hardcoded-secret side table after its content_files dependencies.
+	"content_file_secret_lines",
 }

@@ -251,3 +251,65 @@ func TestWaitForSchemaOwnershipGivesUpAfterTheWait(t *testing.T) {
 		t.Fatalf("error = %q, want it to name the wait and the holder", err)
 	}
 }
+
+// TestWaitForOwnershipNamesItsSubjectAndLock pins the #7125 reuse of the
+// ownership wait for the bulk-load run lock: the messages and the terminal
+// error name the configured subject, and the events carry the lock attribute,
+// so an operator can tell the two waits apart. An empty policy keeps the
+// schema bootstrap text and the lock=schema attribute byte for byte.
+func TestWaitForOwnershipNamesItsSubjectAndLock(t *testing.T) {
+	t.Parallel()
+	run := func(policy OwnershipPolicy, answers []bool) (string, error) {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		locker := &fakeAdvisoryLocker{answers: answers, holder: "pid=9 application_name=other"}
+		clock := time.Unix(0, 0)
+		now := func() time.Time { clock = clock.Add(2 * time.Second); return clock }
+		policy.Wait, policy.Poll, policy.LogEvery = 5*time.Second, time.Second, time.Second
+		err := WaitForOwnership(context.Background(), logger, locker, policy, (&recordedSleeps{}).sleep, now)
+		return logs.String(), err
+	}
+
+	logs, err := run(OwnershipPolicy{Subject: "secret lines bulk load", Lock: "bulk_load"}, []bool{false, true})
+	if err != nil {
+		t.Fatalf("WaitForOwnership() = %v, want success", err)
+	}
+	for _, want := range []string{
+		"postgres secret lines bulk load waiting for ownership",
+		"postgres secret lines bulk load ownership acquired after waiting",
+		"lock=bulk_load",
+		"bootstrap.postgres.ownership.waiting",
+		"bootstrap.postgres.ownership.acquired",
+	} {
+		if !strings.Contains(logs, want) {
+			t.Fatalf("subject logs missing %q:\n%s", want, logs)
+		}
+	}
+	if strings.Contains(logs, "schema bootstrap") {
+		t.Fatalf("subject logs still name the schema bootstrap:\n%s", logs)
+	}
+
+	_, err = run(OwnershipPolicy{Subject: "secret lines bulk load", Lock: "bulk_load"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "acquire secret lines bulk load ownership") ||
+		!strings.Contains(err.Error(), "pid=9") {
+		t.Fatalf("give-up error = %v, want the subject and the holder", err)
+	}
+
+	logs, err = run(OwnershipPolicy{}, []bool{false, true})
+	if err != nil {
+		t.Fatalf("WaitForOwnership() = %v, want success", err)
+	}
+	for _, want := range []string{
+		"postgres schema bootstrap waiting for ownership",
+		"postgres schema bootstrap ownership acquired after waiting",
+		"lock=schema",
+	} {
+		if !strings.Contains(logs, want) {
+			t.Fatalf("default logs missing %q:\n%s", want, logs)
+		}
+	}
+	_, err = run(OwnershipPolicy{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "acquire schema bootstrap ownership") {
+		t.Fatalf("default give-up error = %v, want the schema bootstrap text", err)
+	}
+}

@@ -17,6 +17,7 @@ func TestContentReaderInvestigateHardcodedSecretsReturnsClassifiedRows(t *testin
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
 			rows: [][]driver.Value{
@@ -53,6 +54,7 @@ func TestContentReaderInvestigateHardcodedSecretsDoesNotDropFetchedSuppressedRow
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
 			rows: [][]driver.Value{
@@ -83,15 +85,17 @@ func TestContentReaderInvestigateHardcodedSecretsPagesAfterSQLSuppressionFilter(
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(true),
 		{
 			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
 			rows: [][]driver.Value{
 				{"repo-1", "cmd/api/config.go", "go", int64(42), `token := "sk_live_1234567890abcdef"`, "api_token"},
 			},
 			queryContainsInOrder: []string{
-				"AS suppressed",
-				"AND ($4 OR NOT suppressed)",
-				"LIMIT $5 OFFSET $6",
+				"FROM content_file_secret_lines s",
+				"AND s.repo_id = $1",
+				"AND NOT s.suppressed",
+				"LIMIT $2 OFFSET $3",
 			},
 		},
 	})
@@ -103,6 +107,50 @@ func TestContentReaderInvestigateHardcodedSecretsPagesAfterSQLSuppressionFilter(
 	})
 	if err != nil {
 		t.Fatalf("InvestigateHardcodedSecrets() error = %v, want nil", err)
+	}
+}
+
+// secretLinesReadinessResult is the fake driver's answer to the readiness
+// statement that precedes every hardcoded-secret read (#7125).
+func secretLinesReadinessResult(ready bool) contentReaderQueryResult {
+	return contentReaderQueryResult{
+		columns:              []string{"exists"},
+		rows:                 [][]driver.Value{{ready}},
+		queryContainsInOrder: []string{"FROM content_file_secret_lines_state", "state = 'ready'"},
+	}
+}
+
+// TestContentReaderInvestigateHardcodedSecretsServesLegacyScanUntilReady proves
+// the gate: when the readiness statement says the side table is not ready the
+// read runs the corpus scan over content_files, never the side table, and
+// reports legacy_scan.
+func TestContentReaderInvestigateHardcodedSecretsServesLegacyScanUntilReady(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		secretLinesReadinessResult(false),
+		{
+			columns: []string{"repo_id", "relative_path", "language", "line_number", "line_text", "finding_kind"},
+			rows: [][]driver.Value{
+				{"repo-1", "cmd/api/config.go", "go", int64(42), `token := "sk_live_1234567890abcdef"`, "api_token"},
+			},
+			queryContainsInOrder: []string{"WITH candidate_files AS", "FROM content_files", "regexp_split_to_table"},
+		},
+	})
+	reader := NewContentReader(db)
+
+	results, source, err := reader.InvestigateHardcodedSecretsWithSource(context.Background(), codequery.HardcodedSecretInvestigationRequest{
+		RepoID: "repo-1",
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateHardcodedSecretsWithSource() error = %v, want nil", err)
+	}
+	if source != codequery.HardcodedSecretReadLegacyScan {
+		t.Fatalf("source = %q, want %q", source, codequery.HardcodedSecretReadLegacyScan)
+	}
+	if len(results) != 1 || results[0].FindingKind != "api_token" {
+		t.Fatalf("results = %+v, want the one classified row", results)
 	}
 }
 

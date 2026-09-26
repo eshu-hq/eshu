@@ -76,6 +76,28 @@ type HardcodedSecretInvestigator interface {
 	InvestigateHardcodedSecrets(context.Context, HardcodedSecretInvestigationRequest) ([]HardcodedSecretFindingRow, error)
 }
 
+// HardcodedSecretReadSource names the storage path that served one
+// investigation read (#7125).
+type HardcodedSecretReadSource string
+
+const (
+	// HardcodedSecretReadSideTable is the content_file_secret_lines side table,
+	// an ordered primary-key scan.
+	HardcodedSecretReadSideTable HardcodedSecretReadSource = "side_table"
+	// HardcodedSecretReadLegacyScan is the bounded content_files scan that runs
+	// while the side table is not published ready, that is during and after a
+	// bulk load until its finalizer completes. It returns identical rows and is
+	// slower; the response says so.
+	HardcodedSecretReadLegacyScan HardcodedSecretReadSource = "legacy_scan"
+)
+
+// HardcodedSecretSourceInvestigator is a HardcodedSecretInvestigator that also
+// reports which storage path served the read, so the handler can label a
+// legacy-scan answer instead of presenting it as the fast path.
+type HardcodedSecretSourceInvestigator interface {
+	InvestigateHardcodedSecretsWithSource(context.Context, HardcodedSecretInvestigationRequest) ([]HardcodedSecretFindingRow, HardcodedSecretReadSource, error)
+}
+
 func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryHardcodedSecretInvestigation, "POST /api/v0/code/security/secrets/investigate", hardcodedSecretCapability)
 	defer span.End()
@@ -117,7 +139,7 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 	}
 	req.Limit = normalizeHardcodedSecretLimit(req.Limit)
 
-	rows, err := h.hardcodedSecretRows(r.Context(), req)
+	rows, source, err := h.hardcodedSecretRowsWithSource(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, errHardcodedSecretBackendUnavailable) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
@@ -128,38 +150,73 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 	}
 
 	data := hardcodedSecretResponse(req, rows)
+	reason := "resolved from bounded content-index hardcoded secret investigation with redacted findings"
+	if source == HardcodedSecretReadLegacyScan {
+		annotateHardcodedSecretLegacyScan(data)
+		reason += "; served by the legacy content scan because the secret-line index is not published ready"
+	}
 	WriteSuccess(
 		w,
 		r,
 		http.StatusOK,
 		data,
-		BuildTruthEnvelope(h.profile(), hardcodedSecretCapability, TruthBasisContentIndex, "resolved from bounded content-index hardcoded secret investigation with redacted findings"),
+		BuildTruthEnvelope(h.profile(), hardcodedSecretCapability, TruthBasisContentIndex, reason),
 	)
 }
 
 func (h *CodeHandler) hardcodedSecretRows(ctx context.Context, req HardcodedSecretInvestigationRequest) ([]HardcodedSecretFindingRow, error) {
+	rows, _, err := h.hardcodedSecretRowsWithSource(ctx, req)
+	return rows, err
+}
+
+// hardcodedSecretRowsWithSource is hardcodedSecretRows plus the storage path
+// that served the read. A store that cannot say (a HardcodedSecretInvestigator
+// without the source method) is reported as the side table, its only path.
+func (h *CodeHandler) hardcodedSecretRowsWithSource(
+	ctx context.Context, req HardcodedSecretInvestigationRequest,
+) ([]HardcodedSecretFindingRow, HardcodedSecretReadSource, error) {
 	if h == nil || h.Content == nil {
-		return nil, errHardcodedSecretBackendUnavailable
+		return nil, HardcodedSecretReadSideTable, errHardcodedSecretBackendUnavailable
 	}
-	investigator, ok := h.Content.(HardcodedSecretInvestigator)
-	if !ok {
-		return nil, errHardcodedSecretBackendUnavailable
+	investigate := func(ctx context.Context, probe HardcodedSecretInvestigationRequest) ([]HardcodedSecretFindingRow, HardcodedSecretReadSource, error) {
+		if withSource, ok := h.Content.(HardcodedSecretSourceInvestigator); ok {
+			return withSource.InvestigateHardcodedSecretsWithSource(ctx, probe)
+		}
+		if plain, ok := h.Content.(HardcodedSecretInvestigator); ok {
+			rows, err := plain.InvestigateHardcodedSecrets(ctx, probe)
+			return rows, HardcodedSecretReadSideTable, err
+		}
+		return nil, HardcodedSecretReadSideTable, errHardcodedSecretBackendUnavailable
 	}
 	// #5167 code family: without this the else branch of hardcodedSecretFilters
 	// was empty, so a scoped caller who omitted repo_id read every tenant's
 	// redacted secret line text.
 	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, req.RepoID)
 	if blocked {
-		return nil, nil
+		return nil, HardcodedSecretReadSideTable, nil
 	}
 	probeReq := req
 	probeReq.Limit = req.Limit + 1
 	probeReq.AllowedRepositoryIDs = allowedRepositoryIDs
-	rows, err := investigator.InvestigateHardcodedSecrets(ctx, probeReq)
+	rows, source, err := investigate(ctx, probeReq)
 	if err != nil {
-		return nil, fmt.Errorf("investigate hardcoded secrets: %w", err)
+		return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)
 	}
-	return rows, nil
+	return rows, source, nil
+}
+
+// annotateHardcodedSecretLegacyScan labels a response the legacy scan served:
+// the rows are identical to the side table's, only slower to produce, and the
+// caller sees that explicitly instead of a silent slow path.
+func annotateHardcodedSecretLegacyScan(data map[string]any) {
+	coverage, _ := data["coverage"].(map[string]any)
+	if coverage == nil {
+		return
+	}
+	coverage["read_path"] = string(HardcodedSecretReadLegacyScan)
+	coverage["limitations"] = []string{
+		"the secret-line index is not published ready (a bulk load is in progress or its finalizer has not completed); this read scanned content_files and is slower, with identical findings",
+	}
 }
 
 func normalizeHardcodedSecretLimit(limit int) int {
@@ -232,6 +289,7 @@ func hardcodedSecretResponse(req HardcodedSecretInvestigationRequest, rows []Har
 			"empty":               len(findings) == 0,
 			"searched_all_kinds":  len(req.FindingKinds) == 0,
 			"requires_repo_scope": false,
+			"read_path":           string(HardcodedSecretReadSideTable),
 		},
 	}
 }

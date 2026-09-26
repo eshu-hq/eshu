@@ -177,6 +177,14 @@ func ConfigurePostgresPool(target PostgresPoolSetter, cfg PostgresConfig) {
 // OpenPostgres opens, tunes, and verifies a Postgres connection for a Go
 // service runtime.
 func OpenPostgres(ctx context.Context, getenv func(string) string) (*sql.DB, error) {
+	return OpenPostgresWithSession(ctx, getenv)
+}
+
+// OpenPostgresWithSession is OpenPostgres with extra per-connection session
+// statements run on every new pooled connection after the derive-aware writer
+// marker. bootstrap-index passes the deferred secret-lines setting through it
+// (#7125); every other binary uses OpenPostgres.
+func OpenPostgresWithSession(ctx context.Context, getenv func(string) string, extraSessionSQL ...string) (*sql.DB, error) {
 	cfg, err := LoadPostgresConfig(getenv)
 	if err != nil {
 		return nil, err
@@ -185,7 +193,7 @@ func OpenPostgres(ctx context.Context, getenv func(string) string) (*sql.DB, err
 	// Every connection is marked derive-aware: this binary's content_entities
 	// writers keep the infra read model in step, so migration 109's
 	// rolling-upgrade fence must not mark their writes (#6793).
-	db, err := inventory.OpenWriterDB(cfg.DSN)
+	db, err := inventory.OpenWriterDB(cfg.DSN, extraSessionSQL...)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}
