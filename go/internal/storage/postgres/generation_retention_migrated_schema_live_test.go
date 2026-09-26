@@ -5,7 +5,9 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/url"
 	"os"
 	"strings"
@@ -35,10 +37,49 @@ var generationRetentionMigratedSchemaStatements = map[string]string{
 	"delete_scope_generations":         deleteScopeGenerationsForRetentionQuery,
 }
 
+// generationRetentionSchemaPrefix marks every schema the retention live tests
+// create, so a leaked one is recognizable in pg_namespace.
+const generationRetentionSchemaPrefix = "eshu_ret_"
+
+// generationRetentionSchemaMaxBytes is Postgres's identifier limit (NAMEDATALEN
+// 64 minus the terminating NUL); a longer name is silently truncated by the
+// server, which would make two long test names share one schema.
+const generationRetentionSchemaMaxBytes = 63
+
+// generationRetentionMigratedSchemaName derives the isolated schema name for one
+// test from its name, so concurrent tests never DROP each other's schema (#7260).
+// It lowercases the name and replaces every byte outside [a-z0-9_] (including
+// the "/" of a subtest) with "_". When the result would exceed the 63-byte
+// identifier limit it truncates and appends "_" plus the first 8 hex digits of
+// the SHA-256 of the original name, so two long names that share a prefix stay
+// distinct. The result is deterministic and always a valid unquoted identifier.
+func generationRetentionMigratedSchemaName(testName string) string {
+	var sanitized strings.Builder
+	for _, b := range []byte(strings.ToLower(testName)) {
+		if (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' {
+			sanitized.WriteByte(b)
+			continue
+		}
+		sanitized.WriteByte('_')
+	}
+	name := generationRetentionSchemaPrefix + sanitized.String()
+	if len(name) <= generationRetentionSchemaMaxBytes {
+		return name
+	}
+	digest := sha256.Sum256([]byte(testName))
+	suffix := "_" + hex.EncodeToString(digest[:])[:8]
+	return name[:generationRetentionSchemaMaxBytes-len(suffix)] + suffix
+}
+
 // openGenerationRetentionMigratedSchema applies the real bootstrap migrations
 // to an isolated schema of the database named by ESHU_POSTGRES_TEST_DSN or
 // ESHU_POSTGRES_DSN, or skips. It never uses a hand-written schema, so the retention SQL is proven
 // against the tables and columns production actually has.
+//
+// Each test gets its own schema (see generationRetentionMigratedSchemaName), so
+// two of them never drop each other's schema. The tests still must not call
+// t.Parallel: the bootstrap's CREATE EXTENSION pg_trgm is database-wide, and
+// concurrent first installs fail with pg_extension_name_index violations (#7260).
 func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
@@ -62,7 +103,8 @@ func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Conte
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-	schema := "eshu_6809_retention_migrated"
+	schema := generationRetentionMigratedSchemaName(t.Name())
+	t.Logf("isolated retention schema %s", schema)
 	if _, err := admin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE; CREATE SCHEMA "+schema); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
