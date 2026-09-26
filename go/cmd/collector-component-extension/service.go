@@ -32,7 +32,11 @@ func buildClaimedService(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (collector.ClaimedService, error) {
-	config, err := loadRuntimeConfig(getenv)
+	// One observer serves the whole worker: registry readback (here) and the
+	// extension host's activation and per-emission decisions (below) report
+	// through it, so an operator sees grant allows as well as denials.
+	grantObserver := extensionhost.NewGrantTelemetry(instruments, logger)
+	config, err := loadRuntimeConfigObserved(getenv, grantObserver)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
@@ -46,16 +50,14 @@ func buildClaimedService(
 		Runner:              config.Runner,
 		Clock:               time.Now,
 		Grants:              config.Grants,
+		GrantObserver:       grantObserver,
 		// LiveGrants re-reads the registry on every emission so a
 		// grant revoked during execution fails the next result
-		// closed. A read failure denies core-owned kinds rather
+		// closed. A read failure is returned, not swallowed: the host
+		// denies core-owned kinds (reason grants_unreadable) rather
 		// than emitting under unknown authorization.
-		LiveGrants: func() []component.ProducerGrant {
-			grants, err := component.NewRegistry(grantHome).ProducerGrants()
-			if err != nil {
-				return nil
-			}
-			return grants
+		LiveGrants: func() ([]component.ProducerGrant, error) {
+			return component.NewRegistry(grantHome).ProducerGrants()
 		},
 	})
 	if err != nil {

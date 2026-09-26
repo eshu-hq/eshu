@@ -1739,6 +1739,13 @@ type Instruments struct {
 	// volume to a pipeline phase.
 	WorkflowClaimFactsEmitted metric.Int64Counter
 
+	// ProducerGrantDecisions counts producer-grant allow/deny decisions for
+	// core-owned fact kinds (#6726), labeled by decision, stage, reason, and
+	// fact_kind. Every label is closed or registry-bounded; the producer id is
+	// never a label. Record it through ProducerGrantDecisionRecorder, which
+	// pre-builds attribute sets so the per-emission recheck never allocates.
+	ProducerGrantDecisions metric.Int64Counter
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -5174,6 +5181,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowClaimFactsEmitted counter: %w", err)
+	}
+
+	inst.ProducerGrantDecisions, err = meter.Int64Counter(
+		"eshu_dp_component_producer_grant_decisions_total",
+		metric.WithDescription("Producer-grant allow/deny decisions for core-owned fact kinds, labeled by decision, stage (install, readback, activation, emission), closed reason, and core fact_kind. Producer id is span/log only."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProducerGrantDecisions counter: %w", err)
 	}
 
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}

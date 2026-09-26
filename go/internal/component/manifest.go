@@ -6,6 +6,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -128,6 +129,16 @@ func LoadManifestWithGrants(path string, grants []ProducerGrant) (Manifest, erro
 // loadManifest loads and validates a manifest, honoring the given
 // core-issued producer grants for core-owned fact kinds.
 func loadManifest(path string, grants []ProducerGrant) (Manifest, error) {
+	return loadManifestObserved(path, grants, nil, "")
+}
+
+// loadManifestObserved is loadManifest that also reports the producer-grant
+// decisions for the manifest's core-owned fact kinds to observer at stage.
+// Decisions are reported once, after the identity checks pass (so a manifest
+// that never reached grant evaluation reports nothing) and whether or not the
+// grant allows, so a denial is observed even though the load then fails
+// closed. A nil observer costs nothing beyond a nil check.
+func loadManifestObserved(path string, grants []ProducerGrant, observer GrantObserver, stage GrantStage) (Manifest, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is supplied by the install flow from a locally staged manifest file, not from untrusted external input
 	if err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
@@ -136,7 +147,12 @@ func loadManifest(path string, grants []ProducerGrant) (Manifest, error) {
 	if err := yaml.Unmarshal(raw, &manifest); err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "decode component manifest", err)
 	}
-	if err := manifest.validate(grants); err != nil {
+	if err := manifest.validateIdentity(); err != nil {
+		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
+	}
+	now := time.Now().UTC()
+	manifest.ObserveManifestGrants(context.Background(), observer, stage, grants, now)
+	if err := manifest.validateFactFamilies(grants, now); err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
 	}
 	return manifest, nil
@@ -160,6 +176,15 @@ func (m Manifest) ValidateWithGrants(grants []ProducerGrant) error {
 // validate checks manifest identity, compatibility, and owned surfaces,
 // honoring core-issued producer grants for core-owned fact kinds.
 func (m Manifest) validate(grants []ProducerGrant) error {
+	if err := m.validateIdentity(); err != nil {
+		return err
+	}
+	return m.validateFactFamilies(grants, time.Now().UTC())
+}
+
+// validateIdentity checks everything that precedes producer-grant
+// evaluation: manifest identity, compatibility, runtime, and artifacts.
+func (m Manifest) validateIdentity() error {
 	if strings.TrimSpace(m.APIVersion) != manifestAPIVersion {
 		return fmt.Errorf("apiVersion must be %q", manifestAPIVersion)
 	}
@@ -203,7 +228,13 @@ func (m Manifest) validate(grants []ProducerGrant) error {
 			return err
 		}
 	}
-	granted := grantedCoreKinds(m.Metadata.ID, m.Metadata.Version, m.Spec.CollectorKinds, grants, time.Now().UTC())
+	return nil
+}
+
+// validateFactFamilies checks every emitted fact family, honoring the
+// producer grants live at now for core-owned kinds.
+func (m Manifest) validateFactFamilies(grants []ProducerGrant, now time.Time) error {
+	granted := grantedCoreKinds(m.Metadata.ID, m.Metadata.Version, m.Spec.CollectorKinds, grants, now)
 	for _, fact := range m.Spec.EmittedFacts {
 		if err := fact.validate(m.Metadata.ID, granted); err != nil {
 			return err

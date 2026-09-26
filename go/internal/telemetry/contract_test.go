@@ -332,6 +332,12 @@ func TestLogKeys(t *testing.T) {
 		"semantic_extraction.provider_profile_class",
 		"semantic_extraction.budget_state",
 		"semantic_extraction.budget_reason",
+		"producer_grant.producer_id",
+		"producer_grant.version",
+		"producer_grant.decision",
+		"producer_grant.stage",
+		"producer_grant.reason",
+		"producer_grant.fact_kind",
 	}
 
 	got := LogKeys()

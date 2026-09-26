@@ -22,7 +22,8 @@ const registryFileName = "registry.json"
 
 // Registry manages a local component installation home.
 type Registry struct {
-	home string
+	home     string
+	observer GrantObserver
 }
 
 // InstalledComponent is one locally installed component package.
@@ -73,7 +74,7 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 	if err != nil {
 		return InstalledComponent{}, err
 	}
-	manifest, err := loadManifest(manifestPath, state.Grants)
+	manifest, err := loadManifestObserved(manifestPath, state.Grants, r.observer, GrantStageInstall)
 	if err != nil {
 		return InstalledComponent{}, err
 	}
@@ -163,6 +164,7 @@ func (r Registry) Enable(componentID string, activation Activation) (Activation,
 	if err != nil {
 		return Activation{}, err
 	}
+	r.observeEnableGrants(*component, state)
 	if err := r.validateEnableFactKindClaims(*component, state); err != nil {
 		return Activation{}, err
 	}

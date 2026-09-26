@@ -112,6 +112,15 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   versions must be disabled before their manifest content can change.
 - Readback derives manifest paths from the component home, ID, and version. It
   does not trust `manifest_path` values stored in `registry.json`.
+- Producer-grant decisions (#6726) are reported through the optional
+  `GrantObserver` (`Registry.WithGrantObserver`) at install, readback, and
+  enable, once per core-owned fact family, and `ClassifyEmission` names the
+  closed deny reason (`no_matching_grant`, `revoked`, `expired`,
+  `scope_mismatch`, `schema_not_covered`; the host adds `grants_unreadable`).
+  Only the candidate component is reported at enable, `PlanEnable` reports
+  nothing, and observation never changes the fail-closed admission result. The
+  package imports no telemetry; the extension host's `GrantTelemetry` adapts
+  decisions to metrics, spans, and logs.
 
 ## Tests
 

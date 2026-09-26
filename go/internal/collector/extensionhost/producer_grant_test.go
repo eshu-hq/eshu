@@ -96,7 +96,9 @@ func TestSourceRejectsEmissionAfterGrantRevoked(t *testing.T) {
 		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return []component.ProducerGrant{revoked} },
+		LiveGrants: func() ([]component.ProducerGrant, error) {
+			return []component.ProducerGrant{revoked}, nil
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -138,7 +140,7 @@ func TestSourceRejectsEmissionAfterGrantExpiry(t *testing.T) {
 		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return live },
+		LiveGrants:          func() ([]component.ProducerGrant, error) { return live, nil },
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -182,7 +184,9 @@ func TestSourceRevokedGrantTurnsRetryTerminal(t *testing.T) {
 		Runner:              &recordingRunner{result: result},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return []component.ProducerGrant{revoked} },
+		LiveGrants: func() ([]component.ProducerGrant, error) {
+			return []component.ProducerGrant{revoked}, nil
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -215,7 +219,7 @@ func TestSourceAcceptsEmissionWithLiveGrant(t *testing.T) {
 		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return grants },
+		LiveGrants:          func() ([]component.ProducerGrant, error) { return grants, nil },
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -256,7 +260,7 @@ func TestSourceGrantedEmissionStillEnforcesGenerationFencing(t *testing.T) {
 		Runner:              &recordingRunner{result: result},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return grants },
+		LiveGrants:          func() ([]component.ProducerGrant, error) { return grants, nil },
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)
@@ -314,7 +318,7 @@ func TestGrantedPagerDutyEmissionPreservesKindAndStableKey(t *testing.T) {
 		Runner:              &recordingRunner{result: result},
 		Clock:               testObservedAt,
 		Grants:              grants,
-		LiveGrants:          func() []component.ProducerGrant { return grants },
+		LiveGrants:          func() ([]component.ProducerGrant, error) { return grants, nil },
 	})
 	if err != nil {
 		t.Fatalf("NewSource() error = %v, want nil", err)

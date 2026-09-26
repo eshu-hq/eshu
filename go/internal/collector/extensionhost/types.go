@@ -68,8 +68,15 @@ type Config struct {
 	Grants []component.ProducerGrant
 	// LiveGrants, when set, supplies the current grant set for every
 	// emitted result so revocation during execution fails closed. When nil,
-	// emission checks fall back to the construction-time Grants snapshot.
-	LiveGrants func() []component.ProducerGrant
+	// emission checks fall back to the construction-time Grants snapshot. A
+	// non-nil error means the grant set could not be read: core-owned kinds
+	// are denied fail-closed (reason grants_unreadable) rather than emitted
+	// under unknown authorization.
+	LiveGrants func() ([]component.ProducerGrant, error)
+	// GrantObserver, when set, receives one producer-grant decision per
+	// core-owned fact kind at activation (Source construction) and at every
+	// emission recheck. Nil disables observation and costs one nil check.
+	GrantObserver component.GrantObserver
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -89,5 +96,7 @@ type Source struct {
 	// liveGrants supplies the current producer-grant set for every emission
 	// so revocation during execution fails closed. It defaults to the
 	// construction-time Grants snapshot.
-	liveGrants func() []component.ProducerGrant
+	liveGrants func() ([]component.ProducerGrant, error)
+	// grantObserver receives grant decisions; nil disables observation.
+	grantObserver component.GrantObserver
 }
