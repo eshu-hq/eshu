@@ -35,6 +35,10 @@ func claimGenerationInRollback(t *testing.T, database *sql.DB, query string, at 
 		t.Fatalf("begin: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// A claim that waits on a held row lock must fail, not hang the test.
+	if _, err := tx.Exec(`SET LOCAL lock_timeout = '5s'`); err != nil {
+		t.Fatalf("set lock_timeout: %v", err)
+	}
 	var generation string
 	err = tx.QueryRow(query, at, "differential", at.Add(time.Minute), "").Scan(
 		new(string), new(string), new(string), new(string), new(string), new(bool), new(string), new(string),
@@ -237,6 +241,10 @@ func TestProjectorClaimSortedLockStepStopsAtFirstLockableRow(t *testing.T) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin explain: %v", err)
+	}
+	if _, err := tx.Exec(`SET LOCAL lock_timeout = '5s'`); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("set lock_timeout: %v", err)
 	}
 	var raw []byte
 	if err := tx.QueryRow("EXPLAIN (ANALYZE, FORMAT JSON) "+claimProjectorWorkQuery,

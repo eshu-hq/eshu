@@ -1681,6 +1681,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_fence_lifecycle_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/projector_queue_claim_lock_skip_live_test.go
     tag: ~
     class: scheduled
@@ -1689,19 +1693,15 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/projector_queue_claim_fence_lifecycle_live_test.go
-    tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/projector_queue_claim_scope_chain_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/projector_queue_claim_sorted_lock_live_test.go
+  - file: go/internal/storage/postgres/projector_queue_claim_scope_fence_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/projector_queue_claim_scope_fence_live_test.go
+  - file: go/internal/storage/postgres/projector_queue_claim_sorted_lock_live_test.go
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
