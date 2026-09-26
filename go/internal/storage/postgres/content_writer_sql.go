@@ -190,8 +190,9 @@ WHERE repo_id = $1
 `
 
 // deleteWithdrawnFingerprintSQL deletes code_function_fingerprint rows for
-// entities rewritten in this Write call without fingerprint keys: the entity
-// survives in content_entities (body edited below the token floor, file
+// the given entity ids; reapStaleFingerprints reuses it for stale ids. Its
+// first caller is entities rewritten in this Write call without fingerprint
+// keys: the entity survives in content_entities (body edited below the token floor, file
 // gained a parse error, tier change), so the stale-entity reap below cannot
 // converge them. Without this delete the #6836 grouping path would keep
 // reading the withdrawn exact hash as current truth. Band rows for the same
@@ -202,28 +203,50 @@ WHERE repo_id = $1
   AND entity_id = ANY($2::text[])
 `
 
-// reapStaleFingerprintSQL deletes code_function_fingerprint rows whose
-// entity no longer exists in content_entities for the repo. It runs after
-// the entity upsert+reap in the same Write call, so tombstoned, churned,
-// and path-reaped entities all converge here.
-const reapStaleFingerprintSQL = `
-DELETE FROM code_function_fingerprint fp
-WHERE fp.repo_id = $1
-  AND NOT EXISTS (
-    SELECT 1 FROM content_entities ce
-    WHERE ce.repo_id = $1 AND ce.entity_id = fp.entity_id
-  )
+// staleFingerprintEntityIDsSQL lists the entity ids that still own
+// code_function_fingerprint rows for the repo but no longer have a
+// content_entities row in it: exactly the rows the stale-entity reap must
+// delete. It runs after the entity upsert+reap in the same Write call, so
+// tombstoned, churned, and path-reaped entities all converge here.
+//
+// It is a set difference, not an anti-join, on purpose (#7230). Bootstrap
+// grows these tables from empty, so a repository is routinely reaped while
+// the last ANALYZE never saw it; the planner then estimates one row on both
+// sides, and the former NOT EXISTS delete ran as a nested loop that rescanned
+// the repository's entities once per side-table row (230-1,735 s per
+// repository on the reference host). EXCEPT has no join to plan: each input is read once into a
+// HashSetOp (holding only the distinct fingerprint ids) or a sorted SetOp
+// that spills, whatever the statistics say. Per-table reads, not one
+// UNION ALL, keep the column statistics visible to the planner so fresh
+// statistics still choose the hashed form.
+const staleFingerprintEntityIDsSQL = `
+SELECT fp.entity_id FROM code_function_fingerprint fp WHERE fp.repo_id = $1
+EXCEPT
+SELECT ce.entity_id FROM content_entities ce WHERE ce.repo_id = $1
 `
 
-// reapStaleFingerprintBandSQL is the band-table counterpart of
-// reapStaleFingerprintSQL.
-const reapStaleFingerprintBandSQL = `
+// staleFingerprintBandEntityIDsSQL is the code_fingerprint_band counterpart
+// of staleFingerprintEntityIDsSQL. It reads band rows directly rather than
+// through code_function_fingerprint, so orphan bands whose fp row is already
+// gone still converge.
+const staleFingerprintBandEntityIDsSQL = `
+SELECT band.entity_id FROM code_fingerprint_band band WHERE band.repo_id = $1
+EXCEPT
+SELECT ce.entity_id FROM content_entities ce WHERE ce.repo_id = $1
+`
+
+// deleteStaleFingerprintBandsSQL deletes the band rows of the stale entity
+// ids staleFingerprintBandEntityIDsSQL returned. The COALESCE keeps the IN at
+// a filter, so it runs as one hashed SubPlan over the id chunk probed once per
+// band row of the repository; without it the IN is pulled up into a join the
+// planner may nest-loop again. deleteFingerprintBandsForEntitiesSQL is not
+// reused here: its entity_id = ANY($2) matches the fourth primary-key column,
+// and a generic plan turns it into one repository-range index descent per
+// array element (18.9 s for one 500-id chunk in the #7230 shim).
+const deleteStaleFingerprintBandsSQL = `
 DELETE FROM code_fingerprint_band band
 WHERE band.repo_id = $1
-  AND NOT EXISTS (
-    SELECT 1 FROM content_entities ce
-    WHERE ce.repo_id = $1 AND ce.entity_id = band.entity_id
-  )
+  AND COALESCE(band.entity_id IN (SELECT unnest($2::text[])), FALSE)
 `
 
 const deleteRepositoryRefsQuery = `

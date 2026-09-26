@@ -17,29 +17,40 @@ import (
 )
 
 // assertExecCountWithFingerprintReaps asserts a Write issued exactly
-// wantBase statements plus the 2 unconditional fingerprint side-table reaps
-// (reapStaleFingerprints runs on every Write, even with zero fingerprint
-// rows) plus wantScopedFP / wantScopedBand scoped deletes (entities
-// rewritten without fingerprint keys shed their side rows in the same call;
-// a Write with no entities, or whose entities all carry fingerprint keys,
-// issues none). It pins the +2 to the intended repo-wide reap statements —
-// every scoped delete carries an ANY() predicate and never matches — so a
-// stray statement cannot hide behind the bumped counts.
-func assertExecCountWithFingerprintReaps(t *testing.T, execs []fakeExecCall, wantBase, wantScopedFP, wantScopedBand int, what string) {
+// wantBase statements plus wantScopedFP / wantScopedBand scoped deletes
+// (entities rewritten without fingerprint keys shed their side rows in the
+// same call; a Write with no entities, or whose entities all carry
+// fingerprint keys, issues none), and that the repo-wide fingerprint reap ran
+// as its two stale-id reads (#7230) — one per side table, on every Write,
+// even with zero fingerprint rows. The shared fake answers those reads with
+// nothing stale, so the reap itself adds no exec: every fingerprint delete
+// here must be a scoped ANY() delete, and a stray repo-wide delete fails.
+func assertExecCountWithFingerprintReaps(t *testing.T, fake *fakeExecQueryer, wantBase, wantScopedFP, wantScopedBand int, what string) {
 	t.Helper()
-	reaps := 0
+	fpReads, bandReads := 0, 0
+	for _, query := range fake.queries {
+		switch query.query {
+		case staleFingerprintEntityIDsSQL:
+			fpReads++
+		case staleFingerprintBandEntityIDsSQL:
+			bandReads++
+		}
+	}
+	if fpReads != 1 || bandReads != 1 {
+		t.Fatalf("fingerprint reap reads = fp %d / band %d, want 1 / 1 (%s)", fpReads, bandReads, what)
+	}
 	scopedFP := 0
 	scopedBand := 0
-	for _, exec := range execs {
+	for _, exec := range fake.execs {
 		isFP := strings.Contains(exec.query, "DELETE FROM code_function_fingerprint")
 		isBand := strings.Contains(exec.query, "DELETE FROM code_fingerprint_band")
 		scoped := strings.Contains(exec.query, "ANY(")
 		switch {
 		case (isFP || isBand) && !scoped:
-			reaps++
-		case isFP && scoped:
+			t.Fatalf("unexpected repo-wide fingerprint delete (%s): %.120s", what, exec.query)
+		case isFP:
 			scopedFP++
-		case isBand && scoped:
+		case isBand:
 			// Scoped band deletes serve two owners sharing one statement
 			// shape: rewrite invalidation and withdrawn converges. No
 			// current caller rewrites, so every scoped band delete here is
@@ -48,17 +59,14 @@ func assertExecCountWithFingerprintReaps(t *testing.T, execs []fakeExecCall, wan
 			scopedBand++
 		}
 	}
-	if reaps != 2 {
-		t.Fatalf("fingerprint reap statements = %d, want 2 (%s)", reaps, what)
-	}
 	if scopedFP != wantScopedFP {
 		t.Fatalf("scoped fp deletes = %d, want %d (%s)", scopedFP, wantScopedFP, what)
 	}
 	if scopedBand != wantScopedBand {
 		t.Fatalf("scoped band deletes = %d, want %d (%s)", scopedBand, wantScopedBand, what)
 	}
-	if got, want := len(execs), wantBase+2+wantScopedFP+wantScopedBand; got != want {
-		t.Fatalf("exec count = %d, want %d (%s + 2 fingerprint reaps + %d scoped fp + %d scoped band)", got, want, what, wantScopedFP, wantScopedBand)
+	if got, want := len(fake.execs), wantBase+wantScopedFP+wantScopedBand; got != want {
+		t.Fatalf("exec count = %d, want %d (%s + %d scoped fp + %d scoped band)", got, want, what, wantScopedFP, wantScopedBand)
 	}
 }
 
@@ -92,7 +100,7 @@ func TestContentWriterBatchesFileInserts(t *testing.T) {
 	}
 
 	// Should have one stale-reference delete and one batched file insert.
-	assertExecCountWithFingerprintReaps(t, db.execs, 2, 0, 0, "reference delete + batched insert")
+	assertExecCountWithFingerprintReaps(t, db, 2, 0, 0, "reference delete + batched insert")
 	if !strings.Contains(db.execs[0].query, "DELETE FROM content_file_references") {
 		t.Fatalf("first query should delete stale file references: %s", db.execs[0].query)
 	}
@@ -152,7 +160,7 @@ func TestContentWriterBatchesEntityInserts(t *testing.T) {
 	}
 
 	// Batched insert + the stale-entity reap (#5329 content_entities reap).
-	assertExecCountWithFingerprintReaps(t, db.execs, 2, 1, 1, "batched insert + reap")
+	assertExecCountWithFingerprintReaps(t, db, 2, 1, 1, "batched insert + reap")
 
 	query := db.execs[0].query
 	if !strings.Contains(query, "INSERT INTO content_entities") {
@@ -253,7 +261,7 @@ func TestContentWriterBatchesSmallTombstoneDelete(t *testing.T) {
 	}
 
 	// Deletes should remove entities, indexed file references, and the file row.
-	assertExecCountWithFingerprintReaps(t, db.execs, 3, 0, 0, "3 batched deletes")
+	assertExecCountWithFingerprintReaps(t, db, 3, 0, 0, "3 batched deletes")
 	if !strings.Contains(db.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("first query should delete entities: %s", db.execs[0].query)
 	}
@@ -265,7 +273,7 @@ func TestContentWriterBatchesSmallTombstoneDelete(t *testing.T) {
 	}
 
 	// Each tombstone DELETE must use the batched IN (...) syntax (the
-	// fingerprint reap trailer uses anti-joins instead, asserted above).
+	// fingerprint reap trailer is two stale-id reads instead, asserted above).
 	for _, e := range db.execs[:3] {
 		if !strings.Contains(e.query, "IN (") {
 			t.Fatalf("DELETE query should use batched IN (...) syntax: %s", e.query)
@@ -295,7 +303,7 @@ func TestContentWriterMaterializesHostnameReferences(t *testing.T) {
 		t.Fatalf("Write() error = %v, want nil", err)
 	}
 
-	assertExecCountWithFingerprintReaps(t, db.execs, 3, 0, 0, "reference delete + file insert + reference upsert")
+	assertExecCountWithFingerprintReaps(t, db, 3, 0, 0, "reference delete + file insert + reference upsert")
 	if !strings.Contains(db.execs[0].query, "DELETE FROM content_file_references") {
 		t.Fatalf("first query = %q, want stale content_file_references delete", db.execs[0].query)
 	}
@@ -338,7 +346,7 @@ func TestContentWriterMaterializesServiceNameReferences(t *testing.T) {
 		t.Fatalf("Write() error = %v, want nil", err)
 	}
 
-	assertExecCountWithFingerprintReaps(t, db.execs, 3, 0, 0, "reference delete + file insert + reference upsert")
+	assertExecCountWithFingerprintReaps(t, db, 3, 0, 0, "reference delete + file insert + reference upsert")
 	if !strings.Contains(db.execs[2].query, "INSERT INTO content_file_references") {
 		t.Fatalf("third query = %q, want content_file_references upsert", db.execs[2].query)
 	}
@@ -383,7 +391,7 @@ func TestContentWriterBatchesLargeFileSet(t *testing.T) {
 	}
 
 	// Should have a stale-reference delete and file insert per batch.
-	assertExecCountWithFingerprintReaps(t, db.execs, 4, 0, 0, "reference delete + insert per batch")
+	assertExecCountWithFingerprintReaps(t, db, 4, 0, 0, "reference delete + insert per batch")
 
 	// Both queries should be multi-row INSERTs
 	for i, execIndex := range []int{1, 3} {
@@ -451,7 +459,7 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 	// 500+100 at contentFileBatchSize: 2 scoped fp deletes + 2 scoped band
 	// deletes (see TestDeleteWithdrawnFingerprintsChunksAtFileBatchSize for
 	// the bound pin; this test pins the Write-level statement shape).
-	assertExecCountWithFingerprintReaps(t, db.execs, 3, 2, 2, "2 insert batches + reap + 500/100 withdrawn chunks")
+	assertExecCountWithFingerprintReaps(t, db, 3, 2, 2, "2 insert batches + reap + 500/100 withdrawn chunks")
 
 	for i, exec := range db.execs[:2] {
 		if !strings.Contains(exec.query, "INSERT INTO content_entities") {
@@ -507,7 +515,7 @@ func TestContentWriterUsesCustomEntityBatchSize(t *testing.T) {
 	}
 	// 3 insert batches (200, 200, 50) + 1 reap DELETE (#5329 content_entities
 	// reap; all 450 entities share one path, reaped in a single chunk).
-	assertExecCountWithFingerprintReaps(t, db.execs, 4, 1, 1, "3 insert batches + 1 reap DELETE")
+	assertExecCountWithFingerprintReaps(t, db, 4, 1, 1, "3 insert batches + 1 reap DELETE")
 	// Entity batches fan out to runConcurrentBatches (nondeterministic
 	// order): assert the sorted multiset of insert batch sizes, and the
 	// reap DELETE separately since its $2/$3 array params read as "($2"/

@@ -162,7 +162,7 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	var fpUpserts, bandUpserts, fpReaps, fpWithdrawnDeletes, bandReaps, scopedBandDeletes int
+	var fpUpserts, bandUpserts, fpRepoWideDeletes, fpWithdrawnDeletes, bandDeletes, scopedBandDeletes int
 	var fpArgs []any
 	for _, exec := range fake.execs {
 		switch {
@@ -182,10 +182,10 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 			if strings.Contains(exec.query, "ANY(") {
 				fpWithdrawnDeletes++
 			} else {
-				fpReaps++
+				fpRepoWideDeletes++
 			}
 		case strings.Contains(exec.query, "DELETE FROM code_fingerprint_band"):
-			bandReaps++
+			bandDeletes++
 			if strings.Contains(exec.query, "ANY(") {
 				scopedBandDeletes++
 			}
@@ -197,8 +197,17 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 	if bandUpserts < 1 {
 		t.Fatal("expected at least one band batch upsert")
 	}
-	if fpReaps != 1 {
-		t.Fatalf("fp reaps = %d, want 1", fpReaps)
+	// The stale-entity reap (#7230) is two set-difference reads, one per side
+	// table; the fake reports nothing stale, so it deletes nothing and no
+	// repo-wide delete statement exists any more.
+	reapReads := 0
+	for _, query := range fake.queries {
+		if query.query == staleFingerprintEntityIDsSQL || query.query == staleFingerprintBandEntityIDsSQL {
+			reapReads++
+		}
+	}
+	if reapReads != 2 || fpRepoWideDeletes != 0 {
+		t.Fatalf("fp reap reads = %d, repo-wide fp deletes = %d, want 2 and 0", reapReads, fpRepoWideDeletes)
 	}
 	// The never-fingerprinted `small` entity flows through the withdrawn
 	// path: one scoped fp delete and one scoped band delete, both no-ops
@@ -206,10 +215,10 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 	if fpWithdrawnDeletes != 1 {
 		t.Fatalf("fp withdrawn deletes = %d, want 1", fpWithdrawnDeletes)
 	}
-	// Three band deletes: the scoped rewrite invalidation (entity_id set),
-	// the scoped withdrawn delete, plus the repo-wide stale-entity reap.
-	if bandReaps != 3 || scopedBandDeletes != 2 {
-		t.Fatalf("band deletes = %d (scoped %d), want 3 total with 2 scoped", bandReaps, scopedBandDeletes)
+	// Two band deletes, both scoped: the rewrite invalidation (entity_id
+	// set) and the withdrawn delete. The stale-entity reap found nothing.
+	if bandDeletes != 2 || scopedBandDeletes != 2 {
+		t.Fatalf("band deletes = %d (scoped %d), want 2 total with 2 scoped", bandDeletes, scopedBandDeletes)
 	}
 	assertFingerprintArgs(t, fpArgs, "repo-fp|a.go|Function|big|10", "exact-1", "renamed-1", sketchHex, shinglesHex, 64)
 }
