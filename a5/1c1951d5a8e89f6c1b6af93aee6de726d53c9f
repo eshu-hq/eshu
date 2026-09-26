@@ -1,0 +1,36 @@
+go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
+  s_b0d7e3abc26c5a::t_86fae7ef226f3a 33,36-37,66,159,164,167,337,345
+go/internal/storage/postgres/content_files_relative_path_skipped_125_live_test.go
+  s_b0d7e3abc26c5a::t_86fae7ef226f3a 38,42,59,62
+  s_b0d7e3abc26c5a::t_33a882af9e3f49 32
+go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+  s_b0d7e3abc26c5a::t_21e96d04fb7249 95,99
+  s_b0d7e3abc26c5a::t_63fae0c53b4963 20,84,139
+  s_b0d7e3abc26c5a::t_86fae7ef226f3a 146
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_33a882af9e3f49 126-130
+  s_b0d7e3abc26c5a::t_b3e96873378050 7,13-14,16,18,89-90,93,115,118-119
+go/internal/storage/postgres/issue7033_scoped_rollout_test.go
+  s_b0d7e3abc26c5a::t_5bb5686a538a76 98
+  s_b0d7e3abc26c5a::t_86fae7ef226f3a 86-87
+  s_b0d7e3abc26c5a::t_31be2197affe24 119-169
+  s_b0d7e3abc26c5a::t_db5465f731b416 258-265
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_92a9698dee07e3 182-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a51c1951d5a8e89f6c1b6af93aee6de726d53c9f",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
