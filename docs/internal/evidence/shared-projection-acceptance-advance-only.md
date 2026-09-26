@@ -164,13 +164,13 @@ both EXPLAIN tables ran on a remote host: AWS r7a.4xlarge (16 vCPU, 128 GiB),
 - **Earlier proofs, unchanged and GREEN.**
   - The sequential test.
   - The 4 × 50 lock-wait matrix (row absent or preseeded, either generation
-    holding the lock): 200/200 trials end on the newer generation.
+    holding the lock): 200/200 trials end on the newer generation (ledger:6679-concurrent-out-of-order-g-new).
   - The stale-write counter through the production writer: a late older
     write counts 1, and a same-generation retry does not count.
 - **Deadlocks.**
   `TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive` runs two
   production writers over the same 200 keys, one reversed.
-  - GREEN: 20/20 trials, no 40P01, every key on the newer generation.
+  - GREEN: 20/20 trials, no 40P01, every key on the newer generation (ledger:6679-reversed-batches-no-deadlock).
   - RED with the Go sort and the SQL `ORDER BY` removed:
     `trial 1 writer 1 deadlocked: ... deadlock detected (SQLSTATE 40P01)`.
 - **Ordering key.** `TestSharedProjectionAcceptanceOrdersByIngestedAtLive`: a

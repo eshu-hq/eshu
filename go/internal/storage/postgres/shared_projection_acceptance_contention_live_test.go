@@ -254,7 +254,7 @@ func TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive(
 				trial, gen, len(stale), key, keyed, fixture.genNew, want)
 		}
 	}
-	t.Log("5/5 trials: legacy row at a post-snapshot generation advanced to G_new")
+	t.Logf("legacy row at a post-snapshot generation advanced to G_new in all %d trials", 5)
 }
 
 // TestSharedIntentAcceptanceWriterStaleWriteCounterLive drives the production

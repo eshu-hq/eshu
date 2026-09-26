@@ -355,7 +355,7 @@ func TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive(t *testing.T
 						trial, gotY, stale, lateGen)
 				}
 			}
-			t.Logf("%s: 10/10 trials held", tc.name)
+			t.Logf("%s: held in all %d trials", tc.name, 10)
 		})
 	}
 }
