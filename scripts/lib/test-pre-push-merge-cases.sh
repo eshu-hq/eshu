@@ -11,29 +11,10 @@
 # merged tree, never in the head tree.
 # shellcheck disable=SC2154  # fail, temp_root, script, repo_root: the caller's.
 
-# write_merge_fake_go writes the compile-modelling `go` stand-in to <bin>/go.
+# write_merge_fake_go installs the compile-modelling `go` stand-in as <bin>/go.
 write_merge_fake_go() {
-	local bin="$1"
-	cat > "${bin}/go" <<'FAKEGO'
-#!/usr/bin/env bash
-printf 'go %s cwd=%s\n' "$*" "${PWD}" >> "${DRIVER_ARGS_LOG}"
-case "${1:-}" in
-	build | vet) ;;
-	*) exit 0 ;;
-esac
-# Case K: move the fixture's HEAD while the merged tree is being vetted, the
-# way a concurrent commit or amend would.
-if [[ -n "${FAKE_GO_MOVE_HEAD_REPO:-}" && "${PWD}" == *eshu-pre-push-merge* ]]; then
-	git -C "${FAKE_GO_MOVE_HEAD_REPO}" -c core.hooksPath=/dev/null -c user.name=Test \
-		-c user.email=test@example.invalid commit -q --allow-empty -m "moved mid-run"
-fi
-if rg -q --glob '*.go' 'p\.Old\(' . && ! rg -q --glob '*.go' '^func Old\(' .; then
-	printf 'internal/r/call.go:5:12: undefined: p.Old\n' >&2
-	exit 1
-fi
-exit 0
-FAKEGO
-	chmod +x "${bin}/go"
+	cp "${repo_root}/scripts/lib/test-pre-push-merge-fake-go.sh" "$1/go"
+	chmod +x "$1/go"
 }
 
 # merge_fixture_commit stages everything and commits with hooks disabled.
