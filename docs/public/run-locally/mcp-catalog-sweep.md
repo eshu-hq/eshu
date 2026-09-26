@@ -42,18 +42,19 @@ baseline manifest is unchanged.
   one `state_snapshot` scope; there is no indexed content. Of the 167
   checked-in calls, 130 allowlisted calls must answer `ok`: they name the
   seeded repository or scope, or need no subject, so a grant filter that wrongly
-  hid the seeded subject would fail them. 28 allowlisted calls may also answer a
-  second outcome, each with a specific `acceptReason`: 21 name a subject the
+  hid the seeded subject would fail them. 29 allowlisted calls may also answer a
+  second outcome, each with a specific `acceptReason`: 22 name a subject the
   fixture does not seed (a workload, service, code symbol, file, or evidence
   packet) and may answer a typed `not_found`; 7 depend on the stack profile
   (`unsupported_capability` for code divergence and path comparison, the
   default-off `503` for `ask` because `ESHU_ASK_ENABLED` is unset, matched on
   its "ask is not enabled" body so a backend `503` still fails,
   `component_registry_unavailable` because `ESHU_COMPONENT_HOME` is unset). For
-  those 28 the proof is only that the route is mounted and not refused by the
+  those 29 the proof is only that the route is mounted and not refused by the
   route policy; the answer alone does not tell an unseeded subject from a
-  filtered one. Four of them (`calculate_cyclomatic_complexity`,
-  `get_file_content`, `get_file_lines`, `trace_route_callers`) pass the granted
+  filtered one. Five of them (`analyze_code_relationships` for `who_modifies`,
+  `calculate_cyclomatic_complexity`, `get_file_content`, `get_file_lines`,
+  `trace_route_callers`) pass the granted
   repository and answer `not_found`, so the runner replays each through the
   all-scope console session, which must answer the same typed `404`: the
   fixture, not the grant, lacks the subject. The Go test rejects a tolerant
@@ -62,10 +63,14 @@ baseline manifest is unchanged.
   tool name alone does not count), or, for a row that accepts only capability
   outcomes, names the `ESHU_*` variable, query profile, or graph mode it
   depends on, and unless every accepted outcome is one it
-  lists. The remaining 9 calls reach a ledger or shared-key-only route, which
+  lists. The remaining 8 calls reach a ledger or shared-key-only route, which
   must answer the route-policy `403` with a live description that discloses it.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
   fails. The runner prints this split in the step detail.
+  The static split is derived from `ESHU_CATALOG_SWEEP_POLICY_OUT`; the last live
+  per-row table predates #7183, which promoted
+  `POST /api/v0/code/relationships` off the pending-row-filtering ledger, so the
+  `who_modifies` row and its all-scope control have not been run live since.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
   granted repository only, and each single-repository tool refuses the ungranted

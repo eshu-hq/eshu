@@ -13,6 +13,13 @@ used `a8c2ed788`; this run supersedes them.
 
 ## Result
 
+> These counts and the per-tool table below are as of the run at the commit
+> named above, before #7183. #7183 promoted `POST /api/v0/code/relationships`
+> off the pending-row-filtering ledger, so the current static split is 130 `ok`,
+> 29 tolerant, 8 ledger calls (see
+> [MCP catalog sweep](../../public/run-locally/mcp-catalog-sweep.md)); the live
+> outcome has not been rerun since.
+
 - 166 tools listed to the scoped personal token; 167 calls (one tool has two
   cases); **167/167 passed**.
 - 130 allowlisted calls answered `ok`. 28 allowlisted calls proved only that the
@@ -76,6 +83,12 @@ confirms #5167's ledger annotations and disclosures rather than finding a new
 gap.
 
 ## Per-tool table
+
+The `analyze_code_relationships[who_modifies_pending_ledger]` row is not
+current. At the run's commit `POST /api/v0/code/relationships` was a
+pending-row-filtering ledger route answering 403; #7183 promoted it, so the case
+is now the allowlisted row `who_modifies`, which accepts `ok` or `not_found`,
+and no live run has covered it since the promotion.
 
 ```text
 tool                                                     route                                                                    expected                                                  actual                          verdict
