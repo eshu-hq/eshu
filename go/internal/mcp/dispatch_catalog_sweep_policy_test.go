@@ -22,6 +22,14 @@ import (
 // dirgate file count.
 const catalogSweepArgsPath = "testdata/catalog_sweep_args.json"
 
+// catalogSweepExpectedClassesPath is the checked-in class each case was written
+// against, keyed "<tool>/<label>". TestCatalogSweepPolicy derives the class
+// from the live route predicates and fails when it differs from this file, so
+// a route promoted off (or onto) a ledger stops the Go suite until the case's
+// arguments and accepted outcomes are revisited (#5167). The expectation is
+// data a reviewer edits deliberately, never computed from the predicates.
+const catalogSweepExpectedClassesPath = "testdata/catalog_sweep_expected_classes.json"
+
 // catalogSweepPolicyOutEnv names the environment variable that makes
 // TestCatalogSweepPolicy write the derived tool -> route -> class table for the
 // sweep runner. Unset, the test still validates the table and writes nothing.
@@ -65,14 +73,20 @@ type catalogSweepArgsFile struct {
 // catalogSweepPolicyRow is one row of the emitted policy: a call plus the
 // route it dispatches to and the class the route policy assigns it.
 type catalogSweepPolicyRow struct {
-	Tool         string         `json:"tool"`
-	Label        string         `json:"label"`
-	Method       string         `json:"method"`
-	Path         string         `json:"path"`
-	Class        string         `json:"class"`
-	Arguments    map[string]any `json:"arguments"`
-	Accept       []string       `json:"accept"`
-	AcceptReason string         `json:"acceptReason,omitempty"`
+	Tool      string         `json:"tool"`
+	Label     string         `json:"label"`
+	Method    string         `json:"method"`
+	Path      string         `json:"path"`
+	Class     string         `json:"class"`
+	Arguments map[string]any `json:"arguments"`
+	// Body and Query are resolveRoute's Request.Body / Request.Query: what the
+	// dispatcher actually sends, which may rename the tool arguments. The
+	// runner's all-scope control replays these, so it asks the route the same
+	// question the scoped MCP call asked.
+	Body         any               `json:"body,omitempty"`
+	Query        map[string]string `json:"query,omitempty"`
+	Accept       []string          `json:"accept"`
+	AcceptReason string            `json:"acceptReason,omitempty"`
 }
 
 // catalogSweepPolicy is the JSON document handed to the sweep runner.
@@ -80,6 +94,24 @@ type catalogSweepPolicy struct {
 	DisclosurePattern string                  `json:"disclosurePattern"`
 	DisclosureFlags   string                  `json:"disclosureFlags"`
 	Rows              []catalogSweepPolicyRow `json:"rows"`
+}
+
+// catalogSweepExpectedClassesFile is the on-disk shape of the class table.
+type catalogSweepExpectedClassesFile struct {
+	Classes map[string]string `json:"classes"`
+}
+
+func loadCatalogSweepExpectedClasses(t *testing.T) map[string]string {
+	t.Helper()
+	raw, err := os.ReadFile(catalogSweepExpectedClassesPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", catalogSweepExpectedClassesPath, err)
+	}
+	var file catalogSweepExpectedClassesFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("decode %s: %v", catalogSweepExpectedClassesPath, err)
+	}
+	return file.Classes
 }
 
 func loadCatalogSweepArgs(t *testing.T) catalogSweepArgsFile {
@@ -119,6 +151,7 @@ func classifyCatalogSweepRoute(req *http.Request) (string, bool) {
 // is set, writes the derived tool -> route -> class table for the runner.
 func TestCatalogSweepPolicy(t *testing.T) {
 	file := loadCatalogSweepArgs(t)
+	expectedClasses := loadCatalogSweepExpectedClasses(t)
 	disclosure := regexp.MustCompile("(?" + catalogSweepDisclosureFlags + ")" + catalogSweepDisclosurePattern)
 
 	registered := map[string]string{}
@@ -168,6 +201,12 @@ func TestCatalogSweepPolicy(t *testing.T) {
 			if problem := catalogSweepLedgerLabelProblem(c.Label, class); problem != "" {
 				t.Errorf("tool %q case %q %s", name, c.Label, problem)
 			}
+			key := name + "/" + c.Label
+			expected, hasExpectation := expectedClasses[key]
+			if problem := catalogSweepClassProblem(expected, hasExpectation, class); problem != "" {
+				t.Errorf("tool %q case %q (%s %s) %s", name, c.Label, route.Method, route.Path, problem)
+			}
+			delete(expectedClasses, key)
 			accept := c.Accept
 			switch class {
 			case catalogSweepClassAllowlisted:
@@ -189,9 +228,14 @@ func TestCatalogSweepPolicy(t *testing.T) {
 			}
 			rows = append(rows, catalogSweepPolicyRow{
 				Tool: name, Label: c.Label, Method: route.Method, Path: route.Path,
-				Class: class, Arguments: c.Arguments, Accept: accept, AcceptReason: c.AcceptReason,
+				Class: class, Arguments: c.Arguments, Body: route.Body, Query: route.Query,
+				Accept: accept, AcceptReason: c.AcceptReason,
 			})
 		}
+	}
+
+	for key := range expectedClasses {
+		t.Errorf("%s names %q, which is not a case in %s -- remove the stale expectation", catalogSweepExpectedClassesPath, key, catalogSweepArgsPath)
 	}
 
 	out := os.Getenv(catalogSweepPolicyOutEnv)

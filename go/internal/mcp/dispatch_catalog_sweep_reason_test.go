@@ -121,3 +121,39 @@ func TestCatalogSweepLedgerLabelProblem(t *testing.T) {
 		})
 	}
 }
+
+// TestCatalogSweepClassProblem is the seeded RED/GREEN pair for the guard that
+// makes a route promotion fail the Go suite. The RED cases are the two drifts
+// #7193 and #7191 caused: a case written for a ledger class whose route now
+// derives as allowlisted, and a case with no checked-in expectation.
+func TestCatalogSweepClassProblem(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		expected    string
+		hasExpected bool
+		derived     string
+		wantContain string
+	}{
+		{"RED promoted off the pending ledger", catalogSweepClassPendingFiltered, true, catalogSweepClassAllowlisted, "now derives as allowlisted"},
+		{"RED demoted onto the pending ledger", catalogSweepClassAllowlisted, true, catalogSweepClassPendingFiltered, "now derives as pending_row_filtering"},
+		{"RED no checked-in expectation", "", false, catalogSweepClassAllowlisted, "has no entry"},
+		{"GREEN allowlisted stays allowlisted", catalogSweepClassAllowlisted, true, catalogSweepClassAllowlisted, ""},
+		{"GREEN shared-key-only stays shared-key-only", catalogSweepClassSharedKeyOnly, true, catalogSweepClassSharedKeyOnly, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := catalogSweepClassProblem(tt.expected, tt.hasExpected, tt.derived)
+			if tt.wantContain == "" {
+				if got != "" {
+					t.Fatalf("catalogSweepClassProblem(%q, %v, %q) = %q, want no problem", tt.expected, tt.hasExpected, tt.derived, got)
+				}
+				return
+			}
+			if !strings.Contains(got, tt.wantContain) {
+				t.Fatalf("catalogSweepClassProblem(%q, %v, %q) = %q, want it to contain %q", tt.expected, tt.hasExpected, tt.derived, got, tt.wantContain)
+			}
+		})
+	}
+}
