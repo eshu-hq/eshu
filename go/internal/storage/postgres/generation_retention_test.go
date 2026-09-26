@@ -372,6 +372,11 @@ type generationRetentionFakeDB struct {
 	execResults   []sql.Result
 	queries       []fakeQueryCall
 	execs         []fakeExecCall
+	// statements records every statement in the order the transaction issued
+	// it, reads and writes together, including the transaction-local setting
+	// statement that execs and execResults deliberately skip so the positional
+	// exec scripts stay aligned with the retention deletes.
+	statements []string
 }
 
 func (database *generationRetentionFakeDB) Begin(context.Context) (db.Transaction, error) {
@@ -392,6 +397,7 @@ type generationRetentionFakeTx struct {
 
 func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	tx.database.queries = append(tx.database.queries, fakeQueryCall{query: query, args: args})
+	tx.database.statements = append(tx.database.statements, query)
 	switch {
 	case strings.Contains(query, "ranked_superseded_generations"):
 		return &queueFakeRows{rows: generationRetentionCandidateFakeRows(tx.database.candidateRows, args)}, nil
@@ -435,6 +441,10 @@ func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
 }
 
 func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.database.statements = append(tx.database.statements, query)
+	if strings.HasPrefix(query, "SET LOCAL ") {
+		return fakeResult{}, nil
+	}
 	tx.database.execs = append(tx.database.execs, fakeExecCall{query: query, args: args})
 	if len(tx.database.execResults) == 0 {
 		return fakeResult{}, nil

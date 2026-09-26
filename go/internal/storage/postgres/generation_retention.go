@@ -25,6 +25,21 @@ const (
 	defaultGenerationRetentionPolicyRev     = "global-default-v1"
 )
 
+// generationRetentionWorkMemStatement raises work_mem for the retention
+// transaction only. The content prunes and the row count aggregate one pass over
+// every live fact of a kind; on a server left at the default 4MB work_mem the
+// planner sorts that pass on disk (Sort -> GroupAggregate, an 11MB external
+// merge at 5x) and the prunes run 1.4-1.7x slower than the previous statements.
+// At 16MB and above the plan is a HashAggregate and the prunes run 27-33% faster
+// than the previous statements warm at 5x; cold plans do not change (remote
+// measurement, docs/internal/evidence/6809-retention-content-prune-plan.md).
+// 64MB is 4x the smallest value proven at 5x, chosen to keep a hash aggregate at
+// larger fact counts. SET LOCAL reverts at commit or rollback, so it never
+// touches the pooled session or the server setting. A hash node may use up to
+// twice work_mem (hash_mem_multiplier), so one retention transaction stays under
+// about 128MB per statement.
+const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
+
 // GenerationRetentionPolicy bounds automated cleanup of superseded source-local
 // generations. The active generation and the newest superseded generations
 // inside the count or age window are never candidates.
@@ -126,6 +141,10 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 			_ = tx.Rollback()
 		}
 	}()
+
+	if _, err := tx.ExecContext(ctx, generationRetentionWorkMemStatement); err != nil {
+		return GenerationRetentionResult{}, fmt.Errorf("generation retention: set transaction work_mem: %w", err)
+	}
 
 	result := GenerationRetentionResult{
 		RowsPruned: make(map[string]int64),

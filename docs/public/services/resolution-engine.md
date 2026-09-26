@@ -47,6 +47,15 @@ history ages out. Production Helm renders and default/production binaries reject
 `ESHU_GENERATION_RETENTION_ENABLED=false`; use that disable flag only with an
 explicit local `ESHU_QUERY_PROFILE` for local or test binary runs.
 
+Each retention transaction runs `SET LOCAL work_mem = '64MB'` before its first
+statement, so the row count and the content prunes keep a hash-based plan on a
+Postgres left at the 4MB default `work_mem`, as a Helm deployment against an
+external Postgres commonly is. The setting is transaction-local: it does not
+change the pooled connection or the server configuration. A hash node may use up
+to twice that (`hash_mem_multiplier`), so plan for roughly 128MB of memory per
+statement for the one retention transaction the reducer runs at a time. There is
+no environment variable for it.
+
 The graph orphan cleanup runner counts, marks, and deletes only aged
 zero-relationship graph nodes in the closed cleanup label set. It is not a
 substitute for relationship retraction or canonical node replacement: first it

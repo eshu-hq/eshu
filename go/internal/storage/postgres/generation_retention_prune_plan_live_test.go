@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // generationRetentionPruneCase is one content key shape the retention prunes
@@ -206,6 +208,9 @@ func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, datab
 			}
 		}
 	}
+	sessionWorkMem := currentWorkMem(t, batchCtx, database)
+	probe := &workMemProbeDB{inner: SQLDB{DB: database}}
+	store = NewGenerationRetentionStore(probe)
 	start = time.Now()
 	result, err := store.PruneSupersededGenerations(batchCtx, GenerationRetentionPolicy{
 		MinSupersededGenerations: 0,
@@ -221,6 +226,14 @@ func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, datab
 	t.Logf("cold retention batch: %d generations in %s", result.GenerationsPruned, time.Since(start))
 	if result.GenerationsPruned != 10 {
 		t.Errorf("GenerationsPruned = %d, want 10", result.GenerationsPruned)
+	}
+	// work_mem is 64MB inside the batch transaction, right after the setting and
+	// again just before commit, and the pooled session is unchanged afterward.
+	if !slices.Equal(probe.observed, []string{"64MB", "64MB"}) {
+		t.Errorf("work_mem observed inside the retention transaction = %v, want [64MB 64MB]", probe.observed)
+	}
+	if got := currentWorkMem(t, batchCtx, database); got != sessionWorkMem {
+		t.Errorf("session work_mem after the batch = %q, want the unchanged %q", got, sessionWorkMem)
 	}
 	wantPruned := map[string]int64{"content_entities": doomed, "content_files": doomed, "content_file_references": doomed * 3}
 	for table, wantCount := range wantPruned {
@@ -381,4 +394,74 @@ func assertGenerationRetentionKeys(t *testing.T, ctx context.Context, database *
 	if !slices.Equal(got, want) {
 		t.Errorf("%s rows after prune:\n got  %v\n want %v", table, got, want)
 	}
+}
+
+// currentWorkMem reads work_mem as a fresh pooled session sees it.
+func currentWorkMem(t *testing.T, ctx context.Context, database *sql.DB) string {
+	t.Helper()
+	var value string
+	if err := database.QueryRowContext(ctx, "SELECT current_setting('work_mem')").Scan(&value); err != nil {
+		t.Fatalf("read work_mem: %v", err)
+	}
+	return value
+}
+
+// workMemProbeDB wraps the store's database so the test can read work_mem from
+// inside the retention transaction: after the setting statement and before
+// commit.
+type workMemProbeDB struct {
+	inner    SQLDB
+	observed []string
+}
+
+func (p *workMemProbeDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return p.inner.ExecContext(ctx, query, args...)
+}
+
+func (p *workMemProbeDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return p.inner.QueryContext(ctx, query, args...)
+}
+
+func (p *workMemProbeDB) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := p.inner.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &workMemProbeTx{Transaction: tx, probe: p}, nil
+}
+
+type workMemProbeTx struct {
+	db.Transaction
+	probe *workMemProbeDB
+}
+
+func (tx *workMemProbeTx) observe(ctx context.Context) error {
+	rows, err := tx.QueryContext(ctx, "SELECT current_setting('work_mem')")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return err
+		}
+		tx.probe.observed = append(tx.probe.observed, value)
+	}
+	return rows.Err()
+}
+
+func (tx *workMemProbeTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	result, err := tx.Transaction.ExecContext(ctx, query, args...)
+	if err == nil && query == generationRetentionWorkMemStatement {
+		err = tx.observe(ctx)
+	}
+	return result, err
+}
+
+func (tx *workMemProbeTx) Commit() error {
+	if err := tx.observe(context.Background()); err != nil {
+		return err
+	}
+	return tx.Transaction.Commit()
 }

@@ -7,11 +7,13 @@ shape over `fact_records`. This note records the plan cliff that shape has when
 the planner has no statistics, the rewrite that removes it, and how the rewrite
 was proven equivalent.
 
-**Every timing here is laptop-local** (Postgres 18.6 in Docker on a developer
-machine, default `work_mem`, host load average 50-85 while measuring). Remote
-numbers are pending; the owner requires final performance numbers from the
-remote host. Read the ratios and plan shapes as the evidence and the absolute
-milliseconds as indicative.
+Two sets of timings appear here. The first pass was laptop-local (Postgres 18.6
+in Docker on a developer machine, host load average 50-85). The reference set is
+a remote measurement on an AWS r7a.4xlarge (AMD EPYC 9R14, 16 vCPU, 128 GiB RAM)
+running `postgres:18-alpine` (PostgreSQL 18.6) with container defaults
+(`shared_buffers` 128MB, `work_mem` 4MB, `hash_mem_multiplier` 2), one client, a
+near-idle host. Where they disagree, the remote figures win; the laptop
+"warm 5x is within noise" reading was wrong and is corrected below.
 
 ## The cliff
 
@@ -74,7 +76,8 @@ adds no index and does not depend on `ANALYZE`.
 ## Measurements
 
 Performance Evidence: the grouped rewrite removes the statistics-dependent plan
-cliff and matches the old warm plans. Laptop-local, Postgres 18.6, real
+cliff, and under the retention transaction's `work_mem` (below) it is also faster
+than the old statements warm. First pass, laptop-local, Postgres 18.6, real
 bootstrapped schema, `EXPLAIN (ANALYZE, BUFFERS)` of each statement rolled back,
 60s `statement_timeout`. Cold means freshly migrated and seeded with autovacuum off
 and no `ANALYZE`; warm means the same database after `ANALYZE`. 1x is 10
@@ -95,16 +98,17 @@ superseded generations of 5,000 keys; 5x is 25,000 keys per generation.
 | content_file_references | 5x | cold | 663 ms | 196 ms |
 | content_file_references | 5x | warm | 569 / 521 ms | 522 / 576 ms |
 
-Warm 5x is within noise of the old shape or up to about 35% slower (content_files:
-595 / 669 ms against 444 / 509 ms); that is the cost
-of always reading every live fact of the kind once. One stale-statistics shape (5x,
+At 5x the laptop warm rewrite was 10-35% slower than the old shape (content_files:
+595 / 669 ms against 444 / 509 ms). The remote run, below, shows the cause: a
+sort that spills at the default 4MB `work_mem`. One stale-statistics shape (5x,
 `ANALYZE` at 138k rows, then about 500k rows added) showed no cliff for either
 shape (old 1,112 / 782 / 791 ms, grouped 624 / 686 / 642 ms); that is one shape,
 and it is not a claim that stale statistics are safe in general.
 
-Classification: correctness-neutral handler win on the cold path; warm path is
-not faster. It does not change any end-to-end time claim. Next long pole: a
-production-scale warm run, which needs the remote host.
+Classification: cold-path correctness-neutral handler win, and with the
+transaction-local `work_mem` a warm-path win at 5x as well (remote, below). It
+changes no end-to-end time claim. Next long pole: the row-count statement, which
+runs first in every batch (see Limits), and the 20x shape, which was not measured.
 
 Regression test, Go on the migrated schema (laptop-local): 10 pruned generations
 of 6,000 keys, no `ANALYZE`, `SET LOCAL statement_timeout = '10s'`. The old
@@ -112,6 +116,86 @@ entities statement was cancelled at the timeout (SQLSTATE 57014) and, on the
 same run, the old references statement took 9.0s; the rewrite
 finished the references prune (7,200 rows) in 74.6ms and the entities and files
 prunes (2,400 rows each) in 66.6ms and 66.2ms.
+
+## Remote measurement
+
+Performance Evidence: remote, AWS r7a.4xlarge, PostgreSQL 18.6 (`postgres:18-alpine`,
+amd64), the branch built at the rewrite commit, 142 of 142 migrations applied by the
+product bootstrap, the same seed shapes as above. Two independent fresh seeds per
+scale; cold means no statistics (autovacuum off, hint bits primed, checkpoint taken)
+and warm means after `ANALYZE`, six timed executions per warm cell. Each statement
+ran as `EXPLAIN (ANALYZE, BUFFERS)` inside a transaction rolled back, with a literal
+array in place of `$1`. No foreign benchmark ran during the 1x and 5x rounds (a
+per-run process guard aborted a round otherwise); whole-machine CPU stayed at 13-27%.
+
+Cold, both variants at the default `work_mem`, milliseconds (two seeds):
+
+| statement | 1x old | 1x rewrite | 5x old | 5x rewrite |
+|---|---|---|---|---|
+| content_entities | 42,439 / 43,990 | 58 / 63 | cancelled at 120 s twice | 302 / 307 |
+| content_files | 116 / 102 | 54 / 55 | 755 / 792 | 281 / 279 |
+| content_file_references | 112 / 110 | 57 / 56 | 766 / 785 | 273 / 298 |
+
+The old entities statement plans a Nested Loop Anti Join estimated at one row (the
+candidate CTE estimated at 92 rows against 25,000 actual) whose inner Bitmap Heap Scan
+of `fact_records` runs once per candidate key; at 1x it did 30.5M buffer hits. The
+rewrite plans a Nested Loop over one HashAggregate at every setting tested and
+never spills at 5x.
+
+Warm at 5x, the default 4MB `work_mem` against a larger one, median with range in
+milliseconds. "Old" is the previous statements; "rewrite" is the grouped pass:
+
+| variant | content_entities | content_files | content_file_references | aggregate |
+|---|---|---|---|---|
+| old, 4MB | 351 [333-364] | 327 [308-390] | 432 [383-467] | HashAggregate |
+| old, 16MB | 348 [342-406] | 312 [301-320] | 386 [360-427] | HashAggregate |
+| rewrite, 4MB | 626 [615-667] | 624 [615-661] | 642 [622-666] | GroupAggregate, sort spills |
+| rewrite, 16MB | 257 [249-299] | 239 [232-252] | 260 [254-297] | HashAggregate |
+| rewrite, 32MB | 260 [250-306] | 242 [233-253] | 257 [245-281] | HashAggregate |
+| rewrite, 64MB | 265 [249-302] | 241 [238-279] | 256 [251-295] | HashAggregate |
+| rewrite, 128MB | 269 [250-303] | 239 [230-260] | 250 [245-294] | HashAggregate |
+| rewrite, 256MB | 254 [252-263] | 240 [232-251] | 254 [252-257] | HashAggregate |
+
+At 4MB the rewrite is 1.5-1.9x slower warm at 5x, and the cause is measured: after
+`ANALYZE` it plans a Sort feeding a GroupAggregate over all 291,750 live facts of the
+kind, and the sort spills to an 11MB external merge. From 16MB up the plan is a
+HashAggregate in one batch (about 6MB) and the rewrite is 23-40% faster than the old
+statements at either memory setting. Memory above 16MB buys nothing at 5x, and cold
+times are the same at every setting (241-302 ms), so raising it never worsens the cold
+plan. At 1x the rewrite is 13-19% faster warm at every setting, with no spill.
+
+A dedup-first shape (candidate keys deduplicated before the retained probe) was measured
+and rejected: it stays hash-based at 4MB, but at 5x it is 9% slower than the old warm
+statement (382 against 351 ms for entities) and 2.5x slower cold than the rewrite
+(699 / 689 against 265 / 267 ms), because it scans `fact_records` twice.
+
+Bound `$1`: the same statements run as a server-side prepared statement on the compose
+planner profile (`random_page_cost` 1.1, `work_mem` 16MB, seed A at 5x), seven
+executions plus one forced generic plan. The rewrite stayed stable across all seven
+(cold 267-298 ms, warm 301-390 ms) and the forced generic plan cost about 20% more,
+not a cliff. This exercises the server-side plan cache; a Go driver call was not
+timed separately.
+
+Equivalence on the remote matched the laptop: the old statements, the rewrite and the
+arithmetic oracle deleted identical row sets at 1x cold and warm (entities 1,750, files
+1,750, references 5,250, same md5s) and at 5x (8,750 / 8,750 / 26,250).
+
+## The transaction-local work_mem
+
+Nothing in the reducer sets `work_mem`, and a Helm deployment uses whatever the
+operator's Postgres uses (commonly 4MB). Compose already sets 16MB. So the retention
+transaction now runs `SET LOCAL work_mem = '64MB'` as its first statement, before the
+candidate selection, the row count, and every prune. `SET LOCAL` ends with the
+transaction, so the pooled session and the server setting are untouched. 64MB is four
+times the smallest value proven at 5x (16MB); the 20x cold aggregate already needs about
+18-20MB of hash memory, so 16MB is not a safe bound there. A hash node can use twice
+`work_mem`, so the setting reserves about 128MB for the one statement running at a time
+in the one retention transaction; concurrent retention transactions were not measured.
+
+`TestGenerationRetentionSetsTransactionLocalWorkMemFirst` fails if that statement is
+not the first the transaction issues, and the live cold test reads `work_mem` from inside
+the transaction (64MB after the setting and again before commit) and checks the pooled
+session value is unchanged afterward.
 
 ## Equivalence
 
@@ -133,10 +217,16 @@ and the new statements, which is what pins the semantics.
 
 ## Limits
 
-- Synthetic data, one main scope, laptop-local, no production-scale run. The
-  rewrite reads every live fact of the kind once; that cost is unmeasured at 10M+
-  facts. After `ANALYZE` the delete join to the content table can be a hash join
+- Synthetic data, one main scope, no production-scale run. The rewrite reads every
+  live fact of the kind once; that cost is unmeasured at 10M+ facts, and no clean
+  20x shape (10 generations of 100,000 keys) was measured: a peer benchmark shared
+  the host, so those timings are discarded. Only the 20x cold plan shapes are
+  kept: the aggregate needs 18-20MB and spills in 5 batches at 4MB without failing. After `ANALYZE` the delete join to the content table can be a hash join
   with a sequential scan of the content table, also unmeasured at that scale.
+- The row-count statement spills its sorts at 4MB (about 4.9 s warm at 5x on the remote,
+  roughly 7x one warm prune) and was not measured under the larger `work_mem`; the same
+  setting should help it, unproven. It runs first in every batch, so once the prunes
+  are stable it is the larger cost at these scales.
 - No concurrency proof. These are not claim or lease paths, and each statement is
   one snapshot as before, but a retention delete racing an ingester re-upsert of the
   same entity was not exercised.
@@ -146,8 +236,7 @@ and the new statements, which is what pins the semantics.
   `PruneSupersededGenerations` batch through the production store finished in
   1.16-1.22s; `TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive`
   runs both under a 20s deadline. No cliff reproduced, so that phase guards
-  against a regression rather than showing a RED. One cold shape on a laptop
-  is not a proof for other shapes.
+  against a regression rather than showing a RED. One cold shape is not a proof for other shapes.
 - The row count attributes a content row to every candidate generation whose facts
   name it, so on this shape each generation reports 2,400 doomed entities and the
   batch total is 24,000 against the 2,400 rows the batch deletes. `RowsPruned`
