@@ -40,7 +40,7 @@ existing five Directory live cases and the new regression passed on each of
 v1.2.1, v1.3.1, and v1.3.3. This proves the behavior through the handler's
 build, graph read, sort/truncate, and repository-name lookup, not by comparing
 only a copied query string. The live proof uses only disposable local stores.
-After the final rebase, the six-case suite passed again on each pinned build.
+After a later base rebase, the six-case suite passed again on each pinned build.
 The new fixture uses a per-run nonce, removes only its tagged nodes before
 driver close, and checks for residue; its test passed twice in one isolated
 v1.3.3 run. That new NornicDB-only test was removed from the final diff;
@@ -114,5 +114,7 @@ The local NornicDB source checkout at `orneryd/NornicDB` commit `81542d88`
 shows top-level `UNWIND` routing in `pkg/cypher/unwind_routing.go` and
 traversal predicate evaluation in `pkg/cypher/traversal.go`; it is not
 proven to be the source of every tested image, so image behavior above is
-authoritative. The Neo4j fixture was read-only. Disposable NornicDB
-containers and the temporary ops-qa port-forward were removed after proof.
+authoritative. The ops-qa Neo4j `PROFILE` comparison was read-only. The local
+disposable Neo4j regression seeded and removed only its nonce-tagged nodes.
+Disposable test containers and the temporary ops-qa port-forward were removed
+after proof.
