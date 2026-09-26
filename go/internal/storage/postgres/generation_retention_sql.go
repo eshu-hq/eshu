@@ -71,61 +71,54 @@ WHERE generation.status = 'superseded'
 FOR UPDATE OF generation, scope SKIP LOCKED
 `
 
+// generationRetentionRowCountsQuery reports, per candidate generation and
+// table, the rows a retention batch over $1 deletes. Generation-owned tables
+// count the generation's own rows. A content row (content_entities,
+// content_files, content_file_references, and the infra_resource_entities
+// mirror) can be named by facts in several candidates but is deleted once, so
+// it is attributed to exactly one: the newest candidate naming its key, where
+// newest is the last position in $1 (the store passes candidates oldest first).
+// Per table the per-generation counts therefore sum to the rows the content
+// prunes delete, and BatchRowLimit compares against that sum (#6809).
+//
+// The doomed_* CTEs keep the prunes' grouped shape: one pass over the live facts
+// of a kind, hash-joined to the small candidate list, with a HAVING equivalent to
+// the prunes' bool_or(generation_id = ANY($1)) AND NOT bool_or(generation_id <>
+// ALL($1)), so no plan can rescan the retained facts once per candidate key.
 const generationRetentionRowCountsQuery = `
 WITH generation_retention_row_counts AS (
-    SELECT unnest($1::text[]) AS generation_id
+    SELECT candidate.generation_id, candidate.rank
+    FROM unnest($1::text[]) WITH ORDINALITY AS candidate(generation_id, rank)
 ),
-candidate_files AS (
-    SELECT DISTINCT
-        candidate.generation_id,
-        row.payload->>'repo_id' AS repo_id,
-        row.payload->>'relative_path' AS relative_path
-    FROM generation_retention_row_counts AS candidate
-    JOIN fact_records AS row
-      ON row.generation_id = candidate.generation_id
+doomed_files AS (
+    SELECT row.payload->>'repo_id' AS repo_id,
+           row.payload->>'relative_path' AS relative_path,
+           max(candidate.rank) AS attributed_rank
+    FROM fact_records AS row
+    LEFT JOIN generation_retention_row_counts AS candidate
+      ON candidate.generation_id = row.generation_id
     WHERE row.fact_kind = 'file'
       AND row.is_tombstone = FALSE
       AND row.payload->>'repo_id' <> ''
       AND row.payload->>'relative_path' <> ''
+    GROUP BY 1, 2
+    HAVING bool_or(candidate.rank IS NOT NULL)
+       AND NOT bool_or(candidate.rank IS NULL)
 ),
-prunable_candidate_files AS (
-    SELECT candidate.*
-    FROM candidate_files AS candidate
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM fact_records AS retained
-        WHERE retained.generation_id <> ALL($1::text[])
-          AND retained.fact_kind = 'file'
-          AND retained.is_tombstone = FALSE
-          AND retained.payload->>'repo_id' = candidate.repo_id
-          AND retained.payload->>'relative_path' = candidate.relative_path
-    )
-),
-candidate_entities AS (
-    SELECT DISTINCT
-        candidate.generation_id,
-        row.payload->>'repo_id' AS repo_id,
-        row.payload->>'entity_id' AS entity_id
-    FROM generation_retention_row_counts AS candidate
-    JOIN fact_records AS row
-      ON row.generation_id = candidate.generation_id
+doomed_entities AS (
+    SELECT row.payload->>'repo_id' AS repo_id,
+           row.payload->>'entity_id' AS entity_id,
+           max(candidate.rank) AS attributed_rank
+    FROM fact_records AS row
+    LEFT JOIN generation_retention_row_counts AS candidate
+      ON candidate.generation_id = row.generation_id
     WHERE row.fact_kind = 'content_entity'
       AND row.is_tombstone = FALSE
       AND row.payload->>'repo_id' <> ''
       AND row.payload->>'entity_id' <> ''
-),
-prunable_candidate_entities AS (
-    SELECT candidate.*
-    FROM candidate_entities AS candidate
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM fact_records AS retained
-        WHERE retained.generation_id <> ALL($1::text[])
-          AND retained.fact_kind = 'content_entity'
-          AND retained.is_tombstone = FALSE
-          AND retained.payload->>'repo_id' = candidate.repo_id
-          AND retained.payload->>'entity_id' = candidate.entity_id
-    )
+    GROUP BY 1, 2
+    HAVING bool_or(candidate.rank IS NOT NULL)
+       AND NOT bool_or(candidate.rank IS NULL)
 )
 SELECT candidate.generation_id, 'fact_records' AS table_name, COUNT(row.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate
@@ -183,8 +176,8 @@ GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'content_file_references' AS table_name, COUNT(ref.repo_id) AS row_count
 FROM generation_retention_row_counts AS candidate
-LEFT JOIN prunable_candidate_files AS file
-  ON file.generation_id = candidate.generation_id
+LEFT JOIN doomed_files AS file
+  ON file.attributed_rank = candidate.rank
 LEFT JOIN content_file_references AS ref
   ON ref.repo_id = file.repo_id
  AND ref.relative_path = file.relative_path
@@ -192,8 +185,8 @@ GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'content_entities' AS table_name, COUNT(entity.entity_id) AS row_count
 FROM generation_retention_row_counts AS candidate
-LEFT JOIN prunable_candidate_entities AS candidate_entity
-  ON candidate_entity.generation_id = candidate.generation_id
+LEFT JOIN doomed_entities AS candidate_entity
+  ON candidate_entity.attributed_rank = candidate.rank
 LEFT JOIN content_entities AS entity
   ON entity.repo_id = candidate_entity.repo_id
  AND entity.entity_id = candidate_entity.entity_id
@@ -201,8 +194,8 @@ GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'infra_resource_entities' AS table_name, COUNT(mirror.entity_id) AS row_count
 FROM generation_retention_row_counts AS candidate
-LEFT JOIN prunable_candidate_entities AS candidate_entity
-  ON candidate_entity.generation_id = candidate.generation_id
+LEFT JOIN doomed_entities AS candidate_entity
+  ON candidate_entity.attributed_rank = candidate.rank
 LEFT JOIN infra_resource_entities AS mirror
   ON mirror.entity_id = candidate_entity.entity_id
  AND mirror.repo_id = candidate_entity.repo_id
@@ -210,8 +203,8 @@ GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'content_files' AS table_name, COUNT(content_file.relative_path) AS row_count
 FROM generation_retention_row_counts AS candidate
-LEFT JOIN prunable_candidate_files AS file
-  ON file.generation_id = candidate.generation_id
+LEFT JOIN doomed_files AS file
+  ON file.attributed_rank = candidate.rank
 LEFT JOIN content_files AS content_file
   ON content_file.repo_id = file.repo_id
  AND content_file.relative_path = file.relative_path

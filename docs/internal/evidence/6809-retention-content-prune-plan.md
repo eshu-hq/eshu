@@ -193,9 +193,12 @@ times the smallest value proven at 5x (16MB); the 20x cold aggregate already nee
 `work_mem` is a per-plan-node allowance, not a per-statement budget: each sort or hash
 node may use up to 64MB, a hash node up to twice that (`hash_mem_multiplier`), and one
 statement can hold several such nodes. The three content prunes are proven hash-based at
-16MB and above at 5x (remote measurement above). The row-count statement is not: at 4MB
-it spills (about 4.9 s warm at 5x) and its plan under 64MB is unmeasured. Concurrent
-retention transactions were not measured, so no total-memory figure is claimed.
+16MB and above at 5x (remote measurement above). The row-count statement is proven only on
+the laptop cold shape (see Row-count attribution): at 64MB its two grouping sorts stay in
+memory (4.4MB each) and at 4MB they spill (2.5MB each to disk). The earlier shape spilled
+at 4MB warm at 5x on the remote (about 4.9 s); the new shape's remote warm plan is
+unmeasured. Concurrent retention transactions were not measured, so no total-memory
+figure is claimed.
 
 `TestGenerationRetentionSetsTransactionLocalWorkMemFirst` fails if that statement is
 not the first the transaction issues, and the live cold test reads `work_mem` from inside
@@ -220,6 +223,53 @@ tree at small scale: it writes out the expected surviving rows per case and
 compares the exact remaining sets of all three tables. It passes on both the old
 and the new statements, which is what pins the semantics.
 
+## Row-count attribution
+
+Before this change the row count charged a content row to every candidate
+generation whose facts named it. On the cold test shape each of the 10 generations
+reported 2,400 doomed entities, a batch total of 24,000 against the 2,400 rows the
+batch deletes, so `BatchRowLimit` could trip up to 10 times early and the events'
+`row_counts` could not be summed. The count now attributes each doomed content row
+(content_entities, content_files, content_file_references and the
+infra_resource_entities mirror) to exactly one candidate: the newest one naming its
+key, the last position in `$1`. The store sorts candidates oldest superseded first,
+generation id breaking ties, in Go, because the locking candidate `SELECT` has no
+`ORDER BY` of its own. The `doomed_*` CTEs group every live fact of a kind once,
+hash-joined to the candidate list built `WITH ORDINALITY`, with a `HAVING` equivalent
+to the prunes' predicate, so per table the counts sum to the prunes' deletes. After a
+row-limit skip the store recounts over the selected generations, since a skipped
+generation stays on disk and protects keys the first count charged to a selected one.
+
+Tests (laptop-local, migrated schema): the cold-batch phase now requires gen-cold-10
+to hold every doomed content row, gen-cold-1..9 to hold none, and each table's sum to
+equal `RowsPruned`; on the previous statement it failed with sums of 24,000 / 24,000 /
+72,000 against 2,400 / 2,400 / 7,200 pruned.
+`TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive` seeds a key shared by
+gen-1 and gen-3, a key only in gen-2 and a key protected by the active generation, and
+checks the per-generation counts in store order and reversed order plus the sums
+against the prunes and the infra orphan delete run in the same transaction; the
+previous statement charged the shared key to both. The fake-DB tests
+`TestGenerationRetentionStoreRecountsAfterRowLimitSkip` and
+`TestGenerationRetentionStoreCountsCandidatesOldestFirst` pin the recount and the order.
+
+Performance Evidence: laptop-local (Apple Silicon, PostgreSQL 18.6 container
+`postgres:18-alpine`, shared host, load average 3.5-7.7), the cold test shape
+(10 generations of 6,000 keys, no `ANALYZE`; `pg_stats` held no fact_records rows
+before or after the runs). `EXPLAIN` of the new statement shows no `SubPlan` and no
+`Nested Loop` over fact_records: each `doomed_*` CTE is a Bitmap Heap Scan of
+fact_records, a Hash Left Join to the candidate list, a Sort and a GroupAggregate; the
+content tables are then probed by index per doomed key, as before. `EXPLAIN ANALYZE`
+execution time, 7 alternating-order runs per statement, median (range):
+
+| `work_mem` | previous statement | attribution rewrite |
+| --- | --- | --- |
+| 64MB | 335.6 ms (332.0-344.3) | 150.4 ms (149.0-151.8) |
+| 4MB | 342.7 ms (335.6-346.5) | 156.3 ms (154.5-158.9) |
+
+The same run of the live cold test counted in 151.0 ms and finished the whole batch
+in 949.6 ms inside its 20 s deadline. This is one cold shape on a laptop; the remote
+5x warm and 20x cold measurements are pending (see Limits).
+
 ## Limits
 
 - Synthetic data, one main scope, no production-scale run. The rewrite reads every
@@ -228,30 +278,25 @@ and the new statements, which is what pins the semantics.
   the host, so those timings are discarded. Only the 20x cold plan shapes are
   kept: the aggregate needs 18-20MB and spills in 5 batches at 4MB without failing. After `ANALYZE` the delete join to the content table can be a hash join
   with a sequential scan of the content table, also unmeasured at that scale.
-- The row-count statement spills its sorts at 4MB (about 4.9 s warm at 5x on the remote,
-  roughly 7x one warm prune) and was not measured under the larger `work_mem`; the same
-  setting should help it, unproven, so no plan or memory claim is made for it. It runs first in every batch, so once the prunes
-  are stable it is the larger cost at these scales.
+- The row-count statement's remote timing is unmeasured for the attribution rewrite.
+  Its earlier shape spilled its sorts at 4MB (about 4.9 s warm at 5x on the remote,
+  roughly 7x one warm prune). It runs first in every batch, so once the prunes are
+  stable it is the larger cost at these scales. Pending: the 5x warm count at 4MB and
+  64MB and the 20x cold plan on the remote, appended here when run.
 - No concurrency proof. These are not claim or lease paths, and each statement is
   one snapshot as before, but a retention delete racing an ingester re-upsert of the
   same entity was not exercised.
-- The row-count statement carries the same prunable-key predicate and was not
-  rewritten. On the cold test shape (10 generations of 6,000 keys, no `ANALYZE`)
-  it returned all 13 table counts in 316-340ms, and a whole
-  `PruneSupersededGenerations` batch through the production store finished in
-  1.16-1.22s; `TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive`
-  runs both under a 20s deadline. No cliff reproduced, so that phase guards
-  against a regression rather than showing a RED. One cold shape is not a proof for other shapes.
-- The row count attributes a content row to every candidate generation whose facts
-  name it, so on this shape each generation reports 2,400 doomed entities and the
-  batch total is 24,000 against the 2,400 rows the batch deletes. `RowsPruned`
-  reports the deleted rows, but the batch row limit and the per-generation event
-  `row_counts` see the larger figure. That behavior predates this change and is
-  unchanged here; the test pins the per-generation counts and that the total never
-  falls below the rows deleted.
+- The cold row-count phase of
+  `TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive` never
+  reproduced a cliff for either row-count shape, so it guards against a regression
+  rather than showing a RED for the plan. One cold shape is not a proof for other shapes.
+- The infra_resource_entities delete removes every orphan in the touched
+  repositories, so an orphan that existed before the batch makes that table's
+  deletes exceed its count. That behavior is unchanged.
 
 No-Observability-Change: the three statements return the same rows-affected
 counts into the same `RowsPruned` entries as before, so the
-`eshu_dp_generation_retention_rows_pruned_total` counter, the retention event
-`row_counts` JSON, and the retention duration reporting are unchanged, and no
-metric, span, label, log key, queue, or runtime setting is added.
+`eshu_dp_generation_retention_rows_pruned_total` counter and the retention duration
+reporting are unchanged, and no metric, span, label, log key, queue, or runtime
+setting is added. The retention event `row_counts` JSON keeps its keys; its content
+values now follow the single attribution above.

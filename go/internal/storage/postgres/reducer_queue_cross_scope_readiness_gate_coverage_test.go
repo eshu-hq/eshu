@@ -142,6 +142,7 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestGenerationRetentionPrunesMigratedSchemaLive",
 		"TestGenerationRetentionContentPrunesDeleteExactRowsLive",
 		"TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive",
+		"TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

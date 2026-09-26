@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -39,8 +41,8 @@ const (
 // work_mem is a per-plan-node allowance, not a per-statement budget: each sort or
 // hash node may use up to 64MB (a hash node up to twice that,
 // hash_mem_multiplier), and one statement can hold several such nodes. The bound
-// is proven only for the content prunes. The row-count statement spills its
-// sorts at 4MB (about 4.9s warm at 5x) and its plan under 64MB is unmeasured.
+// is proven for the content prunes; the row-count statement's sorts stay in
+// memory at 64MB only on the laptop cold shape (remote warm plan unmeasured).
 // SET LOCAL reverts at commit or rollback, so it never touches the pooled
 // session or the server setting.
 const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
@@ -96,7 +98,9 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 
 // GenerationRetentionResult reports the work a cleanup transaction completed.
 // RowsPruned is keyed by bounded table/data-class names, never raw scope or
-// generation identifiers.
+// generation identifiers. Each event's row_counts charges a content row shared
+// by several pruned generations to the newest of them, so the events sum per
+// table to the deletes (recounted after a row-limit skip).
 type GenerationRetentionResult struct {
 	GenerationsPruned int
 	RowsPruned        map[string]int64
@@ -261,6 +265,14 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 			result.Skipped["row_limit"] += len(skipped)
 			excludedGenerationIDs = append(excludedGenerationIDs, skipped...)
 		}
+		if len(selected) > 0 && len(skipped) > 0 {
+			// Skipped generations stay on disk and protect keys the first count
+			// charged to a selected one; recount (totals only shrink) (#6809).
+			rowCounts, selectedEventRowCounts, _, err = s.countRows(ctx, tx, retentionGenerationIDs(selected))
+			if err != nil {
+				return nil, nil, nil, err
+			}
+		}
 		if len(selected) > 0 {
 			return selected, rowCounts, selectedEventRowCounts, nil
 		}
@@ -315,6 +327,14 @@ func (s GenerationRetentionStore) selectCandidates(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("generation retention: select candidates: %w", err)
 	}
+	// The locking SELECT has no ORDER BY; the row count's attribution and the
+	// row limit both rely on oldest-first, generation id breaking ties.
+	slices.SortStableFunc(candidates, func(a, b generationRetentionCandidate) int {
+		if c := a.supersededAt.Compare(b.supersededAt); c != 0 {
+			return c
+		}
+		return strings.Compare(a.generationID, b.generationID)
+	})
 	return candidates, nil
 }
 

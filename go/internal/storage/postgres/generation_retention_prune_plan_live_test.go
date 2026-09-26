@@ -191,17 +191,21 @@ func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, datab
 	}
 	t.Logf("cold row counts: %d tables in %s", len(counted), time.Since(start))
 	// Every pruned generation holds all keys, and keys with key%10 >= 6 exist only
-	// in the pruned generations. The count attributes a content row to each
-	// generation whose facts name it, so each generation reports the rows the
-	// prunes will delete and the batch total is the per-generation sum.
+	// in the pruned generations. A doomed content row is attributed to the newest
+	// candidate naming its key, the last one passed, so gen-cold-10 holds every
+	// doomed content row and gen-cold-1..9 hold none; fact_records stay exact.
 	doomed := int64(keys * 4 / 10)
-	wantPerGeneration := map[string]int64{
-		"fact_records":            int64(keys * 2),
-		"content_entities":        doomed,
-		"content_files":           doomed,
-		"content_file_references": doomed * 3,
-	}
-	for _, generation := range candidates {
+	for i, generation := range candidates {
+		content := int64(0)
+		if i == len(candidates)-1 {
+			content = doomed
+		}
+		wantPerGeneration := map[string]int64{
+			"fact_records":            int64(keys * 2),
+			"content_entities":        content,
+			"content_files":           content,
+			"content_file_references": content * 3,
+		}
 		for table, wantCount := range wantPerGeneration {
 			if got := perGeneration[generation][table]; got != wantCount {
 				t.Errorf("cold row count for %s in %s = %d, want %d", table, generation, got, wantCount)
@@ -240,9 +244,10 @@ func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, datab
 		if result.RowsPruned[table] != wantCount {
 			t.Errorf("batch pruned %d %s rows, want %d", result.RowsPruned[table], table, wantCount)
 		}
-		// The batch total the row limit sees never undercounts what is deleted.
-		if counted[table] < result.RowsPruned[table] {
-			t.Errorf("row count for %s = %d is below the %d rows pruned", table, counted[table], result.RowsPruned[table])
+		// The per-generation counts sum to exactly the rows the prunes delete, so
+		// the row limit sees the real batch size.
+		if counted[table] != result.RowsPruned[table] {
+			t.Errorf("row count for %s sums to %d, want the %d rows pruned", table, counted[table], result.RowsPruned[table])
 		}
 	}
 }
