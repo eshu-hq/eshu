@@ -155,18 +155,14 @@ Every operation that can refuse a caller this way declares `403` in the OpenAPI
 document, so a generated client has a case for it without deploying under
 `hosted_multi_tenant` to discover the status.
 
-These routes refuse a scoped caller in every mode, not only under
-`hosted_multi_tenant`, because their handlers bind no grant at all yet. Each
-declares `403`, states the reason in its own OpenAPI description, and repeats it
-in the MCP tool description a caller sees; the same reason is annotated on
-`pendingRowFilteringRoutes` in the Go source (#5167). A tenant-bound all-scope
-console session is still admitted only where the modes above admit it:
-`local_no_policy`, `hosted_single_tenant`, and an unset mode let it through;
-`hosted_multi_tenant` and any unrecognized value refuse it with the same `403`.
-
-| Route | Why no grant binds yet |
-| --- | --- |
-| `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
+No route currently refuses a scoped caller in every mode for lack of a grant
+binding. `pendingRowFilteringRoutes` in the Go source (#5167) is the ledger for
+such a route: one listed there declares `403`, states the reason in its OpenAPI
+description, and repeats it in its MCP tool description. The last entry,
+`GET /api/v0/freshness/services/changed-since`, left it when #6475 put the
+writing ingestion scope on every service lineage row, so the route now binds
+the caller's grant in SQL like the other freshness reads. Details are in the
+[service changed-since reference](http-api/service-changed-since.md).
 
 `GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status` are
 grant-filtered routes of this kind (#5167). A restricted scoped caller does not

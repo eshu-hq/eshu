@@ -512,85 +512,10 @@ there.
 ### Service-scope changed-since
 
 `GET /api/v0/freshness/services/changed-since` answers "what changed for this
-service since a prior service materialization generation?" A service is not an
-ingestion scope, so this surface diffs a per-service generation lineage
-(`service_materialization_generations`, one active generation per ingestion
-scope and `service_id`)
-over generation-stable evidence snapshots (`service_evidence_snapshots`) keyed by
-a generation-independent `service_evidence_key` (for example
-`ownership:<service_id>:<owner_ref>`, `deployment:<service_id>:<identity>`
-(where the deployment identity is a digest of the resolved deployment
-relationship's generation-independent natural key),
-`runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (where
-`workload_ref` is the durable `WorkloadInstance` id, which carries no resolution
-or materialization generation id), or `dependencies:<service_id>:<identity>`
-(where the dependency identity is a digest of the resolved dependency
-relationship's generation-independent natural key — `DEPENDS_ON` / `USES_MODULE`
-/ `READS_CONFIG_FROM` — and, like deployment, its `resolved_id` embeds the
-resolution generation and is therefore not a stable diff key), or
-`incidents:<service_id>:<provider>:<provider_incident_id>:<slot>:<evidence_kind>:<evidence_id>`
-(one durable routing identity per PagerDuty incident-routing slot, where
-`evidence_id` is the source fact's generation-independent `StableFactKey` or
-durable content-entity id, never the generation-bearing envelope `FactID`).
-
-Required parameters: `service_id` (exact) and `since_generation_id` (a prior
-service generation id). Optional `sample_limit` (default 25, max 200) caps the
-per-classification sample handles. The response carries the resolved
-`service_id`, `since_generation_id`, `current_active_generation_id`, and a
-`categories` array. The surface reports the `ownership` (#1943), `deployment`
-(#1985), `runtime` (#1986), `dependencies` (#1987), `docs` (#1988),
-`incidents` (#1989), and `vulnerabilities` (#1990) families. Each category carries
-exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
-plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
-`fact_kind` carrying the evidence family) per classification and a
-per-classification `truncated` flag. Service payloads use stored Go MD5
-fingerprints; repository facts use SHA-256 over persisted JSONB text. Neither
-surface collapses retired or superseded into `unchanged`.
-
-An unknown `service_id` returns `service_not_found`; an unresolved
-`since_generation_id` returns `not_found`; a service with no current active
-generation returns `unavailable=true` (and a `building`/`unavailable` freshness
-state) rather than zero deltas. The capability key is
-`freshness.service_changed_since`. The MCP equivalent is
-`get_service_changed_since` and the CLI helper is `eshu freshness
-service-changed-since`. This route is still on the pending
-row-filtering ledger: the service lineage tables carry no column naming the
-tenant a row belongs to, so a grant cannot be bound to them until #6475 lands.
-Scoped tokens are refused with a 403, all-scope bearer tokens included. So is
-every browser session except one that is all-scope and bound to a single tenant
-and workspace: in `local_no_policy`, `hosted_single_tenant`, and an unset mode
-(which defaults to `local_no_policy`) the browser-session route policy admits
-that console session, as it does on the routes of the pending row-filtering
-ledger, and `hosted_multi_tenant` (or any other unrecognized mode) refuses
-it.
-
-The incidents family's production loader is held behind a durable
-PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989
-follow-up, and the vulnerabilities family's loader is held behind a durable
-service-to-repository-to-package-to-advisory join that is a tracked #1990
-follow-up, so their rows materialize once those joins exist. All six service
-evidence families now ship the emitter, category, delta surface, and a
-nil-tolerant loader seam.
-
-Performance Evidence: the diff is bounded by the requested `sample_limit` and
-keyed by `(scope_id, generation_id, stable_fact_key)`. A request evaluates the
-classification diff once: one statement materializes the classified keys and
-returns each non-empty bucket's exact count with its first `sample_limit+1` keys
-by `stable_fact_key` (a lateral join per bucket). It replaces a counts statement
-plus one samples statement per non-empty bucket, each of which re-scanned both
-generations (1+N diffs); rows are identical, and a live differential proves it.
-On a 2.2M-row local fixture the summed `EXPLAIN ANALYZE` time fell from a median
-of 65.12 s (8 statements) to 10.88 s (1 statement); see
-`docs/internal/evidence/7127-changed-since.md`. Each per-generation scan still
-anchors on `fact_records_scope_generation_idx` (`scope_id, generation_id`) with a
-hash join on `stable_fact_key`, and equal minimum digests on duplicate-key groups
-trigger a sorted multiset comparison. One diff stays O(generation size) and is
-tracked in #7127. No whole-graph or cross-scope scan is performed.
-
-No-Observability-Change: the surface adds the bounded
-`query.freshness_changed_since` span with low-cardinality scope-id,
-since-generation, current-generation, changed-count, and unavailable attributes;
-it adds no worker, queue, graph query, or new metric label.
+service since a prior service materialization generation?" Its parameters,
+lineage selection per ingestion scope (#6475), `409` ambiguity answer and
+scoped-caller behaviour are in
+[Service-Scope Changed-Since](service-changed-since.md).
 
 ## Historical Metrics
 
