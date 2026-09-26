@@ -1,5 +1,6 @@
 go/internal/storage/postgres/schema_order_test.go
   s_b0d7e3abc26c5a::t_1544e324cb52f4 311-314
+  s_b0d7e3abc26c5a::t_8973ab30ae9a2b 310
 go/internal/storage/postgres/content_files_relative_path_index_schema_test.go
   s_b0d7e3abc26c5a::t_b7f638d19e58eb 9-10,28-29
   s_b0d7e3abc26c5a::t_d982c2696aa070 1-8,11-27,30-31
@@ -21,12 +22,18 @@ go/internal/storage/postgres/schema_test.go
   s_b0d7e3abc26c5a::t_f7b7969435bcba 313
 go/internal/storage/postgres/migrations/131_content_files_relative_path_trgm_index_lifecycle.sql
   s_b0d7e3abc26c5a::t_64d4fbd736801f 1-4,6-113
+  s_b0d7e3abc26c5a::t_98e8c1e46ca4b4 5
 go/internal/storage/postgres/schema.go
   s_b0d7e3abc26c5a::t_64d4fbd736801f 65,71-73,337
   s_b0d7e3abc26c5a::t_b7f638d19e58eb 249-252
 go/internal/storage/postgres/migrations/130_content_files_relative_path_trgm_index.sql
   s_b0d7e3abc26c5a::t_64d4fbd736801f 1-6,8-17
   s_b0d7e3abc26c5a::t_9296d209f19253 7
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_21c911e26db02c 182-183
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_4923ca97fc6b17 35
+  s_b0d7e3abc26c5a::t_121f6fe6a1a958 33-34,41
 ---
 {
   "schema_version": "authorship/3.0.0",
