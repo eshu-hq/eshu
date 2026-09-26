@@ -116,6 +116,7 @@ nav:
         - Deployment Trace And Influence: reference/http-api/deployment-trace-and-influence.md
         - Catalog And Workload Selection: reference/http-api/catalog-workload-selection.md
         - Code: reference/http-api/code.md
+        - Source Cache Read Clip: reference/http-api/source-cache-clip.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md

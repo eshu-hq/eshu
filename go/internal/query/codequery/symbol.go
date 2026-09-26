@@ -125,6 +125,8 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 	if truncated {
 		results = results[:limit]
 	}
+	// Clip after the page is trimmed so the count covers the returned rows.
+	clippedRows := querycontract.ClipRowsSourceCache(results)
 	data := map[string]any{
 		"symbol":         req.ResolvedSymbol(),
 		"query":          req.ResolvedSymbol(),
@@ -143,6 +145,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 			"reason":    symbolAmbiguityReason(truncated, len(results)),
 		},
 	}
+	querycontract.AddSourceCacheClipMarkers(data, clippedRows)
 
 	WriteSuccess(
 		w,

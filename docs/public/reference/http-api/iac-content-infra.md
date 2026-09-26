@@ -662,7 +662,7 @@ checkout when PostgreSQL is disabled or missing a row. Content search requires
 the PostgreSQL content store.
 
 Content search `limit` defaults to 50, is capped at 200, and uses `offset` with
-a cap of 10000.
+a cap of 10000. Entity search rows clip `source_cache` at 4,096 bytes with row and response markers ([read clip](source-cache-clip.md)).
 
 ## Infrastructure And Impact
 

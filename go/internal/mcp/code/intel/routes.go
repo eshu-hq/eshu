@@ -35,7 +35,7 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			"language":     args.String("language"),
 			"entity_type":  args.String("entity_type"),
 			"entity_types": args.StringSlice("entity_types"),
-			"limit":        args.IntOr("limit", 25),
+			"limit":        args.IntOr("limit", 20),
 			"offset":       args.IntOr("offset", 0),
 		}}, true
 	case "inspect_code_inventory":
@@ -49,7 +49,7 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			"decorator":      args.String("decorator"),
 			"method_name":    args.String("method_name"),
 			"class_name":     args.String("class_name"),
-			"limit":          args.IntOr("limit", 25),
+			"limit":          args.IntOr("limit", 20),
 			"offset":         args.IntOr("offset", 0),
 		}}, true
 	case "inspect_call_graph_metrics":

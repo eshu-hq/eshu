@@ -46,6 +46,55 @@ type EntityContent struct {
 	SearchBackend string `json:"search_backend,omitempty"`
 }
 
+// EntityContentSearchRow shapes one entity content row into the wire map the
+// entity content search route returns. It carries every EntityContent JSON
+// field (omitting the same optional fields when empty) plus a source_handle so
+// a caller can drill into the full body through get_entity_content or
+// get_file_lines when source_cache was clipped. The row is a fresh map, so the
+// caller may clip it in place with ClipRowSourceCache.
+func EntityContentSearchRow(entity EntityContent) map[string]any {
+	row := map[string]any{
+		"entity_id":     entity.EntityID,
+		"repo_id":       entity.RepoID,
+		"relative_path": entity.RelativePath,
+		"entity_type":   entity.EntityType,
+		"entity_name":   entity.EntityName,
+		"start_line":    entity.StartLine,
+		"end_line":      entity.EndLine,
+		"source_handle": map[string]any{
+			"repo_id":    entity.RepoID,
+			"file_path":  entity.RelativePath,
+			"start_line": entity.StartLine,
+			"end_line":   entity.EndLine,
+		},
+	}
+	if entity.RepoName != "" {
+		row["repo_name"] = entity.RepoName
+	}
+	if entity.Language != "" {
+		row["language"] = entity.Language
+	}
+	if entity.SourceCache != "" {
+		row["source_cache"] = entity.SourceCache
+	}
+	if len(entity.Metadata) > 0 {
+		row["metadata"] = entity.Metadata
+	}
+	if entity.SearchBackend != "" {
+		row["search_backend"] = entity.SearchBackend
+	}
+	return row
+}
+
+// EntityContentSearchRows shapes a page of entity content into wire rows.
+func EntityContentSearchRows(entities []EntityContent) []map[string]any {
+	rows := make([]map[string]any, 0, len(entities))
+	for _, entity := range entities {
+		rows = append(rows, EntityContentSearchRow(entity))
+	}
+	return rows
+}
+
 // K8sSelectCandidate is the narrow content projection used for SELECTS matching.
 type K8sSelectCandidate struct {
 	EntityID                 string

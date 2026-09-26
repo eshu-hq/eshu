@@ -39,3 +39,15 @@ func (h *ContentHandler) rerankEntityResults(ctx context.Context, req contentSea
 	reranked, _ := h.HybridRanker.RerankEntities(ctx, repoID, req.pattern(), results)
 	return reranked
 }
+
+// entityContentSearchResponse shapes the entity search page into its response
+// body. The read-time source_cache clip runs here, last: the rerank above reads
+// the full stored body, and the clip count covers only the page returned
+// (#7171).
+func entityContentSearchResponse(results []querycontract.EntityContent, req contentSearchRequest, truncated bool) map[string]any {
+	rows := querycontract.EntityContentSearchRows(results)
+	clippedRows := querycontract.ClipRowsSourceCache(rows)
+	response := contentSearchResponse(rows, req, truncated)
+	querycontract.AddSourceCacheClipMarkers(response, clippedRows)
+	return response
+}

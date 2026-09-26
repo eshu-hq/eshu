@@ -59,7 +59,8 @@ the staying code family still uses.
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.
-- `code_search_page.go` — code-search page envelope.
+- `code_search_page.go` — code-search page envelope; clips each row's `source_cache` to
+  4,096 bytes and adds the response clip markers (#7171).
 - `doc.go`, `AGENTS.md` — package contract and per-symbol export list.
 
 ## Verification

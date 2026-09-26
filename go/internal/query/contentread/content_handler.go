@@ -249,7 +249,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 
 	results = h.rerankEntityResults(r.Context(), req, results)
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded entity content search"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, entityContentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded entity content search"))
 }
 
 type contentSearchRequest struct {
@@ -465,6 +465,8 @@ func contentSearchResponse(results any, req contentSearchRequest, truncated bool
 	case []querycontract.FileContent:
 		count = len(typed)
 	case []querycontract.EntityContent:
+		count = len(typed)
+	case []map[string]any:
 		count = len(typed)
 	}
 	return map[string]any{

@@ -60,8 +60,10 @@ the shared API request duration and error metrics (`request.go` in
 - String fields travel even when empty (an explicit blank filter), matching
   the root switch arms these route selections replaced.
 - `limit` and `offset` defaults differ per tool and mirror the value the
-  root switch previously sent: `find_code` limit 10; `find_symbol`,
-  `inspect_code_inventory`, `inspect_call_graph_metrics`, and
+  root switch previously sent, except `find_symbol` and `inspect_code_inventory`,
+  lowered from 25 to 20 in #7171 so a page of clipped rows fits the response
+  budget: `find_code` limit 10; `find_symbol` and `inspect_code_inventory`
+  limit 20 / offset 0; `inspect_call_graph_metrics` and
   `investigate_code_topic` limit 25 / offset 0; `trace_route_callers`
   max_depth 2 / limit 25; `execute_language_query` limit 50;
   `find_function_call_chain` max_depth 5. Preserve these exactly — a changed
