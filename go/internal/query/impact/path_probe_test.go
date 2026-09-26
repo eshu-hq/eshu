@@ -68,11 +68,15 @@ func TestExplainDependencyPathRejectsSameResolvedEndpoint(t *testing.T) {
 		name         string
 		source       string
 		target       string
+		sourceLabel  string
+		targetLabel  string
+		labels       []any
 		resolveCalls int
 		detail       string
 	}{
 		{name: "same_id", source: "repo:api", target: "repo:api", detail: "source and target must differ"},
 		{name: "name_alias", source: "api", target: "repo:api", resolveCalls: 2, detail: "source and target resolve to the same entity"},
+		{name: "multilabel_name_alias", source: "api", target: "repo:api", sourceLabel: "Repository", targetLabel: "Workload", labels: []any{"Repository", "Workload"}, resolveCalls: 2, detail: "source and target resolve to the same entity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -88,7 +92,18 @@ func TestExplainDependencyPathRejectsSameResolvedEndpoint(t *testing.T) {
 							return nil, errors.New("The shortest path algorithm does not work when the start and end nodes are the same")
 						}
 						resolveCalls++
-						return map[string]any{"label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}}, nil
+						label := tc.sourceLabel
+						if strings.Contains(cypher, "target_id") {
+							label = tc.targetLabel
+						}
+						if label == "" {
+							label = "Repository"
+						}
+						labels := tc.labels
+						if len(labels) == 0 {
+							labels = []any{"Repository"}
+						}
+						return map[string]any{"label": label, "id": "repo:api", "name": "api", "labels": labels}, nil
 					},
 				},
 			}

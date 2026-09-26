@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
@@ -177,6 +178,25 @@ func (h *Handler) resolveDependencyPathAnchors(
 	}
 	targetNode, err := h.resolveAnchor(ctx, checker, access, "target_id", target)
 	return sourceNode, targetNode, err
+}
+
+// sameResolvedDependencyAnchor reports when both resolutions can bind one
+// physical node. The resolver may choose different rows of its per-label UNION
+// for a multi-label node; the full label sets still overlap. An id is unique
+// within each anchor label, so matching id plus a shared label identifies it.
+func sameResolvedDependencyAnchor(source, target *deployment.ResolvedImpactAnchor) bool {
+	if source.ID != target.ID {
+		return false
+	}
+	if source.Label == target.Label {
+		return true
+	}
+	for _, label := range source.Labels {
+		if slices.Contains(target.Labels, label) {
+			return true
+		}
+	}
+	return false
 }
 
 // clampExposureDepth clamps the requested traversal depth into the bounded range.

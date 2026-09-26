@@ -389,7 +389,7 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 		querycontract.WriteError(w, http.StatusNotFound, "source or target not found")
 		return
 	}
-	if sourceNode.ID == targetNode.ID && sourceNode.Label == targetNode.Label {
+	if sameResolvedDependencyAnchor(sourceNode, targetNode) {
 		querycontract.WriteError(w, http.StatusBadRequest, "source and target resolve to the same entity")
 		return
 	}

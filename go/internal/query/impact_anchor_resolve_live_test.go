@@ -185,4 +185,17 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 		slices.Sort(warm)
 		t.Logf("equal-endpoint request first=%s warm_p95=%s (10 warm calls)", durations[0], warm[9])
 	}
+
+	// One physical node can be returned under either label by the resolver.
+	// The ID/name alias must still avoid Neo4j's same-node shortestPath error.
+	write(`MATCH (s:CloudResource {id:$s}) SET s:Workload`, map[string]any{"s": srcID})
+	multiReq := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path",
+		bytes.NewBufferString(`{"source":"src","target":"`+srcID+`"}`))
+	multiRec := httptest.NewRecorder()
+	multiStarted := time.Now()
+	mux.ServeHTTP(multiRec, multiReq)
+	t.Logf("multi-label equal-endpoint request=%s", time.Since(multiStarted))
+	if multiRec.Code != http.StatusBadRequest || !strings.Contains(multiRec.Body.String(), "source and target resolve to the same entity") {
+		t.Fatalf("multi-label equal endpoints: status = %d, body = %s; want 400", multiRec.Code, multiRec.Body.String())
+	}
 }
