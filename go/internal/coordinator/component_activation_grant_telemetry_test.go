@@ -220,9 +220,9 @@ func TestLoadConfigObservedSkipsActivationForUnclaimedComponent(t *testing.T) {
 	assertDecisions(t, signals.decisions(t), "readback/allow/granted/aws_resource=1")
 }
 
-// TestLoadConfigDoesNotObserveWithoutObserver keeps the observer-free entry
+// TestLoadConfigObservedNilObserverIsNoOp keeps the observer-free entry
 // point a strict no-op so existing callers and the API are unchanged.
-func TestLoadConfigDoesNotObserveWithoutObserver(t *testing.T) {
+func TestLoadConfigObservedNilObserverIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	home, _ := grantedCoreKindHome(t)
