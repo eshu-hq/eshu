@@ -6,6 +6,7 @@ package telemetry
 import (
 	"context"
 	"slices"
+	"strconv"
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -49,7 +50,7 @@ func grantDecisionPoints(t testing.TB, reader *sdkmetric.ManualReader) []map[str
 				t.Fatalf("metric data = %T, want Sum[int64]", m.Data)
 			}
 			for _, dp := range sum.DataPoints {
-				labels := map[string]string{"value": string(rune('0' + dp.Value))}
+				labels := map[string]string{"value": strconv.FormatInt(dp.Value, 10)}
 				for _, kv := range dp.Attributes.ToSlice() {
 					labels[string(kv.Key)] = kv.Value.AsString()
 				}
