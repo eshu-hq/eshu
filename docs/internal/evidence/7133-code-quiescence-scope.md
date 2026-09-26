@@ -192,8 +192,9 @@ No-Regression Evidence: the per-cycle work is unchanged. The sampler still
 calls the blocker describer only when an episode starts, when the reason
 changes, and at most once a minute after that; it now asks the same dependency
 the gate consulted instead of a fixed one. A reason switch adds one INFO log
-line and one gauge write for the replaced episode, and reason switches are rare
-(two gate reasons exist). `go test ./internal/reducer/...` passes.
+line for the replaced episode (zeroing its gauge already happened before this
+change), so the added cost is bounded by the switch rate, the same order as the
+existing blocked WARN. `go test ./internal/reducer/...` passes.
 
 Observability Evidence: a reason switch now logs `code call projection lane
 released` for the replaced reason with its `blocked_seconds` age, so stall time
