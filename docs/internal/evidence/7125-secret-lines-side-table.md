@@ -386,10 +386,10 @@ The bar is the bootstrap content-write stage and end-to-end margin on the refere
 profile, not a local figure. The initial full-984 Step 2 runs are not accepted
 merge proof: fingerprint reaping had variable slow plans, and the old terminal
 detector checked fact work without checking unfinished shared intents. Keep this
-PR draft until the reaper-plan prerequisite is proven and a matched full-984
-baseline/candidate comparison reaches the corrected terminal predicate. Run it
-from the reviewed branch by git clone/fetch (never rsync), per the
-`eshu-remote-validation` skill:
+PR draft. The reaper-plan prerequisite #7230 is merged into the base; a
+matched full-984 baseline/candidate comparison must still reach the corrected
+terminal predicate. Run the proof from the reviewed branch by git
+clone/fetch (never rsync), per the `eshu-remote-validation` skill:
 
 1. Record the preflight: candidate commit, merge-base `origin/main` commit, image IDs,
    topology profile `accepted_remote_GOMAXPROCS16_parse16_snapshot16_projection8_reducer16_shared4_partitions8_codecall4_pg96_graph_inflight8_timeout120s_entity_phase16`,
