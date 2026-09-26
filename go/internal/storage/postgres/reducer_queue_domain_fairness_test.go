@@ -283,6 +283,13 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 	})
 	for _, stmt := range []string{
 		MigrationSQL("ingestion_scopes"),
+		// migration 126 (#7115): the projector claim inner-joins, locks and
+		// bumps projector_scope_claim_fences, and the AFTER INSERT trigger on
+		// ingestion_scopes seeds a row per scope. Applying the shipped
+		// migration (not a copy of its DDL) keeps this fixture on the
+		// production schema; a fixture without it fails every ProjectorQueue
+		// Claim() with `relation "projector_scope_claim_fences" does not exist`.
+		MigrationSQL("projector_scope_claim_fences"),
 		MigrationSQL("scope_generations"),
 		MigrationSQL("fact_work_items"),
 		reducerClaimCapabilityColumnsSchemaSQL,
