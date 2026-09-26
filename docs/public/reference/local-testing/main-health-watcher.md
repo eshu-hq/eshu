@@ -29,17 +29,26 @@ and `workflow_run` runs on the tip. Pull-request and merge-queue runs never
 count. A fully skipped run has no verdict, so it never hides an earlier failed
 run of the same event.
 
-A `workflow_run` run is attributed to the commit that was `main`'s HEAD when
-it was created, whatever fired it: GitHub reports `head_branch: main` and
-that HEAD as its `head_sha` even when a pull-request or merge-queue run of
-Publish fired it. Security Scan's image scan runs only for push and dispatch
-origins (`security-scan.yml`), so those other runs are skipped and never
-decide. A late Publish for an older commit can scan `:main` and land on the
-current tip; the tip's own scan corrects it.
+GitHub reports a `workflow_run` run with `head_branch: main` and `main`'s
+HEAD at creation as its `head_sha`, whatever fired it: a pull-request,
+merge-queue, or release-tag run of Publish, or a late Publish of an older
+commit. Its own `head_sha` therefore does not say which image it scanned.
+Security Scan stamps the triggering run into its run name
+(`Security Scan: triggered by <branch> @ <sha>`, from `run-name` in
+`security-scan.yml`), the only place a run listing exposes it. The watcher
+judges a `workflow_run` run only when that stamp is `main @ <tip>`, so a
+newer successful scan of a release tag's image, or of an older commit's
+image, cannot supersede a failed scan of the tip's `:main` image. A run
+without the stamp (one from before the stamp existed) falls back to its own
+`head_sha`. Pull-request and merge-queue origins are also skipped by the
+image scan's own condition in `security-scan.yml`.
 
 ## Blocking and advisory failures
 
-Only blocking failures make `main` red. For each failed run the watcher reads
+Only blocking failures make `main` red. Which failures block is derived from
+`specs/ci-gates.v1.yaml`, the registry's `blocking` field, and is never
+listed by hand; that is the source-of-truth ruling for #7111, so no separate
+policy decision is involved. For each failed run the watcher reads
 its failed jobs and looks each one up in `specs/ci-gates.v1.yaml`: a gate
 claims a job when its `ci.workflow` is the run's workflow file and its
 `ci.job` equals the job name, lists it in `ci.check_names`, or is the matrix
@@ -96,12 +105,13 @@ required workflow file that declares that trigger. It then reads the open
 issues and the tip's statuses. If a listing returns fewer runs than its
 `total_count`, the verdict can still be red but is never green.
 
-The concurrency group is set on the job, not the workflow. A workflow-level
-group holds every run, including one whose only job the guard then skips,
-and GitHub keeps one pending entry per group. A skipped run could therefore
-evict a queued live evaluation. A job the guard skips never queues, so only
-real evaluations share the group. Live evaluations never cancel each other in
-progress. A newer pending live evaluation replaces an older pending one, and
+The concurrency group is set on the job, not the workflow. GitHub documents
+a workflow-level group as applying to the whole run and keeps one pending
+entry per group, so a run whose only job the guard skips could have taken
+the pending slot and evicted a queued live evaluation. That was never
+measured, and it no longer needs to be: with the group on the job, only a
+job that the guard lets run is placed in it. Live evaluations never cancel
+each other in progress. A newer pending live evaluation replaces an older pending one, and
 both judge the current tip of `main` when they start. A dry-run dispatch uses
 a separate group, so it cannot evict or wait behind a live run.
 

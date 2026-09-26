@@ -115,6 +115,13 @@ guard_is false "a merge_group run" "$(wr_ctx 'Build Test' merge_group)"
 guard_is false "a push run from a fork repository" "$(wr_ctx 'Build Test' push 'fork/eshu')"
 guard_is false "a push of the watcher itself" '{"github":{"event_name":"push","repository":"eshu-hq/eshu"}}'
 
+# P3 (N3): Security Scan stamps its triggering run into the run name, the only
+# place a run listing carries it; the watcher parses "triggered by <branch> @
+# <sha>". Empty for other events, so their default run names are unchanged.
+scan_wf="${repo_root}/.github/workflows/security-scan.yml"
+check "P3: security-scan.yml stamps the triggering branch and sha into run-name" \
+	"$(yq '.run-name // ""' "${scan_wf}" | rg -qF "format('Security Scan: triggered by {0} @ {1}', github.event.workflow_run.head_branch, github.event.workflow_run.head_sha)" && echo 0 || echo 1)"
+
 # P3-1: the call-site detector itself sees quoted and `command` forms.
 probe="$(mktemp)"
 printf 'f() {\n\t"gh" api -X POST x\n}\ng() {\n\tcommand gh api -X POST y\n}\n' >"${probe}"

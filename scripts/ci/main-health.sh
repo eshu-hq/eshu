@@ -27,10 +27,10 @@
 #           schedule and workflow_run on the tip with head_branch main;
 #           pull_request and merge_group runs never count. A workflow_run
 #           run's head_sha/head_branch are main's HEAD when it was created,
-#           whatever fired it, so such a run is attributed to that commit;
-#           Security Scan's image scan only runs for push/dispatch origins
-#           (security-scan.yml), so PR-origin runs are skipped and never
-#           decide. A fully skipped run carries no verdict, so it never
+#           whatever fired it, so Security Scan stamps the triggering run
+#           into its run name ("triggered by <branch> @ <sha>") and only a
+#           stamp of <branch> @ <tip> counts; an unstamped run falls back to
+#           its own head_sha. A fully skipped run carries no verdict, so it never
 #           supersedes an earlier run of the same event that has one.
 #           Blocking-ness comes from the registry: a failed job is advisory
 #           only when every gate that claims it (same ci.workflow, ci.job or
@@ -205,14 +205,20 @@ for wf_file in $(workflow_run_files); do
 done
 req_json="$(printf '%s\n' "${required}" | jq -R . | jq -sc 'map(select(length > 0))')"
 # One entry per (required workflow, event): that event's latest decisive run.
-events="$(jq -c --arg branch "${branch}" --argjson req "${req_json}" '
+# A workflow_run run whose name carries "triggered by <branch> @ <sha>"
+# counts only when that is <branch> @ <tip>: a release-tag scan or an older
+# commit's late Publish must not stand in for the tip's own scan. A run
+# without the stamp falls back to its own head_sha.
+events="$(jq -c --arg branch "${branch}" --arg tip "${tip}" --argjson req "${req_json}" '
+	def trigger: (.display_title // "") | [match("triggered by (.+) @ ([0-9a-f]{40})$").captures | map(.string)] | first;
 	def classify: .conclusion as $c
 		| if .status != "completed" then "pending"
 		elif (["failure","timed_out","startup_failure"] | index([$c])) then "red"
 		elif (["success","neutral","skipped"] | index([$c])) then "ok"
 		else "unknown" end;
 	[.[] | select(.head_sha != null and .head_branch == $branch
-		and (.event as $e | ["push","schedule","workflow_run"] | index([$e])))] as $runs
+		and (.event as $e | ["push","schedule","workflow_run"] | index([$e]))
+		and (.event != "workflow_run" or (trigger | . == null or . == [$branch, $tip])))] as $runs
 	| [$req[] as $name
 	   | [$runs[] | select(.name == $name)] | group_by(.event)[]
 	   | (map(select(.conclusion != "skipped")) | if length > 0 then . else null end) as $decisive

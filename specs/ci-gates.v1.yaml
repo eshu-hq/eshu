@@ -621,6 +621,9 @@ gates:
       # an edit to either workflow must select it.
       - ".github/workflows/main-health.yml"
       - ".github/workflows/required-gates.yml"
+      # The mirror asserts Security Scan's run-name stamp, which the
+      # watcher parses to judge only scans of main's image at the tip.
+      - ".github/workflows/security-scan.yml"
       # The required-workflow list is derived from this file's
       # required_status_checks; a registry edit can change the derivation.
       - "specs/ci-gates.v1.yaml"

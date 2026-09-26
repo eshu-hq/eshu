@@ -315,6 +315,25 @@ failing_job 50 550 'gosec (Go static analysis)' $'--- FAIL: TestSec (0.01s)'
 run_watcher
 check "N4: an older red workflow_run run beats a newer green schedule run: red" "$(ok out_has 'state=red')"
 
+# P3 (N3): a workflow_run run reports main's HEAD as its head_sha whatever
+# fired it, so Security Scan stamps the TRIGGERING run's branch and sha into
+# its run name. Only a scan of main's image at the tip counts: a newer
+# successful scan of a release tag's image (same sha) or of an older commit's
+# late Publish must not supersede the failed scan of the tip's `:main` image.
+new_case p3-trigger-stamp "${TIP}"
+stamp() { jq -c --arg t "Security Scan: triggered by $1 @ $2" '.display_title = $t'; }
+set_runs "$(run 1 'Build Test' completed success)" \
+	"$(run 2 'Static Contract Gates' completed success)" \
+	"$(run 3 'Frontend' completed success)" \
+	"$(run 40 'Security Scan' completed success 40 1 push)" \
+	"$(run 50 'Security Scan' completed failure 50 1 workflow_run | stamp main "${TIP}")" \
+	"$(run 51 'Security Scan' completed success 51 1 workflow_run | stamp v1.2.3 "${TIP}")" \
+	"$(run 52 'Security Scan' completed success 52 1 workflow_run | stamp main "${NEXT}")"
+cp "${work}/f2-image-scan-red/log-108294812538.txt" "${case_dir}/"
+jq -c '.jobs[0].id = 108294812538' "${work}/f2-image-scan-red/jobs-36203450563.json" >"${case_dir}/jobs-50.json"
+run_watcher
+check "P3: a release-tag or older-commit image scan never supersedes the tip's main scan" "$(ok out_has ' advisory=1 ')"
+
 # N2: blocking-ness fails closed. A failed job no registry gate claims, or a
 # failed run whose jobs cannot be read, counts as blocking.
 new_case n2-unregistered-job "${TIP}"

@@ -88,10 +88,11 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' ||
       github.event.workflow_run.event == 'workflow_run'))
-    # Concurrency is on the JOB, not the workflow. A workflow-level group
-    # holds the whole run, so a run whose only job the guard skips would still
-    # take the one pending slot and evict a queued live evaluation.
-    # A job the guard skips never queues, so only real evaluations meet here.
+    # Concurrency is on the JOB, not the workflow. GitHub documents a
+    # workflow-level group as applying to the whole run, so a run whose only
+    # job the guard skips could take the one pending slot and evict a queued
+    # live evaluation. That was not measured; placing the group on the job
+    # makes it moot, since only a job the guard lets run is placed in it.
     # One live writer at a time so the single issue can never be
     # double-opened, and an in-progress live run is never cancelled. GitHub
     # keeps one pending job per group, so a newer pending live evaluation
