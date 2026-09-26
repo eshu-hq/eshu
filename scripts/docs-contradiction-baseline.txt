@@ -12,19 +12,20 @@
 #   bash scripts/verify-docs-contradiction.sh -update
 #
 # <doc-page-relpath> <kind>:<slug>
+languages/csharp.md polarity:csharp-csharp-route
 languages/csharp.md polarity:csharp-route-semantics
 languages/csharp.md polarity:internal-parser-csharp
-languages/csharp.md polarity:parser-csharp-route
+languages/csharp.md polarity:parser-csharp-csharp
 languages/csharp.md polarity:route-semantics-test
 languages/csharp.md polarity:route-truth-aspnet
 languages/feature-matrix.md duplicate-row:c
-languages/javascript.md polarity:engine-javascript-semantics
-languages/javascript.md polarity:go-internal-parser-engine-javascript-semantics-test-go
+languages/javascript.md polarity:engine-semantics-test
+languages/javascript.md polarity:go-internal-parser-javascript-engine-semantics-test-go
+languages/javascript.md polarity:javascript-engine-semantics
 languages/python.md polarity:parser-python-semantics
 languages/python.md polarity:python-semantics-test
 languages/support-maturity.md duplicate-row:c
 languages/support-maturity.md polarity:language-page-update
-languages/typescript.md polarity:parser-engine-javascript
 observability/telemetry-coverage.md duplicate-row:c-parser
 observability/telemetry-coverage.md duplicate-row:typed-payload-decode-observability-metadata-view-converters-
 reference/collector-performance-envelope.md duplicate-row:git
