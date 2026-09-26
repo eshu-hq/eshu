@@ -15,6 +15,7 @@ on:
   workflow_run:
     workflows: ["Build Test"]
     types: [in_progress, completed]
+    branches-ignore: [main]
 concurrency:
   group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: false

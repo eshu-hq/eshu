@@ -32,6 +32,19 @@ on:
       - Verify Agent Hygiene
       - Verify CI Gate Registry
     types: [in_progress, completed]
+    # A main push (and the merge-queue commit that becomes it, which shares its
+    # SHA) runs about 25 push workflows. About 21 of them are listed above, and
+    # each fires an in_progress and a completed event here, so a merge sent
+    # about 42 events into this file's per-SHA concurrency group. That group
+    # keeps only the latest pending run and cancels the rest, so each merge left
+    # about 42 cancelled/skipped Required Gates rows on the run list (#7111 F8). The aggregate job below never runs for a push event, so the
+    # trigger excludes the default branch instead of filtering after the fact.
+    # Pull-request heads and merge-queue heads (gh-readonly-queue/main/...) are
+    # never named `main`, so required-gates-complete is still published for
+    # both. Only `branches-ignore: [main]` is allowed here; a `branches`
+    # allowlist or a wider exclusion would stop aggregating some pull requests.
+    # The registry validator (cigates.validateWorkflowRunBranchFilter) pins it.
+    branches-ignore: [main]
   workflow_dispatch:
   schedule:
     - cron: "17 */6 * * *"
