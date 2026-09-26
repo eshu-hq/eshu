@@ -37,9 +37,13 @@ changed-since field to populate.
   `HasConflictingScopeSelectors`, `HasSinceReference`
 - `Counts`, `Sample`, `CategoryDelta` — exact per-classification counts,
   bounded sample handles, and the per-category delta shape
-- `UnavailableReason` — the fail-closed reason vocabulary (for example
-  `UnavailableRetentionExpired`)
-- `Summary` — the bounded repository-scope changed-since answer
+- `UnavailableReason` — the fail-closed reason vocabulary:
+  `UnavailableRetentionExpired` (the baseline was pruned) and
+  `UnavailableBaselineNotComparable` (a delta generation at either end of the
+  window, #7282)
+- `Summary` — the bounded repository-scope changed-since answer;
+  `SinceIsDelta`/`CurrentIsDelta` name the delta side of a
+  `baseline_not_comparable` refusal
 - `ServiceCategories`, `ServiceFilter`, `ServiceSummary` — the service-scope
   variant, reusing the same classification/counts/sample/unavailable shapes
 - `MaxServiceScopeCandidates` — the bound on the admitted scope ids a

@@ -24,4 +24,10 @@ const (
 	// SpanAttrChangedSinceUnavailable records whether the diff could not be
 	// computed because there was no current active generation.
 	SpanAttrChangedSinceUnavailable = "eshu.changed_since.unavailable"
+	// SpanAttrChangedSinceUnavailableReason records the closed unavailable
+	// reason (retention_expired or baseline_not_comparable) when the diff was
+	// refused. baseline_not_comparable counts windows with a delta generation
+	// at either end (#7282). It is set only when a reason applies and never
+	// carries a scope, repository, or generation value.
+	SpanAttrChangedSinceUnavailableReason = "eshu.changed_since.unavailable_reason"
 )

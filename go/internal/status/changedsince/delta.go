@@ -234,6 +234,13 @@ const (
 	// generation was once known for the scope but was pruned by the configured
 	// generation retention policy.
 	UnavailableRetentionExpired UnavailableReason = "retention_expired"
+	// UnavailableBaselineNotComparable means the since generation or the
+	// current active generation is a delta generation (#7282). A delta
+	// generation holds only the facts of the files that changed plus
+	// tombstones, not a full snapshot, so a raw diff against it would report
+	// every key the delta did not re-emit as removed. The reader refuses the
+	// diff instead of returning it.
+	UnavailableBaselineNotComparable UnavailableReason = "baseline_not_comparable"
 )
 
 // Summary is the bounded changed-since answer for one repository
@@ -263,6 +270,13 @@ type Summary struct {
 	// UnavailableReason carries the fail-closed reason when Unavailable is true
 	// and the storage layer can classify the failure.
 	UnavailableReason UnavailableReason `json:"unavailable_reason,omitempty"`
+	// SinceIsDelta and CurrentIsDelta report which side of a
+	// baseline_not_comparable window is a delta generation. The reader sets
+	// them only when it refuses the diff for that reason, so a caller can tell
+	// a delta baseline (choose a full generation as the baseline) from a delta
+	// current generation (wait for the next full generation).
+	SinceIsDelta   bool `json:"since_is_delta,omitempty"`
+	CurrentIsDelta bool `json:"current_is_delta,omitempty"`
 }
 
 // Timestamp formats a database timestamp as RFC3339 UTC, or the

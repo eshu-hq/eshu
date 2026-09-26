@@ -237,6 +237,7 @@ const (
 	SpanAttrChangedSinceCurrentGenerationID = contract.SpanAttrChangedSinceCurrentGenerationID
 	SpanAttrChangedSinceChangedCount        = contract.SpanAttrChangedSinceChangedCount
 	SpanAttrChangedSinceUnavailable         = contract.SpanAttrChangedSinceUnavailable
+	SpanAttrChangedSinceUnavailableReason   = contract.SpanAttrChangedSinceUnavailableReason
 )
 
 // Service-scope changed-since query span, attributes, and the closed

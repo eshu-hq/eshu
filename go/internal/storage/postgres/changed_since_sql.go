@@ -8,8 +8,11 @@ package postgres
 // or a repository source_key selector ($1 scope_id, $2 repository; an empty
 // string bypasses that predicate). It returns the resolved scope identity, the
 // current active generation id (empty when the scope has no active generation),
-// the current active generation observed_at, and whether the scope currently has
-// a pending generation in flight.
+// the current active generation observed_at, whether that generation is a delta
+// generation, and whether the scope currently has a pending generation in
+// flight. current_is_delta comes from the same scope_generations row as the
+// current generation id, so the delta check and the id it guards cannot come
+// from different reads (#7282).
 //
 // Parameter order:
 //
@@ -28,6 +31,7 @@ const resolveChangedSinceScopeQuery = `
 	    END AS repository,
     COALESCE(scope.active_generation_id, '') AS current_active_generation_id,
     active_generation.observed_at AS current_observed_at,
+    COALESCE(active_generation.is_delta, false) AS current_is_delta,
     EXISTS (
         SELECT 1
         FROM scope_generations AS pending
@@ -58,8 +62,9 @@ LIMIT 1
 // supplied, it returns that exact generation if it belongs to the scope.
 // Otherwise it returns the generation that was observed at or before $3
 // (since_observed_at) for the scope, preferring the most recent such generation.
-// It returns the generation id and its observed_at, or no rows when nothing
-// matches (an explicit not-found signal).
+// It returns the generation id, its observed_at, and whether it is a delta
+// generation (#7282), or no rows when nothing matches (an explicit not-found
+// signal).
 //
 // Parameter order:
 //
@@ -69,7 +74,8 @@ LIMIT 1
 const resolveChangedSinceGenerationQuery = `
 SELECT
     generation.generation_id,
-    generation.observed_at
+    generation.observed_at,
+    generation.is_delta
 FROM scope_generations AS generation
 WHERE generation.scope_id = $1
   AND (

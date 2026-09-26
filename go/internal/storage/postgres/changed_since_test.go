@@ -17,11 +17,11 @@ func scopeRow(scopeID, scopeKind, currentGen string, currentObserved any, hasPen
 	if len(repository) > 0 {
 		resolvedRepository = repository[0]
 	}
-	return [][]any{{scopeID, scopeKind, resolvedRepository, currentGen, currentObserved, hasPending}}
+	return [][]any{{scopeID, scopeKind, resolvedRepository, currentGen, currentObserved, false, hasPending}}
 }
 
 func priorRow(generationID string, observed any) [][]any {
-	return [][]any{{generationID, observed}}
+	return [][]any{{generationID, observed, false}}
 }
 
 func TestComputeChangedSinceDeltaRejectsInvalidScopeSelectorsBeforeRead(t *testing.T) {

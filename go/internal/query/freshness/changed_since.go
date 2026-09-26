@@ -136,6 +136,12 @@ func (h *Handler) listChangedSince(w http.ResponseWriter, r *http.Request) {
 	if summary.UnavailableReason != "" {
 		body["unavailable_reason"] = summary.UnavailableReason
 	}
+	if summary.SinceIsDelta {
+		body["since_is_delta"] = true
+	}
+	if summary.CurrentIsDelta {
+		body["current_is_delta"] = true
+	}
 	if summary.Repository != "" {
 		body["repository"] = summary.Repository
 	}
@@ -207,10 +213,15 @@ func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) 
 	switch {
 	case summary.Unavailable:
 		envelope.Freshness.State = querycontract.FreshnessUnavailable
-		if summary.UnavailableReason == status.ChangedSinceUnavailableRetentionExpired {
+		switch summary.UnavailableReason {
+		case status.ChangedSinceUnavailableRetentionExpired:
 			envelope.Freshness.Detail = "the prior generation was pruned by the retention policy, so the changed-since diff is no longer available"
 			WithCause(envelope, CauseRetentionExpired)
-		} else {
+		case status.ChangedSinceUnavailableBaselineNotComparable:
+			// No closed FreshnessCause fits: nothing is lagging. The window
+			// itself cannot be diffed, and unavailable_reason carries why.
+			envelope.Freshness.Detail = changedSinceNotComparableDetail(summary)
+		default:
 			envelope.Freshness.Detail = "the scope has no current active generation, so a changed-since diff cannot be computed yet"
 			WithCause(envelope, CausePendingRepoGeneration)
 		}
@@ -220,6 +231,22 @@ func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) 
 		WithCause(envelope, CausePendingRepoGeneration)
 	}
 	return envelope
+}
+
+// changedSinceNotComparableDetail explains a baseline_not_comparable refusal
+// and names the side that is a delta generation, since the remedy differs: a
+// delta baseline needs a full generation as the since reference, while a delta
+// current generation needs the next full generation to activate.
+func changedSinceNotComparableDetail(summary status.ChangedSinceSummary) string {
+	const prefix = "a delta generation holds only the changed files' facts plus tombstones, not a full snapshot, so the raw diff is refused"
+	switch {
+	case summary.SinceIsDelta && summary.CurrentIsDelta:
+		return prefix + "; both the since generation and the current active generation are delta generations"
+	case summary.SinceIsDelta:
+		return prefix + "; the since generation is a delta generation, so choose a full generation as the since reference"
+	default:
+		return prefix + "; the current active generation is a delta generation, so a diff is available once a full generation activates"
+	}
 }
 
 func changedSinceScopeNotFoundMessage(filter status.ChangedSinceFilter) string {
@@ -248,11 +275,16 @@ func changedSinceSpanAttributes(summary status.ChangedSinceSummary) []attribute.
 			category.Counts.Retired +
 			category.Counts.Superseded
 	}
-	return []attribute.KeyValue{
+	attributes := []attribute.KeyValue{
 		attribute.String(telemetry.SpanAttrChangedSinceScopeID, summary.ScopeID),
 		attribute.String(telemetry.SpanAttrChangedSinceSinceGenerationID, summary.SinceGenerationID),
 		attribute.String(telemetry.SpanAttrChangedSinceCurrentGenerationID, summary.CurrentActiveGenerationID),
 		attribute.Int(telemetry.SpanAttrChangedSinceChangedCount, changed),
 		attribute.Bool(telemetry.SpanAttrChangedSinceUnavailable, summary.Unavailable),
 	}
+	if summary.UnavailableReason != "" {
+		attributes = append(attributes,
+			attribute.String(telemetry.SpanAttrChangedSinceUnavailableReason, string(summary.UnavailableReason)))
+	}
+	return attributes
 }
