@@ -92,6 +92,18 @@ FROM (VALUES `
 // the newer write would be dropped. The SET fills generation_ingested_at, so a
 // legacy row heals on its first applied write and is never rewritten in bulk.
 //
+// The SET keeps the stored key when the incoming one is NULL. A same-generation
+// retry whose snapshot predates the generation's scope_generations row has a
+// NULL incoming key; overwriting would discard a key another writer already
+// healed. The COALESCE cannot let a row advance on a NULL key: for a
+// different generation the WHERE below compares (incoming key, id) against
+// the stored pair, and a NULL incoming key with a non-NULL stored key makes
+// that row comparison unknown, so the row is skipped and the SET never runs
+// on the advancing branch. With a NULL stored key, COALESCE returns NULL, the
+// same result as before. Only the same-generation branch reaches the SET with
+// a NULL incoming key, and there the stored key is by definition the same
+// generation's key.
+//
 // A NULL incoming key (a generation the snapshot cannot see) makes the
 // comparison NULL, so the write is skipped as stale rather than applied
 // blind. Skipped rows are omitted from RETURNING, which is how callers count
@@ -110,7 +122,9 @@ ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE
 SET generation_id = EXCLUDED.generation_id,
     accepted_at = EXCLUDED.accepted_at,
     updated_at = EXCLUDED.updated_at,
-    generation_ingested_at = EXCLUDED.generation_ingested_at
+    generation_ingested_at = COALESCE(
+        EXCLUDED.generation_ingested_at,
+        shared_projection_acceptance.generation_ingested_at)
 WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
    OR (EXCLUDED.generation_ingested_at, EXCLUDED.generation_id)
       > (COALESCE(
