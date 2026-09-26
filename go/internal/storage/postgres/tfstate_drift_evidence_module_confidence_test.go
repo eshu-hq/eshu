@@ -16,7 +16,7 @@ import (
 // tfstate_drift_evidence_module_confidence.go). Split out of
 // tfstate_drift_evidence_module_prefix_test.go and
 // tfstate_drift_evidence_module_integration_test.go to keep all three files
-// under the CLAUDE.md 500-line cap; same package, same fixtures and helpers
+// under the AGENTS.md 500-line cap; same package, same fixtures and helpers
 // (runBuildModulePrefixMapWithConfidence, pathDepth, intToA) as the sibling
 // files.
 

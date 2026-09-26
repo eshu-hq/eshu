@@ -51,8 +51,9 @@
 #   - stem == leaf dir (`catalog/catalog.go`, `openapi/openapi.yaml`): the
 #     package-root or same-named front-door file.
 #   - README.md, AGENTS.md, CLAUDE.md: conventional names that GitHub and
-#     agent harnesses look up by name; CLAUDE.md is byte-identical to
-#     AGENTS.md.
+#     agent harnesses look up by name. A committed CLAUDE.md is refused
+#     separately by verify-agent-canon.sh; it stays here so the two gates
+#     never report the same file twice.
 #   - doc.go: the godoc file, named by the toolchain.
 #   - non-Go files at or below a `testdata` or `fixtures` directory, and
 #     every directory there: fixture corpora mirror third-party language

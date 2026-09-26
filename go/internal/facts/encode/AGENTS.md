@@ -1,7 +1,7 @@
 # AGENTS.md — internal/facts/encode
 
 Scoped instructions for this package. Read `README.md` and `doc.go` first;
-the root `AGENTS.md` and `CLAUDE.md` still apply.
+the root `AGENTS.md` still applies.
 
 ## The one rule that matters
 

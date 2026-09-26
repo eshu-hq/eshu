@@ -1,6 +1,6 @@
 # AGENTS: go/internal/totp
 
-Scoped agent instructions for this directory. Root `AGENTS.md`/`CLAUDE.md`
+Scoped agent instructions for this directory. Root `AGENTS.md`
 and `docs/internal/agent-guide.md` still apply; this file adds package-local
 rules only.
 

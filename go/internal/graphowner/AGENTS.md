@@ -1,7 +1,7 @@
 # AGENTS.md — internal/graphowner
 
 Scoped agent instructions for the #5007 owner-ledger gate. Read alongside the
-root `CLAUDE.md`, `docs/internal/design/5007-cross-scope-node-ownership.md`, and
+root `AGENTS.md`, `docs/internal/design/5007-cross-scope-node-ownership.md`, and
 `docs/public/reference/nornicdb-pitfalls.md`.
 
 ## What this package owns

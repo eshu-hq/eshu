@@ -1227,7 +1227,7 @@ type Instruments struct {
 	// ProviderSchemaResolver did not recognize the (resource_type,
 	// attribute_key) pair. Each increment carries a `resource_type` label
 	// (bounded by the schema bundle); the high-cardinality attribute_key
-	// stays in the structured log per CLAUDE.md observability rules.
+	// stays in the structured log per AGENTS.md observability rules.
 	//
 	// Operators read this counter to detect provider-schema drift: real
 	// state JSON shipped a nested block (or composite-typed attribute) the

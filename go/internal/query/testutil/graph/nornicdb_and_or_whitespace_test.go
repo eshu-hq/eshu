@@ -28,7 +28,7 @@ func (r *recordingT) Fatalf(format string, args ...any) {
 
 // TestAssertCypherHasNoBrokenAndOrSeededViolations is the repository's
 // required seeded-violation RED/GREEN pair for a new guard (root
-// CLAUDE.md's "MUST have a seeded-violation RED/GREEN pair" rule, #6786
+// AGENTS.md's "MUST have a seeded-violation RED/GREEN pair" rule, #6786
 // review follow-up F4): every RED case below must make
 // AssertCypherHasNoBrokenAndOr fail, and every GREEN case must leave it
 // silent.

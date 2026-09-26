@@ -1,7 +1,7 @@
 # AGENTS.md — internal/storage/postgres/iamcantargets
 
-Scoped instructions for this package. The root `AGENTS.md` and `CLAUDE.md`
-still apply.
+Scoped instructions for this package. The root `AGENTS.md`
+still applies.
 
 - Keep every read bounded by the request: account, requested service kind and
   region, and exact ARN. Never widen it to a scan of an account's facts or of

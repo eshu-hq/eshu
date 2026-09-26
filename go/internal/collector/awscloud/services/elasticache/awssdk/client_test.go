@@ -445,7 +445,7 @@ var _ apiClient = (*fakeElastiCacheAPI)(nil)
 
 // userStructFields returns the exported field names present on the
 // scanner-owned User type so reviewers cannot accidentally widen the user
-// surface beyond metadata fields documented in CLAUDE.md and #713.
+// surface beyond metadata fields documented in AGENTS.md and #713.
 func userStructFields(_ elasticacheservice.User) map[string]struct{} {
 	fields := map[string]struct{}{
 		"ARN":                  {},

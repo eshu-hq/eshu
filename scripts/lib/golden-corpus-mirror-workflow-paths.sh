@@ -94,7 +94,7 @@ require_workflow_path "graph schema compat gate (#5538)"   "go/internal/graphsch
 require_workflow_path "graph write backpressure (#5538)"   "go/internal/graphbackpressure/**"
 
 # The durable envelope/queue/replay contracts spanning "emit facts -> enqueue
-# work" in the pipeline's own description (CLAUDE.md): facts is the Envelope
+# work" in the pipeline's own description (AGENTS.md): facts is the Envelope
 # every collector/parser fact rides from collection through the queue into
 # projector and reducer; queue is the shared work-item lifecycle; replay is
 # the canonical cassette-replay core all 18 B-10 cassette collectors this gate
@@ -104,7 +104,7 @@ require_workflow_path "queue work-item contract (#5538)"   "go/internal/queue/**
 require_workflow_path "cassette replay core (#5538)"       "go/internal/replay/**"
 
 # Content projection, the pipeline's own explicit third stage after graph
-# projection (CLAUDE.md: "reducer -> graph/content projection -> query
+# projection (AGENTS.md: "reducer -> graph/content projection -> query
 # surface"). verify-golden-corpus-gate.sh wires ESHU_CONTENT_STORE_DSN for
 # exactly this write path.
 require_workflow_path "content write contract (#5538)"       "go/internal/content/**"

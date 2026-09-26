@@ -257,7 +257,7 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, resourceType 
 // redact.RuleSet.isSensitiveSource) are swapped for a redaction marker map.
 // This preserves the nested-singleton-array shape the loader's flattener
 // expects while keeping the per-leaf sensitive-key guarantee from
-// CLAUDE.md §"Correlation Truth Gates".
+// the `eshu-correlation-truth` skill.
 func (p *stateParser) applyLeafClassification(value any, sourcePath string) any {
 	switch typed := value.(type) {
 	case map[string]any:

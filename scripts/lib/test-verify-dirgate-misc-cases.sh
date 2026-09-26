@@ -114,7 +114,7 @@ test_files_reports_evaluated_directory_count() {
 #     relative `.git`, the command fails from scripts/, and the `||`
 #     fallback recovered the right root; in a LINKED WORKTREE it is
 #     absolute, the command succeeds, and the gate silently passed every
-#     directory. That is the configuration CLAUDE.md mandates all work
+#     directory. That is the configuration AGENTS.md mandates all work
 #     happen in, so the gate was blind exactly where it was needed.
 #
 #     Every other case here sets DIRGATE_REPO_ROOT/DIRGATE_GO_DIR, which

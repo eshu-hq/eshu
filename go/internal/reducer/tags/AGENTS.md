@@ -9,8 +9,8 @@ it before touching any file in this directory.
    post-Phase-3 reopen requirement.
 2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
    sub-packages.
-3. `CLAUDE.md` "Facts-First Bootstrap Ordering" — Phase 1 canonical-nodes
-   publications from this package feed downstream domains that may require
+3. `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — Phase 1
+   canonical-nodes publications from this package feed downstream domains that may require
    Phase 3 reopen.
 
 ## Invariants (cite file:line)

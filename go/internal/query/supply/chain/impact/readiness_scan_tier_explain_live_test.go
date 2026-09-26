@@ -44,7 +44,7 @@ import (
 // proportional to the 2-of-11 added branches. Like this test's own bound,
 // that comparison was cached and single-corpus, not a cold-cache or
 // production-scale measurement; it was captured once to justify shipping the
-// SQL change and then discarded (per CLAUDE.md's "throwaway shim" framing for
+// SQL change and then discarded (per AGENTS.md's "throwaway shim" framing for
 // a theory proof), which is why it cannot be rerun from this file. This test
 // is what carries the change's latency contract forward.
 func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {

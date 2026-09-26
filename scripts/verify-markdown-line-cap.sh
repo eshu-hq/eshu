@@ -29,7 +29,7 @@ script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The repo root is the parent of this script's own directory, computed
 # directly -- NOT via `git rev-parse --show-toplevel`. git exports GIT_DIR to
 # every hook it runs, and with an absolute GIT_DIR (which is what a linked
-# worktree has, and CLAUDE.md mandates all work happen in a worktree)
+# worktree has, and AGENTS.md mandates all work happen in a worktree)
 # rev-parse stops discovering the work tree and reports the directory git ran
 # in, i.e. `<root>/scripts`. That made the dirgate gate silently pass on
 # every directory until it was found; see verify-dirgate.sh's identical

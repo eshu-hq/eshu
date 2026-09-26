@@ -14,7 +14,7 @@ import (
 // Lambda function CloudResource plus one lambda_function_uses_image
 // relationship with a resolved digest per iteration, so the join and
 // extraction cost scale identically to the already-measured AWS relationship
-// materialization corpus (issue #5450 prove-theory-first, CLAUDE.md).
+// materialization corpus (issue #5450 prove-theory-first, AGENTS.md).
 func awsCloudImageBenchCorpus(count int) (resources, relationships []facts.Envelope) {
 	resources = make([]facts.Envelope, 0, count)
 	relationships = make([]facts.Envelope, 0, count)

@@ -59,9 +59,9 @@ type bootstrapCommitter interface {
 	// trigger required by the facts-first bootstrap ordering: drift consumes
 	// both config-side parser facts and state-side collector facts, so the
 	// reducer must re-claim those scopes after Phase 3 has reopened
-	// deployment_mapping (see CLAUDE.md "Facts-First Bootstrap Ordering" and
-	// the AGENTS.md note on Phase-4 re-trigger consumers). Idempotent: the
-	// reducer queue dedupes on (domain, scope, generation).
+	// deployment_mapping (see docs/internal/agent-guide.md, "Bootstrap And
+	// Correlation Truth", and the AGENTS.md Phase-4 re-trigger note).
+	// Idempotent: the reducer queue dedupes on (domain, scope, generation).
 	EnqueueConfigStateDriftIntents(context.Context, trace.Tracer, *telemetry.Instruments) error
 }
 

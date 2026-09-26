@@ -11,7 +11,7 @@
    returns and does NOT do (does not append rejection reasons)
 4. `go/internal/correlation/model/README.md` — candidate state and rejection
    reason constants
-5. `CLAUDE.md` "Correlation Truth Gates" — mandatory before any change that
+5. the `eshu-correlation-truth` skill — mandatory before any change that
    affects which candidates are admitted
 
 ## Invariants this package enforces
@@ -51,7 +51,7 @@
   and `admitWinners` at `engine.go:92`. Update the tie-break test in
   `engine_test.go` to assert the new winner. Update explain golden tests if
   the candidate order changes. This is a correctness decision — read
-  CLAUDE.md "Correlation Truth Gates" first.
+  the `eshu-correlation-truth` skill first.
 
 - **Add a new result sort key** → touch the `slices.SortFunc` call at
   `engine.go:71`. Ensure the new key is deterministic (not random, not
@@ -102,7 +102,7 @@
 
 - **Adding namespace or folder heuristics** — do not add any logic that infers
   environment, cluster, or platform placement from `CorrelationKey` string
-  patterns or evidence key prefixes. CLAUDE.md forbids heuristics that invent
+  patterns or evidence key prefixes. AGENTS.md forbids heuristics that invent
   environment truth.
 
 ## What NOT to change without an ADR

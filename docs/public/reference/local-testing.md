@@ -618,7 +618,7 @@ for `ESHU_PPROF_ADDR`, concurrency knobs, and phase CPU capture.
 
 ## Docs And Hygiene
 
-Docs, `CLAUDE.md`, `AGENTS.md`, and README changes require:
+Docs, `AGENTS.md`, and README changes require:
 
 ```bash
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \

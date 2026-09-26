@@ -26,7 +26,7 @@ script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # dirgate_evaluate_dir treated every directory as "nothing to check" and the
 # gate passed. A relative GIT_DIR (a normal clone) made that call FAIL, and
 # the old `||` fallback -- this same parent-of-script_root path -- recovered;
-# an ABSOLUTE GIT_DIR (a linked worktree, which CLAUDE.md mandates all work
+# an ABSOLUTE GIT_DIR (a linked worktree, which AGENTS.md mandates all work
 # happen in) made it SUCCEED and lie, so `git commit` reported the gate green
 # on a tree `pre-commit run` failed. Pinned by
 # test_hook_env_git_dir_does_not_blind_the_gate in

@@ -148,7 +148,7 @@ linters:
       filelength:
         type: goplugin
         path: ../tools/golangci-lint-filelength/filelength.so
-        description: "Eshu 500-line file cap (AGENTS.md / CLAUDE.md)"
+        description: "Eshu 500-line file cap (AGENTS.md)"
         original-url: github.com/eshu-hq/eshu/tools/golangci-lint-filelength
       dirgate:
         type: goplugin

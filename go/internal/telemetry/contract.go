@@ -212,7 +212,7 @@ const (
 	// nested walker dropped or refused before capture. Cardinality is bounded
 	// by the schema bundle; the high-cardinality attribute_key stays in summary
 	// warning facts and structured logs per the observability rules in
-	// CLAUDE.md.
+	// AGENTS.md.
 	MetricDimensionResourceType = "resource_type"
 	// MetricDimensionCompositeSkipReason labels
 	// eshu_dp_drift_schema_unknown_composite_total with a closed enum that
@@ -723,7 +723,7 @@ const (
 	// seenBlockTypes guard (parser/hcl/terraform_resource_attributes.go).
 	// Operators read this to identify which allowlist entry would silently lose
 	// drift signal once a multi-element entry lands. High-cardinality identifier;
-	// stays in log attrs per CLAUDE.md observability rules.
+	// stays in log attrs per AGENTS.md observability rules.
 	LogKeyDriftMultiElementPrefix = "multi_element.prefix"
 	// LogKeyDriftMultiElementCount is the number of elements present in a
 	// truncated repeated block on the state-flatten side. Always >= 2 by

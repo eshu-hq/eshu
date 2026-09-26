@@ -6,7 +6,7 @@
    surface, and invariants
 2. `go/internal/correlation/model/types.go` — all exported types, constants,
    and `Validate` methods
-3. `CLAUDE.md` "Correlation Truth Gates" — mandatory before changing any type
+3. the `eshu-correlation-truth` skill — mandatory before changing any type
    that flows into materialization truth
 
 ## Invariants this package enforces

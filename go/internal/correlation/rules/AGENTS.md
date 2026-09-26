@@ -11,7 +11,7 @@
    and `FirstPartyRulePacks`; understand the split before adding a new pack
 4. Any one existing pack file (e.g. `dockerfile.go`) as a structural
    template
-5. `CLAUDE.md` "Correlation Truth Gates" — mandatory before touching any pack
+5. the `eshu-correlation-truth` skill — mandatory before touching any pack
    that affects correlation admission
 
 ## Invariants this package enforces
@@ -47,7 +47,7 @@
 
 - **Change a MinAdmissionConfidence value** → verify that the new threshold
   does not admit or reject candidates that would produce wrong graph truth
-  (see CLAUDE.md "Correlation Truth Gates"). Run the full correlation test
+  (see the `eshu-correlation-truth` skill). Run the full correlation test
   suite: `go test ./internal/correlation/... -count=1`. Document the change
   in the active ADR evidence row.
 

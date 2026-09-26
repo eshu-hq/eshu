@@ -25,7 +25,7 @@ const (
 )
 
 // Disposition mirrors the severity/confidence/disposition/evidence finding
-// shape CLAUDE.md's Mandatory Pre-PR Code Review section already uses, so
+// shape AGENTS.md's Mandatory Pre-PR Code Review section already uses, so
 // this gate's output composes directly with the rest of the review
 // pipeline instead of introducing a parallel vocabulary.
 type Disposition string

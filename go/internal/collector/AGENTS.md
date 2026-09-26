@@ -45,7 +45,7 @@
 - **Repo-local overrides applied before operator-level overlays** —
   `discoveryOptionsWithRepoDiscoveryConfig` applies `.eshu/discovery.json` and
   `.eshu/vendor-roots.json` before the `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
-  operator overlay. This order is intentional and documented in CLAUDE.md.
+  operator overlay. This order is intentional and documented in AGENTS.md.
 
 - **Filesystem manifests describe effective input** — `fingerprintTree` includes
   `.gitignore` and `.eshuignore` rule files but skips files those rules exclude.
@@ -176,7 +176,7 @@
   under-utilization.
 - `AfterBatchDrained` call semantics — removing or reordering the
   backfill and deployment-mapping reopen calls (wired via `AfterBatchDrained`
-  in `cmd/ingester`) breaks the bootstrap phase contract defined in CLAUDE.md.
+  in `cmd/ingester`) breaks the bootstrap phase contract defined in AGENTS.md.
   Empty-batch drain hooks must remain opt-in. They are NOT edge-triggered per
   drain window: before #5852 they were, and a shard owning no repositories
   drained once at startup and then starved every later fleet-barrier epoch,

@@ -34,7 +34,7 @@ registered route, fails the gate.
 
 Any wire-visible change (new route, changed schema, changed response
 shape) MUST update `docs/public/reference/http-api.md` in the same PR, per
-the root `CLAUDE.md` Documentation Discipline rule.
+the root `AGENTS.md` Documentation Discipline rule.
 
 Run `cd go && go build ./internal/query/...` and
 `gofmt -l internal/query/openapi` after any edit here.

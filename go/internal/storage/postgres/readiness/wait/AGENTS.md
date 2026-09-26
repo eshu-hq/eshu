@@ -1,7 +1,7 @@
 # AGENTS.md — internal/storage/postgres/readiness/wait
 
-Scoped instructions for this package. The root `AGENTS.md` and `CLAUDE.md`
-still apply.
+Scoped instructions for this package. The root `AGENTS.md`
+still applies.
 
 - Every statement stays a single-row primary-key read, upsert, or update on
   `reducer_readiness_waits`. Do not join `fact_work_items` or add a claim-path

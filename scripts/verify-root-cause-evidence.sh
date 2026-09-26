@@ -6,7 +6,7 @@
 # written with the confidence of a finding when it is actually a guess, which
 # then gets built on: an executor is dispatched, a fix is written, and the fix
 # does nothing because the cause was never established. The repo already
-# mandates proving a theory before implementing (CLAUDE.md, "Mandatory
+# mandates proving a theory before implementing (AGENTS.md, "Mandatory
 # Prove-The-Theory-First"); this gate is the mechanical half for the documents
 # that record such claims.
 #
@@ -207,7 +207,7 @@ printf 'If the cause is not actually established, say so and the gate stops\n'
 printf 'applying -- it only matches claims that a cause is KNOWN. Hedged wording\n'
 printf '("the suspected cause", "one theory is") is deliberately unmatched,\n'
 printf 'because labelling a guess as a guess is what this encourages.\n\n'
-printf 'See CLAUDE.md, "Mandatory Prove-The-Theory-First".\n'
+printf 'See AGENTS.md, "Mandatory Prove-The-Theory-First".\n'
 
 # Advisory while the real false-positive rate on this repo's prose is unknown.
 # Flip to exit 1 in specs/ci-gates.v1.yaml (blocking: true) once the rate is

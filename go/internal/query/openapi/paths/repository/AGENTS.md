@@ -28,7 +28,7 @@ fragments (#6060, lane C): `routes.go` (`Routes`), `branches.go`
 A change here must keep `scripts/verify-openapi.sh` green — it
 cross-references `mux.HandleFunc` registrations against these fragments —
 and must update `docs/public/reference/http-api.md` in the same PR (root
-`CLAUDE.md` Documentation Discipline).
+`AGENTS.md` Documentation Discipline).
 
 ## Naming
 

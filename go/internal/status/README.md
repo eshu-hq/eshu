@@ -21,8 +21,8 @@ It does not own: queue persistence (that belongs to `internal/storage/postgres`)
 metric or span emission (that belongs to `internal/telemetry`), or HTTP routing
 (that belongs to `internal/query` and `internal/runtime`).
 
-See `CLAUDE.md` §Preserve Service Boundaries for the project-wide ownership
-table.
+See `docs/internal/agent-guide.md` "Ownership Boundaries" for the project-wide
+ownership table.
 
 ## Internal flow
 

@@ -78,8 +78,8 @@ The package does not emit metrics or spans. Callers wrap
   canonical_nodes_committed)` per resource (`normalizer.go:86–97`). This is
   a Phase 1 publication; downstream domains that consume
   `resolved_relationships` derived from these canonical rows still require
-  the post-Phase-3 reopen mechanism from CLAUDE.md "Facts-First Bootstrap
-  Ordering". This package does not own that reopen.
+  the post-Phase-3 reopen mechanism from `docs/internal/agent-guide.md`
+  "Bootstrap And Correlation Truth". This package does not own that reopen.
 - **`PhaseStates` deduplicates by `CanonicalResourceID`** — `normalizer.go:79–85`;
   duplicate resources in one `NormalizationResult` produce only one phase row.
 - **`PhaseStates` sorts the output by `AcceptanceUnitID`** —

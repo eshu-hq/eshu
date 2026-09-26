@@ -1,6 +1,6 @@
 # Agent Instructions: internal/cli/trace
 
-Scoped rules for `go/internal/cli/trace`. The root `AGENTS.md` / `CLAUDE.md` and
+Scoped rules for `go/internal/cli/trace`. The root `AGENTS.md` and
 the package [`README.md`](README.md) still apply.
 
 ## Read first

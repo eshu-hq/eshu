@@ -19,7 +19,7 @@ import (
 // removed_from_config candidates).
 //
 // Hoisted from tfstate_drift_evidence.go (issue #169) to keep the loader file
-// under the CLAUDE.md 500-line cap; behavior is unchanged.
+// under the AGENTS.md 500-line cap; behavior is unchanged.
 func hasStateOnlyAddress(
 	config, state map[string]*tfconfigstate.ResourceRow,
 ) bool {
@@ -54,7 +54,7 @@ func hasStateOnlyAddress(
 // removed_from_config finding to "derived".
 //
 // Hoisted from tfstate_drift_evidence.go (issue #169) to keep the loader file
-// under the CLAUDE.md 500-line cap; behavior is unchanged.
+// under the AGENTS.md 500-line cap; behavior is unchanged.
 func mergeDriftRows(
 	config, state, prior map[string]*tfconfigstate.ResourceRow,
 	priorConfigAddresses map[string]string,

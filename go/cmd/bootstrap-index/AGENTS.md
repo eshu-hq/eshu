@@ -22,8 +22,8 @@ touching any file in `go/cmd/bootstrap-index/`.
 - `go/cmd/bootstrap-index/wiring.go` — collector and projector wiring.
 - `go/cmd/bootstrap-index/nornicdb_wiring.go` — NornicDB-specific executor
   chain (phase-group chunking, timeout, instrumentation, retry).
-- `CLAUDE.md` section "Facts-First Bootstrap Ordering" — describes the four
-  phases in prose; `main.go` is the implementation.
+- `docs/internal/agent-guide.md` "Bootstrap And Correlation Truth" — describes
+  the four phases in prose; `main.go` is the implementation.
 - `go/internal/storage/postgres/ingestion.go` — owns `SkipRelationshipBackfill`,
   `BackfillAllRelationshipEvidence`, `ReopenDeploymentMappingWorkItems`, and
   `MaterializeIaCReachability` (the `bootstrapCommitter` methods).
@@ -199,8 +199,8 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
   an UNWIND-driven MATCH cannot see a same-transaction MERGE and would silently
   drop nested files (#4027). Do not enable it expecting a single grouped
   canonical transaction on NornicDB; that path is valid only for a
-  same-transaction read-your-writes backend (Neo4j). See `CLAUDE.md` section
-  "NornicDB Compatibility Workflow".
+  same-transaction read-your-writes backend (Neo4j). See
+  `docs/public/reference/nornicdb-pitfalls.md`.
 - **Do not treat `errProjectorDrained` as an error.** It is a sentinel
   (`bootstrap_collector.go`) emitted after the `PhaseProjection` drain loop exhausts the
   queue. Worker goroutines return on it; do not propagate it through error
