@@ -180,16 +180,53 @@ run_drain_gate() {
 		drain_allow_readiness_deferred=(-drain-allow-readiness-deferred)
 		;;
 	esac
-	if ! "${bin_dir}/eshu-golden-corpus-gate" \
+	local gate_pid gate_rc=0 exit_reason
+	"${bin_dir}/eshu-golden-corpus-gate" \
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 		-drain-timeout="${GATE_DRAIN_TIMEOUT}" \
-		"${drain_allow_readiness_deferred[@]:-}"; then
+		"${drain_allow_readiness_deferred[@]:-}" &
+	gate_pid=$!
+	# A drain with no live reducer can only time out (#7123 run 35943641519:
+	# the reducer exited on an AckBatch 40P01 and the drain waited 4 minutes).
+	while kill -0 "${gate_pid}" 2>/dev/null; do
+		if exit_reason="$(_ifa_fault_reducer_exit_reason)"; then
+			kill "${gate_pid}" >/dev/null 2>&1 || true
+			wait "${gate_pid}" 2>/dev/null || true
+			die "${cell}: reducer exited: ${exit_reason}"
+		fi
+		sleep 0.25
+	done
+	wait "${gate_pid}" || gate_rc=$?
+	if [[ "${gate_rc}" -ne 0 ]]; then
 		tail -40 "${log_dir}"/reducer-*"${cell}"*.log 2>/dev/null || true
 		tail -40 "${log_dir}/projector-${cell}.log" 2>/dev/null || true
 		die "${cell}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
 	assert_rationale_truth "${cell}"
+}
+
+# _ifa_fault_reducer_exit_reason prints "<label>: <last log line>" and returns 0
+# when this cell tracks at least one reducer (bg_pids plus the labels recorded
+# by ifa_det_start_bg) and none of them is alive. It returns 1 while any
+# tracked reducer lives, or when none is tracked. A cell that deliberately kills
+# one reducer and starts a replacement keeps passing on the replacement.
+_ifa_fault_reducer_exit_reason() {
+	local entry pid name tracked_pid tracked reducers=0 dead_label=""
+	for entry in "${ifa_det_bg_labels[@]:-}"; do
+		pid="${entry%%=*}" name="${entry#*=}"
+		[[ -n "${entry}" && "${name}" == reducer-* ]] || continue
+		tracked=0
+		for tracked_pid in "${bg_pids[@]:-}"; do
+			[[ "${tracked_pid}" == "${pid}" ]] && tracked=1
+		done
+		[[ "${tracked}" -eq 1 ]] || continue
+		reducers=$((reducers + 1))
+		kill -0 "${pid}" 2>/dev/null && return 1
+		dead_label="${name}"
+	done
+	[[ "${reducers}" -gt 0 ]] || return 1
+	printf '%s: %s' "${dead_label}" "$(tail -n 1 "${log_dir}/${dead_label}.log" 2>/dev/null || true)"
 }
 
 # assert_no_dead_letters is a second, explicit dead_letter=0 check independent

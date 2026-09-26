@@ -225,12 +225,10 @@ cell_baseline_deployable_unit() {
 	fi
 	capture_digest baseline_deployable_unit
 
-	# Snapshot the fault-free retry count so the fault cells can prove their
-	# injected fault ADDED a retry this identical drive did not produce on its
-	# own, mirroring cell_baseline's baseline_retried/baseline_code_call_retried
-	# capture exactly -- deployable_unit_correlation only does real work AFTER
-	# the maintenance pass, so this is the reference flow that establishes what
-	# "zero natural retries" means for this domain, not an assumed literal.
+	# Report the fault-free retry count as a diagnostic. It is not a stable
+	# zero: a natural counting target-absent retry makes it 0 or 1 across runs
+	# (#7123, run 35945606336), so the kill cell proves re-execution per
+	# killed work item instead of comparing a row count against this value.
 	baseline_deployable_unit_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"
 	baseline_deployable_unit_retried="${baseline_deployable_unit_retried:-0}"
 	printf 'baseline-deployable-unit: fault-free deployable_unit_correlation retried rows (attempt_count>1): %s\n' "${baseline_deployable_unit_retried}"
@@ -251,18 +249,23 @@ cell_baseline_deployable_unit() {
 # family's row against this gate's shared four-worker pool instead of
 # blocking it usefully, and for the post-write-death consequence that
 # follows from locking a write this late -- prevents the handler from
-# acknowledging before kill; attempt_count > 0 (this domain has no natural
-# retries in a clean maintenance-pass run, so any positive count is the
-# fault's fingerprint) proves the replacement reducer re-executed
-# deployable_unit_correlation, not merely another queued row.
+# acknowledging before kill. Non-vacuity is a pg_locks census, not a row
+# status: the cell waits for the readiness fence, then for claimed rows that
+# each have a backend parked behind the admission_decisions holder
+# (ifa_deployable_unit_wait_for_blocked_claim). A claim that is about to fail
+# readiness has no such waiter (#7123, run 36125876678). The census is taken
+# again at kill time, and after the post-kill drain every one of those killed
+# work items must show a new attempt (a larger attempt_count and a later
+# last_attempt_at), which proves the replacement re-executed the killed
+# claims themselves, not merely another queued row.
 # Before that process-wide kill, the pre-kill isolation barrier lets every
 # non-target fact, shared intent, and cross-scope completion event finish. The
 # blocked target has no IntentWriter, so after that boundary it cannot create
 # new cross-family work; killing the reducer cannot abandon an unrelated
 # five-minute repo_dependency partition lease behind the four-minute drain.
 #
-# THE RETRY EVIDENCE IS SNAPSHOTTED, NOT RE-QUERIED (found live in CI):
-# attempt_count is captured immediately after the post-kill drain reaches
+# THE RE-EXECUTION EVIDENCE IS READ RIGHT AFTER THE DRAIN (found live in CI):
+# attempt_count is checked immediately after the post-kill drain reaches
 # its residual bound, before this cell's own edge-assert/converge_edges
 # steps run. A LIVE re-query at assertion time is not equivalent -- this
 # family's convergence loop (ifa_deployable_unit_live_converge_edges) can
@@ -297,35 +300,41 @@ cell_killworker_deployable_unit() {
 	ifa_deployable_unit_live_run_maintenance_pass "killworkerdeployableunit" "${bin_dir}" "${log_dir}" \
 		|| die "kill-worker-after-claim-deployable-unit: bootstrap-index maintenance pass failed"
 
-	local lock_holder_pid claimed_before reducer_pid_before reducer_pid_after
+	local lock_holder_pid parked_claims killed_claims reducer_pid_before reducer_pid_after
 	ifa_deployable_unit_start_admission_decisions_lock "killworkerdeployableunit" lock_holder_pid \
 		|| die "kill-worker-after-claim-deployable-unit: could not acquire the deterministic admission_decisions blocker"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-before" reducer_pid_before "${bin_dir}/eshu-reducer"
-	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "deployable_unit_correlation")" \
-		|| die "kill-worker-after-claim-deployable-unit: no deployable_unit_correlation row was claimed while its durable write was blocked"
-	printf 'kill-worker-after-claim-deployable-unit: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
+	ifa_deployable_unit_wait_for_readiness_fence "killworkerdeployableunit" \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "kill-worker-after-claim-deployable-unit: the deployable_unit_correlation readiness fence never opened, so no claim could reach admission_decisions"
+	ifa_deployable_unit_wait_for_blocked_claim "killworkerdeployableunit" \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" parked_claims \
+		|| die "kill-worker-after-claim-deployable-unit: no deployable_unit_correlation claim was parked behind the admission_decisions holder"
 	ifa_deployable_unit_wait_for_kill_isolation "killworkerdeployableunit" \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
 		|| die "kill-worker-after-claim-deployable-unit: unrelated reducer work did not reach the pre-kill isolation boundary"
+	# Re-take the census at kill time: a parked claim cannot move while the
+	# holder stands, so this is exactly the set the kill interrupts.
+	ifa_deployable_unit_wait_for_blocked_claim "killworkerdeployableunit" \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" killed_claims \
+		|| die "kill-worker-after-claim-deployable-unit: the parked claims were no longer parked at kill time (census before isolation: ${parked_claims})"
 	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
 	ifa_deployable_unit_release_admission_decisions_lock "killworkerdeployableunit" "${lock_holder_pid}"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunit
-	# Snapshot HERE, not at the assertion below: by the time run_drain_gate
-	# returns, the recovered row is already 'succeeded' with attempt_count
-	# intact, and nothing between here and this snapshot can have reopened it
-	# -- so a single direct read, not a poll, is correct. Everything after
-	# this line (the edge assert and its convergence-loop retries) can run
-	# another maintenance pass that reopens this same row and resets
-	# attempt_count to 0; reading the count again after that point would read
-	# the reset, not the recovery. See this cell's own header and
+	# Check HERE, before the edge assert below: by the time run_drain_gate
+	# returns, the recovered rows carry the replacement's attempt, and nothing
+	# between here and this read can have reopened them -- so a single direct
+	# read, not a poll, is correct. The edge assert and its convergence-loop
+	# retries can run another maintenance pass that reopens these rows and
+	# resets attempt_count to 0. See this cell's own header and
 	# ifa_deployable_unit_live_converge_edges's for why.
-	local killed_retried killed_retried_rc
-	if killed_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"; then
-		killed_retried_rc=0
-	else
-		killed_retried_rc=$?
-	fi
+	# The rc is held, not acted on, so the readiness and intent diagnostics
+	# below still print when the re-execution proof fails.
+	local reexecuted_rc=0
+	ifa_deployable_unit_assert_killed_claims_reexecuted "killworkerdeployableunit" \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${killed_claims}" \
+		|| reexecuted_rc=$?
 	assert_no_dead_letters killworkerdeployableunit
 	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-before" "killworkerdeployableunit" \
 		|| die "kill-worker-after-claim-deployable-unit: original reducer log does not prove the readiness gate opened before the isolated kill"
@@ -350,35 +359,8 @@ cell_killworker_deployable_unit() {
 		*) die "kill-worker-after-claim-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound" ;;
 		esac
 	fi
-	# Assert on the SNAPSHOT captured right after the drain, not a fresh
-	# query here -- by this point the edge-assert/converge_edges steps above
-	# may already have run a maintenance pass that reopened and zeroed this
-	# row's attempt_count. ifa_fault_assert_retried_above (which polls a
-	# live query) is deliberately NOT used here for that reason.
-	#
-	# The rc check below is checked against killed_retried_rc, captured by
-	# the if/else at the snapshot line above -- the family idiom used by
-	# every sibling precondition in this family (e.g.
-	# ifa_deployable_unit_require_admission_decisions_written,
-	# ifa_fault_injection_deployable_unit_lock.sh). Capturing rc through
-	# if/else, rather than a bare `killed_retried="$(...)"` assignment, is
-	# not stylistic here: under this script's `set -euo pipefail`, a bare
-	# assignment's failing command substitution aborts the whole script on
-	# that line, so a failed query would die with ifa_fault_count_retried's
-	# own generic message and never reach any of the three checks below.
-	# The if/else keeps the failure inside this cell's control, so it can be
-	# named and rejected as unknown right here, at the point that actually
-	# needs the answer -- same fail-closed shape as the rest of this family:
-	# query failed, empty, and non-numeric are each rejected distinctly as
-	# unknown, never read as a legitimate zero or a legitimate pass.
-	[[ "${killed_retried_rc}" -eq 0 ]] \
-		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query FAILED (exit ${killed_retried_rc}); treat this as unknown, not as a verdict"
-	[[ -n "${killed_retried}" ]] \
-		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query returned empty output; treat this as unknown, not as zero"
-	[[ "${killed_retried}" =~ ^[0-9]+$ ]] \
-		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query returned non-numeric output '${killed_retried}'; treat this as unknown, not as zero"
-	[[ "${killed_retried}" -gt "${baseline_deployable_unit_retried}" ]] \
-		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute above its fault-free retry baseline (snapshot ${killed_retried}, baseline ${baseline_deployable_unit_retried})"
+	[[ "${reexecuted_rc}" -eq 0 ]] \
+		|| die "kill-worker-after-claim-deployable-unit: the replacement reducer did not re-execute every killed deployable_unit_correlation claim (exit ${reexecuted_rc})"
 	capture_digest killworkerdeployableunit
 	assert_matches_baseline killworkerdeployableunit baseline_deployable_unit
 	teardown_cell killworkerdeployableunit

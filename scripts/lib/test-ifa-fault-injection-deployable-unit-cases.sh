@@ -433,19 +433,14 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# pass be deleted while the baseline and graph-write cells kept the pin green
 	# -- that cell then asserts a graph the maintenance pass never built (#6161).
 	require_deployable_unit_cells_count "maintenance pass invocation, one per cell" "ifa_deployable_unit_live_run_maintenance_pass" 3
-	# Three family-scoped queries: the baseline retry count, the kill cell's
-	# claimed-row wait, and the killed retry count. Unscoping any ONE of them
-	# widens it to every domain the gate touches, which is how a retry from an
-	# unrelated family would satisfy this cell -- and -ge 1 covered whichever
-	# stayed scoped (#6161).
-	require_deployable_unit_cells_count "all three deployable-unit queries stay scoped to the family" '"deployable_unit_correlation")"' 3
-	# Bind the COMPARISON, not the variable. The bare `"${baseline_..._retried}"`
-	# needle also matched the printf two lines under the baseline capture, so the
-	# `-gt` line -- the only thing that turns "the cell ran" into "the cell proved
-	# a retry" -- could be deleted with this pin green on the printf. That is the
-	# vacuous-proof shape twice over: the proof keeps running and always passes,
-	# rather than visibly stopping (#6161).
-	require_deployable_unit_cells "kill cell proves a retry above the family-scoped baseline" '[[ "${killed_retried}" -gt "${baseline_deployable_unit_retried}" ]]'
+	# The baseline retry count stays scoped to the family. The kill cell's
+	# census and re-execution queries hard-code the domain in their own SQL,
+	# pinned by the kill-isolation cases (#7123).
+	require_deployable_unit_cells_count "the baseline retry count stays scoped to the family" '"deployable_unit_correlation")"' 1
+	# Bind the VERDICT, not the call. The re-execution rc is held so the
+	# diagnostics still print; deleting the check that acts on it would leave
+	# the proof running and always passing (the #6161 vacuous-proof shape).
+	require_deployable_unit_cells "kill cell acts on the per-work-item re-execution proof" '[[ "${reexecuted_rc}" -eq 0 ]]'
 	require_deployable_unit_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_deployable_unit_cells "graph-write cell reads the durable marker, not a log" "ifa_fault_assert_once_fault_marker"
 	require_deployable_unit_cells "fault cells compare against the family-scoped baseline, not the shared one" "assert_matches_baseline killworkerdeployableunit baseline_deployable_unit"

@@ -16,6 +16,7 @@ _ifa_deployable_unit_kill_readiness_uses_pre_kill_log() {
 }
 
 run_ifa_fault_injection_deployable_unit_kill_isolation_cases() {
+	_run_ifa_deployable_unit_blocked_claim_cases
 	require_deployable_unit_lock_lib "pre-kill isolation helper definition" "ifa_deployable_unit_wait_for_kill_isolation() {"
 	require_deployable_unit_lock_lib "pre-kill isolation uses the gate's terminal fact predicate" "status NOT IN ('succeeded', 'superseded')"
 	require_deployable_unit_lock_lib "pre-kill isolation excludes only the deliberately blocked target domain" "NOT (stage = 'reducer' AND domain = 'deployable_unit_correlation')"
@@ -25,7 +26,7 @@ run_ifa_fault_injection_deployable_unit_kill_isolation_cases() {
 	require_deployable_unit_cells "kill cell waits for cross-family isolation" 'ifa_deployable_unit_wait_for_kill_isolation "killworkerdeployableunit"'
 
 	local claimed_line isolation_line kill_line
-	claimed_line="$(rg -n --fixed-strings -- 'claimed_before="$(ifa_fault_wait_for_claimed' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
+	claimed_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_wait_for_blocked_claim "killworkerdeployableunit"' "${deployable_unit_cells_lib}" | head -n 1 | cut -d: -f1 || true)"
 	isolation_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_wait_for_kill_isolation "killworkerdeployableunit"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
 	kill_line="$(rg -n --fixed-strings -- 'kill -9 "${reducer_pid_before}"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
 	[[ "${claimed_line}" =~ ^[0-9]+$ && "${isolation_line}" =~ ^[0-9]+$ && "${kill_line}" =~ ^[0-9]+$ \
@@ -91,5 +92,137 @@ run_ifa_fault_injection_deployable_unit_kill_isolation_cases() {
 		ifa_deployable_unit_wait_for_kill_isolation test_cell test_project 0 test_dsn test_compose '1; SELECT 1' >/dev/null 2>&1
 	); then
 		fail "pre-kill isolation helper accepted a non-numeric SQL budget"
+	fi
+}
+
+# #7123 shape B: the kill cell used to count any claimed/running row as a
+# "blocked" claim. In CI (run 36125876678) it caught a transient claim 5 ms
+# before that row failed the readiness gate with a NON-counting class, so the
+# kill hit no in-flight handler, the reclaim kept attempt_count, and the
+# row-count comparison against a 0-or-1 baseline failed. These cases pin the
+# three replacements: a DB-level readiness fence, a pg_locks census of claims
+# actually parked behind the admission_decisions holder, and a per-work-item
+# re-execution check.
+_run_ifa_deployable_unit_blocked_claim_cases() {
+	local killed_rows='0123456789abcdef0123456789abcdef 1 1790000000250000'
+	require_deployable_unit_cells "kill cell waits for the readiness fence before its census" 'ifa_deployable_unit_wait_for_readiness_fence "killworkerdeployableunit"'
+	require_deployable_unit_cells_count "kill cell takes the census before isolation and again at kill time" 'ifa_deployable_unit_wait_for_blocked_claim "killworkerdeployableunit"' 2
+	require_deployable_unit_cells "kill cell asserts re-execution per killed work item" 'ifa_deployable_unit_assert_killed_claims_reexecuted "killworkerdeployableunit"'
+	# pg_stat_activity is snapshotted once per transaction, and the census loops
+	# inside one plpgsql call, so without a per-iteration clear it never sees a
+	# waiter that parks after the call starts (review of #7123, reproduced on
+	# postgres 16 and 18). The stubs cannot observe this, so pin the clear.
+	require_deployable_unit_lock_lib "census clears the pg_stat snapshot on every poll" "PERFORM pg_stat_clear_snapshot();"
+	[[ "$(_ifa_count_code_matches 'ifa_fault_wait_for_claimed' "${deployable_unit_cells_lib}")" -eq 0 ]] \
+		|| fail "deployable-unit kill cell still accepts any claimed/running row as a blocked claim"
+	[[ "$(_ifa_count_code_matches '"${killed_retried}" -gt "${baseline_deployable_unit_retried}"' "${deployable_unit_cells_lib}")" -eq 0 ]] \
+		|| fail "deployable-unit kill cell still compares a domain row count against a nondeterministic baseline"
+
+	# The B1 shape: one claimed row carrying the non-counting readiness class
+	# and no backend parked behind the holder. The old predicate accepts it.
+	local old_count
+	old_count="$(
+		# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+		source "${fault_lib}"
+		ifa_det_pg() { printf '1\n'; }
+		ifa_fault_wait_for_claimed test_project 0 test_dsn test_compose 1 deployable_unit_correlation
+	)" || old_count=0
+	[[ "${old_count}" == "1" ]] \
+		|| fail "control: the retired claimed/running predicate no longer accepts the B1 transient claim (got ${old_count})"
+	if (
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() { printf '1|0|1|0123456789abcdef0123456789abcdef 1 1790000000250000\n'; }
+		ifa_deployable_unit_wait_for_blocked_claim killworkerdeployableunit test_project 0 test_dsn test_compose 1 census_rows >/dev/null 2>&1
+	); then
+		fail "blocked-claim census accepted a claimed row with no waiter behind the admission_decisions holder (non-counting readiness claim)"
+	fi
+	local census
+	census="$(
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() {
+			[[ "$4" == *"'admission_decisions'::regclass"* && "$4" == *"NOT lock_row.granted"* &&
+				"$4" == *"held.granted"* && "$4" == *"ifa_deployable_unit_lock_killworkerdeployableunit"* &&
+				"$4" == *"claimed = waiters"* && "$4" == *"md5(work_item_id)"* ]] || return 1
+			printf '1|1|1|%s\n' "${killed_rows}"
+		}
+		ifa_deployable_unit_wait_for_blocked_claim killworkerdeployableunit test_project 0 test_dsn test_compose 1 census_rows >/dev/null
+		printf '%s' "${census_rows}"
+	)" || fail "blocked-claim census rejected one claim parked behind the admission_decisions holder"
+	[[ "${census}" == "${killed_rows}" ]] \
+		|| fail "blocked-claim census did not hand back the parked claim's identity (got ${census})"
+	# Each state is well formed, so only the count guards can reject it: more
+	# claimed rows than parked waiters (one claim is a readiness deferral), and
+	# a parked waiter with no labeled holder.
+	local census_state
+	for census_state in "1|1|2|${killed_rows},${killed_rows/0123/4567}" "0|1|1|${killed_rows}"; do
+		if (
+			# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+			source "${deployable_unit_lock_lib}"
+			ifa_det_pg() { printf '%s\n' "${census_state}"; }
+			ifa_deployable_unit_wait_for_blocked_claim killworkerdeployableunit test_project 0 test_dsn test_compose 1 census_rows >/dev/null 2>&1
+		); then
+			fail "blocked-claim census accepted holders|waiters|claimed state ${census_state%|*}"
+		fi
+	done
+
+	if ! (
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() {
+			[[ "$4" == *"relationship_generations"* && "$4" == *"deployment_mapping"* ]] || return 1
+			printf '1|0\n'
+		}
+		ifa_deployable_unit_wait_for_readiness_fence killworkerdeployableunit test_project 0 test_dsn test_compose 1 >/dev/null
+	); then
+		fail "readiness fence rejected an open fence with one ready deployable_unit_correlation row"
+	fi
+	local fence_state
+	for fence_state in '0|0' '1|1' 'unknown'; do
+		if (
+			# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+			source "${deployable_unit_lock_lib}"
+			ifa_det_pg() { printf '%s\n' "${fence_state}"; }
+			ifa_deployable_unit_wait_for_readiness_fence killworkerdeployableunit test_project 0 test_dsn test_compose 1 >/dev/null 2>&1
+		); then
+			fail "readiness fence accepted state ${fence_state}"
+		fi
+	done
+
+	if ! (
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() {
+			[[ "$4" == *"w.attempt_count > killed.attempt_count"* && "$4" == *"(extract(epoch FROM w.last_attempt_at) * 1000000)::bigint > killed.last_attempt_us"* ]] || return 1
+			printf '1|1\n'
+		}
+		ifa_deployable_unit_assert_killed_claims_reexecuted killworkerdeployableunit test_project 0 test_dsn test_compose "${killed_rows}" >/dev/null
+	); then
+		fail "re-execution check rejected a killed claim the replacement reclaimed"
+	fi
+	local reexec_rc=0
+	(
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() { printf '1|0\n'; }
+		ifa_deployable_unit_assert_killed_claims_reexecuted killworkerdeployableunit test_project 0 test_dsn test_compose "${killed_rows}" >/dev/null 2>&1
+	) || reexec_rc=$?
+	[[ "${reexec_rc}" -ne 0 ]] || fail "re-execution check accepted a killed claim whose attempt was never reclaimed"
+	reexec_rc=0
+	(
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() { return 17; }
+		ifa_deployable_unit_assert_killed_claims_reexecuted killworkerdeployableunit test_project 0 test_dsn test_compose "${killed_rows}" >/dev/null 2>&1
+	) || reexec_rc=$?
+	[[ "${reexec_rc}" -eq 17 ]] || fail "re-execution check returned ${reexec_rc} on a failed query, want 17"
+	if (
+		# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
+		source "${deployable_unit_lock_lib}"
+		ifa_det_pg() { printf '1|1\n'; }
+		ifa_deployable_unit_assert_killed_claims_reexecuted killworkerdeployableunit test_project 0 test_dsn test_compose "x'); DROP TABLE t; -- 1 1" >/dev/null 2>&1
+	); then
+		fail "re-execution check accepted a killed-claim identity that is not an md5 digest"
 	fi
 }

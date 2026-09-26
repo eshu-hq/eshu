@@ -79,8 +79,9 @@ run_ifa_fault_injection_cell_pins_cases() {
 	require_sql_cells "SQL-targeted kill, join, and untrack the live reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 
 	# Cell 3 (expire-lease-mid-handler): direct SQL forced expiry, no kill.
-	require_cells "forced lease expiry SQL" "UPDATE fact_work_items SET claim_until = now()"
-	require_cells "expire-lease targets claimed/running" "status IN ('claimed', 'running');\""
+	# The SQL itself (claimed/running rows, ack lock order) lives in
+	# ifa_fault_expire_reducer_claims and is proven by the reclaim-assert cases.
+	require_cells "forced lease expiry through the lock-ordered helper" "ifa_fault_expire_reducer_claims"
 	require_cells "expire-lease proves the expiry caused a re-claim" "ifa_fault_assert_reclaimed_above"
 	require_cells "expire-lease captures the pre-expiry re-claim baseline" 'reclaimed_before="$(ifa_fault_count_reclaimed'
 

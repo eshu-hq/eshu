@@ -60,13 +60,16 @@ ifa_det_build_bin() {
 # global `bg_pids` array (so the caller's own exit trap can reap it), and
 # stores the PID in the variable named by pidvar via `printf -v` — required
 # because `local pid=$!` inside this function would otherwise be invisible to
-# the caller's shell once this function returns.
+# the caller's shell once this function returns. It also appends "pid=name" to
+# ifa_det_bg_labels, so a caller can tell which tracked PID was a reducer after
+# bash has reaped it (a dead child leaves no process entry to inspect).
 ifa_det_start_bg() {
 	local log_dir="$1" name="$2" pidvar="$3"
 	shift 3
 	"$@" >"${log_dir}/${name}.log" 2>&1 &
 	local pid=$!
 	bg_pids+=("${pid}")
+	ifa_det_bg_labels+=("${pid}=${name}")
 	printf -v "${pidvar}" '%s' "${pid}"
 }
 

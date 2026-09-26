@@ -64,3 +64,17 @@ ifa_fault_assert_reclaimed_above() {
 	done
 	return 1
 }
+
+# ifa_fault_expire_reducer_claims forces claim_until = now() on every
+# claimed/running reducer row, taking the row locks in AckBatch's order
+# (work_item_id COLLATE "C", FOR NO KEY UPDATE). The plain UPDATE this replaces
+# locked rows in heap order and deadlocked with an in-flight ack (#7123, run
+# 35943641519). In one order the two statements can only queue behind each
+# other. EvalPlanQual skips a row an ack finished first, so a row that stopped
+# being claimed is left alone, as before.
+ifa_fault_expire_reducer_claims() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"WITH expiring AS MATERIALIZED (SELECT work_item_id FROM fact_work_items WHERE stage = 'reducer' AND status IN ('claimed', 'running') ORDER BY work_item_id COLLATE \"C\" FOR NO KEY UPDATE) UPDATE fact_work_items SET claim_until = now() WHERE work_item_id IN (SELECT work_item_id FROM expiring);" \
+		"${compose_file}"
+}
