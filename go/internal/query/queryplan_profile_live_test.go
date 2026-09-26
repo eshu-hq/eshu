@@ -37,7 +37,7 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":             {"RelationshipCountFromCountStore"},
 		"QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES":          {"NodeByLabelScan", "DirectedRelationshipTypeScan"},
 		"QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":            {"NodeByLabelScan", "DirectedRelationshipTypeScan"},
-		"QP-RELATIONSHIPS-EDGES":                          {"DirectedRelationshipTypeScan"},
+		"QP-RELATIONSHIPS-EDGES":                          {"NodeIndexScan", "NodeIndexSeek"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": {"NodeByLabelScan"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
 		"QP-INFRA-RESOURCE-SEARCH":                        {"NodeByLabelScan"},
@@ -423,7 +423,11 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 		return []string{"NodeByLabelScan", "DirectedRelationshipTypeScan"}
 	case "QP-INFRA-RESOURCE-AGGREGATE-GRAPH":
 		return []string{"NodeByLabelScan", "NodeIndexSeek"}
-	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
+	case "QP-RELATIONSHIPS-EDGES":
+		// The unscoped CALLS probe requires s.uid IS NOT NULL and orders by
+		// that indexed key, so its bounded anchor is a node index walk.
+		return []string{"NodeIndexScan", "NodeIndexSeek"}
+	case "QP-RESOURCE-INVESTIGATION-WORKLOADS",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}
 	case "QP-RELATIONSHIPS-CATALOG-COUNT", "QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":
