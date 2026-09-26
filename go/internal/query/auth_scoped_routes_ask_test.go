@@ -13,15 +13,15 @@ import (
 // endpoint: POST /api/v0/ask is permitted (its tenant scoping is enforced
 // transitively by re-dispatching inner tool calls through this same gate), while
 // a non-orchestration whole-graph route such as
-// impact/trace-resource-to-code (still in the #5167 pendingRowFilteringRoutes
-// backlog, owned by a different family workstream) is not.
+// freshness/services/changed-since (still in the #5167 pendingRowFilteringRoutes
+// backlog, blocked on #6475) is not.
 // POST /api/v0/code/dead-code was this negative example until the #5167 code
 // family bound its candidate scan to the caller's grant (deadCodeCandidateRows),
 // POST /api/v0/code/bundles until it gated a scoped caller to
 // visibility = 'public' packages (#5167), and POST /api/v0/code/relationships
 // until it bound its neighbour expansion to the caller's grant;
-// impact/trace-resource-to-code replaces them because its anchor and hops carry
-// no repo_id, so it has no bindable selector yet.
+// freshness/services/changed-since replaces them because its service rows carry
+// no grant column until #6475 lands, so it stays pending the longest.
 // GET /api/v0/ecosystem/overview moved off this negative
 // list in the #5167 F-6 W6 cloud/aws family workstream: getEcosystemOverview
 // now restricts every count to the caller's granted repositories
@@ -36,11 +36,11 @@ func TestScopedHTTPRoute_Ask(t *testing.T) {
 		want   bool
 	}{
 		{http.MethodPost, "/api/v0/ask", true},
-		{http.MethodGet, "/api/v0/ask", false},                            // only POST is the ask endpoint
-		{http.MethodPost, "/api/v0/impact/trace-resource-to-code", false}, // whole-graph, not allowlisted
-		{http.MethodGet, "/api/v0/impact/trace-resource-to-code", false},  // not allowlisted under any method
-		{http.MethodPost, "/api/v0/code/bundles", true},                   // public-only for a scoped caller (#5167)
-		{http.MethodGet, "/api/v0/code/bundles", false},                   // only POST is the bundles route
+		{http.MethodGet, "/api/v0/ask", false},                               // only POST is the ask endpoint
+		{http.MethodGet, "/api/v0/freshness/services/changed-since", false},  // whole-graph, not allowlisted
+		{http.MethodPost, "/api/v0/freshness/services/changed-since", false}, // not allowlisted under any method
+		{http.MethodPost, "/api/v0/code/bundles", true},                      // public-only for a scoped caller (#5167)
+		{http.MethodGet, "/api/v0/code/bundles", false},                      // only POST is the bundles route
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(c.method, c.path, nil)
