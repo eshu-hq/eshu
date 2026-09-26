@@ -321,8 +321,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgre
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_backfill_scoped_load.go:272
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_reopen_partition_memo_gate.go:118
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/projector_queue.go:315
-LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:112
-LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:112
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:168
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:57
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/reducer_queue_helpers.go:255
