@@ -5,7 +5,7 @@
 -- fact_id. Without a kind-selective access path, PostgreSQL skip-scans the
 -- multi-column fact_records_scope_generation_idx thousands of times even
 -- when this kind is empty. The literal kind and tombstone predicates match
--- buildSemanticEvidenceSQL; the ordered btree also serves populated pages.
+-- buildSemanticEvidenceSQL; populated-page performance remains to be measured.
 -- Only active code-hint facts pay index maintenance. CONCURRENTLY preserves
 -- writers during bootstrap; this file contains one statement so the migration
 -- coordinator can execute it outside a transaction.

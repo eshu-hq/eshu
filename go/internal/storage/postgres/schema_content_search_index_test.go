@@ -15,7 +15,7 @@ func TestBootstrapDefinitionsIncludeRepositoryOrderedContentSearchIndex(t *testi
 			continue
 		}
 		const want = `CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_repo_path_start_idx
-    ON content_entities (repo_id, relative_path, start_line);`
+    ON content_entities (repo_id, relative_path, start_line, entity_id);`
 		if !strings.Contains(definition.SQL, want) {
 			t.Fatalf("repository-ordered content index does not match search predicate and order:\n%s", definition.SQL)
 		}

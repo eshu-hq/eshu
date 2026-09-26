@@ -6,8 +6,8 @@ read-only diagnosis, local database proof, and endpoint verification.
 
 ## Live read-only diagnosis
 
-The ops-qa graph and PostgreSQL were read only. No index, statistics, server
-setting, or deployment was changed there. The existing sweep found relationship
+The graph and PostgreSQL in the QA environment were probed read-only. No
+index, statistics, server setting, or deployment was changed there. The existing sweep found relationship
 edge pages around 1.1 seconds, code/search calls at 45–48 seconds or timeout,
 and semantic code-hint cold calls at 9–23 seconds. These are the starting
 observations, not before/after endpoint comparisons.
@@ -53,22 +53,43 @@ A read-only empty filtered CALLS probe found that the original query took
 The final dispatch therefore uses the unchanged original query for filtered
 pages. Five further samples of that single query were 555, 637, 564, 537,
 and 552 ms (nearest-rank p95 637 ms). Scoped pages and other verbs likewise
-retain the original query. A sparse *unscoped, unfiltered CALLS* page over a
-large label remains **NOT_CHECKED**; this is not the observed slow argument,
-which returns 11 indexed rows.
+retain the original query.
+
+The read-only QA graph had 335,224 Function-sourced CALLS edges. At the
+maximum allowed page limit of 200, the exact indexed query returned 201 rows
+in 42 ms and 3,565 db hits, so this snapshot does not take the fallback for
+any allowed limit. A future sparse corpus can. On an isolated Neo4j 2026
+Community fixture with 100,004 Function nodes and five CALLS edges (three
+anchored, two null-anchor), the complete LIMIT 11 query returned five rows
+at 66 db hits; the indexed `WHERE s.uid IS NOT NULL` probe returned three at
+44 db hits, then the handler used the complete five-row result. Five paired
+warm sequential PROFILE pairs were 3+4, 4+3, 4+3, 5+5, and 16+12 ms
+(probe+complete; nearest-rank p95 28 ms for both reads versus 12 ms for
+the complete read).
+The first cold/compilation-affected samples were 249 and 532 ms, separately;
+their 781 ms sum is not a comparable cold endpoint measurement. NornicDB
+sparse-page latency at this scale remains NOT_CHECKED. The patched endpoint's
+cold/warm p95 also remains NOT_CHECKED pending deployment.
 
 ## Local PostgreSQL theory and finished migration proof
 
 Disposable PostgreSQL 18 on a private local port; no production data was
 copied. The content fixture had 340,000 entities across two repositories,
 including 300,000 earlier-sorting rows outside the requested repository.
-`SearchEntityContent` keeps its existing `ILIKE`, ordering, and limit. The
-candidate `(repo_id, relative_path, start_line)` btree changed the common `a`
-plan from a global path walk to a repository-bounded ordered scan. The exact
+`SearchEntityContent` keeps its existing `ILIKE` and limit, and adds
+`entity_id` as the last sort key so tied path/start-line rows have stable page
+boundaries. The candidate `(repo_id, relative_path, start_line,
+entity_id)` btree changed the common `a` plan from a global path walk to a repository-bounded ordered scan. The exact
 migration SQL was then applied, and the ordered first-15 ID hash matched
 before and after (`9ede6f44739180746314ec750c4abcc9`). The new index was
-valid and ready. `decode` still used the trigram GIN index under a custom
-plan. A forced generic `decode` plan used the new repository-bounded btree.
+valid and ready. A second 30-row tied-path fixture crossed the LIMIT 15
+boundary. The explicit path/start-line/entity-ID order produced the same
+first-15 hash (`6ac1592c3fd5f8f7f225359723ad3b03`) before and after the
+final index. Its pre-index global path walk took 69.301 ms and 5,186
+buffers; the final repository-first candidate took 0.039 ms and 4 buffers.
+This is a plan probe, not a five-sample p95. `decode` still used the trigram
+GIN index under a custom plan. A forced generic `decode` plan used the new
+repository-bounded btree.
 
 Five warm `EXPLAIN (ANALYZE, BUFFERS)` samples per arm (nearest-rank p95 is the
 maximum of five, in milliseconds):
@@ -87,8 +108,8 @@ search that could select unrelated entities with the same name/path. A
 0.102, 0.117, 0.112, 0.112 ms. The fixture has no metadata column, so this
 measures the lookup path and not wide-row decode or full API time. A RED/GREEN
 unit test proves exact-ID attachment, no substring call, and preservation of
-existing metadata. On the read-only ops-qa snapshot, 20 of 20 sampled exact
-`decode` graph `(entity_id, repo_id)` pairs resolved to the same pair in
+existing metadata. On the read-only QA environment snapshot, 20 of 20
+sampled exact `decode` graph `(entity_id, repo_id)` pairs resolved to the same pair in
 `content_entities`; no identifiers were copied into this record.
 
 The fact fixture had 400,000 records across 8,000 scope prefixes. Before the
@@ -99,11 +120,24 @@ index kept two populated matching rows in the same order and excluded a
 wrong-repository row and a tombstone. Five warm empty-page samples after the
 migration were 0.051, 0.065, 0.034, 0.034, 0.087 ms (p95 0.087 ms). The
 migration re-applied without a duplicate and remained valid/ready after a
-local database restart.
+local database restart. The measured semantic page is empty; populated
+per-repository pages at scale remain NOT_CHECKED.
+
+The tracked production bootstrap runner applied the exact embedded
+migrations 131 and 132 to disposable PostgreSQL 18 and recorded one `full`
+receipt for each current checksum. Both indexes were valid and ready.
+Reapplying the full bootstrap under a held reader lock passed. A focused
+integration test applied both exact migrations through the tracked runner
+while a writer transaction was open, observed each concurrent build in
+`pg_stat_progress_create_index`, committed a second writer during the build,
+and verified both receipts and index validity (0.58 s test body). Existing
+live lock-wait and invalid-index recovery tests passed (15.11 s and 0.05 s).
+These tests establish the local migration lifecycle, not the cost of index
+maintenance under production ingest.
 
 ## Performance and observability boundary
 
-Performance Evidence: The read-only ops-qa CALLS baseline was 1,007 ms,
+Performance Evidence: The read-only QA environment CALLS baseline was 1,007 ms,
 1,719,156 db hits, and 11 rows; the indexed shim was 20 ms, 106 db hits,
 and the same 11 rows. Five further indexed samples were 24, 2, 1, 1, and
 1 ms. On local PostgreSQL 18 fixtures, the content search and semantic
@@ -122,7 +156,7 @@ as two spans, and surfaces an error if its complete query fails. Filtered and
 scoped pages issue their original single read. No runtime
 telemetry fields or wire contracts changed.
 
-**Endpoint cold/warm p95 is NOT_CHECKED** on the patched build. Ops-qa is
+**Endpoint cold/warm p95 is NOT_CHECKED** on the patched build. The QA environment is
 read-only and awaits the owner's deployment. The local SQL and Cypher plans
 support the candidate; they do not establish a deployed API latency claim.
 A matching post-deploy sweep on the recorded arguments is required before

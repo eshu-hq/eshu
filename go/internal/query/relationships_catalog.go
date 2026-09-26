@@ -280,7 +280,7 @@ func (h *InfraHandler) relationshipSourceToolBreakdown(
 //
 // The verb must be one of the fixed catalog verbs; the edge query is anchored on
 // that verb's source label and always carries a LIMIT, so the slice is bounded.
-// The handler over-fetches limit+1 to set a truncated flag without a second scan.
+// The handler over-fetches limit+1 to set a truncated flag on the indexed path.
 func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
 		WriteContractError(

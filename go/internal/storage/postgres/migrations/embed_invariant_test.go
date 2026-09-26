@@ -34,7 +34,7 @@ import (
 // 130_projector_scope_claim_fences.sql; #7237 added
 // 131_fact_records_semantic_code_hint_order_idx.sql and
 // 132_content_entities_repo_path_start_idx.sql.
-const goldenBootstrapDefinitionsDigest = "5e17073998498e692966abf37e7c6dbdc2623379d61a8f784e65609e6267730f"
+const goldenBootstrapDefinitionsDigest = "d88dc79ee69a1f6bbe6d9187cceca710eb140c71ae905ccc6dd7d45792840554"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
