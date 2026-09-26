@@ -55,7 +55,11 @@ var goPackageSubcommands = map[string]struct{}{
 // and skip_parity_test.go there is what compares them. The gate already
 // carries "tools/golangci-lint-filelength/**" as an explicit trigger, so the
 // derived cross-check confirms coverage that was already correct.
-const goPackageGateCount = 19
+// #7111 F5 raised this from 19 to 22: the index-key-guard-sweep,
+// hot-cypher-source-coverage, and ask-overlay-inventory-coverage rows each run
+// one `go test` package, and each carries that package's whole directory as a
+// trigger.
+const goPackageGateCount = 22
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.
