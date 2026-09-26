@@ -490,5 +490,6 @@
 // querycontract.GraphBackendNeo4j selects infraResourceScopeListPredicate:
 // one list-EXISTS term per family over $scope_grants, applied once after the
 // search CALL, with an unscoped per-label probe ahead of each scoped
-// relationships statement. Both forms admit the same rows.
+// relationships statement. The category=argocd search shortcut applies the
+// same list-EXISTS predicate per label on Neo4j. Both forms admit the same rows.
 package query

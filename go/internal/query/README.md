@@ -680,10 +680,10 @@ resources; an empty-grant scoped token returns the bounded empty page without a
 graph read.
 The category-only Argo CD snapshot avoids NornicDB's broad OR-label scan by
 reading `ArgoCDApplication` and `ArgoCDApplicationSet` separately under the
-same grant predicate and per-label `limit + 1` bound. The second read excludes
-dual-labeled nodes; Go performs one deterministic global merge before applying
-the response limit and truncation flag. Additional query or structured filters
-retain the general search path.
+grant predicate (list-EXISTS per label on Neo4j, SHAPE-A elsewhere; #7215) and a
+per-label `limit + 1` bound. The second read excludes dual-labeled nodes; Go
+does one deterministic global merge before the response limit and truncation
+flag. Additional query or structured filters retain the general search path.
 Relationships anchor the seed node `n` and every OPTIONAL MATCH neighbor
 (`target` / `source`) to a granted repository: a relationship is visible only
 when both endpoints are attributable to a granted repository, an out-of-grant or

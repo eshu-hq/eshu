@@ -416,7 +416,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 2c83195c2726f8f5fd4f3f3a80842d7b4330ea15027300542739bb00cf66390d
+          source_sha256: 04b6552eff348156ddfaa9a8c68e3fab91e603b706b5572b04de0a523498b251
           label: "ArgoCDApplication|ArgoCDApplicationSet"
           max_results: 201
   - file: infra_ecosystem_overview.go

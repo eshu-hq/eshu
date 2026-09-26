@@ -481,6 +481,10 @@ tests:
     tag: live_infra_scope_neo4j
     class: scheduled
     reason: live Neo4j #7215 dialect equivalence and no-leak proof; about 2 min on an emulated Neo4j — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_neo4j_argocd_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: live Neo4j #7215 category=argocd dialect equivalence and no-leak proof; about 17 s on an emulated Neo4j — promote to blocking with timing evidence
   - file: go/internal/query/infra_scope_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled

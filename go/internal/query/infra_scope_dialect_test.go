@@ -223,9 +223,19 @@ func TestInfraScopeListExistsNeverSelectedOffNeo4j(t *testing.T) {
 	t.Parallel()
 	auth := dialectGrants()[1].auth()
 	for _, backend := range []querycontract.GraphBackend{querycontract.GraphBackendNornicDB, "", "bogus"} {
-		for path, body := range map[string]string{infraSearchPath: infraSearchBody, infraRelationshipsPath: infraRelationshipsBody} {
+		// The category=argocd shortcut is its own call site
+		// (searchArgoCDCategoryRows), so it is enumerated separately.
+		for name, route := range map[string][2]string{
+			"search":        {infraSearchPath, infraSearchBody},
+			"search/argocd": {infraSearchPath, infraArgoCDSearchBody},
+			"relationships": {infraRelationshipsPath, infraRelationshipsBody},
+		} {
+			path, body := route[0], route[1]
 			graph := &dialectRecordingGraph{}
 			serveInfraDialect(t, backend, &auth, graph, path, body)
+			if name == "search/argocd" && len(graph.calls) != 2 {
+				t.Fatalf("backend %q: argocd reads = %d, want 2", backend, len(graph.calls))
+			}
 			for _, call := range graph.calls {
 				if strings.Contains(call.Cypher, "$scope_grants") {
 					t.Fatalf("backend %q %s selected the list-EXISTS predicate:\n%s", backend, path, call.Cypher)

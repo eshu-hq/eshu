@@ -60,6 +60,12 @@ On Neo4j (`go/internal/query/infra_scope.go`):
   grant count: one plan-cache entry serves every token;
 - search branches return `n`, the predicate runs once after the `CALL`, and the
   row is projected once;
+- the `category=argocd` shortcut (`searchArgoCDCategoryRows`) uses the same
+  dialect: it reads `ArgoCDApplication` and `ArgoCDApplicationSet` as two
+  single-label statements, so each carries the list-`EXISTS` predicate once,
+  bound to `$scope_grants` with no `$scope_grant_<i>` params. There is no
+  `UNION` to hoist across, and the text is still independent of the grant
+  count. NornicDB and unknown backends keep the SHAPE-A statements;
 - relationships run an unscoped `MATCH (n:<Label>) WHERE n.id = $entity_id
   RETURN 1 AS hit LIMIT 1` probe per anchor label and run the scoped statement
   only for labels that hit, then the scoped unlabeled fallback. The probe
@@ -96,6 +102,11 @@ see [Graph-read safety](telemetry/graph-read-safety.md).
 - Row-set equality with SHAPE-A and with an oracle computed from the fixture,
   at g1, g5 and the cap, plus the negative authorization cases:
   `go/internal/query/infra_scope_neo4j_equivalence_live_test.go`.
+- The `category=argocd` path: byte-identity digests of the NornicDB statements
+  and a Neo4j statement-shape pin (`infra_argocd_search_dialect_test.go`), and a
+  live row-set equality test against SHAPE-A (g1, g5) and the oracle (g1, g5,
+  cap) with a dual-labeled node and negatives
+  (`infra_scope_neo4j_argocd_live_test.go`).
 - Before/after timings, cold and warm:
   `docs/internal/evidence/7215-scoped-infra-neo4j-dialect.md`.
 
