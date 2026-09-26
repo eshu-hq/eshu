@@ -139,6 +139,54 @@ make_explicit_base_fetch_failure_wrapper() {
   chmod +x "${wrapper_dir}/git"
 }
 
+make_masked_fetch_verifier() {
+  local destination="$1"
+
+  # Transform the production source instead of carrying a copied legacy
+  # verifier. The matcher consumes precisely the explicit-base-fetch
+  # fail-closed branch and reuses its two actual fetch-command lines, changing
+  # only `if !`/`; then ... return 1` to `|| true`. One match is required.
+  if ! awk '
+    BEGIN { mutations = 0; skipping = 0 }
+    /^    if ! git -C "\$repo_root" fetch --no-tags --update-shallow --deepen="\$depth" "\$remote" \\$/ {
+      if (mutations != 0) {
+        exit 2
+      }
+      first = $0
+      if ((getline second) <= 0 || second !~ /^      "\$\{branch\}:refs\/remotes\/\$\{remote\}\/\$\{branch\}" >\/dev\/null 2>&1; then$/) {
+        exit 3
+      }
+      sub(/^    if ! /, "", first)
+      sub(/; then$/, " || true", second)
+      print first
+      print second
+      mutations = 1
+      skipping = 1
+      next
+    }
+    skipping {
+      if ($0 == "    fi") {
+        skipping = 0
+      }
+      next
+    }
+    { print }
+    END {
+      if (mutations != 1 || skipping != 0) {
+        exit 4
+      }
+    }
+  ' "${verifier}" >"${destination}"; then
+    printf 'expected exactly one explicit-base-fetch branch to mutate\n' >&2
+    exit 1
+  fi
+  if [ "$(rg -c --fixed-strings -- '"${branch}:refs/remotes/${remote}/${branch}" >/dev/null 2>&1 || true' "${destination}")" -ne 1 ]; then
+    printf 'expected exactly one masked explicit-base-fetch command\n' >&2
+    exit 1
+  fi
+  chmod +x "${destination}"
+}
+
 clean_remote="$(init_queue_remote clean-queue)"
 for position in p1 p2 p3; do
   expect_pass "$(shallow_queue_checkout "${clean_remote}" "${position}")"
@@ -152,12 +200,12 @@ expect_fail "$(shallow_queue_checkout "${violating_remote}" p3)" "001_widgets.sq
 
 # The base is reachable in the stale local checkout but no longer represents
 # remote main. The PATH wrapper fails only the explicit base fetch; anonymous
-# deepening still succeeds and reaches the stale base. The prior masked-fetch
-# loop would therefore pass falsely, while the shipped verifier must fail with
-# its precise failed-deepen diagnostic.
+# deepening still succeeds and reaches the stale base. A controlled one-branch
+# mutation of the production source must therefore false-pass, while the
+# unmodified verifier must fail with its precise failed-deepen diagnostic.
 moving_remote="$(init_queue_remote moving-main)"
 moving_current_checkout="$(shallow_queue_checkout "${moving_remote}" p3)"
-moving_historical_checkout="$(shallow_queue_checkout "${moving_remote}" p3 p3-historical)"
+moving_masked_checkout="$(shallow_queue_checkout "${moving_remote}" p3 p3-masked)"
 stale_main="$(git -C "${moving_current_checkout}" rev-parse origin/main)"
 moving_writer="${tmp_root}/moving-main-rewriter"
 git clone -q "file://${moving_remote}" "${moving_writer}"
@@ -193,38 +241,24 @@ if ! rg -q --fixed-strings -- "failed to deepen origin/main" "${err_file}"; then
   exit 1
 fi
 
-historical_verifier="${tmp_root}/historical-verify-migration-immutability.sh"
-if ! git -C "${repo_root}" show \
-  origin/main:scripts/verify-migration-immutability.sh >"${historical_verifier}"; then
-  printf 'expected to extract the historical production verifier from origin/main\n' >&2
+masked_verifier="${tmp_root}/masked-verify-migration-immutability.sh"
+make_masked_fetch_verifier "${masked_verifier}"
+if ! env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
+  PATH="${wrapper_dir}:${PATH}" \
+  ESHU_GIT_WRAPPER_LOG="${wrapper_log}" \
+  ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${moving_masked_checkout}" \
+  ESHU_REAL_GIT="${real_git}" \
+  "${masked_verifier}" >"${out_file}" 2>"${err_file}"; then
+  printf 'expected controlled masked-fetch verifier to false-pass, got:\n' >&2
+  sed -n '1,120p' "${err_file}" >&2
   exit 1
 fi
-chmod +x "${historical_verifier}"
-if rg -q --fixed-strings -- '"${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null 2>&1 || true' \
-  "${historical_verifier}"; then
-  if ! env -u ESHU_MIGRATION_IMMUTABILITY_BASE \
-    GITHUB_BASE_REF=main \
-    PATH="${wrapper_dir}:${PATH}" \
-    ESHU_GIT_WRAPPER_LOG="${wrapper_log}" \
-    ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${moving_historical_checkout}" \
-    ESHU_REAL_GIT="${real_git}" \
-    "${historical_verifier}" >"${out_file}" 2>"${err_file}"; then
-    printf 'expected historical masked-fetch verifier to false-pass, got:\n' >&2
-    sed -n '1,120p' "${err_file}" >&2
-    exit 1
-  fi
-  if ! rg -q --fixed-strings -- "no shipped migration was modified" "${out_file}"; then
-    printf 'expected historical verifier to report its false pass, got:\n' >&2
-    sed -n '1,120p' "${out_file}" >&2
-    exit 1
-  fi
-  printf 'merge-group fixture: historical masked-fetch false pass confirmed\n'
-else
-  # On a later push of main, origin/main already includes this repair. The
-  # permanent current-verifier assertion above still runs; only the temporary
-  # historical RED control is no longer available from that moving ref.
-  printf 'merge-group fixture: origin/main already lacks the historical masked fetch; RED control skipped\n'
+if ! rg -q --fixed-strings -- "no shipped migration was modified" "${out_file}"; then
+  printf 'expected controlled masked verifier to report its false pass, got:\n' >&2
+  sed -n '1,120p' "${out_file}" >&2
+  exit 1
 fi
+printf 'merge-group fixture: controlled masked-fetch false pass confirmed\n'
 
 if ! rg -q --fixed-strings -- "blocked explicit main fetch" "${wrapper_log}"; then
   printf 'expected wrapper to block only the explicit base fetch\n' >&2
