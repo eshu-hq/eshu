@@ -60,8 +60,11 @@ it.
 hash node in a retention statement may use up to 64MB, a hash node up to twice that
 (`hash_mem_multiplier`), and one statement can contain several such nodes, so size
 memory headroom for the whole retention transaction, not for one figure per
-statement. The row-count statement that opens each batch spills its sorts at 4MB
-(about 4.9 s warm at 5x); its plan under 64MB has not been measured.
+statement. The row-count statement that opens each batch has not been timed warm
+at 5x on the remote host. On a laptop cold shape (10 generations of 6,000 keys, no
+planner statistics) its two grouping sorts spill to disk at 4MB and stay in memory
+at 64MB. The earlier figure of about 4.9 s warm at 5x measured the statement it
+replaced (issue #6809), not the current one.
 
 The graph orphan cleanup runner counts, marks, and deletes only aged
 zero-relationship graph nodes in the closed cleanup label set. It is not a
