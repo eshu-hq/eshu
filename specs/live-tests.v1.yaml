@@ -1857,6 +1857,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip (bootstraps an isolated schema per test; about 3.3s for the three tests laptop-local) — promote to blocking with CI timing evidence
+  - file: go/internal/storage/postgres/schema_7237_indexes_live_test.go
+    tag: integration
+    class: scheduled
+    reason: requires a dedicated empty PostgreSQL database; local tracked-migration writer proof took 0.58s, excluding Go startup
   - file: go/internal/storage/postgres/schema_bootstrap_wait_live_test.go
     tag: integration
     class: scheduled

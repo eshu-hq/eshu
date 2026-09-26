@@ -312,4 +312,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// INSERT trigger on ingestion_scopes and a backfill. Numbered 130, after
 	// #6475's 126-129.
 	"projector_scope_claim_fences",
+	// #7237 adds an ordered partial index for active semantic code hints.
+	"fact_records_semantic_code_hint_order_idx",
+	"content_entities_repo_path_start_idx",
 }

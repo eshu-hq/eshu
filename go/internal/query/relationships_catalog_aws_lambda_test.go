@@ -96,7 +96,7 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 
 	for _, entry := range relationshipVerbCatalog {
 		unfiltered := relationshipEdgesCypher(entry, scoped)
-		filtered := relationshipEdgesCypherFiltered(entry, scoped)
+		filtered := relationshipEdgesCypherFilteredWithAnchor(entry, scoped, true)
 
 		if entry.verb != "AWS_lambda_function_uses_image" {
 			if strings.Contains(unfiltered, "r.scope_id") {
@@ -112,7 +112,7 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 		// endpoint disjuncts and closes it with the edge-scope disjunct, so the
 		// edge check is additive to (never replaces) the endpoint check.
 		whereLine := strings.SplitN(unfiltered, "\n", 2)[1]
-		if !strings.HasPrefix(whereLine, "WHERE (s.repo_id IN $allowed_repository_ids") {
+		if !strings.HasPrefix(whereLine, "WHERE s.uid IS NOT NULL AND (s.repo_id IN $allowed_repository_ids") {
 			t.Fatalf("unfiltered scoped cypher for %s must open a flat endpoint OR-group: %s", entry.verb, unfiltered)
 		}
 		if !strings.Contains(unfiltered, " OR r.scope_id IN $allowed_scope_ids)\n") {
@@ -121,7 +121,7 @@ func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 
 		// Filtered: source_tool stays AND'd at the top level, ahead of the same
 		// flat edge-scope-bearing OR-group.
-		if !strings.Contains(filtered, "WHERE r.source_tool = $source_tool AND (s.repo_id IN $allowed_repository_ids") {
+		if !strings.Contains(filtered, "WHERE r.source_tool = $source_tool AND s.uid IS NOT NULL AND (s.repo_id IN $allowed_repository_ids") {
 			t.Fatalf("filtered scoped cypher for %s must keep source_tool AND'd ahead of the flat endpoint OR-group: %s", entry.verb, filtered)
 		}
 		if !strings.Contains(filtered, " OR r.scope_id IN $allowed_scope_ids)\n") {

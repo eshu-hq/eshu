@@ -21,7 +21,7 @@ func TestEnrichGraphSearchResultsWithContentMetadata(t *testing.T) {
 	t.Parallel()
 
 	store := &enrichMetadataFakeStore{entities: []querycontract.EntityContent{{
-		EntityID:     "content-1",
+		EntityID:     "graph-1",
 		RepoID:       "repo-1",
 		RelativePath: "src/handler.py",
 		EntityType:   "Function",
@@ -51,8 +51,6 @@ func TestEnrichGraphSearchResultsWithContentMetadata(t *testing.T) {
 		context.Background(),
 		graphResults,
 		"repo-1",
-		"handler",
-		10,
 	)
 	if err != nil {
 		t.Fatalf("enrichGraphSearchResultsWithContentMetadata() error = %v, want nil", err)
@@ -119,8 +117,6 @@ func TestEnrichGraphSearchResultsWithContentMetadataPrefersExistingJavaScriptMet
 		context.Background(),
 		graphResults,
 		"repo-1",
-		"getTab",
-		10,
 	)
 	if err != nil {
 		t.Fatalf("enrichGraphSearchResultsWithContentMetadata() error = %v, want nil", err)
@@ -408,6 +404,23 @@ type enrichMetadataFakeStore struct {
 
 func (s *enrichMetadataFakeStore) SearchEntityContent(_ context.Context, _ string, _ string, _ int) ([]querycontract.EntityContent, error) {
 	return append([]querycontract.EntityContent(nil), s.entities...), nil
+}
+
+func (s *enrichMetadataFakeStore) ListRepoEntitiesByIDs(_ context.Context, repoID string, ids []string, _ int) ([]querycontract.EntityContent, error) {
+	wanted := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	var rows []querycontract.EntityContent
+	for _, entity := range s.entities {
+		if entity.RepoID != repoID {
+			continue
+		}
+		if _, ok := wanted[entity.EntityID]; ok {
+			rows = append(rows, entity)
+		}
+	}
+	return rows, nil
 }
 
 func (s *enrichMetadataFakeStore) GetEntityContent(_ context.Context, entityID string) (*querycontract.EntityContent, error) {

@@ -92,14 +92,10 @@ func TestFluxReconcilesFromCatalogStaysOneEntryCoveringHelmRelease(t *testing.T)
 	}
 }
 
-// TestFluxReconcilesFromEdgeCypherByteIdenticalToDefaultShape proves adding
-// RECONCILES_FROM (a plain targetIdentityProperty-unset entry) does not alter
-// the emitted Cypher shape for either relationshipEdgesCypher or
-// relationshipEdgesCypherFiltered -- both stay byte-identical to the pinned
-// CALLS representative the query-plan gate asserts (hot-cypher.yaml
-// cypher_sha256), because the builder functions are generic and read only
-// this entry's own fields.
-func TestFluxReconcilesFromEdgeCypherByteIdenticalToDefaultShape(t *testing.T) {
+// TestFluxReconcilesFromEdgeCypherUsesDefaultTargetIdentity verifies that
+// RECONCILES_FROM, whose targetIdentityProperty is unset, uses the default
+// target_id projection. The indexed builder adds its source-anchor predicate.
+func TestFluxReconcilesFromEdgeCypherUsesDefaultTargetIdentity(t *testing.T) {
 	t.Parallel()
 
 	entry, ok := relationshipVerbByName["RECONCILES_FROM"]

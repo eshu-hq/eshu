@@ -280,7 +280,7 @@ func (h *InfraHandler) relationshipSourceToolBreakdown(
 //
 // The verb must be one of the fixed catalog verbs; the edge query is anchored on
 // that verb's source label and always carries a LIMIT, so the slice is bounded.
-// The handler over-fetches limit+1 to set a truncated flag without a second scan.
+// The handler over-fetches limit+1 to set a truncated flag on the indexed path.
 func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
 		WriteContractError(
@@ -379,12 +379,10 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 }
 
 // relationshipEdges runs the source-anchored edge slice for a verb. It probes
-// limit+1 rows to set the truncation flag deterministically without a second
-// scan, the established pattern from graphSummaryHotEntities.
-//
-// When tool is non-empty the filtered Cypher variant is used, which adds a
-// WHERE clause on r.source_tool. When tool is empty the unfiltered path is
-// used and the $source_tool param is never sent.
+// limit+1 rows to set the truncation flag. The large unscoped CALLS page
+// starts with an index-backed query and falls back to the complete query when
+// fewer than limit+1 anchored rows exist. Other verbs, scoped callers, and
+// source-tool filters use one complete read so sparse pages do not pay twice.
 func (h *InfraHandler) relationshipEdges(
 	ctx context.Context,
 	entry relationshipVerbEntry,
@@ -393,20 +391,34 @@ func (h *InfraHandler) relationshipEdges(
 	access querycontract.RepositoryAccessFilter,
 ) ([]relationshipEdge, bool, error) {
 	var (
-		cypher string
-		params map[string]any
+		cypher, completeCypher string
+		params                 map[string]any
 	)
 	if tool != "" {
-		cypher = relationshipEdgesCypherFiltered(entry, access)
+		completeCypher = relationshipEdgesCypherFilteredWithAnchor(entry, access, false)
 		params = map[string]any{"limit": limit + 1, "source_tool": tool}
 	} else {
-		cypher = relationshipEdgesCypher(entry, access)
+		completeCypher = relationshipEdgesCypherWithAnchor(entry, access, false)
 		params = map[string]any{"limit": limit + 1}
+	}
+	indexed := entry.verb == "CALLS" && tool == "" && !access.Scoped()
+	cypher = completeCypher
+	if indexed {
+		cypher = relationshipEdgesCypher(entry, access)
 	}
 	params = access.GraphParams(params)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err
+	}
+	// An indexed range scan excludes sources without the anchor. The complete
+	// query preserves those rows and the truncation bit when the first page
+	// cannot be filled by indexed sources alone.
+	if indexed && len(rows) <= limit {
+		rows, err = h.Neo4j.Run(ctx, completeCypher, params)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	truncated := len(rows) > limit
 	if truncated {
@@ -424,4 +436,25 @@ func (h *InfraHandler) relationshipEdges(
 		})
 	}
 	return edges, truncated, nil
+}
+
+func relationshipEdgesCypherFilteredWithAnchor(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter, indexed bool) string {
+	where := "WHERE r.source_tool = $source_tool"
+	if indexed {
+		where += " AND s." + entry.sourceProperty + " IS NOT NULL"
+	}
+	if access.Scoped() {
+		scalars, _ := access.ScopeGrantInlineScalars()
+		where += " AND " + relationshipEdgesScopeExpr(entry, scalars)
+	}
+	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
+		where + "\n" +
+		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
+		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
+		"       " + targetIdentityCoalesce(entry) + " AS target_id,\n" +
+		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
+		"       r.rationale AS evidence,\n" +
+		"       r.source_tool AS source_tool\n" +
+		"ORDER BY s." + entry.sourceProperty + ", " + targetOrderTiebreaker(entry) + "\n" +
+		"LIMIT $limit"
 }

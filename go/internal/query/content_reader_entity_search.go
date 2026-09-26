@@ -171,3 +171,58 @@ func buildLanguageTypeEntityFilters(
 	}
 	return filters, args, nextArg
 }
+
+// SearchEntityContent searches entity source cache using trigram matching.
+func (cr *ContentReader) SearchEntityContent(ctx context.Context, repoID, pattern string, limit int) ([]EntityContent, error) {
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "search_entity_content"),
+			attribute.String("db.sql.table", "content_entities"),
+		),
+	)
+	defer span.End()
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	query := `
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'
+		ORDER BY relative_path, start_line, entity_id
+		LIMIT $3
+	`
+	rows, err := cr.db.QueryContext(ctx, query, repoID, pattern, limit)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("search entity content: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []EntityContent
+	for rows.Next() {
+		var e EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(&e.EntityID, &e.RepoID, &e.RelativePath, &e.EntityType,
+			&e.EntityName, &e.StartLine, &e.EndLine, &e.Language, &e.SourceCache, &rawMetadata); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan entity search result: %w", err)
+		}
+		e.Metadata, err = decodeEntityMetadata(rawMetadata)
+		if err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan entity search result: %w", err)
+		}
+		results = append(results, e)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return results, err
+	}
+	return results, nil
+}

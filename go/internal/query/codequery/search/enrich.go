@@ -7,74 +7,64 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
-
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // EnrichResultsWithContentMetadata fills in missing per-result metadata
-// from a bounded content-store read over the result's repository and
-// query. Results that already carry metadata are left untouched.
+// by graph entity ID in one repository-scoped content-store read. Results
+// that already carry metadata are left untouched.
 func EnrichResultsWithContentMetadata(
 	ctx context.Context,
 	store querycontract.ContentStore,
 	results []map[string]any,
 	repoID string,
-	query string,
-	limit int,
 ) ([]map[string]any, error) {
 	if len(results) == 0 {
 		return results, nil
 	}
 
-	allHaveMetadata := true
+	ids := make([]string, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
 	for i := range results {
 		metadata, ok := results[i]["metadata"].(map[string]any)
-		if !ok || len(metadata) == 0 {
-			allHaveMetadata = false
+		if ok && len(metadata) > 0 {
+			entitysemantics.AttachSemanticSummary(results[i])
 			continue
 		}
-		entitysemantics.AttachSemanticSummary(results[i])
+		id := querycontract.StringVal(results[i], "entity_id")
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
 	}
 
-	if allHaveMetadata || store == nil {
+	if len(ids) == 0 || store == nil {
 		return results, nil
 	}
 
-	rows, err := store.SearchEntityContent(ctx, repoID, query, limit)
+	rows, err := store.ListRepoEntitiesByIDs(ctx, repoID, ids, len(ids))
 	if err != nil {
-		return nil, fmt.Errorf("enrich graph search results with content metadata: %w", err)
+		return nil, fmt.Errorf("enrich graph search results by entity id: %w", err)
 	}
 	if len(rows) == 0 {
 		return results, nil
 	}
 
-	metadataByKey := make(map[string]map[string]any, len(rows))
+	metadataByID := make(map[string]map[string]any, len(rows))
 	for _, row := range rows {
-		metadataByKey[taxonomy.LanguageResultMatchKey(
-			row.RelativePath,
-			row.EntityType,
-			row.EntityName,
-			row.StartLine,
-		)] = row.Metadata
+		metadataByID[row.EntityID] = row.Metadata
 	}
 
 	for i := range results {
 		if metadata, ok := results[i]["metadata"].(map[string]any); ok && len(metadata) > 0 {
 			continue
 		}
-		entityType := taxonomy.ResultContentEntityType(results[i])
-		if entityType == "" {
-			continue
-		}
-		key := taxonomy.LanguageResultMatchKey(
-			querycontract.StringVal(results[i], "file_path"),
-			entityType,
-			querycontract.StringVal(results[i], "name"),
-			querycontract.IntVal(results[i], "start_line"),
-		)
-		metadata, ok := metadataByKey[key]
+		metadata, ok := metadataByID[querycontract.StringVal(results[i], "entity_id")]
 		if !ok || len(metadata) == 0 {
 			continue
 		}

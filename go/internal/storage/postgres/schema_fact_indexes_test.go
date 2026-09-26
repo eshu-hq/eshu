@@ -293,3 +293,25 @@ func TestBootstrapDefinitionsDropFactRecordsStableKeyIndex(t *testing.T) {
 		t.Fatalf("drop stable-key-index migration missing %q:\n%s", want, marker.SQL)
 	}
 }
+
+// TestBootstrapDefinitionsIncludeSemanticCodeHintIndex guards the kind-specific
+// ordered read path for empty and populated code-hint pages. The fact-kind and
+// tombstone literals match buildSemanticEvidenceSQL's code-hint query.
+func TestBootstrapDefinitionsIncludeSemanticCodeHintIndex(t *testing.T) {
+	t.Parallel()
+
+	for _, definition := range BootstrapDefinitions() {
+		if definition.Name != "fact_records_semantic_code_hint_order_idx" {
+			continue
+		}
+		const want = `CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_semantic_code_hint_order_idx
+    ON fact_records (observed_at DESC, fact_id DESC)
+    WHERE fact_kind = 'semantic.code_hint'
+      AND is_tombstone = FALSE;`
+		if !strings.Contains(definition.SQL, want) {
+			t.Fatalf("code-hint index definition does not match the ordered partial read:\n%s", definition.SQL)
+		}
+		return
+	}
+	t.Fatal("semantic code-hint ordered index migration is missing")
+}

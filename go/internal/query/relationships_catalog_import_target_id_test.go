@@ -45,8 +45,8 @@ func TestImportsTargetIDDistinguishesModuleLanguages(t *testing.T) {
 	// invisible to that gate. This is what covers it instead.
 	access := querycontract.RepositoryAccessFilter{AllScopes: true}
 	for name, cypher := range map[string]string{
-		"relationshipEdgesCypher":         relationshipEdgesCypher(entry, access),
-		"relationshipEdgesCypherFiltered": relationshipEdgesCypherFiltered(entry, access),
+		"relationshipEdgesCypher":                   relationshipEdgesCypher(entry, access),
+		"relationshipEdgesCypherFilteredWithAnchor": relationshipEdgesCypherFilteredWithAnchor(entry, access, true),
 	} {
 		if !strings.Contains(cypher, want+" AS target_id") {
 			t.Fatalf("%s does not project the language-qualified target_id:\n%s", name, cypher)

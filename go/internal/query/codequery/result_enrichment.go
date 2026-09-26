@@ -25,10 +25,8 @@ func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
 	ctx context.Context,
 	results []map[string]any,
 	repoID string,
-	query string,
-	limit int,
 ) ([]map[string]any, error) {
-	return search.EnrichResultsWithContentMetadata(ctx, contentStoreOf(h), results, repoID, query, limit)
+	return search.EnrichResultsWithContentMetadata(ctx, contentStoreOf(h), results, repoID)
 }
 
 // enrichGraphResultsWithContentMetadataByEntityID fills in missing
