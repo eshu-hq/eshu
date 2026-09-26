@@ -1,0 +1,20 @@
+scripts/test-verify-migration-immutability-merge-group.sh
+  s_b0d7e3abc26c5a::t_4275ff111bf12e 160,196-199,202-220,222-226,228
+  s_b0d7e3abc26c5a::t_5df3c2350347b9 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed18c864412f2303dd0b595792bba3fe514bc539",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
