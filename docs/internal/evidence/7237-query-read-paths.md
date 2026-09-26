@@ -103,6 +103,18 @@ local database restart.
 
 ## Performance and observability boundary
 
+Performance Evidence: The read-only ops-qa CALLS baseline was 1,007 ms,
+1,719,156 db hits, and 11 rows; the indexed shim was 20 ms, 106 db hits,
+and the same 11 rows. Five further indexed samples were 24, 2, 1, 1, and
+1 ms. On local PostgreSQL 18 fixtures, the content search and semantic
+code-hint before/after timings and row counts appear above. These are
+backend measurements, not patched endpoint p95.
+
+Observability Evidence: The graph adapter and `ContentReader` retain their
+existing spans, query fingerprints, durations, and error recording. A sparse
+unscoped CALLS fallback emits one span per read; the complete read's error
+propagates. The query fields and response truth envelope are unchanged.
+
 The indexes add write and storage work; this fixture does not measure that
 cost against production ingest. Existing graph-read and PostgreSQL spans still
 cover every issued read. A sparse unscoped CALLS fallback page issues two graph reads, visible
