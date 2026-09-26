@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -481,6 +482,7 @@ func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, li
 	return scanEntityContentRows(rows, span, "scan repo entity")
 }
 
+// decodeEntityMetadata is the one metadata JSONB decode; it drops fingerprint keys (#7167).
 func decodeEntityMetadata(raw []byte) (map[string]any, error) {
 	if len(raw) == 0 {
 		return nil, nil
@@ -490,6 +492,7 @@ func decodeEntityMetadata(raw []byte) (map[string]any, error) {
 	if err := json.Unmarshal(raw, &metadata); err != nil {
 		return nil, fmt.Errorf("decode entity metadata: %w", err)
 	}
+	entitycontract.StripFingerprintMetadata(metadata)
 	if len(metadata) == 0 {
 		return nil, nil
 	}

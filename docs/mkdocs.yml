@@ -313,6 +313,7 @@ nav:
       - Shared-Write Operations: reference/telemetry/shared-write-operations.md
       - Streaming And Memory: reference/telemetry/streaming-memory.md
       - Code Divergence Signals: reference/telemetry/code-divergence.md
+      - MCP Response Budget: reference/telemetry/mcp-response-budget.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md

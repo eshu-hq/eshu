@@ -19,6 +19,13 @@ a maintainer must confirm.
 The graph kinds carry weakest-edge `confidence`: an `inferred` CALLS edge
 can never produce a high-confidence bypass or outlier claim.
 
+The fingerprints (`body_fp_exact`, `body_fp_renamed`, `body_sketch`,
+`body_shingles`, `body_token_count`) are store-internal. They live in the
+entity metadata the collector writes and in the `code_function_fingerprint`
+tables the report reads, and are removed from every API and MCP entity row so
+they do not consume the MCP response budget. Read a finding's `fingerprint`
+field from the report, not from an entity's `metadata`.
+
 ## Start with the rollup
 
 One call returns counts by kind plus the top findings per kind, through every
