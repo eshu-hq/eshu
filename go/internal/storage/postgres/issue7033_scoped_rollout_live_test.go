@@ -30,11 +30,11 @@ const (
 	issue7033RolloutLockRetry     = 30 * time.Second
 
 	issue7033IndexMigrationName     = "content_files_relative_path_trgm_index"
-	issue7033IndexMigrationPath     = "go/internal/storage/postgres/migrations/126_content_files_relative_path_trgm_index.sql"
+	issue7033IndexMigrationPath     = "go/internal/storage/postgres/migrations/130_content_files_relative_path_trgm_index.sql"
 	issue7033IndexMigrationChecksum = "ef395de0a2c1ad86fcbc1f82abcda08c83e689508a1197d6e2848695978a8e41"
 	issue7033LifecycleMigrationName = "content_files_relative_path_trgm_index_lifecycle"
-	issue7033LifecycleMigrationPath = "go/internal/storage/postgres/migrations/127_content_files_relative_path_trgm_index_lifecycle.sql"
-	issue7033LifecycleMigrationSum  = "c264034334e8251d3169462a141701d9f87d6737f9329a1750092a26b76f840e"
+	issue7033LifecycleMigrationPath = "go/internal/storage/postgres/migrations/131_content_files_relative_path_trgm_index_lifecycle.sql"
+	issue7033LifecycleMigrationSum  = "c0494bb1489ca3900f62675aacf0b37cd5524e868ba96a124640f6142b14ef2b"
 	issue7033Prerequisite124Name    = "fact_records_documentation_semantic_target_refs_idx"
 	issue7033Prerequisite125Name    = "shared_projection_acceptance_generation_key"
 	issue7033RelativePathIndexName  = "content_files_relative_path_trgm_idx"
@@ -63,7 +63,7 @@ var issue7033ExistingIndexes = []issue7033ExpectedIndex{
 
 // TestIssue7033ScopedRolloutLive is intentionally build-tagged and refuses to
 // run without the explicit, fully identified production target. It applies only
-// migrations 126 and 127 for the #7033 relative-path index rollout.
+// migrations 130 and 131 for the #7033 relative-path index rollout.
 func TestIssue7033ScopedRolloutLive(t *testing.T) {
 	config, err := issue7033RolloutConfigFromEnv(os.Getenv)
 	if err != nil {
@@ -156,15 +156,15 @@ func runIssue7033ScopedRollout(
 	}
 	logger.InfoContext(ctx, "#7033 scoped migration rollout applying", "migrations", len(definitions))
 	if err := applyBootstrapDefinitionsWith(ctx, exec, definitions[:1], logger, coordination); err != nil {
-		return fmt.Errorf("apply migration 126: %w", err)
+		return fmt.Errorf("apply migration 130: %w", err)
 	}
 	if err := issue7033ExactTrigramIndex(ctx, database, issue7033ExpectedIndex{
 		name: issue7033RelativePathIndexName, table: "content_files", column: "relative_path",
 	}); err != nil {
-		return fmt.Errorf("validate migration 126 index: %w", err)
+		return fmt.Errorf("validate migration 130 index: %w", err)
 	}
 	if err := applyBootstrapDefinitionsWith(ctx, exec, definitions[1:], logger, coordination); err != nil {
-		return fmt.Errorf("apply migration 127: %w", err)
+		return fmt.Errorf("apply migration 131: %w", err)
 	}
 	if err := issue7033ScopedRolloutPostflight(ctx, database, definitions); err != nil {
 		return fmt.Errorf("postflight: %w", err)
@@ -334,7 +334,7 @@ func issue7033ValidatePathIndexAndReceipts(
 		return err
 	}
 	if lifecycleApplied && !indexApplied {
-		return errors.New("migration 127 receipt exists without migration 126 receipt")
+		return errors.New("migration 131 receipt exists without migration 130 receipt")
 	}
 	if !indexApplied {
 		var exists bool
@@ -342,7 +342,7 @@ func issue7033ValidatePathIndexAndReceipts(
 			return fmt.Errorf("read existing relative-path index: %w", err)
 		}
 		if exists {
-			return errors.New("untracked relative-path index collides with migration 126")
+			return errors.New("untracked relative-path index collides with migration 130")
 		}
 		return nil
 	}

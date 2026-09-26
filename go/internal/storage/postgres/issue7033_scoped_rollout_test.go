@@ -83,8 +83,8 @@ func TestIssue7033ScopedRolloutSelectsOnlyExactMigrations(t *testing.T) {
 		name string
 		path string
 	}{
-		{name: "content_files_relative_path_trgm_index", path: "go/internal/storage/postgres/migrations/126_content_files_relative_path_trgm_index.sql"},
-		{name: "content_files_relative_path_trgm_index_lifecycle", path: "go/internal/storage/postgres/migrations/127_content_files_relative_path_trgm_index_lifecycle.sql"},
+		{name: "content_files_relative_path_trgm_index", path: "go/internal/storage/postgres/migrations/130_content_files_relative_path_trgm_index.sql"},
+		{name: "content_files_relative_path_trgm_index_lifecycle", path: "go/internal/storage/postgres/migrations/131_content_files_relative_path_trgm_index_lifecycle.sql"},
 	} {
 		if definitions[index].Name != want.name || definitions[index].Path != want.path {
 			t.Fatalf("definition %d = %+v, want name=%q path=%q", index, definitions[index], want.name, want.path)
@@ -95,7 +95,7 @@ func TestIssue7033ScopedRolloutSelectsOnlyExactMigrations(t *testing.T) {
 	}
 }
 
-func TestIssue7033ScopedRolloutAppliesOnly126And127ThenRetriesLive(t *testing.T) {
+func TestIssue7033ScopedRolloutAppliesOnly130And131ThenRetriesLive(t *testing.T) {
 	ctx, database, definitions := issue7033ScopedRolloutThrough124Live(t)
 	config := issue7033RolloutTargetConfig(t, ctx, database)
 
@@ -113,6 +113,57 @@ func TestIssue7033ScopedRolloutAppliesOnly126And127ThenRetriesLive(t *testing.T)
 	}
 	for _, definition := range definitions {
 		assertMigrationReceipt(t, ctx, database, definition, true)
+	}
+}
+
+func TestIssue7033ScopedRolloutThenNormalBootstrapCatchesUp125Through129Live(t *testing.T) {
+	ctx, database, selected := issue7033ScopedRolloutThrough124Live(t)
+	config := issue7033RolloutTargetConfig(t, ctx, database)
+	deferred := make([]Definition, 0, 5)
+	for _, definition := range BootstrapDefinitions() {
+		for _, number := range []string{"125", "126", "127", "128", "129"} {
+			if strings.Contains(definition.Path, "/"+number+"_") {
+				deferred = append(deferred, definition)
+				break
+			}
+		}
+	}
+	if len(deferred) != 5 {
+		t.Fatalf("deferred migrations = %d, want 5", len(deferred))
+	}
+	for _, definition := range deferred {
+		assertMigrationReceipt(t, ctx, database, definition, false)
+	}
+	if err := runIssue7033ScopedRollout(ctx, database, config, issue7033TestLogger()); err != nil {
+		t.Fatalf("scoped rollout before unrelated migrations: %v", err)
+	}
+	indexAppliedAt := assertMigrationReceipt(t, ctx, database, selected[0], true)
+	lifecycleAppliedAt := assertMigrationReceipt(t, ctx, database, selected[1], true)
+	assertContentFilesRelativePathIndexDefinition(t, ctx, database)
+	assertContentSearchIndexState(t, database, "ready")
+	for _, definition := range deferred {
+		assertMigrationReceipt(t, ctx, database, definition, false)
+	}
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
+		t.Fatalf("normal bootstrap catches up migrations 125-129: %v", err)
+	}
+	for _, definition := range deferred {
+		assertMigrationReceipt(t, ctx, database, definition, true)
+	}
+	if got := assertMigrationReceipt(t, ctx, database, selected[0], true); !got.Equal(indexAppliedAt) {
+		t.Fatalf("migration 130 reapplied: first=%s later=%s", indexAppliedAt, got)
+	}
+	if got := assertMigrationReceipt(t, ctx, database, selected[1], true); !got.Equal(lifecycleAppliedAt) {
+		t.Fatalf("migration 131 reapplied: first=%s later=%s", lifecycleAppliedAt, got)
+	}
+	assertContentFilesRelativePathIndexDefinition(t, ctx, database)
+	assertContentSearchIndexState(t, database, "ready")
+	var indexDefinition string
+	if err := database.QueryRowContext(ctx, `SELECT pg_get_indexdef('public.service_materialization_generations_active_service_idx'::regclass)`).Scan(&indexDefinition); err != nil {
+		t.Fatalf("read rescoped service index: %v", err)
+	}
+	if !strings.Contains(indexDefinition, "(scope_id, service_id)") {
+		t.Fatalf("service index was not rescoped: %s", indexDefinition)
 	}
 }
 
@@ -204,7 +255,14 @@ func issue7033ScopedRolloutThrough124Live(t *testing.T) (context.Context, *sql.D
 	index, lifecycle, preceding := contentFilesRelativePathIndexMigrations(t)
 	preIndex := make([]Definition, 0, len(preceding))
 	for _, definition := range preceding {
-		if definition.Name != issue7033Prerequisite125Name {
+		deferred := false
+		for _, number := range []string{"125", "126", "127", "128", "129"} {
+			if strings.Contains(definition.Path, "/"+number+"_") {
+				deferred = true
+				break
+			}
+		}
+		if !deferred {
 			preIndex = append(preIndex, definition)
 		}
 	}

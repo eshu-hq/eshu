@@ -4,18 +4,18 @@
 
 `investigate_code_topic` can probe `content_files.relative_path` without a
 repository constraint. The primary key starts with `repo_id`, so it cannot
-bound that substring probe. Migration 126 adds
+bound that substring probe. Migration 130 adds
 `content_files_relative_path_trgm_idx` as a `gin_trgm_ops` index. It runs with
 `CREATE INDEX CONCURRENTLY` for normal upgrades. Cold bootstrap records its
 deferred no-op variant and `EnsureContentSearchIndexes` builds the same index
 only after the write-heavy projection drain.
 
-A populated live upgrade must use migration 126's concurrent build, then
-validate the catalog before migration 127 publishes readiness.
+A populated live upgrade must use migration 130's concurrent build, then
+validate the catalog before migration 131 publishes readiness.
 `EnsureContentSearchIndexes` is a non-concurrent, transactional finalizer for
-deferred bootstrap, not a live substitute for migration 126.
+deferred bootstrap, not a live substitute for migration 130.
 
-Migration 127 extends `eshu_content_substring_indexes_valid()` to require the
+Migration 131 extends `eshu_content_substring_indexes_valid()` to require the
 exact path-index shape. An existing wrong, partial, invalid, or absent
 same-name index therefore prevents the ready state and guarded reads until the
 finalizer produces the exact index.
@@ -86,11 +86,11 @@ its under-1-second budget.
 Disposable PostgreSQL 18 live tests exercise the production tracked bootstrap
 entry point rather than a direct `ApplyDefinitions` call:
 
-- populated pre-126 ready state plus indexed content, tracked 126 concurrent
-  migration, tracked 127 lifecycle migration, then a guarded unscoped
+- populated pre-130 ready state plus indexed content, tracked 130 concurrent
+  migration, tracked 131 lifecycle migration, then a guarded unscoped
   `relative_path ILIKE` read;
 - wrong btree and partial GIN same-name path indexes while the other three
-  lifecycle indexes are exact; 127 moves state to `not_built`, finalization
+  lifecycle indexes are exact; 131 moves state to `not_built`, finalization
   fails closed, then removing the malformed index lets the finalizer recover to
   `ready` with the exact GIN;
 - invalid interrupted concurrent-index cleanup, concurrent production-entry
@@ -112,20 +112,22 @@ The test container and its volume were removed afterward. This local receipt
 does not authorize using the deferred finalizer on a populated live database.
 
 The opt-in `issue7033_rollout` test runner selects only the embedded, checksum-
-matched migrations 126 and 127. It requires the `public` schema and verifies
+matched migrations 130 and 131. It requires the `public` schema and verifies
 the target system identifier, database, current schema, primary role,
 prerequisite receipts and three exact existing GIN indexes in a read-only
-preflight. It applies tracked migration 126,
-checks the exact new index, then applies tracked migration 127 and checks the
+preflight. It applies tracked migration 130,
+checks the exact new index, then applies tracked migration 131 and checks the
 four-index readiness contract. On a disposable PostgreSQL 18.6 database, the
 runner applied those two migrations and retried idempotently. Wrong target,
 incomplete index state, a mismatched prerequisite ledger receipt, and a
 non-`public` search path all failed before target DDL. The cross-schema
 regression was red first: with `search_path=custom,public`, the unguarded
 runner created its index in `custom` before failing its `public` postcheck.
-The separate live regression also proved that migration 125 can remain
-unapplied during this scoped rollout and later be
-applied by normal bootstrap without reapplying 126 or 127.
+Separate live regressions prove both that migration 125 can remain unapplied
+during this scoped rollout and that all unrelated migrations 125–129 can remain
+unapplied while 130–131 run. Normal bootstrap subsequently applies 125–129
+without replaying 130 or 131; the rescoped service index and content-index
+readiness remain valid on disposable PostgreSQL 18.
 
 An opt-in `issue7033_canary_startup` test used disposable PostgreSQL and
 Neo4j to prove a Neo4j-backed API starts with both backfill markers complete,

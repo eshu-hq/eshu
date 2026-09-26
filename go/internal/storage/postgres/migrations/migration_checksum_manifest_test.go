@@ -179,8 +179,8 @@ var migrationShippedChecksums = map[string]string{
 	"127_service_materialization_generations_scope_backfill.sql":             "1b1b2c21aa1406665f8ac2b454c68078108648871c2fb410ebc0055670c19cc8",
 	"128_service_materialization_generations_active_service_idx_rescope.sql": "f8ddb06aa069045b344f4fe745d4e18325609c25e14ced9a153c9f6034e723c3",
 	"129_service_materialization_generations_active_service_idx_v2.sql":      "7b66638deffb248ab10b0d1658f515791b1c5fcc170df1bd748e7437c4e75a40",
-	"130_content_files_relative_path_trgm_index.sql": "ef395de0a2c1ad86fcbc1f82abcda08c83e689508a1197d6e2848695978a8e41",
-	"131_content_files_relative_path_trgm_index_lifecycle.sql": "c0494bb1489ca3900f62675aacf0b37cd5524e868ba96a124640f6142b14ef2b",
+	"130_content_files_relative_path_trgm_index.sql":                         "ef395de0a2c1ad86fcbc1f82abcda08c83e689508a1197d6e2848695978a8e41",
+	"131_content_files_relative_path_trgm_index_lifecycle.sql":               "c0494bb1489ca3900f62675aacf0b37cd5524e868ba96a124640f6142b14ef2b",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

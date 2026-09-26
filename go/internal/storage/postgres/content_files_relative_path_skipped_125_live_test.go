@@ -29,17 +29,17 @@ func TestContentFilesRelativePathIndexSkipsIndependentMigration125Live(t *testin
 		t.Fatal("independent migration 125 not found")
 	}
 	if err := applyBootstrapDefinitionsWith(ctx, exec, preIndex, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply schema through 124: %v", err)
+		t.Fatalf("apply schema excluding independent migration 125: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 	assertMigrationReceipt(t, ctx, database, independent, false)
 
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{index}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply only migration 126: %v", err)
+		t.Fatalf("apply only migration 130: %v", err)
 	}
 	assertContentFilesRelativePathIndexDefinition(t, ctx, database)
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{lifecycle}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply only migration 127: %v", err)
+		t.Fatalf("apply only migration 131: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 	assertMigrationReceipt(t, ctx, database, independent, false)
@@ -56,10 +56,10 @@ func TestContentFilesRelativePathIndexSkipsIndependentMigration125Live(t *testin
 	}
 	assertMigrationReceipt(t, ctx, database, independent, true)
 	if got := assertMigrationReceipt(t, ctx, database, index, true); !got.Equal(indexAppliedAt) {
-		t.Fatalf("migration 126 reapplied: first=%s later=%s", indexAppliedAt, got)
+		t.Fatalf("migration 130 reapplied: first=%s later=%s", indexAppliedAt, got)
 	}
 	if got := assertMigrationReceipt(t, ctx, database, lifecycle, true); !got.Equal(lifecycleAppliedAt) {
-		t.Fatalf("migration 127 reapplied: first=%s later=%s", lifecycleAppliedAt, got)
+		t.Fatalf("migration 131 reapplied: first=%s later=%s", lifecycleAppliedAt, got)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 }
