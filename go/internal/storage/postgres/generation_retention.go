@@ -26,18 +26,23 @@ const (
 )
 
 // generationRetentionWorkMemStatement raises work_mem for the retention
-// transaction only. The content prunes and the row count aggregate one pass over
-// every live fact of a kind; on a server left at the default 4MB work_mem the
-// planner sorts that pass on disk (Sort -> GroupAggregate, an 11MB external
-// merge at 5x) and the prunes run 1.4-1.7x slower than the previous statements.
-// At 16MB and above the plan is a HashAggregate and the prunes run 27-33% faster
-// than the previous statements warm at 5x; cold plans do not change (remote
-// measurement, docs/internal/evidence/6809-retention-content-prune-plan.md).
+// transaction only. The three content prunes aggregate one pass over every live
+// fact of a kind; on a server left at the default 4MB work_mem the planner sorts
+// that pass on disk (Sort -> GroupAggregate, an 11MB external merge at 5x) and
+// the prunes run 1.5-1.9x slower warm than the previous statements. At 16MB and
+// above the prunes plan a HashAggregate and run 23-40% faster than the previous
+// statements warm at 5x; cold plans do not change (remote measurement, AWS
+// r7a.4xlarge, PostgreSQL 18.6, docs/internal/evidence/6809-retention-content-prune-plan.md).
 // 64MB is 4x the smallest value proven at 5x, chosen to keep a hash aggregate at
-// larger fact counts. SET LOCAL reverts at commit or rollback, so it never
-// touches the pooled session or the server setting. A hash node may use up to
-// twice work_mem (hash_mem_multiplier), so one retention transaction stays under
-// about 128MB per statement.
+// larger fact counts.
+//
+// work_mem is a per-plan-node allowance, not a per-statement budget: each sort or
+// hash node may use up to 64MB (a hash node up to twice that,
+// hash_mem_multiplier), and one statement can hold several such nodes. The bound
+// is proven only for the content prunes. The row-count statement spills its
+// sorts at 4MB (about 4.9s warm at 5x) and its plan under 64MB is unmeasured.
+// SET LOCAL reverts at commit or rollback, so it never touches the pooled
+// session or the server setting.
 const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 
 // GenerationRetentionPolicy bounds automated cleanup of superseded source-local

@@ -188,9 +188,14 @@ transaction now runs `SET LOCAL work_mem = '64MB'` as its first statement, befor
 candidate selection, the row count, and every prune. `SET LOCAL` ends with the
 transaction, so the pooled session and the server setting are untouched. 64MB is four
 times the smallest value proven at 5x (16MB); the 20x cold aggregate already needs about
-18-20MB of hash memory, so 16MB is not a safe bound there. A hash node can use twice
-`work_mem`, so the setting reserves about 128MB for the one statement running at a time
-in the one retention transaction; concurrent retention transactions were not measured.
+18-20MB of hash memory, so 16MB is not a safe bound there.
+
+`work_mem` is a per-plan-node allowance, not a per-statement budget: each sort or hash
+node may use up to 64MB, a hash node up to twice that (`hash_mem_multiplier`), and one
+statement can hold several such nodes. The three content prunes are proven hash-based at
+16MB and above at 5x (remote measurement above). The row-count statement is not: at 4MB
+it spills (about 4.9 s warm at 5x) and its plan under 64MB is unmeasured. Concurrent
+retention transactions were not measured, so no total-memory figure is claimed.
 
 `TestGenerationRetentionSetsTransactionLocalWorkMemFirst` fails if that statement is
 not the first the transaction issues, and the live cold test reads `work_mem` from inside
@@ -225,7 +230,7 @@ and the new statements, which is what pins the semantics.
   with a sequential scan of the content table, also unmeasured at that scale.
 - The row-count statement spills its sorts at 4MB (about 4.9 s warm at 5x on the remote,
   roughly 7x one warm prune) and was not measured under the larger `work_mem`; the same
-  setting should help it, unproven. It runs first in every batch, so once the prunes
+  setting should help it, unproven, so no plan or memory claim is made for it. It runs first in every batch, so once the prunes
   are stable it is the larger cost at these scales.
 - No concurrency proof. These are not claim or lease paths, and each statement is
   one snapshot as before, but a retention delete racing an ingester re-upsert of the

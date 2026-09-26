@@ -48,13 +48,20 @@ history ages out. Production Helm renders and default/production binaries reject
 explicit local `ESHU_QUERY_PROFILE` for local or test binary runs.
 
 Each retention transaction runs `SET LOCAL work_mem = '64MB'` before its first
-statement, so the row count and the content prunes keep a hash-based plan on a
-Postgres left at the 4MB default `work_mem`, as a Helm deployment against an
-external Postgres commonly is. The setting is transaction-local: it does not
-change the pooled connection or the server configuration. A hash node may use up
-to twice that (`hash_mem_multiplier`), so plan for roughly 128MB of memory per
-statement for the one retention transaction the reducer runs at a time. There is
-no environment variable for it.
+statement. Nothing else in the reducer sets `work_mem`, and a Helm deployment
+against an external Postgres gets that server's value, commonly the 4MB default.
+At 4MB the three content prunes sort on disk and run slower than they need to; at
+16MB and above they plan a hash aggregate (measured at 5x on a remote host,
+PostgreSQL 18.6). The setting is transaction-local: it does not change the pooled
+connection or the server configuration, and there is no environment variable for
+it.
+
+`work_mem` is a per-plan-node allowance, not a per-statement budget. Each sort or
+hash node in a retention statement may use up to 64MB, a hash node up to twice that
+(`hash_mem_multiplier`), and one statement can contain several such nodes, so size
+memory headroom for the whole retention transaction, not for one figure per
+statement. The row-count statement that opens each batch spills its sorts at 4MB
+(about 4.9 s warm at 5x); its plan under 64MB has not been measured.
 
 The graph orphan cleanup runner counts, marks, and deletes only aged
 zero-relationship graph nodes in the closed cleanup label set. It is not a
