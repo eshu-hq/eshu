@@ -62,8 +62,4 @@ const (
 	// grant admits (#6475): the lineage belongs to another tenant's scope, or
 	// it is an unattributed legacy lineage no scoped caller may read.
 	ServiceChangedSinceGrantRefusalNotGranted = "not_granted"
-	// ServiceChangedSinceGrantRefusalOwnershipUnwired marks a deployment with
-	// no service-ownership store wired. It fails closed for every scoped
-	// caller, so a run of these means a wiring bug, not a tenant boundary.
-	ServiceChangedSinceGrantRefusalOwnershipUnwired = "ownership_unwired"
 )

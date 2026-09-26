@@ -115,17 +115,22 @@ not-found adds one `EXISTS` probe on `service_id` for telemetry.
 ## Telemetry
 
 Observability Evidence: `eshu.service_changed_since.grant_refused_reason`
-keeps `empty_grant`, `not_granted` and `ownership_unwired`; `not_granted` now
-comes from the lineage read (`ServiceSummary.OutsideGrant`: rows exist for the
-id, none admitted), and `shared_ownership` is removed because that refusal no
-longer exists. Two span attributes are new:
+keeps `empty_grant` and `not_granted`; `not_granted` now comes from the
+lineage read (`ServiceSummary.OutsideGrant`: rows exist for the id, none
+admitted). `shared_ownership` and `ownership_unwired` are removed because
+those refusals no longer exist. Two span attributes are new:
 `eshu.service_changed_since.unattributed` (a served legacy read) and
 `eshu.service_changed_since.ambiguous_scope_count` (the size of a 409 answer,
 never the scope ids). `TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan`
 and `TestServiceChangedSinceLineageAttributesAreRecordedOnTheSpan` pin them.
 
-## Open points
+## Ownership store dependency removed
 
-- The nil-`ServiceOwnership` refusal is kept, as the handoff required, although
-  the route no longer reads that store. Removing it is a one-line follow-up if
-  the owner prefers.
+The route no longer reads the service-catalog correlation store, so the
+nil-`ServiceOwnership` refusal was a refusal on a dependency nobody called: a
+deployment without that store wired turned every scoped caller away from its
+own lineage. `TestServiceChangedSinceServesScopedCallerWithoutOwnershipStore`
+failed on `fc6667b99` (rc=1, tenant A got `404 service_not_found` for its own
+`scope-a` lineage) and passes once the refusal, `Handler.ServiceOwnership`,
+its `cmd/api` and `cmd/mcp-server` wiring, and the `ownership_unwired` reason
+(emitted nowhere else) are removed.

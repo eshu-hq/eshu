@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,17 +30,12 @@ type GenerationLifecycleReader interface {
 type Handler struct {
 	Generations  GenerationLifecycleReader
 	ChangedSince ChangedSinceReader
-	// ServiceChangedSince reads the per-service evidence lineage. Its tables
-	// carry only service_id, so the caller's grant cannot be bound inside its
-	// SQL the way the two repository-scope readers above bind theirs.
+	// ServiceChangedSince reads the per-service evidence lineage. Since #6475
+	// each lineage row carries the scope_id of the ingestion scope that wrote
+	// it, and the reader binds the caller's grant on that column in SQL, the
+	// same way the two repository-scope readers above bind theirs.
 	ServiceChangedSince ServiceChangedSinceReader
-	// ServiceOwnership resolves a catalog service_id to its owning repository
-	// under the caller's grant (#5167), which is what lets
-	// listServiceChangedSince refuse an ungranted service before touching the
-	// lineage tables. Leaving it nil fails a scoped caller closed on that
-	// route; an unscoped caller never consults it.
-	ServiceOwnership service.CatalogCorrelationStore
-	Profile          querycontract.QueryProfile
+	Profile             querycontract.QueryProfile
 }
 
 // Mount registers freshness drilldown routes on the given mux.

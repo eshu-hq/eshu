@@ -16,11 +16,9 @@ Owns the `Handler` struct, its three routes' HTTP dispatch, the bounded
 changed-since/generations/service-changed-since reader ports, and the
 causality cause/projection types and helpers. Does not own the capability
 registry or truth-envelope contract (`querycontract`), the caller grant
-resolution (`querycontract.RepositoryAccessFilterFromContext`), the
-service-catalog correlation store type the service-changed-since route still
-requires to be wired for scoped callers (`service`), or the Postgres status
-store that implements every reader port and binds each route's grant in SQL
-(`internal/status`) -- those are separate homes this
+resolution (`querycontract.RepositoryAccessFilterFromContext`), or the
+Postgres status store that implements every reader port and binds each
+route's grant in SQL (`internal/status`) -- those are separate homes this
 package calls into. Does not own `StatusHandler.getFreshnessCausality`
 (package query, `status_freshness_causality.go`): its receiver is declared in
 `status.go` and `scopedFreshnessCausalityRoute` is read by

@@ -4,7 +4,6 @@
 package freshness
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,22 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
-
-// untouchedServiceOwnership is wired so a scoped caller passes the
-// ownership_unwired refusal, and records whether the retired correlation
-// probes still run. Since #6475 the grant binds in the lineage SQL, so the
-// route must never read the correlation store.
-type untouchedServiceOwnership struct{ calls int }
-
-func (u *untouchedServiceOwnership) ListServiceCatalogCorrelations(
-	context.Context, service.CatalogCorrelationFilter,
-) ([]service.CatalogCorrelationRow, error) {
-	u.calls++
-	return nil, nil
-}
 
 // serveServiceLineageTwoTenant drives the production handler against the
 // grant-mirroring lineage fixture.
@@ -39,10 +24,8 @@ func serveServiceLineageTwoTenant(
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
-	ownership := &untouchedServiceOwnership{}
 	handler := &Handler{
 		ServiceChangedSince: &testutil.GrantMirroringServiceChangedSince{Rows: testutil.TwoTenantServiceLineageRows()},
-		ServiceOwnership:    ownership,
 		Profile:             querycontract.ProfileLocalAuthoritative,
 	}
 	mux := http.NewServeMux()
@@ -54,9 +37,6 @@ func serveServiceLineageTwoTenant(
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
-	if ownership.calls != 0 {
-		t.Fatalf("the retired correlation probes ran %d times; the grant binds in the lineage SQL now", ownership.calls)
-	}
 	return rec
 }
 
@@ -165,6 +145,25 @@ func TestServiceChangedSinceTwoTenantLineageBoundary(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy beside one attributed lineage serves the attributed one to every caller", func(t *testing.T) {
+		t.Parallel()
+		for name, grant := range map[string]auth.AuthContext{
+			"shared key": {Mode: auth.AuthModeShared},
+			"tenant A":   tenantA,
+		} {
+			rec := serveServiceLineageTwoTenant(t, grant,
+				serviceLineageQuery(testutil.ServiceLineageMigratedID, "", "gen-migrated-a-prior"))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s: status = %d, want 200 (one attributed lineage, no conflict); body = %s", name, rec.Code, rec.Body.String())
+			}
+			data, _ := testutil.DecodeChangedSinceEnvelope(t, rec)
+			if data["scope_id"] != "scope-a" || data["unattributed"] != false ||
+				data["current_active_generation_id"] != "gen-migrated-a-current" {
+				t.Fatalf("%s: data = %v; want the attributed scope-a lineage, never the legacy one", name, data)
+			}
+		}
+	})
+
 	t.Run("grant spanning both scopes with no selector is a 409 listing them", func(t *testing.T) {
 		t.Parallel()
 		for name, grant := range map[string]auth.AuthContext{
@@ -268,4 +267,43 @@ func TestServiceChangedSinceTwoTenantLineageBoundary(t *testing.T) {
 			t.Fatalf("scope_ids = %#v, want %#v; body = %s", got, want, rec.Body.String())
 		}
 	})
+}
+
+// TestServiceChangedSinceServesScopedCallerWithoutOwnershipStore pins that the
+// route no longer depends on the service-catalog correlation store (#6475 part
+// B). The grant binds in the lineage SQL, so a deployment that wires no such
+// store must answer a scoped caller by the ordinary rules -- its own lineage,
+// or not-found for another tenant's -- never with a refusal about a dependency
+// the route does not call.
+func TestServiceChangedSinceServesScopedCallerWithoutOwnershipStore(t *testing.T) {
+	t.Parallel()
+
+	serve := func(query url.Values) *httptest.ResponseRecorder {
+		handler := &Handler{
+			ServiceChangedSince: &testutil.GrantMirroringServiceChangedSince{Rows: testutil.TwoTenantServiceLineageRows()},
+			Profile:             querycontract.ProfileLocalAuthoritative,
+		}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/services/changed-since?"+query.Encode(), nil)
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		req = req.WithContext(auth.ContextWithAuthContext(req.Context(), testutil.ScopedChangedSinceTenantA()))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	own := serve(serviceLineageQuery(testutil.ServiceLineageSharedID, "", "gen-a-prior"))
+	if own.Code != http.StatusOK {
+		t.Fatalf("own lineage: status = %d, want 200; body = %s", own.Code, own.Body.String())
+	}
+	data, _ := testutil.DecodeChangedSinceEnvelope(t, own)
+	if data["scope_id"] != "scope-a" {
+		t.Fatalf("own lineage: data[scope_id] = %v, want scope-a", data["scope_id"])
+	}
+
+	foreign := serve(serviceLineageQuery(testutil.ServiceLineageSharedID, "scope-b", "gen-b-prior"))
+	if foreign.Code != http.StatusNotFound {
+		t.Fatalf("foreign scope: status = %d, want 404; body = %s", foreign.Code, foreign.Body.String())
+	}
 }

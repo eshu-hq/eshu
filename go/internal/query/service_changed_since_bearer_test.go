@@ -112,7 +112,6 @@ func serveServiceChangedSinceThroughBearerMiddleware(
 	mux := http.NewServeMux()
 	(&FreshnessHandler{
 		ServiceChangedSince: reader,
-		ServiceOwnership:    &PostgresServiceCatalogCorrelationStore{},
 		Profile:             ProfileLocalAuthoritative,
 	}).Mount(mux)
 

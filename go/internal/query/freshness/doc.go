@@ -23,11 +23,10 @@
 //
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, RepositoryAccessFilterFromContext), auth
-// (AuthContext, only in tests), tracing (the shared handler-span seam),
-// service (CatalogCorrelationStore, which the service-changed-since route
-// requires to be wired before it serves a scoped caller; since #6475 its grant
-// binds in the lineage SQL on each row's scope_id instead), and status (the Postgres-status-store filter/summary/page
-// shapes each reader port exchanges); it MUST NOT import the query root, or
+// (AuthContext, only in tests), tracing (the shared handler-span seam), and
+// status (the Postgres-status-store filter/summary/page shapes each reader
+// port exchanges; since #6475 the service reader binds the caller's grant in
+// SQL on each lineage row's scope_id); it MUST NOT import the query root, or
 // root would cycle back through its own compatibility aliases in
 // freshness_alias.go, which import this package for the type aliases and
 // forwarders that root and the cmd/api and cmd/mcp-server wiring still use. See

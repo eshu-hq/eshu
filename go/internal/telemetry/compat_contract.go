@@ -253,7 +253,6 @@ const (
 	SpanAttrServiceChangedSinceUnattributed        = contract.SpanAttrServiceChangedSinceUnattributed
 	SpanAttrServiceChangedSinceAmbiguousScopeCount = contract.SpanAttrServiceChangedSinceAmbiguousScopeCount
 
-	ServiceChangedSinceGrantRefusalEmptyGrant       = contract.ServiceChangedSinceGrantRefusalEmptyGrant
-	ServiceChangedSinceGrantRefusalNotGranted       = contract.ServiceChangedSinceGrantRefusalNotGranted
-	ServiceChangedSinceGrantRefusalOwnershipUnwired = contract.ServiceChangedSinceGrantRefusalOwnershipUnwired
+	ServiceChangedSinceGrantRefusalEmptyGrant = contract.ServiceChangedSinceGrantRefusalEmptyGrant
+	ServiceChangedSinceGrantRefusalNotGranted = contract.ServiceChangedSinceGrantRefusalNotGranted
 )

@@ -11,22 +11,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
-
-// wiredServiceOwnership satisfies the ownership_unwired check. The route no
-// longer reads it (#6475), so it answers nothing.
-type wiredServiceOwnership struct{}
-
-func (wiredServiceOwnership) ListServiceCatalogCorrelations(
-	context.Context, service.CatalogCorrelationFilter,
-) ([]service.CatalogCorrelationRow, error) {
-	return nil, nil
-}
 
 // serviceLineageSince names a prior generation that exists in the lineage the
 // fixture serves each service id from, so a served request reaches the span
@@ -45,7 +34,7 @@ func serviceLineageSince(serviceID string) string {
 // does not run in parallel with itself or with any other test in this
 // package that also swaps freshnessHandlerTracer.
 func recordServiceChangedSinceSpan(
-	t *testing.T, serviceID string, authCtx auth.AuthContext, ownership service.CatalogCorrelationStore,
+	t *testing.T, serviceID string, authCtx auth.AuthContext,
 ) map[string]any {
 	t.Helper()
 
@@ -58,7 +47,6 @@ func recordServiceChangedSinceSpan(
 
 	handler := &Handler{
 		ServiceChangedSince: &testutil.GrantMirroringServiceChangedSince{Rows: testutil.TwoTenantServiceLineageRows()},
-		ServiceOwnership:    ownership,
 		Profile:             querycontract.ProfileLocalAuthoritative,
 	}
 	mux := http.NewServeMux()
@@ -109,7 +97,6 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 		name      string
 		serviceID string
 		auth      auth.AuthContext
-		ownership service.CatalogCorrelationStore
 		// wantReason is empty for the cases that must carry no refusal
 		// attribute at all.
 		wantReason string
@@ -120,22 +107,13 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			name:       "lineage outside the grant records not_granted",
 			serviceID:  testutil.ServiceLineageLegacyID,
 			auth:       testutil.ScopedChangedSinceTenantA(),
-			ownership:  wiredServiceOwnership{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalNotGranted,
 		},
 		{
 			name:       "empty grant records empty_grant",
 			serviceID:  testutil.ServiceLineageSharedID,
 			auth:       auth.AuthContext{Mode: auth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
-			ownership:  wiredServiceOwnership{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalEmptyGrant,
-		},
-		{
-			name:       "unwired ownership records ownership_unwired",
-			serviceID:  testutil.ServiceLineageSharedID,
-			auth:       testutil.ScopedChangedSinceTenantA(),
-			ownership:  nil,
-			wantReason: telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired,
 		},
 		{
 			// The case #6472 had to refuse as shared_ownership: tenant B also
@@ -144,7 +122,6 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			name:      "shared service id is served, not refused",
 			serviceID: testutil.ServiceLineageSharedID,
 			auth:      testutil.ScopedChangedSinceTenantA(),
-			ownership: wiredServiceOwnership{},
 		},
 		{
 			// A service with no lineage anywhere is a plain not-found, not a
@@ -152,7 +129,6 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			name:      "absent service carries no refusal attribute",
 			serviceID: "component:default/nowhere",
 			auth:      testutil.ScopedChangedSinceTenantA(),
-			ownership: wiredServiceOwnership{},
 		},
 		{
 			// The absence assertion that matters most for an alert: an
@@ -161,11 +137,10 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			name:      "shared key carries no refusal attribute",
 			serviceID: testutil.ServiceLineageLegacyID,
 			auth:      auth.AuthContext{Mode: auth.AuthModeShared},
-			ownership: nil,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			attributes := recordServiceChangedSinceSpan(t, tc.serviceID, tc.auth, tc.ownership)
+			attributes := recordServiceChangedSinceSpan(t, tc.serviceID, tc.auth)
 
 			refused, refusedSet := attributes[telemetry.SpanAttrServiceChangedSinceGrantRefused]
 			reason, reasonSet := attributes[telemetry.SpanAttrServiceChangedSinceGrantRefusedReason]
@@ -213,17 +188,17 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 // #6475 attributes: a served legacy read marks unattributed, and a 409 records
 // how many admitted scopes it listed -- a count, never the scope ids.
 func TestServiceChangedSinceLineageAttributesAreRecordedOnTheSpan(t *testing.T) {
-	legacy := recordServiceChangedSinceSpan(t, testutil.ServiceLineageLegacyID, auth.AuthContext{Mode: auth.AuthModeShared}, nil)
+	legacy := recordServiceChangedSinceSpan(t, testutil.ServiceLineageLegacyID, auth.AuthContext{Mode: auth.AuthModeShared})
 	if got := legacy[telemetry.SpanAttrServiceChangedSinceUnattributed]; got != true {
 		t.Fatalf("%s = %#v on a legacy read, want true", telemetry.SpanAttrServiceChangedSinceUnattributed, got)
 	}
 
-	scoped := recordServiceChangedSinceSpan(t, testutil.ServiceLineageSharedID, testutil.ScopedChangedSinceTenantA(), wiredServiceOwnership{})
+	scoped := recordServiceChangedSinceSpan(t, testutil.ServiceLineageSharedID, testutil.ScopedChangedSinceTenantA())
 	if got := scoped[telemetry.SpanAttrServiceChangedSinceUnattributed]; got != false {
 		t.Fatalf("%s = %#v on an attributed read, want false", telemetry.SpanAttrServiceChangedSinceUnattributed, got)
 	}
 
-	ambiguous := recordServiceChangedSinceSpan(t, testutil.ServiceLineageSharedID, auth.AuthContext{Mode: auth.AuthModeShared}, nil)
+	ambiguous := recordServiceChangedSinceSpan(t, testutil.ServiceLineageSharedID, auth.AuthContext{Mode: auth.AuthModeShared})
 	if got := ambiguous[telemetry.SpanAttrServiceChangedSinceAmbiguousScopeCount]; got != int64(2) {
 		t.Fatalf("%s = %#v on a two-scope conflict, want 2", telemetry.SpanAttrServiceChangedSinceAmbiguousScopeCount, got)
 	}
@@ -235,7 +210,7 @@ func TestServiceChangedSinceLineageAttributesAreRecordedOnTheSpan(t *testing.T) 
 }
 
 // TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary pins the
-// attribute names and the three reason strings the handler may emit. An
+// attribute names and the two reason strings the handler may emit. An
 // operator alert keys off these literals, so a rename is a contract change and
 // must fail here first rather than silently in a dashboard.
 func TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary(t *testing.T) {
@@ -251,7 +226,6 @@ func TestServiceChangedSinceGrantRefusalReasonsAreAClosedVocabulary(t *testing.T
 		{got: telemetry.ServiceChangedSinceGrantRefusalNotGranted, want: "not_granted"},
 		{got: telemetry.SpanAttrServiceChangedSinceUnattributed, want: "eshu.service_changed_since.unattributed"},
 		{got: telemetry.SpanAttrServiceChangedSinceAmbiguousScopeCount, want: "eshu.service_changed_since.ambiguous_scope_count"},
-		{got: telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired, want: "ownership_unwired"},
 	} {
 		if tc.got != tc.want {
 			t.Fatalf("telemetry constant = %q, want %q", tc.got, tc.want)

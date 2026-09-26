@@ -182,22 +182,16 @@ func newFreshnessHandler(db *sql.DB, profile query.QueryProfile) *query.Freshnes
 		generationLifecycle query.GenerationLifecycleReader
 		changedSince        query.ChangedSinceReader
 		serviceChangedSince query.ServiceChangedSinceReader
-		serviceOwnership    query.ServiceCatalogCorrelationStore
 	)
 	if db != nil {
 		generationLifecycle = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 		changedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 		serviceChangedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
-		// #5167: the service changed-since route binds a scoped caller's grant
-		// through the correlation facts, and fails that caller closed when
-		// this stays nil.
-		serviceOwnership = query.NewPostgresServiceCatalogCorrelationStore(db)
 	}
 	return &query.FreshnessHandler{
 		Generations:         generationLifecycle,
 		ChangedSince:        changedSince,
 		ServiceChangedSince: serviceChangedSince,
-		ServiceOwnership:    serviceOwnership,
 		Profile:             profile,
 	}
 }

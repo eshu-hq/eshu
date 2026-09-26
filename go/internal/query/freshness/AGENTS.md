@@ -20,8 +20,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   back for the compatibility aliases in `freshness_alias.go`, cycling. Reach
   root-only helpers through `querycontract` (profiles, envelopes,
   capability registration, HTTP helpers, `RepositoryAccessFilterFromContext`),
-  `auth` (`AuthContext`, tests only), `service`
-  (`CatalogCorrelationStore`/`Filter`/`Row`), `testutil` (shared
+  `auth` (`AuthContext`, tests only), `testutil` (shared
   two-tenant test fixtures), or `tracing` (the shared handler-span seam);
   if none of those has what you need, it does not belong here -- ask before
   adding a new shared home.
@@ -78,12 +77,11 @@ moved in verbatim from root -- see README.md's Move evidence.
   through the `freshnessNextCheckAsRecommendedCall` /
   `freshnessCausalityFromRawAndReport` forwarders in `freshness_alias.go`.
   `freshnessCausalityFromReport` has no such caller and stays unexported.
-- `Handler.ServiceOwnership` (`service.CatalogCorrelationStore`) is
-  the only thing binding `listServiceChangedSince`'s grant: that route's
-  tables carry only `service_id`, so the grant cannot live in its own SQL
-  the way the two repository-scope readers bind theirs. A nil
-  `ServiceOwnership` fails every scoped caller closed (#5167); do not special
-  -case nil into an unscoped-shaped answer.
+- `listServiceChangedSince` binds its grant in the lineage SQL on each row's
+  `scope_id` (#6475), exactly as the two repository-scope readers bind
+  theirs. The handler has no service-catalog correlation dependency; do not
+  reintroduce one as a pre-read fence, and do not refuse a scoped caller over
+  a dependency the route does not call.
 
 ## Test fixtures hoisted to testutil (#6608 rule)
 

@@ -159,14 +159,11 @@ func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request
 // service id another tenant also declared. Two tenants holding one catalog id
 // now each read their own lineage.
 //
-// What stays here is fail-closed on the two conditions the SQL cannot see:
-//
-//   - A scoped caller whose grant names no repository and no scope. The SQL
-//     already resolves nothing for it (`= ANY('{}')` is false), so this is
-//     defense in depth that also names the cause on the span.
-//   - A nil ServiceOwnership. The route no longer reads it, but a deployment
-//     that wires no ownership store has not been provisioned for tenant-scoped
-//     service reads, so scoped callers stay refused there.
+// What stays here is one fail-closed pre-read refusal: a scoped caller whose
+// grant names no repository and no scope. The SQL already resolves nothing for
+// it (`= ANY('{}')` is false), so this is defense in depth that also names the
+// cause on the span. The route reads no service-catalog correlation store, so
+// whether one is wired does not change its answer.
 //
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say
@@ -183,10 +180,6 @@ func (h *Handler) serviceChangedSinceGrantAdmits(
 	}
 	if access.Empty() {
 		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalEmptyGrant)
-		return false
-	}
-	if h.ServiceOwnership == nil {
-		h.refuseServiceChangedSinceGrant(w, r, serviceID, telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired)
 		return false
 	}
 	return true

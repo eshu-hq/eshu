@@ -36,11 +36,16 @@ const (
 	ServiceLineageLegacyID = "component:default/legacy"
 	// ServiceLineageTenantAOnlyID holds only tenant A's lineage.
 	ServiceLineageTenantAOnlyID = "component:default/tenant-a-only"
+	// ServiceLineageMigratedID holds one attributed lineage (scope-a) beside an
+	// unattributed legacy one the writer never superseded: the shape a service
+	// takes after its first re-materialization under #6475.
+	ServiceLineageMigratedID = "component:default/migrated"
 )
 
 // TwoTenantServiceLineageRows returns the #6475 fixture: two repository-kind
 // scopes that both hold a lineage for ServiceLineageSharedID, an unattributed
-// legacy lineage beside them, a legacy-only service, and a tenant-A-only one.
+// legacy lineage beside them, a legacy-only service, a tenant-A-only one, and a
+// service holding one attributed lineage beside a legacy one.
 func TwoTenantServiceLineageRows() []ServiceLineageFixtureRow {
 	return []ServiceLineageFixtureRow{
 		{ServiceID: ServiceLineageSharedID, ScopeID: "scope-a", ScopeKind: "repository", SourceKey: "repo-a", PriorGenerationID: "gen-a-prior", CurrentGenerationID: "gen-a-current"},
@@ -48,6 +53,8 @@ func TwoTenantServiceLineageRows() []ServiceLineageFixtureRow {
 		{ServiceID: ServiceLineageSharedID, PriorGenerationID: "gen-api-legacy-prior", CurrentGenerationID: "gen-api-legacy"},
 		{ServiceID: ServiceLineageLegacyID, PriorGenerationID: "gen-legacy-prior", CurrentGenerationID: "gen-legacy-current"},
 		{ServiceID: ServiceLineageTenantAOnlyID, ScopeID: "scope-a", ScopeKind: "repository", SourceKey: "repo-a", PriorGenerationID: "gen-a-only-prior", CurrentGenerationID: "gen-a-only-current"},
+		{ServiceID: ServiceLineageMigratedID, PriorGenerationID: "gen-migrated-legacy-prior", CurrentGenerationID: "gen-migrated-legacy"},
+		{ServiceID: ServiceLineageMigratedID, ScopeID: "scope-a", ScopeKind: "repository", SourceKey: "repo-a", PriorGenerationID: "gen-migrated-a-prior", CurrentGenerationID: "gen-migrated-a-current"},
 	}
 }
 
