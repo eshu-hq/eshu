@@ -173,7 +173,9 @@ The regression is the 5× churn custom row: 588 ms before, 1,363 ms after.
   ms). The generic plans are unchanged or faster.
 - A `code_fingerprint_band (repo_id, entity_id)` index would make the delete
   a probe. It is not added here: it adds write amplification on a 32-rows-per
-  -function table and needs its own measurement.
+  -function table and needs its own measurement. #7254 tracks it, together
+  with the upsert path's `deleteFingerprintBandsForEntitiesSQL`, which the same
+  missing index turns into 18.9 s per 500-id chunk under a generic plan at 5×.
 
 ## Tests
 
