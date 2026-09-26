@@ -71,12 +71,10 @@ func QualifiedCallFunctionName(node *tree_sitter.Node, source []byte, importAlia
 	if base == "" || field == "" {
 		return ""
 	}
-	for importPath, aliases := range importAliases {
-		for _, alias := range aliases {
-			if alias == base {
-				return strings.ToLower(importPath + "." + field)
-			}
-		}
+	// Resolve through the sorted path list so an alias bound by several import
+	// paths always picks the same one (issue #6947).
+	if paths := ImportPathsForAlias(base, importAliases); len(paths) > 0 {
+		return strings.ToLower(paths[0] + "." + field)
 	}
 	return ""
 }

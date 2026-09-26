@@ -386,15 +386,12 @@ func LocalInterfaceImportedMethodReturns(
 }
 
 // ImportPathForAlias returns the import path that binds alias in
-// importAliases, or "" when no import path does.
+// importAliases, or "" when no import path does. When several paths bind one
+// alias, it returns the lexicographically smallest so the resolution stays
+// deterministic run to run (issue #6947).
 func ImportPathForAlias(alias string, importAliases map[string][]string) string {
-	trimmed := strings.TrimSpace(alias)
-	for importPath, aliases := range importAliases {
-		for _, candidate := range aliases {
-			if candidate == trimmed {
-				return importPath
-			}
-		}
+	if paths := ImportPathsForAlias(alias, importAliases); len(paths) > 0 {
+		return paths[0]
 	}
 	return ""
 }
