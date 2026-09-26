@@ -133,6 +133,7 @@ status="$(run_merge_fixture "${fixture}")"
 [[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case G: a clean compiling merge must pass, got ${status}"; }
 merged_go_calls "${fixture}" | rg -q -- '^go vet \./\.\.\. ' || { cat "${fixture}.args" >&2; fail "case G: merged tree was not vetted whole-module"; }
 [[ -z "$(git -C "${fixture}" status --porcelain)" ]] || fail "case G: the merged tree must not appear in the worktree's status"
+rg -q -- "^go test -race -count=1 \./internal/r cwd=${fixture}/go\$" "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case G: the changed package was not race-tested"; }
 rg -q -- 'merge tree [0-9a-f]{40}' "${fixture}.log" || fail "case G: the log must name the merge tree id it tested"
 
 # ── Case H: HEAD already contains origin/main → the merge IS HEAD; the step
@@ -158,3 +159,5 @@ status="$(run_merge_fixture "${fixture}")"
 [[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case J: expected exit 0, got ${status}"; }
 rg -q -- 'Go inputs are identical' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case J: the no-Go-input skip must be explicit"; }
 [[ -z "$(merged_go_calls "${fixture}")" ]] || fail "case J: nothing to vet when the merged Go inputs equal the base's"
+rg -q -- '^go test -race' "${fixture}.args" && fail "case J: no race run without a changed Go package"
+true

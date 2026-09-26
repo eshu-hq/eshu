@@ -5,9 +5,10 @@
 #
 #   bash scripts/dev/pre-push.sh        # or: make pre-push
 #
-# What it runs, no race lane, no live Docker/NornicDB lane, no stamp:
+# What it runs, no live Docker/NornicDB lane, no stamp:
 #   (a) go test on changed Go packages plus fixture consumers (the same
-#       selection pre-pr.sh's step_test uses);
+#       selection pre-pr.sh's step_test uses), then go test -race on the
+#       changed Go packages alone;
 #   (b) the 500-line Go file cap on changed files;
 #   (c) gofumpt, golangci-lint, go build, and go vet scoped to changed Go
 #       packages, for fast first feedback;
@@ -41,7 +42,8 @@
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.
 #
-# What it deliberately does NOT run: whole-module go-build, the race lane, and
+# What it deliberately does NOT run: whole-module go-build, the whole-module
+# race lane and the registry race gates, and
 # the live Docker/NornicDB/Postgres lane (golden-corpus, replay-tier, security,
 # frontend). Those stay `make pre-pr` / `make pre-pr-full` — recommended, not
 # required, before pushing a change to queue/lease/claim code, schema DDL,
@@ -135,6 +137,25 @@ step_test() {
 	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
 }
 
+# step_race runs `go test -race` on the changed Go packages only (#7111 F5).
+# CI's go-race lane runs the whole module; this catches a race, or a test that
+# only fails under the race detector's instrumentation (#7067's allocation
+# count), in the packages the change touched before CI does. Measured warm:
+# 8-25s for one package, 54s for go/internal/query on a cold cache. Fixture
+# consumers get the plain `go test` above, not a race run.
+step_race() {
+	local dirs=() d
+	while IFS= read -r d; do
+		[[ -n "${d}" ]] && dirs+=("${d}")
+	done < <(changed_go_dirs)
+	if [[ ${#dirs[@]} -eq 0 ]]; then
+		printf 'no changed Go packages vs %s — skipping the race run\n' "${base}"
+		return 0
+	fi
+	printf 'race: %d changed package(s)\n' "${#dirs[@]}"
+	( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" )
+}
+
 step_filecap() {
 	local files=() f
 	while IFS= read -r f; do [[ -n "${f}" ]] && files+=("${f}"); done < <(changed_go_files)
@@ -208,6 +229,7 @@ if [[ -n "${pre_push_diff_broken_reason}" ]]; then
 	overall=1
 else
 	run_step "go test (changed packages)" step_test
+	run_step "go test -race (changed packages)" step_race
 	run_step "500-line file cap" step_filecap
 	run_step "gofumpt + lint + build + vet (changed packages)" step_fmt_lint_build_vet
 	run_step "go vet on HEAD merged with ${base} (merge tree)" step_merge_vet

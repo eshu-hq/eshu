@@ -25,11 +25,11 @@ Use this fixed promotion order before opening or updating a PR:
 4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
 `make pre-push` is the fast local floor run before every push, scoped to
-changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet,
+changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the exact merge of HEAD with `origin/main` (the
 [merge step](local-testing/pre-push-merge.md); a conflict fails closed), the
 registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
-advisory docs-contradiction gate. No race/live lane, no push stamp (removed —
+advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
 in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, contract-registry, and repo-wide sweep gates).
@@ -46,8 +46,8 @@ make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
 
 CI remains authoritative and should rarely be the *first* place a
-credential-free failure appears. Race gates block on Go changes, but
-`make pre-push` runs none — `make pre-pr` runs the scoped lane, `pre-pr-full`
+credential-free failure appears. Race gates block on Go changes: `make pre-push`
+races only the changed packages, `make pre-pr` adds the registry race gates, `pre-pr-full`
 the whole-module `go test ./... -race`, CI the authoritative full gate.
 
 **Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare

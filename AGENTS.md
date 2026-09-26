@@ -391,11 +391,11 @@ of truth for gates.
 After focused local proof and a preliminary full `eshu-code-review` with zero
 P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
 intended push or PR update. It is the fast local floor: changed-package
-`go test`, the 500-line file cap, changed-package gofumpt/lint/build/vet,
+`go test` and `go test -race`, the file cap, changed-package gofumpt/lint/build/vet,
 `go vet ./...` on the exact merge of HEAD with `origin/main` (a conflict fails
 closed), the allowlisted fast registry gates for changed paths
 (`local.pre_push: floor`; every other triggered gate prints `DEFER-CI` and still
-runs in `make pre-pr` and CI), and the advisory docs-contradiction gate (its only enforcement). It has no race lane, no live Docker/NornicDB/Postgres
+runs in `make pre-pr` and CI), and the advisory docs-contradiction gate (its only enforcement). It has no whole-module race lane, no live Docker/NornicDB/Postgres
 lane, and writes no stamp. `make pre-pr` and `make pre-pr-full` remain
 available as deeper, RECOMMENDED (not required) preflights before pushing a
 risky change: queue/lease/claim, schema DDL, hot-path Cypher or graph writes,
