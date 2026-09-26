@@ -22,13 +22,16 @@ gap and are deliberately not touched here; they are tracked in #7164.
 | `generation_id` set | unchanged `generation_id = $n` | `mode=explicit`, `is_active` from `scope_generations`; `truth.freshness` `fresh` (active), `stale` (superseded, completed, failed), `building` (pending), `unavailable` (unknown id) |
 | scope with no active generation | zero rows, never a latest-generation fallback | states `no_active_generation`; freshness `unavailable`/`dead_lettered_domain` for a failed scope, `building`/`pending_repo_generation` otherwise |
 | unknown `scope_id` | zero rows | state `scope_not_found` |
+| scoped token, scope or generation outside its grants | zero rows (the facts authorization predicate) | the label of an unknown id: `scope_not_found`, or `unavailable` for a named generation; no generation id, lifecycle state, or owning scope |
 
 The cursor stays an integer offset that names no generation.
 
 `documentationFactBindingForm` is the single pure function that picks the form
 (`explicit`, `active_scope`, `active_join`, `active_probe`); the SQL builder, the
 read model, and the handler span attribute all call it and nothing else chooses
-a form. `TestDocumentationFactBindingFormForEveryFilterClass` covers every
+a form. The handler records the span attribute from the filter after the
+scoped-token access filter is applied, which is the filter the SQL is built
+from. `TestDocumentationFactBindingFormForEveryFilterClass` covers every
 filter class, including scoped-token callers, and
 `TestDocumentationFactsSQLFollowsBindingForm` pins the SQL each form produces.
 
@@ -54,7 +57,7 @@ inside the statement's own run-to-run spread.
 
 ## After: local plan proof (same data, before and after)
 
-`TestDocumentationFactsActiveScopeReadUsesKeysetIndexLive`, PostgreSQL 16 in a
+Performance Evidence: `TestDocumentationFactsActiveScopeReadUsesKeysetIndexLive`, PostgreSQL 16 in a
 disposable container, one scope, eight generations of 7,000 documentation facts
 each (56,000 rows), production SQL from `buildDocumentationFactsSQL`. "Before"
 is the same test with the active binding removed from the builder.
@@ -100,7 +103,7 @@ Decision from the data:
 - The correlated scalar probe keeps the early stop for (a) but is worse than
   the join wherever selective payload predicates or the scoped-token OR
   predicate drive the scan, so it is used only for the kind-only, unscoped-token
-  read (`documentationFactReadIsKindOnly`).
+  read (the `active_probe` branch of `documentationFactBindingForm`).
 - Everything else uses the single INNER JOIN. Shapes (b)-(d) were already
   timing out at 45 s unbound and now complete in seconds; they remain seconds
   because no index serves `source_id`/`document_id`/`section_id`/`q` payload
@@ -148,10 +151,47 @@ The issue's own acceptance is the sweep's `scope_id`-only argsets at limits 6,
   limit 30, 16-77 buffers.
 - local PostgreSQL 16, production SQL, 56,000 rows: 0.05-1.9 ms, 5-35 buffers,
   literal and generic plans.
-- NOT_CHECKED: the sweep itself against a rebuilt binary on ops-qa (p50/p95 warm
-  and the cold call at each limit). The ops-qa SSO session expired during the
-  work; this is the remaining gap on the acceptance and should be closed before
-  the issue closes.
+- ops-qa SQL replay, below: the acceptance holds.
+
+### ops-qa replay of the branch SQL
+
+Read-only replay on ops-qa (session `default_transaction_read_only=on`,
+`EXPLAIN (ANALYZE, BUFFERS)` only, generic-plan runs inside
+`BEGIN`/`ROLLBACK`) of the SQL `buildDocumentationFactsSQL` renders at
+`0269f185f0`, against the unbound form (the same statement with only the
+`generation_id = (SELECT ...)` predicate removed). One Confluence documentation
+scope from the sweep: 8 retained generations (1 active, 7 superseded), 56,149
+non-tombstone rows, 7,013 in the active generation. Times are server-side
+planning plus execution; each repeat uses a different `OFFSET`; 7 warm runs per
+cell after the change (p95 with n=7 is close to the max), 3 runs before.
+
+| Shape | Limit | Before, unbound: warm p50 | After: warm p95 (custom) | After: warm p95 (generic) |
+| --- | --- | --- | --- | --- |
+| `scope_id` only | 6 / 15 / 30 | 540 / 442 / 424 ms | 2.3 / 2.1 / 2.2 ms | 0.19 / 0.22 / 0.30 ms |
+| `scope_id` + section kind | 6 / 15 / 30 | 107-110 ms | 15-18 ms | 14-38 ms |
+| `scope_id` + scoped token | 6 / 15 / 30 | 431-454 ms | 2.4-3.6 ms | 50-69 ms |
+
+- The acceptance holds: `scope_id`-only reads at limits 6, 15, and 30 have a
+  warm p95 of 2.3, 2.1, and 2.2 ms with the custom plan and 0.19-0.30 ms with
+  the generic plan. Both plans walk `fact_records_scope_generation_keyset_idx`
+  backward with no Sort and touch 16-77 buffers. The unbound form ran 424-540 ms
+  warm over about 73,800 buffers at every limit.
+- The cold outlier is explained: the first unbound call (limit 6, working set
+  evicted by other traffic) took 22.4 s with about 37,000 buffer reads, and the
+  same work runs at every limit, so the "large limit" of the sweep outlier was
+  whichever call happened to be cold. After the change a first call touches
+  16-170 buffers and ran 10-12 ms for `scope_id`-only reads.
+- Residual: the section-kind read is not an early-stop plan. It runs an
+  Incremental Sort over the active generation's section rows (554 here, 2,350
+  buffers), so its 15-18 ms p95 scales with the number of rows of that kind, not
+  the limit.
+- Residual: a scoped token under a forced generic plan loses the ordered scan
+  and sorts all 7,013 active rows (49-69 ms, about 6,400 buffers). It is still
+  under 1 s, and the custom plan it gets by default keeps the ordered scan.
+- Caveats: one scope only, and an SQL replay against ops-qa, not a rebuilt
+  binary; application-side costs (decode, the label lookups) are not in these
+  numbers. The replay ran the SQL at `0269f185f0`; the later label
+  authorization fix changes only the label lookups, not the facts statement.
 
 ## Row-set equivalence and accuracy proof
 
@@ -177,16 +217,64 @@ facts both forms must exclude.
 
 ## Observability
 
-`Observability Evidence:` span attribute `eshu.documentation.generation_binding`
-(`active_scope`, `active_join`, `explicit`) on `query.documentation_facts`, and a
-`documentation.empty_page` event (`reason` = `scope_not_found`,
-`no_active_generation`, `no_rows`) on the `postgres.query` span
+Observability Evidence: span attribute `eshu.documentation.generation_binding`
+(`active_scope`, `active_join`, `active_probe`, `explicit`) on
+`query.documentation_facts`, recorded from the filter the SQL is built from, and
+a `documentation.empty_page` event (`reason` = `scope_not_found`,
+`no_active_generation`, `no_rows`; `scoped_grant` = whether the lookup was
+restricted to a scoped token's grants) on the `postgres.query` span
 (`db.operation=list_documentation_facts`) when a zero-row scope read runs its
 scope-state lookup. `eshu_dp_postgres_query_duration_seconds` by `db.operation`
 carries the before/after drop. Operator question at 3 AM: filter the handler
 span by `generation_binding` and watch the `list_documentation_facts` duration
 histogram; an empty page carries its reason on the span. The telemetry coverage
 row in `docs/public/observability/telemetry-coverage.md` is updated.
+
+## Label authorization
+
+The empty-page scope lookup and the explicit-generation lookup read scope and
+generation rows, not facts, so they carried no authorization predicate at first.
+Review found that a scoped token could then learn an ungranted scope's
+existence, its dead-letter or pending state, its active generation id, and the
+owning scope of a named generation. Both lookups now apply the scope-level half
+of the facts authorization predicate (`appendDocumentationScopeGrantClause`: the
+scope id, or the scope payload's `repo` or `repo_id`, is granted), shared with
+`appendDocumentationAuthorizationClause`, so the facts SQL text is unchanged. An
+ungranted scope or generation is not found, so its label is the label of an id
+that does not exist. The fact-payload predicates describe single facts, not a
+scope, so they do not grant a label. The one exception is an explicit read that
+returned rows: those rows passed the full facts predicate and carry their own
+scope and generation ids, so that generation is labelled normally. A token with
+no grants never reaches the store and gets the same unknown-id label
+(`documentationFactUngrantedPageState`). Shared-key and unauthenticated callers
+have no grant clause and keep the full labels.
+
+`TestDocumentationFactsLabelsHonorScopedGrantsLive` (PostgreSQL 16, the row-set
+seed above) promotes the reviewer's reproduction. A token granted only scope E,
+by scope id and by repository id, asks for scopes A, B, C, and D with an empty
+page and for all five other seeded generations by id, and each label must equal
+the label of a nonexistent scope or generation and contain none of their ids or
+states. On the unfixed head all 18 of those subtests failed: scope B returned
+`unavailable`/`dead_lettered_domain`, scope C `building`/`pending_repo_generation`,
+scopes A and D their active generation ids, and generation A-1
+"superseded for scope scope:docfacts-a". After the fix all pass, as do the
+granted-token, shared-key, and admin cases that must keep the full labels, and a
+fact-payload grant that reads a row of generation A-1 (labelled `stale`) while
+the same token with no visible row gets the unknown-id label. Removing the
+rows-returned exception fails that last subtest.
+`TestDocumentationFactsSpanBindingMatchesExecutedFormForScopedToken` failed on
+the unfixed head (`active_probe` recorded, `active_join` executed) and passes
+now. `TestDocumentationFactsNoGrantTokenMatchesUngrantedScope` pins the no-grant
+labels.
+
+The grant clause adds at most one primary-key join from `scope_generations` to
+`ingestion_scopes` to a lookup that already ran; it runs only for an empty scope
+page or an explicit read, never for a non-empty active page.
+
+The page statement and its label lookup are separate reads. If the scope's
+active generation changes between them, an empty scope page can carry the newer
+active generation id. A non-empty page takes its generation id from its own rows
+and cannot be mislabelled this way.
 
 ## Concurrency
 
@@ -195,20 +283,22 @@ concurrency proof beyond the plan check is claimed.
 
 ## Not proven here
 
-- NOT_CHECKED: replay of the rebuilt binary's production SQL on ops-qa at limits
-  6, 15, and 30 with a cold call, and with the section filter and scoped-token
-  predicate (the ops-qa SSO session expired during the work; the local
-  PostgreSQL 16 plan proof above covers plan shape, not the ops-qa cache state).
+- NOT_CHECKED: the sweep against a rebuilt binary on ops-qa. The SQL replay
+  above covers the statement on the ops-qa cache state for one scope; it does
+  not cover application-side cost or other scopes.
 - Golden-corpus gate: run on Neo4j (`neo4j:2026-community`,
-  `ESHU_GRAPH_BACKEND=neo4j`) at the final tree and passed: 567 pass, 0
-  required-fail, 5 advisory-warn (phase wall-time bands only, on a machine under
-  heavy load from other sessions). Its documentation facts query shapes now
-  require `generation_binding`. A first attempt started on NornicDB and was
-  stopped and discarded under the owner's Neo4j-only directive. No graph-backed
-  evidence here came from NornicDB; every measurement in this note is PostgreSQL
-  only.
-- The 26-39 s cold-call outlier from the diagnosis was inferred to be cold cache
-  on a fixed 74,000-buffer scan and was not reproduced. After the change the
-  read touches under 40 buffers locally, so a cold read is bounded by tens of
-  pages; that is a consequence of the plan, not a measurement of a cold ops-qa
-  read.
+  `ESHU_GRAPH_BACKEND=neo4j`, all gate ports moved off the defaults) at
+  `1724ba6cf6`, the label authorization fix, and passed: 567 pass, 0
+  required-fail, 5 advisory-warn (phase wall-time bands only, with three other
+  gate runs on the machine). Its documentation facts query shapes require
+  `generation_binding`; `GET /api/v0/documentation/facts?fact_kind=source`
+  returned 12 facts and MCP `list_documentation_facts` 1. An earlier run on the
+  first head also reported 567 pass and 0 required-fail; a first attempt before that started on
+  NornicDB and was stopped and discarded under the owner's Neo4j-only
+  directive. No graph-backed evidence here came from NornicDB; every
+  measurement in this note is PostgreSQL only.
+- The 26-39 s cold-call outlier from the diagnosis is a cold-cache read of the
+  fixed 74,000-buffer unbound scan; the ops-qa replay reproduced one such call
+  (22.4 s). Caches were not dropped (the replay was read-only), so a cold read
+  after the change is one observation of a first call (10-12 ms, 16-170
+  buffers), not a forced cold-disk measurement.

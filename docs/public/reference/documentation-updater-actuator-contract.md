@@ -73,7 +73,12 @@ A scope with no active generation returns an empty page with the
 `no_active_generation` state instead of falling back to another generation; its
 `truth.freshness` is `unavailable` (`dead_lettered_domain`) for a failed scope
 and `building` (`pending_repo_generation`) for one that has not activated yet.
-An unknown `scope_id` returns `scope_not_found`. `cursor` is an integer offset
+An unknown `scope_id` returns `scope_not_found`. For a scoped token these labels
+honor its grants: a scope or generation it is not granted is labelled exactly
+like one that does not exist (`scope_not_found`, or `unavailable` for a named
+generation), with no generation id, lifecycle state, or owning scope. A named
+generation whose page returns rows the token may read is labelled normally,
+since those rows already carry their scope and generation. `cursor` is an integer offset
 that names no generation, so a cursor issued before a new generation activates
 pages over the newer active generation and can repeat or skip a row at the page
 boundary.
