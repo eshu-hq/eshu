@@ -80,18 +80,16 @@ baseline manifest is unchanged.
   An unexpected `403`, an unmounted route, an invalid-argument `400`, or a `5xx`
   fails. The runner prints this split in the step detail.
   The static split (134 `ok`, 30 tolerant, 3 ledger) is derived from that
-  policy output. The latest live run, on Neo4j at `136d75646`, passed 166 of 167
-  calls. It includes every row promoted off the pending-row-filtering ledger by
+  policy output. The latest live run, on Neo4j at `2eb226f58`, passed all 167 of
+  167 calls, twice in a row, and the full suite passed 40/40 (author-run, on an
+  Apple Silicon host with the Neo4j container running emulated amd64; timings are
+  not native). It includes every row promoted off the pending-row-filtering ledger by
   #7183, #7193, #7191 and #7194: `search_registry_bundles/default` returned an
   empty `ok` page to the scoped token (a scoped caller reads only public
-  packages and the fixture seeds none), and `find_infra_resources` and
-  `analyze_infra_relationships` now pass after #7226 (#7215). The one failure is
-  a product defect tracked in #7231: `count_infra_resources` answers `backend_timeout` to a
-  scoped token. The aggregate path still renders the scoped grant predicate into
-  every one of 27 per-label branches, and its four statements each planned for
-  about 5 s cold on the sweep host, which ran the amd64 Neo4j image emulated. The
-  deadline accounting was not traced. Its expected outcome is unchanged, so the sweep keeps failing until
-  that is fixed. The evidence page has the measurements.
+  packages and the fixture seeds none), and `find_infra_resources`,
+  `analyze_infra_relationships` (#7226, #7215) and `count_infra_resources`
+  (#7239, #7231) pass. The evidence page has the per-tool table, the image digests
+  and the earlier 166/167 run.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
   granted repository only, and each single-repository tool refuses the ungranted
