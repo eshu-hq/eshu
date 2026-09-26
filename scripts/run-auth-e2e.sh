@@ -37,9 +37,9 @@ export ESHU_E2E_POSTGRES_PORT="$postgres_port"
 export ESHU_E2E_POSTGRES_PASSWORD="$postgres_password"
 export ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port"
 export ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port"
-# This suite uses `up --build`, so it intentionally inherits the repository's
-# exact-source NornicDB default. Published-image compatibility comparisons must
-# run without `--build` and set NORNICDB_IMAGE/NORNICDB_PULL_POLICY together.
+# The stack's graph is Neo4j: docker-compose.e2e.yaml's neo4j service pulls
+# the digest-pinned neo4j:2026-community image docker-compose.neo4j.yml names,
+# and `up --build` rebuilds only the Eshu images.
 
 for tool in docker node go; do
   command -v "$tool" >/dev/null 2>&1 || {

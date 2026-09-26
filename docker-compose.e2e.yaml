@@ -1,5 +1,5 @@
 # Minimal fresh-stack service set for the browser-based SSO auth E2E suite
-# (issue #4971, epic #4962 closer). Postgres + graph + one-shot schema/
+# (issue #4971, epic #4962 closer). Postgres + Neo4j + one-shot schema/
 # workspace setup + the eshu API + a synthetic mock OIDC IdP — no ingester, no
 # resolution-engine/reducer, no projector, no collectors. This suite proves
 # the SSO login flow against a fresh, zero-corpus stack; it needs no repo
@@ -18,8 +18,24 @@
 # provider config pointing Eshu at the mock IdP, drive a browser through the
 # login flow, or add a CI job — those are later phases.
 #
-# Reused base services (nornicdb, postgres, db-migrate, workspace-setup, eshu)
-# are pulled in via `extends`, mirroring docker-compose.demo.corpus.yaml /
+# Graph backend: Neo4j, not NornicDB. Live proofs run on Neo4j (owner rule,
+# 2026-09-25), so the neo4j service extends docker-compose.neo4j.yml's
+# digest-pinned neo4j:2026-community image, and the three graph-reading
+# services (db-migrate, eshu, mcp-server) get the backend env that file sets
+# plus both database-name aliases. The base docker-compose.yaml sets
+# ESHU_NEO4J_DATABASE / NEO4J_DATABASE to "nornic", and `extends` merges
+# environment per key, so leaving them unset would point the driver at a
+# database Neo4j does not have. db-migrate's depends_on is replaced with
+# !override so the stack never waits on the base file's nornicdb service.
+#
+# Neo4j publishes no host ports: nothing on the host needs the graph. The
+# MCP-identity suite seeds its Repository nodes with `docker compose exec neo4j
+# cypher-shell` (apps/console/e2e/authMcpE2EGraphSeed.ts), the same way it
+# seeds Postgres with `exec postgres psql`, which also keeps concurrent
+# e2e stacks from colliding on graph ports.
+#
+# Reused base services (postgres, db-migrate, workspace-setup, eshu, and
+# mcp-server, plus neo4j from docker-compose.neo4j.yml) are pulled in via `extends`, mirroring docker-compose.demo.corpus.yaml /
 # docker-compose.demo.runtime.yaml. `extends` merges `environment` per key
 # (overrides here win) and fully replaces `ports`/`volumes` when redeclared;
 # `docker compose -f docker-compose.e2e.yaml config` is the way to check the
@@ -31,15 +47,30 @@ x-e2e-runtime-env: &e2e_runtime_env
   ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_E2E_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
   ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_E2E_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
   ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-e2e
+  ESHU_GRAPH_BACKEND: neo4j
+  DEFAULT_DATABASE: neo4j
+  ESHU_NEO4J_DATABASE: neo4j
+  NEO4J_DATABASE: neo4j
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
 
 services:
-  nornicdb:
+  neo4j:
     extends:
-      file: docker-compose.yaml
-      service: nornicdb
-    ports: !override
-      - "${ESHU_E2E_NORNICDB_HTTP_PORT:-27474}:7474"
-      - "${ESHU_E2E_NORNICDB_BOLT_PORT:-27687}:7687"
+      file: docker-compose.neo4j.yml
+      service: neo4j
+    ports: !reset []
+    volumes: !override
+      - neo4j_e2e_data:/data
+    # A JVM database needs a longer first-boot window than the inherited
+    # 5s x 10-retry check allows when the host is loaded or emulating the
+    # amd64-only pinned digest (Apple Silicon): a sensitivity-gate boot went
+    # unhealthy there while three sibling boots passed. start_period only
+    # forgives failures during boot; a healthy check still ends the wait early.
+    healthcheck:
+      start_period: 120s
+      retries: 30
 
   postgres:
     extends:
@@ -57,6 +88,11 @@ services:
     build:
       args:
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    depends_on: !override
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       <<: *e2e_runtime_env
       # This auth-only topology intentionally has no bootstrap-index finalizer.
@@ -340,6 +376,6 @@ services:
       start_period: 5s
 
 volumes:
-  nornicdb_v132_data:
+  neo4j_e2e_data:
   postgres_data:
   eshu_e2e_data:

@@ -60,16 +60,9 @@ mock_oidc_port="${ESHU_E2E_MOCK_OIDC_PORT:-29090}"
 mock_oidc_admin_port="${ESHU_E2E_MOCK_OIDC_ADMIN_PORT:-29091}"
 mcp_port="${ESHU_E2E_MCP_PORT:-29081}"
 mock_github_port="${ESHU_E2E_MOCK_GITHUB_PORT:-29092}"
-# docker-compose.e2e.yaml's nornicdb service shares its ESHU_E2E_NORNICDB_*
-# env var NAMES with #4971's own eshu-e2e-auth stack (both suites `extends`
-# the same base file, and neither namespaces these two vars per-suite) --
-# their DEFAULTS (27474/27687) collide with a concurrently running #4971
-# stack. This suite has its own zero-corpus graph backend (mcp-server never
-# reads content from it for the tools this suite calls), so give it 29xxx
-# block values distinct from both #4971's defaults and this suite's own
-# api/postgres/mcp/mock ports.
-nornicdb_http_port="${ESHU_E2E_NORNICDB_HTTP_PORT:-29474}"
-nornicdb_bolt_port="${ESHU_E2E_NORNICDB_BOLT_PORT:-29687}"
+# The graph is Neo4j (docker-compose.e2e.yaml's neo4j service) and publishes
+# no host ports, so this suite needs no graph port block: the runner seeds it
+# with `docker compose exec neo4j cypher-shell` (authMcpE2EGraphSeed.ts).
 keep_stack="${ESHU_KEEP_COMPOSE_STACK:-false}"
 
 export ESHU_E2E_PROJECT_NAME="$project"
@@ -81,8 +74,6 @@ export ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port"
 export ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port"
 export ESHU_E2E_MCP_PORT="$mcp_port"
 export ESHU_E2E_MOCK_GITHUB_PORT="$mock_github_port"
-export ESHU_E2E_NORNICDB_HTTP_PORT="$nornicdb_http_port"
-export ESHU_E2E_NORNICDB_BOLT_PORT="$nornicdb_bolt_port"
 # This suite's dev server runs on devServerPort 5195 (runAuthMcpE2E.ts),
 # distinct from #4971's fixed 5185 -- the shared oidc-static-config.json
 # fixture's pc_e2e_admin_static provider hardcodes redirect_url to an
@@ -90,8 +81,8 @@ export ESHU_E2E_NORNICDB_BOLT_PORT="$nornicdb_bolt_port"
 # fixture variant with the matching port (docker-compose.e2e.yaml's
 # ESHU_E2E_OIDC_STATIC_CONFIG_PATH comment has the full story).
 export ESHU_E2E_OIDC_STATIC_CONFIG_PATH="./apps/console/e2e/fixtures/oidc-static-config-mcp-e2e.json"
-# This suite uses `up --build`, so it intentionally inherits the repository's
-# exact-source NornicDB default -- see run-auth-e2e.sh's identical comment.
+# The neo4j service pulls the digest-pinned neo4j:2026-community image that
+# docker-compose.neo4j.yml names; `up --build` rebuilds only the Eshu images.
 
 for tool in docker node go; do
   command -v "$tool" >/dev/null 2>&1 || {
@@ -146,7 +137,7 @@ auth_e2e_cli_build "$repo_root"
 
 echo "run-auth-mcp-e2e: bringing up a FRESH stack (project $project) — zero identities/providers required at boot"
 docker compose -p "$project" -f docker-compose.e2e.yaml up -d --build --wait \
-  postgres nornicdb db-migrate workspace-setup eshu mcp-server mock-oidc-idp mock-oidc-idp-admin mock-github
+  postgres neo4j db-migrate workspace-setup eshu mcp-server mock-oidc-idp mock-oidc-idp-admin mock-github
 
 api_base="http://${bind_addr}:${api_port}"
 mcp_base="http://${bind_addr}:${mcp_port}"
@@ -168,7 +159,6 @@ ESHU_E2E_API_BASE="$api_base" \
   ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port" \
   ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port" \
   ESHU_E2E_MOCK_GITHUB_PORT="$mock_github_port" \
-  ESHU_E2E_NORNICDB_HTTP_PORT="$nornicdb_http_port" \
   ESHU_E2E_MCP_MODULE="$runner_module" \
   ESHU_E2E_ESHU_BINARY="$AUTH_E2E_CLI_BIN" \
   node scripts/auth-mcp-e2e-runtime.mjs

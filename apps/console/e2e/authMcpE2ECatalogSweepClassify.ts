@@ -22,6 +22,11 @@ export interface SweepPolicyRow {
   readonly path: string;
   readonly class: SweepClass;
   readonly arguments: Record<string, unknown>;
+  // body and query are what the MCP dispatcher actually sends to the route
+  // (resolveRoute's Request.Body / Request.Query), which can rename or reshape
+  // the tool arguments. The all-scope control replays these, not arguments.
+  readonly body?: unknown;
+  readonly query?: Readonly<Record<string, string>>;
   readonly accept: readonly string[];
   readonly acceptReason?: string;
 }
@@ -272,8 +277,17 @@ export function allScopeControlFor(
   if (!JSON.stringify(args).includes(JSON.stringify(ids.granted).slice(1, -1))) {
     return undefined;
   }
-  const path = substituteSeedIds(row.path, ids) as string;
-  return { method: row.method, path, body: row.method === "GET" ? undefined : args };
+  let path = substituteSeedIds(row.path, ids) as string;
+  const query = row.query ? (substituteSeedIds(row.query, ids) as Record<string, string>) : undefined;
+  if (query && Object.keys(query).length > 0) {
+    const search = new URLSearchParams(Object.entries(query).sort(([a], [b]) => a.localeCompare(b)));
+    path = `${path}?${search.toString()}`;
+  }
+  if (row.method === "GET") {
+    return { method: row.method, path, body: undefined };
+  }
+  const body = row.body === undefined ? args : (substituteSeedIds(row.body, ids) as Record<string, unknown>);
+  return { method: row.method, path, body };
 }
 
 // judgeAllScopeControl accepts the control only when the all-scope session gets

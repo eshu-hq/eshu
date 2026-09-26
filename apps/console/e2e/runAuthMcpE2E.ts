@@ -77,8 +77,6 @@ const navTimeoutMs = 30000;
 const mockOidcPort = (process.env.ESHU_E2E_MOCK_OIDC_PORT ?? "29090").trim();
 const mockOidcAdminPort = (process.env.ESHU_E2E_MOCK_OIDC_ADMIN_PORT ?? "29091").trim();
 const mockGithubPort = (process.env.ESHU_E2E_MOCK_GITHUB_PORT ?? "29092").trim();
-const nornicHttpPort = (process.env.ESHU_E2E_NORNICDB_HTTP_PORT ?? "29474").trim();
-const nornicHttpBase = `http://127.0.0.1:${nornicHttpPort}`;
 const wizardNewPassword = "E2E-auth-mcp-runner-P@ssw0rd-1";
 const selectedModule = (process.env.ESHU_E2E_MCP_MODULE ?? "").trim();
 
@@ -185,15 +183,15 @@ export async function runAuthMcpE2E(): Promise<number> {
       "mock-github:8080": `127.0.0.1:${mockGithubPort}`,
     };
 
-    // Seed ONE Repository node into the graph (NornicDB) BEFORE shape A, so
+    // Seed ONE Repository node into the graph BEFORE shape A, so
     // the AllScopes row-filter reads are non-vacuous (a zero-corpus stack has
     // nothing to filter). See authMcpE2EGraphSeed.ts for why a graph seed —
     // list_indexed_repositories is graph-backed here, not psql-backed, so the
     // design's "psql cross-tenant seed" wording is adapted to a graph seed,
     // and the real isolation dimension is scope grant, not tenant.
     await step("seed_graph_repository", async () => {
-      await seedGraphRepository(nornicHttpBase, SEEDED_REPOSITORY_ID);
-      return `seeded Repository node ${SEEDED_REPOSITORY_ID} into NornicDB (${nornicHttpBase})`;
+      await seedGraphRepository(repoRoot, composeProject, SEEDED_REPOSITORY_ID);
+      return `seeded Repository node ${SEEDED_REPOSITORY_ID} into Neo4j (compose project ${composeProject})`;
     });
 
     const shapeCtx: ShapeBContext = {
@@ -221,7 +219,6 @@ export async function runAuthMcpE2E(): Promise<number> {
         apiBase,
         repoRoot,
         project: composeProject,
-        nornicHttpBase,
         navTimeoutMs,
         artifactsDir,
         policyPath: (process.env.ESHU_E2E_CATALOG_SWEEP_POLICY ?? "").trim(),

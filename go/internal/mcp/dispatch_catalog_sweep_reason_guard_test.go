@@ -147,3 +147,22 @@ func catalogSweepLedgerLabelProblem(label, class string) string {
 	}
 	return "is labelled " + catalogSweepLedgerLabelSuffix + " but its route now derives as " + class + ", so the label is stale: rename the case and declare its own expected outcome"
 }
+
+// catalogSweepClassProblem reports why a case's derived route class disagrees
+// with the class checked in beside it. A route promoted off a ledger (as
+// POST /api/v0/code/relationships was in #7183, GET /api/v0/index-status in
+// #7193 and the three impact path routes in #7191) makes the sweep expect a
+// different outcome: a ledger row expects the disclosed 403, an allowlisted row
+// must answer ok. The derived policy follows the predicates, so without this
+// check a case written for the old class goes stale and only the live sweep,
+// which CI does not run, notices. It returns "" when the classes agree.
+func catalogSweepClassProblem(expected string, hasExpectation bool, derived string) string {
+	if !hasExpectation {
+		return "has no entry in " + catalogSweepExpectedClassesPath + " -- add its class after checking the case's arguments and accepted outcomes suit it"
+	}
+	if expected == derived {
+		return ""
+	}
+	return "was written for the " + expected + " class but its route now derives as " + derived +
+		": the route was promoted or moved, so revisit the case (an allowlisted route must answer ok against seeded data, or accept a typed outcome with an acceptReason naming the unseeded argument; a ledger route must answer the disclosed 403), then update " + catalogSweepExpectedClassesPath
+}

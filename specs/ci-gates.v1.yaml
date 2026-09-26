@@ -4321,6 +4321,8 @@ gates:
       - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
       - "scripts/lib/auth_mcp_e2e_manifest.sh"
       - "docker-compose.e2e.yaml"
+      # docker-compose.e2e.yaml extends the neo4j service from this file.
+      - "docker-compose.neo4j.yml"
       - "docker-compose.e2e.mutation.yaml"
       - "testdata/golden/auth-mcp-e2e-baseline.json"
       - "go/cmd/mock-github/**"
@@ -4341,7 +4343,6 @@ gates:
       - go
       - node
       - docker
-      - nornicdb
       - postgres
     ci_only_reason: ""
 

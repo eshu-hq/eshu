@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
-  "baseline_id": "auth-mcp-e2e-nornicdb",
-  "description": "F-9 (#5170) named baseline manifest for the MCP-identity E2E suite (scripts/run-auth-mcp-e2e.sh). The known-good contract the runner's report (e2e-artifacts/auth-mcp-e2e-report.json) is compared against by scripts/verify-auth-mcp-e2e-manifest.sh: the exact ordered step-id list across the three org shapes plus the negative-leakage module, each step's expected status, the distinct bad-credential denial-outcome set, and the hard runtime bound. Matching boundaries: the docker-compose.e2e.yaml topology (NornicDB backend), the fixed synthetic identities, a zero-corpus stack plus the single seeded Repository node. Recapture with scripts/refresh-auth-mcp-e2e-baseline.sh after an intentional step-set change, and review the diff — a baseline bump is a reviewed claim that the new step set/order is expected.",
+  "baseline_id": "auth-mcp-e2e-neo4j",
+  "description": "F-9 (#5170) named baseline manifest for the MCP-identity E2E suite (scripts/run-auth-mcp-e2e.sh). The known-good contract the runner's report (e2e-artifacts/auth-mcp-e2e-report.json) is compared against by scripts/verify-auth-mcp-e2e-manifest.sh: the exact ordered step-id list across the three org shapes plus the negative-leakage module, each step's expected status, the distinct bad-credential denial-outcome set, and the hard runtime bound. Matching boundaries: the docker-compose.e2e.yaml topology (Neo4j backend), the fixed synthetic identities, a zero-corpus stack plus the single seeded Repository node. Recapture with scripts/refresh-auth-mcp-e2e-baseline.sh after an intentional step-set change, and review the diff — a baseline bump is a reviewed claim that the new step set/order is expected.",
   "run": {
     "backend": {
-      "kind": "nornicdb"
+      "kind": "neo4j"
     }
   },
   "max_total_seconds": 1500,

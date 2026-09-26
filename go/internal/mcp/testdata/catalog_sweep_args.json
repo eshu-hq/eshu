@@ -639,14 +639,19 @@
         "arguments": {
           "source": "sweep-seed-missing",
           "target": "sweep-seed-missing"
-        }
+        },
+        "accept": [
+          "ok",
+          "not_found"
+        ],
+        "acceptReason": "source and target sweep-seed-missing name no seeded graph node, so the route answers its typed 404 for an unknown or ungranted endpoint"
       }
     ],
     "trace_resource_to_code": [
       {
         "label": "default",
         "arguments": {
-          "start": "sweep-seed-missing",
+          "start": "$REPO",
           "limit": 5
         }
       }
