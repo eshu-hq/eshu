@@ -472,6 +472,10 @@ check "P3: body has no escape or carriage-return byte" "$(! rg -q $'[\x1b\r]' "$
 check "P3: backticks in log text are neutralised" "$(ok rg -qF "TestZ 'red'" "${case_dir}/last-body.txt")"
 check "P3: summary counts the derived required list exactly" "$(ok out_has ' required=4 ')"
 
+# 27. #7111: a run listing larger than one argv string is still judged.
+# shellcheck source=scripts/lib/test-main-health-argmax.sh
+. "${repo_root}/scripts/lib/test-main-health-argmax.sh"
+
 # 19. static mirror of the workflow and of the script's write discipline.
 # shellcheck source=scripts/lib/test-main-health-workflow.sh
 . "${repo_root}/scripts/lib/test-main-health-workflow.sh"
