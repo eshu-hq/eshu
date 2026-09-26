@@ -33,10 +33,10 @@ on:
       - Verify CI Gate Registry
     types: [in_progress, completed]
     # A main push (and the merge-queue commit that becomes it, which shares its
-    # SHA) fires an in_progress and a completed event for each of ~22 push
+    # SHA) fires an in_progress and a completed event for each of ~25 push
     # workflows. Every one of them landed in this file's per-SHA concurrency
     # group, which keeps only the latest pending run and cancels the rest, so
-    # each merge left ~100 cancelled/skipped Required Gates rows on the run list
+    # each merge left ~50 cancelled/skipped Required Gates rows on the run list
     # (#7111 F8). The aggregate job below never runs for a push event, so the
     # trigger excludes the default branch instead of filtering after the fact.
     # Pull-request heads and merge-queue heads (gh-readonly-queue/main/...) are
