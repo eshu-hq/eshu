@@ -108,11 +108,16 @@ func installGenerationRetentionTrigramExtension(ctx context.Context, t *testing.
 // ESHU_POSTGRES_DSN, or skips. It never uses a hand-written schema, so the retention SQL is proven
 // against the tables and columns production actually has.
 //
-// It is safe under t.Parallel (#7260): each test gets its own schema (see
+// The retention tests that share this opener are safe under t.Parallel with
+// each other (#7260): each test gets its own schema (see
 // generationRetentionMigratedSchemaName), so two of them never drop each
 // other's schema, and pg_trgm, which is database-wide, is installed once into
 // public under an advisory lock (see installGenerationRetentionTrigramExtension)
 // instead of into a private schema that a sibling's DROP would take with it.
+// The lock serializes only this opener's installs: other live helpers in this
+// package install pg_trgm without it, which is safe only while none of them
+// runs under t.Parallel. Before parallelizing one of those, hoist this lock
+// into a shared installer that every live pg_trgm install takes.
 func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
@@ -139,13 +144,13 @@ func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Conte
 	installGenerationRetentionTrigramExtension(ctx, t, admin)
 	schema := generationRetentionMigratedSchemaName(t.Name())
 	t.Logf("isolated retention schema %s", schema)
-	if _, err := admin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE; CREATE SCHEMA "+schema); err != nil {
+	if _, err := admin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE; CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cleanupCancel()
-		if _, err := admin.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
+		if _, err := admin.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
 			t.Errorf("drop isolated schema: %v", err)
 		}
 	})
