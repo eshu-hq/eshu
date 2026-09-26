@@ -394,8 +394,8 @@ from the reviewed branch by git clone/fetch (never rsync), per the
 1. Record the preflight: candidate commit, merge-base `origin/main` commit, image IDs,
    topology profile `accepted_remote_GOMAXPROCS16_parse16_snapshot16_projection8_reducer16_shared4_partitions8_codecall4_pg96_graph_inflight8_timeout120s_entity_phase16`,
    corpus `full-984`, clean volumes, `SELECT count(*) FROM content_files`.
-2. Baseline = merge-base commit, candidate = branch tip, same host and same NornicDB
-   and Postgres images, interleaved when more than one round. State a time bound
+2. Baseline = merge-base commit, candidate = branch tip, same host and same
+   `neo4j:2026-community` and Postgres images, interleaved when more than one round. State a time bound
    that includes the observed shared-intent tail and stable terminal polls;
    a run that reaches its deadline without terminal truth is incomplete.
 3. Metrics, same start and terminal events as the accepted manifest: sum of
@@ -407,12 +407,12 @@ from the reviewed branch by git clone/fetch (never rsync), per the
    `eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="secret_lines_finalization"}`
    and content index finalization phases (the finalizer runs beside the index build, so
    `bootstrap_exit` should not grow by its duration); Postgres peak CPU from the sampler.
-4. Terminal truth: all 984 repositories ingested; bootstrap exited successfully;
+4. Terminal truth: all 984 repositories ingested; bootstrap exited 0;
    fact work and required shared intents both reached zero open/failed/dead-letter
    rows and remained stable for the terminal polls;
    `content_file_secret_lines_state.state = 'ready'`; parity 0 / 0 and identical
    findings on the candidate database; and default and largest-repository HTTP
-   and MCP investigation calls below 1 s against legacy baseline responses.
+   and MCP investigation p95 below 1 s against legacy baseline responses.
 
 ## Migration lock window
 
