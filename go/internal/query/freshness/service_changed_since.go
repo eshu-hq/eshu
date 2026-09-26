@@ -199,7 +199,7 @@ func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request
 // no foreign key, and names the reducer's fact_work_items.work_item_id, which
 // cascades away when generation retention deletes its scope generation. #6475
 // part A adds the scope_id column and the (scope_id, service_id) writer key,
-// and migration 123 backfills legacy rows from that work item only while it
+// and migration 127 backfills legacy rows from that work item only while it
 // survives; a row whose witness aged out stays scope_id NULL (unattributed).
 // This handler does not read scope_id yet; binding it to the grant is #6475
 // part B.

@@ -28,7 +28,7 @@ const (
 	// serviceLineageScopeFirstMigration is the first #6475 migration. Every
 	// definition sorting before it is what an install of the prior release has
 	// already applied and recorded.
-	serviceLineageScopeFirstMigration = "go/internal/storage/postgres/migrations/122_service_materialization_generations_scope_column.sql"
+	serviceLineageScopeFirstMigration = "go/internal/storage/postgres/migrations/126_service_materialization_generations_scope_column.sql"
 )
 
 // serviceLineageIndexSnapshot is what an operator would check to tell a
@@ -42,7 +42,7 @@ type serviceLineageIndexSnapshot struct {
 }
 
 // TestServiceMaterializationActiveIndexReplayConvergesLive proves the #6475
-// migrations (122-125) against real Postgres through the production bootstrap:
+// migrations (126-129) against real Postgres through the production bootstrap:
 //
 //   - fresh database: ApplyBootstrap leaves the active index on
 //     (scope_id, service_id);

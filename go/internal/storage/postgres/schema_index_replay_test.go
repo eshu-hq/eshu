@@ -84,14 +84,14 @@ type replayGuardedRedefinition struct {
 // 025 is shipped and immutable and creates the name on (service_id). Replacing
 // it under a new name would leave 025 recreating the single-active-per-service
 // index on any untracked replay, which FAILS once two ingestion scopes hold an
-// active generation for one service id. So 124 drops the name only while its
-// indexdef lacks scope_id, and 125 recreates it on (scope_id, service_id);
-// after that, 025, 124, and 125 are all no-ops on replay.
+// active generation for one service id. So 128 drops the name only while its
+// indexdef lacks scope_id, and 129 recreates it on (scope_id, service_id);
+// after that, 025, 128, and 129 are all no-ops on replay.
 var replayGuardedRedefinitions = map[string]replayGuardedRedefinition{
 	"service_materialization_generations_active_service_idx": {
-		DropPath:   "go/internal/storage/postgres/migrations/124_service_materialization_generations_active_service_idx_rescope.sql",
+		DropPath:   "go/internal/storage/postgres/migrations/128_service_materialization_generations_active_service_idx_rescope.sql",
 		Guard:      "indexdef NOT LIKE '%scope_id%'",
-		LivePath:   "go/internal/storage/postgres/migrations/125_service_materialization_generations_active_service_idx_v2.sql",
+		LivePath:   "go/internal/storage/postgres/migrations/129_service_materialization_generations_active_service_idx_v2.sql",
 		LiveMarker: "(scope_id, service_id)",
 		LiveProof:  "TestServiceMaterializationActiveIndexReplayConvergesLive",
 	},

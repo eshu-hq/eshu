@@ -1,4 +1,4 @@
--- 123_service_materialization_generations_scope_backfill.sql
+-- 127_service_materialization_generations_scope_backfill.sql
 --
 -- #6475: attributes legacy service materialization generations to the
 -- ingestion scope that wrote them, using the one row-specific witness.

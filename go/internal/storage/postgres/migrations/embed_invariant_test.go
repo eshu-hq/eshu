@@ -28,9 +28,10 @@ import (
 // 122_fact_records_documentation_source_only_idx.sql and
 // 123_fact_records_story_support_kinds_idx.sql and
 // 124_fact_records_documentation_semantic_target_refs_idx.sql, #6679 added
-// 125_shared_projection_acceptance_generation_key.sql, and #6475 added the
-// service materialization lineage scope migrations.
-const goldenBootstrapDefinitionsDigest = "3931c1bbdf453bb5ef77e67656635d0c2253257659974466503b78b8189eedbb"
+// 125_shared_projection_acceptance_generation_key.sql, and #6475 added
+// 126-129 (the service materialization lineage scope column, its backfill,
+// and the rescoped active-service index).
+const goldenBootstrapDefinitionsDigest = "706f714b664257ef1375872236db7a3b4b6a491b42be2999e449d3bdd7c5fb7a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

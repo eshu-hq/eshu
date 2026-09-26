@@ -1,7 +1,7 @@
 # #6475 part A: service materialization lineage keyed by ingestion scope
 
 Scope of this note: the storage and reducer-writer half of #6475 (migrations
-122-125 and the `servicecatalog` lineage writer), plus the one reader change
+126-129 and the `servicecatalog` lineage writer), plus the one reader change
 part A cannot ship without: a deterministic active pick in
 `resolveServiceChangedSinceScopeQuery`. Binding that reader and the
 query/status fence to the caller's grant is part B.
@@ -31,36 +31,36 @@ the reducer queue claimed (`scanReducerIntent`, `reducer_queue_helpers.go`). The
 intent is enqueued through `BuildServiceCatalogCorrelationReducerIntent` into
 `fact_work_items`, so it is not a `shared_projection_intents` id. That row
 carries `scope_id` (NOT NULL, FK to `ingestion_scopes`), and it cascades away
-when generation retention deletes its `scope_generations` row. Migration 123
+when generation retention deletes its `scope_generations` row. Migration 127
 attributes a generation only through that primary-key lookup, restricted to
 `domain = 'service_catalog_correlation'`. A generation whose work item is gone,
 or which has no `source_intent_id`, stays `scope_id IS NULL` ("unattributed").
 
 ## Migration shape
 
-- 122: `ADD COLUMN IF NOT EXISTS scope_id TEXT NULL`. It is catalog-only, so
+- 126: `ADD COLUMN IF NOT EXISTS scope_id TEXT NULL`. It is catalog-only, so
   its ACCESS EXCLUSIVE lock covers only the catalog update.
-- 123: the idempotent backfill `UPDATE ... WHERE scope_id IS NULL`, in a file
+- 127: the idempotent backfill `UPDATE ... WHERE scope_id IS NULL`, in a file
   of its own. It runs in its own implicit transaction and holds ROW EXCLUSIVE
-  plus per-row locks, so it does not extend 122's ACCESS EXCLUSIVE lock (which
+  plus per-row locks, so it does not extend 126's ACCESS EXCLUSIVE lock (which
   blocks readers) across the backfill scan.
-- 124: a `DO` block that drops `service_materialization_generations_active_service_idx`
+- 128: a `DO` block that drops `service_materialization_generations_active_service_idx`
   only while its `indexdef` lacks `scope_id`.
-- 125: lone `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS` of the same name on
+- 129: lone `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS` of the same name on
   `(scope_id, service_id) WHERE status = 'active'`.
 
 The name is reused on purpose. Migration 025 is immutable and recreates the
 name under `IF NOT EXISTS` on any replay. Under a new name, an untracked replay
 would rebuild the old single-active-per-service index, and that fails once two
 scopes hold an active row for one service id. With the name reused and the drop
-guarded, 025, 124, and 125 are all no-ops once the rescoped index exists.
+guarded, 025, 128, and 129 are all no-ops once the rescoped index exists.
 `TestReplayGuardedRedefinitionsAreGuarded` pins that shape. It exempts this one
 name from `TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay` only while
 the guard and the live create's `scope_id` column are present. Seeded
-violations: removing the guard, or making 125 unscoped, fails it.
+violations: removing the guard, or making 129 unscoped, fails it.
 
 The bootstrap is tracked (`eshu_schema_migrations`), so a tracked boot runs
-122-125 once. A full-tree replay happens only on an untracked database or when
+126-129 once. A full-tree replay happens only on an untracked database or when
 an interrupted file is retried. The live proof covers both paths.
 
 ## Live proof (local PostgreSQL 18, isolated schemas, 2026-09-25)
@@ -84,8 +84,8 @@ an interrupted file is retried. The live proof covers both paths.
   before and after, for example OID/relfilenode `329565` before, after the
   tracked boot, and after the untracked replay.
 
-Mutations, rerun on the 122-125 layout: with 123's `UPDATE` removed,
-`gen-witnessed` stays NULL (FAIL). With 124's `indexdef NOT LIKE` guard removed,
+Mutations, rerun on the 126-129 layout: with 127's `UPDATE` removed,
+`gen-witnessed` stays NULL (FAIL). With 128's `indexdef NOT LIKE` guard removed,
 the recorder reports `"DO $$" dropped index ...` then `built index ...` on both
 the fresh and the upgrade replay (FAIL).
 
@@ -151,12 +151,12 @@ both before and after, at 0.037 ms before and 0.033 ms after.
 
 ## Upgrade and rollout caveats
 
-- Lock window (F5): between 124's drop and 125's build, nothing enforces one
+- Lock window (F5): between 128's drop and 129's build, nothing enforces one
   active per `(scope, service)`. A previous-release reducer still running
   during the upgrade supersedes by `service_id` alone. If two such writers race
-  on one service inside that window, they can leave two actives; 125 then fails
+  on one service inside that window, they can leave two actives; 129 then fails
   and the next bootstrap retries it. Stopping the previous release's reducers
-  before the upgrade rules this out, and 124's header says so.
+  before the upgrade rules this out, and 128's header says so.
 - Rolling deploy and rollback (F6): a previous-release writer against the new
   schema writes NULL-scope rows and supersedes by `service_id` only, so it can
   retire a scoped generation. That is not self-healing on identical evidence:
@@ -166,14 +166,16 @@ both before and after, at 0.037 ms before and 0.033 ms after.
   the scoped rows and the rescoped index in place, and the old writer
   tolerates them because its own rows are NULL-scope. Running both releases'
   reducers at once is therefore unsupported for this lineage.
-- Renumbering (F8): #6679 also claims migration 122+. Whichever lands second
-  renumbers. The traps: the migration file names and the numbers inside their
-  comments (which change the checksums), the manifest lines, the embed golden
-  digest and count (regenerate them; do not text-merge), the
-  `orderedBootstrapDefinitionNames` interleave, the `replayGuardedRedefinitions`
-  `DropPath`/`LivePath` literals, and `serviceLineageScopeFirstMigration` in the
-  replay live test. If that constant goes stale, another branch's 122 file
-  sorts into the wrong half of the upgrade split without a loud failure.
+- Renumbering (F8): #6679 and #7126 landed migrations 122-125 first, so this
+  change was renumbered from 122-125 to 126-129 (same order, same content)
+  after rebasing. A later collision repeats the same checklist: the migration
+  file names and the numbers inside their comments (which change the
+  checksums), the manifest lines, the embed golden digest and count (regenerate
+  them; do not text-merge), the `orderedBootstrapDefinitionNames` order, the
+  `replayGuardedRedefinitions` `DropPath`/`LivePath` literals, and
+  `serviceLineageScopeFirstMigration` in the replay live test. If that constant
+  goes stale, another branch's migration sorts into the wrong half of the
+  upgrade split without a loud failure.
 
 No-Observability-Change: the lineage commit still runs inside the instrumented
 `service_catalog_correlation` reducer intent (`reducer.run` span,

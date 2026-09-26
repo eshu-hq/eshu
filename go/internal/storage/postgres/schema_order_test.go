@@ -286,26 +286,25 @@ var orderedBootstrapDefinitionNames = []string{
 	// count a partial index over the four counted documentation kinds with no
 	// structured refs.
 	"fact_records_documentation_source_only_idx",
-	// #6475: scope the service materialization lineage by ingestion scope --
-	// the scope_id column, its witness backfill (a file of its own so it does
-	// not hold the ALTER's ACCESS EXCLUSIVE lock), the guarded drop of 025's
-	// single-active-per-service definition, and its (scope_id, service_id)
-	// rebuild under the same name. (Interleaved by path until the
-	// renumber commit moves them after main's 122-125.)
-	"service_materialization_generations_scope_column",
 	// migration 123 (#7126) gives the story target-support reads a partial
 	// index over the twelve work_item.* and incident_routing.* support kinds.
 	"fact_records_story_support_kinds_idx",
-	"service_materialization_generations_scope_backfill",
 	// migration 124 (#7126) gives the documentation target-facts read's
 	// semantic branch a partial GIN over semantic.documentation_observation,
 	// mirroring fact_records_documentation_target_refs_idx.
 	"fact_records_documentation_semantic_target_refs_idx",
-	"service_materialization_generations_active_service_idx_rescope",
-	"service_materialization_generations_active_service_idx_v2",
 	// migration 125 (#6679) adds shared_projection_acceptance.
 	// generation_ingested_at, the stored generation's ordering key the
 	// advance-only upsert compares row-locally. There is no backfill: the
 	// guard resolves a NULL key from scope_generations at write time.
 	"shared_projection_acceptance_generation_key",
+	// migrations 126-129 (#6475) scope the service materialization lineage by
+	// ingestion scope: the scope_id column, its witness backfill (a file of its
+	// own so it does not hold the ALTER's ACCESS EXCLUSIVE lock), the guarded
+	// drop of 025's single-active-per-service definition, and its
+	// (scope_id, service_id) rebuild under the same name.
+	"service_materialization_generations_scope_column",
+	"service_materialization_generations_scope_backfill",
+	"service_materialization_generations_active_service_idx_rescope",
+	"service_materialization_generations_active_service_idx_v2",
 }

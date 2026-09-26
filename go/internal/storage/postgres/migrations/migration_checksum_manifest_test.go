@@ -172,13 +172,13 @@ var migrationShippedChecksums = map[string]string{
 	"120_value_flow_refresh_code_function_summary_producer.sql":              "a5c555ba32b1f2b2e8f873a41175f739db2d5e18a44dc662638c60ba57cd6cbb",
 	"121_fact_records_content_entity_dependency_variable_repo_idx.sql":       "25d345d5212ac7951e45a4e3e2a447f8a5665f8a0743085a8697ec54c94d1504",
 	"122_fact_records_documentation_source_only_idx.sql":                     "2cf12a55d9dc670509d6705e87580fd0a3c3743e9f11323e08cc3867352e3527",
-	"122_service_materialization_generations_scope_column.sql":               "5eed3c50ec32e6bb8bf6932af3e45f8fe5b322d740b4a1fad0ba1aca3665e4ee",
 	"123_fact_records_story_support_kinds_idx.sql":                           "61781d5dba75ac28a370df8f106dd5bbf96cce2b6f22e64897636af82eb0aeb8",
-	"123_service_materialization_generations_scope_backfill.sql":             "a631a962c21e9329add53819780c678f8b3bb7ac6b0e34b2aaa25b31435cb5bf",
 	"124_fact_records_documentation_semantic_target_refs_idx.sql":            "78b76f88b0983ae492bb4a75c34a3db3081611a0147a6d8e5abdeae03a98b0c0",
-	"124_service_materialization_generations_active_service_idx_rescope.sql": "9be3eabff082f477e045af034482f8995bd95ebfe5c0a460064e403cf0f37a47",
-	"125_service_materialization_generations_active_service_idx_v2.sql":      "5b8f1f36141d248b7eb946fe8d6b9890a95c2e8ca3b72eec18ba47f7ffb46b20",
 	"125_shared_projection_acceptance_generation_key.sql":                    "9f2be191577597e10b8368e93fa236e376938f74d1515efa92f5f4c081341152",
+	"126_service_materialization_generations_scope_column.sql":               "9ab0b6b4ab80dd2bfe0c62ce1fa57b0ba0e2df85b66bf290523e4933830544d6",
+	"127_service_materialization_generations_scope_backfill.sql":             "1b1b2c21aa1406665f8ac2b454c68078108648871c2fb410ebc0055670c19cc8",
+	"128_service_materialization_generations_active_service_idx_rescope.sql": "f8ddb06aa069045b344f4fe745d4e18325609c25e14ced9a153c9f6034e723c3",
+	"129_service_materialization_generations_active_service_idx_v2.sql":      "7b66638deffb248ab10b0d1658f515791b1c5fcc170df1bd748e7437c4e75a40",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
