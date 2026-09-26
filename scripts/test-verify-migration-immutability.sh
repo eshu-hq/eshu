@@ -73,7 +73,7 @@ expect_fail() {
     sed -n '1,120p' "${out_file}" >&2
     exit 1
   fi
-  if ! grep -qF -- "${want_substring}" "${err_file}"; then
+  if ! rg -q --fixed-strings -- "${want_substring}" "${err_file}"; then
     printf 'expected verifier stderr in %s to mention %q, got:\n' "${dir}" "${want_substring}" >&2
     sed -n '1,120p' "${err_file}" >&2
     exit 1
@@ -164,7 +164,7 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT -u GITHUB_BASE_REF \
   printf 'expected verifier to resolve repo_root under GIT_DIR and fail\n' >&2
   exit 1
 fi
-if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
+if ! rg -q --fixed-strings -- "001_widgets.sql was modified" "${err_file}"; then
   printf 'expected GIT_DIR run to still name 001_widgets.sql, got:\n' >&2
   sed -n '1,120p' "${err_file}" >&2
   exit 1
@@ -192,7 +192,7 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
   sed -n '1,40p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
+if ! rg -q --fixed-strings -- "001_widgets.sql was modified" "${err_file}"; then
   printf 'expected merge-base run to name 001_widgets.sql, got:\n' >&2
   sed -n '1,120p' "${err_file}" >&2
   exit 1
@@ -239,7 +239,7 @@ if run_verifier "${orphan_repo}" "origin/orphan-base"; then
   sed -n '1,60p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "could not resolve a common ancestor" "${err_file}"; then
+if ! rg -q --fixed-strings -- "could not resolve a common ancestor" "${err_file}"; then
   printf 'expected the orphan-base run to explain the resolution failure, got:\n' >&2
   sed -n '1,60p' "${err_file}" >&2
   exit 1
@@ -253,7 +253,7 @@ if run_verifier "${bogus_repo}" "0000000000000000000000000000000000000000"; then
   sed -n '1,60p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "could not resolve a common ancestor" "${err_file}"; then
+if ! rg -q --fixed-strings -- "could not resolve a common ancestor" "${err_file}"; then
   printf 'expected the bogus-base run to explain the resolution failure, got:\n' >&2
   sed -n '1,60p' "${err_file}" >&2
   exit 1
@@ -279,7 +279,7 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
   sed -n '1,40p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
+if ! rg -q --fixed-strings -- "001_widgets.sql was modified" "${err_file}"; then
   printf 'expected no-origin-main run to name 001_widgets.sql, got:\n' >&2
   sed -n '1,120p' "${err_file}" >&2
   exit 1
@@ -309,7 +309,7 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_BASE \
   sed -n '1,60p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "does not resolve after an --update-shallow fetch" "${err_file}"; then
+if ! rg -q --fixed-strings -- "does not resolve after an --update-shallow fetch" "${err_file}"; then
   printf 'expected the unresolved-GITHUB_BASE_REF run to explain the resolution failure, got:\n' >&2
   sed -n '1,60p' "${err_file}" >&2
   exit 1
@@ -338,10 +338,11 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
   sed -n '1,40p' "${out_file}" "${err_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "shallow" "${err_file}"; then
+if ! rg -q --fixed-strings -- "shallow" "${err_file}"; then
   printf 'expected the shallow no-base failure to say the checkout is shallow, got:\n' >&2
   sed -n '1,60p' "${err_file}" >&2
   exit 1
 fi
 
+"${repo_root}/scripts/test-verify-migration-immutability-merge-group.sh"
 printf 'test-verify-migration-immutability: all scenarios passed\n'
