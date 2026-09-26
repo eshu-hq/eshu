@@ -266,7 +266,7 @@ ifa_fault_install_runner_lease_audit() {
 	_ifa_fault_validate_runner_partition_lease_snapshot "${dead_pid}" "${captured}" || return 2
 	ifa_runner_lease_audit_owned=1; ifa_runner_lease_audit_cell="${cell}"
 	if ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold install durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} ON shared_projection_partition_leases; DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE}; CREATE TABLE ${_IFA_RUNNER_LEASE_AUDIT_TABLE} (event_kind TEXT NOT NULL, projection_domain TEXT NOT NULL, partition_id INTEGER NOT NULL, partition_count INTEGER NOT NULL, lease_owner TEXT NOT NULL, observed_at TIMESTAMPTZ NOT NULL, lease_expires_at TIMESTAMPTZ NOT NULL); CREATE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF TG_WHEN = 'BEFORE' THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('attempt', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); RETURN NEW; END IF; IF NEW.lease_owner IS NOT NULL AND NEW.lease_expires_at IS NOT NULL THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('transition', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); END IF; RETURN NEW; END \$\$; CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} BEFORE INSERT ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} AFTER INSERT OR UPDATE ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}();" \
+		"/* runner_lease_hold install durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} ON shared_projection_partition_leases; DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE}; CREATE TABLE ${_IFA_RUNNER_LEASE_AUDIT_TABLE} (event_kind TEXT NOT NULL, projection_domain TEXT NOT NULL, partition_id INTEGER NOT NULL, partition_count INTEGER NOT NULL, lease_owner TEXT NOT NULL, observed_at TIMESTAMPTZ NOT NULL, lease_expires_at TIMESTAMPTZ NOT NULL); CREATE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF TG_WHEN = 'BEFORE' THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('attempt', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); RETURN NEW; END IF; IF NEW.lease_owner IS NOT NULL AND NEW.lease_expires_at IS NOT NULL THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('transition', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); ELSIF TG_OP = 'UPDATE' AND OLD.lease_owner IS NOT NULL AND OLD.lease_expires_at IS NOT NULL AND NEW.lease_owner IS NULL AND NEW.lease_expires_at IS NULL THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('release', OLD.projection_domain, OLD.partition_id, OLD.partition_count, OLD.lease_owner, clock_timestamp(), OLD.lease_expires_at); END IF; RETURN NEW; END \$\$; CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} BEFORE INSERT ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} AFTER INSERT OR UPDATE ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}();" \
 		"${compose_file}" >/dev/null; then
 		return 0
 	fi
@@ -335,25 +335,38 @@ ifa_fault_cleanup_runner_lease_audit() {
 	ifa_fault_drop_runner_lease_audit "${ifa_runner_lease_audit_cell:-runner_lease_audit}"
 }
 
+# Polls the durable release audit rather than taking one snapshot (#7123). The
+# check runs right after the drain, while the live replacement may still be
+# writing the backlog for a partition whose first post-expiry release has not
+# landed. Release events are append-only, so polling them cannot hide a leak:
+# a partition that never records a valid release still fails after the budget,
+# and a pre-expiry release is a durable violation that fails on first sight.
 ifa_fault_require_runner_leases_reclaimed() {
-	local cell="$1" domain="$2" captured="$3" values expected result query_rc
+	local cell="$1" domain="$2" captured="$3" lease_ttl="$4" replacement_pid="$5"
+	local budget="${6:-${CLAIMED_ROW_WAIT_TIMEOUT:-30}}" values expected result query_rc owner_re i
 	_ifa_fault_validate_runner_lease_identity "post-reclaim durable lease release" "${cell}" "${domain}" || return $?
+	[[ "${lease_ttl}" =~ ^[1-9][0-9]*(ms|s|m|h)$ && "${replacement_pid}" =~ ^[1-9][0-9]*$ && "${budget}" =~ ^[1-9][0-9]*$ ]] || return 2
 	local dead_owner="${captured#*|}"; dead_owner="${dead_owner#*|}"; dead_owner="${dead_owner%%|*}"
 	local dead_pid="${dead_owner%:*}"; dead_pid="${dead_pid##*:}"
 	_ifa_fault_validate_runner_partition_lease_snapshot "${dead_pid}" "${captured}" || return 2
+	[[ "${replacement_pid}" != "${dead_pid}" ]] || return 2
 	_ifa_fault_runner_partition_lease_values "${captured}" values expected
-	if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold post-reclaim durable lease release */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(*)::text || '|' || count(*) FILTER (WHERE lease.lease_owner IS NULL AND lease.lease_expires_at IS NULL)::text || '|' || count(*) FILTER (WHERE lease.updated_at > captured.dead_updated)::text FROM captured LEFT JOIN shared_projection_partition_leases AS lease ON lease.projection_domain = '${domain}' AND lease.partition_id = captured.partition_id AND lease.partition_count = captured.partition_count;" \
-		"${compose_file}")"; then :; else
-		query_rc=$?
-		printf '%s: post-reclaim durable lease query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
-		return "${query_rc}"
-	fi
-	result="$(_ifa_fault_compact_sql_output "${result}")"
-	[[ "${result}" == "${expected}|${expected}|${expected}" ]] || {
-		printf '%s: captured %s durable leases were not all claimed after expiry and released (observed %s)\n' "${cell}" "${domain}" "${result}" >&2
-		return 1
-	}
+	owner_re="^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+:${replacement_pid}:[0-9a-f]{16,32}$"
+	for i in $(seq 1 "$((budget * 4))"); do
+		if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"/* runner_lease_hold post-reclaim durable lease release */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(DISTINCT (captured.partition_id, captured.partition_count))::text || '|' || count(DISTINCT (captured.partition_id, captured.partition_count)) FILTER (WHERE release.observed_at >= captured.dead_expiry AND release.lease_owner ~ '${owner_re}' AND EXISTS (SELECT 1 FROM ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS transition WHERE transition.projection_domain = '${domain}' AND transition.partition_id = captured.partition_id AND transition.partition_count = captured.partition_count AND transition.event_kind = 'transition' AND transition.lease_owner = release.lease_owner AND transition.lease_owner ~ '${owner_re}' AND transition.lease_expires_at - INTERVAL '${lease_ttl}' >= captured.dead_expiry))::text || '|' || count(DISTINCT (captured.partition_id, captured.partition_count)) FILTER (WHERE release.observed_at < captured.dead_expiry)::text FROM captured LEFT JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS release ON release.projection_domain = '${domain}' AND release.partition_id = captured.partition_id AND release.partition_count = captured.partition_count AND release.event_kind = 'release';" \
+			"${compose_file}")"; then :; else
+			query_rc=$?
+			printf '%s: post-reclaim durable lease query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
+			return "${query_rc}"
+		fi
+		result="$(_ifa_fault_compact_sql_output "${result}")"
+		[[ "${result}" == "${expected}|${expected}|0" ]] && return 0
+		[[ "${result}" == *"|0" ]] || break
+		sleep 0.25
+	done
+	printf '%s: captured %s durable release-audit result %s, want %s|%s|0\n' "${cell}" "${domain}" "${result}" "${expected}" "${expected}" >&2
+	return 1
 }
 
 # Called after the reducer client has been killed and joined. Prove an
