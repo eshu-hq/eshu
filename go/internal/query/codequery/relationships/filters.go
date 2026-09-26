@@ -13,6 +13,13 @@ import (
 // FilterResponse shapes the handler payload after the graph rows
 // resolve: it filters both directions by relationship type, then drops
 // the direction the caller did not ask for.
+//
+// It also owns the advertised outgoing_truncated/incoming_truncated
+// flags (#7151). "Truncated" means more neighbours exist than were
+// returned. The flags always leave here as booleans: a source that never
+// clips (the Neo4j collect and the transitive walk have no row ceiling)
+// reports false, and a direction the caller did not ask for reports
+// false because it was never read, so a dropped side cannot claim a clip.
 func FilterResponse(
 	response map[string]any,
 	direction string,
@@ -34,6 +41,8 @@ func FilterResponse(
 
 	filtered["outgoing"] = outgoing
 	filtered["incoming"] = incoming
+	filtered["outgoing_truncated"] = direction != "incoming" && querycontract.BoolVal(response, "outgoing_truncated")
+	filtered["incoming_truncated"] = direction != "outgoing" && querycontract.BoolVal(response, "incoming_truncated")
 	return filtered
 }
 

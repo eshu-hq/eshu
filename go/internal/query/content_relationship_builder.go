@@ -12,7 +12,7 @@ import (
 
 // ContentIndexRelationshipBuilder is the production
 // querycontract.ContentRelationshipBuilder: it forwards to
-// buildContentRelationshipSet (content_relationships.go), copying the three
+// buildContentRelationshipSet (content_relationships.go), copying its
 // fields across. buildContentRelationshipSet's own closure -- the
 // per-language and per-manifest-kind extraction it dispatches to -- stays at
 // root; only this thin adapter crosses the port (#6060).
@@ -32,8 +32,12 @@ func (ContentIndexRelationshipBuilder) BuildContentRelationships(
 		return querycontract.ContentRelationshipSet{}, err
 	}
 	return querycontract.ContentRelationshipSet{
-		Incoming:      set.incoming,
-		Outgoing:      set.outgoing,
-		ScanTruncated: set.scanTruncated,
+		Incoming:          set.incoming,
+		Outgoing:          set.outgoing,
+		ScanTruncated:     set.scanTruncated,
+		OutgoingTruncated: set.outgoingTruncated,
+		IncomingTruncated: set.incomingTruncated,
+		OutgoingClipType:  set.outgoingClipType,
+		IncomingClipType:  set.incomingClipType,
 	}, nil
 }

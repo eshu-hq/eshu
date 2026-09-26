@@ -104,7 +104,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 			WriteError(w, http.StatusNotFound, "entity not found")
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, filterRelationshipResponse(response, direction, relationshipType), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from content-backed relationship fallback"))
+		WriteSuccess(w, r, http.StatusOK, scopeContentTruncationToType(filterRelationshipResponse(response, direction, relationshipType), relationshipType), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from content-backed relationship fallback"))
 		return
 	}
 
@@ -120,6 +120,11 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		"end_line":   IntVal(row, "end_line"),
 		"outgoing":   querycontract.FilterNullRelationships(row["outgoing"]),
 		"incoming":   querycontract.FilterNullRelationships(row["incoming"]),
+		// The NornicDB leaf read one row past the ceiling and reports whether
+		// it clipped; the Neo4j row carries no flag because its collect has no
+		// ceiling (#7151). filterRelationshipResponse normalizes both.
+		"outgoing_truncated": BoolVal(row, "outgoing_truncated"),
+		"incoming_truncated": BoolVal(row, "incoming_truncated"),
 	}
 	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
@@ -461,5 +466,12 @@ func (h *CodeHandler) relationshipsFromEntity(
 		"metadata":   entity.Metadata,
 		"outgoing":   relationshipSet.Outgoing,
 		"incoming":   relationshipSet.Incoming,
+		// The k8s SELECTS candidate scan and the fixed-size name lookups have
+		// row ceilings the builder observes, per direction (#7151). The clip
+		// types are internal: scopeContentTruncationToType consumes them.
+		"outgoing_truncated": relationshipSet.OutgoingTruncated,
+		"incoming_truncated": relationshipSet.IncomingTruncated,
+		outgoingClipTypeKey:  relationshipSet.OutgoingClipType,
+		incomingClipTypeKey:  relationshipSet.IncomingClipType,
 	}, nil
 }
