@@ -15,7 +15,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|
-| Function declarations | `function-declarations` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellBuckets` | Compose-backed fixture verification | - |
+| Function declarations | `function-declarations` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellBuckets` | Compose-backed fixture verification | Multi-equation definitions fingerprint over every equation ([#6865](https://github.com/eshu-hq/eshu/issues/6865)) |
 | Initializer declarations | `initializer-declarations` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathHaskellFixtures` | Compose-backed fixture verification | - |
 | Type classes | `type-classes` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellDeadCodeRootsAndCalls` | Compose-backed fixture verification | - |
 | Data types (struct-like) | `data-types-struct-like` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellDeadCodeRootsAndCalls` | Compose-backed fixture verification | - |
