@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,14 +19,17 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// TestLiveByIdImpactAnchorReads is the backend-required proof for #5286. It seeds
-// a CloudResource -> Workload -> Repository chain on a live NornicDB, captures the
+// TestLiveByIdImpactAnchorReads is the backend-required proof for #5286 and #7252. It seeds
+// a CloudResource -> Workload -> Repository chain on a live graph, captures the
 // OLD label-disjunction/map-comprehension shapes (which corrupt on the pinned
 // build), and asserts the shipped trace-resource-to-code and
 // explain-dependency-path handlers return the correct paths and hop provenance.
 //
 //	Run: ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:17687 \
 //		go test ./internal/query -run TestLiveByIdImpactAnchorReads -count=1 -v
+//	Neo4j: ESHU_OCI_PROVE_LIVE=1 ESHU_LIVE_GRAPH_DATABASE=neo4j \
+//		ESHU_NEO4J_URI=bolt://localhost:27951 go test ./internal/query \
+//		-run TestLiveByIdImpactAnchorReads -count=1 -v
 func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_OCI_PROVE_LIVE")) == "" {
 		t.Skip("set ESHU_OCI_PROVE_LIVE=1 to run the live by-id impact-anchor proof")
@@ -33,6 +37,10 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
 	if uri == "" {
 		t.Fatal("ESHU_NEO4J_URI is required (e.g. bolt://localhost:17687)")
+	}
+	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	if database == "" {
+		database = "nornic"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -42,13 +50,13 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	}
 	defer func() { _ = driver.Close(context.Background()) }()
 	write := func(cypher string, params map[string]any) {
-		s := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: "nornic"})
+		s := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: database})
 		defer func() { _ = s.Close(ctx) }()
 		if _, err := s.Run(ctx, cypher, params); err != nil {
 			t.Fatalf("seed write failed: %v\ncypher=%s", err, cypher)
 		}
 	}
-	reader := NewNeo4jReader(driver, "nornic")
+	reader := NewNeo4jReader(driver, database)
 	handler := &ImpactHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
 
 	const (
@@ -69,13 +77,23 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	       CREATE (s)-[:DEPENDS_ON {confidence:0.9, reason:'a'}]->(m)
 	       CREATE (m)-[:DEPENDS_ON {confidence:0.8, reason:'b'}]->(t)`,
 		map[string]any{"s": srcID, "m": midID, "t": tgtID})
-
-	// Capture the OLD label-disjunction anchor (matches zero rows) for evidence.
-	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+deployment.ImpactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
-	t.Logf("OLD label-disjunction anchor rows: %d (want 0 — broken)", len(oldAnchor))
-
 	mux := http.NewServeMux()
 	handler.Mount(mux)
+	firstReq := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path",
+		bytes.NewBufferString(`{"source":"`+srcID+`","target":"`+srcID+`"}`))
+	firstRec := httptest.NewRecorder()
+	firstStarted := time.Now()
+	mux.ServeHTTP(firstRec, firstReq)
+	t.Logf("first equal-endpoint request after fixture setup=%s", time.Since(firstStarted))
+	if firstRec.Code != http.StatusBadRequest {
+		t.Fatalf("first equal-endpoint status = %d, body = %s; want 400", firstRec.Code, firstRec.Body.String())
+	}
+
+	// Capture the old label-disjunction anchor for NornicDB evidence. Neo4j
+	// matches the label disjunction, so this is diagnostic rather than asserted.
+	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+deployment.ImpactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
+	t.Logf("label-disjunction anchor rows on %s: %d", database, len(oldAnchor))
+
 	post := func(path, body string) map[string]any {
 		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 		req.Header.Set("Accept", EnvelopeMIMEType)
@@ -141,5 +159,43 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	}
 	if _, ok := explain["confidence"].(float64); !ok {
 		t.Errorf("explain missing aggregate confidence: %#v", explain)
+	}
+
+	// Equal canonical endpoints, including an ID/name pair, are a client error
+	// after both anchors resolve; Neo4j shortestPath raises if it sees that pair.
+	for _, tc := range []struct {
+		body   string
+		detail string
+	}{
+		{body: `{"source":"` + srcID + `","target":"` + srcID + `"}`, detail: "source and target must differ"},
+		{body: `{"source":"src","target":"` + srcID + `"}`, detail: "source and target resolve to the same entity"},
+	} {
+		durations := make([]time.Duration, 0, 11)
+		for range 11 {
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path", bytes.NewBufferString(tc.body))
+			rec := httptest.NewRecorder()
+			started := time.Now()
+			mux.ServeHTTP(rec, req)
+			durations = append(durations, time.Since(started))
+			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tc.detail) {
+				t.Fatalf("equal endpoints: status = %d, body = %s; want 400 with same-entity detail", rec.Code, rec.Body.String())
+			}
+		}
+		warm := slices.Clone(durations[1:])
+		slices.Sort(warm)
+		t.Logf("equal-endpoint request first=%s warm_p95=%s (10 warm calls)", durations[0], warm[9])
+	}
+
+	// One physical node can be returned under either label by the resolver.
+	// The ID/name alias must still avoid Neo4j's same-node shortestPath error.
+	write(`MATCH (s:CloudResource {id:$s}) SET s:Workload`, map[string]any{"s": srcID})
+	multiReq := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path",
+		bytes.NewBufferString(`{"source":"src","target":"`+srcID+`"}`))
+	multiRec := httptest.NewRecorder()
+	multiStarted := time.Now()
+	mux.ServeHTTP(multiRec, multiReq)
+	t.Logf("multi-label equal-endpoint request=%s", time.Since(multiStarted))
+	if multiRec.Code != http.StatusBadRequest || !strings.Contains(multiRec.Body.String(), "source and target resolve to the same entity") {
+		t.Fatalf("multi-label equal endpoints: status = %d, body = %s; want 400", multiRec.Code, multiRec.Body.String())
 	}
 }

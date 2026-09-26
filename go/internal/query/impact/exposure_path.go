@@ -159,6 +159,26 @@ func (h *Handler) resolveAnchor(
 	)
 }
 
+// resolveDependencyPathAnchors resolves only visible endpoints and reuses the
+// first resolution when both arguments are the same identifier. A missing or
+// ungranted source still stops before the target read.
+func (h *Handler) resolveDependencyPathAnchors(
+	ctx context.Context,
+	checker ownership.Checker,
+	access querycontract.RepositoryAccessFilter,
+	source, target string,
+) (*deployment.ResolvedImpactAnchor, *deployment.ResolvedImpactAnchor, error) {
+	sourceNode, err := h.resolveAnchor(ctx, checker, access, "source_id", source)
+	if err != nil || sourceNode == nil {
+		return sourceNode, nil, err
+	}
+	if source == target {
+		return sourceNode, sourceNode, nil
+	}
+	targetNode, err := h.resolveAnchor(ctx, checker, access, "target_id", target)
+	return sourceNode, targetNode, err
+}
+
 // clampExposureDepth clamps the requested traversal depth into the bounded range.
 func clampExposureDepth(depth int) int {
 	if depth <= 0 {

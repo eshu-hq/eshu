@@ -366,6 +366,10 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	}
 
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
+	if req.Source == req.Target && !access.Scoped() {
+		querycontract.WriteError(w, http.StatusBadRequest, "source and target must differ")
+		return
+	}
 	checker := h.ownershipChecker(ownership.RouteExplainDependencyPath)
 
 	// Resolve the source and target labels with per-label inline-property anchors
@@ -373,18 +377,7 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
 	// A scoped caller's endpoints must both be owned by its grant before any
 	// shortestPath runs; otherwise both render the unknown-endpoint 404 (#5167).
-	sourceNode, err := h.resolveAnchor(r.Context(), checker, access, "source_id", req.Source)
-	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	var targetNode *deployment.ResolvedImpactAnchor
-	if sourceNode != nil {
-		targetNode, err = h.resolveAnchor(r.Context(), checker, access, "target_id", req.Target)
-	}
+	sourceNode, targetNode, err := h.resolveDependencyPathAnchors(r.Context(), checker, access, req.Source, req.Target)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
@@ -394,6 +387,10 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	}
 	if sourceNode == nil || targetNode == nil {
 		querycontract.WriteError(w, http.StatusNotFound, "source or target not found")
+		return
+	}
+	if sourceNode.SamePhysicalNode(*targetNode) {
+		querycontract.WriteError(w, http.StatusBadRequest, "source and target resolve to the same entity")
 		return
 	}
 

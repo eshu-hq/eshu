@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
@@ -31,6 +32,35 @@ func TestScopedExplainDependencyPathUngrantedEndpointIs404(t *testing.T) {
 			t.Errorf("target=%s issued %d shortestPath statements, want 0", target, n)
 		}
 		assertNoTenantB(t, rec.Body.String())
+	}
+}
+
+func TestScopedExplainDependencyPathSameUngrantedEndpointIs404(t *testing.T) {
+	t.Parallel()
+
+	a := tenantAAuth()
+	g := &twoTenantGraph{}
+	rec := postImpact(t, newTwoTenantHandler(g), explainRoute, `{"source":"repo-b","target":"repo-b"}`, &a)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
+	}
+	if n := len(g.callsOf("shortest")); n != 0 {
+		t.Fatalf("shortestPath calls = %d, want 0", n)
+	}
+	assertNoTenantB(t, rec.Body.String())
+}
+
+func TestScopedExplainDependencyPathSameGrantedEndpointIs400(t *testing.T) {
+	t.Parallel()
+
+	a := tenantAAuth()
+	g := &twoTenantGraph{}
+	rec := postImpact(t, newTwoTenantHandler(g), explainRoute, `{"source":"repo-a","target":"repo-a"}`, &a)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "source and target resolve to the same entity") {
+		t.Fatalf("status = %d, body = %s; want 400 for a visible same endpoint", rec.Code, rec.Body.String())
+	}
+	if n := len(g.callsOf("shortest")); n != 0 {
+		t.Fatalf("shortestPath calls = %d, want 0", n)
 	}
 }
 
