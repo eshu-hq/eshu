@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 const deployableUnitCorrelationFallbackThreshold = 0.90
@@ -92,25 +91,25 @@ func (h DeployableUnitCorrelationHandler) Handle(
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
 	// until resolutions complete corpus-wide, and success is never reopened.
-	if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
-		return Result{}, err
+	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
+		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
+			scopeID: intent.ScopeID, generationID: intent.GenerationID,
+		}
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
 		return Result{}, err
 	}
-
-	var resolved []relationships.ResolvedRelationship
+	// The corpus fence and the foreign read share one statement snapshot when
+	// the store offers it (#6740); see the workload loader for the rationale.
+	read, err := readCorpusFencedResolvedRelationships(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
+	if err != nil {
+		return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
+	}
+	if err := deployableUnitCorpusFenceDeferral(ctx, h.IncompleteScopesLookup, intent, read); err != nil {
+		return Result{}, err
+	}
+	resolved := read.resolved
 	if h.ResolvedLoader != nil {
-		resolved, err = loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
-		if err != nil {
-			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
-		}
-		// Re-evaluate the corpus fence after the foreign read (#6730 Codex
-		// P1); see the loader for the check-then-read rationale and the
-		// residual-window note.
-		if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
-			return Result{}, err
-		}
 		// A second, independent pass over resolved purely for diagnostics
 		// (#6149 follow-up item 6) -- ExtractDeployableUnitCorrelationRows
 		// below stays side-effect-free for Ifá's direct-call contract, so

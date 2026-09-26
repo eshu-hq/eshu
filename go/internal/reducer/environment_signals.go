@@ -4,6 +4,8 @@
 package reducer
 
 import (
+	"context"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -122,4 +124,94 @@ func collectNamespaceEnvironmentsFromFileData(fileData map[string]any) []string 
 		}
 	}
 	return environments
+}
+
+// enrichDeploymentRepoEnvironments loads facts from deployment repos that are
+// not the source repo, extracts overlay environments, and merges them into the
+// deploymentEnvironments map. This enables cross-repo environment resolution
+// when the source repo is deployed via a separate helm-charts/argocd repo.
+func (l CorrelatedWorkloadProjectionInputLoader) enrichDeploymentRepoEnvironments(
+	ctx context.Context,
+	candidates []WorkloadCandidate,
+	deploymentEnvironments map[string][]string,
+) map[string][]string {
+	// Collect unique deployment repo IDs that differ from the source repo
+	// and don't already have environments.
+	needed := make(map[string]struct{})
+	sourceRepos := make(map[string]struct{})
+	for _, c := range candidates {
+		sourceRepos[c.RepoID] = struct{}{}
+	}
+	for _, c := range candidates {
+		deploymentRepoIDs := candidateDeploymentRepoIDs(c)
+		if len(deploymentRepoIDs) == 0 {
+			for _, repoID := range c.ProvisioningRepoIDs {
+				markEnvironmentRepoNeeded(repoID, sourceRepos, deploymentEnvironments, needed)
+			}
+			continue
+		}
+		for _, repoID := range deploymentRepoIDs {
+			markEnvironmentRepoNeeded(repoID, sourceRepos, deploymentEnvironments, needed)
+		}
+		for _, repoID := range c.ProvisioningRepoIDs {
+			markEnvironmentRepoNeeded(repoID, sourceRepos, deploymentEnvironments, needed)
+		}
+	}
+	if len(needed) == 0 {
+		return deploymentEnvironments
+	}
+
+	repoIDs := make([]string, 0, len(needed))
+	for id := range needed {
+		repoIDs = append(repoIDs, id)
+	}
+
+	identities, err := l.ScopeResolver.ResolveRepoActiveGenerations(ctx, repoIDs)
+	if err != nil {
+		slog.Warn("resolve deployment repo active generations",
+			"error", err, "repo_ids", repoIDs)
+		return deploymentEnvironments
+	}
+
+	for repoID, identity := range identities {
+		envelopes, err := loadFactsForKinds(
+			ctx,
+			l.FactLoader,
+			identity.ScopeID,
+			identity.GenerationID,
+			[]string{factKindFile},
+		)
+		if err != nil {
+			slog.Warn("load deployment repo facts for environment extraction",
+				"error", err, "repo_id", repoID,
+				"scope_id", identity.ScopeID, "generation_id", identity.GenerationID)
+			continue
+		}
+		envs := ExtractOverlayEnvironmentsFromEnvelopes(envelopes)
+		for envRepoID, environments := range envs {
+			if _, exists := deploymentEnvironments[envRepoID]; !exists {
+				deploymentEnvironments[envRepoID] = environments
+			}
+		}
+	}
+
+	return deploymentEnvironments
+}
+
+func markEnvironmentRepoNeeded(
+	repoID string,
+	sourceRepos map[string]struct{},
+	deploymentEnvironments map[string][]string,
+	needed map[string]struct{},
+) {
+	if repoID == "" {
+		return
+	}
+	if _, isSameRepo := sourceRepos[repoID]; isSameRepo {
+		return
+	}
+	if _, hasEnvs := deploymentEnvironments[repoID]; hasEnvs {
+		return
+	}
+	needed[repoID] = struct{}{}
 }

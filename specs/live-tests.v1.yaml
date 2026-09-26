@@ -1793,6 +1793,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/resolved_corpus_fence_snapshot_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (bootstraps an isolated schema per test; about 3.3s for the three tests laptop-local) — promote to blocking with CI timing evidence
   - file: go/internal/storage/postgres/schema_bootstrap_wait_live_test.go
     tag: integration
     class: scheduled

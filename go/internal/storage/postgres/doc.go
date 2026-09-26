@@ -404,4 +404,9 @@
 // re-scans every active state_snapshot:* scope) or by the explicit
 // "unresolved" read-model outcome tracked in a sibling branch -- the
 // issue's own second acceptance path.
+//
+// RelationshipStore.GetResolvedRelationshipsForReposWithCorpusFence fuses the
+// corpus-completeness fence and the by-repos resolved read into one statement
+// (a MATERIALIZED fence CTE LEFT JOINed to the read), so the verdict and the
+// rows share one READ COMMITTED snapshot (#6740).
 package postgres

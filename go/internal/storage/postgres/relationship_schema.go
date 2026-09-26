@@ -400,6 +400,56 @@ ORDER BY COALESCE(r.source_entity_id, r.source_repo_id),
          r.relationship_type
 `
 
+// listResolvedByReposWithCorpusFenceSQL fuses the corpus-completeness fence
+// (incompleteScopeRelationshipGenerationsPredicate) and the by-repos resolved
+// read (listResolvedByReposSQL's body) into ONE statement, so the verdict and
+// the rows it admits come from one READ COMMITTED statement snapshot (#6740).
+// Two separate statements leave a window in which a foreign scope retires its
+// generation before the read (the read misses its rows) and re-activates
+// before the recheck (both fence checks pass), and the pass succeeds on a
+// partial set nothing reopens. The fence is a MATERIALIZED single-row CTE; the
+// LEFT JOIN on fence.complete always returns at least that row, carrying NULL
+// relationship columns when the corpus is incomplete or no row matches, which
+// the scanner drops by the NULL relationship_type (a NOT NULL column).
+// confidence and evidence_count are COALESCEd only so the NULL filler row
+// scans; real rows are never NULL there. When complete is false the planner
+// still evaluates the inner read and the join filter discards it: the same
+// cost today's read-then-recheck path pays, measured in
+// docs/internal/evidence/6740-corpus-fence-snapshot.md (a LATERAL gate and a
+// scalar-subquery gate planned identically).
+const listResolvedByReposWithCorpusFenceSQL = `
+WITH fence AS MATERIALIZED (
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM ingestion_scopes AS s
+    WHERE` + incompleteScopeRelationshipGenerationsPredicate + `
+  ) AS complete
+)
+SELECT fence.complete,
+       r.source_repo_id, r.target_repo_id,
+       r.source_key, r.target_key,
+       r.relationship_type,
+       COALESCE(r.confidence, 0), COALESCE(r.evidence_count, 0),
+       COALESCE(r.rationale, ''), COALESCE(r.resolution_source, ''), r.details
+FROM fence
+LEFT JOIN (
+  SELECT r.source_repo_id, r.target_repo_id,
+         COALESCE(r.source_entity_id, r.source_repo_id) AS source_key,
+         COALESCE(r.target_entity_id, r.target_repo_id) AS target_key,
+         r.relationship_type, r.confidence, r.evidence_count,
+         r.rationale, r.resolution_source, r.details
+  FROM resolved_relationships AS r
+  JOIN relationship_generations AS g
+    ON g.generation_id = r.generation_id
+  WHERE g.status = 'active'
+    AND (
+      r.source_repo_id IN (%s)
+      OR r.target_repo_id IN (%s)
+    )
+) AS r ON fence.complete
+ORDER BY r.source_key, r.target_key, r.relationship_type
+`
+
 // relationshipDigest builds a stable short identifier from one or more parts.
 func relationshipDigest(prefix string, parts ...string) string {
 	normalized := make([]string, len(parts))

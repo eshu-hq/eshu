@@ -337,6 +337,15 @@ values each counter carries.
   [`gotchas-cicd-and-deployment.md`](gotchas-cicd-and-deployment.md)** — split
   out of this file for the 500-line Markdown cap (#5786; the #6061 restructure
   is what grew it past the cap again).
+- **The corpus fence and the foreign resolved read share one snapshot** —
+  workload projection inputs and deployable-unit correlation read foreign
+  resolved relationships through `readCorpusFencedResolvedRelationships`. When
+  the store implements `CorpusFencedResolvedRelationshipLoader` (the Postgres
+  `RelationshipStore` does), the fence verdict comes from the read's own
+  statement, so a foreign scope that retires and re-activates mid-pass cannot
+  pair a passing verdict with a partial set (#6740). Other stores keep the
+  pre-read fence plus post-read recheck (#6730), which has that window. See
+  `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `GraphProjectionPhaseRepairQueue`
   captures the retry.

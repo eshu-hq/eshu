@@ -173,6 +173,17 @@ operational lessons that future storage changes still need to respect.
 
 ## Runtime And Fencing Invariants
 
+- `GetResolvedRelationshipsForReposWithCorpusFence` must stay ONE statement.
+  Its fence CTE reuses `incompleteScopeRelationshipGenerationsPredicate`, and
+  the verdict is only trustworthy because it shares the rows' statement
+  snapshot (#6740). Splitting it back into a fence query and a read reopens
+  the window where a foreign scope retires after the fence, the read misses
+  its rows, and it re-activates before any recheck.
+  `TestCorpusFenceSnapshotRetireAndReactivateBetweenStatements` fails on that
+  split. The LEFT JOIN always yields at least the fence row; rows with a NULL
+  `relationship_type` are filler, and no row at all is an error, never a
+  verdict. No-Regression Evidence and plans:
+  `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.

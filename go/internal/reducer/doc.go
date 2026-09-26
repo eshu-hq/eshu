@@ -63,6 +63,12 @@
 // Shared-projection and code-call runner configs retain readable fallback owner
 // prefixes, while the production reducer appends a process-boot identity before
 // either runner claims a partition lease.
+// Workload projection inputs and deployable-unit correlation gate their
+// foreign resolved-relationship read on the corpus fence through
+// readCorpusFencedResolvedRelationships. A store implementing
+// CorpusFencedResolvedRelationshipLoader returns the verdict from the same
+// statement snapshot as the rows (#6740); other stores fall back to a
+// pre-read fence plus a post-read recheck (#6730).
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.
