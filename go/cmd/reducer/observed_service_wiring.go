@@ -32,7 +32,7 @@ func buildObservedReducerService(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	logger *slog.Logger,
-) (reducer.Service, *snapshot.Refresher, error) {
+) (reducer.Service, *snapshot.Refresher, *snapshot.Refresher, error) {
 	activeWorkers := new(atomic.Int64)
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
@@ -48,7 +48,7 @@ func buildObservedReducerService(
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
 	identityCache, err := postgres.NewIdentityEpochCache(instruments, identityCacheMaxBytes(getenv))
 	if err != nil {
-		return reducer.Service{}, nil, fmt.Errorf("identity epoch cache: %w", err)
+		return reducer.Service{}, nil, nil, fmt.Errorf("identity epoch cache: %w", err)
 	}
 	serviceRunner, err := buildReducerService(
 		ctx,
@@ -65,12 +65,12 @@ func buildObservedReducerService(
 		identityCache,
 	)
 	if err != nil {
-		return reducer.Service{}, nil, err
+		return reducer.Service{}, nil, nil, err
 	}
-	gaugeRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
+	graphRefresher, postgresRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
 	if err != nil {
-		return reducer.Service{}, nil, err
+		return reducer.Service{}, nil, nil, err
 	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
-	return serviceRunner, gaugeRefresher, nil
+	return serviceRunner, graphRefresher, postgresRefresher, nil
 }

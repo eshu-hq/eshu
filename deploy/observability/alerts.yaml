@@ -125,13 +125,13 @@ groups:
           service: eshu-reducer
           component: pipeline
         annotations:
-          summary: "Graph-backed gauge {{ $labels.gauge }} is serving a stale snapshot or has none"
-          description: "The background refresh for graph gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The graph read is slow, failing, or timing out."
+          summary: "Gauge snapshot {{ $labels.gauge }} is serving a stale snapshot or has none"
+          description: "The background refresh for gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The backing graph or Postgres read is slow, failing, or timing out."
           runbook: |
             1. Check `eshu_dp_gauge_snapshot_refreshes_total{gauge="{{ $labels.gauge }}"}` by `outcome` (`error` vs `timeout`)
-            2. Check reducer logs for `gauge snapshot refresh failed` and `failure_class=gauge_snapshot_refresh_timeout` or `gauge_snapshot_refresh_error`
-            3. Compare `eshu_dp_neo4j_query_duration_seconds` and graph backend health for slow reads
-            4. Tune `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` only after the graph read itself is understood; the snapshot expires after three `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` periods (default 15m) and the 900s threshold here assumes the default interval
+            2. Check reducer logs for `gauge snapshot refresh failed` and `failure_class=gauge_snapshot_refresh_timeout` or `gauge_snapshot_refresh_error` (`ingester_`-prefixed gauges log on the ingester instead)
+            3. For graph-backed gauges compare `eshu_dp_neo4j_query_duration_seconds` and graph backend health; for `reducer_`- or `ingester_`-prefixed gauges check Postgres health and `pg_stat_activity` for a stuck gauge query
+            4. Tune `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` (graph gauges) or `ESHU_POSTGRES_GAUGE_REFRESH_TIMEOUT` (`reducer_`/`ingester_` gauges) only after the backing read itself is understood; a snapshot expires after three refresh intervals (default 15m) and the 900s threshold here assumes the default interval of both pairs
 
       - alert: EshuCollectorStalled
         expr: rate(eshu_dp_facts_emitted_total[15m]) == 0
