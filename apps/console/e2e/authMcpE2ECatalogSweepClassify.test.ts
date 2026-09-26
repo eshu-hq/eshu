@@ -158,6 +158,29 @@ describe("all-scope control for a tolerant row that names the granted repository
       method: "POST", path: "/api/v0/content/files/read", body: { repo_id: "g-repo", relative_path: "README.md" },
     });
   });
+  it("replays the body the MCP dispatcher sends, not the raw tool arguments", () => {
+    // analyze_code_relationships renames target -> name on its way to the
+    // route, so replaying the raw arguments earns a 400, not the typed 404.
+    const renamed: SweepPolicyRow = {
+      tool: "analyze_code_relationships", label: "who_modifies", method: "POST", path: "/api/v0/code/relationships", class: "allowlisted",
+      arguments: { query_type: "who_modifies", target: "sweepTarget", repo_id: "$REPO", limit: 5 },
+      body: { name: "sweepTarget", direction: "incoming", repo_id: "$REPO", limit: 5 },
+      accept: ["ok", "not_found"], acceptReason: "target sweepTarget is not seeded",
+    };
+    expect(allScopeControlFor(renamed, "not_found", ids)).toEqual({
+      method: "POST", path: "/api/v0/code/relationships", body: { name: "sweepTarget", direction: "incoming", repo_id: "g-repo", limit: 5 },
+    });
+  });
+  it("replays a GET row's dispatched query string", () => {
+    const get: SweepPolicyRow = {
+      tool: "get_x", label: "default", method: "GET", path: "/api/v0/x/$REPO", class: "allowlisted",
+      arguments: { repo_id: "$REPO", path: "a b" }, query: { path: "a b", repo: "$REPO" },
+      accept: ["ok", "not_found"], acceptReason: "path a b is not seeded",
+    };
+    expect(allScopeControlFor(get, "not_found", ids)).toEqual({
+      method: "GET", path: "/api/v0/x/g-repo?path=a+b&repo=g-repo", body: undefined,
+    });
+  });
   it("needs no control when the row answered ok, or names no granted repository, or is a ledger row", () => {
     expect(allScopeControlFor(tolerant, "ok", ids)).toBeUndefined();
     expect(allScopeControlFor({ ...tolerant, arguments: { entity_id: "sweep-seed-missing" } }, "not_found", ids)).toBeUndefined();

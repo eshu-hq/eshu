@@ -57,7 +57,6 @@ export interface CatalogSweepContext {
   readonly apiBase: string;
   readonly repoRoot: string;
   readonly project: string;
-  readonly nornicHttpBase: string;
   readonly navTimeoutMs: number;
   readonly artifactsDir: string;
   // policyPath is the JSON TestCatalogSweepPolicy wrote (ESHU_E2E_CATALOG_SWEEP_POLICY).
@@ -76,8 +75,8 @@ export async function loadSweepPolicy(path: string): Promise<SweepPolicy> {
     );
   }
   const policy = JSON.parse(await readFile(path, "utf8")) as SweepPolicy;
-  if (!Array.isArray(policy.rows) || policy.rows.length === 0 || typeof policy.disclosurePattern !== "string") {
-    throw new Error(`${path} is not a catalog-sweep policy (no rows or no disclosurePattern)`);
+  if (!Array.isArray(policy.rows) || policy.rows.length === 0 || typeof policy.disclosurePattern !== "string" || typeof policy.disclosureFlags !== "string") {
+    throw new Error(`${path} is not a catalog-sweep policy (no rows, disclosurePattern, or disclosureFlags)`);
   }
   compileDisclosurePattern(policy);
   return policy;
@@ -125,7 +124,7 @@ async function seedSweepGrants(ctx: CatalogSweepContext): Promise<string> {
     `INSERT INTO identity_membership_roles (tenant_id, workspace_id, user_id, role_id, assignment_source, status, policy_revision_hash, effective_at, created_at, updated_at) VALUES (${tenant}, ${workspace}, ${user}, ${role}, 'e2e_catalog_sweep', 'active', ${revision}, now(), now(), now())`,
   ].join("; ");
   await runPsql(ctx.repoRoot, ctx.project, `${sql};`);
-  await seedGraphRepository(ctx.nornicHttpBase, UNGRANTED_REPOSITORY_ID);
+  await seedGraphRepository(ctx.repoRoot, ctx.project, UNGRANTED_REPOSITORY_ID);
   return `role ${sweepRoleId} (all features, all data classes) granted on repository ${SEEDED_REPOSITORY_ID} (scope ${sweepScopeId}) and state scope ${stateScopeId} only; ungranted repository ${UNGRANTED_REPOSITORY_ID} seeded into the graph and the repository catalog`;
 }
 
@@ -294,6 +293,9 @@ async function assertNegativeControl(
       throw new Error(`the single-repository control needs a GET policy row for ${tool}, got ${row?.method ?? "none"}`);
     }
     const path = row.path.split("$REPO").join(encodeURIComponent(UNGRANTED_REPOSITORY_ID));
+    if (!path.includes(encodeURIComponent(UNGRANTED_REPOSITORY_ID))) {
+      throw new Error(`the single-repository control needs a $REPO placeholder in the policy path for ${tool}, got ${row.path}`);
+    }
     const positive = await apiFetchInPage(adminPage, row.method, path);
     lines.push(`${tool}: granted=${allowed.outcome} ungranted=${denied.outcome} all-scope(ungranted)=${positive.status}`);
     if (denied.outcome === "ok") {
