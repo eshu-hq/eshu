@@ -54,8 +54,11 @@ lineage for the id. The route reads exactly one:
 - With `scope_id`, it reads that scope's lineage. A `scope_id` outside the
   caller's grant returns `service_not_found`, the same answer as a scope that
   holds nothing.
-- Without `scope_id`, a single lineage the caller may read is served. More than
-  one returns `409 Conflict` with error code `ambiguous`; `error.details`
+- Without `scope_id`, the route serves the one admitted lineage with an active
+  generation. A lineage with no active generation has nothing to diff against,
+  so it never makes an active one ambiguous. More than one admitted lineage
+  with an active generation (or, when none is active, more than one attributed
+  lineage) returns `409 Conflict` with error code `ambiguous`; `error.details`
   carries `status` (`ambiguous`), `service_id`, `scope_ids` (only the scope ids
   the caller may read, sorted, at most 20) and `truncated`. The route never
   picks one silently. Re-ask with one of the listed scope ids.

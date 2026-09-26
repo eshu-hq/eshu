@@ -38,10 +38,15 @@ failed; the run exited 1.
   caller.
 - `scope_id` selector: `($2 = '' OR g.scope_id = $2)`, inside the same grant
   predicate, so an ungranted selector resolves nothing.
-- Choice: one admitted attributed lineage is served; more than one, with no
-  selector, returns `AmbiguousScopeIDs` (sorted, at most
-  `MaxServiceScopeCandidates` = 20, plus a truncated flag) and no diff. The
-  handler answers 409 with error code `ambiguous`.
+- Choice: attributed lineages with an active generation decide first; one is
+  served, and more than one, with no selector, returns `AmbiguousScopeIDs`
+  (sorted, at most `MaxServiceScopeCandidates` = 20, plus a truncated flag)
+  and no diff. A lineage with no active generation never makes an active one
+  ambiguous; only when none is active do several attributed lineages
+  conflict. The handler answers 409 with error code `ambiguous`.
+  `TestSelectServiceChangedSinceLineageCoversEveryBranch` pins every branch;
+  dropping the scoped-caller guard on the legacy branch turns two of its cases
+  red.
 - Unattributed lineage: served only to an unscoped caller and only when no
   attributed lineage has an active generation (an attributed chain holding
   only superseded generations does not shadow it). Part A's writer never supersedes a NULL-scope
