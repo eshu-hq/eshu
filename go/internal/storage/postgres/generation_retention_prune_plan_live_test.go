@@ -114,6 +114,14 @@ VALUES ('empty-'||$1, 'scope-a', 'gen-cand-1', $1, 'empty-'||$1, 'git', 'empty-'
 // database has none, and the previous NOT EXISTS shape then estimated one
 // retained row, chose a nested loop, and rescanned the retained facts once per
 // candidate key: minutes of work for a few thousand keys (#6809).
+//
+// The per-statement phase gets its RED power from the entities statement: on
+// the old SQL only the entities prune reliably outlives the 10s timeout (the
+// references prune took 9.0s and the files prune under 20s on a loaded laptop,
+// so they do not fail this test on their own). The second phase runs the
+// production row-count statement and a whole retention batch on the same cold
+// seed; the row-count statement did not stall cold when it was measured, so that
+// phase is a guard against a later regression, not a demonstrated RED.
 func TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive(t *testing.T) {
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	for _, table := range []string{"fact_records", "content_entities", "content_files", "content_file_references"} {
@@ -153,6 +161,76 @@ func TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive(t *t
 			t.Errorf("cold prune %s deleted %d rows, want %d", name, deleted, wantDeleted)
 		}
 		t.Logf("cold prune %s: %d rows in %s", name, deleted, time.Since(start))
+	}
+	assertGenerationRetentionColdBatch(t, ctx, database, keys)
+}
+
+// assertGenerationRetentionColdBatch runs the production row-count statement
+// and then a whole PruneSupersededGenerations batch on the cold seed, each under
+// a 20s deadline, and checks the per-generation counts and the rows the batch deletes.
+func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, database *sql.DB, keys int) {
+	t.Helper()
+	batchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	candidates := make([]string, 0, 10)
+	for g := 1; g <= 10; g++ {
+		candidates = append(candidates, fmt.Sprintf("gen-cold-%d", g))
+	}
+	store := NewGenerationRetentionStore(SQLDB{DB: database})
+	tx, err := SQLDB{DB: database}.Begin(batchCtx)
+	if err != nil {
+		t.Fatalf("begin row count: %v", err)
+	}
+	start := time.Now()
+	counted, perGeneration, _, err := store.countRows(batchCtx, tx, candidates)
+	_ = tx.Rollback()
+	if err != nil {
+		t.Fatalf("cold row counts did not finish inside 20s without planner statistics: %v", err)
+	}
+	t.Logf("cold row counts: %d tables in %s", len(counted), time.Since(start))
+	// Every pruned generation holds all keys, and keys with key%10 >= 6 exist only
+	// in the pruned generations. The count attributes a content row to each
+	// generation whose facts name it, so each generation reports the rows the
+	// prunes will delete and the batch total is the per-generation sum.
+	doomed := int64(keys * 4 / 10)
+	wantPerGeneration := map[string]int64{
+		"fact_records":            int64(keys * 2),
+		"content_entities":        doomed,
+		"content_files":           doomed,
+		"content_file_references": doomed * 3,
+	}
+	for _, generation := range candidates {
+		for table, wantCount := range wantPerGeneration {
+			if got := perGeneration[generation][table]; got != wantCount {
+				t.Errorf("cold row count for %s in %s = %d, want %d", table, generation, got, wantCount)
+			}
+		}
+	}
+	start = time.Now()
+	result, err := store.PruneSupersededGenerations(batchCtx, GenerationRetentionPolicy{
+		MinSupersededGenerations: 0,
+		MaxSupersededAge:         time.Hour,
+		BatchGenerationLimit:     10,
+		BatchRowLimit:            10_000_000,
+		PolicyScope:              "global",
+		PolicyRevision:           "6809-cold-batch",
+	})
+	if err != nil {
+		t.Fatalf("cold retention batch did not finish inside 20s without planner statistics: %v", err)
+	}
+	t.Logf("cold retention batch: %d generations in %s", result.GenerationsPruned, time.Since(start))
+	if result.GenerationsPruned != 10 {
+		t.Errorf("GenerationsPruned = %d, want 10", result.GenerationsPruned)
+	}
+	wantPruned := map[string]int64{"content_entities": doomed, "content_files": doomed, "content_file_references": doomed * 3}
+	for table, wantCount := range wantPruned {
+		if result.RowsPruned[table] != wantCount {
+			t.Errorf("batch pruned %d %s rows, want %d", result.RowsPruned[table], table, wantCount)
+		}
+		// The batch total the row limit sees never undercounts what is deleted.
+		if counted[table] < result.RowsPruned[table] {
+			t.Errorf("row count for %s = %d is below the %d rows pruned", table, counted[table], result.RowsPruned[table])
+		}
 	}
 }
 

@@ -95,7 +95,8 @@ superseded generations of 5,000 keys; 5x is 25,000 keys per generation.
 | content_file_references | 5x | cold | 663 ms | 196 ms |
 | content_file_references | 5x | warm | 569 / 521 ms | 522 / 576 ms |
 
-Warm 5x is within noise of the old shape or about 10-30% slower; that is the cost
+Warm 5x is within noise of the old shape or up to about 35% slower (content_files:
+595 / 669 ms against 444 / 509 ms); that is the cost
 of always reading every live fact of the kind once. One stale-statistics shape (5x,
 `ANALYZE` at 138k rows, then about 500k rows added) showed no cliff for either
 shape (old 1,112 / 782 / 791 ms, grouped 624 / 686 / 642 ms); that is one shape,
@@ -140,10 +141,20 @@ and the new statements, which is what pins the semantics.
   one snapshot as before, but a retention delete racing an ingester re-upsert of the
   same entity was not exercised.
 - The row-count statement carries the same prunable-key predicate and was not
-  rewritten. One cold run on the test shape (10 generations of 6,000 keys, no
-  `ANALYZE`) returned all 13 table counts in 442ms, so no cliff reproduced there.
-  That is one shape on a laptop; it is not a proof for other shapes, and no test
-  enrolls it.
+  rewritten. On the cold test shape (10 generations of 6,000 keys, no `ANALYZE`)
+  it returned all 13 table counts in 316-340ms, and a whole
+  `PruneSupersededGenerations` batch through the production store finished in
+  1.16-1.22s; `TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive`
+  runs both under a 20s deadline. No cliff reproduced, so that phase guards
+  against a regression rather than showing a RED. One cold shape on a laptop
+  is not a proof for other shapes.
+- The row count attributes a content row to every candidate generation whose facts
+  name it, so on this shape each generation reports 2,400 doomed entities and the
+  batch total is 24,000 against the 2,400 rows the batch deletes. `RowsPruned`
+  reports the deleted rows, but the batch row limit and the per-generation event
+  `row_counts` see the larger figure. That behavior predates this change and is
+  unchanged here; the test pins the per-generation counts and that the total never
+  falls below the rows deleted.
 
 No-Observability-Change: the three statements return the same rows-affected
 counts into the same `RowsPruned` entries as before, so the
