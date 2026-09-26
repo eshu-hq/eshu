@@ -77,6 +77,16 @@ If the shared `ProjectorWorkHeartbeater` reports `projector.ErrWorkSuperseded`,
 the worker records `status=superseded` and returns to the claim loop without
 acking or failing the stale generation.
 
+A claim that returns `failure.ErrWorkClaimConflict` (the queue's bounded
+`40P01`/`40001` retries ran out) is logged as
+`failure_class=projector_claim_conflict`, waited out for 500ms, and retried by
+`claimProjectorWork`, like `projector.Service`. The retry is bounded: after 20
+consecutive conflicting Claim calls (`maxConsecutiveClaimConflicts`; a success
+or a drained result resets the count) the run fails with an error wrapping the
+last conflict and naming the count, so a persistent conflict cannot hang the
+one-shot. Every other Claim error still ends the run immediately. See
+`evidence-7122-claim-conflict.md`.
+
 The `drainingWorkSource` wrapper converts between two modes: while the
 collector goroutine is running, an empty queue triggers a 500ms poll-wait and
 retry; once `collectorDone` is closed, `maxEmptyPolls` (5) consecutive empty
@@ -217,7 +227,8 @@ endpoint.
 | Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration`, `collector_kind=bootstrap-index` |
 | Metric | `eshu_dp_content_entity_emitted_total` | `instruments.ContentEntityEmitted`, `source_file_kind` × `collector_kind=bootstrap-index` — per-file-kind content-entity volume (#3678) |
 | Metric | `eshu_dp_bootstrap_pipeline_phase_seconds` | `instruments.BootstrapPipelinePhaseDuration`, `bootstrap_phase` × `collector_kind=bootstrap-index` — per-phase wall time (#3678) |
-| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` |
+| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector`; recorded per Claim call, so the conflict wait is not included (#7122) |
+| Metric | `eshu_dp_queue_claim_conflict_retries_total` | `postgres.ProjectorQueue.Instruments` (wired in `wiring.go`), `queue=projector` × `failure_class` — claim statements retried after `40P01`/`40001`; a claim that exhausts them logs `failure_class=projector_claim_conflict` (#7122); wiring `Instruments` also lets the queue emit `eshu_dp_projector_retry_surge_total` from bootstrap-index |
 | Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` |
 | Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` |
 | Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
@@ -522,34 +533,8 @@ Fail path (`isolateBootstrapProjectorFailure`) instead of canceling the shared
 worker context. Previously one slow/timed-out canonical write aborted the whole
 run and orphaned claimed work.
 
-Performance Evidence: reproduced on a full local compose run of 909 repositories
-against the NornicDB branch build (arm64-metal-bge, orneryd/NornicDB#230),
-runtime `v0.0.3-pre-release-17`, filesystem repo source. Baseline (pre-fix): a
-single `structural_edges` Helm `REFERENCES` MERGE hit the 30s
-`ESHU_CANONICAL_WRITE_TIMEOUT`, canceled the shared context, failed all 8
-projector workers, and crashed bootstrap-index at ~repo 87; projection
-throughput fell from ~3 items/min to 0 and stayed there, with 155 `source_local`
-work items stuck in-flight (leases expired, never reclaimed) and 0 dead-letters
-(`get_ingester_status` `work_item_status_counts`; `oldest_inflight` grew
-620s→2451s). After: per-item failures route to `WorkSink.Fail`, the run drains
-to completion, and failed items land in retry/dead-letter instead of wedging.
-
-No-Regression Evidence: the happy path is unchanged —
-`isolateBootstrapProjectorFailure` runs only on a work-item error; a
-fully-succeeding drain calls `Ack` on every item exactly as before.
-`go test ./cmd/bootstrap-index -race` green; `make pre-pr` all gates pass.
-
-Observability Evidence: failed items are now visible as `retrying`/`dead_letter`
-rows in `fact_work_items` (and via `get_ingester_status` `domain_backlogs`) plus
-the existing `bootstrap projection failed` structured log
-(`failure_class=projection_failure`), replacing a bootstrap-index process crash
-that produced no queue signal. No new metric is introduced.
-
-Why safe: mirrors the continuous projector (`internal/projector`
-`Service.processWork`) failure-isolation pattern; only a Claim failure or a
-`Fail`-path write failure remains fatal; genuine shutdown cancellation is not
-dead-lettered. Backend: NornicDB (default). Terminal state after fix: queue
-drains; failures bounded to retry/dead-letter.
+Evidence (performance, no-regression, observability, why safe) lives in
+`evidence-4464-per-item-failure-isolation.md`.
 
 Two residual gaps in the same issue — the intra-materialization entity-phase
 chunk fan-out sharing a cancelable context one level below this fix, and

@@ -77,7 +77,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_queue_source_depth` | Queue depth by queue, source system, and status. |
 | `eshu_dp_queue_source_oldest_age_seconds` | Oldest queued item age by queue and source system. |
 | `eshu_dp_queue_claim_duration_seconds` | Queue claim latency. |
-| `eshu_dp_queue_claim_conflict_retries_total` | Claim statements retried after a Postgres deadlock (`40P01`) or serialization failure (`40001`), by `queue` and `failure_class`. The projector claim takes every row lock with `SKIP LOCKED`, so a sustained nonzero rate is worth investigating as a possible new lock-order conflict (#7108). |
+| `eshu_dp_queue_claim_conflict_retries_total` | Claim statements retried after a Postgres deadlock (`40P01`) or serialization failure (`40001`), by `queue` and `failure_class`. The projector claim takes every row lock with `SKIP LOCKED`, so a sustained nonzero rate is worth investigating as a possible new lock-order conflict (#7108). bootstrap-index emits it too since #7122; there the retry is bounded, and 20 consecutive conflicting claims fail the run. Wiring the queue instruments in bootstrap-index also makes `eshu_dp_projector_retry_surge_total` emit from it. |
 | `eshu_dp_worker_pool_active` | Active worker count by pool. |
 | `eshu_dp_collector_observe_duration_seconds` | Collector observe cycle cost. |
 | `eshu_dp_scope_assign_duration_seconds` | Repository or source scope assignment cost. |

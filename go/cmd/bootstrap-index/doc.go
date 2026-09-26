@@ -16,9 +16,16 @@
 // then drives the post-collection passes that the facts-first ordering
 // documented in AGENTS.md requires.
 // Projector work superseded by a newer same-scope generation exits that worker
-// item without acking stale graph state. Its canonical writer configuration
-// uses the same graph-property filtering and NornicDB phase-group policy as the
-// ingester path. NornicDB uses row-scoped batched entity containment by default
+// item without acking stale graph state. A transient claim conflict
+// (failure.ErrWorkClaimConflict after the queue's deadlock retries) is logged as
+// failure_class=projector_claim_conflict and retried after a short wait instead
+// of ending the run. The retry is bounded: 20 consecutive conflicting claims
+// (maxConsecutiveClaimConflicts) fail the run, and any other claim error still
+// ends it.
+//
+// The bootstrap-index canonical writer configuration uses the same
+// graph-property filtering and NornicDB phase-group policy as the ingester
+// path. NornicDB uses row-scoped batched entity containment by default
 // to keep bootstrap and steady-state projection on the same write contract, with
 // an explicit fallback toggle for measured comparisons against the older
 // file-scoped shape. The binary exits when the queue drains; it is not a
