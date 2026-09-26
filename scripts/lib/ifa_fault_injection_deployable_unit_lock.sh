@@ -363,6 +363,7 @@ ifa_deployable_unit_wait_for_blocked_claim() {
 		   deadline timestamptz := clock_timestamp() + make_interval(secs => wait_seconds);
 		 BEGIN
 		   LOOP
+		     PERFORM pg_stat_clear_snapshot();
 		     SELECT count(DISTINCT holder.pid) INTO holders
 		       FROM pg_catalog.pg_stat_activity AS holder
 		       JOIN pg_catalog.pg_locks AS held ON held.pid = holder.pid

@@ -108,6 +108,11 @@ _run_ifa_deployable_unit_blocked_claim_cases() {
 	require_deployable_unit_cells "kill cell waits for the readiness fence before its census" 'ifa_deployable_unit_wait_for_readiness_fence "killworkerdeployableunit"'
 	require_deployable_unit_cells_count "kill cell takes the census before isolation and again at kill time" 'ifa_deployable_unit_wait_for_blocked_claim "killworkerdeployableunit"' 2
 	require_deployable_unit_cells "kill cell asserts re-execution per killed work item" 'ifa_deployable_unit_assert_killed_claims_reexecuted "killworkerdeployableunit"'
+	# pg_stat_activity is snapshotted once per transaction, and the census loops
+	# inside one plpgsql call, so without a per-iteration clear it never sees a
+	# waiter that parks after the call starts (review of #7123, reproduced on
+	# postgres 16 and 18). The stubs cannot observe this, so pin the clear.
+	require_deployable_unit_lock_lib "census clears the pg_stat snapshot on every poll" "PERFORM pg_stat_clear_snapshot();"
 	[[ "$(_ifa_count_code_matches 'ifa_fault_wait_for_claimed' "${deployable_unit_cells_lib}")" -eq 0 ]] \
 		|| fail "deployable-unit kill cell still accepts any claimed/running row as a blocked claim"
 	[[ "$(_ifa_count_code_matches '"${killed_retried}" -gt "${baseline_deployable_unit_retried}"' "${deployable_unit_cells_lib}")" -eq 0 ]] \
