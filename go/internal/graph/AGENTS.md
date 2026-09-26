@@ -109,6 +109,13 @@
   those, and `TestNeo4jEntityIDAnchorCoversEveryUIDWriter` fails otherwise
   (#7057). Then copy the label into the matching anchor list in
   `query/codemodel`.
+  Adding a label to `uidConstraintLabels` also flips
+  `HasUIDUniquenessConstraint`. If the label is in the entity-context anchor
+  list, `GetEntityContext` then anchors it on
+  `e.uid = $entity_id AND e.id = $entity_id` (#7089). That fast path finds only
+  nodes written with id == uid. An id-only node, or one whose id differs from
+  its uid, falls through to the unlabeled whole-graph fallback, so the writer
+  must keep id == uid (or leave id unset).
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

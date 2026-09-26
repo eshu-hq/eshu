@@ -381,6 +381,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/entity/context_uid_anchor_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
   - file: go/internal/query/entity/nornicdb_answer_truth_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
@@ -244,24 +245,44 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
 }
 
-// entityContextAnchors returns GetEntityContext's anchor patterns in try
-// order: one single-label pattern per EntityContextAnchorLabels entry, then
-// the unlabeled pre-#7006 pattern as the exact-answer fallback.
+// entityContextAnchors returns GetEntityContext's anchor clauses in try
+// order: one single-label clause per EntityContextAnchorLabels entry, then
+// the unlabeled pre-#7006 clause as the exact-answer fallback.
+//
+// A label whose schema carries a uid uniqueness constraint
+// (graph.HasUIDUniquenessConstraint) anchors on
+// `e.uid = $entity_id AND e.id = $entity_id` (issue #7089). Neo4j indexes
+// uid, not id, on those labels, so the plain `e.id = $entity_id` read was a
+// NodeByLabelScan over every node of the label (about 1.08M db hits for the
+// first, Function, read on ops-qa), while the uid equality plans as a
+// NodeUniqueIndexSeek (under 110 db hits). The id
+// equality stays in the predicate, so a clause matches only nodes the old
+// `e.id = $entity_id` read matched: a File carries a uid but no id and must
+// still not match. Canonical code entities are written with id == uid, so
+// the uid seek drops no node the id read found; a node on one of these
+// labels whose id differs from its uid would still resolve through the
+// unlabeled fallback, which keeps the plain id anchor. Labels with no uid
+// constraint (Repository, Workload and WorkloadInstance are id-constrained;
+// Directory is keyed by path) keep `e.id = $entity_id`.
 func entityContextAnchors() []string {
 	anchors := make([]string, 0, len(EntityContextAnchorLabels)+1)
 	for _, label := range EntityContextAnchorLabels {
-		anchors = append(anchors, "(e:"+label+")")
+		if graph.HasUIDUniquenessConstraint(label) {
+			anchors = append(anchors, "(e:"+label+") WHERE e.uid = $entity_id AND e.id = $entity_id")
+			continue
+		}
+		anchors = append(anchors, "(e:"+label+") WHERE e.id = $entity_id")
 	}
-	return append(anchors, "(e)")
+	return append(anchors, "(e) WHERE e.id = $entity_id")
 }
 
-// entityContextCypher renders GetEntityContext's read for one anchor pattern.
-// Everything after the anchor is the pre-#7006 statement: file/repo
-// enrichment through the Repository that REPO_CONTAINS the entity's File,
-// with the scoped grant applied to that Repository.
+// entityContextCypher renders GetEntityContext's read for one anchor clause
+// from entityContextAnchors. Everything after the anchor is the pre-#7006
+// statement: file/repo enrichment through the Repository that REPO_CONTAINS
+// the entity's File, with the scoped grant applied to that Repository.
 func entityContextCypher(anchor string, access querycontract.RepositoryAccessFilter) string {
 	cypher := `
-		MATCH ` + anchor + ` WHERE e.id = $entity_id
+		MATCH ` + anchor + `
 	`
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)

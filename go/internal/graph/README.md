@@ -152,6 +152,11 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   fingerprints that graph-writing runtimes check before startup.
 - `SchemaApplication` — durable schema marker payload written after successful
   bootstrap.
+- `HasUIDUniquenessConstraint(label string) bool` — reports whether
+  `uidConstraintLabels` gives a label its `<label>_uid_unique` constraint, which
+  every backend applies. Readers use it to pick the by-id reads that can anchor
+  on the uid index. `GetEntityContext` anchors those labels on
+  `e.uid = $entity_id AND e.id = $entity_id` (#7089).
 - NornicDB receives `nornicdb_function_legacy_id_lookup` on `Function.id` so
   relationship stories can resolve a legacy-ID-only Function without scanning
   the full Function label.

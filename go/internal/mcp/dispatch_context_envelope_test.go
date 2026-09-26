@@ -181,7 +181,7 @@ func (overLimitEntityContextGraphReader) Run(_ context.Context, _ string, _ map[
 }
 
 func (overLimitEntityContextGraphReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-	if !strings.Contains(cypher, "WHERE e.id = $entity_id") {
+	if !strings.Contains(cypher, "e.id = $entity_id") {
 		return nil, nil
 	}
 	relationships := make([]any, 60)
@@ -205,7 +205,7 @@ func (overLimitEntityContextGraphReader) RunSingle(_ context.Context, cypher str
 
 func (contextEnvelopeGraphReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 	switch {
-	case strings.Contains(cypher, "WHERE e.id = $entity_id"):
+	case strings.Contains(cypher, "e.id = $entity_id"):
 		return map[string]any{
 			"id":            "entity-1",
 			"labels":        []any{"Function"},

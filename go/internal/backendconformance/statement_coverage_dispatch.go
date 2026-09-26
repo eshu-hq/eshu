@@ -20,9 +20,39 @@ func unlabeledAnchorText(text string) string {
 	return singleLabelAnchor.ReplaceAllString(text, "MATCH (${1}) ")
 }
 
+// uidSeekConjunct matches the uid index-seek conjunct a uid-anchored
+// per-label read renders ahead of its id predicate:
+// `v.uid = $p AND v.id = $p`. RE2 has no backreferences, so the two
+// variables and the two parameters are captured separately and
+// foldUIDSeekConjunct compares them.
+var uidSeekConjunct = regexp.MustCompile(`\b(\w+)\.uid = (\$\w+) AND (\w+)\.id = (\$\w+)`)
+
+// foldUIDSeekConjunct rewrites every uid index-seek conjunct
+// `v.uid = $p AND v.id = $p` in text to the id predicate `v.id = $p` that it
+// implies (#7089): the uid equality only steers the read to the uniquely
+// indexed property, and canonical nodes carry id == uid. A conjunct whose two
+// sides name different variables or different parameters is not a seek on one
+// node's id, so it is left unchanged, as are uid-only and OR predicates.
+func foldUIDSeekConjunct(text string) string {
+	return uidSeekConjunct.ReplaceAllStringFunc(text, func(match string) string {
+		parts := uidSeekConjunct.FindStringSubmatch(match)
+		if parts[1] != parts[3] || parts[2] != parts[4] {
+			return match
+		}
+		return parts[1] + ".id = " + parts[2]
+	})
+}
+
+// familyKeyText returns the canonical text two sibling reads share when they
+// are one logical read: the leading single-label anchor stripped and the uid
+// index-seek conjunct folded to the id predicate it implies.
+func familyKeyText(text string) string {
+	return foldUIDSeekConjunct(unlabeledAnchorText(text))
+}
+
 // labelDispatchFamilies maps every read text that the recordings prove is
 // one member of a same-parameter sibling read to that read's family key,
-// its unlabeled anchor text. The "dispatch" in the name (and in the
+// its canonical anchor text (see familyKeyText). The "dispatch" in the name (and in the
 // DispatchMisses field and the dispatch-miss report line) is the motivating
 // case, not the only shape the rule groups.
 //
@@ -34,6 +64,13 @@ func unlabeledAnchorText(text string) string {
 // any one id, every label tried before the owning label misses by
 // construction, so judging each label text as its own read would call those
 // structural misses always-empty.
+//
+// The key also folds a uid index-seek conjunct `v.uid = $p AND v.id = $p` to
+// `v.id = $p` (#7089): labels with a uid uniqueness constraint render the
+// seek, the rest render the id predicate alone, and the two are one logical
+// read, so a single exemption keyed by the id-only text covers both. The
+// trade-off is the fan-out one below: a uid-and-id member that misses while
+// an id-only sibling hits is visible only as an advisory dispatch miss.
 //
 // Membership is proven from the recordings, never declared: two or more
 // distinct texts that share an unlabeled anchor text AND were executed with
@@ -61,7 +98,7 @@ func labelDispatchFamilies(records []DifferentialRecord) map[string]string {
 			continue
 		}
 		text := normalizeCoverageText(record.Fingerprint.Statement)
-		key := call{family: unlabeledAnchorText(text), parameters: record.Fingerprint.Parameters}
+		key := call{family: familyKeyText(text), parameters: record.Fingerprint.Parameters}
 		texts, ok := textsByCall[key]
 		if !ok {
 			texts = make(map[string]struct{})

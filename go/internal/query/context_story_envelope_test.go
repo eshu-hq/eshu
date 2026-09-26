@@ -79,7 +79,7 @@ func TestGetEntityContextReturnsEnvelopeWhenRequested(t *testing.T) {
 	handler := &EntityHandler{
 		Neo4j: fakeGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				if !strings.Contains(cypher, "WHERE e.id = $entity_id") {
+				if !strings.Contains(cypher, "e.id = $entity_id") {
 					t.Fatalf("RunSingle cypher = %q, want entity lookup", cypher)
 				}
 				if got, want := params["entity_id"], "entity-1"; got != want {
