@@ -30,7 +30,12 @@ package postgres
 // Nothing else may lock or update that table, no table may reference it, and
 // this statement must not lock ingestion_scopes. Paths that only remove or
 // renew an existing lease (Ack, Fail, retry, reclaim, heartbeat) do not touch
-// the fence.
+// the fence. Fence rows come from the ingestion_scopes AFTER INSERT trigger and
+// the migration 126 backfill; a scope without one is unclaimable, which
+// eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into
+// the table must carry a NOT EXISTS guard, because INSERT ... ON CONFLICT waits
+// on an in-flight bump of the conflicting row. The claim itself must never
+// insert fence rows.
 const claimProjectorWorkQuery = `
 WITH source_scoped_projector_work AS (
     SELECT work.work_item_id,

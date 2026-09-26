@@ -78,7 +78,10 @@
   `FOR NO KEY UPDATE ... SKIP LOCKED`, repeating the row-self predicates for the
   EvalPlanQual recheck, and updates only the locked ids (#7108). Never add a
   blocking multi-row UPDATE to the claim: concurrent claimers deadlocked (40P01)
-  on one. Keep the stale-generation coalescing CTEs together; they move older
+  on one. #7115: the claim locks and bumps the scope's `projector_scope_claim_fences`
+  row and must never lock `ingestion_scopes`; nothing else may write that table or
+  reference it. Follow the protocol invariant in `claimProjectorWorkQuery`'s doc
+  comment and `docs/internal/evidence/7115-projector-claim-scope-fence.md`. Keep the stale-generation coalescing CTEs together; they move older
   same-scope projector rows and pending or failed `scope_generations` to `superseded` so durable snapshot history
   remains available without reprocessing obsolete local polling generations or
   reporting superseded terminal failures as current health.
