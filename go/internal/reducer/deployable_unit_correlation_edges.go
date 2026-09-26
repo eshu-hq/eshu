@@ -117,34 +117,25 @@ func deployableUnitCanonicalReposReady(
 	}
 }
 
-// checkDeployableUnitResolutionReadiness defers the intent while the resolved
-// set it would read is partial: first the own-generation check, then the
-// corpus-wide fence covering the foreign scopes the own check cannot see.
-// Both defer with the same non-counting retry class, because success on a
-// partial input is never reopened (#6184).
-func checkDeployableUnitResolutionReadiness(
+// deployableUnitCorpusFenceDeferral defers the intent while the corpus fence
+// the resolved read ran under does not hold: a fence lookup failure travels
+// as the deferral cause, an incomplete corpus names its holding scopes. Both
+// use the same non-counting retry class, because success on a partial input
+// is never reopened (#6184). The own-generation check runs before the read.
+func deployableUnitCorpusFenceDeferral(
 	ctx context.Context,
-	activeLookup maintenance.RelationshipGenerationActiveLookup,
-	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
 	incompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup,
 	intent Intent,
-	candidates []WorkloadCandidate,
+	read corpusFencedResolvedRead,
 ) error {
-	if !ownResolutionGenerationReady(activeLookup, intent, candidates) {
+	if read.fenceErr != nil {
 		return deployableUnitCorrelationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
+			cause:        read.fenceErr,
 		}
 	}
-	fenceReady, fenceErr := corpusResolutionsComplete(ctx, completeLookup, candidates)
-	if fenceErr != nil {
-		return deployableUnitCorrelationResolutionNotReadyError{
-			scopeID:      intent.ScopeID,
-			generationID: intent.GenerationID,
-			cause:        fenceErr,
-		}
-	}
-	if !fenceReady {
+	if !read.complete {
 		return deployableUnitCorrelationResolutionNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,

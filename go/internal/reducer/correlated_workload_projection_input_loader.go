@@ -108,6 +108,9 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// generation is inactive, because the by-repos resolved read merges
 	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
 	// the gate open for test wiring; main.go wires the Postgres lookup here.
+	// It is not consulted when ResolvedLoader implements
+	// CorpusFencedResolvedRelationshipLoader: that read carries its own
+	// same-snapshot verdict (#6740).
 	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
 	// IncompleteScopesLookup best-effort names the scopes holding the fence
 	// on a deferral, so the error is actionable instead of opaque (#6730).
@@ -151,19 +154,25 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		}
 	}
 	// The own-scope check cannot see foreign scopes, whose retired-or-pending
-	// generations would feed the by-repos read below a partial set. Defer on
-	// the corpus-wide fence with the same non-counting retry class; a fence
-	// lookup failure travels on the deferral so an outage never reads as
-	// healthy backpressure (#6730).
-	fenceReady, fenceErr := corpusResolutionsComplete(ctx, l.ResolutionsCompleteLookup, candidates)
-	if fenceErr != nil {
+	// generations would feed the by-repos read a partial set. Defer on the
+	// corpus-wide fence with the same non-counting retry class; a fence lookup
+	// failure travels on the deferral so an outage never reads as healthy
+	// backpressure (#6730). readCorpusFencedResolvedRelationships takes the
+	// fence verdict from the by-repos read's own statement snapshot when the
+	// store offers it (#6740), so no advance-and-complete cycle can slip
+	// between the verdict and the rows it admits.
+	read, err := readCorpusFencedResolvedRelationships(ctx, l.ResolvedLoader, l.ResolutionsCompleteLookup, intent, candidates)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
+	}
+	if read.fenceErr != nil {
 		return nil, nil, workloadMaterializationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
-			cause:        fenceErr,
+			cause:        read.fenceErr,
 		}
 	}
-	if !fenceReady {
+	if !read.complete {
 		return nil, nil, workloadMaterializationResolutionNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,
@@ -171,37 +180,9 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		}
 	}
 	if l.ResolvedLoader != nil {
-		resolved, err := loadWorkloadResolvedRelationships(ctx, l.ResolvedLoader, intent, candidates)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
-		}
-		candidates = applyResolvedDeploymentSources(candidates, resolved)
-		logDeploymentSourceGuardStats(ctx, string(intent.Domain), intent.ScopeID, intent.GenerationID, resolved)
-		candidates = applyResolvedProvisioningSources(candidates, resolved)
-		// Re-evaluate the corpus fence after the foreign read (#6730 Codex
-		// P1): the pre-read fence and this read are separate queries, so a
-		// scope that advances its active generation mid-pass would otherwise
-		// leave this pass succeeding on a mixed-corpus input that is never
-		// reopened. Success now requires the fence to hold across the whole
-		// pass. Residual window: a full advance-and-complete cycle inside one
-		// pass still needs snapshot isolation across fence and read — a store
-		// interface change the owner has not approved — so that narrower
-		// shape stays documented here rather than silently accepted.
-		fenceStillReady, fenceRecheckErr := corpusResolutionsComplete(ctx, l.ResolutionsCompleteLookup, candidates)
-		if fenceRecheckErr != nil {
-			return nil, nil, workloadMaterializationResolutionNotReadyError{
-				scopeID:      intent.ScopeID,
-				generationID: intent.GenerationID,
-				cause:        fenceRecheckErr,
-			}
-		}
-		if !fenceStillReady {
-			return nil, nil, workloadMaterializationResolutionNotReadyError{
-				scopeID:         intent.ScopeID,
-				generationID:    intent.GenerationID,
-				holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
-			}
-		}
+		candidates = applyResolvedDeploymentSources(candidates, read.resolved)
+		logDeploymentSourceGuardStats(ctx, string(intent.Domain), intent.ScopeID, intent.GenerationID, read.resolved)
+		candidates = applyResolvedProvisioningSources(candidates, read.resolved)
 	}
 
 	if l.ScopeResolver != nil {
@@ -223,6 +204,90 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		return nil, nil, err
 	}
 	return admitted, deploymentEnvironments, nil
+}
+
+// CorpusFencedResolvedRelationshipLoader returns the active resolved
+// relationships touching one or more repositories together with the
+// corpus-completeness fence verdict, both evaluated in ONE statement snapshot
+// (#6740). complete is false while any active scope's current relationship
+// generation is retired-or-pending (the shape
+// AreActiveScopeRelationshipGenerationsComplete reports); the rows are then
+// empty and must not be consumed. Because verdict and rows share a snapshot,
+// a scope that retires, re-resolves, and re-activates its generation while
+// the read runs is either wholly before or wholly after it, never mixed. An
+// empty repoIDs slice still evaluates the fence. Loaders preferred through
+// readCorpusFencedResolvedRelationships; stores without it keep the
+// two-statement fence and post-read recheck.
+type CorpusFencedResolvedRelationshipLoader interface {
+	GetResolvedRelationshipsForReposWithCorpusFence(
+		ctx context.Context,
+		repoIDs []string,
+	) ([]relationships.ResolvedRelationship, bool, error)
+}
+
+// corpusFencedResolvedRead is the merged own-scope plus by-repos resolved set
+// and the corpus fence verdict it was admitted under. fenceErr carries a
+// separate-statement fence lookup failure (a deferral cause, not a read
+// failure); it is always nil on the fused path, whose query error is a read
+// error.
+type corpusFencedResolvedRead struct {
+	resolved []relationships.ResolvedRelationship
+	complete bool
+	fenceErr error
+}
+
+// readCorpusFencedResolvedRelationships loads the resolved relationships a
+// workload or deployable-unit pass consumes, gated on the corpus fence. With
+// a CorpusFencedResolvedRelationshipLoader and a non-empty candidate set, the
+// fence verdict comes from the by-repos read's own statement (#6740) and the
+// separate lookup is never consulted. Otherwise the fence is checked before
+// the read and re-checked after it (#6730); that fallback still has the
+// residual window a full advance-and-complete cycle between the two checks
+// slips through, which is why the production store implements the fused
+// method (defaults wiring asserts it). A nil loader reads nothing and only
+// evaluates the fence. The own-generation check is the caller's job and
+// must run first.
+func readCorpusFencedResolvedRelationships(
+	ctx context.Context,
+	loader ResolvedRelationshipLoader,
+	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
+	intent Intent,
+	candidates []WorkloadCandidate,
+) (corpusFencedResolvedRead, error) {
+	if fenced, ok := loader.(CorpusFencedResolvedRelationshipLoader); ok && len(candidates) > 0 {
+		resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
+		if err != nil {
+			return corpusFencedResolvedRead{}, err
+		}
+		repoResolved, complete, err := fenced.GetResolvedRelationshipsForReposWithCorpusFence(
+			ctx, workloadCandidateRepoIDs(candidates),
+		)
+		if err != nil {
+			return corpusFencedResolvedRead{}, err
+		}
+		if !complete {
+			return corpusFencedResolvedRead{}, nil
+		}
+		return corpusFencedResolvedRead{
+			resolved: mergeResolvedRelationships(resolved, repoResolved),
+			complete: true,
+		}, nil
+	}
+	complete, err := corpusResolutionsComplete(ctx, completeLookup, candidates)
+	if err != nil || !complete || loader == nil {
+		return corpusFencedResolvedRead{complete: complete && err == nil, fenceErr: err}, nil
+	}
+	resolved, err := loadWorkloadResolvedRelationships(ctx, loader, intent, candidates)
+	if err != nil {
+		return corpusFencedResolvedRead{}, err
+	}
+	// Re-evaluate after the foreign read (#6730 Codex P1): success requires
+	// the fence to hold across the whole pass on this two-statement path.
+	complete, err = corpusResolutionsComplete(ctx, completeLookup, candidates)
+	if err != nil || !complete {
+		return corpusFencedResolvedRead{fenceErr: err}, nil
+	}
+	return corpusFencedResolvedRead{resolved: resolved, complete: true}, nil
 }
 
 func loadWorkloadResolvedRelationships(
