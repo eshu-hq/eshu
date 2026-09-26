@@ -33,7 +33,7 @@ CREATE TABLE ingestion_scopes (
     payload             JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
--- migration 126 (#7115): the projector claim joins, locks and bumps a fence
+-- migration 130 (#7115): the projector claim joins, locks and bumps a fence
 -- row per scope; the trigger creates it for every inserted scope.
 CREATE TABLE projector_scope_claim_fences (
     scope_id TEXT PRIMARY KEY REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,

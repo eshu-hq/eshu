@@ -30,7 +30,7 @@ run were:
 
 ## Change
 
-**Migration 126** adds the table `projector_scope_claim_fences`:
+**Migration 130** adds the table `projector_scope_claim_fences`:
 
 - `scope_id` is the primary key and references `ingestion_scopes`, `ON DELETE
   CASCADE`. `fence` is a `BIGINT`.
@@ -153,7 +153,7 @@ exit 0 at 993ad47186, at cf652057b7, and again after the rebase onto main.
 | `TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy` | old SQL and swapped clauses: fail | skipped scope's fence row is free; claimed scope's fence row is locked (55P03); its scope row is free |
 | `TestProjectorClaimFenceRowLifecycle` | old SQL: no bump; trigger removed: no row | upsert creates the row, re-upsert keeps it, direct insert plus `Enqueue` is claimable, delete cascades |
 | `TestProjectorClaimSkipsScopeWithoutFenceRow` | old SQL: claims gen-m | never claimed; gauge query returns 1 |
-| `TestProjectorScopeClaimFenceMigrationBackfills` | trigger removed from 126: fails | one row per scope; rerun is a no-op that keeps a bumped fence; the trigger fires afterwards |
+| `TestProjectorScopeClaimFenceMigrationBackfills` | trigger removed from 130: fails | one row per scope; rerun is a no-op that keeps a bumped fence; the trigger fires afterwards |
 | `TestProjectorClaimSortedLockStepMatchesWholePool` (differential against the whole-pool lock step derived from the shipped constant; states: key ties, expired lease, source with a live lease, busy first fence row, busy first work row, all busy) | differs if the outer ORDER BY is dropped (see Mutation probes) | same candidate in all six states |
 | `TestProjectorClaimSortedLockStepStopsAtFirstLockableRow` (live EXPLAIN ANALYZE; 30 ready scopes, first fence row held) | whole-pool lock step: Sort above the join, 30 probes | Limit -> LockRows -> Nested Loop, no Sort; fence and work probes 2 loops each; claims the second candidate |
 | hermetic `TestProjectorQueueClaimFencesTheScope`, `TestProjectorQueueClaimNeverLocksIngestionScopes`, `TestWholePoolClaimQueryDerivedFromShippedQuery` | old SQL: fails | pass |
@@ -189,7 +189,7 @@ After each mutation the files were restored and confirmed unchanged with
 | change only the subquery's ORDER BY keys | `SortedLockStepStopsAtFirstLockableRow`; the differential passes (see note 2) | killed |
 | change the subquery's keys and drop the outer ORDER BY | `SortedLockStepMatchesWholePool`, `SortedLockStepStopsAtFirstLockableRow`, `IgnoresIngestionHoldingScopeRow` | killed |
 | `LIMIT 1` inside the subquery | `SortedLockStepMatchesWholePool`, `SkipsBusyScopeWithoutWaiting`, `ScopeFenceExcludesCrossSnapshotClaim`, `FenceRowNeverMakesClaimersWait`, `LeavesFenceUnlockedWhenWorkRowBusy`, `LockRechecksRowsChangedAfterSnapshot`, `SortedLockStepStopsAtFirstLockableRow` | killed |
-| remove the trigger from migration 126 | `FenceRowLifecycle`, `MigrationBackfills`, `SkipsScopeWithoutFenceRow` and every claim test | killed |
+| remove the trigger from migration 130 | `FenceRowLifecycle`, `MigrationBackfills`, `SkipsScopeWithoutFenceRow` and every claim test | killed |
 
 Notes:
 
@@ -362,7 +362,7 @@ Existing signals still apply:
   The trigger, the backfill and the missing-fence gauge cover it.
 - **Behaviour change relative to fence2.** A scope whose `ingestion_scopes` row
   is held by ingestion is no longer deferred. This matches main before #7115.
-- **Migration 126 rollout lock.** `CREATE TABLE ... REFERENCES
+- **Migration 130 rollout lock.** `CREATE TABLE ... REFERENCES
   ingestion_scopes` and `CREATE TRIGGER` both take SHARE ROW EXCLUSIVE on
   `ingestion_scopes`, which conflicts with the ROW EXCLUSIVE lock any open
   ingestion writer holds. The migration runner (`applyTrackedDefinitions`)
@@ -381,6 +381,6 @@ Existing signals still apply:
     exhausted", and the Job's own retry tries again.
   - Migrations 093, 112 and 120 recreate triggers on `fact_work_items`, which
     carries the same exposure.
-- **Migration number.** The migration is numbered 126, after #6679's 125
-  (`shared_projection_acceptance_generation_key`). The embed ledger pins
-  147 definitions.
+- **Migration number.** The migration is numbered 130, after #6679's 125 and
+  #6475's 126-129 (the service materialization lineage scope). The embed
+  ledger pins 151 definitions.

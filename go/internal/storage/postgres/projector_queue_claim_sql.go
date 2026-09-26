@@ -30,7 +30,7 @@ package postgres
 // this statement must not lock ingestion_scopes. Paths that only remove or
 // renew an existing lease (Ack, Fail, retry, reclaim, heartbeat) do not touch
 // the fence. Fence rows come from the ingestion_scopes AFTER INSERT trigger and
-// the migration 126 backfill; a scope without one is unclaimable, which
+// the migration 130 backfill; a scope without one is unclaimable, which
 // eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into
 // the table must carry a NOT EXISTS guard, because INSERT ... ON CONFLICT waits
 // on an in-flight bump of the conflicting row. The claim itself must never

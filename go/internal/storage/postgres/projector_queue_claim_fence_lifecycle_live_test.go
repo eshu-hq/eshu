@@ -125,8 +125,8 @@ func TestProjectorClaimSkipsScopeWithoutFenceRow(t *testing.T) {
 }
 
 // TestProjectorScopeClaimFenceMigrationBackfills applies the bootstrap
-// definitions before migration 126, seeds scopes the way a pre-#7115 install
-// has them, then applies 126: every scope gets a fence row at 0, and applying
+// definitions before migration 130, seeds scopes the way a pre-#7115 install
+// has them, then applies 130: every scope gets a fence row at 0, and applying
 // it again changes nothing, including a fence a claim already bumped.
 func TestProjectorScopeClaimFenceMigrationBackfills(t *testing.T) {
 	dsn := claimMaintenanceProofDSN(t)
@@ -161,13 +161,13 @@ func TestProjectorScopeClaimFenceMigrationBackfills(t *testing.T) {
 		t.Fatal("bootstrap definitions have no projector_scope_claim_fences migration")
 	}
 	if err := ApplyDefinitions(ctx, SQLDB{DB: database}, defs[:fenceIndex]); err != nil {
-		t.Fatalf("apply definitions before 126: %v", err)
+		t.Fatalf("apply definitions before 130: %v", err)
 	}
 	seedClaimMaintenanceScopes(t, database, "scope-a", "scope-b", "scope-c")
 
 	fence := defs[fenceIndex : fenceIndex+1]
 	if err := ApplyDefinitions(ctx, SQLDB{DB: database}, fence); err != nil {
-		t.Fatalf("apply 126: %v", err)
+		t.Fatalf("apply 130: %v", err)
 	}
 	for _, scopeID := range []string{"scope-a", "scope-b", "scope-c"} {
 		if value, ok := fenceRow(t, database, scopeID); !ok || value != 0 {
@@ -178,7 +178,7 @@ func TestProjectorScopeClaimFenceMigrationBackfills(t *testing.T) {
 		t.Fatalf("bump fence: %v", err)
 	}
 	if err := ApplyDefinitions(ctx, SQLDB{DB: database}, fence); err != nil {
-		t.Fatalf("reapply 126: %v", err)
+		t.Fatalf("reapply 130: %v", err)
 	}
 	// Earlier migrations seed scopes of their own (115's global value-flow
 	// scope), so compare against every scope, not only the three seeded here.
