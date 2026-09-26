@@ -456,8 +456,9 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		attribute.String(telemetry.SpanAttrGraphReadQueryName, queryName),
 	)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr := redactedSpanError(err)
+		span.RecordError(spanErr)
+		span.SetStatus(codes.Error, spanErr.Error())
 	}
 
 	recordCtx := context.WithoutCancel(ctx)

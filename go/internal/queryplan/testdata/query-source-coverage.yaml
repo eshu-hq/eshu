@@ -507,7 +507,12 @@ source_coverage:
   - file: neo4j.go
     calls:
       - {symbol: "(*Neo4jReader).RelationshipTypes", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*Neo4jReader).RunSingle", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*Neo4jReader).RunSingle"
+        count: 1
+        non_hot:
+          class: delegated
+          source_sha256: ea0fe467c69252a32a4817b2c5b02f8ea38db0cd65f9f7cad732a8b1a9448b4d
+          delegate: graph_session
   - file: neo4j_read_policy.go
     calls:
       - symbol: "(*Neo4jReader).runReadAttempt"
