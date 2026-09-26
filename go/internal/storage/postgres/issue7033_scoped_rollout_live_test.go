@@ -108,6 +108,9 @@ func issue7033RolloutConfigFromEnv(getenv func(string) string) (issue7033Rollout
 	if !issue7033DecimalIdentifier(config.systemIdentifier) {
 		return issue7033RolloutConfig{}, fmt.Errorf("%s must be a decimal PostgreSQL system identifier", issue7033RolloutExpectedSystemIdentifierEnv)
 	}
+	if config.schema != "public" {
+		return issue7033RolloutConfig{}, fmt.Errorf("%s must be public for the schema-qualified catalog checks", issue7033RolloutExpectedSchemaEnv)
+	}
 	return config, nil
 }
 
@@ -131,6 +134,9 @@ func runIssue7033ScopedRollout(
 ) error {
 	if database == nil {
 		return errors.New("scoped rollout database is required")
+	}
+	if config.schema != "public" {
+		return errors.New("scoped rollout requires public schema")
 	}
 	if logger == nil {
 		logger = slog.Default()

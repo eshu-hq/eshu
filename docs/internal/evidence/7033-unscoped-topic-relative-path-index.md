@@ -112,15 +112,19 @@ The test container and its volume were removed afterward. This local receipt
 does not authorize using the deferred finalizer on a populated live database.
 
 The opt-in `issue7033_rollout` test runner selects only the embedded, checksum-
-matched migrations 126 and 127. It verifies the target system identifier,
-database, schema, primary role, prerequisite receipts and three exact existing
-GIN indexes in a read-only preflight. It applies tracked migration 126,
+matched migrations 126 and 127. It requires the `public` schema and verifies
+the target system identifier, database, current schema, primary role,
+prerequisite receipts and three exact existing GIN indexes in a read-only
+preflight. It applies tracked migration 126,
 checks the exact new index, then applies tracked migration 127 and checks the
 four-index readiness contract. On a disposable PostgreSQL 18.6 database, the
 runner applied those two migrations and retried idempotently. Wrong target,
-incomplete index state, and a mismatched prerequisite ledger receipt all
-failed before target DDL. The separate live regression also proved that
-migration 125 can remain unapplied during this scoped rollout and later be
+incomplete index state, a mismatched prerequisite ledger receipt, and a
+non-`public` search path all failed before target DDL. The cross-schema
+regression was red first: with `search_path=custom,public`, the unguarded
+runner created its index in `custom` before failing its `public` postcheck.
+The separate live regression also proved that migration 125 can remain
+unapplied during this scoped rollout and later be
 applied by normal bootstrap without reapplying 126 or 127.
 
 An opt-in `issue7033_canary_startup` test used disposable PostgreSQL and
@@ -128,7 +132,8 @@ Neo4j to prove a Neo4j-backed API starts with both backfill markers complete,
 disabled admin bootstrap and OIDC refresh, and a read-only PostgreSQL pool.
 Health, readiness, and the code-topic route returned HTTP 200; the attempted
 best-effort startup audit did not persist an event. This is local startup
-proof, not permission to create an ops-qa canary or a live after measurement.
+proof, not a live after measurement. The owner separately approved a temporary
+isolated ops-qa canary for that proof.
 
 ## Observability Evidence
 

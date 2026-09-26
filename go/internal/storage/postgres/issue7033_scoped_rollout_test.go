@@ -53,6 +53,22 @@ func TestIssue7033ScopedRolloutConfigRefusesMissingSafetyInputs(t *testing.T) {
 	}
 }
 
+func TestIssue7033ScopedRolloutConfigRefusesNonPublicSchema(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]string{
+		issue7033RolloutOptInEnv:                    issue7033RolloutOptInValue,
+		issue7033RolloutDSNEnv:                      "postgres://example.invalid/eshu",
+		issue7033RolloutExpectedSystemIdentifierEnv: "123",
+		issue7033RolloutExpectedDatabaseEnv:         "eshu",
+		issue7033RolloutExpectedSchemaEnv:           "custom",
+	}
+	_, err := issue7033RolloutConfigFromEnv(func(key string) string { return values[key] })
+	if err == nil || !strings.Contains(err.Error(), "public") {
+		t.Fatalf("non-public schema error = %v, want public-only refusal", err)
+	}
+}
+
 func TestIssue7033ScopedRolloutSelectsOnlyExactMigrations(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +124,40 @@ func TestIssue7033ScopedRolloutRejectsWrongTargetBeforeDDL(t *testing.T) {
 	err := runIssue7033ScopedRollout(ctx, database, config, issue7033TestLogger())
 	if err == nil || !strings.Contains(err.Error(), "target identity") {
 		t.Fatalf("runIssue7033ScopedRollout() error = %v, want target identity refusal", err)
+	}
+	assertMigrationReceipt(t, ctx, database, definitions[0], false)
+	assertMigrationReceipt(t, ctx, database, definitions[1], false)
+}
+
+func TestIssue7033ScopedRolloutRejectsNonPublicSearchPathBeforeDDL(t *testing.T) {
+	ctx, database, definitions := issue7033ScopedRolloutThrough124Live(t)
+	database.SetMaxOpenConns(1)
+	if _, err := database.ExecContext(ctx, "CREATE SCHEMA custom"); err != nil {
+		t.Fatalf("create distractor schema: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, "CREATE TABLE custom.content_files (relative_path text)"); err != nil {
+		t.Fatalf("create distractor content_files: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, "SET search_path = custom, public"); err != nil {
+		t.Fatalf("set non-public search path: %v", err)
+	}
+	config := issue7033RolloutTargetConfig(t, ctx, database)
+	if config.schema != "custom" {
+		t.Fatalf("current_schema = %q, want custom", config.schema)
+	}
+
+	err := runIssue7033ScopedRollout(ctx, database, config, issue7033TestLogger())
+	if err == nil || !strings.Contains(err.Error(), "public") {
+		t.Fatalf("runIssue7033ScopedRollout() error = %v, want public-only refusal", err)
+	}
+	var customIndexExists bool
+	if err := database.QueryRowContext(ctx,
+		"SELECT to_regclass('custom.content_files_relative_path_trgm_idx') IS NOT NULL",
+	).Scan(&customIndexExists); err != nil {
+		t.Fatalf("read distractor index: %v", err)
+	}
+	if customIndexExists {
+		t.Fatal("non-public search path created an index before refusing target")
 	}
 	assertMigrationReceipt(t, ctx, database, definitions[0], false)
 	assertMigrationReceipt(t, ctx, database, definitions[1], false)
