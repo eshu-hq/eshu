@@ -214,13 +214,18 @@
         }
       },
       {
-        "label": "who_modifies_pending_ledger",
+        "label": "who_modifies",
         "arguments": {
           "query_type": "who_modifies",
           "target": "sweepTarget",
           "repo_id": "$REPO",
           "limit": 5
-        }
+        },
+        "accept": [
+          "ok",
+          "not_found"
+        ],
+        "acceptReason": "target sweepTarget is not seeded: the fixture indexes no code entities"
       }
     ],
     "calculate_cyclomatic_complexity": [

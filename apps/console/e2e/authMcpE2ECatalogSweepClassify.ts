@@ -102,7 +102,7 @@ export function classifyToolCallOutcome(result: McpJsonRpcResult): { outcome: st
     return { outcome: "not_found", detail: truncate(text) };
   }
   // ask's default-off answer is a 503 whose body says ask is not enabled
-  // (askUnavailableResponse in go/internal/query/ask_handler.go). A 503 from a
+  // (askUnavailableResponse in go/internal/query/ask/handler.go). A 503 from a
   // broken backend or a failed engine carries a different reason, so it stays
   // http_503 and fails the sweep instead of passing as "default-off".
   if (status === "503" && /"state"\s*:\s*"unavailable"/.test(text) && /ask is not enabled/.test(text)) {

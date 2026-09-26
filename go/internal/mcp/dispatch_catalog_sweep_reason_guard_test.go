@@ -127,3 +127,23 @@ func catalogSweepStringArguments(value any) []string {
 		return nil
 	}
 }
+
+// catalogSweepLedgerLabelSuffix marks a case that was added to exercise a
+// scoped-token ledger route (pending row filtering or shared-key only).
+const catalogSweepLedgerLabelSuffix = "_pending_ledger"
+
+// catalogSweepLedgerLabelProblem reports why a case label that claims a ledger
+// route disagrees with the class the route policy derives. A route promoted off
+// a ledger (as POST /api/v0/code/relationships was in #7183) turns such a case
+// into an allowlisted row that must answer ok, so the label goes stale and the
+// live sweep fails on an unseeded subject with the Go suite still green. It
+// returns "" when the label makes no ledger claim or the class agrees.
+func catalogSweepLedgerLabelProblem(label, class string) string {
+	if !strings.HasSuffix(label, catalogSweepLedgerLabelSuffix) {
+		return ""
+	}
+	if class == catalogSweepClassPendingFiltered || class == catalogSweepClassSharedKeyOnly {
+		return ""
+	}
+	return "is labelled " + catalogSweepLedgerLabelSuffix + " but its route now derives as " + class + ", so the label is stale: rename the case and declare its own expected outcome"
+}

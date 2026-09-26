@@ -165,6 +165,9 @@ func TestCatalogSweepPolicy(t *testing.T) {
 				t.Errorf("tool %q case %q dispatches to %s %s, which no scoped-route ledger classifies", name, c.Label, route.Method, route.Path)
 				continue
 			}
+			if problem := catalogSweepLedgerLabelProblem(c.Label, class); problem != "" {
+				t.Errorf("tool %q case %q %s", name, c.Label, problem)
+			}
 			accept := c.Accept
 			switch class {
 			case catalogSweepClassAllowlisted:

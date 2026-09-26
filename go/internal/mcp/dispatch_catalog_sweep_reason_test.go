@@ -90,3 +90,34 @@ func TestAcceptReasonProblem(t *testing.T) {
 		})
 	}
 }
+
+// TestCatalogSweepLedgerLabelProblem is the seeded RED/GREEN pair for the guard
+// that stops a case labelled as a ledger row from outliving its ledger. The RED
+// case is the state #7183 left behind: a _pending_ledger label whose route now
+// derives as allowlisted.
+func TestCatalogSweepLedgerLabelProblem(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		label   string
+		class   string
+		wantErr bool
+	}{
+		{"RED ledger label on a promoted allowlisted route", "who_modifies_pending_ledger", catalogSweepClassAllowlisted, true},
+		{"GREEN ledger label on a pending-row-filtering route", "trace_pending_ledger", catalogSweepClassPendingFiltered, false},
+		{"GREEN ledger label on a shared-key-only route", "trace_pending_ledger", catalogSweepClassSharedKeyOnly, false},
+		{"GREEN unlabelled case on an allowlisted route", "who_modifies", catalogSweepClassAllowlisted, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := catalogSweepLedgerLabelProblem(tt.label, tt.class)
+			if (got != "") != tt.wantErr {
+				t.Fatalf("catalogSweepLedgerLabelProblem(%q, %q) = %q, wantErr %v", tt.label, tt.class, got, tt.wantErr)
+			}
+			if tt.wantErr && !strings.Contains(got, "stale") {
+				t.Fatalf("problem %q does not say the label is stale", got)
+			}
+		})
+	}
+}
