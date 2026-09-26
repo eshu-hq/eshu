@@ -10,9 +10,9 @@ import (
 
 // TestCheckRequiredStatusWorkflows_PinsMainPushFanInFilter proves the
 // aggregator's workflow_run trigger carries exactly the default-branch
-// exclusion (#7111 F8). A main push runs ~22 push workflows, each firing an
-// in_progress and a completed workflow_run event into one per-SHA concurrency
-// group; the job-level `if` skips them but only after concurrency cancels all
+// exclusion (#7111 F8). A main push runs ~21 of the listed workflows, each
+// firing an in_progress and a completed workflow_run event into one per-SHA
+// concurrency group; the job-level `if` skips them but only after concurrency cancels all
 // but the last pending run, so every main push buried the run list in
 // cancelled Required Gates rows. The exclusion drops that fan-in at the
 // trigger. Pull-request and merge-queue heads never run on `main`, so the

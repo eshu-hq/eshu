@@ -345,8 +345,9 @@ still carry Python source when they are not part of the deployable runtime.
 
 The `Required Gates` aggregate (`.github/workflows/required-gates.yml`)
 triggers on `workflow_run` with `branches-ignore: [main]`. A push to `main`
-runs about 25 push workflows, each firing an `in_progress` and a `completed`
-event, so each merge sent about 50 events into one per-SHA concurrency group
+runs about 25 push workflows. About 21 of them are among the workflows
+`Required Gates` listens to, and each fires an `in_progress` and a `completed`
+event, so each merge sent about 42 events into one per-SHA concurrency group
 that keeps only the latest pending run and cancels the rest. The aggregate job
 never publishes for a push, so those runs were pure noise; the filter drops
 them at the trigger ([#7111](https://github.com/eshu-hq/eshu/issues/7111)).

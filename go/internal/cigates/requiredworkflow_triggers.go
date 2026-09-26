@@ -54,8 +54,9 @@ func validateTrustedWorkflowTriggers(check RequiredStatusCheck, raw []byte) []er
 }
 
 // aggregatorIgnoredBranch is the only head branch the aggregator's workflow_run
-// trigger may exclude. A main push fans ~22 push workflows x {in_progress,
-// completed} into one per-SHA concurrency group (#7111 F8); the job-level `if`
+// trigger may exclude. A main push fans the ~21 listed workflows that run on
+// push x {in_progress, completed} into one per-SHA concurrency group
+// (#7111 F8); the job-level `if`
 // skips them, but concurrency has already cancelled all but the last pending
 // run, so each main push buried the run list in cancelled rows. The trigger
 // excludes them instead. Pull-request heads and merge-queue heads
