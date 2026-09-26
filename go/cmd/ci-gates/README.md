@@ -186,11 +186,19 @@ ci-gates await \
   --repo eshu-hq/eshu \
   --event merge_group \
   --base-ref main \
+  --merge-group-branch gh-readonly-queue/main/pr-<n>-<base-sha> \
   --head-sha <merge-group-commit>
 ```
 
-Changed paths come from a three-dot compare of `--base-ref` against the group
-commit, which also covers queued PRs ahead of this one; a compare at the API's
+`--merge-group-branch` is the source run's `head_branch` (the workflow passes
+`workflow_run.head_branch`). Its trailing SHA is the group's fixed parent
+commit, and `--base-ref` must match the branch's base segment. Changed paths
+come from a three-dot compare of that base SHA against the group commit, never
+against the moving `--base-ref` branch: once the queue merges the group,
+`main` is the group head and a compare against it is empty, which made a late
+run publish `error` on main's tip (#7281). A branch that carries no base SHA
+fails closed with its own error, and an empty diff against the real base still
+fails; neither selects zero gates and passes. A compare at the API's
 300-file cap selects every blocking gate, which is safe only because
 `ci-gates validate` requires every blocking job to run (never be SKIPPED) on
 `merge_group`. Check rows are the commit's check

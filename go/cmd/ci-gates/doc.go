@@ -43,8 +43,9 @@
 // that set and still publishes `failure`; separating the two is the one thing
 // await needs the `actions: read` scope for, and a failed lookup keeps the
 // skip a failure. With --event merge_group, Await instead aggregates a
-// merge-queue commit: changed paths from a three-dot compare against
-// --base-ref, and check rows from that commit's merge_group runs only.
+// merge-queue commit: changed paths from a three-dot compare against the
+// group's fixed base SHA (parsed from --merge-group-branch, validated against
+// --base-ref), and check rows from that commit's merge_group runs only.
 // Contexts exposes the repository-owned required-status manifest,
 // including pinned GitHub App integration IDs for live ruleset verification.
 //

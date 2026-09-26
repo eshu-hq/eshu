@@ -35,8 +35,9 @@ const mergeGroupCompareFileCap = 300
 // validateAwaitTarget checks the flag combination that identifies what is
 // being aggregated. A pull request needs its number; a merge group must not
 // carry one (it would name only the last PR of a possibly multi-PR group) and
-// needs the base branch its changes are diffed against.
-func validateAwaitTarget(event string, pr int, baseRef string) error {
+// needs the base branch it targets and the queue branch that carries its fixed
+// base SHA.
+func validateAwaitTarget(event string, pr int, baseRef, mergeGroupBranch string) error {
 	switch event {
 	case eventPullRequest:
 		if pr <= 0 {
@@ -49,6 +50,9 @@ func validateAwaitTarget(event string, pr int, baseRef string) error {
 		if strings.TrimSpace(baseRef) == "" {
 			return fmt.Errorf("--base-ref is required for --event %s", eventMergeGroup)
 		}
+		if strings.TrimSpace(mergeGroupBranch) == "" {
+			return fmt.Errorf("--merge-group-branch is required for --event %s", eventMergeGroup)
+		}
 	default:
 		return fmt.Errorf("--event must be %s or %s, got %q", eventPullRequest, eventMergeGroup, event)
 	}
@@ -56,21 +60,24 @@ func validateAwaitTarget(event string, pr int, baseRef string) error {
 }
 
 // runAwaitMergeGroup selects the blocking gates for everything the merge group
-// commit adds on top of baseRef and waits for their merge_group check rows.
+// commit adds on top of its fixed base SHA and waits for their merge_group
+// check rows.
 //
-// The diff is three-dot (merge base of baseRef and the group head), so it
-// covers every queued PR ahead of this one that has not reached baseRef yet.
-// That is a superset of what the leaf workflows see when they compute their
-// own selection earlier in the group's life, so the aggregate can never
-// demand a gate a workflow legitimately skipped.
+// The base is the group's parent commit, read from the queue branch name, not
+// the moving baseRef branch: once the queue merges the group, baseRef IS the
+// group head and a compare against it is empty (#7281). The diff is three-dot
+// (merge base of the base SHA and the group head), so a late run evaluates the
+// same diff the queue evaluated. The leaf workflows select every gate on
+// merge_group, so this selection can never demand a gate a workflow
+// legitimately skipped.
 func runAwaitMergeGroup(
 	ctx context.Context,
 	runner ghRunner,
 	reg *cigates.Registry,
-	root, repo, baseRef, headSHA string,
+	root, repo, baseRef, mergeGroupBranch, headSHA string,
 	pollInterval time.Duration,
 ) error {
-	paths, truncated, err := changedPathsForMergeGroup(ctx, runner, repo, baseRef, headSHA)
+	paths, truncated, err := mergeGroupChangedPaths(ctx, runner, repo, baseRef, mergeGroupBranch, headSHA)
 	if err != nil {
 		return err
 	}
@@ -84,14 +91,26 @@ func runAwaitMergeGroup(
 	return awaitMergeGroupRequiredChecks(ctx, runner, repo, headSHA, resolved, pollInterval, os.Stdout)
 }
 
-// changedPathsForMergeGroup lists the paths changed between baseRef and the
-// merge group head via the compare API. Renames contribute both names, as
+// mergeGroupChangedPaths resolves the group's fixed base SHA from its queue
+// branch and lists the paths changed since it. It fails closed, with an error
+// distinct from an empty diff, when the base SHA cannot be determined: falling
+// back to the moving baseRef would reintroduce the empty late-run compare.
+func mergeGroupChangedPaths(ctx context.Context, runner ghRunner, repo, baseRef, mergeGroupBranch, headSHA string) (paths []string, truncated bool, err error) {
+	baseSHA, err := mergeGroupBaseSHA(mergeGroupBranch, baseRef)
+	if err != nil {
+		return nil, false, err
+	}
+	return changedPathsForMergeGroup(ctx, runner, repo, baseSHA, headSHA)
+}
+
+// changedPathsForMergeGroup lists the paths changed between baseSHA (the
+// group's fixed parent commit) and the merge group head via the compare API. Renames contribute both names, as
 // changedPathsForPR does, so a gate triggered by the old path still runs.
-func changedPathsForMergeGroup(ctx context.Context, runner ghRunner, repo, baseRef, headSHA string) (paths []string, truncated bool, err error) {
-	endpoint := "repos/" + repo + "/compare/" + baseRef + "..." + headSHA
+func changedPathsForMergeGroup(ctx context.Context, runner ghRunner, repo, baseSHA, headSHA string) (paths []string, truncated bool, err error) {
+	endpoint := "repos/" + repo + "/compare/" + baseSHA + "..." + headSHA
 	output, err := runner.Run(ctx, "api", endpoint)
 	if err != nil {
-		return nil, false, fmt.Errorf("compare %s...%s: %w", baseRef, headSHA, err)
+		return nil, false, fmt.Errorf("compare %s...%s: %w", baseSHA, headSHA, err)
 	}
 	var comparison struct {
 		Files []struct {
@@ -100,7 +119,7 @@ func changedPathsForMergeGroup(ctx context.Context, runner ghRunner, repo, baseR
 		} `json:"files"`
 	}
 	if err := json.Unmarshal(output, &comparison); err != nil {
-		return nil, false, fmt.Errorf("decode compare %s...%s: %w", baseRef, headSHA, err)
+		return nil, false, fmt.Errorf("decode compare %s...%s: %w", baseSHA, headSHA, err)
 	}
 	seen := make(map[string]struct{})
 	for _, file := range comparison.Files {
@@ -120,7 +139,7 @@ func changedPathsForMergeGroup(ctx context.Context, runner ghRunner, repo, baseR
 		return paths, true, nil
 	}
 	if len(paths) == 0 {
-		return nil, false, fmt.Errorf("merge group %s has no changed paths against %s", headSHA, baseRef)
+		return nil, false, fmt.Errorf("merge group %s has no changed paths against base %s", headSHA, baseSHA)
 	}
 	return paths, false, nil
 }

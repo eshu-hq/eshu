@@ -41,18 +41,25 @@ func (r *endpointRunner) Run(_ context.Context, args ...string) ([]byte, error) 
 	return nil, fmt.Errorf("unexpected gh invocation: %s", joined)
 }
 
+// baseSHAFixture is the fixed parent commit of the merge group; queueBranchFixture
+// is the gh-readonly-queue branch GitHub names after it.
+const (
+	baseSHAFixture     = "23a97c2df01bfa8f66cdde7909c86ed87a0e552b"
+	queueBranchFixture = "gh-readonly-queue/main/pr-7275-" + baseSHAFixture
+)
+
 func TestChangedPathsForMergeGroupUsesThreeDotCompareAgainstBase(t *testing.T) {
 	t.Parallel()
 
 	runner := &endpointRunner{routes: map[string]string{
-		"compare/main..." + headSHAFixture: `{"files":[
+		"compare/" + baseSHAFixture + "..." + headSHAFixture: `{"files":[
 			{"filename":"go/internal/graph/a.go"},
 			{"filename":"docs/new.md","previous_filename":"docs/old.md"},
 			{"filename":"go/internal/graph/a.go"}
 		]}`,
 	}}
 
-	got, truncated, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", "main", headSHAFixture)
+	got, truncated, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", baseSHAFixture, headSHAFixture)
 	if err != nil {
 		t.Fatalf("changedPathsForMergeGroup: %v", err)
 	}
@@ -63,7 +70,7 @@ func TestChangedPathsForMergeGroupUsesThreeDotCompareAgainstBase(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("paths = %v; want %v", got, want)
 	}
-	wantCall := "api repos/eshu-hq/eshu/compare/main..." + headSHAFixture
+	wantCall := "api repos/eshu-hq/eshu/compare/" + baseSHAFixture + "..." + headSHAFixture
 	if len(runner.calls) != 1 || runner.calls[0] != wantCall {
 		t.Fatalf("calls = %v; want exactly [%s]", runner.calls, wantCall)
 	}
@@ -80,7 +87,7 @@ func TestChangedPathsForMergeGroupReportsTruncationAtTheCompareFileCap(t *testin
 		"compare/": `{"files":[` + strings.Join(files, ",") + `]}`,
 	}}
 
-	_, truncated, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", "main", headSHAFixture)
+	_, truncated, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", baseSHAFixture, headSHAFixture)
 	if err != nil {
 		t.Fatalf("changedPathsForMergeGroup: %v", err)
 	}
@@ -93,7 +100,7 @@ func TestChangedPathsForMergeGroupFailsOnAnEmptyDiff(t *testing.T) {
 	t.Parallel()
 
 	runner := &endpointRunner{routes: map[string]string{"compare/": `{"files":[]}`}}
-	if _, _, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", "main", headSHAFixture); err == nil {
+	if _, _, err := changedPathsForMergeGroup(context.Background(), runner, "eshu-hq/eshu", baseSHAFixture, headSHAFixture); err == nil {
 		t.Fatal("a merge group with no changed paths must not select zero gates and pass")
 	}
 }
@@ -258,17 +265,19 @@ func TestValidateAwaitTarget(t *testing.T) {
 		event   string
 		pr      int
 		baseRef string
+		branch  string
 		wantErr bool
 	}{
-		{"pull request with number", eventPullRequest, 42, "main", false},
-		{"pull request without number", eventPullRequest, 0, "main", true},
-		{"merge group without number", eventMergeGroup, 0, "main", false},
-		{"merge group with number is ambiguous", eventMergeGroup, 42, "main", true},
-		{"merge group without base", eventMergeGroup, 0, "", true},
-		{"unknown event", "push", 42, "main", true},
+		{"pull request with number", eventPullRequest, 42, "main", "", false},
+		{"pull request without number", eventPullRequest, 0, "main", "", true},
+		{"merge group without number", eventMergeGroup, 0, "main", queueBranchFixture, false},
+		{"merge group with number is ambiguous", eventMergeGroup, 42, "main", queueBranchFixture, true},
+		{"merge group without base", eventMergeGroup, 0, "", queueBranchFixture, true},
+		{"merge group without queue branch", eventMergeGroup, 0, "main", "", true},
+		{"unknown event", "push", 42, "main", "", true},
 	}
 	for _, tc := range cases {
-		err := validateAwaitTarget(tc.event, tc.pr, tc.baseRef)
+		err := validateAwaitTarget(tc.event, tc.pr, tc.baseRef, tc.branch)
 		if (err != nil) != tc.wantErr {
 			t.Errorf("%s: err = %v; wantErr %v", tc.name, err, tc.wantErr)
 		}
