@@ -18,7 +18,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Functions | `functions` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
 | Structs | `structs` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
 | Interfaces | `interfaces` | supported | `interfaces` | `name, line_number` | `node:Interface` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
-| Imports | `imports` | supported | `imports` | `name, line_number` | `relationship:IMPORTS` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
+| Imports | `imports` | supported | `imports` | `name, line_number` | `relationship:IMPORTS` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | Duplicate import aliases resolve deterministically to the lexicographically smallest path ([#6947](https://github.com/eshu-hq/eshu/issues/6947)) |
 | Function calls | `function-calls` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
 | Variables | `variables` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
 | Methods (receivers) | `methods-receivers` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
@@ -103,6 +103,11 @@ post-merge dumps showed the parser's output was byte-for-byte identical
 not part of this change; the only differing entries were the six files this
 change edited (their own line numbers and declarations changed, as expected)
 plus one new file. See epic #4831 and issue #4839.
+
+The harness itself is deterministic as of issue #6947: wall-clock timing is
+canonicalized out of the dump, and duplicate import aliases resolve to the
+lexicographically smallest path, so two runs over one tree dump identical
+rows.
 
 Performance Evidence: this change removes 3 of the Go parser's per-file
 full-tree `shared.WalkNamed` passes (constructor-return dedup + a merged
