@@ -87,10 +87,10 @@ baseline manifest is unchanged.
   packages and the fixture seeds none), and `find_infra_resources` and
   `analyze_infra_relationships` now pass after #7226 (#7215). The one failure is
   a product defect tracked in #7231: `count_infra_resources` answers `backend_timeout` to a
-  scoped token, because the aggregate path still renders the scoped grant
-  predicate into every one of 27 per-label branches, and its four statements each
-  planned for about 5 s cold on the sweep host, which ran the amd64 Neo4j image
-  emulated. Its expected outcome is unchanged, so the sweep keeps failing until
+  scoped token. The aggregate path still renders the scoped grant predicate into
+  every one of 27 per-label branches, and its four statements each planned for
+  about 5 s cold on the sweep host, which ran the amd64 Neo4j image emulated. The
+  deadline accounting was not traced. Its expected outcome is unchanged, so the sweep keeps failing until
   that is fixed. The evidence page has the measurements.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
