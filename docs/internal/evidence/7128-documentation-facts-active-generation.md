@@ -281,6 +281,20 @@ and cannot be mislabelled this way.
 Read-only statements. No lease, claim, or queue path is touched, so no
 concurrency proof beyond the plan check is claimed.
 
+## Golden snapshot tightening
+
+`testdata/golden/e2e-20repo-snapshot.json` now requires `generation_binding` in
+the documentation facts entries (the HTTP route and the `list_documentation_facts`
+MCP tool), and one entry description names the binding. The edit only tightens
+the snapshot: no count bound, required field, or expectation is loosened or
+removed. Changing the golden standard is an irreversible-class act, so it went to
+an arbiter, which approved it as a strengthening with three conditions:
+
+- the CI B-7 golden gate must pass on the PR head, since the local Neo4j gate run
+  (567 pass, 0 required-fail) predates the rebase onto main;
+- this note and the PR body record the tightening and the approval;
+- any further edit to these snapshot entries needs a new ruling.
+
 ## Not proven here
 
 - NOT_CHECKED: the sweep against a rebuilt binary on ops-qa. The SQL replay
