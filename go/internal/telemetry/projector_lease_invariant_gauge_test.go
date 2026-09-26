@@ -15,52 +15,64 @@ import (
 // projector lease invariant.
 type fakeProjectorLeaseQueueObserver struct {
 	fakeQueueObserver
-	overlapping int64
+	overlapping  int64
+	missingFence int64
 }
 
 func (f *fakeProjectorLeaseQueueObserver) ProjectorScopesWithMultipleLiveLeases(context.Context) (int64, error) {
 	return f.overlapping, nil
 }
 
+func (f *fakeProjectorLeaseQueueObserver) ProjectorScopesMissingClaimFence(context.Context) (int64, error) {
+	return f.missingFence, nil
+}
+
 // TestRegisterObservableGaugesReportsProjectorLeaseInvariant proves the #7115
-// invariant gauge is registered on the queue-status cadence when the queue
-// observer can report it, and that it carries the observed scope count with
-// no labels.
+// invariant gauges are registered on the queue-status cadence when the queue
+// observer can report them, and that each carries its observed scope count
+// with no labels.
 func TestRegisterObservableGaugesReportsProjectorLeaseInvariant(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
 	inst := &Instruments{}
-	observer := &fakeProjectorLeaseQueueObserver{overlapping: 2}
+	observer := &fakeProjectorLeaseQueueObserver{overlapping: 2, missingFence: 3}
 
 	if err := RegisterObservableGauges(inst, meter, observer, nil); err != nil {
 		t.Fatalf("RegisterObservableGauges() error = %v", err)
 	}
-	if inst.ProjectorScopesMultipleLiveLeases == nil {
-		t.Fatal("expected ProjectorScopesMultipleLiveLeases gauge to be set")
+	if inst.ProjectorScopesMultipleLiveLeases == nil || inst.ProjectorScopesMissingClaimFence == nil {
+		t.Fatal("expected both projector claim invariant gauges to be set")
 	}
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
+	want := map[string]int64{
+		"eshu_dp_projector_scopes_multiple_live_leases": 2,
+		"eshu_dp_projector_scopes_missing_claim_fence":  3,
+	}
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
-			if m.Name != "eshu_dp_projector_scopes_multiple_live_leases" {
+			value, ok := want[m.Name]
+			if !ok {
 				continue
 			}
-			gauge, ok := m.Data.(metricdata.Gauge[int64])
-			if !ok || len(gauge.DataPoints) != 1 {
-				t.Fatalf("gauge data = %#v, want one int64 point", m.Data)
+			gauge, isGauge := m.Data.(metricdata.Gauge[int64])
+			if !isGauge || len(gauge.DataPoints) != 1 {
+				t.Fatalf("%s data = %#v, want one int64 point", m.Name, m.Data)
 			}
-			if got := gauge.DataPoints[0].Value; got != 2 {
-				t.Fatalf("gauge value = %d, want 2", got)
+			if got := gauge.DataPoints[0].Value; got != value {
+				t.Fatalf("%s value = %d, want %d", m.Name, got, value)
 			}
 			if gauge.DataPoints[0].Attributes.Len() != 0 {
-				t.Fatalf("gauge attributes = %v, want none", gauge.DataPoints[0].Attributes)
+				t.Fatalf("%s attributes = %v, want none", m.Name, gauge.DataPoints[0].Attributes)
 			}
-			return
+			delete(want, m.Name)
 		}
 	}
-	t.Fatal("eshu_dp_projector_scopes_multiple_live_leases was not collected")
+	if len(want) != 0 {
+		t.Fatalf("gauges not collected: %v", want)
+	}
 }
 
 // TestRegisterObservableGaugesSkipsProjectorLeaseInvariantWithoutObserver
@@ -71,7 +83,7 @@ func TestRegisterObservableGaugesSkipsProjectorLeaseInvariantWithoutObserver(t *
 	if err := RegisterObservableGauges(inst, meter, &fakeQueueObserver{}, nil); err != nil {
 		t.Fatalf("RegisterObservableGauges() error = %v", err)
 	}
-	if inst.ProjectorScopesMultipleLiveLeases != nil {
-		t.Fatal("ProjectorScopesMultipleLiveLeases registered without a projector lease observer")
+	if inst.ProjectorScopesMultipleLiveLeases != nil || inst.ProjectorScopesMissingClaimFence != nil {
+		t.Fatal("projector claim invariant gauges registered without a projector claim observer")
 	}
 }

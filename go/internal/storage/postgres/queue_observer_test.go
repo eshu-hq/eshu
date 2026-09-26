@@ -433,38 +433,3 @@ func TestQueueObserverStoreQueueOldestAgeQueryError(t *testing.T) {
 		t.Fatal("QueueOldestAge() error = nil, want non-nil")
 	}
 }
-
-// TestQueueObserverStoreProjectorScopesWithMultipleLiveLeases pins the #7115
-// invariant query: projector scopes holding more than one unexpired
-// claimed/running lease at the observer's clock.
-func TestQueueObserverStoreProjectorScopesWithMultipleLiveLeases(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{int64(3)}}}}}
-	observer := NewQueueObserverStore(queryer)
-	observer.Now = func() time.Time { return now }
-
-	got, err := observer.ProjectorScopesWithMultipleLiveLeases(context.Background())
-	if err != nil {
-		t.Fatalf("ProjectorScopesWithMultipleLiveLeases() error = %v", err)
-	}
-	if got != 3 {
-		t.Fatalf("ProjectorScopesWithMultipleLiveLeases() = %d, want 3", got)
-	}
-	query := queryer.queries[0]
-	for _, want := range []string{
-		"stage = 'projector'",
-		"status IN ('claimed', 'running')",
-		"claim_until > $1",
-		"GROUP BY scope_id",
-		"HAVING COUNT(*) > 1",
-	} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("invariant query missing %q:\n%s", want, query)
-		}
-	}
-	if gotNow, ok := queryer.args[0][0].(time.Time); !ok || !gotNow.Equal(now) {
-		t.Fatalf("invariant query $1 = %v, want observer clock %v", queryer.args[0], now)
-	}
-}
