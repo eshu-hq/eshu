@@ -42,7 +42,7 @@ time with `ESHU_KEEP_COMPOSE_STACK=true`, to diagnose the one failing row).
   - `analyze_code_relationships[who_modifies]` (`POST /api/v0/code/relationships`):
     `not_found`, dispatched with `name` and `repo_id` (#7221), with the all-scope
     control below.
-- **One row fails on a product defect, not yet tracked:** `count_infra_resources`
+- **One row fails on a product defect, tracked in #7231:** `count_infra_resources`
   (`GET /api/v0/infra/resources/count`) answers `backend_timeout` ("graph query
   exceeded its deadline") to a scoped token, in both runs. It is a sibling of
   #7215 that #7226 did not cover. #7226 gave the scoped search and relationships
@@ -388,6 +388,6 @@ all-scope controls (granted-repository not_found rows):
 
 ## Stack change evidence
 
-No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. These results are author-reported from live runs on that stack. At `7664283f3` the full auth/MCP suite passed 40/40 and the SSO suite passed 24/24. Both runs predate the healthcheck window (`start_period: 120s`, `retries: 30`); the sensitivity gate passed after it was added. At `136d75646` the catalog sweep passed 166/167 and the full suite passed 40/40; the one failure is the unfiled sibling defect in `count_infra_resources` above. The sweep cases were restated for route promotions, as the sections above describe. Besides the backend swap, the stack drops the host graph ports, renames the graph volume and gives db-migrate a neo4j dependency. It changes no production path.
+No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. These results are author-reported from live runs on that stack. At `7664283f3` the full auth/MCP suite passed 40/40 and the SSO suite passed 24/24. Both runs predate the healthcheck window (`start_period: 120s`, `retries: 30`); the sensitivity gate passed after it was added. At `136d75646` the catalog sweep passed 166/167 and the full suite passed 40/40; the one failure is the sibling defect in `count_infra_resources` above, tracked in #7231. The sweep cases were restated for route promotions, as the sections above describe. Besides the backend swap, the stack drops the host graph ports, renames the graph volume and gives db-migrate a neo4j dependency. It changes no production path.
 
 No-Observability-Change: the change touches only test-stack wiring. It adds no runtime metric, span, log key, status field or worker behaviour. Suite results are reported through the existing e2e runner report and step lines.

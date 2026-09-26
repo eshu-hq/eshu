@@ -86,7 +86,7 @@ baseline manifest is unchanged.
   empty `ok` page to the scoped token (a scoped caller reads only public
   packages and the fixture seeds none), and `find_infra_resources` and
   `analyze_infra_relationships` now pass after #7226 (#7215). The one failure is
-  a product defect: `count_infra_resources` answers `backend_timeout` to a
+  a product defect tracked in #7231: `count_infra_resources` answers `backend_timeout` to a
   scoped token, because the aggregate path still renders the scoped grant
   predicate into every one of 27 per-label branches, and its four statements each
   planned for about 5 s cold on the sweep host, which ran the amd64 Neo4j image
