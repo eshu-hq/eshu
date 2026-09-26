@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -75,8 +77,9 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.MaxDepth = clampExposureDepth(req.MaxDepth)
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 
-	source, spec, classified, reason, err := h.resolveExposureSource(r.Context(), req)
+	source, spec, classified, reason, err := h.resolveExposureSource(r.Context(), access, req)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -84,7 +87,7 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 
 	// A function that is not a taint source has no exposure path to trace.
 	if !classified {
-		h.writeExposureFinding(w, r, exposure.ExposureFinding{
+		h.writeExposureFinding(w, r, access, exposure.ExposureFinding{
 			Source:     source,
 			TruthLabel: exposure.TruthLabelDerived,
 			State:      exposure.TraversalUnresolved,
@@ -101,7 +104,7 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 	const internetReachable = false
 	rank := exposure.RankSourceExposure(spec, internetReachable)
 
-	candidates, truncated, err := h.exposurePathCandidates(r.Context(), source, req.MaxDepth)
+	candidates, truncated, err := h.exposurePathCandidates(r.Context(), access, source, req.MaxDepth)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, exposurePathCapability) {
 			return
@@ -125,7 +128,35 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 		Truncated:        truncated,
 		UnresolvedReason: unresolvedReason,
 	})
-	h.writeExposureFinding(w, r, finding)
+	h.writeExposureFinding(w, r, access, finding)
+}
+
+// ownershipChecker builds the #5167 scoped ownership checker for one impact
+// route, sharing the handler's graph port and telemetry.
+func (h *Handler) ownershipChecker(route string) ownership.Checker {
+	return ownership.Checker{Graph: h.Neo4j, Instruments: h.Instruments, Logger: h.Logger, Route: route}
+}
+
+// resolveAnchor resolves one impact path-route anchor (id or name) through the
+// #5167 ownership check. An unscoped caller gets the single-row resolve
+// unchanged; a scoped caller's identifier resolves to its bounded candidate
+// set and the anchor is the first candidate the grant owns, so a name another
+// tenant shares cannot shadow the caller's own node. An identifier whose
+// every candidate is ungranted resolves to nil, exactly like an unknown one.
+func (h *Handler) resolveAnchor(
+	ctx context.Context,
+	checker ownership.Checker,
+	access querycontract.RepositoryAccessFilter,
+	idParam, id string,
+) (*deployment.ResolvedImpactAnchor, error) {
+	return checker.ResolveAnchor(ctx, access,
+		func() (*deployment.ResolvedImpactAnchor, error) {
+			return h.pathProbe().ResolveAnchor(ctx, h.Neo4j, idParam, id)
+		},
+		func() ([]deployment.ResolvedImpactAnchor, error) {
+			return h.pathProbe().ResolveAnchorCandidates(ctx, h.Neo4j, idParam, id)
+		},
+	)
 }
 
 // clampExposureDepth clamps the requested traversal depth into the bounded range.
@@ -144,10 +175,20 @@ func clampExposureDepth(depth int) int {
 // design; see storage/cypher canonical node writer). It returns the source node,
 // the classified source spec, whether classification succeeded, and an honest
 // reason when the entity is missing or not a taint source.
-func (h *Handler) resolveExposureSource(ctx context.Context, req exposurePathRequest) (exposure.PathNode, exposure.SourceSpec, bool, string, error) {
-	entity, err := h.resolveExposureSourceEntity(ctx, req)
+func (h *Handler) resolveExposureSource(ctx context.Context, access querycontract.RepositoryAccessFilter, req exposurePathRequest) (exposure.PathNode, exposure.SourceSpec, bool, string, error) {
+	var entity *querycontract.EntityContent
+	var err error
+	if !access.Empty() {
+		entity, err = h.resolveExposureSourceEntity(ctx, req)
+	}
 	if err != nil {
 		return exposure.PathNode{}, exposure.SourceSpec{}, false, "", err
+	}
+	// A scoped caller's source must live in a granted repository; a foreign
+	// source renders exactly like a missing one and is never walked (#5167).
+	if entity != nil && access.Scoped() && !access.AllowsRepositoryID(entity.RepoID) {
+		ownership.RecordWithheld(ctx, h.Instruments, ownership.RouteTraceExposurePath, ownership.ReasonAnchorUngranted, 1)
+		entity = nil
 	}
 	if entity == nil {
 		return exposure.PathNode{}, exposure.SourceSpec{}, false, "source handler not found in the content store", nil
@@ -181,7 +222,7 @@ func (h *Handler) resolveExposureSourceEntity(ctx context.Context, req exposureP
 // and recognizes cloud sinks among the reached nodes via the catalog. It returns
 // the structural reachability candidates and whether the bound truncated the
 // walk. The raw nodes(path) projection works on both Neo4j and NornicDB.
-func (h *Handler) exposurePathCandidates(ctx context.Context, source exposure.PathNode, maxDepth int) ([]exposure.PathCandidate, bool, error) {
+func (h *Handler) exposurePathCandidates(ctx context.Context, access querycontract.RepositoryAccessFilter, source exposure.PathNode, maxDepth int) ([]exposure.PathCandidate, bool, error) {
 	if h.Neo4j == nil || strings.TrimSpace(source.EntityID) == "" {
 		return nil, false, nil
 	}
@@ -195,13 +236,20 @@ func (h *Handler) exposurePathCandidates(ctx context.Context, source exposure.Pa
 	if err != nil {
 		return nil, false, err
 	}
+	// truncated comes from the raw row count, before the scoped filter drops
+	// any path whose chain or sink the grant does not own (#5167).
+	truncated := len(rows) >= exposurePathResultLimit
+	rows, capped, err := h.ownershipChecker(ownership.RouteTraceExposurePath).FilterRows(ctx, access, rows, exposureOwnershipNodes)
+	if err != nil {
+		return nil, false, err
+	}
 	candidates := make([]exposure.PathCandidate, 0, len(rows))
 	for _, row := range rows {
 		if candidate, ok := exposurePathCandidateFromRow(row); ok {
 			candidates = append(candidates, candidate)
 		}
 	}
-	return candidates, len(rows) >= exposurePathResultLimit, nil
+	return candidates, truncated || capped, nil
 }
 
 // buildExposurePathCypher builds the bounded exposure-path traversal. It walks

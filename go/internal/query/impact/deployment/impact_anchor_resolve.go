@@ -6,6 +6,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -27,6 +28,11 @@ type ResolvedImpactAnchor struct {
 	Name   string
 	Label  string
 	Labels []string
+	// UID and RepoID are the anchor's uid and repo_id properties (empty when
+	// the node carries none). The scoped impact reads judge the anchor's
+	// ownership from them before any traversal (#5167).
+	UID    string
+	RepoID string
 }
 
 // Pattern returns the single-label inline-property start pattern for the
@@ -55,6 +61,11 @@ type ImpactRelProvenance struct {
 type ImpactNodeIdentity struct {
 	ID   string
 	Name string
+	// UID, RepoID, and Labels feed the #5167 scoped ownership check
+	// (impact/ownership); hop shaping reads only ID and Name.
+	UID    string
+	RepoID string
+	Labels []string
 }
 
 // impactAnchorResolveCypher builds the CALL{UNION} that resolves a node to its
@@ -67,15 +78,35 @@ type ImpactNodeIdentity struct {
 // identifiers such as a repository name, not the hashed canonical id. Only the
 // branch whose label and property the node actually carries returns a row.
 func impactAnchorResolveCypher(idParam string) string {
+	return impactAnchorResolveUnion(idParam) + "\nRETURN label, id, name, labels, uid, repo_id\nLIMIT 1"
+}
+
+// impactAnchorResolveUnion is the per-label id-or-name CALL{UNION} both
+// anchor resolvers wrap.
+func impactAnchorResolveUnion(idParam string) string {
 	branches := make([]string, 0, len(impactAnchorLabels)*2)
 	for _, label := range impactAnchorLabels {
 		for _, prop := range []string{"id", "name"} {
 			branches = append(branches, fmt.Sprintf(
-				"MATCH (n:%s {%s: $%s}) RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels",
+				"MATCH (n:%s {%s: $%s}) RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels, n.uid AS uid, n.repo_id AS repo_id",
 				label, prop, idParam, label))
 		}
 	}
-	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}\nRETURN label, id, name, labels\nLIMIT 1"
+	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}"
+}
+
+// ImpactAnchorCandidateLimit caps the anchor candidates a scoped caller's
+// identifier resolves to (#5167). A name several tenants share resolves to
+// every carrier, and the scoped reader keeps the first one the grant owns;
+// the cap bounds that set, and the (id, label) order keeps it deterministic.
+const ImpactAnchorCandidateLimit = 32
+
+// impactAnchorCandidatesCypher is the scoped-caller form of
+// impactAnchorResolveCypher: the same union, ordered by (id, label) on the
+// RETURN clause and capped at $candidate_limit instead of LIMIT 1.
+func impactAnchorCandidatesCypher(idParam string) string {
+	return impactAnchorResolveUnion(idParam) +
+		"\nRETURN label, id, name, labels, uid, repo_id\nORDER BY id, label\nLIMIT $candidate_limit"
 }
 
 // ImpactRepoPathCypher is the trace-resource-to-code traversal from a resolved
@@ -88,6 +119,20 @@ func impactAnchorResolveCypher(idParam string) string {
 // reads (#6060 lane B2).
 const ImpactRepoPathCypher = `MATCH path = %s-[*1..%d]->(repo:Repository)
 RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels
+ORDER BY depth, repo_name, repo_id
+LIMIT $limit`
+
+// ImpactScopedRepoPathCypher is the scoped-caller form of ImpactRepoPathCypher
+// (#5167, the proven P1 shape). The terminal Repository binds to the caller's
+// grant in the anchoring MATCH's WHERE, before ORDER BY and LIMIT, so the page
+// holds only granted terminals. It also projects the raw nodes(path) list as
+// ns: predicates over nodes(path) do not filter on the pinned NornicDB build,
+// so the interior nodes are judged in Go (impact/ownership) over the bounded
+// page. ORDER BY and LIMIT stay on the RETURN clause; a WITH ... ORDER BY ...
+// LIMIT ... RETURN form drops the ORDER BY on this build.
+const ImpactScopedRepoPathCypher = `MATCH path = %s-[*1..%d]->(repo:Repository)
+WHERE (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)
+RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels
 ORDER BY depth, repo_name, repo_id
 LIMIT $limit`
 
@@ -115,7 +160,57 @@ func ResolveImpactAnchorNode(ctx context.Context, reader querycontract.GraphQuer
 		Name:   querycontract.StringVal(row, "name"),
 		Label:  label,
 		Labels: querycontract.StringSliceVal(row, "labels"),
+		UID:    querycontract.StringVal(row, "uid"),
+		RepoID: querycontract.StringVal(row, "repo_id"),
 	}, nil
+}
+
+// ResolveImpactAnchorCandidates resolves an identifier (id or name) to every
+// anchor-label node carrying it, up to ImpactAnchorCandidateLimit, sorted by
+// (id, label) and deduplicated by id (a multi-label node matches one branch
+// per label; its first label in that order is kept). A scoped reader judges
+// the candidates against the caller's grant and anchors on the first one the
+// grant owns, so a name another tenant also uses cannot shadow the caller's
+// own node (#5167). It returns nil when nothing carries the identifier.
+func ResolveImpactAnchorCandidates(ctx context.Context, reader querycontract.GraphQuery, idParam, id string) ([]ResolvedImpactAnchor, error) {
+	rows, err := reader.Run(ctx, impactAnchorCandidatesCypher(idParam), map[string]any{
+		idParam: id, "candidate_limit": ImpactAnchorCandidateLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]ResolvedImpactAnchor, 0, len(rows))
+	for _, row := range rows {
+		label := querycontract.StringVal(row, "label")
+		if label == "" {
+			continue
+		}
+		candidates = append(candidates, ResolvedImpactAnchor{
+			ID:     querycontract.StringVal(row, "id"),
+			Name:   querycontract.StringVal(row, "name"),
+			Label:  label,
+			Labels: querycontract.StringSliceVal(row, "labels"),
+			UID:    querycontract.StringVal(row, "uid"),
+			RepoID: querycontract.StringVal(row, "repo_id"),
+		})
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].ID != candidates[j].ID {
+			return candidates[i].ID < candidates[j].ID
+		}
+		return candidates[i].Label < candidates[j].Label
+	})
+	out := make([]ResolvedImpactAnchor, 0, len(candidates))
+	for _, candidate := range candidates {
+		if len(out) > 0 && out[len(out)-1].ID == candidate.ID {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 // ImpactTraceHops builds the trace-resource-to-code hop provenance ({type,

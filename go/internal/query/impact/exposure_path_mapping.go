@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 )
@@ -142,6 +143,7 @@ func exposurePathNodeFromAny(raw any) (exposure.PathNode, map[string]string) {
 			Labels:   append([]string(nil), node.Labels...),
 		}, props
 	case map[string]any:
+		node = flattenNodeProperties(node)
 		props := scalarStringProps(node)
 		labels := querycontract.StringSliceFromAny(node["labels"])
 		return exposure.PathNode{
@@ -152,6 +154,26 @@ func exposurePathNodeFromAny(raw any) (exposure.PathNode, map[string]string) {
 	default:
 		return exposure.PathNode{}, map[string]string{}
 	}
+}
+
+// flattenNodeProperties returns node with a nested `properties` map (the
+// node-map shape the impact path decoder also accepts) lifted to the top
+// level; a top-level key wins over a nested one. A flat map is returned as is.
+func flattenNodeProperties(node map[string]any) map[string]any {
+	nested, ok := node["properties"].(map[string]any)
+	if !ok {
+		return node
+	}
+	flat := make(map[string]any, len(nested)+len(node))
+	for key, value := range nested {
+		flat[key] = value
+	}
+	for key, value := range node {
+		if key != "properties" {
+			flat[key] = value
+		}
+	}
+	return flat
 }
 
 // nodeIdentity returns a node's stable identity, preferring id then uid.
@@ -183,10 +205,54 @@ func scalarStringProps(props map[string]any) map[string]string {
 	return out
 }
 
+// exposureOwnershipNodes decodes one exposure walk row into the ownership
+// nodes the scoped check judges: every chain node, then the sink node. An
+// element that does not decode yields a zero Node, which the check denies.
+func exposureOwnershipNodes(row map[string]any) []ownership.Node {
+	var elements []any
+	switch chain := row["chain"].(type) {
+	case []any:
+		elements = append(elements, chain...)
+	case []map[string]any:
+		for _, node := range chain {
+			elements = append(elements, node)
+		}
+	case []dbtype.Node:
+		for _, node := range chain {
+			elements = append(elements, node)
+		}
+	}
+	elements = append(elements, row["sink_node"])
+	nodes := make([]ownership.Node, 0, len(elements))
+	for _, element := range elements {
+		pathNode, props := exposurePathNodeFromAny(element)
+		nodes = append(nodes, ownership.Node{
+			ID: props["id"], UID: props["uid"], Name: pathNode.Name, RepoID: props["repo_id"], Labels: pathNode.Labels,
+		})
+	}
+	if labels := querycontract.StringSliceVal(row, "sink_labels"); len(nodes[len(nodes)-1].Labels) == 0 {
+		nodes[len(nodes)-1].Labels = labels
+	}
+	return nodes
+}
+
 // writeExposureFinding serializes an exposure finding into the API response with
-// a derived truth envelope.
-func (h *Handler) writeExposureFinding(w http.ResponseWriter, r *http.Request, finding exposure.ExposureFinding) {
-	querycontract.WriteSuccess(w, r, http.StatusOK, exposureFindingPayload(finding),
+// a derived truth envelope. A scoped caller's response always names the
+// withheld sink classes in coverage.unresolved_reason and carries the scoped
+// disclosure, whatever was or was not withheld (#5167).
+func (h *Handler) writeExposureFinding(w http.ResponseWriter, r *http.Request, access querycontract.RepositoryAccessFilter, finding exposure.ExposureFinding) {
+	if access.Scoped() {
+		if finding.Coverage.UnresolvedReason == "" {
+			finding.Coverage.UnresolvedReason = ownership.WithheldSinkReason
+		} else {
+			finding.Coverage.UnresolvedReason += "; " + ownership.WithheldSinkReason
+		}
+	}
+	payload := exposureFindingPayload(finding)
+	if access.Scoped() {
+		ownership.Disclose(payload, ownership.WithheldPathsThroughUngrantedNodes, ownership.WithheldUnownedSinkClasses)
+	}
+	querycontract.WriteSuccess(w, r, http.StatusOK, payload,
 		querycontract.BuildTruthEnvelope(h.profile(), exposurePathCapability, querycontract.TruthBasisHybrid,
 			"derived from bounded symbol-level reachability over the call graph and the cloud-sink catalog; not value-flow"))
 }

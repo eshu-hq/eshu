@@ -35,19 +35,20 @@ import "net/http"
 //     scoped caller, since those rows carry no repository property to bind to
 //     a grant at all.
 //
-// trace_resource_to_code, explain_dependency_path (impact/handler.go, deployment/impact_anchor_resolve.go)
-// and trace_exposure_path (exposure_path.go) are NOT included here. Their walks
-// are bounded -- max_depth 1..20 with normalizeImpactListLimit, one shortestPath
-// of at most 8 hops, and clampExposureDepth with exposurePathResultLimit
-// respectively -- so the bound is not what excludes them. The grant is: each
-// resolves an arbitrary graph node across many labels
-// (impactAnchorLabelDisjunction) and walks through cloud and infrastructure hops
-// that carry no repo_id property, so binding every traversal endpoint to a grant
-// needs a live-graph schema check and very likely a NornicDB-safe Cypher rewrite
-// (see docs/public/reference/cypher-performance.md and nornicdb-pitfalls.md)
-// before it is safe to allowlist -- they remain in pendingRowFilteringRoutes
-// (#5167 flagged for follow-up, not guessed at), each with the reason recorded
-// on its entry there.
+// trace_resource_to_code, explain_dependency_path and trace_exposure_path
+// (impact/handler.go, impact/exposure_path.go) were promoted off the #5167
+// pending ledger. Their walks cross nodes that carry no repo_id, so the grant
+// cannot be one Cypher predicate: impact/ownership judges every node on the
+// bounded page per class -- Repository by id, repo_id-carrying labels by
+// repo_id in Go, CloudResource by USES from a granted WorkloadInstance,
+// TerraformStateResource by MATCHES_STATE from a granted TerraformResource, a
+// WorkloadInstance by DEPLOYMENT_SOURCE to a granted Repository -- and denies
+// every other class. A path crossing any ungranted node is dropped whole; an
+// ungranted anchor or endpoint renders exactly like an unknown one and issues
+// no traversal; an empty grant makes no graph call; truncated comes from the
+// raw row count; and every scoped response discloses the withheld sections
+// (scoped: true, withheld_sections, and for exposure the withheld sink
+// classes in coverage.unresolved_reason).
 func scopedImpactCompareRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -62,7 +63,10 @@ func scopedImpactCompareRoute(r *http.Request) bool {
 		"/api/v0/impact/pre-change",
 		"/api/v0/impact/developer-change-plan",
 		"/api/v0/impact/trace-deployment-chain",
-		"/api/v0/impact/deployment-config-influence":
+		"/api/v0/impact/deployment-config-influence",
+		"/api/v0/impact/trace-resource-to-code",
+		"/api/v0/impact/explain-dependency-path",
+		"/api/v0/impact/trace-exposure-path":
 		return true
 	default:
 		return false

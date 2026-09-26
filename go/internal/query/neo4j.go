@@ -186,13 +186,23 @@ func impactNodeIdentityList(raw any) []deployment.ImpactNodeIdentity {
 	for _, item := range items {
 		switch node := item.(type) {
 		case neo4jdriver.Node:
-			out = append(out, impactNodeIdentityFromProps(node.Props))
+			identity := impactNodeIdentityFromProps(node.Props)
+			identity.Labels = append([]string(nil), node.Labels...)
+			out = append(out, identity)
 		case map[string]any:
+			var identity deployment.ImpactNodeIdentity
 			if props, ok := node["properties"].(map[string]any); ok {
-				out = append(out, impactNodeIdentityFromProps(props))
+				identity = impactNodeIdentityFromProps(props)
 			} else {
-				out = append(out, impactNodeIdentityFromProps(node))
+				identity = impactNodeIdentityFromProps(node)
 			}
+			identity.Labels = StringSliceVal(node, "labels")
+			out = append(out, identity)
+		default:
+			// An element this decoder cannot read still occupies its place on the
+			// path: a zero identity has no labels, so the scoped ownership check
+			// denies it (fail closed) instead of silently shortening the path.
+			out = append(out, deployment.ImpactNodeIdentity{})
 		}
 	}
 	return out
@@ -200,7 +210,12 @@ func impactNodeIdentityList(raw any) []deployment.ImpactNodeIdentity {
 
 // impactNodeIdentityFromProps reads id/name from a node property map.
 func impactNodeIdentityFromProps(props map[string]any) deployment.ImpactNodeIdentity {
-	return deployment.ImpactNodeIdentity{ID: StringVal(props, "id"), Name: StringVal(props, "name")}
+	return deployment.ImpactNodeIdentity{
+		ID:     StringVal(props, "id"),
+		Name:   StringVal(props, "name"),
+		UID:    StringVal(props, "uid"),
+		RepoID: StringVal(props, "repo_id"),
+	}
 }
 
 // resourceInvestigationHopList decodes a relationships(path) value into the

@@ -36,6 +36,15 @@ func (impactPathProbeBackend) ResolveAnchor(
 	return deployment.ResolveImpactAnchorNode(ctx, reader, idParam, id)
 }
 
+// ResolveAnchorCandidates implements impact.PathProbeBackend.
+func (impactPathProbeBackend) ResolveAnchorCandidates(
+	ctx context.Context,
+	reader querycontract.GraphQuery,
+	idParam, id string,
+) ([]deployment.ResolvedImpactAnchor, error) {
+	return deployment.ResolveImpactAnchorCandidates(ctx, reader, idParam, id)
+}
+
 // TraceHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) TraceHops(relsRaw any) []map[string]any {
 	return deployment.ImpactTraceHops(impactRelProvenanceList(relsRaw))
@@ -48,7 +57,17 @@ func (impactPathProbeBackend) DependencyHops(nodesRaw, relsRaw any) []map[string
 
 // PathHasNodes implements impact.PathProbeBackend.
 func (impactPathProbeBackend) PathHasNodes(nodesRaw any) bool {
-	return len(impactNodeIdentityList(nodesRaw)) > 0
+	for _, node := range impactNodeIdentityList(nodesRaw) {
+		if node.ID != "" || node.UID != "" || len(node.Labels) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// PathNodes implements impact.PathProbeBackend.
+func (impactPathProbeBackend) PathNodes(nodesRaw any) []deployment.ImpactNodeIdentity {
+	return impactNodeIdentityList(nodesRaw)
 }
 
 // ResourceInvestigationHops implements impact.PathProbeBackend.

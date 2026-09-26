@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -150,6 +151,13 @@ type PathProbeBackend interface {
 		reader querycontract.GraphQuery,
 		idParam, id string,
 	) (*deployment.ResolvedImpactAnchor, error)
+	// ResolveAnchorCandidates resolves an id or name to every anchor-label
+	// node carrying it (bounded, deterministic order), for a scoped caller.
+	ResolveAnchorCandidates(
+		ctx context.Context,
+		reader querycontract.GraphQuery,
+		idParam, id string,
+	) ([]deployment.ResolvedImpactAnchor, error)
 	// TraceHops builds trace-resource-to-code hop provenance from a raw
 	// relationships(path) value.
 	TraceHops(relsRaw any) []map[string]any
@@ -158,6 +166,11 @@ type PathProbeBackend interface {
 	DependencyHops(nodesRaw, relsRaw any) []map[string]any
 	// PathHasNodes reports whether a raw nodes(path) value holds any node.
 	PathHasNodes(nodesRaw any) bool
+	// PathNodes decodes a raw nodes(path) value into ordered node identities
+	// (id, uid, name, repo_id, labels) for the #5167 scoped ownership check.
+	// An element it cannot decode yields a zero identity in its place, which
+	// the check denies.
+	PathNodes(nodesRaw any) []deployment.ImpactNodeIdentity
 	// ResourceInvestigationHops builds resource-investigation hop maps from
 	// a raw relationships(path) value.
 	ResourceInvestigationHops(relsRaw any) []map[string]any
@@ -232,12 +245,17 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 		req.MaxDepth = 1
 	}
 	limit := normalizeImpactListLimit(req.Limit)
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
+	checker := h.ownershipChecker(ownership.RouteTraceResourceToCode)
 
 	// Resolve the start node's label and canonical id from the caller identifier
 	// (id or name). The pinned NornicDB build matches zero rows for a
 	// `MATCH (n:A|B|C) WHERE n.id = $id` label-disjunction anchor (#5286), so the
 	// disjunction cannot seed the traversal directly.
-	start, err := h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "start_id", req.Start)
+	// A scoped caller's anchor must be owned by its grant, or it renders
+	// exactly like an unknown anchor with no traversal (#5167); an empty grant
+	// resolves nothing and makes no graph call.
+	start, err := h.resolveAnchor(r.Context(), checker, access, "start_id", req.Start)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
 			return
@@ -255,7 +273,14 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 		// provenance in Go — the map-valued `[rel IN relationships(path) | {…}]`
 		// comprehension is mangled on the pinned build.
 		cypher := fmt.Sprintf(deployment.ImpactRepoPathCypher, start.Pattern("start", "start_id"), req.MaxDepth)
-		rows, rerr := h.Neo4j.Run(r.Context(), cypher, map[string]any{"start_id": start.ID, "limit": limit + 1})
+		params := map[string]any{"start_id": start.ID, "limit": limit + 1}
+		if access.Scoped() {
+			// The terminal Repository binds to the grant before LIMIT; the
+			// interior is checked in Go over the bounded page below.
+			cypher = fmt.Sprintf(deployment.ImpactScopedRepoPathCypher, start.Pattern("start", "start_id"), req.MaxDepth)
+			params["allowed_repository_ids"], params["allowed_scope_ids"] = ownership.TerminalGrantParams(access)
+		}
+		rows, rerr := h.Neo4j.Run(r.Context(), cypher, params)
 		if rerr != nil {
 			if querycontract.WriteGraphReadError(w, r, rerr, "platform_impact.resource_to_code") {
 				return
@@ -263,8 +288,23 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 			querycontract.WriteError(w, http.StatusInternalServerError, rerr.Error())
 			return
 		}
+		// truncated comes from the raw row count, before the grant filter.
 		var trimmed []map[string]any
 		trimmed, truncated = trimImpactRows(rows, limit)
+		if access.Scoped() {
+			var capped bool
+			trimmed, capped, err = checker.FilterRows(r.Context(), access, trimmed, func(row map[string]any) []ownership.Node {
+				return ownership.FromIdentities(h.pathProbe().PathNodes(row["ns"]))
+			})
+			if err != nil {
+				if querycontract.WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
+					return
+				}
+				querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			truncated = truncated || capped
+		}
 		for _, row := range trimmed {
 			repoID := querycontract.StringVal(row, "repo_id")
 			if repoID == "" {
@@ -281,6 +321,9 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"start": startInfo, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
+	}
+	if access.Scoped() {
+		ownership.Disclose(resp, ownership.WithheldPathsThroughUngrantedNodes)
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, resp, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.resource_to_code", querycontract.TruthBasisHybrid, "resolved from resource-to-code graph traversal"))
 }
@@ -322,10 +365,15 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
+	checker := h.ownershipChecker(ownership.RouteExplainDependencyPath)
+
 	// Resolve the source and target labels with per-label inline-property anchors
 	// (one CALL{UNION} each); a `MATCH (n:A|B|C) WHERE n.id = $id` label-
 	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
-	sourceNode, err := h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "source_id", req.Source)
+	// A scoped caller's endpoints must both be owned by its grant before any
+	// shortestPath runs; otherwise both render the unknown-endpoint 404 (#5167).
+	sourceNode, err := h.resolveAnchor(r.Context(), checker, access, "source_id", req.Source)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
@@ -333,7 +381,10 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	targetNode, err := h.pathProbe().ResolveAnchor(r.Context(), h.Neo4j, "target_id", req.Target)
+	var targetNode *deployment.ResolvedImpactAnchor
+	if sourceNode != nil {
+		targetNode, err = h.resolveAnchor(r.Context(), checker, access, "target_id", req.Target)
+	}
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
@@ -375,7 +426,21 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 	// shortestPath returns a single null-valued record (nodes(path) IS NULL)
 	// instead of zero rows — otherwise the handler would report a bogus
 	// `path: {depth: 0, hops: []}`.
-	if h.pathProbe().PathHasNodes(row["ns"]) {
+	pathVisible := h.pathProbe().PathHasNodes(row["ns"])
+	if pathVisible && access.Scoped() {
+		// Every node on the path, interior included, must be owned; otherwise
+		// the answer is indistinguishable from no path.
+		filter, ferr := checker.FilterPaths(r.Context(), access, [][]ownership.Node{ownership.FromIdentities(h.pathProbe().PathNodes(row["ns"]))})
+		if ferr != nil {
+			if querycontract.WriteGraphReadError(w, r, ferr, "platform_impact.dependency_path") {
+				return
+			}
+			querycontract.WriteError(w, http.StatusInternalServerError, ferr.Error())
+			return
+		}
+		pathVisible = filter.Kept() == 1
+	}
+	if pathVisible {
 		depth := querycontract.IntVal(row, "depth")
 		pathInfo = map[string]any{"depth": depth}
 		hops := h.pathProbe().DependencyHops(row["ns"], row["rels"])
@@ -419,6 +484,9 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 	}
 	if overallReason != "" {
 		resp["reason"] = overallReason
+	}
+	if access.Scoped() {
+		ownership.Disclose(resp, ownership.WithheldPathsThroughUngrantedNodes)
 	}
 
 	querycontract.WriteSuccess(w, r, http.StatusOK, resp, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.dependency_path", querycontract.TruthBasisHybrid, "resolved from shortest-path dependency traversal"))

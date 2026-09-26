@@ -31,6 +31,9 @@ var impactCompareTwoTenantRoutes = []string{
 	"/api/v0/impact/developer-change-plan",
 	"/api/v0/impact/trace-deployment-chain",
 	"/api/v0/impact/deployment-config-influence",
+	"/api/v0/impact/trace-resource-to-code",
+	"/api/v0/impact/explain-dependency-path",
+	"/api/v0/impact/trace-exposure-path",
 }
 
 // TestScopedImpactCompareRouteMatchesAllowlistedRoutes proves every #5167 W3
