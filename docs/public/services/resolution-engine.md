@@ -160,6 +160,22 @@ A count that persists for the same scope means a generation is stuck `pending`
 with no projector work making progress; check that scope's projector work item
 and `scope_generations` row.
 
+`failure_class="shared_edge_target_not_ready"` means a
+`deployable_unit_correlation` edge write found an endpoint `Repository` node
+that another scope has not committed to the graph yet. It is also
+non-counting, with the same frozen `attempt_count` and constant retry delay,
+because the node arrives later with no ordering against this intent (#7268).
+The wait is bounded by elapsed time, not attempts: 30 minutes after the
+intent's repair cycle began (`COALESCE(reopened_at, created_at)`), the handler
+logs `shared edge target absent past the wait bound` on the reducer's
+structured logger with `elapsed_since_cycle_start` and `max_wait`, and fails
+with a counting error.
+From then on the row spends `ESHU_REDUCER_MAX_ATTEMPTS` and dead-letters, so a
+target that never appears fails loudly. A failing existence probe is not a
+readiness miss. It counts from the first attempt.
+`workload_materialization_deployment_source_target_not_ready` follows the same
+rule for the workload materializer's deploy `Repository` target (#6759).
+
 ## Configuration
 
 Important env vars:

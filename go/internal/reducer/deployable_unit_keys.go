@@ -47,3 +47,26 @@ func deployableUnitMatchesPrimaryIdentity(candidate WorkloadCandidate, unitKey s
 	}
 	return false
 }
+
+func deployableUnitKeys(candidate WorkloadCandidate) []string {
+	keys := make(map[string]struct{})
+	for _, provenance := range candidate.Provenance {
+		if !strings.HasPrefix(provenance, "dockerfile_runtime:") {
+			continue
+		}
+		path := strings.TrimSpace(strings.TrimPrefix(provenance, "dockerfile_runtime:"))
+		key := deployableUnitKeyFromPath(candidate.RepoName, path)
+		if key == "" {
+			continue
+		}
+		keys[key] = struct{}{}
+	}
+	if len(keys) == 0 {
+		return []string{candidate.RepoName}
+	}
+	values := make([]string, 0, len(keys))
+	for key := range keys {
+		values = append(values, key)
+	}
+	return uniqueSortedStrings(values)
+}

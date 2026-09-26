@@ -213,6 +213,12 @@ var readinessClassOwningDomain = map[string]string{
 	// scope's repo_dependency write, so no claim-time row keyed on this
 	// intent's own payload can express it.
 	reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass: string(reducer.DomainWorkloadMaterialization),
+	// #7268: the shared-edge writer's target guard defers
+	// deployable_unit_correlation, the only caller whose miss reaches a
+	// fact_work_items attempt budget. The absent endpoint Repository belongs
+	// to another scope's materialization, so no claim-time row keyed on this
+	// intent's own payload can express it.
+	reducer.SharedEdgeTargetNotReadyFailureClass: string(reducer.DomainDeployableUnitCorrelation),
 	// #6785: cross-scope waits inside handlers that already carry their own
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so

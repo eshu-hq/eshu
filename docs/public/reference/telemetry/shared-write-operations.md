@@ -36,7 +36,14 @@ one bounded label:
   target lane does not dead-letter it. The deferral is bounded by elapsed time
   since the repair cycle began, 30 minutes
   (`crossscope.ProducerReadinessMaxWait`); past it the pass fails with a
-  counting error and dead-letters loudly, #6759).
+  counting error and dead-letters loudly, #6759). A `deployable_unit_edges`
+  miss likewise carries the non-counting class `shared_edge_target_not_ready`
+  on the `deployable_unit_correlation` work item, under the same 30-minute
+  bound; past it the handler logs `shared edge target absent past the wait
+  bound` with `elapsed_since_cycle_start` and `max_wait` and fails with a
+  counting error (#7268). `handles_route` and `runs_in` misses go through the
+  shared-projection worker, which has no attempt budget and re-polls the
+  batch every cycle, so neither the class nor the bound applies to them.
 
 Read it alongside the `shared edge batch target absent, deferring batch`
 WARN, which carries the evidence source and one sample intent id —

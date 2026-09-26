@@ -23,3 +23,10 @@
   `edgewriter` alias, leaf tests stay in-package.
 - Never import the `edge/materialized` sibling or the parent-test fakes
   from here; the duplicated test harness files name their root originals.
+- `targetMissingError` (`unroutable.go`) must keep returning
+  `reducer.SharedEdgeTargetNotReadyFailureClass`: that non-counting class is
+  what keeps a timing-state miss from dead-lettering
+  `deployable_unit_correlation`, whose handler bounds the wait by elapsed time
+  (#7268). `targetProbeError` must stay classless so a probe fault counts
+  and fails closed. `TestTargetMissingErrorCarriesNonCountingReadinessClass`
+  and `TestTargetProbeErrorStaysCounting` pin both.

@@ -126,10 +126,16 @@ func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow
 // target exists, and fails the batch with a retryable error on the first
 // miss. The worker treats a WriteEdges error as a failed cycle: nothing is
 // completed, the rows stay open, and the next cycle re-selects them. A
-// A failing existence probe (the backend did not answer) defers the batch
-// retryably like a detected miss: writing unchecked would recreate the exact
+// detected miss self-classifies with the non-counting
+// reducer.SharedEdgeTargetNotReadyFailureClass, so a handler that owns a
+// fact_work_items attempt budget (deployable_unit_correlation) defers without
+// spending it; that handler bounds the wait by elapsed time (#7268).
+// A failing existence probe (the backend did not answer) also fails the batch
+// retryably rather than writing unchecked, which would recreate the exact
 // silent zero-edge loss the guard exists to prevent whenever the probe fails
-// while a target is actually absent. An executor without probe capability
+// while a target is actually absent. It carries no failure class, so a
+// persistent backend fault counts toward the retry budget and dead-letters
+// loudly instead of deferring forever. An executor without probe capability
 // keeps today's behavior byte-identically.
 //
 // Deliberately scoped to the presence-gated MATCH-dependent domains. The
@@ -248,7 +254,9 @@ func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (so
 // the same generation (its presence row proves these facts derive it) and
 // the re-selected batch binds then. It must never be terminalized into an
 // unroutable completion — an absent target here is a timing state, not a
-// payload defect.
+// payload defect. FailureClass() makes the miss non-counting on the reducer
+// queue; only the owning handler's elapsed-time bound may end the wait, by
+// replacing this error with a counting one (#7268).
 type targetMissingError struct {
 	domain         string
 	batchRows      int
@@ -263,14 +271,36 @@ func (e *targetMissingError) Error() string {
 	)
 }
 
-// Retryable opts the miss into bounded queue retries.
+// Retryable keeps the miss queued. On the reducer queue the retries are not
+// bounded by the attempt budget, because FailureClass is non-counting; the
+// deployable_unit_correlation handler bounds them by elapsed time since the
+// repair cycle began. The shared-projection worker has no attempt budget and
+// re-polls failed batches every cycle.
 func (e *targetMissingError) Retryable() bool { return true }
 
+// FailureClass tags the miss with reducer.SharedEdgeTargetNotReadyFailureClass
+// so the reducer queue defers it without spending the retry budget: counting
+// a timing state dead-lettered deployable_unit_correlation intents, and a
+// dead letter is never reopened (#7268).
+func (e *targetMissingError) FailureClass() string {
+	return reducer.SharedEdgeTargetNotReadyFailureClass
+}
+
+// SampleTarget returns the batch's sample repository and intent ids so the
+// owning reducer handler can name them in its bound-expiry WARN without
+// depending on this unexported type.
+func (e *targetMissingError) SampleTarget() (repoID, intentID string) {
+	return e.sampleRepoID, e.sampleIntentID
+}
+
 // targetProbeError fails a batch whose target-existence probe could not
-// run. Retryable() keeps the rows queued on the same non-counting class as a
-// detected miss: writing unchecked would recreate the exact silent zero-edge
-// loss the guard exists to prevent whenever the probe fails (timeout or
-// rejection under load) while a target is actually absent (#6730 Codex P1).
+// run. Retryable() keeps the rows queued rather than writing unchecked, which
+// would recreate the exact silent zero-edge loss the guard exists to prevent
+// whenever the probe fails (timeout or rejection under load) while a target is
+// actually absent (#6730 Codex P1). Unlike a detected miss it deliberately
+// carries no FailureClass: a probe fault is a backend failure, not a timing
+// state, so it counts toward the retry budget and a persistent fault
+// dead-letters loudly instead of deferring forever (fail closed, #7268).
 type targetProbeError struct {
 	domain         string
 	batchRows      int
@@ -285,11 +315,12 @@ func (e *targetProbeError) Error() string {
 	)
 }
 
-// Retryable opts the probe failure into bounded queue retries.
+// Retryable opts the probe failure into counted, bounded queue retries.
 func (e *targetProbeError) Retryable() bool { return true }
 
-// Unwrap exposes the probe failure to errors.Is/As without changing the
-// retryable failure class.
+// Unwrap exposes the probe failure to errors.Is/As. A class carried by the
+// wrapped backend error (for example a graph-write timeout) is still visible
+// through it; the probe error adds none of its own.
 func (e *targetProbeError) Unwrap() error { return e.err }
 
 // checkBatchTargetsPresent probes one routed batch for runtime-target

@@ -23,6 +23,12 @@ the package contract.
 - `eshu_dp_shared_edge_write_groups_total`, group duration/statement-count
   histograms; probe and retract paths emit the same instruments the
   pre-split package emitted (see `telemetry_test.go`).
+- `eshu_dp_shared_edge_target_miss_total{domain}` counts target-presence
+  guard misses. The miss error carries the non-counting reducer failure
+  class `shared_edge_target_not_ready`, so a `deployable_unit_correlation`
+  intent defers without spending its retry budget; the reducer handler ends
+  the wait after 30 minutes with a counting error (#7268). A probe fault
+  carries no class and counts.
 
 ## Change guidance
 
