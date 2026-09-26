@@ -175,7 +175,9 @@ func TestProjectorClaimFenceRowNeverMakesClaimersWait(t *testing.T) {
 			dsn := claimMaintenanceProofDSN(t)
 			database := openClaimDeadlockProofDB(t, dsn, 6)
 			seedClaimMaintenanceScopes(t, database, "scope-s", "scope-z")
-			seedClaimMaintenanceWork(t, database, "scope-s", "gen-s", "pending", "pending", time.Hour, nil)
+			// gen-s is older than gen-z2, so a claim that ignores the fence
+			// would take scope-s first.
+			seedClaimMaintenanceWork(t, database, "scope-s", "gen-s", "pending", "pending", 150*time.Minute, nil)
 			seedClaimMaintenanceWork(t, database, "scope-z", "gen-z1", "pending", "pending", 3*time.Hour, nil)
 			seedClaimMaintenanceWork(t, database, "scope-z", "gen-z2", "pending", "pending", 2*time.Hour, nil)
 			ctx := context.Background()
