@@ -50,6 +50,13 @@ func isArgoCDCategoryOnly(
 // the second excludes dual-labeled nodes so the merged row set matches one
 // broad MATCH. Fetching limit rows from each label is sufficient to select the
 // first global limit rows after the deterministic merge.
+//
+// The scope predicate follows the same dialect split as the main search
+// (#7215): a scoped caller on Neo4j gets the list-EXISTS predicate over
+// $scope_grants applied per label, so the statement text does not grow with the
+// grant count; every other backend keeps the SHAPE-A inline-map clause byte for
+// byte. The predicate is applied per label, not hoisted, because each read is
+// already a single-label MATCH with no UNION to hoist across.
 func (h *InfraHandler) searchArgoCDCategoryRows(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
@@ -63,11 +70,21 @@ func (h *InfraHandler) searchArgoCDCategoryRows(
 		{label: "ArgoCDApplication"},
 		{label: "ArgoCDApplicationSet", extraWhere: " AND NOT n:ArgoCDApplication"},
 	}
-	params := access.GraphParams(map[string]any{"limit": limit})
+	neo4jScoped := h.scopeUsesNeo4jDialect(access)
+	params := map[string]any{"limit": limit}
+	if neo4jScoped {
+		bindInfraNeo4jScopeParams(params, access)
+	} else {
+		access.GraphParams(params)
+	}
 	rows := make([]map[string]any, 0, limit*len(reads))
 	for _, read := range reads {
+		scopeClause := infraSearchScopeClause(access)
+		if neo4jScoped {
+			scopeClause = " AND " + infraResourceScopeListPredicate("n")
+		}
 		cypher := "MATCH (n:" + read.label + ")\nWHERE true" +
-			read.extraWhere + infraSearchScopeClause(access) + argoCDCategoryProjection
+			read.extraWhere + scopeClause + argoCDCategoryProjection
 		labelRows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, fmt.Errorf("search %s resources: %w", read.label, err)

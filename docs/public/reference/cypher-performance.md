@@ -147,8 +147,8 @@ Prefer backend-neutral Cypher. When behavior diverges, use this order:
 3. Patch NornicDB only for an evidence-backed correctness fix, general backend
    performance win, or measured Eshu runtime win.
 
-Do not add backend branches in reducers, query handlers, MCP tools, or
-collectors.
+Keep backend branches out of reducers, MCP tools, and collectors.
+A query handler may branch on an explicit backend value only with a fail-safe default, a byte-identity test pinning the other dialect's statements (NornicDB stays pinned), and live proof on the backend whose statements change; see [Scoped Grant Predicates](cypher-scoped-grant-predicates.md).
 
 ## Anti-Patterns
 

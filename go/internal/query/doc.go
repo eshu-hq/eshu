@@ -483,4 +483,13 @@
 // indexed graph query. Cursor pages execute three mutually exclusive bounded
 // predicates and merge them into the same global keyset order, avoiding a
 // pinned NornicDB mixed-OR predicate bug without changing the wire contract.
+//
+// InfraHandler's scoped search and relationships reads split by
+// InfraHandler.GraphBackend (#7215). NornicDB and the zero value keep the
+// SHAPE-A inline-map predicate (infraResourceScopePredicate). Only
+// querycontract.GraphBackendNeo4j selects infraResourceScopeListPredicate:
+// one list-EXISTS term per family over $scope_grants, applied once after the
+// search CALL, with an unscoped per-label probe ahead of each scoped
+// relationships statement. The category=argocd search shortcut applies the
+// same list-EXISTS predicate per label on Neo4j. Both forms admit the same rows.
 package query
