@@ -258,10 +258,24 @@ candidate_pool AS MATERIALIZED (
 -- clause order. It repeats the work row's row-self predicates so EvalPlanQual
 -- drops a row claimed after the snapshot (#7108), and joins on fence equality
 -- so it drops a scope another claimer claimed in after the snapshot (#7115).
--- A busy work row leaves the fence row unlocked.
+-- A busy work row leaves the fence row unlocked. The pool is sorted in a
+-- subquery on the claim-order keys so the planner sees those pathkeys, drops
+-- the top-level Sort, and nested-loops the work and fence probes in order:
+-- LIMIT 1 then stops at the first lockable row instead of probing every pool
+-- row. A CTE scan exposes no order, so ORDER BY inside candidate_pool would
+-- not do this. The outer ORDER BY stays and keeps the order guaranteed.
 candidate AS (
     SELECT work.work_item_id
-    FROM candidate_pool AS pool
+    FROM (
+        SELECT *
+        FROM candidate_pool
+        ORDER BY
+          reclaim_rank,
+          projector_source_inflight_count ASC,
+          projector_source_fair_rank ASC,
+          updated_at ASC,
+          work_item_id ASC
+    ) AS pool
     JOIN fact_work_items AS work
       ON work.work_item_id = pool.work_item_id
     JOIN projector_scope_claim_fences AS claim_fence

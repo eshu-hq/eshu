@@ -129,7 +129,11 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 // the snapshot drops out. LockRows takes row locks in locking-clause order,
 // so FOR UPDATE OF work must come first: a busy work row then leaves the
 // fence row unlocked (TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy
-// kills the swapped order). The claim must bump the fence it locked.
+// kills the swapped order). The lock step reads the pool through a subquery
+// sorted on the claim-order keys, so the planner nested-loops the probes in
+// order and stops at the first lockable row; measured at 2k and 20k scopes,
+// it probes one pool row instead of all of them. The claim must bump the
+// fence it locked.
 func TestProjectorQueueClaimFencesTheScope(t *testing.T) {
 	t.Parallel()
 
@@ -138,7 +142,7 @@ func TestProjectorQueueClaimFencesTheScope(t *testing.T) {
 		"candidate_pool AS MATERIALIZED (",
 		"JOIN projector_scope_claim_fences AS scoped_fence",
 		"scoped_fence.fence AS snapshot_fence",
-		"FROM candidate_pool AS pool",
+		"FROM (\n        SELECT *\n        FROM candidate_pool\n        ORDER BY\n          reclaim_rank,\n          projector_source_inflight_count ASC,\n          projector_source_fair_rank ASC,\n          updated_at ASC,\n          work_item_id ASC\n    ) AS pool",
 		"JOIN projector_scope_claim_fences AS claim_fence",
 		"claim_fence.scope_id = pool.scope_id",
 		"AND claim_fence.fence = pool.snapshot_fence",
@@ -154,7 +158,7 @@ func TestProjectorQueueClaimFencesTheScope(t *testing.T) {
 	}
 	// The lock step repeats the row-self predicates on the locked work row so
 	// its EvalPlanQual recheck drops a row claimed after the snapshot (#7108).
-	lockStep := query[strings.Index(query, "FROM candidate_pool AS pool"):strings.Index(query, "claimed AS (")]
+	lockStep := query[strings.Index(query, "candidate AS ("):strings.Index(query, "claimed AS (")]
 	for _, want := range []string{
 		"work.status IN ('pending', 'retrying', 'claimed', 'running')",
 		"(work.visible_at IS NULL OR work.visible_at <= $1)",
