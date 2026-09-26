@@ -10,8 +10,8 @@ contains no code and no tests. S2 implements; S3 gates.
 ## Context
 
 Eshu's agent-facing surface today is hand-maintained across
-[`AGENTS.md`](../../AGENTS.md) (generic),
-[`CLAUDE.md`](../../CLAUDE.md) (Claude Code-specific), the nine project
+[`AGENTS.md`](../../AGENTS.md) (generic; a root `CLAUDE.md` copy existed
+until #7136), the nine project
 skills in [`.agents/skills/`](../../.agents/skills/) (with
 [`.claude/skills/`](../../.claude/skills/) and
 [`.codex/skills/`](../../.codex/skills/) as symlinks), and the host install
@@ -408,8 +408,8 @@ Repo docs cited as canonical sources for the fragments:
 
 - [`AGENTS.md`](../../AGENTS.md) — current generic agent-facing
   surface.
-- [`CLAUDE.md`](../../CLAUDE.md) — current Claude Code-specific
-  surface.
+- `CLAUDE.md` — removed in #7136; Claude Code now reads
+  `AGENTS.md` directly.
 - [`.agents/skills/`](../../.agents/skills/) — current project skills
   (the 9 repository-owned skills the skillgen replaces with
   generated output).

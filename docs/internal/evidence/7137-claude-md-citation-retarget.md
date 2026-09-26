@@ -1,4 +1,4 @@
-# #7137 CLAUDE.md citation retarget: no runtime change
+# Issue 7137 CLAUDE.md citation retarget: no runtime change
 
 #7137 retargets comments and docs that cited the deleted root `CLAUDE.md`.
 Three of the touched Go files sit on paths the performance-evidence gate
@@ -11,11 +11,13 @@ to its base version once plain `//` comments are stripped, measured with the
 repository's own `go/cmd/token-diff` (the comment-only exemption used by
 parser-relationship-kit).
 
-- Baseline: `9e597b8cd7` (origin/main when the branch was rebased).
-- After: branch head for #7137.
+- Baseline: `84b70f5640^1`, the first parent of #7186's squash merge.
+- After: `84b70f5640`, the #7186 squash-merge commit on main.
 - Backend/version: go1.27.1 darwin/arm64; no database or graph backend is
   involved because no query, write, queue, or worker code changed.
-- Input shape: the 30 `.go` files in `git diff --name-only 9e597b8cd7 -- '*.go'`.
+- Input shape: the 30 `.go` files in
+  `git diff --name-only 84b70f5640^1 84b70f5640 -- '*.go'`; extract each side
+  with `git show <rev>:<path>` and pass both files to `token-diff`.
 - Result: 29 files exit 0 (identical token streams, directives and block
   comments still compared). The one non-zero file is
   `tools/golangci-lint-filelength/filelength.go`, whose analyzer `Doc` string
