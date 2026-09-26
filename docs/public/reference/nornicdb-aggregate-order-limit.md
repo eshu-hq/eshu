@@ -35,7 +35,8 @@ browse route (`registry.VersionCountsByPackageID`). Keep `ORDER BY` and
 resolve aggregates for the returned page in a second statement. Proof:
 `TestLiveSearchBundlesHonoursOrderByAndLimit` in
 `go/internal/query/codequery/registry_bundles_live_test.go`
-(`ESHU_PKG_REGISTRY_PROVE_LIVE=1`), and
+(an env-gated live test; the gate is declared in
+`go/internal/query/package_registry_nornicdb_live_test.go`), and
 `docs/internal/evidence/5167-code-bundles-grant.md`.
 
 A second trap surfaced by the same work: this build **silently ignores a
