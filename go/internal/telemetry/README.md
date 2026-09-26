@@ -76,8 +76,7 @@ See `doc.go` for the godoc contract. Key groups:
 - `Bootstrap` — minimum OTEL runtime settings (service name, namespace, meter
   name, tracer name, logger name); built by `NewBootstrap`
 - `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
-  `PrometheusHandler`, and a combined `Shutdown` function; created by
-  `NewProviders`
+  `PrometheusHandler`, and a combined `Shutdown` function; built by `NewProviders`
 - `NewProviders` — configures OTLP gRPC trace and metric exporters when
   OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
 - `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
