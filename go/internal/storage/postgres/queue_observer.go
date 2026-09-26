@@ -149,6 +149,40 @@ GROUP BY producer_domain
 HAVING COUNT(*) > 0
 `
 
+// projectorScopesWithMultipleLiveLeasesQuery counts projector scopes that hold
+// more than one unexpired claimed or running lease at $1 (#7115). The claim's
+// scope fence keeps this at zero. It reads live leases only, so an expired
+// lease awaiting reclaim beside a live one does not count.
+const projectorScopesWithMultipleLiveLeasesQuery = `
+SELECT COUNT(*) AS count
+FROM (
+    SELECT scope_id
+    FROM fact_work_items
+    WHERE stage = 'projector'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+    GROUP BY scope_id
+    HAVING COUNT(*) > 1
+) AS overlapping
+`
+
+// projectorScopesMissingClaimFenceQuery counts scopes with claimable projector
+// work and no projector_scope_claim_fences row (#7115). The claim inner-joins
+// the fence row, so such a scope can never be claimed. Measured at 200k
+// projector rows (800k fact_work_items): Hash Anti Join over a bitmap scan of
+// the stage/status indexes, 8.6 ms and 1,393 shared buffers.
+const projectorScopesMissingClaimFenceQuery = `
+SELECT COUNT(DISTINCT work.scope_id) AS count
+FROM fact_work_items AS work
+WHERE work.stage = 'projector'
+  AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM projector_scope_claim_fences AS fence
+      WHERE fence.scope_id = work.scope_id
+  )
+`
+
 // QueueObserverStore implements telemetry.QueueObserver by querying the
 // fact_work_items table for live queue depth and oldest-item age per stage.
 type QueueObserverStore struct {
@@ -262,6 +296,44 @@ func (s *QueueObserverStore) SourceQueueDepths(ctx context.Context) (map[string]
 	}
 
 	return result, nil
+}
+
+// ProjectorScopesWithMultipleLiveLeases returns how many scopes hold more than
+// one unexpired claimed or running projector lease. It implements
+// telemetry.ProjectorClaimInvariantObserver; any nonzero value means two
+// workers are projecting one scope at once (#7115).
+func (s *QueueObserverStore) ProjectorScopesWithMultipleLiveLeases(ctx context.Context) (int64, error) {
+	return s.countProjectorClaimInvariant(ctx, projectorScopesWithMultipleLiveLeasesQuery, "projector scopes with multiple live leases", s.now())
+}
+
+// countProjectorClaimInvariant runs one single-count invariant query.
+func (s *QueueObserverStore) countProjectorClaimInvariant(ctx context.Context, query, what string, args ...any) (int64, error) {
+	if s.queryer == nil {
+		return 0, fmt.Errorf("queue observer queryer is required")
+	}
+	rows, err := s.queryer.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", what, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var count int64
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return 0, fmt.Errorf("%s scan: %w", what, err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("%s: %w", what, err)
+	}
+	return count, nil
+}
+
+// ProjectorScopesMissingClaimFence returns how many scopes have claimable
+// projector work but no claim fence row. It implements
+// telemetry.ProjectorClaimInvariantObserver; any nonzero value is a silent
+// projection stall for those scopes (#7115).
+func (s *QueueObserverStore) ProjectorScopesMissingClaimFence(ctx context.Context) (int64, error) {
+	return s.countProjectorClaimInvariant(ctx, projectorScopesMissingClaimFenceQuery, "projector scopes missing claim fence")
 }
 
 // ReducerGraphWriteTimeoutDepth returns the number of reducer work items that

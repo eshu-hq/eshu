@@ -346,7 +346,8 @@ func registerPostgresBackedGauges(
 }
 
 // registerPostgresQueueGauges serves the queue depth, oldest-age, and
-// source-system queue gauges from snapshot sources fed by queueObs.
+// source-system queue gauges from snapshot sources fed by queueObs, plus the
+// projector claim invariant gauges (#7115) when queueObs provides them.
 func registerPostgresQueueGauges(
 	refresher *snapshot.Refresher,
 	instruments *telemetry.Instruments,
@@ -409,6 +410,12 @@ func registerPostgresQueueGauges(
 			cachedQueueObserver: cachedQueueObserver{depths: depths, ages: ages},
 			sourceDepths:        sourceDepths,
 			sourceAges:          sourceAges,
+		}
+	}
+	if claimObs, ok := queueObs.(telemetry.ProjectorClaimInvariantObserver); ok {
+		cached, err = withProjectorClaimInvariants(refresher, cached, claimObs)
+		if err != nil {
+			return err
 		}
 	}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {

@@ -33,6 +33,22 @@ CREATE TABLE ingestion_scopes (
     payload             JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- migration 130 (#7115): the projector claim joins, locks and bumps a fence
+-- row per scope; the trigger creates it for every inserted scope.
+CREATE TABLE projector_scope_claim_fences (
+    scope_id TEXT PRIMARY KEY REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    fence BIGINT NOT NULL DEFAULT 0
+);
+CREATE FUNCTION projector_scope_claim_fences_on_scope_insert() RETURNS trigger AS $$
+BEGIN
+    INSERT INTO projector_scope_claim_fences (scope_id, fence) VALUES (NEW.scope_id, 0)
+    ON CONFLICT (scope_id) DO NOTHING;
+    RETURN NULL;
+END $$ LANGUAGE plpgsql;
+CREATE TRIGGER projector_scope_claim_fences_on_scope_insert
+AFTER INSERT ON ingestion_scopes
+FOR EACH ROW EXECUTE FUNCTION projector_scope_claim_fences_on_scope_insert();
+
 CREATE TABLE scope_generations (
     generation_id   TEXT PRIMARY KEY,
     scope_id        TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,

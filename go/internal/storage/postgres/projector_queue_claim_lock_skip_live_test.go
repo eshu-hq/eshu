@@ -131,33 +131,7 @@ func TestProjectorClaimLockRechecksRowsChangedAfterSnapshot(t *testing.T) {
 	seedClaimMaintenanceWork(t, database, "scope-b", "gen-b", "pending", "pending", 5*time.Hour, nil)
 	seedClaimMaintenanceWork(t, database, "scope-c", "gen-c1", "pending", "claimed", 4*time.Hour, durationPtr(-time.Minute))
 	seedClaimMaintenanceWork(t, database, "scope-c", "gen-c2", "active", "running", 4*time.Hour, durationPtr(time.Minute))
-	if _, err := database.Exec(`
-CREATE FUNCTION proof_pause_on_supersede() RETURNS trigger AS $$
-BEGIN
-    IF NEW.status = 'superseded' AND OLD.status <> 'superseded'
-       AND current_setting('eshu_proof.pause', true) = 'on' THEN
-        PERFORM pg_sleep(1.5);
-    END IF;
-    RETURN NEW;
-END $$ LANGUAGE plpgsql;
-CREATE TRIGGER proof_pause_on_supersede BEFORE UPDATE ON fact_work_items
-FOR EACH ROW EXECUTE FUNCTION proof_pause_on_supersede();
-`); err != nil {
-		t.Fatalf("install pause trigger: %v", err)
-	}
-	var searchPath string
-	if err := database.QueryRow("SHOW search_path").Scan(&searchPath); err != nil {
-		t.Fatalf("read search_path: %v", err)
-	}
-	pausedDSN := withDSNParam(withDSNParam(withDSNParam(dsn,
-		"search_path="+strings.TrimSpace(searchPath)),
-		"eshu_proof.pause=on"),
-		"application_name="+pausedClaimApplicationName)
-	paused, err := sql.Open("pgx", pausedDSN)
-	if err != nil {
-		t.Fatalf("open paused pool: %v", err)
-	}
-	t.Cleanup(func() { _ = paused.Close() })
+	paused := openPausedClaimPool(t, database, dsn)
 
 	type claimResult struct {
 		generation string
@@ -205,6 +179,42 @@ UPDATE fact_work_items SET claim_until = now() + interval '1 minute' WHERE work_
 // pausedClaimApplicationName tags the session whose claim the proof trigger
 // pauses, so the test can find it in pg_stat_activity.
 const pausedClaimApplicationName = "eshu_7108_paused_claimer"
+
+// openPausedClaimPool installs a test-only trigger in the proof schema that
+// sleeps 1.5 s inside a claim's supersede UPDATE, after the statement
+// snapshot, and returns a pool whose sessions enable it. Only sessions opened
+// through the returned pool pause; the caller's pool races them.
+func openPausedClaimPool(t *testing.T, database *sql.DB, dsn string) *sql.DB {
+	t.Helper()
+	if _, err := database.Exec(`
+CREATE FUNCTION proof_pause_on_supersede() RETURNS trigger AS $$
+BEGIN
+    IF NEW.status = 'superseded' AND OLD.status <> 'superseded'
+       AND current_setting('eshu_proof.pause', true) = 'on' THEN
+        PERFORM pg_sleep(1.5);
+    END IF;
+    RETURN NEW;
+END $$ LANGUAGE plpgsql;
+CREATE TRIGGER proof_pause_on_supersede BEFORE UPDATE ON fact_work_items
+FOR EACH ROW EXECUTE FUNCTION proof_pause_on_supersede();
+`); err != nil {
+		t.Fatalf("install pause trigger: %v", err)
+	}
+	var searchPath string
+	if err := database.QueryRow("SHOW search_path").Scan(&searchPath); err != nil {
+		t.Fatalf("read search_path: %v", err)
+	}
+	pausedDSN := withDSNParam(withDSNParam(withDSNParam(dsn,
+		"search_path="+strings.TrimSpace(searchPath)),
+		"eshu_proof.pause=on"),
+		"application_name="+pausedClaimApplicationName)
+	paused, err := sql.Open("pgx", pausedDSN)
+	if err != nil {
+		t.Fatalf("open paused pool: %v", err)
+	}
+	t.Cleanup(func() { _ = paused.Close() })
+	return paused
+}
 
 // waitForPausedClaimer polls pg_stat_activity until the tagged session is
 // waiting in pg_sleep inside an active statement, with a deadline. It fails the

@@ -26,7 +26,9 @@ operator-facing signals, scaling guidance, and runtime invariants for the
   `eshu_dp_gauge_snapshot_refreshes_total{gauge,outcome}` and
   `eshu_dp_gauge_snapshot_age_seconds{gauge}` show whether the values are fresh.
 - Postgres-backed gauges (queue depth/age, shared acceptance rows, workflow
-  family queue depth, active generations, poison liveness) are likewise served
+  family queue depth, active generations, poison liveness, and the #7115
+  projector claim invariants `eshu_dp_projector_scopes_multiple_live_leases` and
+  `eshu_dp_projector_scopes_missing_claim_fence`) are likewise served
   from a background snapshot, never querying Postgres during a `/metrics`
   scrape (#7064). `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL` (default `5m`) and
   `ESHU_POSTGRES_GAUGE_REFRESH_TIMEOUT` (default `30s`) tune it; the same

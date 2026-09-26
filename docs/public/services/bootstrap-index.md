@@ -81,7 +81,12 @@ be re-evaluated on its own; three convergence paths cover the rest:
 - Collection uses the shared repository sync and snapshot configuration.
 - Projection workers default to `min(NumCPU, 8)` and can be changed with
   `ESHU_PROJECTION_WORKERS`.
-- Projector queue claims use Postgres `FOR UPDATE SKIP LOCKED`.
+- Projector queue claims use Postgres `FOR UPDATE SKIP LOCKED`. A claim also
+  locks the scope's row in `projector_scope_claim_fences` with `SKIP LOCKED`
+  and bumps its fence, so two workers never hold live leases in one scope at
+  once, even when their snapshots disagree about which generation is ready.
+  The claim never locks `ingestion_scopes`, so ingestion holding a scope row
+  does not delay its projection claim.
 - Long-running projection renews its lease by heartbeat.
 - Superseded same-scope work exits without acking stale graph state.
 

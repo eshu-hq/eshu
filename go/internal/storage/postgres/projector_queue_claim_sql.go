@@ -3,6 +3,38 @@
 
 package postgres
 
+// claimProjectorWorkQuery claims at most one projector work row.
+//
+// Scope claim fence (#7115). The in-flight guard below is a NOT EXISTS read
+// against the statement snapshot, so on its own it cannot see a lease another
+// claimer committed after that snapshot: two claimers whose snapshots disagree
+// on a scope's oldest ready row would lock different rows and both claim. The
+// fence closes that. The claim reads the scope's projector_scope_claim_fences
+// row in its snapshot, locks the chosen work row and then that fence row (both
+// SKIP LOCKED) joined on fence = snapshot fence, and bumps the fence in the
+// same statement. A claimer that commits first leaves a new fence-row version;
+// the later claimer's EvalPlanQual recheck compares it against the fence value
+// its snapshot read, drops the row, and moves on to its next candidate. A claimer still in flight holds the fence row, so the other skips
+// it without waiting.
+//
+// The fence lives on its own table, not on ingestion_scopes, because every
+// FK child insert KEY SHAREs the scope row. A multixact holding a running KEY
+// SHARE member and a committed updater sends LockRows down the update chain
+// with a blocking wait that SKIP LOCKED does not cover, which deadlocked the
+// claim against Ack when the fence was a scope-row column.
+//
+// Protocol invariant: any statement that creates a projector live lease
+// (status claimed or running with a future claim_until) must lock the scope's
+// projector_scope_claim_fences row and bump fence in the same transaction.
+// Nothing else may lock or update that table, no table may reference it, and
+// this statement must not lock ingestion_scopes. Paths that only remove or
+// renew an existing lease (Ack, Fail, retry, reclaim, heartbeat) do not touch
+// the fence. Fence rows come from the ingestion_scopes AFTER INSERT trigger and
+// the migration 130 backfill; a scope without one is unclaimable, which
+// eshu_dp_projector_scopes_missing_claim_fence reports. Any other insert into
+// the table must carry a NOT EXISTS guard, because INSERT ... ON CONFLICT waits
+// on an in-flight bump of the conflicting row. The claim itself must never
+// insert fence rows.
 const claimProjectorWorkQuery = `
 WITH source_scoped_projector_work AS (
     SELECT work.work_item_id,
@@ -147,8 +179,20 @@ superseded_stale_scope_generations AS (
     WHERE generation.generation_id = stale.generation_id
       AND generation.status IN ('pending', 'failed')
 ),
-candidate AS (
+-- candidate_pool is the snapshot view of claimable rows, with each row's
+-- snapshot fence. EvalPlanQual in the lock step re-reads only the locked work
+-- and fence rows; pool columns keep their snapshot values either way.
+-- MATERIALIZED is a plan choice, not a correctness one: it keeps the pool
+-- evaluated once and stops the planner from inlining it into one join tree.
+candidate_pool AS MATERIALIZED (
     SELECT work.work_item_id,
+           work.scope_id,
+           scoped_fence.fence AS snapshot_fence,
+           work.updated_at,
+           CASE
+             WHEN work.status IN ('claimed', 'running') AND work.claim_until <= $1 THEN 0
+             ELSE 1
+           END AS reclaim_rank,
            (
                SELECT count(*)
                FROM fact_work_items AS inflight_source
@@ -164,6 +208,8 @@ candidate AS (
     FROM fact_work_items AS work
     JOIN source_scoped_projector_work AS scoped
       ON scoped.work_item_id = work.work_item_id
+    JOIN projector_scope_claim_fences AS scoped_fence
+      ON scoped_fence.scope_id = work.scope_id
     WHERE work.stage = 'projector'
       AND work.status IN ('pending', 'retrying', 'claimed', 'running')
       AND (work.visible_at IS NULL OR work.visible_at <= $1)
@@ -207,17 +253,48 @@ candidate AS (
             same.work_item_id ASC
           LIMIT 1
       )
+),
+-- The lock step visits pool rows in claim order and locks the work row, then
+-- its scope's fence row, both SKIP LOCKED; LockRows takes them in locking
+-- clause order. It repeats the work row's row-self predicates so EvalPlanQual
+-- drops a row claimed after the snapshot (#7108), and joins on fence equality
+-- so it drops a scope another claimer claimed in after the snapshot (#7115).
+-- A busy work row leaves the fence row unlocked. The pool is sorted in a
+-- subquery on the claim-order keys so the planner sees those pathkeys, drops
+-- the top-level Sort, and nested-loops the work and fence probes in order:
+-- LIMIT 1 then stops at the first lockable row instead of probing every pool
+-- row. A CTE scan exposes no order, so ORDER BY inside candidate_pool would
+-- not do this. The outer ORDER BY stays and keeps the order guaranteed.
+candidate AS (
+    SELECT work.work_item_id
+    FROM (
+        SELECT *
+        FROM candidate_pool
+        ORDER BY
+          reclaim_rank,
+          projector_source_inflight_count ASC,
+          projector_source_fair_rank ASC,
+          updated_at ASC,
+          work_item_id ASC
+    ) AS pool
+    JOIN fact_work_items AS work
+      ON work.work_item_id = pool.work_item_id
+    JOIN projector_scope_claim_fences AS claim_fence
+      ON claim_fence.scope_id = pool.scope_id
+     AND claim_fence.fence = pool.snapshot_fence
+    WHERE work.stage = 'projector'
+      AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+      AND (work.visible_at IS NULL OR work.visible_at <= $1)
+      AND (work.claim_until IS NULL OR work.claim_until <= $1)
     ORDER BY
-      CASE
-        WHEN work.status IN ('claimed', 'running') AND work.claim_until <= $1 THEN 0
-        ELSE 1
-      END,
-      projector_source_inflight_count ASC,
-      projector_source_fair_rank ASC,
-      work.updated_at ASC,
-      work.work_item_id ASC
+      pool.reclaim_rank,
+      pool.projector_source_inflight_count ASC,
+      pool.projector_source_fair_rank ASC,
+      pool.updated_at ASC,
+      pool.work_item_id ASC
     LIMIT 1
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE OF work SKIP LOCKED
+    FOR NO KEY UPDATE OF claim_fence SKIP LOCKED
 ),
 claimed AS (
     UPDATE fact_work_items AS work
@@ -230,6 +307,15 @@ claimed AS (
     FROM candidate
     WHERE work.work_item_id = candidate.work_item_id
     RETURNING work.work_item_id, work.scope_id, work.generation_id, work.attempt_count
+),
+-- Bump the fence of the scope this statement claimed in. Data-modifying CTEs
+-- always run to completion, so this runs although nothing reads it. It updates
+-- only the fence row the lock step already holds, so it never waits.
+claimed_scope_fence AS (
+    UPDATE projector_scope_claim_fences AS fenced_scope
+    SET fence = fenced_scope.fence + 1
+    FROM claimed
+    WHERE fenced_scope.scope_id = claimed.scope_id
 ),
 locked_claim_siblings AS (
     SELECT stale.work_item_id,

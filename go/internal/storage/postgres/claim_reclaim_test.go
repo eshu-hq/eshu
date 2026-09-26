@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 		"same.work_item_id ASC",
 		"work.status IN ('claimed', 'running') AND work.claim_until <= $1 THEN 0",
 		"prior_generation.generation_id <> claimed.generation_id",
-		"FOR UPDATE SKIP LOCKED",
+		"FOR UPDATE OF work SKIP LOCKED",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("claim query missing %q:\n%s", want, query)
@@ -114,6 +115,102 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 	} {
 		if got := strings.Count(query, lock); got < min {
 			t.Fatalf("claim query has %d x %q, want at least %d", got, lock, min)
+		}
+	}
+}
+
+// TestProjectorQueueClaimFencesTheScope pins the #7115 scope claim fence. The
+// candidate pool stays MATERIALIZED for plan shape: without it the planner
+// inlines the pool into one join tree. Correctness does not depend on it,
+// since EvalPlanQual keeps unlocked pool columns at their snapshot values
+// either way (the MATERIALIZED mutation passes every live test). The lock
+// step must lock the work row and then the scope's
+// projector_scope_claim_fences row, both SKIP
+// LOCKED, and join on fence equality so a scope another claimer bumped after
+// the snapshot drops out. LockRows takes row locks in locking-clause order,
+// so FOR UPDATE OF work must come first: a busy work row then leaves the
+// fence row unlocked (TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy
+// kills the swapped order). The lock step reads the pool through a subquery
+// sorted on the claim-order keys, so the planner nested-loops the probes in
+// order and stops at the first lockable row; measured at 2k and 20k scopes,
+// it probes one pool row instead of all of them. The claim must bump the
+// fence it locked.
+func TestProjectorQueueClaimFencesTheScope(t *testing.T) {
+	t.Parallel()
+
+	query := claimProjectorWorkQuery
+	for _, want := range []string{
+		"candidate_pool AS MATERIALIZED (",
+		"JOIN projector_scope_claim_fences AS scoped_fence",
+		"scoped_fence.fence AS snapshot_fence",
+		"FROM (\n        SELECT *\n        FROM candidate_pool\n        ORDER BY\n          reclaim_rank,\n          projector_source_inflight_count ASC,\n          projector_source_fair_rank ASC,\n          updated_at ASC,\n          work_item_id ASC\n    ) AS pool",
+		"JOIN projector_scope_claim_fences AS claim_fence",
+		"claim_fence.scope_id = pool.scope_id",
+		"AND claim_fence.fence = pool.snapshot_fence",
+		"FOR UPDATE OF work SKIP LOCKED\n    FOR NO KEY UPDATE OF claim_fence SKIP LOCKED",
+		"claimed_scope_fence AS (",
+		"UPDATE projector_scope_claim_fences AS fenced_scope",
+		"SET fence = fenced_scope.fence + 1",
+		"fenced_scope.scope_id = claimed.scope_id",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("claim query missing %q:\n%s", want, query)
+		}
+	}
+	// The lock step repeats the row-self predicates on the locked work row so
+	// its EvalPlanQual recheck drops a row claimed after the snapshot (#7108).
+	lockStep := query[strings.Index(query, "candidate AS ("):strings.Index(query, "claimed AS (")]
+	for _, want := range []string{
+		"work.status IN ('pending', 'retrying', 'claimed', 'running')",
+		"(work.visible_at IS NULL OR work.visible_at <= $1)",
+		"(work.claim_until IS NULL OR work.claim_until <= $1)",
+	} {
+		if !strings.Contains(lockStep, want) {
+			t.Fatalf("claim lock step missing row-self predicate %q:\n%s", want, lockStep)
+		}
+	}
+	for _, order := range [][2]string{
+		{"candidate_pool AS MATERIALIZED (", "candidate AS ("},
+		{"claimed AS (", "claimed_scope_fence AS ("},
+	} {
+		if strings.Index(query, order[0]) > strings.Index(query, order[1]) {
+			t.Fatalf("claim query has %q after %q", order[0], order[1])
+		}
+	}
+}
+
+// TestProjectorQueueClaimNeverLocksIngestionScopes is the #7115 anti-regression
+// guard. A row lock on ingestion_scopes can wait even under SKIP LOCKED,
+// because FK child inserts KEY SHARE that row and LockRows then walks its
+// update chain with a blocking wait; that deadlocked the claim against Ack.
+// Every locking clause must name its relation, and none may name an
+// ingestion_scopes alias.
+func TestProjectorQueueClaimNeverLocksIngestionScopes(t *testing.T) {
+	t.Parallel()
+
+	query := claimProjectorWorkQuery
+	for _, forbidden := range []string{"projector_claim_fence", "ingestion_scopes AS claim_scope"} {
+		if strings.Contains(query, forbidden) {
+			t.Fatalf("claim query contains forbidden %q:\n%s", forbidden, query)
+		}
+	}
+	// Scan SQL only: comments may quote locking clauses.
+	query = regexp.MustCompile(`--[^\n]*`).ReplaceAllString(query, "")
+	scopeAliases := map[string]bool{"ingestion_scopes": true}
+	for _, match := range regexp.MustCompile(`ingestion_scopes\s+AS\s+(\w+)`).FindAllStringSubmatch(query, -1) {
+		scopeAliases[match[1]] = true
+	}
+	lockClause := regexp.MustCompile(`FOR\s+(UPDATE|NO\s+KEY\s+UPDATE|SHARE|KEY\s+SHARE)\b(\s+OF\s+(\w+))?`)
+	clauses := lockClause.FindAllStringSubmatch(query, -1)
+	if len(clauses) == 0 {
+		t.Fatal("claim query has no locking clauses; the guard would be vacuous")
+	}
+	for _, clause := range clauses {
+		if clause[3] == "" {
+			t.Fatalf("locking clause %q names no relation, so it would lock every joined table", clause[0])
+		}
+		if scopeAliases[clause[3]] {
+			t.Fatalf("locking clause %q locks ingestion_scopes (aliases %v)", clause[0], scopeAliases)
 		}
 	}
 }
@@ -232,5 +329,61 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Fatalf("claim query missing %q:\n%s", want, query)
 		}
+	}
+}
+
+// claimSortedPoolBlock is the lock step's sorted read of candidate_pool, as
+// shipped. The sort-then-probe differential swaps it for the whole-pool read
+// the claim shipped with before, deriving that reference from the shipped
+// constant so the two texts differ only in this block.
+const claimSortedPoolBlock = `    FROM (
+        SELECT *
+        FROM candidate_pool
+        ORDER BY
+          reclaim_rank,
+          projector_source_inflight_count ASC,
+          projector_source_fair_rank ASC,
+          updated_at ASC,
+          work_item_id ASC
+    ) AS pool
+`
+
+// sortedPoolRead matches the lock step's subquery read of candidate_pool,
+// whatever its inner ORDER BY, so a mutation of that ORDER BY still derives a
+// reference and is judged by the differential on its result.
+var sortedPoolRead = regexp.MustCompile(`(?s)    FROM \(\n        SELECT \*\n        FROM candidate_pool\n.*?    \) AS pool\n`)
+
+// wholePoolClaimQuery derives the pre-sort-then-probe claim from the shipped
+// claimProjectorWorkQuery by replacing only the lock step's pool read. ok is
+// false when the shipped query does not read the pool through exactly one
+// such subquery.
+func wholePoolClaimQuery() (string, bool) {
+	if len(sortedPoolRead.FindAllStringIndex(claimProjectorWorkQuery, -1)) != 1 {
+		return "", false
+	}
+	return sortedPoolRead.ReplaceAllString(claimProjectorWorkQuery, "    FROM candidate_pool AS pool\n"), true
+}
+
+// TestWholePoolClaimQueryDerivedFromShippedQuery is the hermetic guard for the
+// sort-then-probe differential: the reference text must come from the shipped
+// constant and differ from it only by the lock step's pool read.
+func TestWholePoolClaimQueryDerivedFromShippedQuery(t *testing.T) {
+	t.Parallel()
+
+	if strings.Count(claimProjectorWorkQuery, claimSortedPoolBlock) != 1 {
+		t.Fatalf("claimProjectorWorkQuery no longer reads the pool through claimSortedPoolBlock:\n%s", claimProjectorWorkQuery)
+	}
+	whole, ok := wholePoolClaimQuery()
+	if !ok {
+		t.Fatal("cannot derive the whole-pool reference from claimProjectorWorkQuery; update the differential")
+	}
+	if whole == claimProjectorWorkQuery {
+		t.Fatal("derived whole-pool query equals the shipped query; the differential would compare a query with itself")
+	}
+	if got, want := len(claimProjectorWorkQuery)-len(whole), len(claimSortedPoolBlock)-len("    FROM candidate_pool AS pool\n"); got != want {
+		t.Fatalf("derived query differs from the shipped one by %d bytes, want %d", got, want)
+	}
+	if !strings.Contains(whole, "    FROM candidate_pool AS pool\n    JOIN fact_work_items AS work") {
+		t.Fatalf("derived whole-pool query lost its lock-step join:\n%s", whole)
 	}
 }

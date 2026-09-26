@@ -34,6 +34,25 @@ type SourceQueueObserver interface {
 	SourceQueueOldestAge(ctx context.Context) (map[string]map[string]float64, error)
 }
 
+// ProjectorClaimInvariantObserver reports the projector claim's scope-fence
+// invariants (#7115). A QueueObserver that also implements it gets the
+// eshu_dp_projector_scopes_multiple_live_leases and
+// eshu_dp_projector_scopes_missing_claim_fence gauges on the same collection
+// cadence as the queue depth gauges.
+type ProjectorClaimInvariantObserver interface {
+	// ProjectorScopesWithMultipleLiveLeases returns how many scopes currently
+	// hold more than one unexpired claimed or running projector lease. The
+	// projector claim's scope fence keeps this at zero; any other value means
+	// two workers are projecting the same scope at once.
+	ProjectorScopesWithMultipleLiveLeases(ctx context.Context) (int64, error)
+	// ProjectorScopesMissingClaimFence returns how many scopes have claimable
+	// projector work but no projector_scope_claim_fences row. The claim
+	// inner-joins that row, so such a scope is silently unclaimable; the
+	// ingestion_scopes insert trigger and the migration backfill keep this at
+	// zero.
+	ProjectorScopesMissingClaimFence(ctx context.Context) (int64, error)
+}
+
 // WorkflowFamilyQueueDepthObserver provides outstanding claim-aware collector
 // queue depth grouped by collector family and status, backing the per-family
 // queue-depth gauge. Keys: collector_kind -> source_system -> status -> count.
@@ -1781,6 +1800,16 @@ type Instruments struct {
 	GraphOrphanNodes       metric.Int64ObservableGauge
 	AWSClaimConcurrency    metric.Int64ObservableGauge
 	ActiveGenerationsByAge metric.Int64ObservableGauge
+
+	// ProjectorScopesMultipleLiveLeases reports how many scopes hold more than
+	// one unexpired projector lease (#7115). It is an invariant gauge: any
+	// value above zero means the scope claim fence was bypassed.
+	ProjectorScopesMultipleLiveLeases metric.Int64ObservableGauge
+	// ProjectorScopesMissingClaimFence reports how many scopes have claimable
+	// projector work but no claim fence row (#7115). Any value above zero is a
+	// silent projection stall for those scopes.
+	ProjectorScopesMissingClaimFence metric.Int64ObservableGauge
+
 	// PoisonDeadLetterScopes and PoisonDeadLetterItems report the current
 	// dead-letter/poison class size (#4740): fact_work_items rows whose status
 	// is 'dead_letter' with no strictly-newer scope_generations row for the same
@@ -5486,6 +5515,12 @@ func RegisterObservableGauges(
 				return fmt.Errorf("register SourceQueueOldestAge gauge: %w", err)
 			}
 		}
+
+		if claimObs, ok := queueObs.(ProjectorClaimInvariantObserver); ok {
+			if err := registerProjectorClaimInvariantGauges(inst, meter, claimObs); err != nil {
+				return err
+			}
+		}
 	}
 
 	if workerObs != nil {
@@ -5513,6 +5548,43 @@ func RegisterObservableGauges(
 		}
 	}
 
+	return nil
+}
+
+// registerProjectorClaimInvariantGauges registers the two unlabeled #7115
+// projector claim invariant gauges backed by claimObs.
+func registerProjectorClaimInvariantGauges(inst *Instruments, meter metric.Meter, claimObs ProjectorClaimInvariantObserver) error {
+	var err error
+	inst.ProjectorScopesMultipleLiveLeases, err = meter.Int64ObservableGauge(
+		"eshu_dp_projector_scopes_multiple_live_leases",
+		metric.WithDescription("Projector scopes holding more than one unexpired claimed or running lease; the invariant is zero"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, err := claimObs.ProjectorScopesWithMultipleLiveLeases(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ProjectorScopesMultipleLiveLeases gauge: %w", err)
+	}
+	inst.ProjectorScopesMissingClaimFence, err = meter.Int64ObservableGauge(
+		"eshu_dp_projector_scopes_missing_claim_fence",
+		metric.WithDescription("Projector scopes with claimable work but no claim fence row, which the claim cannot take; the invariant is zero"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, err := claimObs.ProjectorScopesMissingClaimFence(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ProjectorScopesMissingClaimFence gauge: %w", err)
+	}
 	return nil
 }
 
