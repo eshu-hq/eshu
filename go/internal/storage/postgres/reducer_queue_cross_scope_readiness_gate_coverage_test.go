@@ -49,6 +49,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte(acceptanceMonotonicRequiredEnv+": \"1\"")) {
 		t.Fatalf("%s must set %s=1 so the acceptance monotonic proofs cannot skip in CI", workflowPath, acceptanceMonotonicRequiredEnv)
 	}
+	// #6475: a skip is a failure in this lane for the service lineage scope
+	// proofs, so a renamed DSN variable cannot silently disable them.
+	if !bytes.Contains(workflow, []byte(serviceLineageScopeRequiredEnv+": \"1\"")) {
+		t.Fatalf("%s must set %s=1 so the service lineage scope proofs cannot skip in CI", workflowPath, serviceLineageScopeRequiredEnv)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -121,6 +126,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive",
 		"TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive",
 		"TestSharedIntentAcceptanceWriterStaleWriteCounterLive",
+		// #6475: the service lineage is keyed by (scope_id, service_id); the
+		// migrations, writer, and changed-since resolve pick need real Postgres.
+		"TestServiceMaterializationActiveIndexReplayConvergesLive",
+		"TestServiceMaterializationWriterKeepsScopedLineagesLive",
+		"TestServiceChangedSinceResolvePicksAttributedNewestActiveLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

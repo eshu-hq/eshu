@@ -92,16 +92,20 @@ func (t ServiceMaterializationSQLTx) Rollback() error { return t.Tx.Rollback() }
 // diffs. It is additive: it never touches reducer_service_catalog_correlation
 // facts or their stable_fact_key.
 //
-// Concurrency contract (conflict key = service_id):
+// Concurrency contract (conflict key = (scope_id, service_id), #6475):
 //
-//   - All commits for one service serialize on the partial unique index
-//     service_materialization_generations_active_service_idx, which permits one
-//     status='active' row per service_id. Two concurrent commits for the same
-//     service cannot both leave an active row; the loser fails its insert/update
-//     and the reducer retries the intent.
+//   - All commits for one service within one ingestion scope serialize on the
+//     partial unique index service_materialization_generations_active_service_idx,
+//     which permits one status='active' row per (scope_id, service_id). Two
+//     concurrent commits for the same scope and service cannot both leave an
+//     active row; the loser fails its update and the reducer retries the intent.
+//   - Commits from different scopes for the same service id touch disjoint rows:
+//     supersede and activate both filter on scope_id, so one scope never retires
+//     another scope's generation. Rows with a NULL scope_id (legacy generations
+//     no witness could attribute, migration 127) are never superseded.
 //   - The supersede of the prior active generation and the insert of the new
 //     active generation run in one transaction, so a reader never observes zero
-//     or two active generations for a service.
+//     or two active generations for one (scope, service).
 //   - The generation id is deterministic in the evidence set, so an identical
 //     re-materialization upserts the same row (ON CONFLICT DO NOTHING) and is a
 //     true no-op: no supersession, no snapshot churn, no false delta.
@@ -172,11 +176,11 @@ func (w PostgresServiceMaterializationWriter) commit(
 	// Retire the prior active generation, then promote the new pending generation
 	// to active. Ordering supersede-before-activate keeps at most one active row
 	// per service at every step, so the partial unique index is never violated.
-	supersededIDs, err := w.supersedePriorActive(ctx, tx, write.ServiceID, generationID, now)
+	supersededIDs, err := w.supersedePriorActive(ctx, tx, write.ScopeID, write.ServiceID, generationID, now)
 	if err != nil {
 		return ServiceMaterializationWriteResult{}, err
 	}
-	if err := w.activateGeneration(ctx, tx, write.ServiceID, generationID, now); err != nil {
+	if err := w.activateGeneration(ctx, tx, write.ScopeID, write.ServiceID, generationID, now); err != nil {
 		return ServiceMaterializationWriteResult{}, err
 	}
 
@@ -213,6 +217,7 @@ func (w PostgresServiceMaterializationWriter) insertGeneration(
 		ServiceMaterializationStatusPending,
 		nil,
 		serviceMaterializationGenerationPayload(write),
+		write.ScopeID,
 	)
 	if err != nil {
 		return false, fmt.Errorf("insert service materialization generation: %w", err)
@@ -227,7 +232,7 @@ func (w PostgresServiceMaterializationWriter) insertGeneration(
 func (w PostgresServiceMaterializationWriter) supersedePriorActive(
 	ctx context.Context,
 	tx ServiceMaterializationTx,
-	serviceID, generationID string,
+	scopeID, serviceID, generationID string,
 	now time.Time,
 ) ([]string, error) {
 	row := tx.QueryRowContext(
@@ -236,6 +241,7 @@ func (w PostgresServiceMaterializationWriter) supersedePriorActive(
 		serviceID,
 		generationID,
 		now,
+		scopeID,
 	)
 	var superseded sql.NullString
 	if scanErr := row.Scan(&superseded); scanErr != nil {
@@ -257,7 +263,7 @@ func (w PostgresServiceMaterializationWriter) supersedePriorActive(
 func (w PostgresServiceMaterializationWriter) activateGeneration(
 	ctx context.Context,
 	tx ServiceMaterializationTx,
-	serviceID, generationID string,
+	scopeID, serviceID, generationID string,
 	now time.Time,
 ) error {
 	if _, err := tx.ExecContext(
@@ -266,6 +272,7 @@ func (w PostgresServiceMaterializationWriter) activateGeneration(
 		serviceID,
 		generationID,
 		now,
+		scopeID,
 	); err != nil {
 		return fmt.Errorf("activate service materialization generation: %w", err)
 	}
@@ -309,6 +316,7 @@ func serviceMaterializationTriggerKind(triggerKind string) string {
 
 func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite) []byte {
 	payload := map[string]any{
+		"scope_id":           write.ScopeID,
 		"service_id":         write.ServiceID,
 		"intent_id":          write.IntentID,
 		"ownership_count":    len(write.Ownership),

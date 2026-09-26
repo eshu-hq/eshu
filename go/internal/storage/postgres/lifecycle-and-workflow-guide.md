@@ -456,19 +456,19 @@ via `ServiceMaterializationBeginner`); the read path is
 `reducer_service_catalog_correlation` fact and its `stable_fact_key` are
 unchanged.
 
-Conflict domain and concurrency: the conflict key is `service_id`. At most one
-`status = 'active'` generation exists per service, enforced by the partial unique
-index `service_materialization_generations_active_service_idx` (mirroring
-`scope_generations_active_scope_idx`). One commit runs the new-generation insert,
-the prior-active supersession, and the snapshot-row writes in a single
-transaction, so a reader never observes zero or two active generations for a
-service. The generation id is deterministic in the evidence set
-(`md5`-fingerprinted), so an identical re-materialization inserts zero rows
+Conflict domain and concurrency: the conflict key is `(scope_id, service_id)`,
+`scope_id` being the writing intent's ingestion scope (#6475;
+`docs/internal/evidence/6475-service-lineage-scope.md`). One active generation per
+key is enforced by `service_materialization_generations_active_service_idx`;
+supersede and activate filter on `scope_id`, so no scope retires another's rows
+and unattributed (`NULL`) legacy rows are never superseded. One transaction runs
+insert, supersession, and snapshot writes. The generation id is deterministic in
+the scope and evidence set (`md5`-fingerprinted), so an identical re-materialization inserts zero rows
 (`ON CONFLICT (generation_id) DO NOTHING`) and skips supersession and snapshot
 writes — a true no-op with no churn. A dropped owner is written as an
 `is_tombstone = TRUE` snapshot row so the delta classifies it `retired`, never
-silently absent. No serialization-as-fix: services partition by `service_id`, so
-concurrent commits for different services never contend.
+silently absent. No serialization-as-fix: commits partition by
+`(scope_id, service_id)` and never contend across keys.
 
 Cardinality and query cost: snapshot rows are one per `(generation_id,
 service_evidence_key)`; ownership cardinality is the number of distinct owners

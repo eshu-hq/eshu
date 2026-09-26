@@ -31,6 +31,15 @@ through the root's compatibility aliases.
 | vulnerabilities evidence | `service_materialization_vulnerabilities.go` | `ServiceVulnerabilityEvidenceKey` over supply-chain advisory findings |
 | `PostgresServiceMaterializationWriter` | `service_materialization_writer.go` | commits the generation + snapshot rows for all seven families atomically |
 
+The lineage conflict key is `(ScopeID, ServiceID)` (#6475):
+`ServiceMaterializationWrite.ScopeID` is required and carries the claimed
+intent's ingestion scope (`Intent.ScopeID`), `ServiceMaterializationGenerationID`
+folds it into the generation identity, and the writer's insert, supersede, and
+activate statements are all scoped by it. Two ingestion scopes that correlate
+the same service id therefore keep separate active generations; a changed write
+in one scope supersedes only that scope's prior generation, and unattributed
+legacy rows (`scope_id IS NULL`) are never superseded.
+
 The `service_materialization_*` files are **not** a separate family: their
 handler methods (`attachServiceIncidentEvidence`,
 `attachServiceVulnerabilityEvidence`, `attachServiceDocumentationEvidence`)

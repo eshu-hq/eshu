@@ -41,6 +41,7 @@ func TestGoldenServiceChangedSinceOwnerChangeCreatesDistinctIdempotentGeneration
 
 func goldenServiceChangedSinceWrite(ownerRef string) ServiceMaterializationWrite {
 	return ServiceMaterializationWrite{
+		ScopeID:     "scope-test",
 		IntentID:    "golden-service-changed-since",
 		ServiceID:   goldenServiceChangedSinceServiceID,
 		TriggerKind: "golden_corpus",

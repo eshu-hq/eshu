@@ -1,0 +1,23 @@
+-- 126_service_materialization_generations_scope_column.sql
+--
+-- #6475: service materialization lineage was keyed by service_id alone, so two
+-- ingestion scopes that correlate the same service id shared one lineage: the
+-- second scope's commit superseded the first scope's active generation and a
+-- changed-since reader could not tell whose evidence it was diffing. This adds
+-- the writing intent's ingestion scope as scope_id. The reducer writer sets it
+-- on every new generation from here on (ServiceMaterializationWrite.ScopeID).
+--
+-- Nullable and without a default, so ADD COLUMN is a catalog-only change with
+-- no table rewrite; its ACCESS EXCLUSIVE lock is held only for that catalog
+-- update and bounded by the runner's lock_timeout and retry (schema.go). A row
+-- stays NULL ("unattributed") when migration 127's backfill finds no witness
+-- for it. The writer never supersedes an unattributed row, and NULLs are
+-- distinct under the (scope_id, service_id) unique index migration 129 builds,
+-- so a legacy active row never conflicts with a scoped one.
+--
+-- The backfill is a file of its own (127) so its UPDATE runs in a separate
+-- implicit transaction holding only ROW EXCLUSIVE and per-row locks, instead of
+-- extending this ALTER's ACCESS EXCLUSIVE lock -- which blocks every reader of
+-- the table -- across the backfill scan.
+ALTER TABLE service_materialization_generations
+    ADD COLUMN IF NOT EXISTS scope_id TEXT NULL;

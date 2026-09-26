@@ -170,6 +170,7 @@ func TestServiceMaterializationWriterCommitsIncidentsFamily(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-app",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
@@ -218,6 +219,7 @@ func TestServiceMaterializationWriterTombstonesRetiredIncident(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Incidents: []ServiceIncidentEvidence{
 			{Identity: "keep", Payload: map[string]any{"truth_label": "exact"}},
@@ -245,6 +247,7 @@ func TestServiceMaterializationIncidentsChangeFlipsGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Incidents: []ServiceIncidentEvidence{{Identity: "row-1", Payload: map[string]any{"declared_match_state": "match"}}},
 	})
@@ -253,6 +256,7 @@ func TestServiceMaterializationIncidentsChangeFlipsGeneration(t *testing.T) {
 	}
 	// Identical incidents evidence is a no-op (anti-churn across re-materializations).
 	same, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Incidents: []ServiceIncidentEvidence{{Identity: "row-1", Payload: map[string]any{"declared_match_state": "match"}}},
 	})
@@ -264,6 +268,7 @@ func TestServiceMaterializationIncidentsChangeFlipsGeneration(t *testing.T) {
 	}
 	// A changed incidents payload (drift) must flip the generation.
 	changed, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Incidents: []ServiceIncidentEvidence{{Identity: "row-1", Payload: map[string]any{"declared_match_state": "drifted"}}},
 	})

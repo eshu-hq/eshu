@@ -7,7 +7,11 @@
 // repository evidence without letting catalog names create workloads, and the
 // additive per-service evidence-generation lineage
 // (ServiceMaterializationWrite / PostgresServiceMaterializationWriter) that
-// commits alongside it.
+// commits alongside it. The lineage is keyed by (ingestion scope, service id):
+// ServiceMaterializationWrite.ScopeID is the claimed intent's scope, it is part
+// of ServiceMaterializationGenerationID, and the writer supersedes only within
+// that scope, so two scopes that correlate one service id never retire each
+// other's generations (issue #6475).
 //
 // It covers the correlation decision builder
 // (BuildServiceCatalogCorrelationDecisions), the reducer handler

@@ -298,4 +298,13 @@ var orderedBootstrapDefinitionNames = []string{
 	// advance-only upsert compares row-locally. There is no backfill: the
 	// guard resolves a NULL key from scope_generations at write time.
 	"shared_projection_acceptance_generation_key",
+	// migrations 126-129 (#6475) scope the service materialization lineage by
+	// ingestion scope: the scope_id column, its witness backfill (a file of its
+	// own so it does not hold the ALTER's ACCESS EXCLUSIVE lock), the guarded
+	// drop of 025's single-active-per-service definition, and its
+	// (scope_id, service_id) rebuild under the same name.
+	"service_materialization_generations_scope_column",
+	"service_materialization_generations_scope_backfill",
+	"service_materialization_generations_active_service_idx_rescope",
+	"service_materialization_generations_active_service_idx_v2",
 }

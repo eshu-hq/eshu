@@ -100,6 +100,7 @@ func TestServiceMaterializationWriterCommitsRuntimeFamily(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-checkout",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
@@ -145,6 +146,7 @@ func TestServiceMaterializationWriterTombstonesRetiredRuntime(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Runtime: []ServiceRuntimeEvidence{
 			{Identity: "keep", Payload: map[string]any{"platform_kind": "kubernetes"}},
@@ -172,6 +174,7 @@ func TestServiceMaterializationRuntimeChangeFlipsGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Runtime:   []ServiceRuntimeEvidence{{Identity: "inst-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -179,6 +182,7 @@ func TestServiceMaterializationRuntimeChangeFlipsGeneration(t *testing.T) {
 		t.Fatalf("first write error = %v", err)
 	}
 	same, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Runtime:   []ServiceRuntimeEvidence{{Identity: "inst-1", Payload: map[string]any{"confidence": 0.5}}},
 	})
@@ -189,6 +193,7 @@ func TestServiceMaterializationRuntimeChangeFlipsGeneration(t *testing.T) {
 		t.Fatalf("identical runtime evidence must be a no-op: committed=%v gen=%q->%q", same.Committed, first.GenerationID, same.GenerationID)
 	}
 	changed, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Runtime:   []ServiceRuntimeEvidence{{Identity: "inst-1", Payload: map[string]any{"confidence": 0.9}}},
 	})

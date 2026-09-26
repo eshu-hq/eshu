@@ -23,6 +23,7 @@ func TestServiceMaterializationWriterCommitsGenerationAndSnapshot(t *testing.T) 
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		IntentID:  "intent-1",
 		ServiceID: "svc-checkout",
 		Ownership: []ServiceOwnershipEvidence{
@@ -67,6 +68,7 @@ func TestServiceMaterializationWriterIdempotentNoOp(t *testing.T) {
 	store := newFakeServiceMaterializationStore()
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 	write := ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-orders",
 		Ownership: []ServiceOwnershipEvidence{{OwnerRef: "team-a", Payload: map[string]any{"tier": "gold"}}},
 	}
@@ -97,6 +99,7 @@ func TestServiceMaterializationWriterSupersedesPriorGeneration(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	first, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Ownership: []ServiceOwnershipEvidence{{OwnerRef: "team-a", Payload: map[string]any{"tier": "gold"}}},
 	})
@@ -105,6 +108,7 @@ func TestServiceMaterializationWriterSupersedesPriorGeneration(t *testing.T) {
 	}
 
 	second, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Ownership: []ServiceOwnershipEvidence{{OwnerRef: "team-a", Payload: map[string]any{"tier": "platinum"}}},
 	})
@@ -132,6 +136,7 @@ func TestServiceMaterializationWriterTombstonesRetiredOwner(t *testing.T) {
 	writer := PostgresServiceMaterializationWriter{DB: store, Now: time.Now}
 
 	result, err := writer.WriteServiceMaterialization(context.Background(), ServiceMaterializationWrite{
+		ScopeID:   "scope-test",
 		ServiceID: "svc-a",
 		Ownership: []ServiceOwnershipEvidence{
 			{OwnerRef: "team-keep", Payload: map[string]any{"tier": "gold"}},
@@ -175,7 +180,7 @@ func TestServiceMaterializationWriterRequiresDatabase(t *testing.T) {
 func TestBuildServiceOwnershipMaterializationsGroupsByService(t *testing.T) {
 	t.Parallel()
 
-	writes := buildServiceOwnershipMaterializations("intent-1", []ServiceCatalogCorrelationDecision{
+	writes := buildServiceOwnershipMaterializations("intent-1", "scope-test", []ServiceCatalogCorrelationDecision{
 		{ServiceID: "svc-b", OwnerRef: "team-2", Provider: "backstage", EntityRef: "component:default/b"},
 		{ServiceID: "svc-a", OwnerRef: "team-1", Provider: "backstage", EntityRef: "component:default/a"},
 		{ServiceID: "svc-a", OwnerRef: "team-1b", Provider: "backstage", EntityRef: "component:default/a2"},
@@ -258,6 +263,7 @@ type fakeServiceMaterializationStore struct {
 
 type fakeServiceGeneration struct {
 	serviceID string
+	scopeID   string
 	status    string
 }
 
@@ -312,6 +318,7 @@ func (t *fakeServiceMaterializationTx) ExecContext(
 		// UPDATE, mirroring the single-active-per-service ordering the SQL enforces.
 		t.store.generations[generationID] = &fakeServiceGeneration{
 			serviceID: serviceID,
+			scopeID:   fakeScopeArg(args, 9),
 			status:    ServiceMaterializationStatusPending,
 		}
 		return fakeServiceMaterializationResult{affected: 1}, nil
@@ -341,8 +348,10 @@ func (t *fakeServiceMaterializationTx) QueryRowContext(
 ) ServiceMaterializationRow {
 	serviceID := args[0].(string)
 	newGeneration := args[1].(string)
+	scopeID := fakeScopeArg(args, 3)
 	for id, gen := range t.store.generations {
-		if gen.serviceID == serviceID && gen.status == ServiceMaterializationStatusActive && id != newGeneration {
+		if gen.serviceID == serviceID && gen.scopeID == scopeID &&
+			gen.status == ServiceMaterializationStatusActive && id != newGeneration {
 			gen.status = ServiceMaterializationStatusSuperseded
 			return fakeServiceMaterializationRow{value: id}
 		}
@@ -378,4 +387,15 @@ func (r fakeServiceMaterializationRow) Scan(dest ...any) error {
 	}
 	*dest[0].(*sql.NullString) = sql.NullString{String: r.value, Valid: true}
 	return nil
+}
+
+// fakeScopeArg reads the scope_id bind parameter at index position, the way
+// the SQL binds it ($10 on the generation insert, $4 on supersede). A statement
+// that does not bind a scope reads as the empty scope.
+func fakeScopeArg(args []any, position int) string {
+	if len(args) <= position {
+		return ""
+	}
+	scopeID, _ := args[position].(string)
+	return scopeID
 }

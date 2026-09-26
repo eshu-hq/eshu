@@ -120,13 +120,21 @@ type ServiceOwnershipEvidence struct {
 }
 
 // ServiceMaterializationWrite carries one service's re-materialized evidence set
-// for durable lineage publication. ServiceID is the conflict key: all generation
-// commits for one service serialize on the single-active-per-service constraint.
+// for durable lineage publication. (ScopeID, ServiceID) is the conflict key: all
+// generation commits for one service within one ingestion scope serialize on the
+// single-active-per-(scope, service) constraint, and different scopes keep
+// independent lineages for the same service id (#6475).
 // Every family the writer knows lands in the same generation, so a service
 // generation is the snapshot of all of the service's evidence at materialization
 // time; a change in any family flips the generation.
 type ServiceMaterializationWrite struct {
-	IntentID    string
+	IntentID string
+	// ScopeID is the ingestion scope of the reducer intent that produced this
+	// evidence set (Intent.ScopeID). It is half of the lineage conflict key:
+	// each (ScopeID, ServiceID) pair owns its own generation chain, so two
+	// scopes that correlate the same service id never supersede each other's
+	// generations (#6475). Required.
+	ScopeID     string
 	ServiceID   string
 	TriggerKind string
 	Ownership   []ServiceOwnershipEvidence
@@ -206,8 +214,12 @@ func canonicalizeEvidencePayload(payload map[string]any) map[string]any {
 }
 
 // ServiceMaterializationGenerationID derives the deterministic generation id
-// for one materialization from the service id and the full ordered evidence
-// fingerprint across every family. An identical evidence set produces an
+// for one materialization from the ingestion scope, the service id, and the
+// full ordered evidence fingerprint across every family. The scope is part of
+// the identity (#6475): two scopes with identical evidence for one service id
+// must not collide on the generation_id primary key, or the second scope's
+// insert would read as an idempotent no-op and both would share one snapshot
+// set. An identical evidence set produces an
 // identical id, so a repeat re-materialization upserts the same generation row
 // (ON CONFLICT DO NOTHING) and is a true no-op: no new generation, no snapshot
 // churn, no false delta. A change in any family (ownership, deployment, runtime,
@@ -231,6 +243,7 @@ func ServiceMaterializationGenerationID(write ServiceMaterializationWrite) strin
 		})
 	}
 	return "service-gen:" + facts.StableID("service_materialization_generation", map[string]any{
+		"scope_id":     strings.TrimSpace(write.ScopeID),
 		"service_id":   strings.TrimSpace(write.ServiceID),
 		"evidence_set": fingerprint,
 	})
@@ -314,6 +327,7 @@ func addServiceOwnershipEvidence(
 // services ordered by id, evidence ordered inside the writer.
 func buildServiceOwnershipMaterializations(
 	intentID string,
+	scopeID string,
 	decisions []ServiceCatalogCorrelationDecision,
 ) []ServiceMaterializationWrite {
 	byService := map[string]map[string]ServiceOwnershipEvidence{}
@@ -352,6 +366,7 @@ func buildServiceOwnershipMaterializations(
 		}
 		writes = append(writes, ServiceMaterializationWrite{
 			IntentID:  intentID,
+			ScopeID:   scopeID,
 			ServiceID: serviceID,
 			Ownership: ownership,
 		})
@@ -379,6 +394,9 @@ func ownershipEvidencePayload(decision ServiceCatalogCorrelationDecision) map[st
 func validateServiceMaterializationWrite(write ServiceMaterializationWrite) error {
 	if strings.TrimSpace(write.ServiceID) == "" {
 		return fmt.Errorf("service materialization write requires a service_id")
+	}
+	if strings.TrimSpace(write.ScopeID) == "" {
+		return fmt.Errorf("service materialization write for service %q requires a scope_id", write.ServiceID)
 	}
 	return nil
 }

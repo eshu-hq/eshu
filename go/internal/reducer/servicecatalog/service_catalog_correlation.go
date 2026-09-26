@@ -232,7 +232,7 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	if h.MaterializationWriter == nil {
 		return nil
 	}
-	writes := buildServiceOwnershipMaterializations(intent.IntentID, decisions)
+	writes := buildServiceOwnershipMaterializations(intent.IntentID, intent.ScopeID, decisions)
 	if err := h.attachServiceRelationshipEvidence(ctx, writes, decisions); err != nil {
 		return err
 	}

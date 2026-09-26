@@ -514,7 +514,8 @@ there.
 `GET /api/v0/freshness/services/changed-since` answers "what changed for this
 service since a prior service materialization generation?" A service is not an
 ingestion scope, so this surface diffs a per-service generation lineage
-(`service_materialization_generations`, one active generation per `service_id`)
+(`service_materialization_generations`, one active generation per ingestion
+scope and `service_id`)
 over generation-stable evidence snapshots (`service_evidence_snapshots`) keyed by
 a generation-independent `service_evidence_key` (for example
 `ownership:<service_id>:<owner_ref>`, `deployment:<service_id>:<identity>`
