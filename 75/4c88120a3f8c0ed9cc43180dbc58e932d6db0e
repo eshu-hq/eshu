@@ -54,6 +54,7 @@ docs/public/run-locally/docker-compose.md
   s_b0d7e3abc26c5a::t_c5484d223c1a54 49
 go/internal/envregistry/entries.go
   s_b0d7e3abc26c5a::t_e5ac52b449d781 27
+  s_b0d7e3abc26c5a::t_569b22bb84d94a 27
 go/internal/storage/postgres/AGENTS.md
   s_b0d7e3abc26c5a::t_abbc599747673d 859
 go/internal/storage/postgres/content_files_relative_path_index_schema_test.go
