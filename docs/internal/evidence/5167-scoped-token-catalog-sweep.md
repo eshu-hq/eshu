@@ -205,8 +205,8 @@ grant) correctly saw 0 repositories (total=0)") and
 in order, within the runtime bound). The SSO suite (`scripts/run-auth-e2e.sh`)
 passed 24/24 on the same Neo4j stack definition.
 `scripts/verify-auth-mcp-e2e-sensitivity.sh` first failed to boot. Neo4j went
-unhealthy under the inherited 5 s x 10 healthcheck: the pinned digest is
-amd64-only, so it ran emulated on an arm64 host with load average 17. After the
+unhealthy under the inherited 5 s x 10 healthcheck. The Neo4j container ran
+emulated amd64 on an arm64 host with load average 17. After the
 e2e `neo4j` service got `start_period: 120s` and 30 retries, the gate passed
 (real gate PASS, mutated FAIL on the gate, restored PASS). The Eshu images were
 unchanged; only the healthcheck changed.
