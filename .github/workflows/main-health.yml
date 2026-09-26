@@ -2,8 +2,8 @@ name: Main Health
 
 # Post-merge watcher (#7111 F2). Nothing used to notice a required workflow
 # going red on `main` after two green PRs merged: the guard-test red sat 4h44m
-# and was found by PR authors, and the scheduled ruleset verifier failed 30/30
-# runs with no owner. This workflow judges the NEWEST main commit after every
+# and was found by PR authors, and the scheduled ruleset verifier failed every
+# scheduled run with no owner. This workflow judges the NEWEST main commit after every
 # required workflow finishes (and every 6 hours as a backstop), keeps exactly
 # one pinned `main is red @<sha>` issue in step with the verdict, posts a
 # `main-health` commit status, and closes the issue when main is green. Only

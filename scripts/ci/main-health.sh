@@ -7,9 +7,9 @@
 # Why this exists. A required workflow can go red on `main` after two green PRs
 # merge, and nothing told anyone: the guard-test red sat for 4h44m and was
 # found by PR authors, and the scheduled `Required Gates` ruleset verifier
-# failed 30/30 runs with no owner. This script judges the NEWEST main commit,
-# keeps exactly one `main is red @<sha>` issue in step with that verdict, and
-# publishes a `main-health` commit status on the commit.
+# failed every scheduled run with no owner. This script judges the NEWEST main
+# commit, keeps exactly one `main is red @<sha>` issue in step with that
+# verdict, and publishes a `main-health` commit status on the commit.
 #
 # Decision, evaluated against the current tip of main every time (never the
 # commit of whichever workflow triggered the run, so a slow old run cannot
