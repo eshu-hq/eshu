@@ -34,7 +34,7 @@ see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/intern
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
 in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, contract-registry, and repo-wide sweep gates).
 Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and blocks merge in CI through `required-gates-complete`.
-Measured on a one-line `go/internal/query` change: 400s. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
+Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
 reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
 from `./...`):

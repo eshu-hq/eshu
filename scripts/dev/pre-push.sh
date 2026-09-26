@@ -38,7 +38,8 @@
 #       added). Every other triggered gate prints
 #       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
 #       A denylist of the slowest gates was tried first and still took more
-#       than 15 minutes on a one-line Go change; the allowlist took 400s;
+#       than 15 minutes on a one-line Go change; the allowlist took 400s
+#       before the merge-vet and race steps, which add about 45s;
 #   (e) the advisory docs-contradiction gate, unconditionally. It has no CI
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.
