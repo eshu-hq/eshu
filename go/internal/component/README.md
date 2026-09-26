@@ -114,7 +114,9 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   does not trust `manifest_path` values stored in `registry.json`.
 - Producer-grant decisions (#6726) are reported through the optional
   `GrantObserver` (`Registry.WithGrantObserver`) at install, readback, and
-  enable, once per core-owned fact family, and `ClassifyEmission` names the
+  enable, and by `LoadInstalledManifestForActivation` (the loader a caller
+  that is about to run the component uses; `LoadInstalledManifest` stays
+  silent), once per core-owned fact family, and `ClassifyEmission` names the
   closed deny reason (`no_matching_grant`, `revoked`, `expired`,
   `scope_mismatch`, `schema_not_covered`; the host adds `grants_unreadable`).
   Only the candidate component is reported at enable, `PlanEnable` reports

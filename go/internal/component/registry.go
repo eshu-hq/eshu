@@ -132,6 +132,18 @@ func (r Registry) LoadInstalledManifest(componentID, version string) (Manifest, 
 	return r.installedManifest(InstalledComponent{ID: componentID, Version: version})
 }
 
+// LoadInstalledManifestForActivation is LoadInstalledManifest for a caller
+// that is about to run the component: it also reports the activation-stage
+// producer-grant decisions to the registry's observer (see WithGrantObserver),
+// once per core-owned fact family the manifest declares. A denial is reported
+// and then fails the load closed, exactly as LoadInstalledManifest does. With
+// no observer it is identical to LoadInstalledManifest.
+func (r Registry) LoadInstalledManifestForActivation(componentID, version string) (Manifest, error) {
+	return r.installedManifestObserved(
+		InstalledComponent{ID: componentID, Version: version}, r.observer, GrantStageActivation,
+	)
+}
+
 // ProducerGrants returns the registry's durable producer authorizations.
 // A nil result denies every core-owned declaration, matching registries
 // written before producer delegation.

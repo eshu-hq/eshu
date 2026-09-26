@@ -108,7 +108,7 @@ one enabled bounded scope; invalid configurations fail validation.
   `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
   `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
-  `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`.
+  `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`. `LoadConfigObserved(getenv, observer)` also reports component grant decisions (#7153; see `doc.go`).
 - `MetricPrefix` — the OTEL instrument namespace
   (`eshu_dp_workflow_coordinator_`) every coordinator metric shares. It is
   exported so subpackages can register instruments in the same namespace

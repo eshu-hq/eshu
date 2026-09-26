@@ -8,8 +8,8 @@
    Postgres, config, metrics, store, service, admin surface, and shutdown
 3. `go/internal/coordinator/service.go` — `Service.Run`, the reconcile/reap
    loop; understand the dark/active branching before touching anything
-4. `go/internal/coordinator/config.go` — `LoadConfig` and `Config.Validate`;
-   all env var names and validation invariants live here
+4. `go/internal/coordinator/config.go` — `LoadConfig`, `LoadConfigObserved`,
+   and `Config.Validate`; all env var names and validation invariants live here
 5. `go/internal/app` — `NewHostedWithStatusServer`; understand admin surface
    mounting before adding endpoints
 

@@ -92,13 +92,21 @@ func (r Registry) validateEnableFactKindClaims(component InstalledComponent, sta
 // installedManifest loads the registry-owned manifest path instead of trusting
 // the persisted ManifestPath field.
 func (r Registry) installedManifest(component InstalledComponent) (Manifest, error) {
+	return r.installedManifestObserved(component, nil, "")
+}
+
+// installedManifestObserved is installedManifest that also reports the
+// producer-grant decisions of the load to observer at stage. The decisions use
+// the same grant snapshot the load validates against, so a revocation landing
+// mid-load is reported as the deny that fails the load, never as an allow.
+func (r Registry) installedManifestObserved(component InstalledComponent, observer GrantObserver, stage GrantStage) (Manifest, error) {
 	// Registry-internal reloads honor durable producer grants so granted
 	// core-kind manifests pass enable and collision checks.
 	state, err := r.load()
 	if err != nil {
 		return Manifest{}, err
 	}
-	manifest, err := loadManifest(r.manifestPath(component.ID, component.Version), state.Grants)
+	manifest, err := loadManifestObserved(r.manifestPath(component.ID, component.Version), state.Grants, observer, stage)
 	if err != nil {
 		return Manifest{}, WrapError(
 			ErrorCodeCorruptedRegistryState,

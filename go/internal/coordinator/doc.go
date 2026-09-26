@@ -111,7 +111,10 @@
 // or the planner: root's component_activation_config.go constructs it,
 // pagerduty_service.go and governance_audit.go read it for reasons unrelated
 // to component-extension scheduling, and extension plans from
-// it, so no one of those four owns it.
+// it, so no one of those four owns it. LoadConfigObserved also reports the
+// producer-grant decisions of that registry readback (stage readback) and of
+// each planned component's reload (stage activation) to a
+// component.GrantObserver, without changing which activations are admitted.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
 // produce workflow rows only. When a workflow tenant boundary is configured,

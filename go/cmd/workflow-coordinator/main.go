@@ -99,7 +99,16 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	cfg, err := coordinator.LoadConfig(os.Getenv)
+	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
+	instruments, err := telemetry.NewInstruments(meter)
+	if err != nil {
+		return fmt.Errorf("telemetry instruments: %w", err)
+	}
+
+	// The registry readback and activation planning inside LoadConfig make the
+	// coordinator's producer-grant decisions, so the observer is built from the
+	// process telemetry runtime before the config loads (#7153).
+	cfg, err := coordinator.LoadConfigObserved(os.Getenv, newGrantObserver(instruments, logger))
 	if err != nil {
 		return err
 	}
@@ -108,7 +117,6 @@ func run(parent context.Context) error {
 		return err
 	}
 
-	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
 	coordinatorMetrics, err := coordinator.NewMetrics(meter)
 	if err != nil {
 		return fmt.Errorf("coordinator metrics: %w", err)
@@ -117,11 +125,6 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("semantic provider worker metrics: %w", err)
 	}
-	instruments, err := telemetry.NewInstruments(meter)
-	if err != nil {
-		return fmt.Errorf("telemetry instruments: %w", err)
-	}
-
 	store := newWorkflowControlStore(postgres.SQLDB{DB: db}, instruments)
 	tenantGrantDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
