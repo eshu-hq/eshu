@@ -614,8 +614,7 @@ gates:
       - "scripts/ci/main-health.sh"
       - "scripts/lib/main-health-policy.sh"
       - "scripts/test-main-health.sh"
-      - "scripts/lib/test-main-health-fake.sh"
-      - "scripts/lib/test-main-health-workflow.sh"
+      - "scripts/lib/test-main-health-*"
       # The mirror asserts the watcher workflow's trigger list equals the
       # aggregator's, its least-privilege permissions and action pinning, so
       # an edit to either workflow must select it.
