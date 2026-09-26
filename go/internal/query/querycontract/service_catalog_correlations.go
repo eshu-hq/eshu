@@ -44,15 +44,7 @@ type ServiceCatalogCorrelationFilter struct {
 	AfterCorrelationID   string
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
-	// OutsideGrant inverts the grant clause: the read returns the rows the
-	// caller's grant does NOT admit, rather than the rows it does. It answers
-	// "does anything outside my grant also claim this selector", which is what
-	// a caller needs before it may act on a shared identifier whose downstream
-	// tables carry no scope column of their own. The two grant arrays are
-	// required in this mode -- see the staying store's
-	// errServiceCatalogOutsideGrantNeedsAGrant.
-	OutsideGrant bool
-	Limit        int
+	Limit                int
 }
 
 // HasScope reports whether the filter carries any read anchor: a concrete
