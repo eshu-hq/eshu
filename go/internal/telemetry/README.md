@@ -76,8 +76,7 @@ See `doc.go` for the godoc contract. Key groups:
 - `Bootstrap` — minimum OTEL runtime settings (service name, namespace, meter
   name, tracer name, logger name); built by `NewBootstrap`
 - `Providers` — holds `*sdktrace.TracerProvider`, `*sdkmetric.MeterProvider`,
-  `PrometheusHandler`, and a combined `Shutdown` function; created by
-  `NewProviders`
+  `PrometheusHandler`, and a combined `Shutdown` function; built by `NewProviders`
 - `NewProviders` — configures OTLP gRPC trace and metric exporters when
   OTEL_EXPORTER_OTLP_ENDPOINT is set; always creates a Prometheus exporter
 - `RecordGOMEMLIMIT` — registers `eshu_dp_gomemlimit_bytes` as an observable
@@ -119,6 +118,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `SharedProjectionLeaseQuarantines` | `eshu_dp_shared_projection_lease_quarantines_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
+| `SharedAcceptanceStaleWrites` | `eshu_dp_shared_acceptance_stale_writes_total` |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |

@@ -18,6 +18,13 @@ const (
 	acceptanceColumnsPerRow             = 6
 )
 
+// sharedProjectionAcceptanceSchemaSQL mirrors migrations 011 and 125 for
+// EnsureSchema callers. generation_ingested_at is a copy of the stored
+// generation's scope_generations.ingested_at, the ordering key the upsert
+// guard compares (see upsertSharedProjectionAcceptanceBatchSuffix). It is NULL
+// on rows written before #6679 and is never backfilled in bulk: the guard
+// resolves a NULL key at write time and every applied write fills it. The
+// ALTER keeps EnsureSchema convergent on a table created before #6679.
 const sharedProjectionAcceptanceSchemaSQL = `
 CREATE TABLE IF NOT EXISTS shared_projection_acceptance (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -26,24 +33,109 @@ CREATE TABLE IF NOT EXISTS shared_projection_acceptance (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     accepted_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
+    generation_ingested_at TIMESTAMPTZ NULL,
     PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id)
 );
+ALTER TABLE shared_projection_acceptance
+    ADD COLUMN IF NOT EXISTS generation_ingested_at TIMESTAMPTZ NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_acceptance_scope_idx
     ON shared_projection_acceptance (scope_id, generation_id);
 CREATE INDEX IF NOT EXISTS shared_projection_acceptance_updated_idx
     ON shared_projection_acceptance (updated_at DESC);
 `
 
+// upsertSharedProjectionAcceptanceBatchPrefix opens the batch upsert. Rows
+// arrive as a VALUES list; a per-row scalar subquery resolves each incoming
+// generation's ordering key (ingested_at) by scope_generations primary key.
+// A LEFT JOIN is equivalent but the planner hashes it over the whole
+// generations table (measured: a 100k-row seq scan per 500-row batch), while
+// the subquery stays at one PK probe per row. The incoming generation is
+// committed before its reducer work is enqueued, so it is visible to the
+// statement snapshot; the FK still rejects an unknown generation on insert.
 const upsertSharedProjectionAcceptanceBatchPrefix = `
 INSERT INTO shared_projection_acceptance (
-    scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at
-) VALUES `
+    scope_id, acceptance_unit_id, source_run_id, generation_id,
+    accepted_at, updated_at, generation_ingested_at
+)
+SELECT v.scope_id, v.acceptance_unit_id, v.source_run_id, v.generation_id,
+       v.accepted_at, v.updated_at,
+       (SELECT generation.ingested_at
+        FROM scope_generations AS generation
+        WHERE generation.generation_id = v.generation_id)
+FROM (VALUES `
 
+// upsertSharedProjectionAcceptanceBatchSuffix makes the acceptance row
+// advance-only (#6679). The DO UPDATE fires only when:
+//   - the incoming generation equals the stored one (an idempotent retry that
+//     refreshes accepted_at/updated_at and fills a missing key), or
+//   - (generation_ingested_at, generation_id) of the incoming row sorts
+//     strictly after the stored row's — the order activation and supersession
+//     use (#6686).
+//
+// For every row the new binary has written, the stored key is the row's own
+// column, so the comparison reads only EXCLUDED (statement constants) and the
+// target row. That matters: after a row-lock wait, READ COMMITTED re-checks
+// this condition against the target row's newest committed version, but a
+// read of another table stays on the statement snapshot and can miss a
+// generation committed after it, turning a newer write into a false stale skip
+// (review F1).
+//
+// A NULL stored key is a legacy row (written before migration 125, or by a
+// pre-#6679 binary during a rolling deploy). COALESCE evaluates only the
+// arguments it needs, so only those rows pay a scope_generations PK probe for
+// the stored generation's ingested_at. A pre-deploy generation is committed
+// before any new-binary statement's snapshot, so the probe resolves to the
+// same value a backfill would have written; the guard stays advance-only for
+// legacy rows. If the probe finds nothing (an old-binary row whose generation
+// was ingested after this statement's snapshot), '-infinity' makes the write
+// advance, as it did before #6679; without it the row comparison is NULL and
+// the newer write would be dropped. The SET fills generation_ingested_at, so a
+// legacy row heals on its first applied write and is never rewritten in bulk.
+//
+// The SET keeps the stored key when the incoming one is NULL. A same-generation
+// retry whose snapshot predates the generation's scope_generations row has a
+// NULL incoming key; overwriting would discard a key another writer already
+// healed. The COALESCE cannot let a row advance on a NULL key: for a
+// different generation the WHERE below compares (incoming key, id) against
+// the stored pair, and a NULL incoming key with a non-NULL stored key makes
+// that row comparison unknown, so the row is skipped and the SET never runs
+// on the advancing branch. With a NULL stored key, COALESCE returns NULL, the
+// same result as before. Only the same-generation branch reaches the SET with
+// a NULL incoming key, and there the stored key is by definition the same
+// generation's key.
+//
+// A NULL incoming key (a generation the snapshot cannot see) makes the
+// comparison NULL, so the write is skipped as stale rather than applied
+// blind. Skipped rows are omitted from RETURNING, which is how callers count
+// them.
+//
+// ORDER BY the primary key makes every batch take row locks in one global
+// order, so two overlapping concurrent batches cannot deadlock. COLLATE "C"
+// is byte order, matching the Go sort in buildSharedProjectionAcceptanceRows
+// that decides which keys share a 500-row batch; with the database collation
+// instead, two writers whose batch boundaries differ could order the same
+// pair of keys oppositely across batches.
 const upsertSharedProjectionAcceptanceBatchSuffix = `
+) AS v(scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
+ORDER BY v.scope_id COLLATE "C", v.acceptance_unit_id COLLATE "C", v.source_run_id COLLATE "C"
 ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE
 SET generation_id = EXCLUDED.generation_id,
     accepted_at = EXCLUDED.accepted_at,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    generation_ingested_at = COALESCE(
+        EXCLUDED.generation_ingested_at,
+        shared_projection_acceptance.generation_ingested_at)
+WHERE shared_projection_acceptance.generation_id = EXCLUDED.generation_id
+   OR (EXCLUDED.generation_ingested_at, EXCLUDED.generation_id)
+      > (COALESCE(
+             shared_projection_acceptance.generation_ingested_at,
+             (SELECT stored_generation.ingested_at
+              FROM scope_generations AS stored_generation
+              WHERE stored_generation.generation_id = shared_projection_acceptance.generation_id),
+             '-infinity'::timestamptz
+         ),
+         shared_projection_acceptance.generation_id)
+RETURNING scope_id, acceptance_unit_id, source_run_id
 `
 
 const lookupSharedProjectionAcceptanceSQL = `
@@ -98,23 +190,38 @@ func (s *SharedProjectionAcceptanceStore) EnsureSchema(ctx context.Context) erro
 	return err
 }
 
-// Upsert writes bounded-unit acceptance rows in batches.
+// Upsert writes bounded-unit acceptance rows in batches. Rows whose
+// generation sorts before the stored generation are skipped (see
+// UpsertReportingStale) and the skipped set is discarded: production writers
+// must call UpsertReportingStale so stale writes reach
+// eshu_dp_shared_acceptance_stale_writes_total; Upsert is for tests and
+// fixtures that only need the row written.
 func (s *SharedProjectionAcceptanceStore) Upsert(ctx context.Context, rows []SharedProjectionAcceptance) error {
-	if len(rows) == 0 {
-		return nil
-	}
+	_, err := s.UpsertReportingStale(ctx, rows)
+	return err
+}
 
+// UpsertReportingStale writes bounded-unit acceptance rows in batches and
+// returns the rows the advance-only guard rejected because the stored row
+// already carries a newer generation. A same-generation retry is applied (it
+// refreshes accepted_at and updated_at) and is never reported as stale.
+// Input rows must carry unique (scope, unit, run) keys, which
+// buildSharedProjectionAcceptanceRows guarantees; a duplicate key inside one
+// batch is rejected by PostgreSQL (SQLSTATE 21000).
+func (s *SharedProjectionAcceptanceStore) UpsertReportingStale(
+	ctx context.Context,
+	rows []SharedProjectionAcceptance,
+) ([]SharedProjectionAcceptance, error) {
+	var stale []SharedProjectionAcceptance
 	for i := 0; i < len(rows); i += sharedProjectionAcceptanceBatchSize {
-		end := i + sharedProjectionAcceptanceBatchSize
-		if end > len(rows) {
-			end = len(rows)
+		end := min(i+sharedProjectionAcceptanceBatchSize, len(rows))
+		batchStale, err := upsertSharedProjectionAcceptanceBatch(ctx, s.database, rows[i:end])
+		if err != nil {
+			return stale, err
 		}
-		if err := upsertSharedProjectionAcceptanceBatch(ctx, s.database, rows[i:end]); err != nil {
-			return err
-		}
+		stale = append(stale, batchStale...)
 	}
-
-	return nil
+	return stale, nil
 }
 
 // Lookup returns the accepted generation for one exact bounded-unit key.
@@ -203,9 +310,16 @@ func (s *SharedProjectionAcceptanceStore) LookupByAcceptanceUnit(ctx context.Con
 	return generationID, true, rows.Err()
 }
 
-func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.ExecQueryer, batch []SharedProjectionAcceptance) error {
+// upsertSharedProjectionAcceptanceBatch writes one batch and returns the
+// submitted rows the advance-only guard skipped, derived by subtracting the
+// RETURNING keys (inserted or updated rows) from the submitted keys.
+func upsertSharedProjectionAcceptanceBatch(
+	ctx context.Context,
+	database db.ExecQueryer,
+	batch []SharedProjectionAcceptance,
+) ([]SharedProjectionAcceptance, error) {
 	if len(batch) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	args := make([]any, 0, len(batch)*acceptanceColumnsPerRow)
@@ -218,7 +332,7 @@ func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.Exec
 		offset := i * acceptanceColumnsPerRow
 		fmt.Fprintf(
 			&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d)",
+			"($%d::text, $%d::text, $%d::text, $%d::text, $%d::timestamptz, $%d::timestamptz)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 		)
 		args = append(
@@ -233,9 +347,41 @@ func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.Exec
 	}
 
 	query := upsertSharedProjectionAcceptanceBatchPrefix + values.String() + upsertSharedProjectionAcceptanceBatchSuffix
-	if _, err := database.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("upsert shared projection acceptance batch (%d rows): %w", len(batch), err)
+	result, err := database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("upsert shared projection acceptance batch (%d rows): %w", len(batch), err)
+	}
+	defer func() { _ = result.Close() }()
+
+	applied := make(map[sharedProjectionAcceptanceRowKey]struct{}, len(batch))
+	for result.Next() {
+		var key sharedProjectionAcceptanceRowKey
+		if err := result.Scan(&key.scopeID, &key.acceptanceUnitID, &key.sourceRunID); err != nil {
+			return nil, fmt.Errorf("scan shared projection acceptance upsert result: %w", err)
+		}
+		applied[key] = struct{}{}
+	}
+	if err := result.Err(); err != nil {
+		return nil, fmt.Errorf("iterate shared projection acceptance upsert result (%d rows): %w", len(batch), err)
 	}
 
-	return nil
+	var stale []SharedProjectionAcceptance
+	for _, row := range batch {
+		key := sharedProjectionAcceptanceRowKey{
+			scopeID:          row.ScopeID,
+			acceptanceUnitID: row.AcceptanceUnitID,
+			sourceRunID:      row.SourceRunID,
+		}
+		if _, ok := applied[key]; !ok {
+			stale = append(stale, row)
+		}
+	}
+	return stale, nil
+}
+
+// sharedProjectionAcceptanceRowKey is the acceptance primary key.
+type sharedProjectionAcceptanceRowKey struct {
+	scopeID          string
+	acceptanceUnitID string
+	sourceRunID      string
 }

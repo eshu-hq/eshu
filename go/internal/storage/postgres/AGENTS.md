@@ -42,6 +42,10 @@
   newer batch silently overwrites the newer fact_id row (and resurrects its
   payload) purely on commit order; `deduplicateEnvelopes` only protects against
   duplicate `fact_id` values inside one batch, not across batches.
+- **Acceptance rows are advance-only (#6679)** — the upsert `WHERE` compares
+  `EXCLUDED` with the row's own `(generation_ingested_at, generation_id)`; only a
+  NULL (legacy) key may fall back to a lookup, which sees the statement snapshot
+  (review F1). No bulk backfill (it stalls writers); see the SQL doc comment.
 - **Freshness de-dupe covers in-flight generations** —
   `CommitScopeGeneration` compares the incoming `FreshnessHint` with the newest
   same-scope `pending` or `active` generation, not only `active_generation_id`,

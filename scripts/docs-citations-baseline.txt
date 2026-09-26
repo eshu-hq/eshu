@@ -310,7 +310,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/storage/cypher/
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/cypher/phase_group_metadata.go:29
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/cypher/phase_group_metadata.go:31
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/cypher/phase_group_metadata.go:33
-LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/code_call_intent_writer.go:37
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/iac_reachability_materializer.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/identity_epoch_cache.go:44
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion.go:281

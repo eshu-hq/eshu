@@ -293,4 +293,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// semantic branch a partial GIN over semantic.documentation_observation,
 	// mirroring fact_records_documentation_target_refs_idx.
 	"fact_records_documentation_semantic_target_refs_idx",
+	// migration 125 (#6679) adds shared_projection_acceptance.
+	// generation_ingested_at, the stored generation's ordering key the
+	// advance-only upsert compares row-locally. There is no backfill: the
+	// guard resolves a NULL key from scope_generations at write time.
+	"shared_projection_acceptance_generation_key",
 }

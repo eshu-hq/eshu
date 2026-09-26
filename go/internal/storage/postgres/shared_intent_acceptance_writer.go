@@ -4,10 +4,15 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -116,11 +121,79 @@ func upsertSharedIntentArtifacts(
 	}
 
 	start := time.Now()
-	if err := NewSharedProjectionAcceptanceStore(database).Upsert(ctx, acceptanceRows); err != nil {
+	stale, err := NewSharedProjectionAcceptanceStore(database).UpsertReportingStale(ctx, acceptanceRows)
+	if err != nil {
 		return fmt.Errorf("upsert shared projection acceptance: %w", err)
 	}
 	recordSharedAcceptanceUpsertMetrics(ctx, instruments, len(acceptanceRows), time.Since(start))
+	recordSharedAcceptanceStaleWrites(ctx, instruments, intentRows, stale)
 	return nil
+}
+
+// sharedAcceptanceStaleUnknownDomain labels a stale acceptance write whose key
+// maps to no intent domain, so the counter's domain label stays bounded.
+const sharedAcceptanceStaleUnknownDomain = "unknown"
+
+// recordSharedAcceptanceStaleWrites counts acceptance rows the advance-only
+// guard skipped (#6679), labeled by projection domain, and emits one bounded
+// WARN line per write call naming the first skipped key and the total. The
+// skip itself is correct behavior — the newer generation was kept — so the
+// transaction still commits; the signal exists so operators can see
+// out-of-order acceptance writers.
+func recordSharedAcceptanceStaleWrites(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	intentRows []reducer.SharedProjectionIntentRow,
+	stale []SharedProjectionAcceptance,
+) {
+	if len(stale) == 0 {
+		return
+	}
+	if instruments != nil {
+		domainByKey := make(map[reducer.SharedProjectionAcceptanceKey]string, len(intentRows))
+		for _, row := range intentRows {
+			key, ok := sharedProjectionAcceptanceKey(row)
+			if !ok {
+				continue
+			}
+			if _, seen := domainByKey[key]; !seen {
+				domainByKey[key] = row.ProjectionDomain
+			}
+		}
+		countByDomain := make(map[string]int64, 1)
+		for _, row := range stale {
+			domain, ok := domainByKey[reducer.SharedProjectionAcceptanceKey{
+				ScopeID:          row.ScopeID,
+				AcceptanceUnitID: row.AcceptanceUnitID,
+				SourceRunID:      row.SourceRunID,
+			}]
+			if !ok || strings.TrimSpace(domain) == "" {
+				// Unreachable while every acceptance row is built from these
+				// intents; keeps the label set closed if that ever breaks.
+				domain = sharedAcceptanceStaleUnknownDomain
+			}
+			countByDomain[domain]++
+		}
+		for domain, count := range countByDomain {
+			instruments.SharedAcceptanceStaleWrites.Add(
+				ctx,
+				count,
+				metric.WithAttributes(telemetry.AttrDomain(domain)),
+			)
+		}
+	}
+
+	first := stale[0]
+	slog.WarnContext(
+		ctx,
+		"shared acceptance stale write skipped; stored generation is newer",
+		slog.String(telemetry.LogKeyAcceptanceScopeID, first.ScopeID),
+		slog.String(telemetry.LogKeyAcceptanceUnitID, first.AcceptanceUnitID),
+		slog.String(telemetry.LogKeyAcceptanceSourceRunID, first.SourceRunID),
+		slog.String(telemetry.LogKeyAcceptanceGenerationID, first.GenerationID),
+		telemetry.AcceptanceStaleCountAttr(len(stale)),
+		telemetry.PhaseAttr(telemetry.PhaseShared),
+	)
 }
 
 func buildSharedProjectionAcceptanceRows(
@@ -177,7 +250,23 @@ func buildSharedProjectionAcceptanceRows(
 	for _, row := range byKey {
 		acceptanceRows = append(acceptanceRows, row)
 	}
+	// Sort by the acceptance primary key so every writer locks conflicting
+	// rows in one global order. Map iteration is random, and two concurrent
+	// batches that lock the same keys in opposite orders deadlock (40P01),
+	// aborting the whole intents+acceptance transaction (#6679).
+	slices.SortFunc(acceptanceRows, compareSharedProjectionAcceptanceKeys)
 	return acceptanceRows, nil
+}
+
+// compareSharedProjectionAcceptanceKeys orders acceptance rows by
+// (scope_id, acceptance_unit_id, source_run_id), the table's primary key and
+// the lock order the upsert statement enforces with its ORDER BY.
+func compareSharedProjectionAcceptanceKeys(a, b SharedProjectionAcceptance) int {
+	return cmp.Or(
+		strings.Compare(a.ScopeID, b.ScopeID),
+		strings.Compare(a.AcceptanceUnitID, b.AcceptanceUnitID),
+		strings.Compare(a.SourceRunID, b.SourceRunID),
+	)
 }
 
 func sharedProjectionAcceptanceKey(

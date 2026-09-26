@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -74,6 +75,7 @@ type codeCallIntentWriterTestDB struct {
 	acceptanceWrites  int
 	storedIntentIDs   []string
 	storedAcceptances []string
+	staleKeys         map[string]struct{}
 }
 
 func (database *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -85,21 +87,29 @@ func (database *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query
 		}
 		return sharedIntentResult{}, nil
 
-	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		database.acceptanceWrites++
-		for i := 0; i < len(args); i += acceptanceColumnsPerRow {
-			key := fmt.Sprintf("%s|%s|%s", args[i].(string), args[i+1].(string), args[i+2].(string))
-			database.storedAcceptances = append(database.storedAcceptances, key)
-		}
-		return sharedIntentResult{}, nil
-
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
 }
 
-func (database *codeCallIntentWriterTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, fmt.Errorf("unexpected query")
+// QueryContext serves the acceptance upsert, which reports applied keys via
+// RETURNING (#6679). Keys listed in staleKeys are withheld from RETURNING to
+// simulate the advance-only guard skipping them.
+func (database *codeCallIntentWriterTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if !strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+		return nil, fmt.Errorf("unexpected query: %s", query)
+	}
+	database.acceptanceWrites++
+	returned := &fake.Rows{}
+	for i := 0; i < len(args); i += acceptanceColumnsPerRow {
+		key := fmt.Sprintf("%s|%s|%s", args[i].(string), args[i+1].(string), args[i+2].(string))
+		if _, stale := database.staleKeys[key]; stale {
+			continue
+		}
+		database.storedAcceptances = append(database.storedAcceptances, key)
+		returned.Data = append(returned.Data, []any{args[i], args[i+1], args[i+2]})
+	}
+	return returned, nil
 }
 
 func codeCallWriterCounterValue(t *testing.T, rm metricdata.ResourceMetrics, metricName string) int64 {

@@ -44,6 +44,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_SUPERSEDED_GENERATION_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the superseded-generation proof DSN (#7121)", workflowPath)
 	}
+	// #6679: a skip is a failure in this lane for the acceptance monotonic
+	// proofs, so a renamed DSN variable cannot silently disable them.
+	if !bytes.Contains(workflow, []byte(acceptanceMonotonicRequiredEnv+": \"1\"")) {
+		t.Fatalf("%s must set %s=1 so the acceptance monotonic proofs cannot skip in CI", workflowPath, acceptanceMonotonicRequiredEnv)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -105,6 +110,17 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestSupersededGenerationIDsAgainstPostgres",
 		"TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres",
 		"TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres",
+		// #6679: shared-projection acceptance must never move to an older
+		// generation, whatever the commit order or snapshot timing.
+		"TestSharedProjectionAcceptanceSequentialStaleWriteLive",
+		"TestSharedProjectionAcceptanceConcurrentOutOfOrderLive",
+		"TestSharedProjectionAcceptancePostSnapshotStoredGenerationLive",
+		"TestSharedProjectionAcceptanceOrdersByIngestedAtLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyRejectsStaleLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyAdvancesLive",
+		"TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive",
+		"TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive",
+		"TestSharedIntentAcceptanceWriterStaleWriteCounterLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

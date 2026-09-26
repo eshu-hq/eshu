@@ -408,20 +408,35 @@ func (tx *sharedIntentAcceptanceWriterTx) ExecContext(_ context.Context, query s
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
 		tx.intentWrites++
 		tx.operations = append(tx.operations, "intents")
-	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		if tx.failAcceptanceWrite {
-			return nil, fmt.Errorf("acceptance write failed")
-		}
-		tx.acceptanceWrites++
-		tx.operations = append(tx.operations, "acceptance")
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
 	return fake.Result{}, nil
 }
 
-func (tx *sharedIntentAcceptanceWriterTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, fmt.Errorf("unexpected query")
+// QueryContext serves the acceptance upsert, which uses RETURNING to report
+// the applied keys (#6679).
+func (tx *sharedIntentAcceptanceWriterTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if !strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+		return nil, fmt.Errorf("unexpected query: %s", query)
+	}
+	if tx.failAcceptanceWrite {
+		return nil, fmt.Errorf("acceptance write failed")
+	}
+	tx.acceptanceWrites++
+	tx.operations = append(tx.operations, "acceptance")
+	return acceptanceAppliedRows(args), nil
+}
+
+// acceptanceAppliedRows returns every submitted acceptance key as applied,
+// matching the RETURNING shape of the advance-only acceptance upsert.
+func acceptanceAppliedRows(args []any) *fake.Rows {
+	const columnsPerRow = 6
+	rows := &fake.Rows{}
+	for i := 0; i+columnsPerRow <= len(args); i += columnsPerRow {
+		rows.Data = append(rows.Data, []any{args[i], args[i+1], args[i+2]})
+	}
+	return rows
 }
 
 func (tx *sharedIntentAcceptanceWriterTx) Commit() error {
@@ -447,16 +462,18 @@ func (database *sharedIntentAcceptanceWriterNoTxDB) ExecContext(_ context.Contex
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
 		database.intentWrites++
-	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		database.acceptanceWrites++
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
 	return fake.Result{}, nil
 }
 
-func (database *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, fmt.Errorf("unexpected query")
+func (database *sharedIntentAcceptanceWriterNoTxDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if !strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+		return nil, fmt.Errorf("unexpected query: %s", query)
+	}
+	database.acceptanceWrites++
+	return acceptanceAppliedRows(args), nil
 }
 
 // advisoryLockManager copy: this file's lock-ordering proofs need the same
@@ -586,9 +603,20 @@ func (tx *sharedIntentAcceptanceWriterLockTx) ExecContext(
 	if query == lockstore.DeferredMaintenancePartitionedSharedLockSQL {
 		return tx.advisoryLockTx.ExecContext(ctx, query, args...)
 	}
-	if strings.Contains(query, "INSERT INTO shared_projection_intents") ||
-		strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+	if strings.Contains(query, "INSERT INTO shared_projection_intents") {
 		return fake.Result{}, nil
 	}
 	return nil, fmt.Errorf("unexpected exec query: %s", query)
+}
+
+// QueryContext serves the RETURNING acceptance upsert (#6679).
+func (tx *sharedIntentAcceptanceWriterLockTx) QueryContext(
+	_ context.Context,
+	query string,
+	args ...any,
+) (db.Rows, error) {
+	if strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+		return acceptanceAppliedRows(args), nil
+	}
+	return nil, fmt.Errorf("unexpected query: %s", query)
 }

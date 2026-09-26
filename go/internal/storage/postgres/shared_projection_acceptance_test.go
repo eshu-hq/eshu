@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
 func TestSharedProjectionAcceptanceStoreUpsertAndLookup(t *testing.T) {
@@ -153,23 +154,6 @@ func (database *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context,
 	database.execCalls++
 
 	switch {
-	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		const columnsPerRow = 6
-		numRows := len(args) / columnsPerRow
-		for i := 0; i < numRows; i++ {
-			offset := i * columnsPerRow
-			row := sharedProjectionAcceptanceRow{
-				scopeID:          args[offset+0].(string),
-				acceptanceUnitID: args[offset+1].(string),
-				sourceRunID:      args[offset+2].(string),
-				generationID:     args[offset+3].(string),
-				acceptedAt:       args[offset+4].(time.Time),
-				updatedAt:        args[offset+5].(time.Time),
-			}
-			database.rows[acceptanceKey(row.scopeID, row.acceptanceUnitID, row.sourceRunID)] = row
-		}
-		return sharedIntentResult{}, nil
-
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
 		return sharedIntentResult{}, nil
 
@@ -179,6 +163,24 @@ func (database *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context,
 }
 
 func (database *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if strings.Contains(query, "INSERT INTO shared_projection_acceptance") {
+		database.execCalls++
+		const columnsPerRow = 6
+		returned := &fake.Rows{}
+		for offset := 0; offset+columnsPerRow <= len(args); offset += columnsPerRow {
+			row := sharedProjectionAcceptanceRow{
+				scopeID:          args[offset+0].(string),
+				acceptanceUnitID: args[offset+1].(string),
+				sourceRunID:      args[offset+2].(string),
+				generationID:     args[offset+3].(string),
+				acceptedAt:       args[offset+4].(time.Time),
+				updatedAt:        args[offset+5].(time.Time),
+			}
+			database.rows[acceptanceKey(row.scopeID, row.acceptanceUnitID, row.sourceRunID)] = row
+			returned.Data = append(returned.Data, []any{row.scopeID, row.acceptanceUnitID, row.sourceRunID})
+		}
+		return returned, nil
+	}
 	rows := make([]sharedProjectionAcceptanceRow, 0, len(database.rows))
 	for _, row := range database.rows {
 		rows = append(rows, row)
