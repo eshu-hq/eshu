@@ -143,6 +143,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestGenerationRetentionContentPrunesDeleteExactRowsLive",
 		"TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive",
 		"TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive",
+		// #6475 part B: the changed-since resolve binds the caller's grant on
+		// the lineage row's scope_id; only real Postgres runs that predicate.
+		"TestServiceChangedSinceBindsGrantToLineageScopeLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)
