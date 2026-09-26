@@ -26,13 +26,17 @@ def _answer_payload(result: dict[str, Any]) -> Any:
     raise ValueError("no structuredContent or resource content")
 
 
-def main(argv: list[str]) -> int:
+def main() -> int:
     """Print the answer body, returning nonzero for an MCP or parse error."""
     try:
-        document = json.loads(argv[1])
+        document = json.load(sys.stdin)
+        if not isinstance(document, dict):
+            raise ValueError("response is not a JSON object")
         if document.get("error"):
             raise ValueError(f"rpc error: {document['error']}")
         result = document.get("result") or {}
+        if not isinstance(result, dict):
+            raise ValueError("result is not a JSON object")
         structured = _answer_payload(result)
         if result.get("isError") or (
             isinstance(structured, dict) and structured.get("error")
@@ -42,10 +46,10 @@ def main(argv: list[str]) -> int:
             structured = structured["data"]
         print(json.dumps(structured))
         return 0
-    except (IndexError, KeyError, TypeError, ValueError) as error:
+    except (KeyError, TypeError, ValueError) as error:
         print(f"tools/call: {error}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())
