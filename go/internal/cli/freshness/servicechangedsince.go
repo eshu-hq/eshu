@@ -20,6 +20,10 @@ type ServiceChangedSinceOptions struct {
 	JSON bool
 	// ServiceID names the service whose evidence lineage to diff.
 	ServiceID string
+	// ScopeID selects one ingestion scope's lineage of ServiceID (#6475). It
+	// is needed only when the service id has a lineage in more than one scope
+	// the caller may read; the route then answers 409 listing them.
+	ScopeID string
 	// SinceGenerationID is the prior service materialization generation to
 	// diff from.
 	SinceGenerationID string
@@ -32,6 +36,7 @@ type ServiceChangedSinceOptions struct {
 func ServiceChangedSincePath(opts ServiceChangedSinceOptions) string {
 	query := url.Values{}
 	setSelector(query, "service_id", opts.ServiceID)
+	setSelector(query, "scope_id", opts.ScopeID)
 	setSelector(query, "since_generation_id", opts.SinceGenerationID)
 	setLimit(query, "sample_limit", opts.SampleLimit)
 	return joinPath(ServiceChangedSinceRoute, query)

@@ -53,6 +53,12 @@ func TestServiceChangedSincePathOmitsEmptySelectorsAndTrims(t *testing.T) {
 			want: ServiceChangedSinceRoute + "?sample_limit=40&service_id=svc-a&since_generation_id=gen-prior",
 		},
 		{
+			// #6475: the selector a 409 ambiguity answer asks the caller to add.
+			name: "scope selector is carried and trimmed",
+			opts: ServiceChangedSinceOptions{ServiceID: "svc-a", ScopeID: " scope-b ", SinceGenerationID: "gen-prior"},
+			want: ServiceChangedSinceRoute + "?scope_id=scope-b&service_id=svc-a&since_generation_id=gen-prior",
+		},
+		{
 			name: "a zero sample limit leaves the server default in charge",
 			opts: ServiceChangedSinceOptions{ServiceID: "svc-a"},
 			want: ServiceChangedSinceRoute + "?service_id=svc-a",

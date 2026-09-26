@@ -22,7 +22,7 @@ func TestFreshnessServiceChangedSinceCommandIsRegistered(t *testing.T) {
 	if cmd == nil || cmd.Name() != "service-changed-since" {
 		t.Fatalf("resolved command = %#v, want service-changed-since", cmd)
 	}
-	for _, name := range []string{"json", "service-id", "since-generation-id", "sample-limit", "service-url"} {
+	for _, name := range []string{"json", "service-id", "scope-id", "since-generation-id", "sample-limit", "service-url"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("freshness service-changed-since flag %q missing", name)
 		}
@@ -32,7 +32,7 @@ func TestFreshnessServiceChangedSinceCommandIsRegistered(t *testing.T) {
 func TestFreshnessServiceChangedSinceOptionsCarryEveryFlag(t *testing.T) {
 	cmd := newFreshnessServiceChangedSinceCommand()
 	for name, value := range map[string]string{
-		"json": "true", "service-id": "svc-a", "since-generation-id": "gen-prior", "sample-limit": "40",
+		"json": "true", "service-id": "svc-a", "scope-id": "scope-b", "since-generation-id": "gen-prior", "sample-limit": "40",
 	} {
 		if err := cmd.Flags().Set(name, value); err != nil {
 			t.Fatalf("set %s: %v", name, err)
@@ -43,7 +43,7 @@ func TestFreshnessServiceChangedSinceOptionsCarryEveryFlag(t *testing.T) {
 		t.Fatalf("freshnessServiceChangedSinceOptionsFromCommand() error = %v", err)
 	}
 	want := freshness.ServiceChangedSinceOptions{
-		JSON: true, ServiceID: "svc-a", SinceGenerationID: "gen-prior", SampleLimit: 40,
+		JSON: true, ServiceID: "svc-a", ScopeID: "scope-b", SinceGenerationID: "gen-prior", SampleLimit: 40,
 	}
 	if opts != want {
 		t.Fatalf("options = %#v, want %#v", opts, want)

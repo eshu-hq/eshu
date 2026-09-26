@@ -1454,7 +1454,14 @@
           "service_id": "sweep-seed-missing",
           "since_generation_id": "sweep-seed-missing",
           "sample_limit": 5
-        }
+        },
+        "accept": [
+          "ok",
+          "not_found",
+          "scope_not_found",
+          "service_not_found"
+        ],
+        "acceptReason": "service_id sweep-seed-missing names no seeded service lineage"
       }
     ],
     "get_generation_lifecycle": [

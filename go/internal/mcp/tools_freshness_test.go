@@ -71,6 +71,7 @@ func TestResolveRouteMapsGetServiceChangedSince(t *testing.T) {
 
 	route, err := resolveRoute("get_service_changed_since", map[string]any{
 		"service_id":          "svc-1",
+		"scope_id":            "scope-1",
 		"since_generation_id": "gen-1",
 		"sample_limit":        float64(25),
 	})
@@ -82,5 +83,10 @@ func TestResolveRouteMapsGetServiceChangedSince(t *testing.T) {
 	}
 	if got, want := route.Path, "/api/v0/freshness/services/changed-since"; got != want {
 		t.Fatalf("route.Path = %q, want %q", got, want)
+	}
+	// #6475: the scope selector must reach the route, or a caller answered
+	// 409 ambiguous could never re-ask for one lineage through MCP.
+	if got, want := route.Query["scope_id"], "scope-1"; got != want {
+		t.Fatalf("route.Query[scope_id] = %q, want %q", got, want)
 	}
 }

@@ -15,21 +15,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
-// TestScopedTokenReachesFreshnessDeltaPairOnly pins which freshness delta
-// reads a scoped token may reach after #5167's freshness workstream. The pair
-// keyed on repository/scope rows is promoted; the service lineage read is not,
-// because service_materialization_generations carries no column that names the
-// tenant its rows belong to (#6475). Promoting it while that is true would let
-// one tenant read another's lineage whenever the correlation the handler fence
-// probes has aged out of the correlating scope's active generation, which is
-// exactly the "a promoted route never turns a 403 into a cross-tenant read"
-// contract in pendingRowFilteringRoutes' header.
-//
-// The service route's handler fence (serviceChangedSinceGrantAdmits) is in the
-// tree and tested, so this assertion is about the middleware ledger, not about
-// the fence: the fence is the first half of the promotion and #6475 is the
-// second.
-func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
+// TestScopedTokenReachesFreshnessDeltaRoutes pins which freshness delta reads
+// a scoped token may reach. The pair keyed on repository/scope rows was
+// promoted by #5167's freshness workstream; the service lineage read joined
+// them once #6475 gave every lineage row the scope_id of the ingestion scope
+// that wrote it, so its grant binds in SQL on that column
+// (resolveServiceChangedSinceScopeQuery) exactly as the pair's does.
+func TestScopedTokenReachesFreshnessDeltaRoutes(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -48,9 +40,9 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "service_changed_since_still_pending",
+			name:       "service_changed_since_promoted",
 			path:       "/api/v0/freshness/services/changed-since",
-			wantStatus: http.StatusForbidden,
+			wantStatus: http.StatusOK,
 		},
 	}
 
@@ -82,7 +74,7 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 }
 
 // TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode pins what an
-// all-scope bearer gets on the two routes this change promotes, per
+// all-scope bearer gets on the promoted freshness delta routes, per
 // ESHU_GOVERNANCE_MODE. "All-scope bearer" is the shape scopedtoken.Registry's
 // admin-equivalent entry and an OIDC provider's all-scopes grant set both
 // resolve to: AuthModeScoped, AllScopes set, no repository or scope ids.
@@ -98,17 +90,15 @@ func TestScopedTokenReachesFreshnessDeltaPairOnly(t *testing.T) {
 //
 // Now the bearer takes the same rule the console session already took: on a
 // grant-bound allowlisted route it is admitted only where the operator has
-// opted in AND it is bound to one concrete tenant and workspace. The pending
-// service route is unchanged and refused in every mode, which is the assertion
-// that keeps the promotion honest -- the fix must not have quietly promoted
-// the route #6475 is still holding.
+// opted in AND it is bound to one concrete tenant and workspace. The service
+// route, promoted by #6475 part B, takes the same rule.
 func TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode(t *testing.T) {
 	t.Parallel()
 
 	const (
 		changedSince   = "/api/v0/freshness/changed-since"
 		generations    = "/api/v0/freshness/generations"
-		servicePending = "/api/v0/freshness/services/changed-since"
+		serviceChanges = "/api/v0/freshness/services/changed-since"
 	)
 
 	tenantBound := AuthContext{
@@ -173,19 +163,18 @@ func TestAllScopeBearerOnFreshnessDeltaRoutesPerGovernanceMode(t *testing.T) {
 			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
 		},
 
-		// The pending route is off the allowlist, so no policy reaches it and
-		// the reason code stays the pre-#6450 one: the route genuinely has no
-		// scoped authorization, which is a different thing for an operator to
-		// act on than an inert grant.
+		// The service route was promoted by #6475 part B, so it now takes the
+		// same all-scope rule as the pair: admitted where the operator opted
+		// in, refused under hosted_multi_tenant with the all-scope reason.
 		{
-			name: "the pending service route refuses the tenant-bound token where the policy is open",
-			mode: "local_no_policy", auth: tenantBound, path: servicePending,
-			wantStatus: http.StatusForbidden, wantReason: scopedRouteNotEnabledReason,
+			name: "local_no_policy admits the tenant-bound token on service changed-since",
+			mode: "local_no_policy", auth: tenantBound, path: serviceChanges,
+			wantStatus: http.StatusOK,
 		},
 		{
-			name: "the pending service route refuses the tenant-bound token under hosted_multi_tenant",
-			mode: "hosted_multi_tenant", auth: tenantBound, path: servicePending,
-			wantStatus: http.StatusForbidden, wantReason: scopedRouteNotEnabledReason,
+			name: "hosted_multi_tenant refuses the tenant-bound token on service changed-since",
+			mode: "hosted_multi_tenant", auth: tenantBound, path: serviceChanges,
+			wantStatus: http.StatusForbidden, wantReason: scopedRouteAllScopeGrantRequiredReason,
 		},
 	} {
 		tc := tc
@@ -272,54 +261,42 @@ func assertBearerFreshnessDeltaRoute(
 	}
 }
 
-// TestServiceChangedSinceStaysOnPendingLedger asserts the ledger side of the
-// same withdrawal directly, so a future contributor who allowlists the route
-// without the #6475 schema change fails here as well as in the middleware
-// table above.
-func TestServiceChangedSinceStaysOnPendingLedger(t *testing.T) {
+// TestServiceChangedSinceLeftPendingLedger asserts the ledger side of the #6475
+// part B promotion directly: the route is off pendingRowFilteringRoutes,
+// matched by the scoped-token allowlist, and advertised as grant-bound, like
+// its two freshness siblings.
+func TestServiceChangedSinceLeftPendingLedger(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/services/changed-since", nil)
-	if !IsPendingRowFilteringRoute(req) {
-		t.Fatal("IsPendingRowFilteringRoute() = false, want true until #6475 names the tenant on lineage rows")
-	}
-	if ScopedHTTPRouteSupportsTenantFilter(req) {
-		t.Fatal("ScopedHTTPRouteSupportsTenantFilter() = true, want false while the route is pending")
-	}
-	if _, ok := scopedTokenAdvertisedRoutes["GET /api/v0/freshness/services/changed-since"]; ok {
-		t.Fatal("service changed-since is advertised in scopedTokenAdvertisedRoutes, want absent while pending")
-	}
-	for _, promoted := range []string{"/api/v0/freshness/changed-since", "/api/v0/freshness/generations"} {
-		promotedReq := httptest.NewRequest(http.MethodGet, promoted, nil)
-		if !ScopedHTTPRouteSupportsTenantFilter(promotedReq) {
-			t.Fatalf("ScopedHTTPRouteSupportsTenantFilter(%s) = false, want true", promoted)
+	for _, path := range []string{
+		"/api/v0/freshness/changed-since",
+		"/api/v0/freshness/generations",
+		"/api/v0/freshness/services/changed-since",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if IsPendingRowFilteringRoute(req) {
+			t.Fatalf("IsPendingRowFilteringRoute(%s) = true, want false", path)
 		}
-		if IsPendingRowFilteringRoute(promotedReq) {
-			t.Fatalf("IsPendingRowFilteringRoute(%s) = true, want false", promoted)
+		if !ScopedHTTPRouteSupportsTenantFilter(req) {
+			t.Fatalf("ScopedHTTPRouteSupportsTenantFilter(%s) = false, want true", path)
+		}
+		if got, ok := scopedTokenAdvertisedRoutes["GET "+path]; !ok || got != scopedRouteGrantBound {
+			t.Fatalf("scopedTokenAdvertisedRoutes[GET %s] = %v (present %t), want scopedRouteGrantBound", path, got, ok)
 		}
 	}
 }
 
-// TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession pins
-// which BROWSER SESSION shapes the pending service route actually refuses, per
-// BrowserSessionRoutePolicy mode. The route is absent from
-// scopedTokenAdvertisedRoutes, so browserSessionRouteDenialReason decides it on
-// the same branch it uses for every route outside that allowlist: a session
-// that is all-scope AND bound to one tenant and workspace is admitted wherever
-// ScopedRoutePolicyForGovernanceMode sets AllowTenantBoundAllScopes -- the
-// local_no_policy, hosted_single_tenant, and unset modes -- and every other
-// shape is refused with a 403.
-//
-// The middleware-refuses-everyone reading is what the route's contract prose
-// used to claim, and it is wrong on those three modes: the admitted session
-// reaches serviceChangedSinceGrantAdmits, whose first branch returns true for
-// an unscoped caller, so it reads the lineage. That is the same whole-graph
-// posture the policy grants on every other non-allowlisted route, not a hole
-// specific to this one, but the prose has to say so.
-func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *testing.T) {
+// TestServiceChangedSinceBrowserSessionAdmissionPerPolicy pins which BROWSER
+// SESSION shapes the promoted service route admits, per BrowserSessionRoutePolicy
+// mode. As a grant-bound allowlisted route it admits a restricted session in
+// every mode -- the lineage SQL binds its grant -- and admits a tenant-bound
+// all-scope console session only where the policy opts in
+// (AllowTenantBoundAllScopes: local_no_policy, hosted_single_tenant, unset).
+// A tenantless all-scope session is refused everywhere.
+func TestServiceChangedSinceBrowserSessionAdmissionPerPolicy(t *testing.T) {
 	t.Parallel()
 
-	const pendingPath = "/api/v0/freshness/services/changed-since"
+	const servicePath = "/api/v0/freshness/services/changed-since"
 
 	cases := []struct {
 		name       string
@@ -350,7 +327,7 @@ func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *t
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name: "restricted_session_refused_even_where_the_policy_is_open",
+			name: "restricted_session_admitted_where_the_policy_is_open",
 			auth: AuthContext{
 				Mode:                 AuthModeBrowserSession,
 				TenantID:             "tenant_a",
@@ -358,7 +335,18 @@ func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *t
 				AllowedRepositoryIDs: []string{"repo_a"},
 			},
 			policy:     BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
-			wantStatus: http.StatusForbidden,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "restricted_session_admitted_under_hosted_multi_tenant",
+			auth: AuthContext{
+				Mode:                 AuthModeBrowserSession,
+				TenantID:             "tenant_a",
+				WorkspaceID:          "workspace_a",
+				AllowedRepositoryIDs: []string{"repo_a"},
+			},
+			policy:     BrowserSessionRoutePolicy{},
+			wantStatus: http.StatusOK,
 		},
 		{
 			name: "tenantless_all_scope_session_refused_even_where_the_policy_is_open",
@@ -390,7 +378,7 @@ func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *t
 				tc.policy,
 			)
 
-			req := httptest.NewRequest(http.MethodGet, pendingPath, nil)
+			req := httptest.NewRequest(http.MethodGet, servicePath, nil)
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			req.Header.Set("X-Correlation-ID", "corr-service-changed-since-session")
 			req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})

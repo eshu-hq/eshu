@@ -39,12 +39,13 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 	return ingester != r.URL.Path && ingester != "" && !strings.Contains(ingester, "/")
 }
 
-// scopedFreshnessDeltaRoute allows scoped tokens to reach the two freshness
+// scopedFreshnessDeltaRoute allows scoped tokens to reach the three freshness
 // delta reads whose rows can be bound to the caller's grant in SQL:
-// GET /api/v0/freshness/changed-since and GET /api/v0/freshness/generations.
-// Both were #5167 Group B entries in pendingRowFilteringRoutes until their
-// handlers gained the #5137 pattern. They bind the caller's grant in the
-// shipped SQL rather than in the handler:
+// GET /api/v0/freshness/changed-since, GET /api/v0/freshness/generations and
+// GET /api/v0/freshness/services/changed-since. All three were #5167 Group B
+// entries in pendingRowFilteringRoutes until their handlers gained the #5137
+// pattern. They bind the caller's grant in the shipped SQL rather than in the
+// handler:
 //
 //   - resolveChangedSinceScopeQuery (changed_since_sql.go) --
 //     ($3::boolean = false OR (scope.scope_kind = 'repository' AND
@@ -52,6 +53,11 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 //   - listGenerationLifecycleQuery (generation_lifecycle_sql.go) --
 //     ($8::boolean = false OR (scope.scope_kind = 'repository' AND
 //     scope.source_key = ANY($9)) OR generation.scope_id = ANY($10)).
+//   - resolveServiceChangedSinceScopeQuery (service_changed_since_sql.go) --
+//     ($3::boolean = false OR g.scope_id = ANY($5) OR (scope.scope_kind =
+//     'repository' AND scope.source_key = ANY($4))), on the scope_id each
+//     service lineage row carries since #6475. A NULL (unattributed legacy)
+//     scope_id matches neither arm, so no scoped caller reads one.
 //
 // The binding is on the resolved ROW, not on the selector the caller typed,
 // because a repository grant authorizes a repository-kind scope through
@@ -62,23 +68,15 @@ func scopedIngesterStatusRoute(r *http.Request) bool {
 // (TestChangedSinceTwoTenantGrantBoundary,
 // TestGenerationLifecycleTwoTenantGrantBoundary).
 //
-// GET /api/v0/freshness/services/changed-since is deliberately NOT here. Its
-// lineage tables (service_materialization_generations,
-// service_evidence_snapshots) carry only service_id, with no column naming the
-// tenant a row belongs to, so the only available grant check is
-// FreshnessHandler.serviceChangedSinceGrantAdmits probing the
-// reducer_service_catalog_correlation facts. Those probes see a correlation
-// only while it is live in its own scope's active generation, so a tenant
-// whose correlation has aged out stops contesting the service_id even though
-// its lineage generation is still active, and the other tenant reads that
-// lineage. Promoting the route on that fence alone would turn a scoped
-// caller's 403 into a cross-tenant read, which is exactly what
-// pendingRowFilteringRoutes' header forbids, so the route stays on that ledger
-// until #6475 puts an ownership column on the lineage rows. The fence itself
-// ships and is tested (TestServiceChangedSinceTwoTenantGrantBoundary) as the
-// first half of that promotion.
+// The service route resolves a lineage per ingestion scope, because a catalog
+// service id is catalog-relative and two tenants may both declare it: a grant
+// covering more than one scope that holds the id, with no scope_id selector,
+// is answered 409 with the admitted scope ids only, and another scope's prior
+// generation id is answered exactly like an unknown one
+// (TestServiceChangedSinceTwoTenantLineageBoundary,
+// TestServiceChangedSinceBindsGrantToLineageScopeLive).
 //
-// Both promoted routes are classified scopedRouteGrantBound in
+// All three promoted routes are classified scopedRouteGrantBound in
 // scopedTokenAdvertisedRoutes, and both all-scope caller shapes now read that
 // class through their own denial function:
 //
@@ -106,7 +104,8 @@ func scopedFreshnessDeltaRoute(r *http.Request) bool {
 		return false
 	}
 	return r.URL.Path == "/api/v0/freshness/changed-since" ||
-		r.URL.Path == "/api/v0/freshness/generations"
+		r.URL.Path == "/api/v0/freshness/generations" ||
+		r.URL.Path == "/api/v0/freshness/services/changed-since"
 }
 
 // scopedIndexStatusRoute allows scoped tokens to reach the two index-status

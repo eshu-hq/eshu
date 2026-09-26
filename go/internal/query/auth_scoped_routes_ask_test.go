@@ -11,17 +11,14 @@ import (
 
 // TestScopedHTTPRoute_Ask verifies the scoped-token allowlist for the Ask Eshu
 // endpoint: POST /api/v0/ask is permitted (its tenant scoping is enforced
-// transitively by re-dispatching inner tool calls through this same gate), while
-// a non-orchestration whole-graph route such as
-// freshness/services/changed-since (still in the #5167 pendingRowFilteringRoutes
-// backlog, blocked on #6475) is not.
-// POST /api/v0/code/dead-code was this negative example until the #5167 code
-// family bound its candidate scan to the caller's grant (deadCodeCandidateRows),
-// POST /api/v0/code/bundles until it gated a scoped caller to
-// visibility = 'public' packages (#5167), and POST /api/v0/code/relationships
-// until it bound its neighbour expansion to the caller's grant;
-// freshness/services/changed-since replaces them because its service rows carry
-// no grant column until #6475 lands, so it stays pending the longest.
+// transitively by re-dispatching inner tool calls through this same gate),
+// while the same paths under a method they do not serve are not.
+// GET /api/v0/freshness/services/changed-since was this test's negative
+// example while it sat in the #5167 pendingRowFilteringRoutes backlog; #6475
+// part B bound its lineage read to the caller's grant and promoted it, so it
+// is now a positive row and only its POST form stays refused.
+// POST /api/v0/code/dead-code, POST /api/v0/code/bundles and POST
+// /api/v0/code/relationships each left the negative list the same way.
 // GET /api/v0/ecosystem/overview moved off this negative
 // list in the #5167 F-6 W6 cloud/aws family workstream: getEcosystemOverview
 // now restricts every count to the caller's granted repositories
@@ -37,7 +34,7 @@ func TestScopedHTTPRoute_Ask(t *testing.T) {
 	}{
 		{http.MethodPost, "/api/v0/ask", true},
 		{http.MethodGet, "/api/v0/ask", false},                               // only POST is the ask endpoint
-		{http.MethodGet, "/api/v0/freshness/services/changed-since", false},  // whole-graph, not allowlisted
+		{http.MethodGet, "/api/v0/freshness/services/changed-since", true},   // lineage grant-bound in SQL (#6475)
 		{http.MethodPost, "/api/v0/freshness/services/changed-since", false}, // not allowlisted under any method
 		{http.MethodPost, "/api/v0/code/bundles", true},                      // public-only for a scoped caller (#5167)
 		{http.MethodGet, "/api/v0/code/bundles", false},                      // only POST is the bundles route
