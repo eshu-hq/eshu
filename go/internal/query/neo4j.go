@@ -8,9 +8,11 @@ package query
 
 import (
 	"context"
+	"errors"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
@@ -59,6 +61,14 @@ func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]
 	return r.runRead(ctx, cypher, params)
 }
 
+// redactedSpanError wraps err so span RecordError/SetStatus never carry raw
+// driver text: statement errors quote the offending statement, and ad-hoc
+// routes send it with inline literals (#7065). It redacts exactly like the
+// statement head and fingerprint (#7035).
+func redactedSpanError(err error) error {
+	return errors.New(statement.Redact(err.Error()))
+}
+
 // RunSingle executes a Cypher query expecting at most one result row.
 func (r *Neo4jReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
 	ctx, span := r.tracer.Start(ctx, "neo4j.query.single")
@@ -66,7 +76,7 @@ func (r *Neo4jReader) RunSingle(ctx context.Context, cypher string, params map[s
 
 	rows, err := r.Run(ctx, cypher, params)
 	if err != nil {
-		span.RecordError(err)
+		span.RecordError(redactedSpanError(err))
 		return nil, err
 	}
 	if len(rows) == 0 {

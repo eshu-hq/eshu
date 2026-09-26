@@ -46,33 +46,69 @@ func TestNeo4jReaderSpanErrorRedactsEchoedStatementLiterals(t *testing.T) {
 	if _, err := reader.Run(context.Background(), queryText, nil); err == nil {
 		t.Fatal("Run() error = nil, want the driver syntax error")
 	}
+	if _, err := reader.RunSingle(context.Background(), queryText, nil); err == nil {
+		t.Fatal("RunSingle() error = nil, want the driver syntax error")
+	}
 
-	var querySpan sdktrace.ReadOnlySpan
+	spans := map[string]sdktrace.ReadOnlySpan{}
 	for _, span := range recorder.Ended() {
-		if span.Name() == "neo4j.query" {
-			querySpan = span
+		spans[span.Name()] = span
+	}
+	// Both the inner read span and the RunSingle outer span sit on the
+	// graph-read path; both must redact (F1). Only the inner span carries
+	// the outcome attribute and error status; the outer span records the
+	// redacted error as an exception event.
+	assertSpanErrorRedacted(t, spans["neo4j.query"], literal, true, true)
+	assertSpanErrorRedacted(t, spans["neo4j.query.single"], literal, false, false)
+}
+
+// assertSpanErrorRedacted proves span carries no statement literal in its
+// status description or event attributes, and that the redactor ran (some
+// event attribute carries the placeholder). When wantOutcome is set, the span
+// must also carry the error outcome attribute; absence of the attribute fails
+// the test (F2). When wantStatus is set, the status must be Error with a
+// redacted description.
+func assertSpanErrorRedacted(t *testing.T, span sdktrace.ReadOnlySpan, literal string, wantOutcome, wantStatus bool) {
+	t.Helper()
+	if span == nil {
+		t.Fatal("span not recorded")
+	}
+	foundOutcome := false
+	for _, field := range span.Attributes() {
+		if string(field.Key) == telemetry.SpanAttrGraphReadOutcome {
+			foundOutcome = true
+			if field.Value.AsString() != string(graphReadOutcomeError) {
+				t.Fatalf("span outcome = %q, want %q", field.Value.AsString(), graphReadOutcomeError)
+			}
 		}
 	}
-	if querySpan == nil {
-		t.Fatal("no neo4j.query span recorded")
+	if wantOutcome && !foundOutcome {
+		t.Fatalf("span %q carries no outcome attribute", span.Name())
 	}
-	for _, field := range querySpan.Attributes() {
-		if string(field.Key) == telemetry.SpanAttrGraphReadOutcome && field.Value.AsString() != string(graphReadOutcomeError) {
-			t.Fatalf("span outcome = %q, want %q", field.Value.AsString(), graphReadOutcomeError)
-		}
-	}
-	if status := querySpan.Status(); status.Code != codes.Error {
-		t.Fatalf("span status code = %v, want Error", status.Code)
-	} else if strings.Contains(status.Description, literal) {
+	status := span.Status()
+	if strings.Contains(status.Description, literal) {
 		t.Fatalf("span status exposed statement literal: %q", status.Description)
-	} else if !strings.Contains(status.Description, "<REDACTED>") {
-		t.Fatalf("span status = %q, want the literal replaced by the redactor placeholder", status.Description)
 	}
-	for _, event := range querySpan.Events() {
+	if wantStatus {
+		if status.Code != codes.Error {
+			t.Fatalf("span status code = %v, want Error", status.Code)
+		}
+		if !strings.Contains(status.Description, "<REDACTED>") {
+			t.Fatalf("span status = %q, want the literal replaced by the redactor placeholder", status.Description)
+		}
+	}
+	redactedEvent := false
+	for _, event := range span.Events() {
 		for _, field := range event.Attributes {
 			if strings.Contains(field.Value.AsString(), literal) {
 				t.Fatalf("span event %q exposed statement literal in %q", event.Name, field.Key)
 			}
+			if strings.Contains(field.Value.AsString(), "<REDACTED>") {
+				redactedEvent = true
+			}
 		}
+	}
+	if !redactedEvent {
+		t.Fatalf("span %q has no redacted error event", span.Name())
 	}
 }
