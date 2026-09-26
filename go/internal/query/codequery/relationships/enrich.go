@@ -38,6 +38,13 @@ type EndpointMeta struct {
 // Enrichment is skipped entirely when the core rows carry no endpoint
 // identity (the shape unit-test fakes produce), so those callers issue
 // no extra query.
+//
+// The far-endpoint reads bind the same neighbour grant the core read
+// does (#5167). They are joined to the core rows by identity, so an
+// out-of-grant row could never be merged onto a response row; the bind
+// keeps them from spending their shared row ceiling on neighbours the
+// core read already dropped, which on a hub would leave granted rows
+// without their file and repository metadata.
 func EnrichRows(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -47,13 +54,14 @@ func EnrichRows(
 	relationshipType string,
 	entityLabel string,
 	entityIDProperty string,
+	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, error) {
 	meta := make(map[string]EndpointMeta)
 	if haveEndpointUIDs(rows) {
-		params := map[string]any{"entity_id": entityID, "row_limit": FetchLimit}
+		params := access.GraphParams(map[string]any{"entity_id": entityID, "row_limit": FetchLimit})
 		for _, cypher := range []string{
-			FarFileEnrichmentCypher(direction, relationshipType, entityLabel, entityIDProperty),
-			FarRepoEnrichmentCypher(direction, relationshipType, entityLabel, entityIDProperty),
+			FarFileEnrichmentCypher(direction, relationshipType, entityLabel, entityIDProperty, access),
+			FarRepoEnrichmentCypher(direction, relationshipType, entityLabel, entityIDProperty, access),
 			AnchorFileEnrichmentCypher(entityLabel, entityIDProperty),
 			AnchorRepoEnrichmentCypher(entityLabel, entityIDProperty),
 		} {
@@ -156,10 +164,10 @@ func farEndpointPattern(direction string, relationshipType string, entityLabel s
 
 // FarFileEnrichmentCypher reads the far endpoints' File metadata only,
 // so a File without a REPO_CONTAINS edge still yields its path and
-// language.
-func FarFileEnrichmentCypher(direction string, relationshipType string, entityLabel string, entityIDProperty string) string {
+// language. A scoped caller's grant binds enrichNode.repo_id.
+func FarFileEnrichmentCypher(direction string, relationshipType string, entityLabel string, entityIDProperty string, access querycontract.RepositoryAccessFilter) string {
 	return `
-		MATCH ` + farEndpointPattern(direction, relationshipType, entityLabel, entityIDProperty) + `<-[:CONTAINS]-(enrichFile:File)
+		MATCH ` + farEndpointPattern(direction, relationshipType, entityLabel, entityIDProperty) + `<-[:CONTAINS]-(enrichFile:File)` + NeighbourGrantWhere(access, "enrichNode") + `
 		RETURN coalesce(enrichNode.id, enrichNode.uid) as entity_uid,
 		       enrichFile.relative_path as file_path,
 		       enrichFile.language as file_language
@@ -169,10 +177,11 @@ func FarFileEnrichmentCypher(direction string, relationshipType string, entityLa
 }
 
 // FarRepoEnrichmentCypher reads the far endpoints' Repository metadata
-// via the File that contains them.
-func FarRepoEnrichmentCypher(direction string, relationshipType string, entityLabel string, entityIDProperty string) string {
+// via the File that contains them. A scoped caller's grant binds
+// enrichNode.repo_id.
+func FarRepoEnrichmentCypher(direction string, relationshipType string, entityLabel string, entityIDProperty string, access querycontract.RepositoryAccessFilter) string {
 	return `
-		MATCH ` + farEndpointPattern(direction, relationshipType, entityLabel, entityIDProperty) + `<-[:CONTAINS]-(enrichFile:File)<-[:REPO_CONTAINS]-(enrichRepo:Repository)
+		MATCH ` + farEndpointPattern(direction, relationshipType, entityLabel, entityIDProperty) + `<-[:CONTAINS]-(enrichFile:File)<-[:REPO_CONTAINS]-(enrichRepo:Repository)` + NeighbourGrantWhere(access, "enrichNode") + `
 		RETURN coalesce(enrichNode.id, enrichNode.uid) as entity_uid,
 		       enrichRepo.id as repo_id,
 		       enrichRepo.name as repo_name

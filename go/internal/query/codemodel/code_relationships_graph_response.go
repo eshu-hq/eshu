@@ -15,9 +15,10 @@ import (
 // predicate. Use RelationshipGraphRowCypherAnchored instead when the caller
 // already knows the entity's repository, so the scan starts from a bounded
 // repository->file->entity path rather than a global scan filtered
-// afterward.
-func RelationshipGraphRowCypher(predicate string) string {
-	return RelationshipGraphRowCypherAnchored("MATCH (e)", predicate)
+// afterward. access binds a scoped caller's grant; see
+// RelationshipGraphRowCypherFromAnchor.
+func RelationshipGraphRowCypher(predicate string, access querycontract.RepositoryAccessFilter) string {
+	return RelationshipGraphRowCypherAnchored("MATCH (e)", predicate, access)
 }
 
 // RelationshipGraphRowCypherAnchored is RelationshipGraphRowCypher with the
@@ -36,21 +37,46 @@ func RelationshipGraphRowCypher(predicate string) string {
 // entity.BuildResolveEntityGraphQuery already uses -- makes the repository
 // scope part of the graph traversal instead of a post-hoc existence check,
 // which both backends evaluate correctly.
-func RelationshipGraphRowCypherAnchored(matchClause, predicate string) string {
-	return RelationshipGraphRowCypherFromAnchor(matchClause + ` WHERE ` + predicate)
+func RelationshipGraphRowCypherAnchored(matchClause, predicate string, access querycontract.RepositoryAccessFilter) string {
+	return RelationshipGraphRowCypherFromAnchor(matchClause+` WHERE `+predicate, access)
 }
 
 // RelationshipGraphRowCypherFromAnchor is the single-row relationship read
 // with the entity-binding clause supplied whole, so a caller can bind e with a
 // clause that takes no trailing WHERE -- the Neo4j entity-id read passes
 // Neo4jEntityIDAnchor("e", "$entity_id") here (issue #7057).
-func RelationshipGraphRowCypherFromAnchor(anchorClause string) string {
+//
+// For a scoped caller the grant binds three times (#5167), each on a node's
+// own repo_id, and the caller binds the arrays with access.GraphParams:
+//
+//   - the anchor, in a `WITH e WHERE` directly after the anchor clause, so an
+//     entity outside the grant yields no row at all. This is a required
+//     clause, so it decides row membership; the anchor clause may be a
+//     CALL () { ... } subquery, which takes no trailing WHERE of its own.
+//   - each neighbour, in the WHERE of the OPTIONAL MATCH that binds it. There
+//     the WHERE is meant to constrain the optional pattern and not the driving
+//     row: an out-of-grant neighbour is not matched, and the anchor row
+//     survives with its granted neighbours (or with none). That is the
+//     opposite of the #6553 story defect, where a grant predicate sat on an
+//     OPTIONAL MATCH it was expected to drop rows through. Measured on
+//     neo4j:2026-community in relationships_grant_live_test.go.
+//
+// A node with no repo_id fails the predicate, which is the fail-closed
+// answer: the graph cannot attribute it to a granted repository.
+func RelationshipGraphRowCypherFromAnchor(anchorClause string, access querycontract.RepositoryAccessFilter) string {
+	anchorGrant, targetGrant, sourceGrant := "", "", ""
+	if access.Scoped() {
+		anchorGrant = `
+		WITH e WHERE ` + access.GraphConditionOnProperty("e", "repo_id")
+		targetGrant = ` WHERE ` + access.GraphConditionOnProperty("target", "repo_id")
+		sourceGrant = ` WHERE ` + access.GraphConditionOnProperty("source", "repo_id")
+	}
 	return `
-		` + anchorClause + `
+		` + anchorClause + anchorGrant + `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
-		OPTIONAL MATCH (e)-[outgoingRel]->(target)
+		OPTIONAL MATCH (e)-[outgoingRel]->(target)` + targetGrant + `
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
-		OPTIONAL MATCH (source)-[incomingRel]->(e)
+		OPTIONAL MATCH (source)-[incomingRel]->(e)` + sourceGrant + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
 		RETURN coalesce(e.id, e.uid) as id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,
@@ -122,17 +148,30 @@ func RelationshipGraphRowCypherFromAnchor(anchorClause string) string {
 // so the Neo4j-compat route returns the same node set as the NornicDB
 // breadth-first walk. Both directions stay directed every hop, matching the
 // BFS one-hop read.
+//
+// access binds a scoped caller's grant on the Neo4j branch only (#5167):
+// every node on the path, not just its far end, must carry a granted
+// repo_id, so the walk never reaches a granted node THROUGH an ungranted
+// one -- the same answer the NornicDB breadth-first walk gives by binding
+// each hop. On NornicDB all(...) filters nothing on the pinned build, so a
+// scoped NornicDB caller fails closed with an empty statement ("", nil); the
+// handler never sends this builder to NornicDB anyway (it walks per hop in
+// CodeHandler.nornicDBTransitiveRelationshipRows). Unscoped NornicDB is kept.
 func BuildTransitiveRelationshipRowsCypher(
 	entityID string,
 	direction string,
 	maxDepth int,
 	backend querycontract.GraphBackend,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 	}
 	var cypher strings.Builder
 	if backend == querycontract.GraphBackendNornicDB {
+		if access.Scoped() {
+			return "", nil
+		}
 		if direction == "incoming" {
 			cypher.WriteString("\n\t\tMATCH (e)\n")
 			cypher.WriteString("\t\tWHERE ")
@@ -170,12 +209,17 @@ func BuildTransitiveRelationshipRowsCypher(
 	// MATCHes both endpoints by uid on these labels, and the canonical entity
 	// writer sets id to the same EntityID as uid, so a node outside the set or
 	// matched only by id cannot start a CALLS walk and never produced a row.
+	pathGrant := ""
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		pathGrant = " AND all(node IN nodes(path) WHERE " + access.GraphConditionOnProperty("node", "repo_id") + ")"
+	}
 	cypher.WriteString("\n\t\tMATCH (e:" + CallGraphEndpointLabels + " {uid: $entity_id})\n")
 	if direction == "incoming" {
 		cypher.WriteString("\t\tMATCH path = (source)-[:CALLS*1..")
 		fmt.Fprint(&cypher, maxDepth)
 		cypher.WriteString("]->(e)\n")
-		cypher.WriteString("\t\tWHERE source <> e\n")
+		cypher.WriteString("\t\tWHERE source <> e" + pathGrant + "\n")
 		cypher.WriteString("\t\tWITH source, min(length(path)) AS depth\n")
 		cypher.WriteString("\t\tRETURN source.name as source_name,\n")
 		cypher.WriteString("\t\t       coalesce(source.id, source.uid) as source_id,\n")
@@ -187,7 +231,7 @@ func BuildTransitiveRelationshipRowsCypher(
 	cypher.WriteString("\t\tMATCH path = (e)-[:CALLS*1..")
 	fmt.Fprint(&cypher, maxDepth)
 	cypher.WriteString("]->(target)\n")
-	cypher.WriteString("\t\tWHERE target <> e\n")
+	cypher.WriteString("\t\tWHERE target <> e" + pathGrant + "\n")
 	cypher.WriteString("\t\tWITH target, min(length(path)) AS depth\n")
 	cypher.WriteString("\t\tRETURN target.name as target_name,\n")
 	cypher.WriteString("\t\t       coalesce(target.id, target.uid) as target_id,\n")

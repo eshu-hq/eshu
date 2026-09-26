@@ -133,23 +133,23 @@ source_coverage:
         count: 3
         non_hot:
           class: keyed_support
-          source_sha256: 6485a6936c25bd63ae546d81d3fe8af08b574d483cc8a735d6c8cd9d93999421
+          source_sha256: 648ddadfd85eba2d427bc871ef3451609041733cdc6acf9960e73241d9c22888
           key_bound: single_key
           max_results: 1
-      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909, key_bound: single_key, max_degree: 8, max_depth: 10}}
+      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 51ce417b3c08a1a9580165f74ae68c676bb3a85ccff3bea7739a467d18c9d249, key_bound: single_key, max_degree: 8, max_depth: 10}}
   - file: codequery/transitive_walk.go
     calls:
-      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 79be400046fa15ea5feb891b6bfa334e23f61b90e34d411a3e924d7f120c37c6, key_bound: single_key, max_degree: 8}}
+      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 393ae1c2582bc083a77b0a2cf52696be5acc4d731703eab24408689b6c9a1c2a, key_bound: single_key, max_degree: 8}}
   - file: codequery/wrapper_bypass_read.go
     calls:
       - {symbol: "(*CodeHandler).runWrapperGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 7bdc047dd853a207ad7da8283b15ff3c51cb038564ddd6c3b006e4eb52ff57dc, key_bound: bounded_key_batch, max_keys: 50, max_results: 400}} # 400 = 50 keys x corpus CALLS degree 8; audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design)
   - file: codequery/relationships/nornicdb.go
     calls:
-      - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 3c12b7ba1b897dad19df62db8fb485dace01e38a35613e0110df8c58238749f8, key_bound: single_key, max_results: 501}}
+      - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 11fd7bcd3d51b1d101ae63f3cd2c07b611a5bd1e7791a9c278b64e6645b17164, key_bound: single_key, max_results: 501}}
       - {symbol: "MetadataRow", count: 2, non_hot: {class: keyed_support, source_sha256: a4a0bf6c6cffc562319da0246dc95c97853883697f3c97c32c4fc15ef2dd4f81, key_bound: single_key, max_results: 2}}
   - file: codequery/relationships/enrich.go
     calls:
-      - {symbol: "EnrichRows", count: 1, non_hot: {class: keyed_support, source_sha256: d10f2b05872b3e7483a3915d84200e4f30b19ba1ee6a9045fd8d5230e10d752f, key_bound: single_key, max_results: 501}}
+      - {symbol: "EnrichRows", count: 1, non_hot: {class: keyed_support, source_sha256: 18bbbc2c18a8b50adbeb73545de0c32ddc778c8b1951411553dfefae323b1216, key_bound: single_key, max_results: 501}}
   - file: codequery/entity_labels.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipEntityLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

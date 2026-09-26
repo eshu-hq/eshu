@@ -11,6 +11,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // GetEntityContent returns one entity by entity_id.
@@ -101,6 +103,99 @@ func (cr *ContentReader) GetEntityContentInRepositories(
 		return nil, fmt.Errorf("get scoped entity content: %w", err)
 	}
 	return &e, nil
+}
+
+// SearchEntitiesByNameInRepositories is SearchEntitiesByNameAnyRepo bound to an
+// already-authorized repository set: the same name match, order and LIMIT, with
+// `repo_id = ANY(...)` in the same WHERE so the LIMIT counts granted rows only
+// (#5167). It is one statement however many repositories the grant holds -- a
+// per-repository loop would cost one round trip per granted repository and
+// would have to re-implement the caller's "exactly one match" rule across
+// pages. An empty repoIDs reads nothing: the caller has no grant to search.
+//
+// The grant binds as a text[] parameter (`repo_id = ANY($2)`, the
+// appendRepositoryGrantFilter shape) rather than the string_to_array form
+// GetEntityContentInRepositories uses. pgx caches named statements, so
+// PostgreSQL may switch to a generic plan; on 200k rows a generic plan for a
+// common name under a 1000-repository grant measured ~31 ms with the array
+// parameter and ~168 ms with string_to_array, which the generic plan
+// re-evaluates on every heap recheck. Custom plans measure the same for both.
+// See docs/internal/evidence/5167-code-relationships-grant.md.
+func (cr *ContentReader) SearchEntitiesByNameInRepositories(
+	ctx context.Context,
+	repoIDs []string,
+	entityType string,
+	name string,
+	limit int,
+) ([]EntityContent, error) {
+	repoIDs = cleanedAuthStrings(repoIDs)
+	if cr == nil || cr.db == nil || len(repoIDs) == 0 {
+		return nil, nil
+	}
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "search_entities_by_name_in_repositories"),
+			attribute.String("db.sql.table", "content_entities"),
+		),
+	)
+	defer span.End()
+
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE entity_name ILIKE '%' || $1 || '%'
+		  AND repo_id = ANY($2)
+	`
+	args := []any{name, array.Of(repoIDs)}
+	if entityType != "" {
+		query += ` AND entity_type = $3
+			ORDER BY repo_id, relative_path, start_line
+			LIMIT $4
+		`
+		args = append(args, entityType, limit)
+	} else {
+		query += `
+			ORDER BY repo_id, relative_path, start_line
+			LIMIT $3
+		`
+		args = append(args, limit)
+	}
+
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("search entities by name in repositories: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []EntityContent
+	for rows.Next() {
+		var e EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(&e.EntityID, &e.RepoID, &e.RelativePath, &e.EntityType,
+			&e.EntityName, &e.StartLine, &e.EndLine, &e.Language, &e.SourceCache, &rawMetadata); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan scoped entity name result: %w", err)
+		}
+		e.Metadata, err = decodeEntityMetadata(rawMetadata)
+		if err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan scoped entity name result: %w", err)
+		}
+		results = append(results, e)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return results, err
+	}
+	return results, nil
 }
 
 // GetEntityContents returns entities keyed by entity_id in one bounded query.

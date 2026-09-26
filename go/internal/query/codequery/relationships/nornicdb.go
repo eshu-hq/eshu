@@ -29,6 +29,12 @@ const FetchLimit = RowLimit + 1
 // backend: the metadata row first, then one one-hop read per requested
 // direction. The caller resolves the entity label up front (through the
 // pinned codequery reader) and passes the grant in.
+//
+// The grant binds twice (#5167). The metadata read binds it on the anchor's
+// Repository, so an anchor outside the grant yields no row and no neighbour
+// read runs. Each one-hop read then binds it on the neighbour's own repo_id,
+// because a granted anchor's CALLS, IMPORTS or INHERITS edges cross into
+// repositories the caller may not read.
 func GraphRow(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -54,7 +60,7 @@ func GraphRow(
 		// NornicDB currently needs metadata and each requested direction as
 		// separate row queries; this avoids Neo4j-style map collection shapes
 		// that are not dialect-safe while preserving direct relationship truth.
-		outgoing, outgoingTruncated, err = OneHopRelationships(ctx, graph, rowEntityID, "outgoing", relationshipType, entityLabel)
+		outgoing, outgoingTruncated, err = OneHopRelationships(ctx, graph, rowEntityID, "outgoing", relationshipType, entityLabel, access)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +69,7 @@ func GraphRow(
 	incomingTruncated := false
 	if direction != "outgoing" {
 		var err error
-		incoming, incomingTruncated, err = OneHopRelationships(ctx, graph, rowEntityID, "incoming", relationshipType, entityLabel)
+		incoming, incomingTruncated, err = OneHopRelationships(ctx, graph, rowEntityID, "incoming", relationshipType, entityLabel, access)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +130,9 @@ func MetadataRow(
 // OneHopRelationships returns a single symbol's direct relationships
 // for one direction. The bool reports whether the row ceiling clipped
 // the result so the caller can disclose truncation instead of
-// presenting a clipped set as an exact-truth response.
+// presenting a clipped set as an exact-truth response. For a scoped
+// caller every read binds the neighbour's repo_id to the grant ahead of
+// the row ceiling, so the ceiling counts granted rows only.
 func OneHopRelationships(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -132,13 +140,14 @@ func OneHopRelationships(
 	direction string,
 	relationshipType string,
 	entityLabel string,
+	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
 	entityID = strings.TrimSpace(entityID)
 	if entityID == "" {
 		return []map[string]any{}, false, nil
 	}
 	for _, property := range []string{"uid", "id"} {
-		cypher, params := OneHopRelationshipsCypher(entityID, direction, relationshipType, entityLabel, property)
+		cypher, params := OneHopRelationshipsCypher(entityID, direction, relationshipType, entityLabel, property, access)
 		rows, err := graph.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, false, err
@@ -148,7 +157,7 @@ func OneHopRelationships(
 			if truncated {
 				rows = rows[:RowLimit]
 			}
-			enriched, err := EnrichRows(ctx, graph, rows, entityID, direction, relationshipType, entityLabel, property)
+			enriched, err := EnrichRows(ctx, graph, rows, entityID, direction, relationshipType, entityLabel, property, access)
 			if err != nil {
 				return nil, false, err
 			}
@@ -232,13 +241,24 @@ func transitiveNextID(row map[string]any, direction string) string {
 // metadata is fetched by the separate enrichment reads in enrich.go and
 // merged in Go. The extra source_entity_uid/target_entity_uid columns
 // key that merge and are stripped before the response.
-func OneHopRelationshipsCypher(entityID string, direction string, relationshipType string, entityLabel string, entityIDProperty string) (string, map[string]any) {
-	params := map[string]any{"entity_id": entityID, "row_limit": FetchLimit}
+//
+// For a scoped caller the grant lands in the anchoring MATCH's own WHERE,
+// on the neighbour's repo_id (#5167). Two properties of that placement are
+// load-bearing, and both were measured on the pinned NornicDB: the WHERE
+// decides row membership (a neighbour outside the grant is not returned),
+// and it runs before ORDER BY/LIMIT, so a hub whose out-of-grant
+// neighbours sort first still returns its granted ones. A Go-side filter
+// after the read would do neither -- it would drop the granted rows the
+// ceiling had already cut. A neighbour with no repo_id fails the predicate
+// and is dropped: the graph cannot attribute it to a repository the caller
+// was granted.
+func OneHopRelationshipsCypher(entityID string, direction string, relationshipType string, entityLabel string, entityIDProperty string, access querycontract.RepositoryAccessFilter) (string, map[string]any) {
+	params := access.GraphParams(map[string]any{"entity_id": entityID, "row_limit": FetchLimit})
 	relPattern := NornicDBRelationshipPattern(relationshipType)
 	entityPattern := NornicDBNodePatternWithProperty("e", entityLabel, entityIDProperty, "$entity_id")
 	if direction == "incoming" {
 		return `
-		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
+		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)` + NeighbourGrantWhere(access, "source") + `
 		RETURN 'incoming' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
@@ -264,7 +284,7 @@ func OneHopRelationshipsCypher(entityID string, direction string, relationshipTy
 	`, params
 	}
 	return `
-		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)
+		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)` + NeighbourGrantWhere(access, "target") + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
@@ -288,6 +308,18 @@ func OneHopRelationshipsCypher(entityID string, direction string, relationshipTy
 		ORDER BY target.uid
 		LIMIT $row_limit
 	`, params
+}
+
+// NeighbourGrantWhere renders the scoped caller's grant as a WHERE on
+// alias.repo_id, to follow the anchoring MATCH of a one-hop read, or ""
+// for an unscoped caller. The caller binds the grant arrays with
+// access.GraphParams.
+func NeighbourGrantWhere(access querycontract.RepositoryAccessFilter, alias string) string {
+	if !access.Scoped() {
+		return ""
+	}
+	return `
+		WHERE ` + access.GraphConditionOnProperty(alias, "repo_id")
 }
 
 // NornicDBLabelPattern renders one entity label as a node label

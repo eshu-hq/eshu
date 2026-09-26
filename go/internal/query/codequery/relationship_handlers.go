@@ -77,6 +77,10 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		return
 	}
 	capability := relationshipCapability(direction, relationshipType)
+	if relationshipsGrantBlocked(ctx, req.RepoID) {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
 
 	row, err := h.relationshipsGraphRow(ctx, req.EntityID, req.Name, req.RepoID, direction, relationshipType)
 	if err != nil {
@@ -184,6 +188,10 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		)
 		return
 	}
+	if relationshipsGrantBlocked(ctx, req.RepoID) {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
 
 	row, err := h.transitiveRelationshipsGraphRow(ctx, req)
 	if err != nil {
@@ -284,10 +292,11 @@ func (h *CodeHandler) relationshipsGraphRow(
 		return h.nornicDBRelationshipsGraphRow(ctx, entityID, name, repoID, direction, relationshipType)
 	}
 
+	access := codeGrantAccessFilter(ctx)
 	if strings.TrimSpace(entityID) != "" {
-		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypherFromAnchor(neo4jEntityIDAnchor("e", "$entity_id")), map[string]any{
+		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypherFromAnchor(neo4jEntityIDAnchor("e", "$entity_id"), access), access.GraphParams(map[string]any{
 			"entity_id": entityID,
-		})
+		}))
 	}
 	if strings.TrimSpace(name) == "" {
 		return nil, nil
@@ -301,15 +310,16 @@ func (h *CodeHandler) relationshipsGraphRow(
 		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypherAnchored(
 			"MATCH (anchorRepo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(anchorFile:File)-[:CONTAINS]->(e)",
 			"e.name = $name",
-		), map[string]any{
+			access,
+		), access.GraphParams(map[string]any{
 			"name":    name,
 			"repo_id": repoID,
-		})
+		}))
 	}
 
-	rows, err := h.Neo4j.Run(ctx, relationshipGraphRowCypher("e.name = $name"), map[string]any{
+	rows, err := h.Neo4j.Run(ctx, relationshipGraphRowCypher("e.name = $name", access), access.GraphParams(map[string]any{
 		"name": name,
-	})
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +363,7 @@ func (h *CodeHandler) transitiveRelationshipsGraphRow(
 		req.Direction,
 		req.MaxDepth,
 		h.graphBackend(),
+		codeGrantAccessFilter(ctx),
 	)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
@@ -375,6 +386,11 @@ func (h *CodeHandler) relationshipsFromContent(
 	if err != nil || entity == nil {
 		return nil, err
 	}
+	if !codeGrantAccessFilter(ctx).AllowsRepositoryID(entity.RepoID) {
+		// The graph read already refused this anchor; the content store
+		// must not answer for it either. nil is the unknown-entity answer.
+		return nil, nil
+	}
 
 	return h.relationshipsFromEntity(ctx, *entity)
 }
@@ -386,7 +402,7 @@ func (h *CodeHandler) resolveRelationshipEntity(
 	repoID string,
 ) (*EntityContent, error) {
 	if strings.TrimSpace(entityID) != "" {
-		return h.Content.GetEntityContent(ctx, entityID)
+		return relationshipEntityContentForAccess(ctx, h.Content, entityID)
 	}
 	if strings.TrimSpace(name) == "" {
 		return nil, nil
@@ -396,9 +412,15 @@ func (h *CodeHandler) resolveRelationshipEntity(
 		matches []EntityContent
 		err     error
 	)
-	if strings.TrimSpace(repoID) != "" {
+	allowed, blocked := codeContentGrantScope(ctx, repoID)
+	switch {
+	case blocked:
+		return nil, nil
+	case strings.TrimSpace(repoID) != "":
 		matches, err = h.Content.SearchEntitiesByName(ctx, repoID, "", name, 2)
-	} else {
+	case allowed != nil:
+		matches, err = relationshipNameMatchesInGrant(ctx, h.Content, name, allowed, 2)
+	default:
 		matches, err = h.Content.SearchEntitiesByNameAnyRepo(ctx, "", name, 2)
 	}
 	if err != nil {

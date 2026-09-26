@@ -28,7 +28,8 @@ func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, languag
 // Resolving these names locally keeps those bodies free of package
 // qualifiers, so a pure rename or move does not re-derive the digest. A
 // change that alters what a pinned reader queries re-derives its digest on
-// purpose, as #7057 did for relationshipsGraphRow. Delete an entry only when
+// purpose, as #7057 did for relationshipsGraphRow and #5167 did for both
+// readers when it bound the caller's repository grant into them. Delete an entry only when
 // no pinned reader calls it.
 
 // relationshipsRequest aliases the leaf-owned lookup request so
@@ -37,15 +38,15 @@ type relationshipsRequest = codemodel.RelationshipsRequest
 
 // relationshipGraphRowCypher forwards to the leaf-owned row fragment so
 // relationshipsGraphRow's call site stays unchanged.
-func relationshipGraphRowCypher(predicate string) string {
-	return codemodel.RelationshipGraphRowCypher(predicate)
+func relationshipGraphRowCypher(predicate string, access repositoryAccessFilter) string {
+	return codemodel.RelationshipGraphRowCypher(predicate, access)
 }
 
 // relationshipGraphRowCypherFromAnchor forwards to the leaf-owned row
 // fragment that takes a whole entity-binding clause, which the Neo4j
 // entity-id branch of relationshipsGraphRow uses (issue #7057).
-func relationshipGraphRowCypherFromAnchor(anchorClause string) string {
-	return codemodel.RelationshipGraphRowCypherFromAnchor(anchorClause)
+func relationshipGraphRowCypherFromAnchor(anchorClause string, access repositoryAccessFilter) string {
+	return codemodel.RelationshipGraphRowCypherFromAnchor(anchorClause, access)
 }
 
 // neo4jEntityIDAnchor forwards to the leaf-owned indexed Neo4j entity-id
@@ -57,8 +58,8 @@ func neo4jEntityIDAnchor(alias string, param string) string {
 // relationshipGraphRowCypherAnchored forwards to the leaf-owned anchored row
 // fragment so relationshipsGraphRow's repo-anchored call site stays
 // unchanged (issue #6786 defect 2).
-func relationshipGraphRowCypherAnchored(matchClause, predicate string) string {
-	return codemodel.RelationshipGraphRowCypherAnchored(matchClause, predicate)
+func relationshipGraphRowCypherAnchored(matchClause, predicate string, access repositoryAccessFilter) string {
+	return codemodel.RelationshipGraphRowCypherAnchored(matchClause, predicate, access)
 }
 
 // buildTransitiveRelationshipRowsCypher forwards to the leaf-owned
@@ -69,8 +70,9 @@ func buildTransitiveRelationshipRowsCypher(
 	direction string,
 	maxDepth int,
 	backend GraphBackend,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
-	return codemodel.BuildTransitiveRelationshipRowsCypher(entityID, direction, maxDepth, backend)
+	return codemodel.BuildTransitiveRelationshipRowsCypher(entityID, direction, maxDepth, backend, access)
 }
 
 // buildTransitiveRelationshipGraphResponse forwards to the leaf-owned

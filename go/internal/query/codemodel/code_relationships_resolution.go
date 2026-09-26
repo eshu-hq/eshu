@@ -42,6 +42,7 @@ func ResolveRelationshipsNameTarget(
 	if err != nil {
 		return nil, nil, err
 	}
+	candidates = grantedRelationshipCandidates(ctx, candidates)
 	if len(candidates) == 0 {
 		return nil, nil, nil
 	}
@@ -64,6 +65,27 @@ func ResolveRelationshipsNameTarget(
 		Truncated:  truncated,
 	}
 	return nil, &resolution, nil
+}
+
+// grantedRelationshipCandidates drops every candidate outside the caller's
+// repository grant. It is defense in depth (#5167): the candidates are read
+// only for a repo_id the route's selector already resolved through the grant,
+// so today nothing is dropped, but these rows become the ambiguity response's
+// candidate list -- entity ids, paths and repository ids -- and a later caller
+// that reached this resolver on a selector-free path must not list another
+// tenant's copy. The filter is codequery's codeGrantAccessFilter expression.
+func grantedRelationshipCandidates(ctx context.Context, candidates []querycontract.EntityContent) []querycontract.EntityContent {
+	access := querycontract.RepositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories()
+	if !access.Scoped() {
+		return candidates
+	}
+	kept := make([]querycontract.EntityContent, 0, len(candidates))
+	for _, candidate := range candidates {
+		if access.AllowsRepositoryID(candidate.RepoID) {
+			kept = append(kept, candidate)
+		}
+	}
+	return kept
 }
 
 func AmbiguousRelationshipsResponse(req RelationshipsRequest, resolution RelationshipStoryResolution) map[string]any {

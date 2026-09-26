@@ -32,9 +32,23 @@ read and forwarders. The name-target resolver already lives in
 - Four graph-read methods are grandfathered: their bodies never
   change without a re-validation the ledger forbids — re-freezing is
   not a fix. New logic goes in this leaf behind the existing pins.
+  #5167 is the sanctioned exception on record: binding the grant
+  changed what the pinned readers query, so their digests were
+  re-derived from the gate's own mismatch report in the same change.
 - The row ceiling (`RowLimit`) and its truncation flags are
   exact-truth load-bearing: never present a clipped set without the
   flags.
 - Cypher shape changes need backend-differential proof (NornicDB vs
   Neo4j row-set equivalence), not just unit tests.
 - This package never imports `codequery` or root `query`.
+- Repository grant (#5167): every read binds a scoped caller's grant
+  in its own statement. `MetadataPredicate` binds the anchor's
+  Repository; `OneHopRelationshipsCypher` and the two far-endpoint
+  enrichment reads bind the neighbour's `repo_id` through
+  `NeighbourGrantWhere`, in the anchoring MATCH's WHERE and ahead of
+  ORDER BY/LIMIT. Never move a grant into Go after the read: on a hub
+  the row ceiling would be spent on ungranted neighbours and the
+  granted ones dropped (measured, see
+  `docs/internal/evidence/5167-code-relationships-grant.md`). An
+  unscoped caller renders no grant text, so its statements are
+  byte-identical to the pre-#5167 ones.

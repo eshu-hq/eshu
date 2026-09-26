@@ -168,7 +168,6 @@ console session is still admitted only where the modes above admit it:
 | --- | --- |
 | `GET /api/v0/status/index` (legacy alias `GET /api/v0/index-status`) | The report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization aggregates carry no caller grant to intersect, and a `queue_blockages` row reports `conflict_key` as `COALESCE(conflict_key, scope_id)`, so a raw scope id can appear. |
 | `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
-| `POST /api/v0/code/relationships` | The handler expands a resolved entity's neighbors with no grant to intersect. This is where `analyze_code_relationships` sends its `who_modifies`, `module_deps`, `variable_scope`, `find_complexity`, `find_functions_by_argument`, and `find_functions_by_decorator` query types; its relationship-story and call-chain types use the grant-bound routes instead. |
 | `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
 | `POST /api/v0/impact/trace-resource-to-code` | The anchor and the infrastructure hops it walks through carry no `repo_id` property. The walk itself is bounded: `max_depth` clamped to 1-20, at most 200 rows. |
 | `POST /api/v0/impact/explain-dependency-path` | Same missing `repo_id` on the anchors and hops along the path. Bounded to one `shortestPath` of at most 8 hops. |

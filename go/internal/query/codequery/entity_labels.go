@@ -19,7 +19,9 @@ import (
 // pre-move text, and the builders it names resolve through the
 // same-named forwarders below. Edit a pinned body only with a manifest
 // update in the same change; re-freezing a digest to match an edit is
-// not a fix.
+// not a fix. #5167 edited it on purpose, re-deriving the digest in the
+// same change: its content-store label lookup now reads through the
+// caller's repository grant (relationshipEntityContentForAccess).
 
 func (h *CodeHandler) nornicDBRelationshipEntityLabel(
 	ctx context.Context,
@@ -31,7 +33,7 @@ func (h *CodeHandler) nornicDBRelationshipEntityLabel(
 		return "", nil
 	}
 	if h.Content != nil {
-		entity, err := h.Content.GetEntityContent(ctx, entityID)
+		entity, err := relationshipEntityContentForAccess(ctx, h.Content, entityID)
 		if err == nil && entity != nil {
 			return nornicDBGraphLabelForContentEntityType(entity.EntityType), nil
 		}

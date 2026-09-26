@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build live_nornicdb_relationship_story || live_nornicdb_call_chain || live_neo4j_relationship_story
+//go:build live_nornicdb_relationship_story || live_nornicdb_call_chain || live_neo4j_relationship_story || live_code_relationships_grant
 
 // Shared two-tenant fixture for the #5167 batch-2b clause-attachment proofs.
 //

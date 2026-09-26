@@ -166,6 +166,29 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     statement reaches Repository through two required MATCH clauses.
 //     resolveExactGraphEntityCandidates carries a defense-in-depth grant check
 //     because its rows become an ambiguity error that names entity ids.
+//   - POST /api/v0/code/relationships (#5167) -- the analyze_code_relationships
+//     MCP fallback. The grant binds on every read path the handler has. On
+//     NornicDB the shared metadata anchor binds it on its Repository alias, so
+//     an ungranted anchor yields no row; each one-hop read
+//     (relationships.OneHopRelationshipsCypher) and its two far-endpoint
+//     enrichment reads bind it on the neighbour's own repo_id in the anchoring
+//     MATCH's WHERE, ahead of ORDER BY/LIMIT, which a live hub fixture proved
+//     is required (1200 ungranted neighbours sorting first: an unbound read
+//     returned 500 ungranted rows and 0 of the 40 granted ones); and the
+//     transitive walk binds each hop (nornicDBTransitiveOneHopRows) so it never
+//     steps through an ungranted node. On Neo4j the one-statement read
+//     (codemodel.RelationshipGraphRowCypherFromAnchor) binds the anchor in a
+//     required `WITH e WHERE` and each neighbour in its own OPTIONAL MATCH's
+//     WHERE -- there the optional semantics are what is wanted: the anchor row
+//     survives with only its granted neighbours -- and the transitive
+//     traversal binds all(nodes(path)). The content-store fallback, which runs
+//     exactly when the graph refuses an anchor, reads the entity through
+//     GetEntityContentInRepositories and a repo-less name through
+//     SearchEntitiesByNameInRepositories -- one grant-bound statement each,
+//     never a per-repository loop -- and rechecks the resolved entity's
+//     repository; its neighbour SQL already reads `repo_id = $1` on the
+//     anchor's own repository. An ungranted anchor and an
+//     empty grant both answer the unknown-entity 404.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -182,6 +205,7 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/complexity",
 		"/api/v0/code/language-query",
 		"/api/v0/code/imports/investigate",
+		"/api/v0/code/relationships",
 		"/api/v0/code/relationships/story",
 		"/api/v0/code/call-chain",
 		"/api/v0/code/call-chain/compare":

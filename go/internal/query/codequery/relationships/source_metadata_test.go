@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
 )
@@ -146,7 +148,7 @@ func TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata(t 
 	// The core read carries the related symbol's own identity and line span
 	// (function-safe without OPTIONAL MATCH); file path, repository, and file
 	// language are restored by the separate enrichment reads and merged in Go.
-	cypher, _ := relationships.OneHopRelationshipsCypher("function-center", "outgoing", "CALLS", "Function", "uid")
+	cypher, _ := relationships.OneHopRelationshipsCypher("function-center", "outgoing", "CALLS", "Function", "uid", querycontract.RepositoryAccessFilter{AllScopes: true})
 	for _, fragment := range []string{
 		"coalesce(target.id, target.uid) as target_entity_uid",
 		"coalesce(target.id, target.uid) as target_id",
@@ -163,7 +165,7 @@ func TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata(t 
 
 	// File and repository metadata are enriched by SEPARATE OPTIONAL-MATCH-free
 	// reads so a File without a REPO_CONTAINS edge still yields its path/language.
-	farFile := relationships.FarFileEnrichmentCypher("outgoing", "CALLS", "Function", "uid")
+	farFile := relationships.FarFileEnrichmentCypher("outgoing", "CALLS", "Function", "uid", querycontract.RepositoryAccessFilter{AllScopes: true})
 	for _, fragment := range []string{
 		"-[:CALLS]->(enrichNode)<-[:CONTAINS]-(enrichFile:File)",
 		"coalesce(enrichNode.id, enrichNode.uid) as entity_uid",
@@ -177,7 +179,7 @@ func TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata(t 
 		t.Fatalf("far File enrichment cypher must not require a Repository edge:\n%s", farFile)
 	}
 
-	farRepo := relationships.FarRepoEnrichmentCypher("outgoing", "CALLS", "Function", "uid")
+	farRepo := relationships.FarRepoEnrichmentCypher("outgoing", "CALLS", "Function", "uid", querycontract.RepositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(farRepo, "-[:CALLS]->(enrichNode)<-[:CONTAINS]-(enrichFile:File)<-[:REPO_CONTAINS]-(enrichRepo:Repository)") {
 		t.Fatalf("outgoing far Repository enrichment cypher missing full path:\n%s", farRepo)
 	}
@@ -191,7 +193,7 @@ func TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata(t 
 		}
 	}
 
-	farFileIncoming := relationships.FarFileEnrichmentCypher("incoming", "CALLS", "Function", "uid")
+	farFileIncoming := relationships.FarFileEnrichmentCypher("incoming", "CALLS", "Function", "uid", querycontract.RepositoryAccessFilter{AllScopes: true})
 	if !strings.Contains(farFileIncoming, "<-[:CALLS]-(enrichNode)<-[:CONTAINS]-(enrichFile:File)") {
 		t.Fatalf("incoming far File enrichment cypher missing reverse traversal:\n%s", farFileIncoming)
 	}

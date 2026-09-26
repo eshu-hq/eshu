@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
 )
@@ -58,6 +60,7 @@ func TestNornicDBOneHopRelationshipsSignalsTruncation(t *testing.T) {
 
 			got, truncated, err := relationships.OneHopRelationships(
 				context.Background(), handler.Neo4j, "content-entity:hub", "outgoing", "CALLS", "Function",
+				querycontract.RepositoryAccessFilter{AllScopes: true},
 			)
 			if err != nil {
 				t.Fatalf("nornicDBOneHopRelationships() error = %v", err)

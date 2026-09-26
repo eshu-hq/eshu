@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
@@ -20,7 +22,7 @@ import (
 func TestRelationshipGraphRowCypherProjectsEdgeProvenance(t *testing.T) {
 	t.Parallel()
 
-	cypher := codemodel.RelationshipGraphRowCypher("e.id = $entity_id")
+	cypher := codemodel.RelationshipGraphRowCypher("e.id = $entity_id", querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	for _, fragment := range []string{
 		"outgoingRel.confidence",
@@ -48,6 +50,7 @@ func TestNornicDBOneHopRelationshipsCypherProjectsEdgeProvenance(t *testing.T) {
 				"CALLS",
 				"Function",
 				"uid",
+				querycontract.RepositoryAccessFilter{AllScopes: true},
 			)
 			for _, fragment := range []string{
 				"rel.confidence as confidence",
