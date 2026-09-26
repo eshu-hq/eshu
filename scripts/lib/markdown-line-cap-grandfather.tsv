@@ -87,7 +87,7 @@ go/internal/reducer/evidence-notes.md	804
 go/internal/relationships/README.md	532
 go/internal/storage/cypher/README.md	2123
 go/internal/storage/postgres/AGENTS.md	1172
-go/internal/storage/postgres/README.md	3756
+go/internal/storage/postgres/README.md	3766
 go/internal/storage/postgres/evidence-notes.md	1032
 go/internal/workflow/README.md	518
 
