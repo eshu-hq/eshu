@@ -26,6 +26,19 @@ retry does not re-write correlation facts. A read error stays an ordinary
 error. No repository among the decisions, or no materialization writer, means
 no read and no fence, as before.
 
+## Trade-off
+
+While the fence is open the whole intent defers, so the ownership correlation
+facts and every other service evidence family wait with the deployment and
+dependency families, not just the relationship-backed ones. That is the same
+trade-off the workload materialization and deployable-unit correlation
+deferrals accept: one consistent generation later rather than a partial one
+now. Each non-counting retry re-runs the scope fact load and the active
+repository fact load before the fused read, so a deferral is not free; its
+cost is those two reads plus one fused statement per attempt, with no writes.
+The golden-corpus gate's `readinessDeferredFailureClasses` lists the class so
+pre-maintenance quiescence does not count a deferred intent as live work.
+
 ## Proof
 
 Root-Cause Evidence: the #7258 regression

@@ -371,6 +371,10 @@ var readinessDeferredFailureClasses = map[string]bool{
 	"deployable_unit_correlation_resolution_not_ready":      true,
 	"deployable_unit_correlation_canonical_nodes_not_ready": true,
 	"workload_materialization_resolution_not_ready":         true,
+	// #7258: service catalog correlation deferred on the same relationship
+	// corpus fence. Without this entry the deferral looks live to the
+	// pre-maintenance quiescence decision.
+	"service_catalog_correlation_resolution_not_ready": true,
 	// #6759: workload materialization waiting on the deploy Repository node
 	// that another scope's repo_dependency write has not committed yet.
 	"workload_materialization_deployment_source_target_not_ready": true,
