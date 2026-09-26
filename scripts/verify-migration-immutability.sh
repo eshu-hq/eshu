@@ -75,26 +75,50 @@ migrations_dir="go/internal/storage/postgres/migrations"
 
 # find_merge_base prints a concrete merge-base commit SHA between ref and HEAD
 # on stdout and returns 0, or prints nothing and returns 1. It first tries the
-# direct computation; if that fails and GITHUB_BASE_REF is set (a real CI PR
-# context, where the checkout's history can be genuinely too shallow to reach
-# a common ancestor), it makes a bounded number of attempts to deepen both
-# HEAD's own history and the fetched base ref before giving up. It never
-# treats "could not compute" as "nothing changed" -- that is the caller's job,
-# and the caller must fail loud on a 1 return, not skip.
+# direct computation; if that fails and the resolved ref is an origin branch,
+# it makes a bounded number of attempts to deepen both HEAD's own history and
+# that fetched base ref before giving up. This covers both pull_request
+# (GITHUB_BASE_REF) and merge_group: GitHub does not set GITHUB_BASE_REF on the
+# latter, but actions/checkout still exposes origin/main. It never treats
+# "could not compute" as "nothing changed" -- that is the caller's job, and
+# the caller must fail loud on a 1 return, not skip.
 find_merge_base() {
-  local ref="$1" mb
+  local ref="$1" mb remote branch
   if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
     printf '%s\n' "$mb"
     return 0
   fi
-  if [ -z "${GITHUB_BASE_REF:-}" ]; then
+  case "$ref" in
+    origin/*)
+      remote="origin"
+      branch="${ref#origin/}"
+      ;;
+    *)
+      # A caller-selected SHA, tag, or non-origin ref has no trustworthy
+      # remote branch to deepen toward. Failing here preserves the exact
+      # caller range instead of guessing a narrower replacement.
+      return 1
+      ;;
+  esac
+  if [ -z "$branch" ]; then
     return 1
   fi
   local depth=100
   while [ "$depth" -le 3200 ]; do
-    git -C "$repo_root" fetch --no-tags --deepen="$depth" >/dev/null 2>&1 || true
-    git -C "$repo_root" fetch --no-tags --deepen="$depth" origin \
-      "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
+    if ! git -C "$repo_root" fetch --no-tags --deepen="$depth" >/dev/null 2>&1; then
+      printf 'verify-migration-immutability: failed to deepen HEAD history while resolving %s.\n' "$ref" >&2
+      return 1
+    fi
+    # Keep the remote-tracking ref synchronized while deepening it. An
+    # explicit destination refspec prevents a FETCH_HEAD-only update; the
+    # shallow update flag permits the remote tip to move. If it moves to
+    # unrelated history, merge-base remains empty and this function fails
+    # closed after the bounded attempts below.
+    if ! git -C "$repo_root" fetch --no-tags --update-shallow --deepen="$depth" "$remote" \
+      "${branch}:refs/remotes/${remote}/${branch}" >/dev/null 2>&1; then
+      printf 'verify-migration-immutability: failed to deepen %s while resolving its common ancestor.\n' "$ref" >&2
+      return 1
+    fi
     if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
       printf '%s\n' "$mb"
       return 0
