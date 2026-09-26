@@ -71,15 +71,48 @@ func generationRetentionMigratedSchemaName(testName string) string {
 	return name[:generationRetentionSchemaMaxBytes-len(suffix)] + suffix
 }
 
+// generationRetentionExtensionLockKey is the advisory-lock key that serializes
+// the database-wide pg_trgm install across concurrently starting retention
+// tests. It is a fixed literal, unrelated to any production lock key.
+const generationRetentionExtensionLockKey int64 = 7260006809
+
+// installGenerationRetentionTrigramExtension installs pg_trgm into public, the
+// same pin the sibling live helpers use. The bootstrap's own CREATE EXTENSION
+// would otherwise land in the first schema on the search_path and vanish with
+// that schema's DROP, breaking a concurrently bootstrapped sibling with
+// "operator class gin_trgm_ops does not exist". IF NOT EXISTS alone does not
+// make the first creation safe: two sessions can both pass the existence check
+// and one fails with a pg_extension_name_index unique violation. The
+// transaction-scoped advisory lock and the CREATE share one session, so the
+// installs run one at a time and the lock releases at COMMIT.
+func installGenerationRetentionTrigramExtension(ctx context.Context, t *testing.T, admin *sql.DB) {
+	t.Helper()
+	tx, err := admin.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin pg_trgm install: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", generationRetentionExtensionLockKey); err != nil {
+		t.Fatalf("lock pg_trgm install: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
+		t.Fatalf("install pg_trgm in public: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit pg_trgm install: %v", err)
+	}
+}
+
 // openGenerationRetentionMigratedSchema applies the real bootstrap migrations
 // to an isolated schema of the database named by ESHU_POSTGRES_TEST_DSN or
 // ESHU_POSTGRES_DSN, or skips. It never uses a hand-written schema, so the retention SQL is proven
 // against the tables and columns production actually has.
 //
-// Each test gets its own schema (see generationRetentionMigratedSchemaName), so
-// two of them never drop each other's schema. The tests still must not call
-// t.Parallel: the bootstrap's CREATE EXTENSION pg_trgm is database-wide, and
-// concurrent first installs fail with pg_extension_name_index violations (#7260).
+// It is safe under t.Parallel (#7260): each test gets its own schema (see
+// generationRetentionMigratedSchemaName), so two of them never drop each
+// other's schema, and pg_trgm, which is database-wide, is installed once into
+// public under an advisory lock (see installGenerationRetentionTrigramExtension)
+// instead of into a private schema that a sibling's DROP would take with it.
 func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
@@ -103,6 +136,7 @@ func openGenerationRetentionMigratedSchema(t *testing.T) (*sql.DB, context.Conte
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
+	installGenerationRetentionTrigramExtension(ctx, t, admin)
 	schema := generationRetentionMigratedSchemaName(t.Name())
 	t.Logf("isolated retention schema %s", schema)
 	if _, err := admin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE; CREATE SCHEMA "+schema); err != nil {
