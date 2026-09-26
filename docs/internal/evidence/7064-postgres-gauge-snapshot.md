@@ -15,9 +15,11 @@ the OTEL collection callback:
 - Shared env pair `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL` (5m) /
   `ESHU_POSTGRES_GAUGE_REFRESH_TIMEOUT` (30s), registered in
   `go/internal/envregistry/entries.go` (+ regenerated reference doc).
-- `EshuGraphGaugeSnapshotStale` alert generalized to both backends; snapshot
-  source names prefixed per binary (`reducer_*`, `ingester_*`) so the shared
-  alert attributes fires correctly.
+- `EshuGraphGaugeSnapshotStale` alert generalized to graph + reducer Postgres
+  sources (expr excludes `ingester_*` gauges); new
+  `EshuIngesterGaugeSnapshotStale` alert (`service: eshu-ingester`) covers the
+  ingester sources, so every staleness fire routes to the owning binary.
+  Snapshot source names are prefixed per binary (`reducer_*`, `ingester_*`).
 
 Read statements are byte-identical; they run once per interval per source
 instead of once per scrape. Worker-pool gauge (in-memory) stays on the
