@@ -31,7 +31,9 @@
   admission. A decision names only the producer, version, kind, stage, and a
   closed reason: never grant scope, payloads, or credentials. Keep
   `ClassifyEmission` in lockstep with `AuthorizesEmission`/`grantedCoreKinds`
-  (a test pins that they agree).
+  (a test pins that they agree). `LoadInstalledManifestForActivation` is the
+  only observing installed-manifest loader: call it only for a component that
+  is about to run, so the activation counter means "planned to run".
 
 - **Registry state is durable** — update `registry.json` atomically and keep
   manifest copies under the component home so offline verification remains
