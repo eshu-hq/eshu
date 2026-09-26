@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
@@ -62,7 +63,7 @@ func TestSearchBundlesScopedCallerBindsPublicVisibility(t *testing.T) {
 	scoped := testutil.CodeGrantScopedAuthContext([]string{"repo://tenant-a/svc"})
 	scopeOnly := AuthContext{Mode: AuthModeScoped, TenantID: "t", AllowedScopeIDs: []string{"scope-a"}}
 	allScopes := AuthContext{Mode: AuthModeScoped, AllScopes: true}
-	shared := AuthContext{Mode: "shared"}
+	shared := AuthContext{Mode: auth.AuthModeShared}
 	cases := []struct {
 		name       string
 		auth       *AuthContext
