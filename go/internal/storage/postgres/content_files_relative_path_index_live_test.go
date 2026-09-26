@@ -81,7 +81,7 @@ func TestContentFilesRelativePathIndexLegacyUpgradeLive(t *testing.T) {
 	migration, lifecycle, preMigration := contentFilesRelativePathIndexMigrations(t)
 
 	if err := applyBootstrapDefinitionsWith(ctx, exec, preMigration, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply populated pre-125 schema: %v", err)
+		t.Fatalf("apply populated pre-126 schema: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 	if _, err := database.ExecContext(ctx, `
@@ -92,11 +92,11 @@ VALUES ('legacy-repo', 'internal/legacy-target.go', 'legacy proof', 'legacy-hash
 	}
 
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{migration}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply tracked 125 concurrent index migration: %v", err)
+		t.Fatalf("apply tracked 126 concurrent index migration: %v", err)
 	}
 	assertContentFilesRelativePathIndexDefinition(t, ctx, database)
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{lifecycle}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply tracked 126 lifecycle migration: %v", err)
+		t.Fatalf("apply tracked 127 lifecycle migration: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 
@@ -136,14 +136,14 @@ ON content_files USING gin (relative_path gin_trgm_ops) WHERE relative_path <> '
 			migration, lifecycle, preMigration := contentFilesRelativePathIndexMigrations(t)
 
 			if err := applyBootstrapDefinitionsWith(ctx, exec, preMigration, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-				t.Fatalf("apply populated pre-125 schema: %v", err)
+				t.Fatalf("apply populated pre-126 schema: %v", err)
 			}
 			assertContentSearchIndexState(t, database, "ready")
 			if _, err := database.ExecContext(ctx, tc.sql); err != nil {
 				t.Fatalf("seed malformed same-name relative-path index: %v", err)
 			}
 			if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{migration, lifecycle}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-				t.Fatalf("apply tracked 125/126 migrations with malformed index: %v", err)
+				t.Fatalf("apply tracked 126/127 migrations with malformed index: %v", err)
 			}
 			assertContentSearchIndexState(t, database, "not_built")
 			if err := EnsureContentSearchIndexes(ctx, exec); err == nil {

@@ -4,18 +4,18 @@
 
 `investigate_code_topic` can probe `content_files.relative_path` without a
 repository constraint. The primary key starts with `repo_id`, so it cannot
-bound that substring probe. Migration 125 adds
+bound that substring probe. Migration 126 adds
 `content_files_relative_path_trgm_idx` as a `gin_trgm_ops` index. It runs with
 `CREATE INDEX CONCURRENTLY` for normal upgrades. Cold bootstrap records its
 deferred no-op variant and `EnsureContentSearchIndexes` builds the same index
 only after the write-heavy projection drain.
 
-A populated live upgrade must use migration 125's concurrent build, then
-validate the catalog before migration 126 publishes readiness.
+A populated live upgrade must use migration 126's concurrent build, then
+validate the catalog before migration 127 publishes readiness.
 `EnsureContentSearchIndexes` is a non-concurrent, transactional finalizer for
-deferred bootstrap, not a live substitute for migration 125.
+deferred bootstrap, not a live substitute for migration 126.
 
-Migration 126 extends `eshu_content_substring_indexes_valid()` to require the
+Migration 127 extends `eshu_content_substring_indexes_valid()` to require the
 exact path-index shape. An existing wrong, partial, invalid, or absent
 same-name index therefore prevents the ready state and guarded reads until the
 finalizer produces the exact index.
@@ -86,11 +86,11 @@ its under-1-second budget.
 Disposable PostgreSQL 18 live tests exercise the production tracked bootstrap
 entry point rather than a direct `ApplyDefinitions` call:
 
-- populated pre-125 ready state plus indexed content, tracked 125 concurrent
-  migration, tracked 126 lifecycle migration, then a guarded unscoped
+- populated pre-126 ready state plus indexed content, tracked 126 concurrent
+  migration, tracked 127 lifecycle migration, then a guarded unscoped
   `relative_path ILIKE` read;
 - wrong btree and partial GIN same-name path indexes while the other three
-  lifecycle indexes are exact; 126 moves state to `not_built`, finalization
+  lifecycle indexes are exact; 127 moves state to `not_built`, finalization
   fails closed, then removing the malformed index lets the finalizer recover to
   `ready` with the exact GIN;
 - invalid interrupted concurrent-index cleanup, concurrent production-entry
