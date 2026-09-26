@@ -48,6 +48,9 @@ operators at g5 = 27 branches x (30 inline terms + 1 `EXISTS`).
 value and any other value keep SHAPE-A byte for byte, pinned by
 `TestInfraScopeNornicDBStatementsByteIdentical`.
 
+Anti-pattern on Neo4j: copying a grant predicate into every `UNION` branch, or
+expanding it into O(grant) inline pattern terms.
+
 On Neo4j (`go/internal/query/infra_scope.go`):
 
 - each inline-map family becomes one list `EXISTS`, for example
