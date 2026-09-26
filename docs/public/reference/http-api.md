@@ -46,6 +46,10 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Repository catalog, repository context/stats/coverage | [Repository routes](http-api/repositories-ingesters-bundles.md) |
 | Ingester status, bundle search | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) |
 
+Repository context marks unavailable content coverage and bounded or failed
+file-derived overviews in `partial_reasons`; see
+[Repository routes](http-api/repositories-ingesters-bundles.md).
+
 Saved IdP group mapping refs from before the FIPS-safe SHA-256 transition must
 be refreshed through the admin mapping list before deletion; a legacy ref
 returns `409` (see [Dashboard browser sessions](http-api/dashboard-sessions.md)).

@@ -315,4 +315,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// #7237 adds an ordered partial index for active semantic code hints.
 	"fact_records_semantic_code_hint_order_idx",
 	"content_entities_repo_path_start_idx",
+	// Migration 133 (#7242) narrows repository-context entry-point reads.
+	"repository_entry_points_index",
 }

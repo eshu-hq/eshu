@@ -30,6 +30,9 @@ const (
 	languagesReadDegradedReason                   = "languages_read_degraded"
 	sourceToolBreakdownReadDegradedReason         = "source_tool_breakdown_read_degraded"
 	entryPointsReadDegradedReason                 = "entry_points_read_degraded"
+	contextFileReadTruncatedReason                = "repository_context_file_read_truncated_at_5000"
+	contextFileReadDegradedReason                 = "repository_context_file_read_degraded"
+	contextCoverageDegradedReason                 = "repository_context_content_coverage_degraded"
 	apiSurfaceReadDegradedReason                  = APISurfaceReadDegradedReason
 	deployableUnitRelationshipsReadDegradedReason = "deployable_unit_relationships_read_degraded"
 )

@@ -45,10 +45,17 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusNotFound, "repository not found")
 		return
 	}
-	contentCoverage := loadRepositoryContentCoverage(ctx, h.Content, repoID)
+	partialReasons := make([]string, 0)
+	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "content_coverage")
+	contentCoverage, coverageErr := loadRepositoryContentCoverage(ctx, h.Content, repoID)
+	coverageAttrs := []slog.Attr{slog.Bool("available", contentCoverage != nil), slog.Bool("error", coverageErr != nil)}
+	if coverageErr != nil {
+		partialReasons = append(partialReasons, contextCoverageDegradedReason)
+		coverageAttrs = append(coverageAttrs, slog.String("failure_class", contextCoverageDegradedReason))
+	}
+	timer.Done(ctx, coverageAttrs...)
 	readModelSummary := querycontract.LoadRepositoryReadModelSummary(ctx, h.Content, repoID)
 	relationshipReadModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
-	partialReasons := make([]string, 0)
 	if relationshipReadModel != nil {
 		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployable_unit_relationships")
 		deployableUnitRows, deployableUnitDegraded := queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params)
@@ -185,8 +192,17 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.Content != nil {
 		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "content_infrastructure_overview")
-		files, err := h.Content.ListRepoFiles(ctx, repoID, querycontract.RepositorySemanticEntityLimit)
+		const fileLimit = querycontract.RepositorySemanticEntityLimit
+		files, err := h.Content.ListRepoFiles(ctx, repoID, fileLimit+1)
+		filesTruncated := err == nil && len(files) > fileLimit
+		if err != nil {
+			partialReasons = append(partialReasons, contextFileReadDegradedReason)
+		}
 		if err == nil {
+			if filesTruncated {
+				files = files[:fileLimit]
+				partialReasons = append(partialReasons, contextFileReadTruncatedReason)
+			}
 			if files == nil {
 				files = []querycontract.FileContent{}
 			}
@@ -211,7 +227,11 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 				result["infrastructure_overview"] = overview
 			}
 		}
-		timer.Done(ctx, slog.Bool("error", err != nil))
+		fileReadAttrs := []slog.Attr{slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", filesTruncated)}
+		if err != nil {
+			fileReadAttrs = append(fileReadAttrs, slog.String("failure_class", contextFileReadDegradedReason))
+		}
+		timer.Done(ctx, fileReadAttrs...)
 	}
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "languages")
 	languagesDegraded := false

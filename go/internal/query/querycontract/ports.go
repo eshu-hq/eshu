@@ -125,3 +125,11 @@ type ContentStore interface {
 	MatchRepositories(ctx context.Context, selector string) ([]RepositoryCatalogEntry, error)
 	ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error)
 }
+
+// RepositoryContextCoverageReadModelStore is an optional narrow file-summary
+// read for repository context. It returns only FileCount and Languages in the
+// RepositoryContentCoverage value; callers must not treat its entity fields as
+// populated. ContentStore remains the full coverage port for other routes.
+type RepositoryContextCoverageReadModelStore interface {
+	RepositoryContextCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
+}

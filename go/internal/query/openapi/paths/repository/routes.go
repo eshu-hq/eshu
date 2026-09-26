@@ -242,7 +242,7 @@ const Routes = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository context",
-        "description": "Returns repository metadata with graph statistics. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Returns repository metadata with graph statistics. File count and languages use a content-files-only summary when available. A file-derived infrastructure overview beyond 5,000 files is explicitly marked partial. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryContext",
         "x-scoped-token-support": true,
         "parameters": [
@@ -298,7 +298,7 @@ const Routes = `
                     },
                     "partial_reasons": {
                       "type": "array",
-                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, relationships_read_degraded or consumers_read_degraded when one of the other auxiliary graph reads failed (each read has its own <read>_read_degraded value), or infrastructure_truncated when a healthy infrastructure read landed past its bound; always present so the envelope shape is stable.",
+                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, relationships_read_degraded or consumers_read_degraded when one of the other auxiliary graph reads failed (each read has its own <read>_read_degraded value), or infrastructure_truncated when a healthy infrastructure read landed past its bound. repository_context_file_read_truncated_at_5000 means file-derived infrastructure and deployment-artifact overviews use only the first 5,000 files; repository_context_file_read_degraded means that file list failed and those overviews may be omitted; repository_context_content_coverage_degraded means the content-file summary failed and graph file counts/languages were used. Always present so the envelope shape is stable.",
                       "items": {"type": "string"}
                     }
                   }

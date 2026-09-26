@@ -138,15 +138,24 @@ func queryRepositoryContextCount(ctx context.Context, reader querycontract.Graph
 	return querycontract.IntVal(rows[0], "count"), nil
 }
 
-func loadRepositoryContentCoverage(ctx context.Context, content querycontract.ContentStore, repoID string) *querycontract.RepositoryContentCoverage {
+func loadRepositoryContentCoverage(ctx context.Context, content querycontract.ContentStore, repoID string) (*querycontract.RepositoryContentCoverage, error) {
 	if content == nil || repoID == "" {
-		return nil
+		return nil, nil
 	}
-	coverage, err := content.RepositoryCoverage(ctx, repoID)
-	if err != nil || !coverage.Available {
-		return nil
+	var coverage querycontract.RepositoryContentCoverage
+	var err error
+	if narrow, ok := content.(querycontract.RepositoryContextCoverageReadModelStore); ok {
+		coverage, err = narrow.RepositoryContextCoverage(ctx, repoID)
+	} else {
+		coverage, err = content.RepositoryCoverage(ctx, repoID)
 	}
-	return &coverage
+	if err != nil {
+		return nil, err
+	}
+	if !coverage.Available {
+		return nil, nil
+	}
+	return &coverage, nil
 }
 
 func repositoryLanguageDistributionFromCoverage(contentCoverage *querycontract.RepositoryContentCoverage) ([]map[string]any, bool) {
