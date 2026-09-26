@@ -152,13 +152,15 @@ no findings.
 ## Relationships And Paths
 
 `POST /api/v0/code/relationships` accepts either `entity_id` or `name`. Optional
-filters include `direction`, `relationship_type`, `transitive`, and
-`max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
+filters include `repo_id`, `direction`, `relationship_type`, `transitive`, and
+`max_depth`. It takes no `limit` or `offset`. Set `transitive=true` with `relationship_type=CALLS` for indirect
 callers or callees; `max_depth` caps traversal. The response always carries `outgoing_truncated` and `incoming_truncated`: On the graph paths `true` means more neighbours exist in that direction than were returned (#7151); the NornicDB one-hop read returns at most 500 per direction and reads one extra row to know it clipped. The Neo4j read and the transitive walk have no row ceiling, and an excluded `direction` was never read, so those report `false`. The content fallback sets a flag when a lookup reached its ceiling, so the list may be incomplete: the k8s `SELECTS` candidate scan, or a 20-row lookup for `REFERENCES` (JSX component usage), `PATCHES` (Kustomize patch targets) or `CONTAINS` (Rust impl blocks) edges. The cap applies before any in-process filter, so a flag does not prove more neighbours exist; any repository with more than 20 functions reports its Rust impl blocks as truncated. The CloudFormation 5000-file ceiling is a resolution ceiling and does not set these flags. A `relationship_type` that excludes the clipped edge type reports `false`. The ambiguous-target answer returns no neighbours and reports both flags `false`.
 
 It is where the `analyze_code_relationships` MCP tool sends its
 `who_modifies`, `module_deps`, `variable_scope`, `find_complexity`,
-`find_functions_by_argument`, and `find_functions_by_decorator` query types.
+`find_functions_by_argument`, and `find_functions_by_decorator` query types. The
+tool sends the caller's `repo_id`, sends `target` as `name`, and sends an
+optional exact `entity_id`, which the route prefers over `name` (#7216).
 A scoped token reads only its granted repositories (#5167). An anchor outside
 the grant, by `entity_id` or by `name`, answers the unknown-entity `404`; a
 `name` without `repo_id` resolves among granted repositories only. Neighbours

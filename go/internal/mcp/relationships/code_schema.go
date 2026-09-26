@@ -40,6 +40,10 @@ func AnalyzeCodeRelationshipsSchema() map[string]any {
 				"type":        "string",
 				"description": "Target entity to analyze. Optional for repo-scoped overrides queries.",
 			},
+			"entity_id": map[string]any{
+				"type":        "string",
+				"description": "Optional exact code entity ID for who_modifies, module_deps, variable_scope, find_complexity, find_functions_by_argument, and find_functions_by_decorator queries; takes precedence over target, which those query types resolve as an entity name.",
+			},
 			"context": map[string]any{
 				"type":        "string",
 				"description": "Optional context for the analysis",
