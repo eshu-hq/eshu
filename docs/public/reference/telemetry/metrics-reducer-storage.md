@@ -53,6 +53,18 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+Each `generation_retention_events` row carries `row_counts`, the rows its
+generation's pruning removes by table. A content row shared by several
+generations in one batch is counted once, on the newest of them. For the
+content tables (`content_entities`, `content_files`, `content_file_references`)
+and the generation-owned tables that carry an event count, a batch's event
+counts sum to the rows that `eshu_dp_generation_retention_rows_pruned_total`
+adds for that table, in the absence of concurrent writes between the count and
+the deletes. `scope_generations` and `shared_projection_unroutable_intents` have
+no event count. The `infra_resource_entities` delete also removes mirror rows
+that were already orphaned before the batch, so the counter can exceed the event
+sum for that table.
+
 ## Infra Read Model Reconcile
 
 | Metric | Type | Use |

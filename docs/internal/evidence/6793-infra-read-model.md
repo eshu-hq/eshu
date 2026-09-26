@@ -138,14 +138,28 @@ are not blocked. This is a bounded stall per retention batch, not a
 deadlock: derive holds at most one repository lock and retention acquires its
 set in repo_id order.
 
-The probe could not run on a plain bootstrapped schema.
-`generationRetentionRowCountsQuery` (on main before this change) joins a
-relation `iac_reachability` and counts `content_file_references.reference_id`.
-Neither exists in the bootstrap migrations, which create `iac_reachability_rows`
-and no `reference_id` column. Every retention batch with candidates therefore
-fails at its row count on a real schema. The measurement database added a view
-and a surrogate column to get past that; the probe skips when the relation is
-missing. That defect predates this change and is tracked as #6809.
+The probe could not run on a plain bootstrapped schema when it was measured:
+`generationRetentionRowCountsQuery` joined a relation `iac_reachability` and
+counted `content_file_references.reference_id`. Neither exists in the bootstrap
+migrations, which create `iac_reachability_rows` and no `reference_id` column,
+so every retention batch with candidates failed at its row count. #6809 fixed
+the query (it joins `iac_reachability_rows` and counts `ref.repo_id`) and the
+probe now runs on a bootstrapped database without a skip.
+
+The lock-hold table above was measured before this fix, on the patched view and
+surrogate column. A later run of the same probe on the fixed statements, a cold
+database with autovacuum off and no `ANALYZE` (laptop-local, remote numbers
+pending), gave retention 1.25 / 1.41 / 1.65s per batch, lock hold 0.69 / 0.70 /
+0.77s, and a same-repository derive wait of 0.86 / 0.74 / 0.87s against an idle
+baseline of 5-6ms. That is one three-round run, not a replacement for the table.
+
+The content_entities prune used to hit a plan cliff on a database with no
+planner statistics: measured over 150s cold against 429ms analyzed, on the
+statement as it was when this probe first ran. #6809 replaced the three content
+prunes with a single grouped pass that does not depend on statistics, so the
+probe no longer needs to analyze its seed. The plans, the measurements, and
+their laptop-only status are in
+[6809-retention-content-prune-plan.md](6809-retention-content-prune-plan.md).
 
 ## Concurrency
 

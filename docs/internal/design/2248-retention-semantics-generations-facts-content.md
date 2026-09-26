@@ -129,10 +129,18 @@ record safe audit/status facts before removing rows. The order is:
    work-item state under the lock. Abort the candidate if any value changed.
 3. Record a retention event with only safe fields: scope class,
    `scope_id_hash`, `generation_id_hash`, policy scope, policy revision/hash,
-   row counts, reason, and timestamp. Audit and status rows must not store raw
-   scope ids or raw generation ids because those identifiers can include
-   source-shaped details in some collectors. Do not include source names, paths,
-   payload excerpts, private URLs, credentials, or raw provider identifiers.
+   row counts, reason, and timestamp. Row counts are per table. A content row
+   (`content_entities`, `content_files`, `content_file_references`, and the
+   `infra_resource_entities` mirror) named by facts in several pruned
+   generations is counted once, for the newest of them, so each table's counts
+   sum across a batch's events to the rows the batch deletes (the mirror
+   delete also drops rows already orphaned before the batch); after a
+   row-limit skip the batch is recounted over the generations it keeps.
+   Generation-owned tables count each generation's own rows. Audit and status
+   rows must not store raw scope ids or raw generation ids because those
+   identifiers can include source-shaped details in some collectors. Do not
+   include source names, paths, payload excerpts, private URLs, credentials, or
+   raw provider identifiers.
 4. Delete or let foreign keys cascade generation-owned rows, including
    `fact_records`, `fact_work_items`, fact replay events, graph projection
    phase state, shared projection acceptance rows, and other rows whose schema

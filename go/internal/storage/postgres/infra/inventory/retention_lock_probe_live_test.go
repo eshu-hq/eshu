@@ -142,19 +142,6 @@ func probeRetentionPolicy() postgres.GenerationRetentionPolicy {
 //	  -run TestRetentionLiveLockHoldAndDeriveWaitCost -count=1 -v
 func TestRetentionLiveLockHoldAndDeriveWaitCost(t *testing.T) {
 	sqlDB, ctx := liveDB(t)
-	// generationRetentionRowCountsQuery joins a relation named iac_reachability
-	// and counts content_file_references.reference_id, but the bootstrap
-	// migrations create iac_reachability_rows and no reference_id column, so
-	// retention fails on a bootstrapped database (#6809). Until that is fixed,
-	// the probe needs the operator to provide both (for example a view over
-	// iac_reachability_rows and a surrogate column) rather than hiding it here.
-	var reachability sql.NullString
-	if err := sqlDB.QueryRowContext(ctx, `SELECT to_regclass('iac_reachability')::text`).Scan(&reachability); err != nil {
-		t.Fatalf("check iac_reachability: %v", err)
-	}
-	if !reachability.Valid {
-		t.Skip("relation iac_reachability is missing: generation retention cannot run on this database")
-	}
 	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewGenerationRetentionStore(database)
 	other := uniqueRepo(t)

@@ -47,6 +47,25 @@ history ages out. Production Helm renders and default/production binaries reject
 `ESHU_GENERATION_RETENTION_ENABLED=false`; use that disable flag only with an
 explicit local `ESHU_QUERY_PROFILE` for local or test binary runs.
 
+Each retention transaction runs `SET LOCAL work_mem = '64MB'` before its first
+statement. Nothing else in the reducer sets `work_mem`, and a Helm deployment
+against an external Postgres gets that server's value, commonly the 4MB default.
+At 4MB the three content prunes sort on disk and run slower than they need to; at
+16MB and above they plan a hash aggregate (measured at 5x on a remote host,
+PostgreSQL 18.6). The setting is transaction-local: it does not change the pooled
+connection or the server configuration, and there is no environment variable for
+it.
+
+`work_mem` is a per-plan-node allowance, not a per-statement budget. Each sort or
+hash node in a retention statement may use up to 64MB, a hash node up to twice that
+(`hash_mem_multiplier`), and one statement can contain several such nodes, so size
+memory headroom for the whole retention transaction, not for one figure per
+statement. The row-count statement that opens each batch has not been timed warm
+at 5x on the remote host. On a laptop cold shape (10 generations of 6,000 keys, no
+planner statistics) its two grouping sorts spill to disk at 4MB and stay in memory
+at 64MB. The earlier figure of about 4.9 s warm at 5x measured the statement it
+replaced (issue #6809), not the current one.
+
 The graph orphan cleanup runner counts, marks, and deletes only aged
 zero-relationship graph nodes in the closed cleanup label set. It is not a
 substitute for relationship retraction or canonical node replacement: first it
