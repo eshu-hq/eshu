@@ -33,6 +33,7 @@ import {
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import { collectComposeServiceLogs, SEEDED_REPOSITORY_ID } from "./authMcpE2EGraphSeed.ts";
 import { extractToolCallStructuredContent, mcpInitialize, mcpPing, mcpToolsCall, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
+import { assertEmptyGrantRepositoryList } from "./authMcpE2ERepositoryRows.ts";
 import { runDistinctDenialMatrix, type DenialMatrixContext } from "./authMcpE2ELeakageDenials.ts";
 import { runPsql } from "./authMcpE2EPsql.ts";
 
@@ -142,15 +143,8 @@ async function assertCrossScopeRowFilter(
   if (scopedCall.httpStatus !== 200) {
     throw new Error(`scoped list_indexed_repositories expected 200, got ${scopedCall.httpStatus}: ${scopedCall.bodyText}`);
   }
-  const scopedResult = extractToolCallStructuredContent(scopedCall) as {
-    repositories?: readonly { id?: string }[];
-  };
-  const scopedRows = scopedResult.repositories ?? [];
-  if (scopedRows.length !== 0) {
-    throw new Error(
-      `scoped bearer saw ${scopedRows.length} repository row(s) — the seeded node must be filtered out for an empty-grant scope: ${JSON.stringify(scopedRows.map((r) => r.id))}`,
-    );
-  }
+  // structuredContent is the truth envelope; the list is at .data.repositories.
+  assertEmptyGrantRepositoryList(extractToolCallStructuredContent(scopedCall), "scoped bearer");
   return `non-vacuous row filter: AllScopes session sees ${SEEDED_REPOSITORY_ID}; scoped (empty-grant) bearer sees 0 of the same graph`;
 }
 
