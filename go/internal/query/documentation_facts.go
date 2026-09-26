@@ -166,7 +166,12 @@ func documentationFactsTruth(profile QueryProfile, readModel documentationFactLi
 		TruthBasisSemanticFacts,
 		"resolved from durable collected documentation facts",
 	)
-	freshness := readModel.Freshness
+	return withDocumentationGenerationFreshness(truth, readModel.Freshness)
+}
+
+func withDocumentationGenerationFreshness(
+	truth *TruthEnvelope, freshness querycontract.DocumentationFactFreshness,
+) *TruthEnvelope {
 	if freshness.State == "" || freshness.State == querycontract.FreshnessFresh {
 		return truth
 	}

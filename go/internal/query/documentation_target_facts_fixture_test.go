@@ -56,8 +56,8 @@ func seedTargetFactsScopes(t *testing.T, ctx context.Context, db *sql.DB) {
 		execProofStatements(t, ctx, db, []proofStatement{{`
 INSERT INTO ingestion_scopes (
   scope_id, scope_kind, source_system, source_key, collector_kind,
-  partition_key, observed_at, ingested_at, status
-) VALUES ($1, 'repository', 'proof', $1, 'proof', 'proof', clock_timestamp(), clock_timestamp(), 'active')`, []any{s[0]}}, {`
+  partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES ($1, 'repository', 'proof', $1, 'proof', 'proof', clock_timestamp(), clock_timestamp(), 'active', $2)`, []any{s[0], s[1]}}, {`
 INSERT INTO scope_generations (
   generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
 ) VALUES ($2, $1, 'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp())`, []any{s[0], s[1]}}})

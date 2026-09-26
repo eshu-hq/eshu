@@ -76,6 +76,10 @@ func (cr *ContentReader) DocumentationFindings(
 		span.RecordError(err)
 		return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
 	}
+	if err := rows.Close(); err != nil {
+		span.RecordError(err)
+		return documentationFindingListReadModel{}, fmt.Errorf("close documentation findings rows: %w", err)
+	}
 	nextCursor := ""
 	if len(findings) > limit {
 		findings = findings[:limit]
@@ -101,6 +105,21 @@ func (cr *ContentReader) DocumentationFindings(
 		}
 		readModel.MissingEvidence = querycontract.DocumentationMissingEvidenceForTarget(readModel.Coverage)
 	}
+	stateRows := readModel.Findings
+	if len(stateRows) == 0 {
+		stateRows = readModel.RelatedFacts
+	}
+	state, err := cr.documentationFactPageState(ctx, span, documentationFactFilter{
+		ScopeID: filter.ScopeID, GenerationID: filter.GenerationID,
+		AllowedRepositoryIDs: filter.AllowedRepositoryIDs,
+		AllowedScopeIDs:      filter.AllowedScopeIDs,
+	}, stateRows)
+	if err != nil {
+		return documentationFindingListReadModel{}, err
+	}
+	readModel.Binding = state.Binding
+	readModel.Freshness = state.Freshness
+	readModel.EmptyReason = state.EmptyReason
 	return readModel, nil
 }
 
@@ -235,6 +254,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	scopeParam := len(args)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
 	repository := strings.TrimSpace(filter.Repository)
 	if repository != "" {
@@ -277,6 +297,21 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		filter.AllowedRepositoryIDs,
 		filter.AllowedScopeIDs,
 	)
+	activeJoin := false
+	if strings.TrimSpace(filter.GenerationID) == "" {
+		switch {
+		case scopeParam > 0:
+			clauses = append(clauses, documentationActiveScopeClause(scopeParam))
+		case len(args) > 0:
+			activeJoin = true
+		default:
+			clauses = append(clauses, documentationFactActiveProbeClause)
+		}
+	}
+	scopeJoin := "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
+	if activeJoin {
+		scopeJoin = documentationFactActiveScopeJoinSQL
+	}
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 50
@@ -290,12 +325,20 @@ SELECT fact_records.payload
             THEN jsonb_build_object('repo', ingestion_scopes.payload->>'repo')
         ELSE '{}'::jsonb
     END AS payload
-FROM fact_records
-LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
+FROM fact_records%s
 WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
-`, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
+`, scopeJoin, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
+}
+
+// documentationActiveScopeClause binds a named scope to its active generation
+// before ordering and pagination.
+func documentationActiveScopeClause(scopeParam int) string {
+	return fmt.Sprintf(
+		"fact_records.generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $%d)",
+		scopeParam,
+	)
 }
 
 func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) {

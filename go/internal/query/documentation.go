@@ -110,12 +110,13 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 	}
 	filter, ok = documentationFindingFilterWithRepositoryAccess(r.Context(), filter)
 	if !ok {
-		WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(documentationFindingListReadModel{}), BuildTruthEnvelope(
-			h.profile(),
-			documentationFindingsCapability,
-			TruthBasisSemanticFacts,
-			"resolved from durable documentation finding facts",
-		))
+		state := documentationFactUngrantedPageState(documentationFactFilter{
+			ScopeID: filter.ScopeID, GenerationID: filter.GenerationID,
+		})
+		empty := documentationFindingListReadModel{
+			Binding: state.Binding, Freshness: state.Freshness, EmptyReason: state.EmptyReason,
+		}
+		WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(empty, filter), documentationFindingsTruth(h.profile(), empty))
 		return
 	}
 	readModel, err := store.DocumentationFindings(r.Context(), filter)
@@ -123,12 +124,15 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		writeDocumentationInternalError(w, r)
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(readModel), BuildTruthEnvelope(
-		h.profile(),
-		documentationFindingsCapability,
-		TruthBasisSemanticFacts,
+	WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(readModel, filter), documentationFindingsTruth(h.profile(), readModel))
+}
+
+func documentationFindingsTruth(profile QueryProfile, readModel documentationFindingListReadModel) *TruthEnvelope {
+	truth := BuildTruthEnvelope(
+		profile, documentationFindingsCapability, TruthBasisSemanticFacts,
 		"resolved from durable documentation finding facts",
-	))
+	)
+	return withDocumentationGenerationFreshness(truth, readModel.Freshness)
 }
 
 func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.Request) {

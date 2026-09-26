@@ -7,15 +7,17 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// TestDocumentationRelatedReadsBindActiveGenerationLive exercises the three
+// TestDocumentationRelatedReadsBindActiveGenerationLive exercises the related
 // production SQL builders over retained, active, and failed generations.
 func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 	ctx, db := postgresproof.OpenDisposableDatabase(
@@ -96,6 +98,119 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 			}
 		})
 	}
+	t.Run("unscoped pages use the measured active binding shape", func(t *testing.T) {
+		for _, tc := range cases {
+			query, args := tc.build("", "")
+			got := documentationFactPayloadIDs(t, ctx, db, query, args...)
+			want := queryDocumentationIDs(t, ctx, db, `
+SELECT f.fact_id FROM fact_records f
+JOIN ingestion_scopes s ON s.scope_id = f.scope_id
+  AND s.active_generation_id = f.generation_id
+WHERE f.fact_kind = ANY($1::text[]) AND NOT f.is_tombstone
+ORDER BY f.observed_at DESC, f.fact_id DESC`, tc.kinds)
+			assertDocumentationFactIDs(t, got, want)
+			if tc.name == "findings" {
+				if !strings.Contains(query, documentationFactActiveProbeClause) {
+					t.Fatal("unfiltered findings must use the bounded page probe")
+				}
+				continue
+			}
+			if !strings.Contains(query, documentationFactActiveScopeJoinSQL) ||
+				strings.Contains(query, documentationFactActiveProbeClause) {
+				t.Fatalf("%s must bind active scopes with a join", tc.name)
+			}
+		}
+		filteredFindings, _ := buildDocumentationFindingsSQL(documentationFindingFilter{
+			SourceID: "source:related-generation", Limit: 20,
+		})
+		if !strings.Contains(filteredFindings, documentationFactActiveScopeJoinSQL) ||
+			strings.Contains(filteredFindings, documentationFactActiveProbeClause) {
+			t.Fatal("filtered findings must bind active scopes with a join")
+		}
+	})
+	t.Run("source-only coverage of an explicit historical generation", func(t *testing.T) {
+		query, args := buildDocumentationSourceOnlySQL(documentationFindingFilter{
+			ScopeID: docFactsScopeA, GenerationID: docFactsGenOld, SourceID: docFactsSourceA,
+		})
+		var total, sources, documents, sections, links int
+		if err := db.QueryRowContext(ctx, query, args...).Scan(
+			&total, &sources, &documents, &sections, &links,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if total != docFactsRowsPerG || sources != 1 {
+			t.Fatalf("historical source-only facts = %d (sources %d), want %d (sources 1)",
+				total, sources, docFactsRowsPerG)
+		}
+	})
+	t.Run("read models label historical and missing active generations", func(t *testing.T) {
+		reader := NewContentReader(db)
+		findings, err := reader.DocumentationFindings(ctx, documentationFindingFilter{
+			ScopeID: docFactsScopeA, GenerationID: docFactsGenOld,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(findings.Findings) != 1 || findings.Binding.IsActive ||
+			findings.Freshness.State != querycontract.FreshnessStale {
+			t.Fatalf("historical findings state = %#v", findings)
+		}
+		findings, err = reader.DocumentationFindings(ctx, documentationFindingFilter{ScopeID: docFactsScopeB})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(findings.Findings) != 0 ||
+			findings.EmptyReason != querycontract.DocumentationFactEmptyNoActiveGeneration ||
+			findings.Freshness.State != querycontract.FreshnessUnavailable {
+			t.Fatalf("failed scope findings state = %#v", findings)
+		}
+		semantic, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: facts.SemanticCodeHintFactKind,
+			ScopeID:  docFactsScopeA, GenerationID: docFactsGenOld,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(semantic.Rows) != 1 || semantic.Binding.IsActive ||
+			semantic.Freshness.State != querycontract.FreshnessStale {
+			t.Fatalf("historical semantic state = %#v", semantic)
+		}
+		semantic, err = reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: facts.SemanticCodeHintFactKind, ScopeID: docFactsScopeB,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(semantic.Rows) != 0 ||
+			semantic.EmptyReason != querycontract.DocumentationFactEmptyNoActiveGeneration ||
+			semantic.Freshness.State != querycontract.FreshnessUnavailable {
+			t.Fatalf("failed scope semantic state = %#v", semantic)
+		}
+	})
+	t.Run("scope labels honor caller grants", func(t *testing.T) {
+		reader := NewContentReader(db)
+		findings, err := reader.DocumentationFindings(ctx, documentationFindingFilter{
+			ScopeID: docFactsScopeA, AllowedScopeIDs: []string{docFactsScopeD},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(findings.Findings) != 0 || findings.EmptyReason != querycontract.DocumentationFactEmptyScopeNotFound ||
+			findings.Binding.GenerationID != "" {
+			t.Fatalf("out-of-grant findings disclosed scope state: %#v", findings)
+		}
+		semantic, err := reader.SemanticEvidence(ctx, semanticEvidenceFilter{
+			FactKind: facts.SemanticDocumentationObservationFactKind,
+			ScopeID:  docFactsScopeA, AllowedScopeIDs: []string{docFactsScopeD},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(semantic.Rows) != 0 || semantic.EmptyReason != querycontract.DocumentationFactEmptyScopeNotFound ||
+			semantic.Binding.GenerationID != "" {
+			t.Fatalf("out-of-grant semantic evidence disclosed scope state: %#v", semantic)
+		}
+	})
 }
 
 func seedDocumentationRelatedGenerationRows(t *testing.T, ctx context.Context, db *sql.DB) {

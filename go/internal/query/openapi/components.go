@@ -193,6 +193,8 @@ const components = `  "components": {
           "count": {"type": "integer"},
           "limit": {"type": "integer"},
           "truncated": {"type": "boolean"},
+          "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
+          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
           "next_cursor": {"type": "string"}
         }
       },
@@ -203,6 +205,8 @@ const components = `  "components": {
           "count": {"type": "integer"},
           "limit": {"type": "integer"},
           "truncated": {"type": "boolean"},
+          "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
+          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
           "next_cursor": {"type": "string"}
         }
       },

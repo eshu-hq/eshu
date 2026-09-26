@@ -36,7 +36,15 @@ func buildSemanticEvidenceSQL(filter semanticEvidenceFilter) (string, []any) {
 
 	addColumnFilter("fact_records.fact_id", filter.FactID)
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	scopeParam := len(args)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	if strings.TrimSpace(filter.GenerationID) == "" && scopeParam > 0 {
+		clauses = append(clauses, documentationActiveScopeClause(scopeParam))
+	}
+	scopeJoin := ""
+	if strings.TrimSpace(filter.GenerationID) == "" && scopeParam == 0 {
+		scopeJoin = documentationFactActiveScopeJoinSQL
+	}
 	addPayloadFilter("fact_records.payload->'source'->>'source_class'", filter.SourceClass)
 	addPayloadFilter("fact_records.payload->'source'->>'source_id'", filter.SourceID)
 	addPayloadFilter("fact_records.payload->'source'->>'document_id'", filter.DocumentID)
@@ -87,11 +95,11 @@ SELECT jsonb_build_object(
     'observed_at', fact_records.observed_at,
     'payload', fact_records.payload
 ) AS payload
-FROM fact_records
+FROM fact_records%s
 WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
-`, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
+`, scopeJoin, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
 }
 
 func appendSemanticEvidenceRepositoryClause(

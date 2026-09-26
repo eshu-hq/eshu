@@ -26,14 +26,18 @@ type (
 	documentationMissingEvidence = querycontract.DocumentationMissingEvidence
 )
 
-func documentationFindingsResponse(readModel documentationFindingListReadModel) map[string]any {
+func documentationFindingsResponse(
+	readModel documentationFindingListReadModel, filter documentationFindingFilter,
+) map[string]any {
 	findings := readModel.Findings
 	if findings == nil {
 		findings = []map[string]any{}
 	}
 	body := map[string]any{
-		"findings":    findings,
-		"next_cursor": readModel.NextCursor,
+		"findings":           findings,
+		"next_cursor":        readModel.NextCursor,
+		"states":             documentationGenerationReadStates(len(findings) == 0, "no_documentation_findings", readModel.EmptyReason),
+		"generation_binding": documentationGenerationBindingResponse(filter.GenerationID, readModel.Binding),
 	}
 	if !documentationFindingListHasTargetReadback(readModel) {
 		return body
@@ -50,6 +54,30 @@ func documentationFindingsResponse(readModel documentationFindingListReadModel) 
 	body["related_facts"] = relatedFacts
 	body["missing_evidence"] = missingEvidence
 	return body
+}
+
+func documentationGenerationBindingResponse(
+	generationID string, binding querycontract.DocumentationFactGenerationBinding,
+) map[string]any {
+	mode := querycontract.DocumentationFactBindingActive
+	if strings.TrimSpace(generationID) != "" {
+		mode = querycontract.DocumentationFactBindingExplicit
+	}
+	return map[string]any{
+		"mode": mode, "generation_id": binding.GenerationID, "is_active": binding.IsActive,
+	}
+}
+
+func documentationGenerationReadStates(missing bool, missingState, emptyReason string) []string {
+	if !missing {
+		return []string{}
+	}
+	states := []string{missingState}
+	switch emptyReason {
+	case querycontract.DocumentationFactEmptyScopeNotFound, querycontract.DocumentationFactEmptyNoActiveGeneration:
+		states = append(states, emptyReason)
+	}
+	return states
 }
 
 // documentationFindingListHasTargetReadback reports whether the read model
@@ -264,7 +292,11 @@ func newDocumentationTargetFactsParts(filter documentationFindingFilter) documen
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	scopeParam := len(args)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	if strings.TrimSpace(filter.GenerationID) == "" && scopeParam > 0 {
+		clauses = append(clauses, documentationActiveScopeClause(scopeParam))
+	}
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
 	clauses, args = appendDocumentationTargetClause(
@@ -282,7 +314,9 @@ func newDocumentationTargetFactsParts(filter documentationFindingFilter) documen
 		filter.AllowedScopeIDs,
 	)
 	scopeJoin := ""
-	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+	if strings.TrimSpace(filter.GenerationID) == "" && scopeParam == 0 {
+		scopeJoin = documentationFactActiveScopeJoinSQL
+	} else if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
 		scopeJoin = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
 	}
 	return documentationTargetFactsParts{
