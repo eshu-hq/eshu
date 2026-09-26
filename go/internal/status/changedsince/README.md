@@ -42,6 +42,9 @@ changed-since field to populate.
 - `Summary` — the bounded repository-scope changed-since answer
 - `ServiceCategories`, `ServiceFilter`, `ServiceSummary` — the service-scope
   variant, reusing the same classification/counts/sample/unavailable shapes
+- `MaxServiceScopeCandidates` — the bound on the admitted scope ids a
+  service-scope answer lists when more than one ingestion scope holds a
+  lineage for the service id and no `ScopeID` selected one (#6475)
 - `Timestamp` — RFC3339 UTC formatting shared with the generation lifecycle
   drilldown contract
 - `MaxSampleLimit`, `DefaultSampleLimit` — the per-classification,
@@ -83,6 +86,10 @@ None. This package performs no I/O; it defines the diff contract that
   service-scope diff always needs a prior service generation id, since
   service generations come from re-materialization, not an external clock a
   caller can name.
+- `ServiceFilter` carries the caller's grant and an optional `ScopeID`
+  (#6475). The reader binds them in SQL on the lineage row's `scope_id`; the
+  handler never filters rows itself. `ServiceSummary.OutsideGrant` is
+  telemetry-only (`json:"-"`) and must never reach a response body.
 - `ServiceCategories` grows as new evidence families land (vulnerabilities is
   a tracked follow-up); a new family's category constant belongs here, in
   lockstep with the SQL grouping by `evidence_family` in

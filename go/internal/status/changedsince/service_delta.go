@@ -28,6 +28,12 @@ var ServiceCategories = []Category{
 	CategoryVulnerabilities,
 }
 
+// MaxServiceScopeCandidates bounds the scope ids a service-scope changed-since
+// answer lists when more than one admitted ingestion scope holds a lineage for
+// the requested service id (#6475). The reader fetches one more than this to
+// report truncation.
+const MaxServiceScopeCandidates = 20
+
 // ServiceFilter bounds a service-scope changed-since summary to one
 // service id and a prior service generation. The prior reference is a service
 // generation id (the only stable per-service baseline); unlike the
@@ -35,10 +41,25 @@ var ServiceCategories = []Category{
 // generations are produced by re-materialization, not by an external clock the
 // caller can name. SampleLimit caps the bounded sample handles per
 // classification per category.
+//
+// Since #6475 a service id can hold one lineage per ingestion scope, because a
+// catalog service id is catalog-relative and two tenants may both declare it.
+// ScopeID optionally selects one of those lineages. Scoped, AllowedRepositoryIDs
+// and AllowedScopeIDs carry the caller's grant; the reader binds it in SQL on
+// the lineage row's scope_id, so an ungranted lineage (and every unattributed
+// legacy lineage, whose scope_id is NULL) resolves to no row for a scoped
+// caller. An explicit ScopeID is itself subject to the grant: selecting an
+// ungranted scope is indistinguishable from selecting one that holds nothing.
 type ServiceFilter struct {
 	ServiceID         string
+	ScopeID           string
 	SinceGenerationID string
 	SampleLimit       int
+	// Scoped reports a scoped grant rather than the shared key. When false the
+	// grant arrays are ignored and every lineage, attributed or not, is visible.
+	Scoped               bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // Normalize trims selectors and clamps SampleLimit into the supported range,
@@ -46,6 +67,7 @@ type ServiceFilter struct {
 // identically.
 func (f ServiceFilter) Normalize() ServiceFilter {
 	f.ServiceID = strings.TrimSpace(f.ServiceID)
+	f.ScopeID = strings.TrimSpace(f.ScopeID)
 	f.SinceGenerationID = strings.TrimSpace(f.SinceGenerationID)
 	if f.SampleLimit <= 0 {
 		f.SampleLimit = DefaultSampleLimit
@@ -75,8 +97,19 @@ func (f ServiceFilter) HasSinceReference() bool {
 // handler maps them to freshness state and never to a confident empty delta. A
 // service that resolved no current active generation is Unavailable, and an
 // unknown service id leaves ServiceID empty for an explicit not-found.
+//
+// When more than one admitted ingestion scope holds a lineage for the service
+// id and the filter named no ScopeID, the reader does not pick one: it returns
+// ServiceID set, AmbiguousScopeIDs listing the admitted scope ids (sorted,
+// bounded by MaxServiceScopeCandidates) and no diff. The handler answers that
+// with a conflict so the caller re-asks with a scope selector.
 type ServiceSummary struct {
-	ServiceID                 string          `json:"service_id"`
+	ServiceID string `json:"service_id"`
+	// ScopeID is the ingestion scope of the lineage the diff read. It is empty
+	// for an unattributed legacy lineage (Unattributed=true), which only an
+	// unscoped caller can resolve.
+	ScopeID                   string          `json:"scope_id,omitempty"`
+	Unattributed              bool            `json:"unattributed,omitempty"`
 	SinceGenerationID         string          `json:"since_generation_id"`
 	SinceObservedAt           string          `json:"since_observed_at,omitempty"`
 	CurrentActiveGenerationID string          `json:"current_active_generation_id"`
@@ -88,4 +121,21 @@ type ServiceSummary struct {
 	// Unavailable is true when the diff could not be computed at all (no current
 	// active generation, or the since reference resolved to no generation).
 	Unavailable bool `json:"unavailable"`
+	// AmbiguousScopeIDs lists the admitted ingestion scopes that each hold a
+	// lineage for the service when no ScopeID selected one. Non-empty means the
+	// diff was not computed. It never names a scope outside the caller's grant.
+	AmbiguousScopeIDs []string `json:"ambiguous_scope_ids,omitempty"`
+	// AmbiguousTruncated reports that more admitted scopes exist than
+	// AmbiguousScopeIDs lists.
+	AmbiguousTruncated bool `json:"ambiguous_truncated,omitempty"`
+	// OutsideGrant is server-side telemetry only: the service id holds lineage
+	// rows, but none the caller's grant admits. The handler answers it exactly
+	// like an unknown service and records it on the span, never in the body.
+	OutsideGrant bool `json:"-"`
+}
+
+// Ambiguous reports whether the answer lists candidate scopes instead of a
+// diff.
+func (s ServiceSummary) Ambiguous() bool {
+	return len(s.AmbiguousScopeIDs) > 0
 }

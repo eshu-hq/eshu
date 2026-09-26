@@ -34,6 +34,7 @@ func freshnessRoute(toolName string, args map[string]any) (*routecontract.Reques
 	case "get_service_changed_since":
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/freshness/services/changed-since", Query: map[string]string{
 			"service_id":          str(args, "service_id"),
+			"scope_id":            str(args, "scope_id"),
 			"since_generation_id": str(args, "since_generation_id"),
 			"sample_limit":        intString(args, "sample_limit", 25),
 		}}, true

@@ -90,9 +90,8 @@ func (f RepositoryAccessFilter) AllowsDirectScopeID(scopeID string) bool {
 }
 
 // ContainsAuthString reports whether candidate is present in values. It
-// treats an empty candidate as never present. Exported so root-package call
-// sites unrelated to RepositoryAccessFilter (e.g. runtime-context grant
-// checks) can reuse it through the containsAuthString forwarder.
+// treats an empty candidate as never present. Exported so grant checks outside
+// this package that are unrelated to RepositoryAccessFilter can reuse it.
 func ContainsAuthString(values []string, candidate string) bool {
 	if candidate == "" {
 		return false

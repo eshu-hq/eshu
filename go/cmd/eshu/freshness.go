@@ -183,6 +183,7 @@ func newFreshnessServiceChangedSinceCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "Write the canonical service changed-since envelope as JSON")
 	cmd.Flags().String("service-id", "", "Exact service id whose evidence lineage to diff (required)")
+	cmd.Flags().String("scope-id", "", "Ingestion scope whose lineage of the service to diff; needed only when the service has a lineage in more than one readable scope")
 	cmd.Flags().String("since-generation-id", "", "Prior service materialization generation id to diff from (required)")
 	cmd.Flags().Int("sample-limit", 25, "Maximum sample handles per classification per family (max 200)")
 	addRemoteFlags(cmd)
@@ -206,6 +207,10 @@ func freshnessServiceChangedSinceOptionsFromCommand(cmd *cobra.Command) (freshne
 	if err != nil {
 		return freshness.ServiceChangedSinceOptions{}, err
 	}
+	scopeID, err := cmd.Flags().GetString("scope-id")
+	if err != nil {
+		return freshness.ServiceChangedSinceOptions{}, err
+	}
 	sinceGenerationID, err := cmd.Flags().GetString("since-generation-id")
 	if err != nil {
 		return freshness.ServiceChangedSinceOptions{}, err
@@ -217,6 +222,7 @@ func freshnessServiceChangedSinceOptionsFromCommand(cmd *cobra.Command) (freshne
 	return freshness.ServiceChangedSinceOptions{
 		JSON:              jsonOutput,
 		ServiceID:         serviceID,
+		ScopeID:           scopeID,
 		SinceGenerationID: sinceGenerationID,
 		SampleLimit:       sampleLimit,
 	}, nil

@@ -88,7 +88,7 @@
     "get_sbom_attestation_attachment_inventory/default": "allowlisted",
     "get_security_alert_reconciliation_inventory/default": "allowlisted",
     "get_semantic_capability_status/default": "allowlisted",
-    "get_service_changed_since/default": "pending_row_filtering",
+    "get_service_changed_since/default": "allowlisted",
     "get_service_context/default": "allowlisted",
     "get_service_intelligence_report/default": "allowlisted",
     "get_service_story/default": "allowlisted",

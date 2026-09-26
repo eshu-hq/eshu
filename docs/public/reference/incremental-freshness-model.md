@@ -430,6 +430,8 @@ handling as the repository-scope surface. An unknown `service_id` returns
 `service_not_found`; an unresolved `since_generation_id` returns `not_found`; a
 service with no current active generation returns an explicit `unavailable` diff
 rather than zero deltas.
+Each scope keeps its own lineage per service id; see
+[lineage selection](http-api/service-changed-since.md) (#6475).
 
 The **ownership** (#1943), **deployment** (#1985), **runtime** (#1986),
 **dependencies** (#1987), **docs** (#1988), **incidents** (#1989), and

@@ -60,20 +60,18 @@ import (
 // semantic and Terraform-state sections are never read for it
 // (status_scoped.go).
 //
+// GET /api/v0/freshness/services/changed-since left this ledger by promotion
+// once #6475 gave every service lineage row the scope_id of the ingestion scope
+// that wrote it, so its grant binds in SQL like the sibling freshness routes
+// (scopedFreshnessDeltaRoute, auth_scoped_routes_status.go). The ledger is
+// empty; the exhaustiveness gate still requires a new MCP-reachable route to be
+// wired, shared-key-only, or listed here with a reason.
+//
 // Reference implementation for the real fix: status_operations.go (#5137) --
 // ReadLiveActivity(ctx, limit, allScopes=false, allowedRepositoryIDs,
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
-var pendingRowFilteringRoutes = map[string]struct{}{
-	// #6475 service lineage ownership. The #5167 freshness workstream landed
-	// this route's handler fence (serviceChangedSinceGrantAdmits), but
-	// service_materialization_generations has no column naming the tenant a
-	// lineage row belongs to, so the fence can only probe correlations live in
-	// their own scope's active generation and an aged-out correlation stops
-	// contesting the service_id. Promote it once #6475 gives the lineage rows
-	// an ownership column the grant can bind; see scopedFreshnessDeltaRoute.
-	"GET /api/v0/freshness/services/changed-since": {},
-}
+var pendingRowFilteringRoutes = map[string]struct{}{}
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:
 // MCP-reachable, known to lack tenant-grant filtering, and tracked in the

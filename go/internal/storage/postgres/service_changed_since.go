@@ -7,9 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // ComputeServiceChangedSinceDelta computes one bounded service-scope
@@ -20,10 +23,21 @@ import (
 // counts and bounded sample handles. It reuses the repository-scope classification
 // verbatim; only the lineage table and key space differ.
 //
+// The caller's grant (filter.Scoped, AllowedRepositoryIDs, AllowedScopeIDs)
+// binds in the resolve SQL on each lineage row's scope_id (#6475), so the
+// lineages this method can see are exactly the ones the caller may read.
+//
 // Resolution failures are explicit, never confident emptiness:
 //
-//   - An unknown service returns an empty ServiceID so the handler emits
-//     service_not_found.
+//   - An unknown service, or one whose every lineage lies outside the grant,
+//     returns an empty ServiceID so the handler emits service_not_found. The
+//     second case also sets OutsideGrant, for the handler span only.
+//   - More than one admitted attributed lineage with no filter.ScopeID returns
+//     AmbiguousScopeIDs and no diff; the reader never picks one silently. An
+//     unattributed legacy lineage is served only to an unscoped caller and
+//     only when no attributed lineage has an active generation: the writer
+//     never supersedes it, so beside an active attributed lineage it is stale
+//     by construction.
 //   - A since reference that resolves to no generation returns an empty
 //     SinceGenerationID so the handler emits not_found.
 //   - A service with no current active generation returns Unavailable=true so the
@@ -38,17 +52,40 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 
 	filter = filter.Normalize()
 
-	scope, ok, err := s.resolveServiceChangedSinceScope(ctx, filter.ServiceID)
+	lineages, err := s.resolveServiceChangedSinceLineages(ctx, filter)
 	if err != nil {
 		return statuspkg.ServiceChangedSinceSummary{}, err
 	}
+	scope, ambiguous, ok := selectServiceChangedSinceLineage(filter, lineages)
+	if len(ambiguous) > 0 {
+		truncated := len(ambiguous) > changedsince.MaxServiceScopeCandidates
+		if truncated {
+			ambiguous = ambiguous[:changedsince.MaxServiceScopeCandidates]
+		}
+		return statuspkg.ServiceChangedSinceSummary{
+			ServiceID:          filter.ServiceID,
+			SampleLimit:        filter.SampleLimit,
+			AmbiguousScopeIDs:  ambiguous,
+			AmbiguousTruncated: truncated,
+		}, nil
+	}
 	if !ok {
-		// Unknown service: empty ServiceID signals not-found upstream.
-		return statuspkg.ServiceChangedSinceSummary{}, nil
+		// Unknown or ungranted service: empty ServiceID signals not-found
+		// upstream, byte-identically for both.
+		summary := statuspkg.ServiceChangedSinceSummary{}
+		if filter.Scoped {
+			summary.OutsideGrant, err = s.serviceChangedSinceLineageExists(ctx, filter.ServiceID)
+			if err != nil {
+				return statuspkg.ServiceChangedSinceSummary{}, err
+			}
+		}
+		return summary, nil
 	}
 
 	summary := statuspkg.ServiceChangedSinceSummary{
-		ServiceID:                 scope.serviceID,
+		ServiceID:                 filter.ServiceID,
+		ScopeID:                   scope.scopeID,
+		Unattributed:              scope.unattributed,
 		CurrentActiveGenerationID: scope.currentGenerationID,
 		CurrentObservedAt:         statuspkg.ChangedSinceTimestamp(scope.currentObservedAt),
 		SampleLimit:               filter.SampleLimit,
@@ -61,7 +98,7 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 		return summary, nil
 	}
 
-	prior, priorOK, err := s.resolveServiceChangedSincePriorGeneration(ctx, scope.serviceID, filter.SinceGenerationID)
+	prior, priorOK, err := s.resolveServiceChangedSincePriorGeneration(ctx, filter.ServiceID, scope, filter.SinceGenerationID)
 	if err != nil {
 		return statuspkg.ServiceChangedSinceSummary{}, err
 	}
@@ -106,42 +143,139 @@ func (s StatusStore) ComputeServiceChangedSinceDelta(
 	return summary, nil
 }
 
-type serviceChangedSinceScope struct {
-	serviceID           string
+// serviceChangedSinceLineage is one lineage the resolve query admitted: a
+// scope's generation chain for the service, or the unattributed legacy chain.
+type serviceChangedSinceLineage struct {
+	scopeID             string
+	unattributed        bool
 	currentGenerationID string
 	currentObservedAt   time.Time
 	hasPending          bool
 }
 
-func (s StatusStore) resolveServiceChangedSinceScope(
+// selectServiceChangedSinceLineage picks the lineage a diff reads from the
+// admitted rows, or reports the admitted scope ids when the choice is the
+// caller's to make. It returns ok=false when nothing the caller may read
+// matched.
+//
+// Attributed lineages with an active generation decide first: exactly one is
+// served, and more than one is ambiguous unless the caller named a scope (the
+// SQL then returned at most that one). The unattributed legacy lineage is
+// served only when no attributed ACTIVE lineage is visible, and never to a
+// scoped caller or past an explicit scope selector -- the SQL already
+// excludes it for both, and the check here keeps that true if the SQL ever
+// regresses. Only when neither side has an active generation does an
+// attributed lineage with no active generation answer, as an unavailable diff.
+func selectServiceChangedSinceLineage(
+	filter statuspkg.ServiceChangedSinceFilter,
+	lineages []serviceChangedSinceLineage,
+) (serviceChangedSinceLineage, []string, bool) {
+	var attributed, active []serviceChangedSinceLineage
+	var legacy *serviceChangedSinceLineage
+	for i := range lineages {
+		if lineages[i].unattributed {
+			legacy = &lineages[i]
+			continue
+		}
+		attributed = append(attributed, lineages[i])
+		if lineages[i].currentGenerationID != "" {
+			active = append(active, lineages[i])
+		}
+	}
+	legacyEligible := legacy != nil && !filter.Scoped && filter.ScopeID == ""
+	switch {
+	case len(active) > 0:
+		return pickServiceChangedSinceLineage(active)
+	case legacyEligible && legacy.currentGenerationID != "":
+		return *legacy, nil, true
+	case len(attributed) > 0:
+		return pickServiceChangedSinceLineage(attributed)
+	case legacyEligible:
+		return *legacy, nil, true
+	default:
+		return serviceChangedSinceLineage{}, nil, false
+	}
+}
+
+// pickServiceChangedSinceLineage serves the only candidate, or reports every
+// candidate's scope id, sorted, when there is more than one.
+func pickServiceChangedSinceLineage(
+	candidates []serviceChangedSinceLineage,
+) (serviceChangedSinceLineage, []string, bool) {
+	if len(candidates) == 1 {
+		return candidates[0], nil, true
+	}
+	ids := make([]string, 0, len(candidates))
+	for _, lineage := range candidates {
+		ids = append(ids, lineage.scopeID)
+	}
+	sort.Strings(ids)
+	return serviceChangedSinceLineage{}, ids, false
+}
+
+func (s StatusStore) resolveServiceChangedSinceLineages(
 	ctx context.Context,
-	serviceID string,
-) (serviceChangedSinceScope, bool, error) {
-	rows, err := s.queryer.QueryContext(ctx, resolveServiceChangedSinceScopeQuery, serviceID)
+	filter statuspkg.ServiceChangedSinceFilter,
+) ([]serviceChangedSinceLineage, error) {
+	rows, err := s.queryer.QueryContext(
+		ctx,
+		resolveServiceChangedSinceScopeQuery,
+		filter.ServiceID,
+		filter.ScopeID,
+		filter.Scoped,
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
+		// One past the candidate bound reports truncation of the attributed
+		// list; one more keeps the unattributed row (sorted last) visible when
+		// there are few attributed rows.
+		changedsince.MaxServiceScopeCandidates+2,
+	)
 	if err != nil {
-		return serviceChangedSinceScope{}, false, fmt.Errorf("resolve service changed-since scope: %w", err)
+		return nil, fmt.Errorf("resolve service changed-since scope: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return serviceChangedSinceScope{}, false, fmt.Errorf("resolve service changed-since scope: %w", err)
+	var lineages []serviceChangedSinceLineage
+	for rows.Next() {
+		var lineage serviceChangedSinceLineage
+		var currentObserved sql.NullTime
+		if err := rows.Scan(
+			&lineage.scopeID,
+			&lineage.unattributed,
+			&lineage.currentGenerationID,
+			&currentObserved,
+			&lineage.hasPending,
+		); err != nil {
+			return nil, fmt.Errorf("resolve service changed-since scope: %w", err)
 		}
-		return serviceChangedSinceScope{}, false, nil
-	}
-
-	var scope serviceChangedSinceScope
-	var currentObserved sql.NullTime
-	if err := rows.Scan(&scope.serviceID, &scope.currentGenerationID, &currentObserved, &scope.hasPending); err != nil {
-		return serviceChangedSinceScope{}, false, fmt.Errorf("resolve service changed-since scope: %w", err)
+		if currentObserved.Valid {
+			lineage.currentObservedAt = currentObserved.Time
+		}
+		lineages = append(lineages, lineage)
 	}
 	if err := rows.Err(); err != nil {
-		return serviceChangedSinceScope{}, false, fmt.Errorf("resolve service changed-since scope: %w", err)
+		return nil, fmt.Errorf("resolve service changed-since scope: %w", err)
 	}
-	if currentObserved.Valid {
-		scope.currentObservedAt = currentObserved.Time
+	return lineages, nil
+}
+
+func (s StatusStore) serviceChangedSinceLineageExists(ctx context.Context, serviceID string) (bool, error) {
+	rows, err := s.queryer.QueryContext(ctx, serviceChangedSinceLineageExistsQuery, serviceID)
+	if err != nil {
+		return false, fmt.Errorf("probe service changed-since lineage: %w", err)
 	}
-	return scope, true, nil
+	defer func() { _ = rows.Close() }()
+
+	exists := false
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, fmt.Errorf("probe service changed-since lineage: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("probe service changed-since lineage: %w", err)
+	}
+	return exists, nil
 }
 
 type serviceChangedSincePrior struct {
@@ -151,13 +285,19 @@ type serviceChangedSincePrior struct {
 
 func (s StatusStore) resolveServiceChangedSincePriorGeneration(
 	ctx context.Context,
-	serviceID, sinceGenerationID string,
+	serviceID string,
+	lineage serviceChangedSinceLineage,
+	sinceGenerationID string,
 ) (serviceChangedSincePrior, bool, error) {
+	// The unattributed lineage binds as SQL NULL so the IS NOT DISTINCT FROM
+	// predicate matches only other unattributed rows.
+	lineageScope := sql.NullString{String: lineage.scopeID, Valid: !lineage.unattributed}
 	rows, err := s.queryer.QueryContext(
 		ctx,
 		resolveServiceChangedSincePriorGenerationQuery,
 		serviceID,
 		sinceGenerationID,
+		lineageScope,
 	)
 	if err != nil {
 		return serviceChangedSincePrior{}, false, fmt.Errorf("resolve service changed-since prior generation: %w", err)

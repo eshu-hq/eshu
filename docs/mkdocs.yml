@@ -100,6 +100,7 @@ nav:
       - HTTP API:
         - Overview: reference/http-api.md
         - Status And Admin: reference/http-api/status-admin.md
+        - Service Changed-Since: reference/http-api/service-changed-since.md
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
         - Index Status: reference/http-api/index-status.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md

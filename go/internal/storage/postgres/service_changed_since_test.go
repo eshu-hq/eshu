@@ -11,8 +11,11 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
+// serviceScopeRow is one admitted lineage row of
+// resolveServiceChangedSinceScopeQuery: an attributed lineage whose scope id is
+// derived from the service id, so each fixture resolves exactly one lineage.
 func serviceScopeRow(serviceID, currentGen string, currentObserved any, hasPending bool) [][]any {
-	return [][]any{{serviceID, currentGen, currentObserved, hasPending}}
+	return [][]any{{"scope-" + serviceID, false, currentGen, currentObserved, hasPending}}
 }
 
 func serviceCountRow(family, classification string, count int64) []any {
