@@ -232,8 +232,9 @@ type UnsafeReplayTarget struct {
 
 // SupersededReplayTarget names one replay-eligible terminal projector work
 // item, among an explicit id list, whose scope generation is superseded
-// (#7130). The store never replays such a row, because acking it would try
-// to re-activate a retired generation.
+// (#7130). The store never replays such a row, because projecting it would
+// re-project the retired generation's graph and content over the published
+// one.
 type SupersededReplayTarget struct {
 	WorkItemID   string
 	GenerationID string

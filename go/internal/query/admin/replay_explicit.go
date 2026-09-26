@@ -80,8 +80,8 @@ const supersededGenerationReplayClass = "projector_replay_generation_superseded"
 // names terminal projector rows whose scope generation is superseded. The
 // store fences those rows out of every replay, so without this read the
 // request would answer 200 with the named ids silently missing. force does
-// not bypass it: replaying the row could let Ack re-activate a retired
-// generation. Like the unsafe-class refusal it reads before the idempotency
+// not bypass it: a replayed row would re-project the retired generation's
+// graph and content over the published one. Like the unsafe-class refusal it reads before the idempotency
 // claim and refuses the whole request. It reports true when it wrote the
 // response.
 func (h *Handler) refuseSupersededExplicitReplay(
@@ -125,7 +125,7 @@ func (h *Handler) refuseSupersededExplicitReplay(
 	querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
 		"status":             "refused",
 		"reason":             "the named projector work items belong to superseded generations; nothing was replayed",
-		"detail":             "remove these work items from the request; force does not apply because replaying them could re-activate a retired generation",
+		"detail":             "remove these work items from the request; force does not apply because replaying them would re-project a retired generation's graph and content",
 		"refused_work_items": refused,
 	})
 	return true

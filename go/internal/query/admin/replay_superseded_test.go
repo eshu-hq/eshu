@@ -19,7 +19,7 @@ import (
 // admin-replay fence. The store fences superseded-generation projector rows
 // out of every replay, so an explicit request naming one would otherwise
 // answer 200 with replayed_count 0. It is refused by name instead, and force
-// does not apply: replaying the row could re-activate a retired generation.
+// does not apply: replaying the row would re-project a retired generation.
 func TestReplayExplicitIDsOnSupersededGenerationRefusedEvenWithForce(t *testing.T) {
 	audit := &testutil.FakeGovernanceAuditAppender{}
 	store := &stubAdminStore{

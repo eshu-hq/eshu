@@ -39,13 +39,16 @@ replay the rest; they do not name specific rows.
 
 A projector row whose scope generation is `superseded` is never replayed
 (#7130). A newer ingestion of the same scope already replaced that generation,
-and acking the replayed row would try to re-activate it. Broad selectors skip
+and projecting the replayed row would re-project the retired generation's graph
+and content over the published one. Broad selectors skip
 these rows. A request naming them in `work_item_ids` gets a `422` whose
 `refused_work_items` entries carry `work_item_id`, `generation_id`,
 `failure_class: projector_replay_generation_superseded`, and a `reason`.
 
-`force=true` does not apply to this refusal, and it runs before the unsafe-class
-check. Drop the named ids and retry. The governance audit reason code is
+`force=true` does not apply to this refusal. It runs after the request-level
+`failure_class` check and before the explicit-id unsafe-class check, so an
+unforced request with an unsafe `failure_class` gets that class's `422` first.
+Drop the named ids and retry. The governance audit reason code is
 `replay_refused_superseded_generation`. Reducer rows on a superseded generation
 are not affected.
 

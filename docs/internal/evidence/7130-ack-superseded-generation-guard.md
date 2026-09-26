@@ -110,21 +110,80 @@ superseded. Reducer rows are not fenced.
   fence for replay but not for the dead-letter mutation. Explicit
   `work_item_ids` naming fenced rows get a `422` from
   `refuseSupersededExplicitReplay` via `SupersededReplayTargets`. It runs
-  before, and independently of, the #7120 unsafe-class refusal, and `force`
-  does not bypass it. A `200` with missing ids therefore still means "not
+  after the request-level unsafe `failure_class` check and before the #7120
+  explicit-id unsafe-class refusal, and `force` does not bypass it. A `200` with missing ids therefore still means "not
   matched", never "silently skipped".
 
 Replay reads the generation status without a lock, so a supersede that commits
 after the replay's snapshot can still let a row reach `pending`. The Ack guard
 above is the authoritative fence for that race.
 
-## Out of scope: claim-side fence
+## Claim-side fence
 
-`claimProjectorWorkQuery` still claims a pending projector row whose generation
-is already superseded (its stale-supersede step covers only `pending`/`failed`
-generations). #7115 is rewriting the claim SQL, so it should add that fence in
-its rewrite. Until then, such a claim projects wasted work and the Ack guard
-stops it from publishing.
+### The hazard
+
+The Ack guard is the last line, not the fix. Before this change
+`claimProjectorWorkQuery` still claimed a pending projector row whose
+generation was already superseded: its stale-supersede step covered only
+`pending`/`failed` generations with a newer sibling. Such a row appears without
+any replay. A liveness-recovery `projector_<scope>_<gen>` row or a
+`refinalize_<scope>_<gen>` row sits pending on active `gen-old`; `gen-new`'s
+Ack sweeps only rows on `pending`/`failed` generations, then retires `gen-old`
+without touching its rows.
+
+Claiming that row is not wasted work. The canonical writer retracts every other
+generation's nodes for the repository (`generation_id <> $generation_id` in
+`canonicalNodeRetractFilesCypher`, `canonicalNodeRetractRemovedFilesCypher` and
+`canonicalNodeRetractEntityTemplate`,
+`go/internal/storage/cypher/canonical_node_cypher.go`), and graph reads
+do not filter on generation. So projecting `gen-old` deletes `gen-new`'s
+canonical graph and content and writes `gen-old`'s before Ack refuses. After the
+Ack guard, the scope still points at `gen-new` while the graph is `gen-old`'s,
+and nothing re-projects `gen-new`. A live probe on the Ack-guard head showed
+Claim returning `gen-old attempt=1`, Heartbeat returning nil, and only Ack
+refusing.
+
+### The fix
+
+- **Claim.** `supersedable_projector_generations` gains a second branch: a
+  `superseded` generation is terminal by itself, with no newer-sibling test.
+  The branch takes the generation's claimable rows, `pending` and `retrying`
+  plus expired-lease `claimed`/`running` rows, which the reclaim rank would
+  otherwise re-claim. It leaves `failed`/`dead_letter` rows alone: they are
+  never claim candidates, replay already leaves them terminal, and sweeping
+  them would overwrite their triage `failure_class` and put an unbounded legacy
+  backlog into one claim statement (2,200 legacy rows cost 1.55 s in one
+  claim; see Evidence). A live lease is left to its heartbeat.
+  `locked_stale_scope_generations` accepts `superseded`, and
+  `locked_stale_projector_generations` and the supersede UPDATE repeat the
+  widened row predicate so EvalPlanQual drops a lease renewed after the
+  snapshot. `superseded_stale_scope_generations` still matches only
+  `pending`/`failed`, so it never rewrites a superseded generation's
+  `superseded_at`. The swept rows get
+  `failure_class = projector_superseded_by_newer_generation` and
+  `failure_details` now carries `generation_id` and `generation_status`, so a
+  `superseded` value marks this sweep. Every lock stays SKIP LOCKED, so the
+  claim adds no wait and no lock order. Legacy rows in deployed databases are
+  swept on the first claim that reaches them; no migration.
+- **Heartbeat.** `supersedeRunningProjectorWorkQuery` treats the work's own
+  `superseded` generation as a trigger without the newer-sibling test, writes
+  `failure_class = projector_heartbeat_generation_superseded`, and returns the
+  generation status it stopped the work under. The outer generation UPDATE now
+  also matches `superseded` (its CASE leaves the row unchanged), so the
+  statement returns a verdict row for every trigger. Heartbeat reads that row
+  instead of `RowsAffected`, returns an error wrapping `ErrWorkSuperseded` that
+  names the failure class, and counts the fence metric. The lock set is
+  unchanged: scope row (SKIP LOCKED), own work row, own generation row.
+  `projector.Service` already cancels the projection on that error.
+
+### Residual window
+
+A worker whose lease expired can still be projecting `gen-old` when `gen-new`
+is claimed and acked. It keeps writing until its next heartbeat, at most one
+heartbeat interval, and the retract may already have removed `gen-new`'s
+canonical nodes. The fences stop the deterministic path; healing the graph
+after such a refusal is follow-up #7209 (re-project the active generation),
+agreed by the arbiter ruling as a P2 that does not block #7130.
 
 ## Tests
 
@@ -144,8 +203,30 @@ stops it from publishing.
   `TestReplayFencesSupersededProjectorGenerationsButDeadLetterDoesNot`,
   `TestSupersededReplayTargetsQueryShapeAndScan`: the admin path.
 
+- `TestProjectorClaimSweepsSupersededGenerationRow`: pending, retrying and
+  both expired-lease zombie rows on a superseded generation are swept, never
+  claimed; the sweep frees the scope for a newer pending generation in the same
+  claim; a live lease is left alone. `TestProjectorClaimStillClaimsLiveGenerations`
+  holds the failed/active/pending controls.
+- `TestProjectorClaimSupersededSweepDropsLeaseRenewedAfterSnapshot`: a lease
+  renewed and committed while the claim is paused mid-statement survives the
+  sweep (EvalPlanQual on the widened predicate).
+- `TestProjectorHeartbeatRefusesSupersededGeneration` (live lease and expired
+  zombie) and `TestProjectorHeartbeatRenewsLiveGeneration` (renewal and the
+  newer-pending class), plus the hermetic heartbeat tests.
+- `TestProjectorAckSupersededMarkKeepsOwnerAndAttemptFences`: the mark
+  statement refuses a row reclaimed by another owner or re-claimed at
+  `attempt_count + 1` (review F2).
+- `TestServiceLogsSupersededWorkWithSourceFailureClass`: the service logs the
+  failure class the queue recorded (review F3).
+- `TestProjectorClaimConcurrentLoadHasNoDeadlock` now also seeds refinalize
+  rows on superseded generations and heartbeats expired workers, and fails if
+  any such row is ever claimed.
+
 Removing the activate predicate, the replay fence clause, the admin fence flag,
-or the explicit-id refusal each fails at least one of these tests.
+the explicit-id refusal, the claim's superseded branch, its expired-lease
+inclusion, its lock-step lease recheck, the heartbeat trigger, or the widened
+heartbeat outer UPDATE each fails at least one of these tests.
 
 ## Evidence
 
@@ -163,12 +244,45 @@ count took 10.5 ms (bitmap scan on `(stage, status)` hash-joined to superseded
 generations). Replay and drain are operator and admin actions, not a
 per-work-item path.
 
+No-Regression Evidence (claim fence): EXPLAIN (ANALYZE, BUFFERS) of the whole
+claim statement inside BEGIN/ROLLBACK on PostgreSQL 16, 20,000 git scopes,
+85,000 projector rows (5,000 pending on pending generations, 60,000
+generations superseded), 300,000 reducer rows and 2,000 legacy dead-letter
+rows on superseded generations. Six interleaved runs per cell, alternating
+which statement ran first. Median milliseconds, #7115 claim vs this claim:
+all sources, custom plan 169.2 vs 173.7 (+4.4); all sources, generic plan
+166.8 vs 171.7 (+4.9); `source_system = git`, custom 164.4 vs 173.0 (+8.6);
+git, generic 199.9 vs 185.3 (-14.7, noise). Shared buffers rise by about
+20,000 per claim: one primary-key probe per ready row for its generation
+status. The first branch is the #7115 text byte for byte, so its plan is
+unchanged. Rejected shapes, measured on the same data: ORing the two branches
+added about 30-40 ms, because the newer-sibling EXISTS under an OR stays a
+per-row subplan instead of a semi-join, and the status index is lost; one shared
+candidate scan feeding both branches added about 20 ms, because the CTE row
+estimate of 1 turned the semi-join's inner index scan into a bitmap scan;
+joining branch two to the 85,000-row source CTE added about 17 ms. One-time
+sweep: 200 legacy pending rows on superseded generations added about 140 ms to
+the first claim (about 0.7 ms per swept row); an earlier draft that also swept
+2,000 dead-letter rows took 1.55 s, which is why the branch skips them.
+Heartbeat adds no statement; the supersede statement now returns one column.
+
+Concurrency Evidence: `TestProjectorClaimConcurrentLoadHasNoDeadlock`, 40 s,
+32 workers, 150 ms leases: 3,960 claims, 0 server deadlocks, 0 claim deadlock
+errors, 0 overlapping leases, 487 refinalize rows seeded on superseded
+generations and 0 of them claimed. With the superseded branch deleted, a 15 s,
+16-worker run claimed 269 of 287 such rows and failed. The heartbeat refusal did not fire under
+this load (0), because the claim's sibling reclaim usually demotes an expired
+row before its worker heartbeats; its lock set is unchanged and
+`TestProjectorHeartbeatRefusesSupersededGeneration` covers it deterministically.
+
 Observability Evidence: `eshu_dp_superseded_generation_fence_total`, by
 `failure_class`. `projector_ack_generation_superseded` is recorded by
-`refuseSupersededAck` through `ProjectorQueue.Instruments`.
+`refuseSupersededAck` and `projector_heartbeat_generation_superseded` by
+`ProjectorQueue.Heartbeat`, both through `ProjectorQueue.Instruments`. The
+claim sweep is not counted, because the claim statement returns only the
+claimed row; its rows carry `failure_details.generation_status = superseded`.
 `projector_replay_generation_superseded` is recorded by
 `RecoveryStore.ReplayFailedWorkItems` (wired with `WithRecoveryInstruments` in
-the ingester and API) and by the admin replay refusal. The work row keeps
-`failure_class = projector_ack_generation_superseded` for triage. The
-projector service logs the superseded outcome, and a refused admin replay
+the ingester and API) and by the admin replay refusal. The work row keeps the refusing path's `failure_class` for triage, and the
+projector service logs the superseded outcome with that same class, and a refused admin replay
 writes the `replay_refused_superseded_generation` governance audit event.

@@ -87,7 +87,9 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Refuse explicit work_item_ids on superseded generations (#7130). force
-	// does not apply, so this runs before the force-gated unsafe-class check.
+	// does not apply, so this runs before the force-gated #7120 explicit-id
+	// unsafe-class check. The selector-level failure_class check above runs
+	// first, so an unforced unsafe failure_class is refused by that check.
 	if h.refuseSupersededExplicitReplay(w, r, req, authCtx, correlationID) {
 		return
 	}
