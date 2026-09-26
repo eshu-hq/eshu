@@ -26,8 +26,8 @@ Use this fixed promotion order before opening or updating a PR:
 
 `make pre-push` is the fast local floor run before every push, scoped to
 changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
-`go vet ./...` on the exact merge of HEAD with `origin/main` (the
-[merge step](local-testing/pre-push-merge.md); a conflict fails closed), the
+`go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
+a conflict fails closed; the merge queue re-tests the exact landing merge and is its authority), the
 registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
 advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).

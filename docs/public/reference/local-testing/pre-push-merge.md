@@ -57,6 +57,26 @@ a fresh temporary directory took 19.4s against 2.1s in a reused one, so the
 tree lives in one directory per worktree rather than a new temp directory
 per run.
 
+## Review receipts
+
+The merge step does not change `ci-gates review-attest`. A review receipt
+binds the reviewed diff, not the merge:
+
+- Recommended: capture and verify with
+  `--base "$(git merge-base origin/main HEAD)"`. The receipt then binds the
+  merge base and the diff the review covered, and it still verifies when main
+  moves while `make pre-push` runs.
+- Known trap: `--base origin/main` binds main's moving tip. `make pre-push`
+  fetches main first, so `review-attest verify` fails with
+  `base_commit changed` whenever main moved between capture and push. On a
+  busy day that is almost every push, and each failure demands a full review
+  of an unchanged diff.
+
+The merge the floor vetted is recorded in the pre-push summary line,
+`merge tree: <tree> (HEAD <sha> + origin/main <sha>)`: the floor tested the
+merge of that HEAD with that origin/main commit, and nothing later. The merge
+queue re-tests the exact landing merge and is the authority for it.
+
 ## What it does not catch
 
 It catches a merge that no longer compiles or vets. It does not catch a

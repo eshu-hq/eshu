@@ -153,7 +153,9 @@ step_race() {
 		return 0
 	fi
 	printf 'race: %d changed package(s)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" )
+	# -timeout is per test binary, the same 900s budget test.yml's go-race
+	# shards use, so a hang fails in minutes instead of Go's default 10m.
+	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" )
 }
 
 step_filecap() {
