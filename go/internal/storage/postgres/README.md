@@ -3572,6 +3572,18 @@ concurrent writes (the only overlap that could make this reap unsafe) are
 already excluded upstream by `claimProjectorWorkQuery`'s scope_id-scoped
 `NOT EXISTS` claim guard in `projector_queue_claim_sql.go`.
 
+### Fingerprint side-row reap (#7230)
+
+`reapStaleFingerprints` reads each side table's stale entity ids with a
+join-free `EXCEPT` against the repository's `content_entities` ids, then
+deletes only those ids in sorted 5,000-id chunks. A repository with nothing
+stale gets two reads and no delete. The former `NOT EXISTS` anti-joins ran as
+nested loops whenever the last `ANALYZE` had not seen the repository, the
+normal case during bootstrap: 230-1,735 s per repository on the reference host.
+Stage-log fields: `stale_fingerprint_entities`, `stale_band_entities`,
+`fingerprint_rows_deleted`, `band_rows_deleted`. See
+[the #7230 evidence](../../../../docs/internal/evidence/7230-fingerprint-reap-plan-cliff.md).
+
 ## Crossplane cross-scope SATISFIED_BY redrive sweep (#5476)
 
 #5347 shipped the Crossplane Claim -> XRD `SATISFIED_BY` correlation ungated

@@ -63,34 +63,119 @@ func (w ContentWriter) upsertAndReapEntities(
 	)
 
 	fingerprintReapStart := time.Now()
-	reapChanged, err := w.reapStaleFingerprints(ctx, materialization.RepoID)
+	reap, err := w.reapStaleFingerprints(ctx, materialization.RepoID)
 	if err != nil {
 		return false, err
 	}
 	w.logStage(
 		ctx, materialization, "reap_stale_fingerprints", fingerprintReapStart,
+		"stale_fingerprint_entities", reap.staleFingerprintEntities,
+		"stale_band_entities", reap.staleBandEntities,
+		"fingerprint_rows_deleted", reap.fingerprintRowsDeleted,
+		"band_rows_deleted", reap.bandRowsDeleted,
 	)
 
-	return fingerprintsChanged || reapChanged, nil
+	return fingerprintsChanged || reap.changed(), nil
+}
+
+// staleFingerprintReapChunkSize bounds the entity ids one stale side-row
+// delete carries. The band delete scans the repository's band rows once per
+// chunk and probes a hash of the chunk, so a larger chunk means fewer scans;
+// 5,000 of the 29-byte content-entity ids is about 150 KB of parameter, and
+// the chunk's hash stays far under hash_mem at any statistics estimate.
+const staleFingerprintReapChunkSize = 5000
+
+// fingerprintReap reports what reapStaleFingerprints found and removed, for
+// the reap_stale_fingerprints stage log and the #6837 trigger signal.
+type fingerprintReap struct {
+	staleFingerprintEntities int
+	staleBandEntities        int
+	fingerprintRowsDeleted   int64
+	bandRowsDeleted          int64
+}
+
+// changed reports whether the reap removed any side-table row.
+func (r fingerprintReap) changed() bool {
+	return r.fingerprintRowsDeleted > 0 || r.bandRowsDeleted > 0
 }
 
 // reapStaleFingerprints deletes code_function_fingerprint and
 // code_fingerprint_band rows whose entity no longer exists in
 // content_entities for the repo. It runs after the entity upsert+reap in the
 // same Write call, so tombstoned, churned, and path-reaped entities all
-// converge here; repos without fingerprint data delete nothing. It reports
-// whether either reap actually removed rows for the #6837 trigger signal.
-func (w ContentWriter) reapStaleFingerprints(ctx context.Context, repoID string) (bool, error) {
-	res, err := w.database.ExecContext(ctx, reapStaleFingerprintSQL, repoID)
+// converge here.
+//
+// Each table is reaped in two steps: a join-free set-difference read of the
+// stale entity ids (see staleFingerprintEntityIDsSQL for why it is not an
+// anti-join), then chunked deletes of exactly those ids. The common case,
+// including every first generation, reads nothing and issues no delete. The
+// deleted rows are the rows the former single-statement NOT EXISTS reaps
+// deleted: a row goes iff its entity_id has no content_entities row in the
+// repo. The read and the delete are separate statements, which is safe for
+// the reason the entity reap above is: no two Write calls for one repository
+// run at once (claimProjectorWorkQuery's scope_id NOT EXISTS guard), so
+// nothing can re-create a stale entity between them.
+func (w ContentWriter) reapStaleFingerprints(ctx context.Context, repoID string) (fingerprintReap, error) {
+	var reap fingerprintReap
+
+	staleIDs, err := w.queryStaleFingerprintEntityIDs(ctx, staleFingerprintEntityIDsSQL, repoID)
 	if err != nil {
-		return false, fmt.Errorf("reap stale code_function_fingerprint rows: %w", err)
+		return fingerprintReap{}, fmt.Errorf("read stale code_function_fingerprint entities: %w", err)
 	}
-	changed := rowsAffected(res) > 0
-	res, err = w.database.ExecContext(ctx, reapStaleFingerprintBandSQL, repoID)
+	reap.staleFingerprintEntities = len(staleIDs)
+	for _, chunk := range chunkStaleFingerprintIDs(staleIDs) {
+		res, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, array.StringArray(chunk))
+		if err != nil {
+			return fingerprintReap{}, fmt.Errorf("reap %d stale code_function_fingerprint entities: %w", len(chunk), err)
+		}
+		reap.fingerprintRowsDeleted += rowsAffected(res)
+	}
+
+	staleIDs, err = w.queryStaleFingerprintEntityIDs(ctx, staleFingerprintBandEntityIDsSQL, repoID)
 	if err != nil {
-		return false, fmt.Errorf("reap stale code_fingerprint_band rows: %w", err)
+		return fingerprintReap{}, fmt.Errorf("read stale code_fingerprint_band entities: %w", err)
 	}
-	return changed || rowsAffected(res) > 0, nil
+	reap.staleBandEntities = len(staleIDs)
+	for _, chunk := range chunkStaleFingerprintIDs(staleIDs) {
+		res, err := w.database.ExecContext(ctx, deleteStaleFingerprintBandsSQL, repoID, array.StringArray(chunk))
+		if err != nil {
+			return fingerprintReap{}, fmt.Errorf("reap %d stale code_fingerprint_band entities: %w", len(chunk), err)
+		}
+		reap.bandRowsDeleted += rowsAffected(res)
+	}
+	return reap, nil
+}
+
+// queryStaleFingerprintEntityIDs runs one stale-id read and returns the ids
+// sorted, so delete chunks and their row-lock order are reproducible.
+func (w ContentWriter) queryStaleFingerprintEntityIDs(ctx context.Context, query, repoID string) ([]string, error) {
+	rows, err := w.database.QueryContext(ctx, query, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+// chunkStaleFingerprintIDs splits stale ids into delete chunks. An empty set
+// yields no chunk, so a repository with nothing stale issues no delete.
+func chunkStaleFingerprintIDs(ids []string) [][]string {
+	if len(ids) == 0 {
+		return nil
+	}
+	return chunkEntityIDs(ids, staleFingerprintReapChunkSize)
 }
 
 // reapStaleContentEntitiesSQL deletes every content_entities row for a

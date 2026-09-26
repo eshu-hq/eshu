@@ -157,6 +157,13 @@ type fakeExecQueryer struct {
 	// so the deferred backfill's per-partition fan-in can re-read a scope's
 	// active generation and get the same answer the batches did.
 	stagedActiveGenerations [][]any
+
+	// staleFingerprintRows answers the #7230 fingerprint reap's stale-id
+	// reads (staleFingerprintEntityIDsSQL, staleFingerprintBandEntityIDsSQL)
+	// keyed by query, independent of FIFO order. A query absent from the map
+	// yields zero rows: shared fixtures model side tables whose entities all
+	// still exist, so the reap reads nothing stale and issues no delete.
+	staleFingerprintRows map[string][][]any
 }
 
 type fakeExecCall struct {
@@ -236,6 +243,10 @@ func (f *fakeExecQueryer) QueryContext(
 	// also keeps every existing deferred-backfill fixture working without
 	// staging an extra per-partition response, which fixtures could not do
 	// deterministically anyway now that publication fans out concurrently.
+	if query == staleFingerprintEntityIDsSQL || query == staleFingerprintBandEntityIDsSQL {
+		return &queueFakeRows{rows: f.staleFingerprintRows[query]}, nil
+	}
+
 	if strings.HasPrefix(query, activeScopeGenerationQuery) {
 		return &queueFakeRows{rows: f.stagedActiveGenerationRow(args)}, nil
 	}

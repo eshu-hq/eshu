@@ -96,20 +96,22 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	// that always run after the entity reap so tombstoned entities never
 	// leave orphan fingerprint rows (no fp upsert here: no fixture entity
 	// carries fingerprint metadata), plus the two withdrawn converges for
-	// those keyless entities.
+	// those keyless entities. The #7230 fingerprint side-table reap runs
+	// after the entity reap as two stale-id reads (asserted below); the fake
+	// reports nothing stale, so it issues no delete.
 	// The fixture tombstones one entity, so the derive runs two transactions:
 	// lock + delete by entity_id, then lock + delete + insert for the paths.
 	if got, want := len(database.txExecs), 5; got != want {
 		t.Fatalf("infra inventory derive statements = %d, want id lock+delete then path lock+delete+insert", got)
 	}
-	if got, want := len(database.execs), 12; got != want {
+	if got, want := len(database.execs), 10; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	// Batched order: file deletes first, then file reference cleanup and
 	// upsert batch, then entity deletes, then entity upsert batch, then the
 	// withdrawn fingerprint converges (scoped, ANY()) inside the fingerprint
-	// batch call, then the entity reap, then the fingerprint side-table
-	// reaps.
+	// batch call, then the entity reap; the fingerprint side-table reap
+	// follows as reads.
 	if !strings.Contains(database.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("file tombstone entity cleanup query = %q, want content_entities delete", database.execs[0].query)
 	}
@@ -140,11 +142,14 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	if !strings.Contains(database.execs[8].query, "DELETE FROM code_fingerprint_band") || !strings.Contains(database.execs[8].query, "ANY(") {
 		t.Fatalf("withdrawn band query = %q, want the scoped withdrawn DELETE", database.execs[8].query)
 	}
-	if !strings.Contains(database.execs[10].query, "DELETE FROM code_function_fingerprint") {
-		t.Fatalf("fingerprint reap query = %q, want the stale-fingerprint reap DELETE", database.execs[10].query)
+	if got, want := len(database.queries), 2; got != want {
+		t.Fatalf("fingerprint reap reads = %d, want %d", got, want)
 	}
-	if !strings.Contains(database.execs[11].query, "DELETE FROM code_fingerprint_band") {
-		t.Fatalf("band reap query = %q, want the stale-band reap DELETE", database.execs[11].query)
+	for i, table := range []string{"FROM code_function_fingerprint", "FROM code_fingerprint_band"} {
+		query := database.queries[i]
+		if !strings.Contains(query, table) || !strings.Contains(query, "EXCEPT") {
+			t.Fatalf("fingerprint reap read %d = %q, want the %s stale-id EXCEPT read", i, query, table)
+		}
 	}
 
 	args := database.execs[4].args
@@ -292,6 +297,7 @@ func TestPostgresContentWriterRejectsMissingRepoID(t *testing.T) {
 type recordingExecQueryer struct {
 	execs   []recordingExecCall
 	txExecs []recordingExecCall
+	queries []string
 }
 
 func (f *recordingExecQueryer) Begin(context.Context) (db.Transaction, error) {
@@ -352,13 +358,28 @@ func (f *recordingExecQueryer) ExecContext(
 	return recordingResult{}, nil
 }
 
+// QueryContext answers the #7230 fingerprint reap's stale-id reads with no
+// rows (the fixture's side tables hold nothing stale) and records them;
+// any other read is unexpected.
 func (f *recordingExecQueryer) QueryContext(
 	_ context.Context,
-	_ string,
+	query string,
 	_ ...any,
 ) (db.Rows, error) {
-	return nil, context.Canceled
+	if !strings.Contains(query, "EXCEPT") || !strings.Contains(query, "FROM content_entities") {
+		return nil, context.Canceled
+	}
+	f.queries = append(f.queries, query)
+	return &noRows{}, nil
 }
+
+// noRows is an empty result set.
+type noRows struct{}
+
+func (*noRows) Next() bool        { return false }
+func (*noRows) Scan(...any) error { return nil }
+func (*noRows) Err() error        { return nil }
+func (*noRows) Close() error      { return nil }
 
 type recordingResult struct{}
 

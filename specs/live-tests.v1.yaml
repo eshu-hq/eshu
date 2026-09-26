@@ -1345,6 +1345,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/content_writer_fingerprint_reap_equivalence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_TEST_DSN); about 3s on a local PostgreSQL 16 — promote to blocking with CI timing evidence
+  - file: go/internal/storage/postgres/content_writer_fingerprint_reap_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_TEST_DSN); about 2s on a local PostgreSQL 16 — promote to blocking with CI timing evidence
   - file: go/internal/storage/postgres/content_writer_infra_fence_bench_live_test.go
     tag: ~
     class: scheduled
