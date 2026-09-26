@@ -5,12 +5,22 @@
 #
 #   bash scripts/dev/pre-push.sh        # or: make pre-push
 #
-# What it runs, no race lane, no live Docker/NornicDB lane, no stamp:
+# What it runs, no live Docker/NornicDB lane, no stamp:
 #   (a) go test on changed Go packages plus fixture consumers (the same
-#       selection pre-pr.sh's step_test uses);
+#       selection pre-pr.sh's step_test uses), then go test -race on the
+#       changed Go packages alone (no cap; ESHU_PRE_PUSH_RACE_WARN_PACKAGES,
+#       default 20, sets the package count above which it prints a warning);
 #   (b) the 500-line Go file cap on changed files;
 #   (c) gofumpt, golangci-lint, go build, and go vet scoped to changed Go
 #       packages, for fast first feedback;
+#   (c2) `go vet ./...` on the exact merge of the committed HEAD with the base
+#       (origin/main unless ESHU_PRE_PUSH_BASE is set), built with
+#       `git merge-tree` into a stable directory under this worktree's git
+#       dir (scripts/lib/pre-push-merge.sh). A conflict fails closed. It is
+#       skipped, with a message, when HEAD already contains the base or when
+#       the merge's Go inputs equal the base's. It catches a head that compiles
+#       alone but not on the main it will land on (#7053); it cannot catch a
+#       combination that still compiles but behaves differently;
 #   (d) the registry-selected blocking exactness/telemetry/hygiene/docs gates
 #       for changed paths, at tier pre-pr, WITHOUT the whole-module prelude
 #       (that prelude, and the whole-module go-build it adds, are `make pre-pr`'s
@@ -22,17 +32,20 @@
 #       not accidental duplication. Also passes `--pre-push` to
 #       run-selected-gates.sh, which makes the gate step an ALLOWLIST: only
 #       gates registered `local.pre_push: floor` in specs/ci-gates.v1.yaml run
-#       (24 fast gates chosen from 67 local pre-pr timing reports: lint, file
+#       (fast gates chosen from 67 local pre-pr timing reports: lint, file
 #       and directory caps, package docs, perf-evidence, telemetry coverage,
-#       the contract registries). Every other triggered gate prints
+#       the contract registries, plus the repo-wide sweep tests #7111 F5
+#       added). Every other triggered gate prints
 #       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
 #       A denylist of the slowest gates was tried first and still took more
-#       than 15 minutes on a one-line Go change; the allowlist took 400s;
+#       than 15 minutes on a one-line Go change; the allowlist took 400s
+#       before the merge-vet and race steps, which add about 45s;
 #   (e) the advisory docs-contradiction gate, unconditionally. It has no CI
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.
 #
-# What it deliberately does NOT run: whole-module go-build, the race lane, and
+# What it deliberately does NOT run: whole-module go-build, the whole-module
+# race lane and the registry race gates, and
 # the live Docker/NornicDB/Postgres lane (golden-corpus, replay-tier, security,
 # frontend). Those stay `make pre-pr` / `make pre-pr-full` — recommended, not
 # required, before pushing a change to queue/lease/claim code, schema DDL,
@@ -64,6 +77,8 @@ source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
 source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 # shellcheck source=../lib/pre-pr-go-paths.sh
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
+# shellcheck source=../lib/pre-push-merge.sh
+source "${repo_root}/scripts/lib/pre-push-merge.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 # ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
@@ -122,6 +137,35 @@ step_test() {
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
 	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
+}
+
+# step_race runs `go test -race` on the changed Go packages only (#7111 F5).
+# CI's go-race lane runs the whole module; this catches a race, or a test that
+# only fails under the race detector's instrumentation (#7067's allocation
+# count), in the packages the change touched before CI does. Measured warm:
+# 8-25s for one package, 54s for go/internal/query on a cold cache. Fixture
+# consumers get the plain `go test` above, not a race run.
+step_race() {
+	local dirs=() d
+	while IFS= read -r d; do
+		[[ -n "${d}" ]] && dirs+=("${d}")
+	done < <(changed_go_dirs)
+	if [[ ${#dirs[@]} -eq 0 ]]; then
+		printf 'no changed Go packages vs %s — skipping the race run\n' "${base}"
+		return 0
+	fi
+	printf 'race: %d changed package(s)\n' "${#dirs[@]}"
+	# Single packages measured 8-54s and there is no cap, so a sweeping change
+	# can run for many minutes (wall time for many packages is unmeasured). Warn
+	# instead of skipping, since a silently skipped race run would read as
+	# green. CI shards the whole module.
+	if [[ ${#dirs[@]} -gt ${ESHU_PRE_PUSH_RACE_WARN_PACKAGES:-20} ]]; then
+		printf 'race: %d changed package(s) exceeds ESHU_PRE_PUSH_RACE_WARN_PACKAGES=%s; single packages measured 8-54s, so this may run for minutes (CI shards the whole module).\n' \
+			"${#dirs[@]}" "${ESHU_PRE_PUSH_RACE_WARN_PACKAGES:-20}"
+	fi
+	# -timeout is per test binary, the same 900s budget test.yml's go-race
+	# shards use, so a hang fails in minutes instead of Go's default 10m.
+	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" )
 }
 
 step_filecap() {
@@ -197,14 +241,19 @@ if [[ -n "${pre_push_diff_broken_reason}" ]]; then
 	overall=1
 else
 	run_step "go test (changed packages)" step_test
+	run_step "go test -race (changed packages)" step_race
 	run_step "500-line file cap" step_filecap
 	run_step "gofumpt + lint + build + vet (changed packages)" step_fmt_lint_build_vet
+	run_step "go vet on HEAD merged with ${base} (merge tree)" step_merge_vet
 	run_step "selected local gates (exactness/telemetry/hygiene/docs)" step_exactness
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 
 printf '\n\033[1m==== pre-push summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
+if [[ -n "${pre_push_merge_summary}" ]]; then
+	printf 'merge tree: %s\n' "${pre_push_merge_summary}"
+fi
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-push: failures above — fix before pushing.\033[0m\n'
 else

@@ -780,6 +780,9 @@ gates:
     local:
       command: "bash scripts/verify-evidence-continuity.sh"
       test_command: "bash scripts/test-verify-evidence-continuity.sh"
+      # #7111 F5: 1.2s/0.6s (first/second run) measured locally; #7053 reached
+      # CI with a stale proof ref this gate catches.
+      pre_push: floor
     ci:
       workflow: static-contract-gates.yml
       job: "Verify evidence continuity gate"
@@ -1634,8 +1637,12 @@ gates:
     local:
       command: "bash scripts/verify-docs-cli-env-refs.sh"
       test_command: "bash scripts/test-verify-docs-cli-env-refs.sh"
-      pre_push: deferred
-      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 62s, ~7% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
+      # #7111 F5: promoted from deferred. #7048 reached CI with an unregistered
+      # env var this gate catches. Measured alone: 34.9s on a cold worktree
+      # (the gate keeps its own .gocache-docs-cli-env-refs-* caches) and 7.2s
+      # warm. The 62s median the old deferral cited was measured inside full
+      # `make pre-pr` runs.
+      pre_push: floor
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docs CLI/env refs gate"
@@ -2945,6 +2952,90 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify content-entity bucket sync gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── REPO-WIDE SWEEP TESTS (#7111 F5) ──────────────────────────────────────
+  # Each of these Go tests reads source far outside its own package, so the
+  # floor's changed-package `go test` never runs it when only an input changes.
+  # CI runs them inside go-core's `go test ./...`; these rows select them
+  # locally from their real inputs. Triggers are derived from what each test
+  # reads (named in its comment) plus its own package, which it compiles.
+
+  - id: index-key-guard-sweep
+    name: Production indexed-write Cypher literals are guarded (#7058)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    # TestProductionCypherLiteralsAreGuarded scans the non-test Go literals
+    # under sweepDirs (go/internal/graph/index_key_guard_sweep_test.go):
+    # internal/storage, internal/reducer, internal/projector,
+    # internal/collector, and cmd. The analyzer and schema it checks against
+    # live in internal/graph.
+    triggers:
+      - "go/internal/graph/**"
+      - "go/internal/storage/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/collector/**"
+      - "go/cmd/**"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/graph -run '^TestProductionCypherLiteralsAreGuarded$' -count=1"
+      test_command: "cd go && go test ./internal/graph -run '^(TestSweepFlagsSeededViolations|TestSweepReadsJoinedLabelTemplateWhole)$' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: hot-cypher-source-coverage
+    name: Hot Cypher manifest covers every production query call
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    # TestHotCypherManifestCoversEveryProductionQueryCall
+    # (go/internal/queryplan/source_coverage_test.go) discovers query call
+    # sites under ../query and checks them against the manifests in
+    # go/internal/queryplan/testdata.
+    triggers:
+      - "go/internal/queryplan/**"
+      - "go/internal/query/**"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1"
+      test_command: "cd go && go test ./internal/queryplan -run '^TestValidateSourceCoverage' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ask-overlay-inventory-coverage
+    name: Ask catalog overlay covers the surface inventory
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    # TestOverlayCoversInventory (go/internal/ask/catalog/coverage_test.go)
+    # reads the committed
+    # go/internal/capabilitycatalog/data/surface-inventory.generated.json and
+    # checks it against the overlay in its own package.
+    triggers:
+      - "go/internal/ask/catalog/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/ask/catalog -run '^TestOverlayCoversInventory$' -count=1"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -4689,6 +4780,9 @@ gates:
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/pre-push.sh"
       - "scripts/test-pre-push.sh"
+      - "scripts/lib/test-pre-push-merge-cases.sh"
+      - "scripts/lib/test-pre-push-merge-fake-go.sh"
+      - "scripts/lib/pre-push-merge.sh"
       - "scripts/test-no-prepr-stamp-references.sh"
       - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"
@@ -4736,6 +4830,9 @@ gates:
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/pre-push.sh"
       - "scripts/test-pre-push.sh"
+      - "scripts/lib/test-pre-push-merge-cases.sh"
+      - "scripts/lib/test-pre-push-merge-fake-go.sh"
+      - "scripts/lib/pre-push-merge.sh"
       - "scripts/test-no-prepr-stamp-references.sh"
       - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"

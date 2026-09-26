@@ -25,16 +25,16 @@ Use this fixed promotion order before opening or updating a PR:
 4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
 `make pre-push` is the fast local floor run before every push, scoped to
-changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet, the
+changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
+`go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
+a conflict fails closed; the merge queue re-tests the exact landing merge and is its authority), the
 registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
-advisory docs-contradiction gate. No race/live lane, no push stamp (removed —
+advisory docs-contradiction gate. No live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).
 The gate step is an allowlist: only gates registered `local.pre_push: floor`
-in `specs/ci-gates.v1.yaml` run (fast lint, cap, package-docs, perf-evidence,
-telemetry-coverage, and contract-registry gates). Every other gate the diff
-triggers prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in
-`make pre-pr` and blocks merge in CI through `required-gates-complete`.
-Measured on a one-line `go/internal/query` change: 400s. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
+in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, contract-registry, and repo-wide sweep gates).
+Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and blocks merge in CI through `required-gates-complete`.
+Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
 reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
 from `./...`):
@@ -46,8 +46,8 @@ make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
 
 CI remains authoritative and should rarely be the *first* place a
-credential-free failure appears. Race gates block on Go changes, but
-`make pre-push` runs none — `make pre-pr` runs the scoped lane, `pre-pr-full`
+credential-free failure appears. Race gates block on Go changes: `make pre-push`
+races only the changed packages, `make pre-pr` adds the registry race gates, `pre-pr-full`
 the whole-module `go test ./... -race`, CI the authoritative full gate.
 
 **Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare

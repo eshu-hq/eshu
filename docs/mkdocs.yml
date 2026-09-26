@@ -238,6 +238,7 @@ nav:
         - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
         - Read API Latency Gate: reference/local-testing/read-api-latency-gate.md
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
+        - Pre-Push Merge Step: reference/local-testing/pre-push-merge.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
         - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
         - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
