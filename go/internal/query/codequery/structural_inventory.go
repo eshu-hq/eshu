@@ -113,28 +113,31 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 
 	limit := req.NormalizedLimit()
 	results := data.results
+	clippedRows := querycontract.ClipRowsSourceCache(results)
+	response := map[string]any{
+		"repo_id":        req.RepoID,
+		"language":       strings.TrimSpace(req.Language),
+		"inventory_kind": req.Kind(),
+		"entity_kind":    req.EntityType(),
+		"file_path":      strings.TrimSpace(req.FilePath),
+		"symbol":         strings.TrimSpace(req.Symbol),
+		"decorator":      strings.TrimSpace(req.Decorator),
+		"method_name":    strings.TrimSpace(req.MethodName),
+		"class_name":     strings.TrimSpace(req.ClassName),
+		"limit":          limit,
+		"offset":         req.Offset,
+		"results":        results,
+		"count":          len(results),
+		"truncated":      data.truncated,
+		"next_offset":    nextStructuralInventoryOffset(req.Offset, len(results), data.truncated),
+		"source_backend": "postgres_content_store",
+	}
+	querycontract.AddSourceCacheClipMarkers(response, clippedRows)
 	WriteSuccess(
 		w,
 		r,
 		http.StatusOK,
-		map[string]any{
-			"repo_id":        req.RepoID,
-			"language":       strings.TrimSpace(req.Language),
-			"inventory_kind": req.Kind(),
-			"entity_kind":    req.EntityType(),
-			"file_path":      strings.TrimSpace(req.FilePath),
-			"symbol":         strings.TrimSpace(req.Symbol),
-			"decorator":      strings.TrimSpace(req.Decorator),
-			"method_name":    strings.TrimSpace(req.MethodName),
-			"class_name":     strings.TrimSpace(req.ClassName),
-			"limit":          limit,
-			"offset":         req.Offset,
-			"results":        results,
-			"count":          len(results),
-			"truncated":      data.truncated,
-			"next_offset":    nextStructuralInventoryOffset(req.Offset, len(results), data.truncated),
-			"source_backend": "postgres_content_store",
-		},
+		response,
 		BuildTruthEnvelope(h.profile(), structuralInventoryCapability, TruthBasisContentIndex, "resolved from bounded content-index structural inventory"),
 	)
 }

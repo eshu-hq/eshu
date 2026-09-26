@@ -20,7 +20,9 @@ telemetry. `internal/query` owns the bounded reads behind
 `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`,
 `POST /api/v0/evidence/citations`, `POST /api/v0/content/files/search`, and
 `POST /api/v0/content/entities/search`, including every limit default and
-clamp described below.
+clamp described below. `search_entity_content` rows come back with `source_cache`
+clipped to 4,096 bytes, row and response markers, and a `source_handle` (#7171); the
+default limit of 10 keeps a page of clipped rows plus ordinary row overhead inside the response budget; row `metadata` is not clipped (#7234).
 
 ## Exported surface
 

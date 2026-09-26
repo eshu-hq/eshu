@@ -144,7 +144,8 @@ func overBudgetResult(toolName string, size, budget int) *dispatchResult {
 func responseBudgetGuidance() string {
 	return "response exceeded the MCP response budget; lower limit, add repo_id/scope filters, " +
 		"request a single relationship_type or direction, set a smaller token_budget where supported, " +
-		"then drill in via the returned handles instead of fetching the whole result at once"
+		"then drill in via the returned handles instead of fetching the whole result at once; " +
+		"a row with source_cache_clipped=true has a clipped body, so call get_entity_content for its full text"
 }
 
 // dispatchBudgetMeterName scopes the lazily registered budget instruments to

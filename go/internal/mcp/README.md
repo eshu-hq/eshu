@@ -142,7 +142,7 @@ single heavy graph-returning tool (a large subgraph, a wide story, a deep
 visualization packet) cannot blow the model context budget. Per-route token
 budgets such as the relationship-story `token_budget` still apply first; this is
 the outer, tool-agnostic guard, the response-size sibling of the dispatch
-deadline guard.
+deadline guard; the [source_cache clip](../../../docs/public/reference/http-api/source-cache-clip.md) (#7171) keeps source rows under it.
 
 No-Regression Evidence: the budget is a pure post-dispatch in-process size check
 over the already-serialized response — no new graph, storage, queue, or HTTP work.

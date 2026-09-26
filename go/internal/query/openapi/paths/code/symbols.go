@@ -103,13 +103,15 @@ const Symbols = `
                     "language": {"type": "string"},
                     "inventory_kind": {"type": "string"},
                     "entity_kind": {"type": "string"},
-                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines.", "items": {"type": "object", "additionalProperties": true}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_offset": {"type": "integer", "nullable": true},
-                    "source_backend": {"type": "string"}
+                    "source_backend": {"type": "string"},
+                    "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
+                    "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped; 0 when none."}
                   }
                 }
               }

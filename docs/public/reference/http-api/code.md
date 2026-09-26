@@ -50,12 +50,12 @@ global searches may use names shorter than three characters. The public page
 limit defaults to 50 and is capped at 200. Every response includes `count`,
 `limit`, and `truncated`; the handler reads one extra row internally so
 `truncated=true` means at least one additional ordered match exists beyond the
-returned page. `matches` removed; read `results`.
+returned page. `matches` removed; read `results`. Content rows clip `source_cache` ([read clip](source-cache-clip.md)).
 
 `POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
 `match_mode`, repository/language/entity filters, `limit`, and `offset`.
 Responses include definition rows, `source_handle`, `classification=definition`,
-`match_kind`, `truncated`, and `ambiguity`.
+`match_kind`, `truncated`, and `ambiguity`. `source_cache` is clipped ([read clip](source-cache-clip.md)).
 
 `POST /api/v0/code/topics/investigate` accepts `topic` or `query`, plus optional
 `intent`, repository/language filters, `limit`, and `offset`. Responses include
@@ -69,7 +69,7 @@ relationship-story handles, coverage, and truncation state.
 `inventory_kind` values include `entity`, `top_level`, `dataclass`,
 `documented`, `documented_function`, `decorated`, `class_with_method`,
 `super_call`, and `function_count_by_file`. Responses are deterministic and
-paged with `truncated` and `next_offset`.
+paged with `truncated` and `next_offset`. Entity rows clip `source_cache` ([read clip](source-cache-clip.md)).
 
 `POST /api/v0/code/imports/investigate` requires at least one scope anchor:
 `repo_id`, `source_file`, `target_file`, `source_module`, or `target_module`.

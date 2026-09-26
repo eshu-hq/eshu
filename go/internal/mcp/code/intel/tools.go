@@ -78,7 +78,7 @@ func findCodeTool() toolcontract.ToolDefinition {
 func findSymbolTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_symbol",
-		Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Find exact or fuzzy symbol definitions with bounded, paged results (default 20 rows) and source handles. Each row's source_cache is clipped to 4,096 bytes; a clipped row carries source_cache_clipped, and the response reports source_cache_clip_bytes and source_cache_clipped_rows. Use get_entity_content with the row's entity_id for the full body. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -112,7 +112,7 @@ func findSymbolTool() toolcontract.ToolDefinition {
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum definitions to return",
-					"default":     25,
+					"default":     20,
 					"maximum":     200,
 				},
 				"offset": map[string]any{
@@ -130,7 +130,7 @@ func findSymbolTool() toolcontract.ToolDefinition {
 func structuralInventoryTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "inspect_code_inventory",
-		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls. Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Inspect bounded structural code inventory such as functions, classes, top-level file elements, dataclasses, documented functions, decorated methods, classes with a method, and super calls (default 20 rows). Provide at least one scope filter: repo_id, file_path, language, entity_kind, or symbol. Each row's source_cache is clipped to 4,096 bytes; a clipped row carries source_cache_clipped, and the response reports source_cache_clip_bytes and source_cache_clipped_rows. Use get_entity_content with the row's entity_id for the full body. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -175,7 +175,7 @@ func structuralInventoryTool() toolcontract.ToolDefinition {
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum inventory rows to return",
-					"default":     25,
+					"default":     20,
 					"maximum":     200,
 				},
 				"offset": map[string]any{

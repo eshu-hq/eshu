@@ -189,8 +189,8 @@ func TestRouteCarriesEveryCodeIntelBodyKey(t *testing.T) {
 // extraction.
 var codeIntelDefaults = map[string]map[string]int{
 	"find_code":                  {"limit": 10},
-	"find_symbol":                {"limit": 25, "offset": 0},
-	"inspect_code_inventory":     {"limit": 25, "offset": 0},
+	"find_symbol":                {"limit": 20, "offset": 0},
+	"inspect_code_inventory":     {"limit": 20, "offset": 0},
 	"inspect_call_graph_metrics": {"limit": 25, "offset": 0},
 	"trace_route_callers":        {"max_depth": 2, "limit": 25},
 	"investigate_code_topic":     {"limit": 25, "offset": 0},

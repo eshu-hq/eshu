@@ -283,6 +283,19 @@ truth envelope, and an unknown required profile still defaults to
 incomplete, duplicated, or unknown entry fails closed instead of returning a
 partial inventory.
 
+`source_cache_clip.go` owns the read-time `source_cache` clip (#7171):
+`BoundedSourceCache`, `ClipRowSourceCache`/`ClipRowsSourceCache`, and
+`AddSourceCacheClipMarkers` cut a row body to `SourceCacheClipBytes` (4,096)
+without splitting a UTF-8 code point and mark it with `source_cache_clipped`,
+`source_cache_clip_bytes`, and `source_cache_total_bytes`, plus the response
+markers `source_cache_clip_bytes` and `source_cache_clipped_rows`. It is a
+re-implementation of `content/shape`'s write-time `truncateUTF8ByBytes` because
+`query` does not import collector-side packages; keep the two cut rules equal.
+The markers are deliberately not the write-time `metadata.source_cache_truncated`
+family. Callers clip after the page is trimmed to its limit and after any hybrid
+re-rank, which reads the full body. `EntityContentSearchRow` shapes the
+`search_entity_content` row map and adds `source_handle`.
+
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states
 when converting it into matcher input.
