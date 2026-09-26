@@ -32,6 +32,9 @@ merge_fixture_commit() {
 #   clean     main adds an unrelated package; head adds a caller of p.Old
 #   contained HEAD already contains origin/main (the merge is HEAD itself)
 #   docsonly  main adds a package; head edits only a non-Go file
+#   sdkonly   go.mod replaces a module with ../sdk in a block; main adds a Go
+#             package; head edits only sdk/
+#   sdkquoted the same, with a quoted single-line `replace ... => "../sdk"`
 build_merge_fixture() {
 	local name="$1" scenario="$2" fixture baseline
 	fixture="${temp_root}/${name}"
@@ -48,6 +51,12 @@ build_merge_fixture() {
 	chmod +x "${fixture}/scripts/dev/precommit-go.sh" "${fixture}/scripts/dev/run-selected-gates.sh" \
 		"${fixture}/scripts/verify-docs-contradiction.sh"
 	printf 'module example.com/m\n\ngo 1.22\n' > "${fixture}/go/go.mod"
+	case "${scenario}" in
+		sdkonly) printf 'replace (\n\texample.com/sdk v1.0.0 => ../sdk/\n)\n' >> "${fixture}/go/go.mod" ;;
+		sdkquoted) printf 'replace example.com/sdk => "../sdk"\n' >> "${fixture}/go/go.mod" ;;
+	esac
+	mkdir -p "${fixture}/sdk"
+	printf 'package sdk\n' > "${fixture}/sdk/lib.go"
 	printf 'package p\n\nfunc Old() {}\n' > "${fixture}/go/internal/p/def.go"
 	git -C "${fixture}" init -q -b feature
 	merge_fixture_commit "${fixture}" baseline
@@ -57,7 +66,7 @@ build_merge_fixture() {
 	case "${scenario}" in
 		conflict) printf 'package p\n\nfunc Old() { _ = 2 }\n' > "${fixture}/go/internal/p/def.go" ;;
 		renamed) printf 'package p\n\nfunc New() {}\n' > "${fixture}/go/internal/p/def.go" ;;
-		clean | contained | docsonly)
+		clean | contained | docsonly | sdkonly | sdkquoted)
 			mkdir -p "${fixture}/go/internal/s"
 			printf 'package s\n' > "${fixture}/go/internal/s/s.go"
 			;;
@@ -75,6 +84,7 @@ build_merge_fixture() {
 				> "${fixture}/go/internal/r/call.go"
 			;;
 		docsonly) printf 'docs\n' > "${fixture}/NOTES.md" ;;
+		sdkonly | sdkquoted) printf 'package sdk\n\nfunc Changed() {}\n' > "${fixture}/sdk/lib.go" ;;
 	esac
 	merge_fixture_commit "${fixture}" "head side"
 	printf '%s\n' "${fixture}"
@@ -161,3 +171,118 @@ FAKE_GO_MOVE_HEAD_REPO="${fixture}" DRIVER_ARGS_LOG="${fixture}.args" PATH="${fi
 [[ "$(git -C "${fixture}" rev-parse --short=12 HEAD)" != "${vetted_head}" ]] || fail "case K: the fake go did not move HEAD"
 rg -q -- "^merge tree: [0-9a-f]{40} \\(HEAD ${vetted_head} \\+ origin/main " "${fixture}.log" || \
 	{ rg -- '^merge tree' "${fixture}.log" >&2; fail "case K: the summary must name the vetted HEAD ${vetted_head}"; }
+
+# assert_vetted_merged_tree fails unless <fixture> ran `go vet ./...` in the
+# merged tree and did not skip it as "no Go inputs changed".
+assert_vetted_merged_tree() {
+	local fixture="$1" label="$2"
+	merged_go_calls "${fixture}" | rg -q -- '^go vet \./\.\.\. ' || { cat "${fixture}.log" "${fixture}.args" >&2; fail "${label}: the merged tree was not vetted"; }
+	! rg -q -- 'Go inputs are identical' "${fixture}.log" || fail "${label}: the vet was skipped as if no Go input changed"
+}
+
+# ── Case L: the head changes ONLY a directory named by a go.mod local replace
+# (sdk/), so go/ equals main's. The Go inputs are derived from go.mod, not a
+# hand list: an sdk-only change must still be vetted, in a `replace ( ... )`
+# block with a version and trailing slash, and in a quoted single-line form.
+for scenario in sdkonly sdkquoted; do
+	fixture="$(build_merge_fixture "case-l-${scenario}" "${scenario}")"
+	status="$(run_merge_fixture "${fixture}")"
+	[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case L (${scenario}): expected exit 0, got ${status}"; }
+	assert_vetted_merged_tree "${fixture}" "case L (${scenario})"
+done
+
+# The pid lock is the symlink <git-dir>/eshu-pre-push-merge.lock -> <holder pid>.
+merge_lock_path() { printf '%s/.git/eshu-pre-push-merge.lock' "$1"; }
+
+# seed_merge_lock <fixture> <pid> leaves a lock held by <pid>.
+seed_merge_lock() {
+	mkdir -p "$1/.git/eshu-pre-push-merge"
+	ln -s "$2" "$(merge_lock_path "$1")"
+}
+
+# ── Case M: two pre-push runs in one worktree share one merged-tree directory.
+# A live holder fails the second run closed with a clear message and vets
+# nothing; a dead holder's lock is taken over and released afterwards.
+sleep 60 &
+live_pid=$!
+fixture="$(build_merge_fixture case-m-live clean)"
+seed_merge_lock "${fixture}" "${live_pid}"
+status="$(run_merge_fixture "${fixture}")"
+kill "${live_pid}" 2>/dev/null || true
+wait "${live_pid}" 2>/dev/null || true
+[[ "${status}" != "0" ]] || { cat "${fixture}.log" >&2; fail "case M: a live lock holder must fail the run closed, got exit 0"; }
+rg -q -- "another pre-push \\(pid ${live_pid}\\) is using" "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case M: the failure must name the live holder"; }
+[[ -z "$(merged_go_calls "${fixture}")" ]] || fail "case M: nothing may be vetted while another run holds the tree"
+
+( : ) &
+dead_pid=$!
+wait "${dead_pid}"
+fixture="$(build_merge_fixture case-m-dead clean)"
+seed_merge_lock "${fixture}" "${dead_pid}"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case M: a dead holder's lock must be taken over, got exit ${status}"; }
+assert_vetted_merged_tree "${fixture}" "case M (dead holder)"
+[[ ! -e "$(merge_lock_path "${fixture}")" && ! -L "$(merge_lock_path "${fixture}")" ]] || fail "case M: the lock must be released after the run"
+
+# ── Case N: ESHU_PRE_PUSH_BASE replaces origin/main as the merge base. main
+# renamed p.Old, so against origin/main this head fails (case F); against the
+# baseline commit (an ancestor of the head) the merge is HEAD itself.
+fixture="$(build_merge_fixture case-n renamed)"
+alt_base="$(git -C "${fixture}" rev-parse HEAD~1)"
+status="$(ESHU_PRE_PUSH_BASE="${alt_base}" run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case N: ESHU_PRE_PUSH_BASE must replace origin/main as the merge base, got exit ${status}"; }
+rg -q -- "already contains ${alt_base}" "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case N: the merge must be computed against the override base"; }
+
+# ── Case O: a SIGKILLed run leaves the merged tree's index.lock behind; the
+# next run must clear it instead of failing every run until removed by hand.
+fixture="$(build_merge_fixture case-o clean)"
+mkdir -p "${fixture}/.git/eshu-pre-push-merge"
+: > "${fixture}/.git/eshu-pre-push-merge/index.lock"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case O: a stale index.lock must not wedge the merge step, got exit ${status}"; }
+assert_vetted_merged_tree "${fixture}" "case O"
+
+# ── Case P: the race step prints how many packages it will race, and warns
+# once that count passes ESHU_PRE_PUSH_RACE_WARN_PACKAGES (default 20).
+fixture="$(build_merge_fixture case-p clean)"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case P: expected exit 0, got ${status}"; }
+! rg -q -- 'exceeds ESHU_PRE_PUSH_RACE_WARN_PACKAGES' "${fixture}.log" || fail "case P: one package must not warn at the default threshold"
+fixture="$(build_merge_fixture case-p-warn clean)"
+status="$(ESHU_PRE_PUSH_RACE_WARN_PACKAGES=0 run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case P: a warning must not fail the run, got ${status}"; }
+rg -q -- 'race: 1 changed package\(s\) exceeds ESHU_PRE_PUSH_RACE_WARN_PACKAGES=0' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case P: the race step must warn past the threshold"; }
+
+# ── Case Q: takeover is atomic. Two runs see the same dead holder; one of them
+# takes the lock, and the other must not delete the fresh lock it now finds.
+# `kill` is the last call between reading the holder and taking the lock, so a
+# stand-in there replaces the dead holder's lock with a live run's, the way a
+# faster racer would.
+lock_dir="$(mktemp -d "${temp_root}/case-q.XXXXXX")"
+sleep 60 &
+live_pid=$!
+( : ) &
+dead_pid=$!
+wait "${dead_pid}"
+ln -s "${dead_pid}" "${lock_dir}/x.lock"
+status=0
+bash -c '
+	source "$1"
+	lock="$2"; racer="$3"
+	kill() { rm -f "${lock}"; ln -s "${racer}" "${lock}"; return 1; }
+	pre_push_merge_lock "${lock}"
+' _ "${repo_root}/scripts/lib/pre-push-merge.sh" "${lock_dir}/x.lock" "${live_pid}" 2>"${lock_dir}/err" || status=$?
+[[ "${status}" != "0" ]] || { kill "${live_pid}" 2>/dev/null; fail "case Q: a run that lost the takeover race must fail closed"; }
+[[ "$(readlink "${lock_dir}/x.lock")" == "${live_pid}" ]] || { kill "${live_pid}" 2>/dev/null; fail "case Q: the winner's lock must survive the losing run"; }
+rg -q -- "another pre-push \\(pid ${live_pid}\\) took" "${lock_dir}/err" || { kill "${live_pid}" 2>/dev/null; fail "case Q: the loser must name the run that took the lock"; }
+kill "${live_pid}" 2>/dev/null || true
+wait "${live_pid}" 2>/dev/null || true
+
+# ── Case R: a lock directory left by an earlier revision (a pid file inside)
+# is honoured when its holder is live and cleared when it is dead, never
+# treated as acquired by linking inside it.
+mkdir "${lock_dir}/legacy.lock"
+printf '%s\n' "${dead_pid}" > "${lock_dir}/legacy.lock/pid"
+bash -c 'source "$1"; pre_push_merge_lock "$2"' _ "${repo_root}/scripts/lib/pre-push-merge.sh" "${lock_dir}/legacy.lock" 2>/dev/null || \
+	fail "case R: a dead legacy directory lock must be cleared"
+[[ -L "${lock_dir}/legacy.lock" ]] || fail "case R: the lock must now be a pid link"

@@ -52,9 +52,12 @@ pre_push_merge_summary=""
 # a new local replace needs no edit here.
 pre_push_merge_go_inputs() {
 	local tree="$1" line target
+	# The target may be quoted ("../sdk" or `../sdk`), which go.mod allows.
+	# shellcheck disable=SC2016  # the backtick is a literal go.mod quote character.
+	local re='=>[[:space:]]*["`]?\.\./([^[:space:]"`]+)'
 	printf 'go\n'
 	git -C "${repo_root}" show "${tree}:go/go.mod" 2>/dev/null | while IFS= read -r line; do
-		[[ "${line}" =~ =\>[[:space:]]*\.\./([^[:space:]]+) ]] || continue
+		[[ "${line}" =~ ${re} ]] || continue
 		target="${BASH_REMATCH[1]}"
 		printf '%s\n' "${target%/}"
 	done
@@ -73,21 +76,56 @@ pre_push_merge_inputs_unchanged() {
 }
 
 # pre_push_merge_lock takes a per-worktree lock on the merged-tree directory so
-# two pre-push runs in one worktree cannot rewrite it under each other. A lock
-# left by a dead process is taken over; a live holder fails the step closed.
+# two pre-push runs in one worktree cannot rewrite it under each other. The lock
+# is a symlink whose target is the holder's pid: `ln -s` creates it and records
+# the holder in one atomic step, so a reader never sees a lock with no pid. A
+# lock left by a dead process is taken over by renaming it aside (only one
+# racer's rename of that link succeeds), then checking that what was renamed is
+# the dead holder's link and not a fresh lock a faster racer just took; if it
+# was fresh it is put back and this run fails closed. A live holder fails the
+# step closed. Residual window: a third run arriving between that put-back's
+# rename and its restore can take the lock; the lock only serializes two
+# developer-invoked runs in one worktree, so this is accepted.
 pre_push_merge_lock() {
-	local lock="$1" holder
-	if mkdir "${lock}" 2>/dev/null; then
-		printf '%s\n' "$$" > "${lock}/pid"
+	local lock="$1" holder claimed got
+	# An earlier revision kept the lock as a directory holding a pid file. `ln`
+	# would create the new link inside it and report success, so clear one whose
+	# holder is gone (a live one is honoured below through the same path).
+	if [[ -d "${lock}" && ! -L "${lock}" ]]; then
+		holder="$(cat "${lock}/pid" 2>/dev/null || true)"
+		if [[ -n "${holder}" ]] && kill -0 "${holder}" 2>/dev/null; then
+			printf 'pre-push: another pre-push (pid %s) is using %s; rerun after it finishes.\n' "${holder}" "${lock%.lock}" >&2
+			return 1
+		fi
+		rm -rf "${lock}"
+	fi
+	holder=""
+	if ln -sn "$$" "${lock}" 2>/dev/null; then
 		return 0
 	fi
-	holder="$(cat "${lock}/pid" 2>/dev/null || true)"
+	holder="$(readlink "${lock}" 2>/dev/null || true)"
 	if [[ -n "${holder}" ]] && kill -0 "${holder}" 2>/dev/null; then
 		printf 'pre-push: another pre-push (pid %s) is using %s; rerun after it finishes.\n' "${holder}" "${lock%.lock}" >&2
 		return 1
 	fi
-	rm -rf "${lock}"
-	mkdir "${lock}" && printf '%s\n' "$$" > "${lock}/pid"
+	claimed="${lock}.stale.$$"
+	if mv "${lock}" "${claimed}" 2>/dev/null; then
+		got="$(readlink "${claimed}" 2>/dev/null || true)"
+		if [[ "${got}" != "${holder}" ]]; then
+			# A racing run took the lock between our read and our rename: put
+			# it back (ln -s cannot overwrite) and yield.
+			[[ -n "${got}" ]] && ln -sn "${got}" "${lock}" 2>/dev/null
+			rm -rf "${claimed}"
+			printf 'pre-push: another pre-push (pid %s) took %s first; rerun after it finishes.\n' "${got}" "${lock%.lock}" >&2
+			return 1
+		fi
+		rm -rf "${claimed}"
+	fi
+	if ! ln -sn "$$" "${lock}" 2>/dev/null; then
+		printf 'pre-push: another pre-push (pid %s) took %s first; rerun after it finishes.\n' \
+			"$(readlink "${lock}" 2>/dev/null || true)" "${lock%.lock}" >&2
+		return 1
+	fi
 }
 
 # step_merge_vet: fail closed unless HEAD merges cleanly with ${base} and the
@@ -138,6 +176,10 @@ step_merge_vet() {
 	idx="${root}/index"
 	mkdir -p "${root}" || return 1
 	pre_push_merge_lock "${root}.lock" || return 1
+	# A run killed mid read-tree (SIGKILL, OOM) leaves the tree index's own git
+	# lock behind, which fails every later read-tree. We hold the exclusive pid
+	# lock, so a lock file here cannot belong to a live sibling.
+	rm -f "${idx}.lock"
 	if [[ ! -f "${idx}" ]]; then
 		rm -rf "${work}"
 	fi

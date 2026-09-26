@@ -8,7 +8,8 @@
 # What it runs, no live Docker/NornicDB lane, no stamp:
 #   (a) go test on changed Go packages plus fixture consumers (the same
 #       selection pre-pr.sh's step_test uses), then go test -race on the
-#       changed Go packages alone;
+#       changed Go packages alone (no cap; ESHU_PRE_PUSH_RACE_WARN_PACKAGES,
+#       default 20, sets the package count above which it prints a warning);
 #   (b) the 500-line Go file cap on changed files;
 #   (c) gofumpt, golangci-lint, go build, and go vet scoped to changed Go
 #       packages, for fast first feedback;
@@ -153,6 +154,14 @@ step_race() {
 		return 0
 	fi
 	printf 'race: %d changed package(s)\n' "${#dirs[@]}"
+	# Single packages measured 8-54s and there is no cap, so a sweeping change
+	# can run for many minutes (wall time for many packages is unmeasured). Warn
+	# instead of skipping, since a silently skipped race run would read as
+	# green. CI shards the whole module.
+	if [[ ${#dirs[@]} -gt ${ESHU_PRE_PUSH_RACE_WARN_PACKAGES:-20} ]]; then
+		printf 'race: %d changed package(s) exceeds ESHU_PRE_PUSH_RACE_WARN_PACKAGES=%s; single packages measured 8-54s, so this may run for minutes (CI shards the whole module).\n' \
+			"${#dirs[@]}" "${ESHU_PRE_PUSH_RACE_WARN_PACKAGES:-20}"
+	fi
 	# -timeout is per test binary, the same 900s budget test.yml's go-race
 	# shards use, so a hang fails in minutes instead of Go's default 10m.
 	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" )
