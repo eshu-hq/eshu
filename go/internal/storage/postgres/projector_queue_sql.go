@@ -84,6 +84,13 @@ WHERE generation.generation_id = superseded_work.generation_id
   AND generation.status IN ('pending', 'failed')
 `
 
+// activateProjectorGenerationQuery is Ack's last statement and the first one
+// that row-locks the target generation. superseded is terminal (#7130), so the
+// status predicate refuses to revive it. Because the predicate sits on the
+// locked row, EvalPlanQual re-evaluates it against a supersede that committed
+// after this statement's snapshot, including the claim path's stale-generation
+// supersede, which locks the generation row but not the scope row. Ack treats
+// zero affected rows as a superseded generation and rolls back.
 const activateProjectorGenerationQuery = `
 UPDATE scope_generations
 SET status = 'active',
@@ -91,6 +98,7 @@ SET status = 'active',
     superseded_at = NULL
 WHERE scope_id = $2
   AND generation_id = $3
+  AND status <> 'superseded'
 `
 
 const updateProjectorScopeGenerationQuery = `
@@ -272,4 +280,40 @@ SET status = 'dead_letter',
     failure_details = $4
 FROM owned_work
 WHERE work.work_item_id = owned_work.work_item_id
+`
+
+// projectorAckGenerationSupersededClass is the failure_class Ack records when
+// it refuses to activate a generation that is already superseded (#7130).
+const projectorAckGenerationSupersededClass = "projector_ack_generation_superseded"
+
+// markProjectorAckSupersededQuery ends a claimed projector work item whose
+// generation Ack refused to activate. It runs after the Ack transaction rolled
+// back, as one statement that locks only the work row, so it cannot join a
+// lock cycle. It re-checks ownership and the superseded status (terminal, so
+// the read cannot go stale), which keeps a lost claim a claim rejection.
+const markProjectorAckSupersededQuery = `
+UPDATE fact_work_items AS work
+SET status = 'superseded',
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    next_attempt_at = NULL,
+    updated_at = $1,
+    failure_class = '` + projectorAckGenerationSupersededClass + `',
+    failure_message = 'projector ack refused: generation already superseded',
+    failure_details = jsonb_build_object(
+        'scope_id', work.scope_id,
+        'work_item_id', work.work_item_id,
+        'generation_id', work.generation_id
+    )
+FROM scope_generations AS generation
+WHERE work.stage = 'projector'
+  AND work.scope_id = $2
+  AND work.generation_id = $3
+  AND work.lease_owner = $4
+  AND work.attempt_count = $5
+  AND work.status IN ('claimed', 'running')
+  AND generation.scope_id = work.scope_id
+  AND generation.generation_id = work.generation_id
+  AND generation.status = 'superseded'
 `
