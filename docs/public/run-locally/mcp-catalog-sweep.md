@@ -88,8 +88,10 @@ baseline manifest is unchanged.
   `403` in that run and has not been live-run since its promotion. The two failures are a product defect
   tracked in #7215:
   `find_infra_resources` and `analyze_infra_relationships` answer
-  `backend_timeout` to a scoped token, because Neo4j takes longer than the
-  bounded read to plan the scoped infrastructure queries. Their expected
+  `backend_timeout` to a scoped token. On the sweep host, which ran the amd64
+  Neo4j image emulated and heavily loaded, planning the scoped infrastructure
+  queries took longer than the 10 s bounded read; the cause is unproven
+  (#7215). Their expected
   outcomes are unchanged, so the sweep keeps failing until #7215 is fixed.
 - **Negative control.** The same token, asked for a second seeded repository it
   was not granted, must not read it: `list_indexed_repositories` returns the
