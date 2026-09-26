@@ -26,7 +26,8 @@ func runAwait(args []string) error {
 	pr := fs.Int("pr", 0, "pull request number (pull_request event only)")
 	headSHA := fs.String("head-sha", "", "exact pull request head or merge-group commit SHA for this workflow run")
 	event := fs.String("event", eventPullRequest, "triggering event of the checks to aggregate: pull_request or merge_group")
-	baseRef := fs.String("base-ref", "main", "merge_group only: base branch the merge group's changed paths are diffed against (three-dot)")
+	baseRef := fs.String("base-ref", "main", "merge_group only: base branch the merge queue targets; it must match the queue branch")
+	mergeGroupBranch := fs.String("merge-group-branch", "", "merge_group only: merge queue branch of the source run (gh-readonly-queue/<base>/pr-<n>-<base sha>); its base SHA is the fixed ref the changed paths are diffed against (three-dot)")
 	pollInterval := fs.Duration("poll-interval", 30*time.Second, "interval between GitHub check-rollup reads")
 	timeout := fs.Duration("timeout", 55*time.Minute, "maximum time to wait for selected blocking checks")
 	if err := fs.Parse(args); err != nil {
@@ -35,7 +36,7 @@ func runAwait(args []string) error {
 	if *registry == "" || *repo == "" || strings.TrimSpace(*headSHA) == "" {
 		return fmt.Errorf("--registry, --repo, and --head-sha are required")
 	}
-	if err := validateAwaitTarget(*event, *pr, *baseRef); err != nil {
+	if err := validateAwaitTarget(*event, *pr, *baseRef, *mergeGroupBranch); err != nil {
 		return err
 	}
 	root, err := resolveRepoRoot(*repoRoot)
@@ -54,7 +55,7 @@ func runAwait(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 	if *event == eventMergeGroup {
-		return runAwaitMergeGroup(ctx, runner, reg, root, *repo, *baseRef, *headSHA, *pollInterval)
+		return runAwaitMergeGroup(ctx, runner, reg, root, *repo, *baseRef, *mergeGroupBranch, *headSHA, *pollInterval)
 	}
 	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
 		return err
