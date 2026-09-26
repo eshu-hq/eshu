@@ -75,7 +75,7 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = neo4jCloser.Close() }()
 
-	serviceRunner, gaugeRefresher, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
+	serviceRunner, graphRefresher, postgresRefresher, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
 	if err != nil {
 		return err
 	}
@@ -105,15 +105,17 @@ func run(parent context.Context) error {
 	}
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
-	// Start the graph-gauge refresher under the shutdown context and stop it
-	// before the deferred graph-driver close runs, so a shutdown never fails an
-	// in-flight refresh read against a closed driver (#7062). stop runs first so
-	// the wait cannot block on a still-live context when service.Run returns an
-	// error.
-	waitGaugeRefresher := startGraphGaugeRefresher(ctx, gaugeRefresher)
+	// Start the gauge refreshers under the shutdown context and stop them
+	// before the deferred graph-driver and database closes run, so a shutdown
+	// never fails an in-flight refresh read against a closed backend (#7062,
+	// #7064). stop runs first so the waits cannot block on a still-live
+	// context when service.Run returns an error.
+	waitGraphRefresher := startGraphGaugeRefresher(ctx, graphRefresher)
+	waitPostgresRefresher := startPostgresGaugeRefresher(ctx, postgresRefresher)
 	defer func() {
 		stop()
-		waitGaugeRefresher()
+		waitGraphRefresher()
+		waitPostgresRefresher()
 	}()
 
 	startSearchDocumentSweeper(ctx, db, logger)

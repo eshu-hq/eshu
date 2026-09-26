@@ -31,12 +31,12 @@ spec:
               5. If counts keep rising for one label, inspect the corresponding writer for disconnected node creation
         - alert: EshuGraphGaugeSnapshotStale
           expr: |
-            (max by (gauge) (eshu_dp_gauge_snapshot_age_seconds) > 900)
+            (max by (gauge) (eshu_dp_gauge_snapshot_age_seconds{gauge!~"ingester_.*"}) > 900)
             or
             (
-              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{outcome!="success"}[30m])) > 0
+              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{gauge!~"ingester_.*",outcome!="success"}[30m])) > 0
               unless
-              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{outcome="success"}[30m])) > 0
+              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{gauge!~"ingester_.*",outcome="success"}[30m])) > 0
             )
           for: 5m
           labels:
@@ -44,10 +44,33 @@ spec:
             service: eshu-reducer
             component: pipeline
           annotations:
-            summary: "Graph-backed gauge {{ $labels.gauge }} is serving a stale snapshot or has none"
-            description: "The background refresh for graph gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The graph read is slow, failing, or timing out."
+            summary: "Gauge snapshot {{ $labels.gauge }} is serving a stale snapshot or has none"
+            description: "The background refresh for gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The backing graph or reducer Postgres read is slow, failing, or timing out."
             runbook: |
               1. Check `eshu_dp_gauge_snapshot_refreshes_total{gauge="{{ $labels.gauge }}"}` by `outcome` (`error` vs `timeout`)
               2. Check reducer logs for `gauge snapshot refresh failed` and `failure_class=gauge_snapshot_refresh_timeout` or `gauge_snapshot_refresh_error`
-              3. Compare `eshu_dp_neo4j_query_duration_seconds` and graph backend health for slow reads
-              4. Tune `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` only after the graph read itself is understood; the snapshot expires after three `ESHU_GRAPH_GAUGE_REFRESH_INTERVAL` periods (default 15m) and the 900s threshold here assumes the default interval
+              3. For graph-backed gauges compare `eshu_dp_neo4j_query_duration_seconds` and graph backend health; for `reducer_`-prefixed gauges check Postgres health and `pg_stat_activity` for a stuck gauge query
+              4. Tune `ESHU_GRAPH_GAUGE_REFRESH_TIMEOUT` (graph gauges) or `ESHU_POSTGRES_GAUGE_REFRESH_TIMEOUT` (`reducer_`-prefixed gauges) only after the backing read itself is understood; a snapshot expires after three refresh intervals (default 15m) and the 900s threshold here assumes the default interval of both pairs
+
+        - alert: EshuIngesterGaugeSnapshotStale
+          expr: |
+            (max by (gauge) (eshu_dp_gauge_snapshot_age_seconds{gauge=~"ingester_.*"}) > 900)
+            or
+            (
+              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{gauge=~"ingester_.*",outcome!="success"}[30m])) > 0
+              unless
+              sum by (gauge) (increase(eshu_dp_gauge_snapshot_refreshes_total{gauge=~"ingester_.*",outcome="success"}[30m])) > 0
+            )
+          for: 5m
+          labels:
+            severity: warning
+            service: eshu-ingester
+            component: collector
+          annotations:
+            summary: "Ingester gauge snapshot {{ $labels.gauge }} is serving a stale snapshot or has none"
+            description: "The background refresh for ingester gauge {{ $labels.gauge }} has not succeeded recently, so the gauge is stale or no longer reporting. The backing Postgres queue read is slow, failing, or timing out."
+            runbook: |
+              1. Check `eshu_dp_gauge_snapshot_refreshes_total{gauge="{{ $labels.gauge }}"}` by `outcome` (`error` vs `timeout`)
+              2. Check ingester logs for `gauge snapshot refresh failed` and `failure_class=gauge_snapshot_refresh_timeout` or `gauge_snapshot_refresh_error`
+              3. Check Postgres health and `pg_stat_activity` for a stuck gauge query
+              4. Tune `ESHU_POSTGRES_GAUGE_REFRESH_TIMEOUT` only after the backing read itself is understood; a snapshot expires after three refresh intervals (default 15m) and the 900s threshold here assumes the default interval

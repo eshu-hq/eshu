@@ -130,16 +130,17 @@ func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraph
 }
 
 // registerReducerObservableGauges wires the reducer's OpenTelemetry observable
-// gauges: queue depth/oldest-age (eshu_dp_queue_depth,
-// eshu_dp_queue_oldest_age_seconds), the active worker-pool gauge
-// (eshu_dp_worker_pool_active, backed by activeWorkers), and the
-// shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
-// and acceptance observers read cheap, bounded queries; the worker observer
-// reads an in-memory atomic counter. The graph-backed gauges
-// (eshu_dp_graph_orphan_nodes, eshu_dp_edges_by_source_tool,
-// eshu_dp_files_by_language) never read the graph on a scrape: a background
-// refresher runs their bounded reads on its own goroutines and the gauge
-// callbacks serve the last snapshot (#7062; see registerGraphBackedGauges).
+// gauges and returns the background refreshers that feed them, graph first
+// then Postgres. The worker-pool gauge (eshu_dp_worker_pool_active, backed by
+// activeWorkers) reads an in-memory atomic counter and stays on the scrape.
+// Every other gauge never touches its backend on a scrape: background
+// refreshers run the bounded graph reads (#7062; see
+// registerGraphBackedGauges) and Postgres reads (#7064; see
+// registerPostgresBackedGauges) on their own goroutines, and the gauge
+// callbacks serve the last snapshot. The poison stuck-gauge is wired
+// unconditionally (unlike the recovery runner) so the dead-letter/poison
+// class is always visible to an operator regardless of whether bounded
+// auto-retry is enabled (#4740).
 // It lives here rather than in main.go to keep that file within the file-size
 // budget.
 func registerReducerObservableGauges(
@@ -151,37 +152,32 @@ func registerReducerObservableGauges(
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 	logger *slog.Logger,
-) (*snapshot.Refresher, error) {
+) (graphRefresher *snapshot.Refresher, postgresRefresher *snapshot.Refresher, err error) {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: database})
 	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
-	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
-		return nil, fmt.Errorf("register observable gauges: %w", err)
+	if err := telemetry.RegisterObservableGauges(instruments, meter, nil, workerObserver); err != nil {
+		return nil, nil, fmt.Errorf("register worker observable gauge: %w", err)
 	}
 
 	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: database})
-	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
-		return nil, fmt.Errorf("register acceptance observable gauge: %w", err)
-	}
 	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})
-	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
-		return nil, fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
-	}
-
 	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: database}, loadGenerationLivenessConfig(getenv))
-	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
-		return nil, fmt.Errorf("register active generation age observable gauge: %w", err)
-	}
-
-	// The poison stuck-gauge is wired unconditionally (unlike the recovery
-	// runner) so the dead-letter/poison class is always visible to an operator
-	// regardless of whether bounded auto-retry is enabled (#4740).
 	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: database})
-	if err := telemetry.RegisterPoisonLivenessObservableGauges(instruments, meter, poisonObserver); err != nil {
-		return nil, fmt.Errorf("register poison liveness observable gauges: %w", err)
+	postgresRefresher, err = registerPostgresBackedGauges(
+		instruments, meter, queueObserver, acceptanceObserver,
+		workflowFamilyQueueObserver, activeGenerationObserver, poisonObserver,
+		getenv, logger,
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return registerGraphBackedGauges(instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
+	graphRefresher, err = registerGraphBackedGauges(instruments, meter, graphReader, graphOrphanObserver, getenv, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	return graphRefresher, postgresRefresher, nil
 }
 
 func graphOrphanObserver(service reducer.Service) telemetry.GraphOrphanObserver {

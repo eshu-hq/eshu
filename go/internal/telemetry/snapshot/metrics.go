@@ -23,14 +23,14 @@ type refreshMetrics struct {
 func newRefreshMetrics(meter metric.Meter, r *Refresher) (*refreshMetrics, error) {
 	refreshes, err := meter.Int64Counter(
 		"eshu_dp_gauge_snapshot_refreshes_total",
-		metric.WithDescription("Total background refreshes of graph-backed observable-gauge snapshots by gauge and outcome (success, error, timeout)"),
+		metric.WithDescription("Total background refreshes of graph- and Postgres-backed observable-gauge snapshots by gauge and outcome (success, error, timeout)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register gauge snapshot refreshes counter: %w", err)
 	}
 	duration, err := meter.Float64Histogram(
 		"eshu_dp_gauge_snapshot_refresh_duration_seconds",
-		metric.WithDescription("Duration of each background graph-backed observable-gauge snapshot refresh by gauge and outcome"),
+		metric.WithDescription("Duration of each background graph- and Postgres-backed observable-gauge snapshot refresh by gauge and outcome"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120),
 	)
@@ -39,7 +39,7 @@ func newRefreshMetrics(meter metric.Meter, r *Refresher) (*refreshMetrics, error
 	}
 	if _, err := meter.Float64ObservableGauge(
 		"eshu_dp_gauge_snapshot_age_seconds",
-		metric.WithDescription("Age in seconds of the snapshot a graph-backed observable gauge currently serves; absent until the first successful refresh"),
+		metric.WithDescription("Age in seconds of the snapshot a graph- or Postgres-backed observable gauge currently serves; absent until the first successful refresh"),
 		metric.WithUnit("s"),
 		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
 			r.observeAges(o)

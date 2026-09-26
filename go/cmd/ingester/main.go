@@ -99,9 +99,13 @@ func run(parent context.Context) error {
 		return err
 	}
 
+	// The queue gauges never query Postgres on a scrape: a background
+	// refresher runs the bounded queue reads on its own goroutines and the
+	// gauge callbacks serve the last snapshot (#7064).
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
-	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {
-		return fmt.Errorf("register observable gauges: %w", err)
+	postgresRefresher, err := registerPostgresQueueGauges(instruments, meter, queueObserver, os.Getenv, logger)
+	if err != nil {
+		return fmt.Errorf("register postgres queue gauges: %w", err)
 	}
 
 	canonicalWriter, canonicalCloser, err := openIngesterCanonicalWriter(parent, postgres.SQLDB{DB: db}, os.Getenv, logger, tracer, instruments)
@@ -169,7 +173,16 @@ func run(parent context.Context) error {
 	}
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+
+	// Start the Postgres gauge refresher under the shutdown context and stop
+	// it before the deferred database close runs (LIFO), so a shutdown never
+	// fails an in-flight refresh read against a closed pool (#7064). stop
+	// runs first so the wait cannot block on a still-live context.
+	waitPostgresGauges := startPostgresQueueGauges(ctx, postgresRefresher)
+	defer func() {
+		stop()
+		waitPostgresGauges()
+	}()
 
 	return service.Run(ctx)
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package snapshot serves graph-backed observable-gauge values from a
-// background-refreshed cache so a slow backend read can never stall the
-// /metrics collection (#7062).
+// Package snapshot serves graph- and Postgres-backed observable-gauge values
+// from a background-refreshed cache so a slow backend read can never stall
+// the /metrics collection (#7062, #7064).
 //
 // An OpenTelemetry observable-gauge callback runs on the meter collection
 // goroutine while the reader holds its collection lock, so a callback that
-// waits on a graph read blocks every scrape behind it. Register a Fetch for
+// waits on a backend read blocks every scrape behind it. Register a Fetch for
 // each gauge with Refresher.Register and hand the returned Source to the gauge
 // callback: Source.Counts is a lock-free read of the last published snapshot
 // and never performs I/O. Refresher.Start runs one deadline-bounded read at a
