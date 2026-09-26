@@ -46,11 +46,12 @@ type claimDeadlockOutcome struct {
 // pg_stat_database because Claim retries a 40P01 internally; any deadlock the
 // server detected fails the test, as does any unexpected claim error.
 //
-// Overlapping leases in one scope are logged, not asserted: they come from a
-// separate race in the unchanged candidate selection (two claimers whose
-// snapshots disagree on the scope's oldest ready row lock different rows) and
-// also occur with the pre-#7108 statement, at a lower rate in this harness
-// (see #7115).
+// A lease-uniqueness auditor also fails the test on any two overlapping
+// projector leases in one scope. Two claimers whose snapshots disagree on the
+// scope's oldest ready row used to lock different rows and both claim (#7115);
+// the scope claim fence now excludes that, so any overlap is a regression.
+// ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_SCOPES widens the scope count, for
+// example to a 10k-scope backlog.
 func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 	dsn := os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN")
 	if dsn == "" {
@@ -71,6 +72,13 @@ func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 		}
 		load.workers = workers
 	}
+	if raw := os.Getenv("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_SCOPES"); raw != "" {
+		scopes, err := strconv.Atoi(raw)
+		if err != nil {
+			t.Fatalf("parse proof scopes: %v", err)
+		}
+		load.scopes = scopes
+	}
 	database := openClaimDeadlockProofDB(t, dsn, load.workers+4)
 	before := serverDeadlockCount(t, database)
 	outcome := runClaimDeadlockLoad(t, database, load)
@@ -90,6 +98,9 @@ func TestProjectorClaimConcurrentLoadHasNoDeadlock(t *testing.T) {
 	}
 	if outcome.claims == 0 {
 		t.Fatal("concurrent claim load claimed nothing; the proof is vacuous")
+	}
+	if outcome.doubleClaims != 0 {
+		t.Fatalf("concurrent claims granted %d overlapping lease pairs in one scope (#7115)", outcome.doubleClaims)
 	}
 }
 
@@ -150,20 +161,19 @@ func openClaimDeadlockProofDB(t *testing.T, dsn string, conns int) *sql.DB {
 // workers, and a lease-uniqueness auditor until the load duration elapses.
 func runClaimDeadlockLoad(t *testing.T, database *sql.DB, load claimDeadlockLoad) *claimDeadlockOutcome {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), load.duration)
-	defer cancel()
 	base := time.Now().UTC()
-	for i := 0; i < load.scopes; i++ {
-		scopeID := fmt.Sprintf("scope-%03d", i)
-		if _, err := database.ExecContext(context.Background(), `
+	if _, err := database.ExecContext(context.Background(), `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status
-) VALUES ($1, 'repository', 'git', $1, 'git', $1, $2, $2, 'active')
-`, scopeID, base); err != nil {
-			t.Fatalf("insert scope: %v", err)
-		}
+)
+SELECT id, 'repository', 'git', id, 'git', id, $2, $2, 'active'
+FROM (SELECT format('scope-%s', CASE WHEN i < 1000 THEN lpad(i::text, 3, '0') ELSE i::text END) AS id FROM generate_series(0, $1 - 1) AS i) AS scopes
+`, load.scopes, base); err != nil {
+		t.Fatalf("insert scopes: %v", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), load.duration)
+	defer cancel()
 	outcome := &claimDeadlockOutcome{}
 	var overlaps sync.Map // distinct overlapping lease pairs
 	var generation atomic.Int64
