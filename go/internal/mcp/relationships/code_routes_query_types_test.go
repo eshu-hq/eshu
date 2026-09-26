@@ -59,8 +59,9 @@ func TestCodeRouteRelationshipsQueryTypesForwardRepoIDAndNameTarget(t *testing.T
 }
 
 // TestCodeRouteRelationshipsQueryTypesPreferExplicitEntityID: an exact
-// entity_id argument is forwarded as entity_id and wins over the target name,
-// so a caller can still anchor on an exact entity (#7216).
+// entity_id argument is forwarded as entity_id alongside the target name, so a
+// caller can still anchor on an exact entity; the handler prefers entity_id
+// over name (#7216).
 func TestCodeRouteRelationshipsQueryTypesPreferExplicitEntityID(t *testing.T) {
 	t.Parallel()
 
@@ -69,6 +70,7 @@ func TestCodeRouteRelationshipsQueryTypesPreferExplicitEntityID(t *testing.T) {
 			t.Parallel()
 			request, _, err := CodeRoute("analyze_code_relationships", routecontract.Arguments{
 				"query_type": queryType,
+				"target":     "checkout",
 				"entity_id":  "entity:checkout",
 				"repo_id":    "repo-1",
 			})
@@ -76,6 +78,9 @@ func TestCodeRouteRelationshipsQueryTypesPreferExplicitEntityID(t *testing.T) {
 				t.Fatalf("CodeRoute() error = %v, want nil", err)
 			}
 			body := requireRequestBody(t, request)
+			if got, want := body["name"], "checkout"; got != want {
+				t.Errorf("body[name] = %#v, want %#v", got, want)
+			}
 			if got, want := body["entity_id"], "entity:checkout"; got != want {
 				t.Errorf("body[entity_id] = %#v, want %#v", got, want)
 			}
