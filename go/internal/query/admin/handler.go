@@ -60,6 +60,7 @@ type Store interface {
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]WorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]WorkItem, error)
 	UnsafeReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]UnsafeReplayTarget, error)
+	SupersededReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]SupersededReplayTarget, error)
 	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
 	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
 	RequestBackfill(ctx context.Context, input BackfillInput) (*BackfillRequest, error)
@@ -227,6 +228,15 @@ type UnsafeReplayTargetFilter struct {
 type UnsafeReplayTarget struct {
 	WorkItemID   string
 	FailureClass string
+}
+
+// SupersededReplayTarget names one replay-eligible terminal projector work
+// item, among an explicit id list, whose scope generation is superseded
+// (#7130). The store never replays such a row, because acking it would try
+// to re-activate a retired generation.
+type SupersededReplayTarget struct {
+	WorkItemID   string
+	GenerationID string
 }
 
 // BackfillInput captures the parameters for a backfill request.

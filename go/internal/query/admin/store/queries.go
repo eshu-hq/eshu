@@ -8,11 +8,25 @@ import (
 	"strings"
 )
 
+// supersededProjectorGenerationFence excludes projector rows whose scope
+// generation is superseded (#7130). Replaying one would let Ack try to
+// re-activate a retired generation. The unqualified column resolves to the
+// selection CTE's fact_work_items row.
+const supersededProjectorGenerationFence = `      AND NOT (stage = 'projector' AND EXISTS (
+          SELECT 1 FROM scope_generations AS fenced_generation
+          WHERE fenced_generation.generation_id = fact_work_items.generation_id
+            AND fenced_generation.status = 'superseded'))
+`
+
+// buildMutatingWorkItemsQuery renders a bounded select-then-update over
+// terminal work items. fenceSupersededProjector adds the #7130 fence; the
+// replay sets it and the dead-letter mutation does not.
 func buildMutatingWorkItemsQuery(
 	workItemIDs []string,
 	scopeID, stage, failureClass string,
 	limit int,
 	baseArgCount int,
+	fenceSupersededProjector bool,
 	updateClause string,
 	excludeFailureClasses ...string,
 ) (string, []any) {
@@ -44,6 +58,9 @@ WITH selected AS (
 		args = append(args, excludeFailureClasses)
 		// Skip unsafe-to-replay classes; NULL failure_class is never excluded.
 		_, _ = fmt.Fprintf(&builder, "      AND (failure_class IS NULL OR failure_class <> ALL($%d))\n", len(args)+baseArgCount)
+	}
+	if fenceSupersededProjector {
+		builder.WriteString(supersededProjectorGenerationFence)
 	}
 	if limit <= 0 {
 		limit = 100

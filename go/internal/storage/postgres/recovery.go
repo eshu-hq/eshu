@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
@@ -120,6 +121,10 @@ type RecoveryStore struct {
 	// RecoveryStoreOption so existing constructors keep working.
 	refinalizeDrainTimeout time.Duration
 	refinalizeDrainPoll    time.Duration
+
+	// instruments records the superseded-generation replay fence counter.
+	// Nil is a no-op.
+	instruments *telemetry.Instruments
 }
 
 // resetQueryer adapts Transaction to reset.Queryer. The row
@@ -155,6 +160,15 @@ func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
 	}
 }
 
+// WithRecoveryInstruments records eshu_dp_superseded_generation_fence_total
+// when a replay leaves superseded-generation projector rows in place. Nil
+// keeps the store uninstrumented.
+func WithRecoveryInstruments(instruments *telemetry.Instruments) RecoveryStoreOption {
+	return func(s *RecoveryStore) {
+		s.instruments = instruments
+	}
+}
+
 // NewRecoveryStore constructs a Postgres-backed recovery store.
 func NewRecoveryStore(database db.ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
 	s := RecoveryStore{database: database}
@@ -175,12 +189,22 @@ type replayPredicate struct {
 	args   []any
 }
 
-// buildReplayPredicate renders the stage, scope, failure-class, and
-// manual-review-exclusion predicates shared by the replay UPDATE and the backlog
-// COUNT. Both call it so a count can never select a different row set than the
-// replay it precedes, and the exclusion is applied uniformly: an unscoped drain
-// that selects a broad set still cannot move a manual-review (poison) row.
+// buildReplayPredicate renders the stage, scope, failure-class,
+// manual-review-exclusion, and superseded-generation predicates shared by the
+// replay UPDATE and the backlog COUNT. Both call it so a count can never select
+// a different row set than the replay it precedes, and the exclusions apply
+// uniformly: an unscoped drain that selects a broad set still cannot move a
+// manual-review (poison) row or a superseded-generation projector row.
 func buildReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) replayPredicate {
+	predicate := buildUnfencedReplayPredicate(filter, startPlaceholder)
+	predicate.clause += "\n      AND NOT " + supersededProjectorGenerationFence
+	return predicate
+}
+
+// buildUnfencedReplayPredicate renders the filter predicates without the
+// superseded-generation fence; countSupersededReplaySkipsTemplate adds the
+// fence in its positive form to count what the replay skipped.
+func buildUnfencedReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) replayPredicate {
 	var (
 		clauses = []string{fmt.Sprintf("AND stage = $%d", startPlaceholder)}
 		args    = []any{string(filter.Stage)}
@@ -278,11 +302,35 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", err)
 	}
 
+	skipped, err := s.countSupersededReplaySkips(ctx, filter)
+	if err != nil {
+		return recovery.ReplayResult{}, err
+	}
+	recordSupersededGenerationFence(ctx, s.instruments, projectorReplayGenerationSupersededClass, skipped)
+
 	return recovery.ReplayResult{
-		Stage:       filter.Stage,
-		Replayed:    len(workItemIDs),
-		WorkItemIDs: workItemIDs,
+		Stage:                       filter.Stage,
+		Replayed:                    len(workItemIDs),
+		WorkItemIDs:                 workItemIDs,
+		SkippedSupersededGeneration: skipped,
 	}, nil
+}
+
+// countSupersededReplaySkips counts the terminal projector rows matching
+// filter that the replay fence left in place. It runs after the replay, so
+// the rows it counts are exactly those still terminal on superseded
+// generations; a non-projector filter skips nothing and costs no query.
+func (s RecoveryStore) countSupersededReplaySkips(ctx context.Context, filter recovery.ReplayFilter) (int, error) {
+	if filter.Stage != recovery.StageProjector {
+		return 0, nil
+	}
+	predicate := buildUnfencedReplayPredicate(filter, 1)
+	var skipped int
+	if err := queryCount(ctx, s.database, fmt.Sprintf(countSupersededReplaySkipsTemplate, predicate.clause),
+		predicate.args, &skipped); err != nil {
+		return 0, fmt.Errorf("count superseded replay skips: %w", err)
+	}
+	return skipped, nil
 }
 
 // CountDeadLetterBacklog reports how many terminal rows match the filter before
@@ -298,25 +346,28 @@ func (s RecoveryStore) CountDeadLetterBacklog(
 	}
 
 	predicate := buildReplayPredicate(filter, 1)
-	query := fmt.Sprintf(countDeadLetterBacklogTemplate, predicate.clause)
-
-	rows, err := s.database.QueryContext(ctx, query, predicate.args...)
-	if err != nil {
+	var depth int
+	if err := queryCount(ctx, s.database, fmt.Sprintf(countDeadLetterBacklogTemplate, predicate.clause),
+		predicate.args, &depth); err != nil {
 		return 0, fmt.Errorf("count dead letter backlog: %w", err)
+	}
+	return depth, nil
+}
+
+// queryCount runs a single-row COUNT query and scans it into out. An empty
+// result leaves out at zero.
+func queryCount(ctx context.Context, database db.ExecQueryer, query string, args []any, out *int) error {
+	rows, err := database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
 	}
 	defer func() { _ = rows.Close() }()
-
-	var depth int
 	if rows.Next() {
-		if scanErr := rows.Scan(&depth); scanErr != nil {
-			return 0, fmt.Errorf("count dead letter backlog: %w", scanErr)
+		if err := rows.Scan(out); err != nil {
+			return err
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("count dead letter backlog: %w", err)
-	}
-
-	return depth, nil
+	return rows.Err()
 }
 
 // ReplayCollectorGenerations marks collector generation commit failures for

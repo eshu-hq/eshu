@@ -19,6 +19,7 @@ func TestRecoveryStoreReplayFailedWorkItemsDefaultFilter(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}, {"item-2"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -43,8 +44,14 @@ func TestRecoveryStoreReplayFailedWorkItemsDefaultFilter(t *testing.T) {
 		t.Fatalf("result.WorkItemIDs = %v, want [item-1, item-2]", result.WorkItemIDs)
 	}
 
-	if len(db.queries) != 1 {
-		t.Fatalf("query count = %d, want 1", len(db.queries))
+	// The replay statement, then the superseded-generation skip count.
+	if len(db.queries) != 2 {
+		t.Fatalf("query count = %d, want 2", len(db.queries))
+	}
+	if !strings.Contains(db.queries[0].query, "AND NOT (stage = 'projector'") ||
+		!strings.Contains(db.queries[1].query, "fenced_generation.status = 'superseded'") {
+		t.Fatalf("replay lacks the superseded-generation fence or skip count:\n%s\n%s",
+			db.queries[0].query, db.queries[1].query)
 	}
 	if !strings.Contains(db.queries[0].query, "status IN ('dead_letter', 'failed')") {
 		t.Fatalf("query missing terminal filter: %s", db.queries[0].query)
@@ -165,6 +172,7 @@ func TestRecoveryStoreReplayFailedWorkItemsByClassFilter(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-4"}, {"item-5"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -191,6 +199,7 @@ func TestRecoveryStoreReplayFailedWorkItemsByScopeAndClassFilter(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-6"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -224,6 +233,7 @@ func TestRecoveryStoreReplayFailedWorkItemsReturnsEmptyOnNoMatches(t *testing.T)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -283,6 +293,7 @@ func TestRecoveryStoreReplayFailedWorkItemsExcludesManualReviewClasses(t *testin
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -316,6 +327,7 @@ func TestRecoveryStoreReplayFailedWorkItemsDropsBlankExclusions(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 

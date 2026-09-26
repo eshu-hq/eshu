@@ -86,6 +86,12 @@ func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Refuse explicit work_item_ids on superseded generations (#7130). force
+	// does not apply, so this runs before the force-gated unsafe-class check.
+	if h.refuseSupersededExplicitReplay(w, r, req, authCtx, correlationID) {
+		return
+	}
+
 	// Refuse explicit work_item_ids that resolve to unsafe or manual-review rows
 	// (#7120): the store-side exclusion would otherwise skip them and answer
 	// 200 with replayed_count 0.

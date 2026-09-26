@@ -22,9 +22,10 @@ func TestHandlerDrainBacklogReplaysOnlyDrainableClasses(t *testing.T) {
 	store := &fakeReplayStore{
 		drainDepth: 376,
 		replayResult: ReplayResult{
-			Stage:       StageProjector,
-			Replayed:    224,
-			WorkItemIDs: []string{"item-1", "item-2"},
+			Stage:                       StageProjector,
+			Replayed:                    224,
+			WorkItemIDs:                 []string{"item-1", "item-2"},
+			SkippedSupersededGeneration: 5,
 		},
 	}
 	handler := mustNewHandler(t, store)
@@ -41,6 +42,9 @@ func TestHandlerDrainBacklogReplaysOnlyDrainableClasses(t *testing.T) {
 	}
 	if result.BacklogDepthBefore != 376 {
 		t.Fatalf("DrainBacklog() BacklogDepthBefore = %d, want 376", result.BacklogDepthBefore)
+	}
+	if result.SkippedSupersededGeneration != 5 {
+		t.Fatalf("DrainBacklog() SkippedSupersededGeneration = %d, want 5", result.SkippedSupersededGeneration)
 	}
 
 	// The drain must hand the store the manual-review classes as a hard

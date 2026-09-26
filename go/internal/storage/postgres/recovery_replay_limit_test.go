@@ -24,6 +24,7 @@ func TestRecoveryStoreReplayFailedWorkItemsLimitBoundsUpdateNotJustScan(t *testi
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}, {"item-2"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -62,6 +63,7 @@ func TestRecoveryStoreReplayFailedWorkItemsUnlimitedUsesSimpleTemplate(t *testin
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}, {"item-2"}, {"item-3"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 
@@ -96,6 +98,7 @@ func TestRecoveryStoreReplayFailedWorkItemsBoundedDrainPlacesPredicateAfterLimit
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"item-1"}}},
+			{rows: [][]any{{0}}}, // superseded-generation skip count (#7130)
 		},
 	}
 

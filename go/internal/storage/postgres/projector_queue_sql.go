@@ -286,6 +286,10 @@ WHERE work.work_item_id = owned_work.work_item_id
 // it refuses to activate a generation that is already superseded (#7130).
 const projectorAckGenerationSupersededClass = "projector_ack_generation_superseded"
 
+// projectorReplayGenerationSupersededClass labels projector rows a replay left
+// terminal because their generation is superseded (#7130).
+const projectorReplayGenerationSupersededClass = "projector_replay_generation_superseded"
+
 // markProjectorAckSupersededQuery ends a claimed projector work item whose
 // generation Ack refused to activate. It runs after the Ack transaction rolled
 // back, as one statement that locks only the work row, so it cannot join a
@@ -316,4 +320,24 @@ WHERE work.stage = 'projector'
   AND generation.scope_id = work.scope_id
   AND generation.generation_id = work.generation_id
   AND generation.status = 'superseded'
+`
+
+// supersededProjectorGenerationFence matches a projector row whose scope
+// generation is superseded (#7130). superseded is terminal, and acking such a
+// row would try to re-activate the retired generation, so replay leaves these
+// rows terminal. The fence is projector-only; reducer work keeps its own
+// generation handling. The unqualified column resolves to the fact_work_items
+// row of the innermost enclosing query in every template that uses it.
+const supersededProjectorGenerationFence = `(stage = 'projector' AND EXISTS (
+          SELECT 1 FROM scope_generations AS fenced_generation
+          WHERE fenced_generation.generation_id = fact_work_items.generation_id
+            AND fenced_generation.status = 'superseded'))`
+
+// countSupersededReplaySkipsTemplate counts the rows the replay fence left in
+// place for the same filter. %s is the unfenced predicate, from $1.
+const countSupersededReplaySkipsTemplate = `
+SELECT COUNT(*) FROM fact_work_items
+WHERE status IN ('dead_letter', 'failed')
+  %s
+  AND ` + supersededProjectorGenerationFence + `
 `

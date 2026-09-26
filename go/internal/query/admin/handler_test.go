@@ -62,21 +62,26 @@ type stubAdminStore struct {
 	unsafeTargetsErr error
 	unsafeFilter     UnsafeReplayTargetFilter
 	unsafeCalls      int
-	claim            ReplayIdempotencyClaim
-	claimErr         error
-	claimKey         string
-	claimCalls       int
-	completeErr      error
-	completedKey     string
-	completed        bool
-	backfillRow      *BackfillRequest
-	backfillErr      error
-	replayEvents     []ReplayEvent
-	replayEvtErr     error
-	decisions        []DecisionRow
-	decisionsErr     error
-	evidence         []EvidenceRow
-	evidenceErr      error
+
+	supersededTargets []SupersededReplayTarget
+	supersededErr     error
+	supersededFilter  UnsafeReplayTargetFilter
+	supersededCalls   int
+	claim             ReplayIdempotencyClaim
+	claimErr          error
+	claimKey          string
+	claimCalls        int
+	completeErr       error
+	completedKey      string
+	completed         bool
+	backfillRow       *BackfillRequest
+	backfillErr       error
+	replayEvents      []ReplayEvent
+	replayEvtErr      error
+	decisions         []DecisionRow
+	decisionsErr      error
+	evidence          []EvidenceRow
+	evidenceErr       error
 
 	inputInvalidFactRows   []InputInvalidFact
 	inputInvalidFactFilter InputInvalidFactListFilter
@@ -114,6 +119,12 @@ func (s *stubAdminStore) UnsafeReplayTargets(_ context.Context, f UnsafeReplayTa
 	s.unsafeCalls++
 	s.unsafeFilter = f
 	return s.unsafeTargets, s.unsafeTargetsErr
+}
+
+func (s *stubAdminStore) SupersededReplayTargets(_ context.Context, f UnsafeReplayTargetFilter) ([]SupersededReplayTarget, error) {
+	s.supersededCalls++
+	s.supersededFilter = f
+	return s.supersededTargets, s.supersededErr
 }
 
 func (s *stubAdminStore) ClaimReplayIdempotency(_ context.Context, key, _ string, _ time.Time) (ReplayIdempotencyClaim, error) {
