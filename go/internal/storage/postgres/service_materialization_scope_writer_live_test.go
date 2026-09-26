@@ -6,11 +6,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // TestServiceMaterializationWriterKeepsScopedLineagesLive drives the production
@@ -151,14 +153,15 @@ WHERE service_id = 'svc-shared' AND status = 'active'`)
 	}
 }
 
-// TestServiceChangedSinceResolvePicksAttributedNewestActiveLive pins the
-// changed-since reader's active pick once #6475 lets one service id hold more
-// than one active generation (one per ingestion scope, plus an unattributed
-// legacy row whose backfill witness aged out). The reader is not scope-aware
-// until #6475 part B, so the pick must be deterministic and must not serve the
-// stale unattributed row: attributed rows first, then the newest activation,
-// then the generation id. Each case seeds its rows in both insert orders, so
-// a pick that follows heap or index order cannot pass by accident.
+// TestServiceChangedSinceResolvePicksAttributedNewestActiveLive pins how the
+// changed-since reader chooses among a service id's active lineages for an
+// unscoped caller (#6475 part B). A service id holds one active generation per
+// ingestion scope plus, possibly, an unattributed legacy row whose backfill
+// witness aged out. The unattributed row never wins beside an attributed one
+// -- the writer never supersedes it, so it is stale by construction -- and two
+// attributed lineages are never picked between: the reader reports both scope
+// ids, sorted. Each case seeds its rows in both insert orders, so an answer
+// that follows heap or index order cannot pass by accident.
 func TestServiceChangedSinceResolvePicksAttributedNewestActiveLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
@@ -178,15 +181,17 @@ func TestServiceChangedSinceResolvePicksAttributedNewestActiveLive(t *testing.T)
 	scopedNew := seedRow{generationID: "gen-scoped-new", scopeID: sql.NullString{String: "scope-a", Valid: true}, age: "1 hour"}
 	scopedOld := seedRow{generationID: "gen-scoped-old", scopeID: sql.NullString{String: "scope-b", Valid: true}, age: "2 days"}
 
+	bothScopes := []string{"scope-a", "scope-b"}
 	cases := []struct {
-		name string
-		rows []seedRow
-		want string
+		name          string
+		rows          []seedRow
+		want          string
+		wantAmbiguous []string
 	}{
 		{name: "legacy-first", rows: []seedRow{legacy, scopedNew}, want: scopedNew.generationID},
 		{name: "scoped-first", rows: []seedRow{scopedNew, legacy}, want: scopedNew.generationID},
-		{name: "older-scope-first", rows: []seedRow{scopedOld, scopedNew}, want: scopedNew.generationID},
-		{name: "newer-scope-first", rows: []seedRow{scopedNew, scopedOld}, want: scopedNew.generationID},
+		{name: "older-scope-first", rows: []seedRow{scopedOld, scopedNew}, wantAmbiguous: bothScopes},
+		{name: "newer-scope-first", rows: []seedRow{scopedNew, scopedOld}, wantAmbiguous: bothScopes},
 		{name: "legacy-newest-still-loses", rows: []seedRow{{generationID: "gen-legacy", age: "1 minute"}, scopedOld}, want: scopedOld.generationID},
 	}
 	for _, tc := range cases {
@@ -210,9 +215,21 @@ VALUES ($1, $2, $3, 'service_catalog_correlation',
 		serviceID := "svc-resolve-" + tc.name
 		// Repeat the read: a nondeterministic pick can pass once.
 		for attempt := 0; attempt < 3; attempt++ {
-			scope, found, err := store.resolveServiceChangedSinceScope(ctx, serviceID)
-			if err != nil || !found {
-				t.Fatalf("%s: resolve = found %v, err %v", tc.name, found, err)
+			filter := statuspkg.ServiceChangedSinceFilter{ServiceID: serviceID}
+			lineages, err := store.resolveServiceChangedSinceLineages(ctx, filter)
+			if err != nil {
+				t.Fatalf("%s: resolve: %v", tc.name, err)
+			}
+			scope, ambiguous, found := selectServiceChangedSinceLineage(filter, lineages)
+			if tc.wantAmbiguous != nil {
+				if !reflect.DeepEqual(ambiguous, tc.wantAmbiguous) {
+					t.Errorf("%s: ambiguous scopes = %v, want %v", tc.name, ambiguous, tc.wantAmbiguous)
+					break
+				}
+				continue
+			}
+			if !found {
+				t.Fatalf("%s: resolve found no lineage; ambiguous = %v", tc.name, ambiguous)
 			}
 			if want := serviceID + "/" + tc.want; scope.currentGenerationID != want {
 				t.Errorf("%s: current active generation = %q, want %q", tc.name, scope.currentGenerationID, want)

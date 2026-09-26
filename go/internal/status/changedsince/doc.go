@@ -33,6 +33,13 @@
 // #1989) evidence families; the remaining family (vulnerabilities) appends
 // to ServiceCategories as it lands.
 //
+// A service id holds one lineage per ingestion scope (#6475), so
+// ServiceFilter also carries an optional ScopeID selector and the caller's
+// grant (Scoped, AllowedRepositoryIDs, AllowedScopeIDs), which the reader
+// binds on each lineage row's scope_id. When more than one admitted scope
+// holds a lineage and no ScopeID was given, ServiceSummary lists them in
+// AmbiguousScopeIDs (bounded by MaxServiceScopeCandidates) instead of a diff.
+//
 // Timestamp formats a database timestamp as RFC3339 UTC, or the empty
 // string for a zero value — the same shape the generation lifecycle
 // drilldown's own timestamp helper promises to keep in lockstep.
