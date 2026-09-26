@@ -49,7 +49,7 @@ export async function seedGraphRepository(repoRoot: string, project: string, rep
       "-u",
       "neo4j",
       "-p",
-      "change-me",
+      process.env.ESHU_NEO4J_PASSWORD ?? "change-me",
       "--format",
       "plain",
       "-P",
