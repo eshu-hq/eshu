@@ -253,85 +253,70 @@ DELETE FROM shared_projection_unroutable_intents
 WHERE generation_id = ANY($1::text[])
 `
 
+// pruneContentFileReferencesForGenerationsQuery deletes the content_file_references
+// rows whose only live facts sit in the pruned generations. One grouped pass
+// over the live facts of the kind keeps a key when any generation outside $1
+// still holds it, so no join pairs two scans of fact_records and no plan can
+// rescan the retained facts once per candidate key.
+// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
+// planner had no statistics, minutes of work for a few thousand keys (#6809).
 const pruneContentFileReferencesForGenerationsQuery = `
-WITH candidate_files AS (
-    SELECT DISTINCT
-        payload->>'repo_id' AS repo_id,
-        payload->>'relative_path' AS relative_path
+WITH doomed AS (
+    SELECT payload->>'repo_id' AS repo_id, payload->>'relative_path' AS relative_path
     FROM fact_records
-    WHERE generation_id = ANY($1::text[])
-      AND fact_kind = 'file'
-      AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> ''
-      AND payload->>'relative_path' <> ''
+    WHERE fact_kind = 'file' AND is_tombstone = FALSE
+      AND payload->>'repo_id' <> '' AND payload->>'relative_path' <> ''
+    GROUP BY 1, 2
+    HAVING bool_or(generation_id = ANY($1::text[]))
+       AND NOT bool_or(generation_id <> ALL($1::text[]))
 )
-DELETE FROM content_file_references AS ref
-USING candidate_files AS candidate
-WHERE ref.repo_id = candidate.repo_id
-  AND ref.relative_path = candidate.relative_path
-  AND NOT EXISTS (
-      SELECT 1
-      FROM fact_records AS retained
-      WHERE retained.generation_id <> ALL($1::text[])
-        AND retained.fact_kind = 'file'
-        AND retained.is_tombstone = FALSE
-        AND retained.payload->>'repo_id' = ref.repo_id
-        AND retained.payload->>'relative_path' = ref.relative_path
-  )
+DELETE FROM content_file_references AS t
+USING doomed AS d
+WHERE t.repo_id = d.repo_id AND t.relative_path = d.relative_path
 `
 
+// pruneContentEntitiesForGenerationsQuery deletes the content_entities
+// rows whose only live facts sit in the pruned generations. One grouped pass
+// over the live facts of the kind keeps a key when any generation outside $1
+// still holds it, so no join pairs two scans of fact_records and no plan can
+// rescan the retained facts once per candidate key.
+// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
+// planner had no statistics, minutes of work for a few thousand keys (#6809).
 const pruneContentEntitiesForGenerationsQuery = `
-WITH candidate_entities AS (
-    SELECT DISTINCT
-        payload->>'repo_id' AS repo_id,
-        payload->>'entity_id' AS entity_id
+WITH doomed AS (
+    SELECT payload->>'repo_id' AS repo_id, payload->>'entity_id' AS entity_id
     FROM fact_records
-    WHERE generation_id = ANY($1::text[])
-      AND fact_kind = 'content_entity'
-      AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> ''
-      AND payload->>'entity_id' <> ''
+    WHERE fact_kind = 'content_entity' AND is_tombstone = FALSE
+      AND payload->>'repo_id' <> '' AND payload->>'entity_id' <> ''
+    GROUP BY 1, 2
+    HAVING bool_or(generation_id = ANY($1::text[]))
+       AND NOT bool_or(generation_id <> ALL($1::text[]))
 )
-DELETE FROM content_entities AS entity
-USING candidate_entities AS candidate
-WHERE entity.repo_id = candidate.repo_id
-  AND entity.entity_id = candidate.entity_id
-  AND NOT EXISTS (
-      SELECT 1
-      FROM fact_records AS retained
-      WHERE retained.generation_id <> ALL($1::text[])
-        AND retained.fact_kind = 'content_entity'
-        AND retained.is_tombstone = FALSE
-        AND retained.payload->>'repo_id' = entity.repo_id
-        AND retained.payload->>'entity_id' = entity.entity_id
-  )
+DELETE FROM content_entities AS t
+USING doomed AS d
+WHERE t.repo_id = d.repo_id AND t.entity_id = d.entity_id
 `
 
+// pruneContentFilesForGenerationsQuery deletes the content_files
+// rows whose only live facts sit in the pruned generations. One grouped pass
+// over the live facts of the kind keeps a key when any generation outside $1
+// still holds it, so no join pairs two scans of fact_records and no plan can
+// rescan the retained facts once per candidate key.
+// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
+// planner had no statistics, minutes of work for a few thousand keys (#6809).
 const pruneContentFilesForGenerationsQuery = `
-WITH candidate_files AS (
-    SELECT DISTINCT
-        payload->>'repo_id' AS repo_id,
-        payload->>'relative_path' AS relative_path
+WITH doomed AS (
+    SELECT payload->>'repo_id' AS repo_id, payload->>'relative_path' AS relative_path
     FROM fact_records
-    WHERE generation_id = ANY($1::text[])
-      AND fact_kind = 'file'
-      AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> ''
-      AND payload->>'relative_path' <> ''
+    WHERE fact_kind = 'file' AND is_tombstone = FALSE
+      AND payload->>'repo_id' <> '' AND payload->>'relative_path' <> ''
+    GROUP BY 1, 2
+    HAVING bool_or(generation_id = ANY($1::text[]))
+       AND NOT bool_or(generation_id <> ALL($1::text[]))
 )
-DELETE FROM content_files AS file
-USING candidate_files AS candidate
-WHERE file.repo_id = candidate.repo_id
-  AND file.relative_path = candidate.relative_path
-  AND NOT EXISTS (
-      SELECT 1
-      FROM fact_records AS retained
-      WHERE retained.generation_id <> ALL($1::text[])
-        AND retained.fact_kind = 'file'
-        AND retained.is_tombstone = FALSE
-        AND retained.payload->>'repo_id' = file.repo_id
-        AND retained.payload->>'relative_path' = file.relative_path
-  )
+DELETE FROM content_files AS t
+USING doomed AS d
+WHERE t.repo_id = d.repo_id AND t.relative_path = d.relative_path
 `
 
 const deleteScopeGenerationsForRetentionQuery = `

@@ -147,28 +147,19 @@ the query (it joins `iac_reachability_rows` and counts `ref.repo_id`) and the
 probe now runs on a bootstrapped database without a skip.
 
 The lock-hold table above was measured before this fix, on the patched view and
-surrogate column, and before the probe analyzed its seed. It was not re-measured
-on the fixed statement.
+surrogate column. A later run of the same probe on the fixed statements, a cold
+database with autovacuum off and no `ANALYZE` (laptop-local, remote numbers
+pending), gave retention 1.25 / 1.41 / 1.65s per batch, lock hold 0.69 / 0.70 /
+0.77s, and a same-repository derive wait of 0.86 / 0.74 / 0.87s against an idle
+baseline of 5-6ms. That is one three-round run, not a replacement for the table.
 
-Plan cliff behind the added `ANALYZE` (Postgres 18, 10 superseded generations of
-5,000 `content_entity` facts and 5,000 `content_entities` rows each, autovacuum
-off, `EXPLAIN (ANALYZE, BUFFERS)` of `pruneContentEntitiesForGenerationsQuery`
-rolled back):
-
-- With no planner statistics (`reltuples = -1` on both tables) the planner
-  estimated 3 candidate rows and chose a Nested Loop Anti Join whose inner side
-  is a Bitmap Heap Scan of `fact_records retained` with no Materialize. The
-  scan was estimated at 55 rows and rescanned once per candidate row. The
-  statement was cancelled by a 150s `statement_timeout` without finishing.
-- After `ANALYZE fact_records, content_entities` the planner estimated 49,501
-  candidates, hash-joined them, and put a Materialize over the retained scan
-  (`loops=50000`, one scan of 1,352 buffers). Execution time was 428.8ms.
-
-That is a real plan cliff on the production statement, not only a probe
-artifact: retention that runs right after a bulk ingest and before autovacuum
-analyzes `fact_records` and `content_entities` can plan the cold shape. The
-probe analyzes its seed to match a production table with statistics; the
-statement itself is unchanged here and needs its own follow-up.
+The content_entities prune used to hit a plan cliff on a database with no
+planner statistics: measured over 150s cold against 429ms analyzed, on the
+statement as it was when this probe first ran. #6809 replaced the three content
+prunes with a single grouped pass that does not depend on statistics, so the
+probe no longer needs to analyze its seed. The plans, the measurements, and
+their laptop-only status are in
+[6809-retention-content-prune-plan.md](6809-retention-content-prune-plan.md).
 
 ## Concurrency
 

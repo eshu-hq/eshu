@@ -77,15 +77,6 @@ FROM generate_series(1, $2::int) g, generate_series(1, $3::int) e`,
 	if _, err := inventory.MirrorRepo(ctx, postgres.SQLDB{DB: sqlDB}, repo); err != nil {
 		t.Fatalf("MirrorRepo(%s) error = %v", repo, err)
 	}
-	// Bulk-seeded tables have no planner statistics until autovacuum runs. Without
-	// them the content_entities prune plans a Nested Loop Anti Join that rescans
-	// fact_records once per candidate row and outlives the test deadline
-	// (measured in docs/internal/evidence/6793-infra-read-model.md: over 150s cold,
-	// 429ms after ANALYZE). Production tables carry autovacuum statistics, so
-	// analyze to match; the cold-statistics plan is a separate follow-up.
-	if _, err := sqlDB.ExecContext(ctx, `ANALYZE fact_records, content_entities, infra_resource_entities`); err != nil {
-		t.Fatalf("analyze seeded tables: %v", err)
-	}
 }
 
 // watchAdvisoryLockHold polls pg_locks on its own connection until stop closes
