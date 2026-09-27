@@ -1858,6 +1858,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "#7088 disposable Postgres backfill and contention proof; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+  - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7088 disposable Postgres upgrade proof from shipped migration 138; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
   - file: go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go
     tag: ~
     class: scheduled
