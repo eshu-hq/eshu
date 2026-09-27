@@ -7,12 +7,15 @@ docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
   s_b0d7e3abc26c5a::t_038d456f5e7c32 268
 go/internal/storage/postgres/issue7033_scoped_rollout_legacy_test.go
   s_b0d7e3abc26c5a::t_f973e754d8a3fa 1-104,106-123,125-126,128-132,134-209
+  s_b0d7e3abc26c5a::t_f6d0bd007f5c7c 105,124,127,133
 go/internal/storage/postgres/issue7033_scoped_rollout_legacy_live_test.go
   s_b0d7e3abc26c5a::t_af6a0b042bf7d6 1-39,41-50
+  s_b0d7e3abc26c5a::t_f6d0bd007f5c7c 40
 go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
   s_b0d7e3abc26c5a::t_292879866c4ae6 355
   s_b0d7e3abc26c5a::t_fbad5597e47860 161
   s_b0d7e3abc26c5a::t_af6a0b042bf7d6 341-350,353-354,407,435
+  s_b0d7e3abc26c5a::t_f6d0bd007f5c7c 66,162
 ---
 {
   "schema_version": "authorship/3.0.0",
