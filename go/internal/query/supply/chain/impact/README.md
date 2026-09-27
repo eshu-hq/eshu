@@ -190,6 +190,41 @@ only their package qualifier changed).
   vocabularies pinned by readiness tests on both sides of the move;
   adding a member means updating the normalization, the SQL legs, and
   both suites.
+- `package.consumption` never treats fleet-wide manifest rows as evidence for
+  a package, CVE, digest, or image anchor. The read model resolves canonical
+  package identities in one repeatable-read snapshot, intersects combined
+  anchors, and fails coverage closed while the consumption sidecar is dirty,
+  backfilling, or has ambiguous registry-key ownership. A trusted
+  default-registry PURL or package ID can use source manifest evidence without
+  a registry owner row. Repository-only reads retain their active repository
+  index path.
+- Image-reference targets batch the current digest set and active registry identity
+  lookups. SBOM component counts join each active component to its active
+  document by scope, generation, and document ID; the subject digest is on the
+  document. This keeps the component family and package target anchored to the
+  same source evidence.
+- Performance Evidence: on disposable PostgreSQL 18, a 513-digest image with
+  513 package-ID-only components required 515 sequential target queries before
+  batching and three after. A representative 80k-registry-fact shim measured
+  513 point lookups at 347.013 ms median versus one 513-ID array lookup at
+  13.642 ms median. The document-to-component index shim measured 2362.449 ms
+  without its index versus 0.297 ms with it on 6k documents and 18k components.
+  The exact SBOM-warning query over 513 target documents and 513 unrelated
+  active warnings fell from 830.324/818.126 ms custom/generic to
+  1.973/3.791 ms with a partial document-ID index; cross-scope warning results
+  were identical. On matched 10k warning inserts, indexed median was 59.991 ms
+  versus 36.619 ms without the index (+23.372 ms); unrelated insert runs were
+  too variable to establish a regression. Two full 513-component reads after
+  the index took 60.849 and 49.440 ms. Local full-read samples before the
+  index ranged from 634 ms to 1.556 s; those were not controlled comparisons
+  or deployed endpoint p95 proof.
+- No-Regression Evidence: the disposable live tests assert exact manifest and
+  SBOM component counts for digest anchors, 513 current image digests, 513
+  package IDs, and at most three resolver SQL calls. A duplicate document ID
+  across two active scopes retains the warning by document-ID semantics. Tests
+  also cover CVE PURL and package-ID-only targets, absent packages, collisions,
+  and unready fences.
+
 - The winners-read cutover (`ReadFromWinners`,
   `WinnersReadEnv`) keeps output byte-identical
   between the legacy dedup and the maintained read model; the

@@ -312,7 +312,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// INSERT trigger on ingestion_scopes and a backfill. Numbered 130, after
 	// #6475's 126-129.
 	"projector_scope_claim_fences",
-	// #7237 adds an ordered partial index for active semantic code hints.
+	// #7237 adds ordered partial indexes for semantic code hints and repo paths.
 	"fact_records_semantic_code_hint_order_idx",
 	"content_entities_repo_path_start_idx",
 	// Migration 133 (#7242) narrows repository-context entry-point reads.
@@ -328,4 +328,11 @@ var orderedBootstrapDefinitionNames = []string{
 	"content_files_repo_path_pattern_idx",
 	// Migration 138 (#7125) creates the hardcoded-secret side table after its content_files dependencies.
 	"content_file_secret_lines",
+	// Migrations 139-144 (#7088) add the package-consumption read model and target indexes.
+	"package_manifest_consumption_keys",
+	"supply_chain_readiness_target_indexes",
+	"supply_chain_readiness_sbom_component_index",
+	"supply_chain_readiness_package_registry_index",
+	"package_registry_identity_keys",
+	"supply_chain_readiness_sbom_warning_document_index",
 }

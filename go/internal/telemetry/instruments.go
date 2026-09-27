@@ -948,6 +948,22 @@ type Instruments struct {
 	// backoff). failed without a later completed means readers are still on the
 	// graph path.
 	InfraInventoryBackfillRuns metric.Int64Counter
+	// PackageManifestBackfillPasses counts elected, contended, and failed
+	// sidecar-repair passes by the closed outcome set.
+	PackageManifestBackfillPasses metric.Int64Counter
+	// PackageManifestBackfillDuration measures each election and repair pass.
+	PackageManifestBackfillDuration metric.Float64Histogram
+	// PackageManifestBackfillLastSuccess is the Unix second of the last
+	// successful elected pass; time() minus this gauge is pass age.
+	PackageManifestBackfillLastSuccess metric.Int64Gauge
+	// PackageManifestBackfillDirtyScopes is a capped dirty-scope count from
+	// the elected pass. Its ceiling of 26 means more than one pass remains.
+	PackageManifestBackfillDirtyScopes metric.Int64Gauge
+	// PackageManifestBackfillCursorUpdated is the initial walk cursor's last
+	// update time in Unix seconds, or zero before the first scope.
+	PackageManifestBackfillCursorUpdated metric.Int64Gauge
+	// PackageManifestBackfillReady is one when both sidecars are ready.
+	PackageManifestBackfillReady metric.Int64Gauge
 	// InfraInventoryReconcile counts repositories the reducer's infra read
 	// model reconcile checked, by outcome: match (table equals
 	// content_entities), suspect (it differed once and is re-checked next
@@ -3647,6 +3663,50 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryBackfillRuns counter: %w", err)
+	}
+	inst.PackageManifestBackfillPasses, err = meter.Int64Counter(
+		"eshu_dp_package_manifest_backfill_passes_total",
+		metric.WithDescription("Package-consumption sidecar repair attempts by outcome: contended, failed, incomplete, ready"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillPasses counter: %w", err)
+	}
+	inst.PackageManifestBackfillDuration, err = meter.Float64Histogram(
+		"eshu_dp_package_manifest_backfill_duration_seconds",
+		metric.WithDescription("Wall time of one package-consumption sidecar repair election and pass, by outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillDuration histogram: %w", err)
+	}
+	inst.PackageManifestBackfillLastSuccess, err = meter.Int64Gauge(
+		"eshu_dp_package_manifest_backfill_last_success_unixtime",
+		metric.WithDescription("Unix second of the last successful elected package-consumption sidecar repair pass"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillLastSuccess gauge: %w", err)
+	}
+	inst.PackageManifestBackfillDirtyScopes, err = meter.Int64Gauge(
+		"eshu_dp_package_manifest_backfill_dirty_scopes",
+		metric.WithDescription("Dirty scopes sampled after each elected pass, capped at 26; 26 means more than one 25-scope pass remains"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillDirtyScopes gauge: %w", err)
+	}
+	inst.PackageManifestBackfillCursorUpdated, err = meter.Int64Gauge(
+		"eshu_dp_package_manifest_backfill_cursor_updated_unixtime",
+		metric.WithDescription("Unix second when the initial package-consumption sidecar backfill cursor last advanced; zero before its first scope"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillCursorUpdated gauge: %w", err)
+	}
+	inst.PackageManifestBackfillReady, err = meter.Int64Gauge(
+		"eshu_dp_package_manifest_backfill_ready",
+		metric.WithDescription("One when package-consumption sidecars are ready after an elected repair pass, zero otherwise"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageManifestBackfillReady gauge: %w", err)
 	}
 
 	inst.InfraInventoryReconcile, err = meter.Int64Counter(

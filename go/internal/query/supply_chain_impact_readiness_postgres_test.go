@@ -23,7 +23,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"fact.fact_kind = ANY($2::text[])",
 		"fact.fact_kind = ANY($3::text[])",
 		"fact.fact_kind = ANY($4::text[])",
-		"fact.fact_kind = ANY($5::text[])",
+		"component.fact_kind = ANY($5::text[])",
 		"fact.fact_kind = ANY($6::text[])",
 		"'reducer_container_image_identity' = ANY($7::text[])",
 		"FROM container_image_identity_current_supports AS support",
@@ -40,6 +40,9 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"'package.consumption' AS family",
 		"'package.registry' AS family",
 		"'sbom.component' AS family",
+		"component.scope_id = document.scope_id",
+		"component.generation_id = document.generation_id",
+		"document.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 		"'sbom.attestation' AS family",
 		"'container_image.identity' AS family",
 		"'vulnerability.source_snapshot' AS family",
@@ -256,7 +259,7 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 		"FROM package_consumption_correlation_active AS consumption",
 		"consumption.payload->>'repository_id' = $11",
 		"registry.payload->>'package_id' = $10",
-		"component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
+		"SELECT DISTINCT ecosystem\n    FROM target_consumption_keys",
 		"target_vulnerability_source_scopes AS (",
 		"'vuln-intel://nvd/cve' AS scope_id",
 		"'vuln-intel://cisa/kev' AS scope_id",
@@ -281,7 +284,7 @@ func TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts(t *testing.T) {
 		"target_advisory_packages AS (",
 		"NULLIF(TRIM($10), '') AS package_id",
 		"consumption.payload->>'repository_id' = $11",
-		"component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
+		"FROM target_consumption_package_ids",
 		"payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages)",
 		"($9 <> '' AND payload->>'cve_id' = $9)",
 	} {
@@ -350,34 +353,38 @@ func TestPostgresSupplyChainImpactReadinessSkipsAdvisoryOnlyScope(t *testing.T) 
 	}
 }
 
-func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.T) {
+func TestPostgresSupplyChainImpactReadinessFailsClosedWithoutTargetSnapshot(t *testing.T) {
 	t.Parallel()
 
-	// Companion regression: when the scope DOES carry a fact-anchor
-	// (cve_id / package_id / repository_id / subject_digest), the store
-	// must still issue the SQL so the short-circuit above is narrow.
+	// CVE, package, digest, and image targets first resolve package identities
+	// and then count their evidence. A QueryContext-only seam would put those
+	// reads in unrelated snapshots, so it must return an explicit error before
+	// issuing either query.
 	db := &countingSupplyChainImpactReadinessQueryer{}
 	store := impact.NewPostgresReadinessStore(db)
-	_, _ = store.ReadSupplyChainImpactReadiness(
+	_, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{CVEID: "CVE-2026-0001", Status: "affected_exact"},
 	)
-	if db.called != 1 {
-		t.Fatalf("QueryContext invocations = %d, want 1 for fact-anchored scope", db.called)
+	if err == nil {
+		t.Fatal("ReadSupplyChainImpactReadiness() error = nil, want repeatable-read transaction error")
+	}
+	if db.called != 0 {
+		t.Fatalf("QueryContext invocations = %d, want 0 before target resolution is rejected", db.called)
 	}
 }
 
-func TestPostgresSupplyChainImpactReadinessScansForImageRefScope(t *testing.T) {
+func TestPostgresSupplyChainImpactReadinessScansForRepositoryOnlyScope(t *testing.T) {
 	t.Parallel()
 
 	db := &countingSupplyChainImpactReadinessQueryer{}
 	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.ReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
+		impact.ReadinessQuery{RepositoryID: "repository:readiness"},
 	)
 	if db.called != 1 {
-		t.Fatalf("QueryContext invocations = %d, want 1 for image_ref scope", db.called)
+		t.Fatalf("QueryContext invocations = %d, want 1 for repository-only scope", db.called)
 	}
 }
 
@@ -408,19 +415,17 @@ func (a *argCapturingSupplyChainImpactReadinessQueryer) QueryContext(
 func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testing.T) {
 	t.Parallel()
 
-	// Regression for #5467: the store must bind the OS-package and
-	// scanner-worker-analysis fact-kind allowlists as two more positional
-	// array parameters ($15, $16), following the same array.Of pattern as
-	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
-	// would bind against the wrong (or a missing) parameter.
+	// Regression for #5467/#7088: the repository-only path stays a single
+	// bounded statement and binds scan-tier arrays plus the empty target-key
+	// arrays used by the package-consumption sidecar CTEs.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}
 	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.ReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
+		impact.ReadinessQuery{RepositoryID: "repository:scan-tier-args"},
 	)
-	if len(db.args) != 16 {
-		t.Fatalf("QueryContext args = %d, want 16 (8 fact-kind arrays + 6 scalars + 2 new scan-tier arrays)", len(db.args))
+	if len(db.args) != 20 {
+		t.Fatalf("QueryContext args = %d, want 20 (8 fact-kind arrays + 6 scalars + 2 scan-tier arrays + 3 target arrays + target flag)", len(db.args))
 	}
 	osPackageKinds, ok := db.args[14].(*array.StringArray)
 	if !ok {
@@ -435,5 +440,17 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	}
 	if got := []string(*scannerKinds); fmt.Sprint(got) != fmt.Sprint([]string{"scanner_worker.analysis"}) {
 		t.Fatalf("args[15] kinds = %v, want [scanner_worker.analysis]", got)
+	}
+	for _, index := range []int{16, 17, 18} {
+		values, ok := db.args[index].(*array.StringArray)
+		if !ok {
+			t.Fatalf("args[%d] = %#v (%T), want *array.StringArray", index, db.args[index], db.args[index])
+		}
+		if len(*values) != 0 {
+			t.Fatalf("args[%d] = %v, want empty repository-only target array", index, []string(*values))
+		}
+	}
+	if targetResolved, ok := db.args[19].(bool); !ok || targetResolved {
+		t.Fatalf("args[19] = %#v (%T), want false repository-only target flag", db.args[19], db.args[19])
 	}
 }

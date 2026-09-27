@@ -18,7 +18,7 @@ import (
 const (
 	rawPayloadIndexAccessor  = "payload_index"
 	rawPayloadDynamicKey     = "*"
-	rawPayloadExemptionLimit = 54
+	rawPayloadExemptionLimit = 68
 )
 
 // RawPayloadAccess is one direct read of a fact payload map outside an approved
@@ -453,6 +453,22 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		// backfill can keep exact self-exclusion semantics while avoiding
 		// per-candidate regex scans.
 		{Path: "go/internal/storage/postgres/relationship_reference_keys.go", Accessor: rawPayloadIndexAccessor, Key: "repo_id"},
+		// content_entity manifest and package registry facts have no typed
+		// factschema seam. Keep each readiness sidecar input key explicit.
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "package_manager"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestPayloadString", Key: "repo_id"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestPayloadString", Key: "entity_type"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "config_kind"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestPayloadString", Key: "entity_name"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "lockfile_unsupported_feature"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataBool", Key: "source_ambiguous"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: "packageManifestMetadataString", Key: "namespace"},
+		{Path: "go/internal/storage/postgres/package_manifest_consumption_keys.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
+		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "package_id"},
+		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "ecosystem"},
+		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "raw_name"},
+		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "normalized_name"},
+		{Path: "go/internal/storage/postgres/package_registry_identity_keys.go", Accessor: "packageManifestPayloadString", Key: "namespace"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "advisory_id"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "confidence"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "cve_id"},

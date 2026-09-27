@@ -52,6 +52,10 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 		"", "", "", "", "", readinessMutableRef,
 		array.Of(vulnerabilityOSPackageFactKinds),
 		array.Of(scannerWorkerAnalysisFactKinds),
+		array.Of([]string{}), // no resolved package keys in this image-only shape proof
+		array.Of([]string{}),
+		array.Of([]string{}),
+		false,
 	}
 	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
@@ -83,10 +87,66 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 	if err := rows.Err(); err != nil {
 		t.Fatalf("read readiness rows: %v", err)
 	}
-	for _, family := range []string{"container_image.identity", "scanner_worker.analysis"} {
+	for _, family := range []string{"container_image.identity", "scanner_worker.analysis", "sbom.component"} {
 		if got := families[family]; got != readinessMutableRefDigestCount {
 			t.Fatalf("%s count = %d, want complete %d-digest mutable-ref set", family, got, readinessMutableRefDigestCount)
 		}
+	}
+	if err := storagepostgres.BackfillPackageManifestConsumptionKeys(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("backfill package identity sidecars: %v", err)
+	}
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		t.Fatalf("begin counted target resolution: %v", err)
+	}
+	counted := &countingReadinessQueryer{tx: tx}
+	target, err := resolveReadinessTarget(ctx, counted, ReadinessQuery{ImageRef: readinessMutableRef})
+	if err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("resolve mutable-ref target: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("close counted target resolution: %v", err)
+	}
+	if len(target.PackageIDs) != readinessMutableRefDigestCount {
+		t.Fatalf("513-digest target resolved %d packages, want %d", len(target.PackageIDs), readinessMutableRefDigestCount)
+	}
+	t.Logf("513-digest target resolution queries=%d", counted.queries)
+	if counted.queries > 3 {
+		t.Fatalf("513-digest target resolution issued %d queries, want at most 3", counted.queries)
+	}
+	started := time.Now()
+	snapshot, err := NewPostgresReadinessStore(db).ReadSupplyChainImpactReadiness(ctx, ReadinessQuery{ImageRef: readinessMutableRef})
+	if err != nil {
+		t.Fatalf("read production mutable-ref readiness: %v", err)
+	}
+	t.Logf("513-digest production readiness elapsed=%s", time.Since(started))
+	for _, family := range []string{EvidenceFamilyContainerImageIdentity, EvidenceFamilySBOMComponent} {
+		var got int
+		for _, source := range snapshot.EvidenceSources {
+			if source.Family == family {
+				got = source.FactCount
+			}
+		}
+		if got != readinessMutableRefDigestCount {
+			t.Fatalf("production %s count = %d, want %d", family, got, readinessMutableRefDigestCount)
+		}
+	}
+	seedReadinessCrossScopeSBOMWarningProof(t, ctx, db)
+	crossScope, err := NewPostgresReadinessStore(db).ReadSupplyChainImpactReadiness(ctx, ReadinessQuery{
+		SubjectDigest: "sha256:" + strings.Repeat("0", 63) + "1",
+	})
+	if err != nil {
+		t.Fatalf("read cross-scope document warning: %v", err)
+	}
+	var crossScopeWarnings int
+	for _, gap := range crossScope.UnsupportedTargets {
+		if gap.TargetKind == UnsupportedTargetKindSBOMTarget && gap.Reason == "unsupported_field" {
+			crossScopeWarnings += gap.Count
+		}
+	}
+	if crossScopeWarnings != 2 {
+		t.Fatalf("cross-scope same-document warning count = %d, want 2", crossScopeWarnings)
 	}
 }
 
@@ -199,6 +259,43 @@ SELECT
     )
 FROM generate_series(1, 513) AS n;
 
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    'readiness-over500-sbom-document-' || n,
+    'readiness-over500-scope-' || n,
+    'readiness-over500-generation-' || n,
+    'sbom.document',
+    'readiness-over500-sbom-document-' || n,
+    'sbom', 'readiness-over500-sbom-document-' || n,
+    clock_timestamp(), clock_timestamp(), FALSE,
+    jsonb_build_object(
+        'document_id', 'readiness-over500-doc-' || n,
+        'subject_digest', 'sha256:' || lpad(to_hex(n), 64, '0')
+    )
+FROM generate_series(1, 513) AS n;
+
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    'readiness-over500-sbom-component-' || n,
+    'readiness-over500-scope-' || n,
+    'readiness-over500-generation-' || n,
+    'sbom.component',
+    'readiness-over500-sbom-component-' || n,
+    'sbom', 'readiness-over500-sbom-component-' || n,
+    clock_timestamp(), clock_timestamp(), FALSE,
+    jsonb_build_object(
+        'document_id', 'readiness-over500-doc-' || n,
+        'package_id', 'npm://registry.npmjs.org/pkg-' || n,
+        'name', 'pkg-' || n
+    )
+FROM generate_series(1, 513) AS n;
+
 ANALYZE ingestion_scopes;
 ANALYZE scope_generations;
 ANALYZE container_image_identity_scope_state;
@@ -210,12 +307,65 @@ ANALYZE fact_records;
 	}
 }
 
+// seedReadinessCrossScopeSBOMWarningProof replays one source document in a
+// second active scope, with its warning fact present only there.
+func seedReadinessCrossScopeSBOMWarningProof(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, payload
+) VALUES (
+    'readiness-over500-unrelated-sbom', 'sbom_document', 'sbom',
+    'unrelated-sbom', 'sbom', 'unrelated-sbom',
+    clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb
+);
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload
+) VALUES (
+    'readiness-over500-unrelated-generation', 'readiness-over500-unrelated-sbom',
+    'test', clock_timestamp(), clock_timestamp(), 'active', '{}'::jsonb
+);
+UPDATE ingestion_scopes
+SET active_generation_id = 'readiness-over500-unrelated-generation'
+WHERE scope_id = 'readiness-over500-unrelated-sbom'
+;
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload
+) VALUES
+    ('readiness-over500-unrelated-document', 'readiness-over500-unrelated-sbom',
+     'readiness-over500-unrelated-generation', 'sbom.document',
+     'readiness-over500-unrelated-document', 'sbom', 'readiness-over500-unrelated-document',
+     clock_timestamp(), clock_timestamp(), FALSE,
+     '{"document_id":"readiness-over500-doc-1","subject_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000001"}'::jsonb),
+    ('readiness-over500-unrelated-warning', 'readiness-over500-unrelated-sbom',
+     'readiness-over500-unrelated-generation', 'sbom.warning',
+     'readiness-over500-unrelated-warning', 'sbom', 'readiness-over500-unrelated-warning',
+     clock_timestamp(), clock_timestamp(), FALSE,
+     '{"document_id":"readiness-over500-doc-1","reason":"unsupported_field"}'::jsonb);
+	`); err != nil {
+		t.Fatalf("seed cross-scope SBOM warning: %v", err)
+	}
+}
+
 func cleanupReadinessMutableRefProof(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, `
 DELETE FROM ingestion_scopes
 WHERE scope_id LIKE 'readiness-over500-scope-%'
-   OR scope_id = 'readiness-over500-scan'`); err != nil {
+   OR scope_id = 'readiness-over500-scan'
+   OR scope_id = 'readiness-over500-unrelated-sbom'`); err != nil {
 		t.Fatalf("clean mutable-ref readiness proof: %v", err)
 	}
+}
+
+type countingReadinessQueryer struct {
+	tx      *sql.Tx
+	queries int
+}
+
+func (q *countingReadinessQueryer) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	q.queries++
+	return q.tx.QueryContext(ctx, query, args...)
 }

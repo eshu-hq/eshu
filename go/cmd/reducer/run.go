@@ -112,8 +112,12 @@ func run(parent context.Context) error {
 	// context when service.Run returns an error.
 	waitGraphRefresher := startGraphGaugeRefresher(ctx, graphRefresher)
 	waitPostgresRefresher := startPostgresGaugeRefresher(ctx, postgresRefresher)
+	waitPackageManifestBackfill := startPackageManifestConsumptionKeyBackfill(ctx, func(runCtx context.Context) error {
+		return runPackageManifestConsumptionKeyBackfill(runCtx, db, instruments, logger)
+	}, logger)
 	defer func() {
 		stop()
+		waitPackageManifestBackfill()
 		waitGraphRefresher()
 		waitPostgresRefresher()
 	}()

@@ -3,6 +3,39 @@
 
 package impact
 
+// The component's document_id is scoped by the active SBOM document's scope
+// and generation. The digest lives on the document, not the component.
+const listSupplyChainImpactReadinessSBOMComponentQuery = `
+sbom_component AS (
+    SELECT
+        'sbom.component' AS family,
+        COUNT(DISTINCT component.fact_id)::int AS fact_count,
+        MAX(component.observed_at) AS latest_observed_at,
+        NULL::boolean AS target_incomplete,
+        NULL::text[] AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json,
+        NULL::text AS unsupported_targets_json
+    FROM fact_records AS document
+    JOIN ingestion_scopes AS document_scope
+      ON document_scope.scope_id = document.scope_id
+     AND document_scope.active_generation_id = document.generation_id
+    JOIN scope_generations AS document_generation
+      ON document_generation.scope_id = document.scope_id
+     AND document_generation.generation_id = document.generation_id
+    JOIN fact_records AS component
+      ON component.scope_id = document.scope_id
+     AND component.generation_id = document.generation_id
+     AND component.payload->>'document_id' = document.payload->>'document_id'
+    WHERE document.fact_kind = 'sbom.document'
+      AND document.is_tombstone = FALSE
+      AND document_generation.status = 'active'
+      AND document.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
+      AND component.fact_kind = ANY($5::text[])
+      AND component.is_tombstone = FALSE
+),
+`
+
 const listSupplyChainImpactReadinessQueryUnsupportedAndSource = `
 package_dependency_gap_active AS (
     SELECT fact.payload, fact.observed_at

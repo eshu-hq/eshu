@@ -146,6 +146,16 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return proofResult{}, nil
 	case strings.Contains(query, "set_config('lock_timeout'"):
 		return proofResult{}, nil
+	case strings.Contains(query, "set_config('eshu.package_manifest_consumption_keys_writer'"):
+		return proofResult{}, nil
+	case strings.Contains(query, "DELETE FROM package_manifest_consumption_keys"):
+		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO package_manifest_consumption_keys"):
+		return proofResult{}, nil
+	case strings.Contains(query, "DELETE FROM package_registry_identity_keys"):
+		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO package_registry_identity_keys"):
+		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO relationship_reference_candidate_keys"):
 		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO relationship_evidence_facts"):
