@@ -288,6 +288,10 @@ tests:
     tag: live_nornicdb_convention_outlier
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/codequery/outlier_repo_scale_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#6929 repo-scale Neo4j proof for the outlierScopePredicates coalesce()-index fix: seeds ~500k Function nodes (45,000+ in the swept repo, 450,000+ elsewhere), so it costs real wall time to seed and is env-gated by ESHU_OUTLIER_NEO4J_LIVE rather than a build tag — promote to blocking with repeated timing evidence"
   - file: go/internal/query/codequery/registry_bundles_live_test.go
     tag: ~
     class: scheduled
