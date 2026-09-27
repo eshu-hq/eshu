@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package kubernetestools defines pure route selection for the MCP
-// Kubernetes-correlation family.
+// Package kubernetestools defines pure route selection and the tool
+// definition for the MCP Kubernetes-correlation family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments to
-// a dependency-neutral internal request without executing it. The parent mcp
-// package owns tool registration and its order, global route fanout, the
-// private adapter, HTTP dispatch, authorization, timeouts, response budgets,
-// envelopes, summaries, and telemetry. The query package owns the bounded read
+// a dependency-neutral internal request without executing it, and Tools
+// returns the one tool definition this package owns. The parent mcp package
+// owns registration order (it splices Tools into ReadOnlyTools at the
+// long-standing position via the kubernetesTools wrapper), global route
+// fanout, the private adapter, HTTP dispatch, authorization, timeouts,
+// response budgets, envelopes, summaries, and telemetry. The query package owns the bounded read
 // behind the path, which lists the reducer's Kubernetes workload ownership and
 // drift correlations -- exact, derived, ambiguous, unresolved, stale, and
 // rejected outcomes -- anchored by cluster, workload object, namespace, image

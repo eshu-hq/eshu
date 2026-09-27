@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package kubernetestools
 
-func kubernetesTools() []ToolDefinition {
-	return []ToolDefinition{
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the one MCP tool definition this package owns: the
+// Kubernetes workload ownership and drift correlation lister. The root
+// package splices it into ReadOnlyTools at its long-standing position via
+// the kubernetesTools wrapper, so the client-visible registration order is
+// unchanged.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_kubernetes_correlations",
 			Description: "List reducer-owned Kubernetes workload ownership and drift correlations by cluster, workload object, namespace, image reference, source digest, or scope.",

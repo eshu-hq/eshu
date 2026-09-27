@@ -10,11 +10,13 @@ source at all.
 
 ## Ownership boundary
 
-This package owns Kubernetes-correlation family membership and the mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp` keeps
-tool registration and its client-visible order, global route fanout, the private
-adapter, HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-summaries, and telemetry. `internal/query` owns the bounded read this path
+This package owns Kubernetes-correlation family membership, the mapping from
+decoded arguments to a dependency-neutral internal request, and the one tool
+definition `Tools()` returns. `internal/mcp` keeps tool registration order (it
+splices `Tools()` into `ReadOnlyTools` at the long-standing position via the
+`kubernetesTools` wrapper), global route fanout, the private adapter, HTTP
+dispatch, authorization, timeouts, response budgets, envelopes, summaries, and
+telemetry. `internal/query` owns the bounded read this path
 reaches, including the anchor rule, the required `limit` and its 1..200 bound,
 the access-scope short-circuit for a caller with no grant, and the keyset
 paging behind `after_correlation_id`.
@@ -23,6 +25,8 @@ paging behind `after_correlation_id`.
 
 - `Route` selects the internal request for a Kubernetes-correlation tool
   without executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the one tool definition this package owns, in
+  registration order.
 
 See `doc.go` for the godoc contract.
 
