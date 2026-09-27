@@ -85,6 +85,18 @@ generation — `USES` from an AWS scope, `DOCUMENTS` from a documentation scope 
 until that scope happened to re-materialize. That is a loss, not cleanup, so
 the id template stays as it is.
 
+> **Superseded by #7285 (2026-09).** The id template assumed the generation's
+> own domains rewrite the repository's edges. That holds only for attempt 1 of
+> a new generation: a projector retry (`attempt_count > 1` forces
+> `PreviousGenerationExists`) or a liveness re-drive of a succeeded row re-ran
+> the id template after the reducers had already succeeded, and their
+> `ON CONFLICT DO NOTHING` re-enqueue never reopened them, so every reducer and
+> cross-scope edge on the node stayed lost. The id template is removed: the
+> node is `MERGE`d in place, only the path template remains, and
+> `workload_materialization` retracts its own stale `DEFINES` and
+> repository-side `EXPOSES_ENDPOINT` edges on full generations
+> (`docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`).
+
 Only the path template knows a retired identity: the `r.id` values it matches
 belong to a repository whose path was re-onboarded under a new `repo_id`
 (`CanonicalRepositoryID` mints a new one for the new identity), which is the
@@ -407,7 +419,7 @@ Required tests, each RED before its change and GREEN after:
 | T1 scoped-token isolation | A token granted only `alpha` reading `/catalog`, the entity map, and the change surface for `checkout` sees `same_name_siblings` = 0 and no `beta` `repo_id` anywhere in the response body. Requires an audit of every untyped or variable-length traversal that starts at `Workload` (`-[*]-`, `-[]-`, `-[:A|B]-` lists) so none can reach a sibling without the grant predicate. |
 | T2 concurrent writers | The P6 shape as a permanent RED/GREEN: two scopes materializing same-named workloads concurrently on a live backend end with exactly one `SAME_NAME` edge for the pair, asserted by a settled read; the UNIQUE-conflict retry is observed, not assumed. |
 | T3 matching semantics | For suppression, service-catalog links, AWS attributes, and documentation mentions (`target_entity_id`): full id resolves; unique handle resolves; a handle spanning two repositories applies to neither, links nothing, writes no edge, and is counted. |
-| T4 repository cleanup cascade | **Retirement case:** re-onboarding a repository's path under a new `repo_id` (the path-conflict template) deletes the owned `Workload`, `WorkloadInstance`, and `Endpoint` nodes under the retired id; the sibling's nodes and its other `SAME_NAME` edges survive. **Regeneration case:** the same repository regenerates (a non-first, non-delta generation, so `canonicalNodeRepositoryIDCleanupCypher` runs) and its `Workload` nodes survive together with a `USES` edge written by an AWS-scope generation and a `DOCUMENTS` edge written by a documentation-scope generation; only `DEFINES` is dropped and rewritten. Both asserted by settled reads on the live backend. |
+| T4 repository cleanup cascade | **Retirement case:** re-onboarding a repository's path under a new `repo_id` (the path-conflict template) deletes the owned `Workload`, `WorkloadInstance`, and `Endpoint` nodes under the retired id; the sibling's nodes and its other `SAME_NAME` edges survive. **Regeneration case:** the same repository regenerates (a non-first, non-delta generation) and its `Workload` nodes survive together with a `USES` edge written by an AWS-scope generation and a `DOCUMENTS` edge written by a documentation-scope generation; since #7285 the Repository node and its `DEFINES` also survive, and only a stale `DEFINES` is retracted by `workload_materialization`. Both asserted by settled reads on the live backend. |
 | T5 handle ladder | Exact id, unique handle, ambiguous handle with candidates, miss — across API, MCP, and reducer, one test table. |
 
 ## 7. Consumer impact

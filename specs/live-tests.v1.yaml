@@ -825,6 +825,22 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/repository_edge_retract_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7285 B1 stale DEFINES/EXPOSES_ENDPOINT retract proof through the real WorkloadMaterializationHandler; local neo4j:2026-community runs took 0.64s-1.13s per test (1.8s-2.2s package) on a shared host; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/repository_edge_scope_keep_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7285 retract-scope proof (arbiter option B) through the real CorrelatedWorkloadProjectionInputLoader; a matching and a foreign-keyed workload_materialization intent in both orders and racing (10 trials) must leave one final DEFINES and EXPOSES_ENDPOINT set, and a foreign-keyed intent must still retract a disappeared workload; local neo4j:2026-community runs took 1.18s for the test (15.7s for the #7285 live package set) on a shared host; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/repository_retry_concurrency_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: nonce-scoped #7285 concurrency matrix rows 2, 3, 5 and 6 (phase-boundary interleaving, zombie attempt, 50-session first-creation MERGE, cross-scope retract race); every interleaving has one required end state, so the assertions are deterministic; local neo4j:2026-community runs took 8.9s-26.4s for the file on a shared host at load average 54-86 (the 50-session MERGE race pays driver deadlock-retry backoff); runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/repository_retry_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7285 projector-retry proof (every reducer edge family survives a same-generation re-projection under the atomic-group and phase-group executors; property map equals a fresh projection); local neo4j:2026-community runs took 2.5s warm and 26.9s with a cold schema apply on a loaded shared host; runs on both backends in the live-backend CI job
   - file: go/internal/reducer/workload_instance_retraction_live_test.go
     tag: ~
     class: scheduled
@@ -1879,6 +1895,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/reducer_queue_reenqueue_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN); #7285 re-projection re-enqueue contract, about 1s on a disposable schema
   - file: go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
     tag: ~
     class: scheduled

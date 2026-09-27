@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -66,6 +67,27 @@ type WorkloadProjectionInputLoader interface {
 	) ([]WorkloadCandidate, map[string][]string, error)
 }
 
+// WorkloadProjectionInputs is what one workload materialization intent loads.
+type WorkloadProjectionInputs struct {
+	// Candidates are the admitted candidates selected by the intent's entity
+	// keys: what this intent writes.
+	Candidates []WorkloadCandidate
+	// ScopeCandidates are the scope generation's complete admitted set, taken
+	// before the entity-key filter. The #7285 stale-edge retract builds its
+	// keep-list from these and never from Candidates.
+	ScopeCandidates []WorkloadCandidate
+	// DeploymentEnvironments overlays environments by repository id.
+	DeploymentEnvironments map[string][]string
+}
+
+// ScopeWorkloadProjectionInputLoader is a WorkloadProjectionInputLoader that
+// can also supply the scope generation's complete admitted set. The handler
+// retracts stale repository edges only through a loader with this capability;
+// with any other loader it skips the retract and warns.
+type ScopeWorkloadProjectionInputLoader interface {
+	LoadWorkloadProjectionScopeInputs(ctx context.Context, intent Intent) (WorkloadProjectionInputs, error)
+}
+
 // InfrastructurePlatformLookup loads platforms provisioned by infrastructure
 // repositories that have already materialized PROVISIONS_PLATFORM graph edges.
 type InfrastructurePlatformLookup interface {
@@ -95,7 +117,12 @@ type WorkloadMaterializationHandler struct {
 	// default) makes retraction a no-op, keeping the hot workload materialization
 	// path byte-identical.
 	InstanceRetractionLookup WorkloadInstanceRetractionLookup
-	PhasePublisher           GraphProjectionPhasePublisher
+	// RepositoryEdgeReader reads current DEFINES / repository-side
+	// EXPOSES_ENDPOINT targets so the #7285 stale-edge retract deletes only
+	// stale ids and issues no DELETE in steady state. Nil runs the keep-list
+	// deletes unconditionally (correct, but a zero-row DELETE per run).
+	RepositoryEdgeReader retract.Reader
+	PhasePublisher       GraphProjectionPhasePublisher
 	// RepairQueue captures exact workload-materialization phase rows when graph
 	// writes have committed but phase publication fails.
 	RepairQueue GraphProjectionPhaseRepairQueue
@@ -154,16 +181,23 @@ func (h WorkloadMaterializationHandler) Handle(
 	}
 
 	loadStarted := time.Now()
-	candidates, deploymentEnvironments, err := h.loadProjectionInputs(ctx, intent)
+	inputs, keep, err := h.loadProjectionInputs(ctx, intent)
 	timing.loadInputsDuration = time.Since(loadStarted)
+	if err != nil {
+		return Result{}, err
+	}
+	candidates, deploymentEnvironments := inputs.Candidates, inputs.DeploymentEnvironments
+	repositoryFacts, err := loadScopeRepositoryFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, err
 	}
 	if len(candidates) == 0 {
 		phaseStarted := time.Now()
-		repoIDs, repoErr := scopeRepositoryGraphIDs(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
-		if repoErr != nil {
-			return Result{}, repoErr
+		repoIDs := repositoryGraphIDsFromEnvelopes(repositoryFacts)
+		// No candidate for this intent's keys; the scope keep-list still holds
+		// what sibling intents wrote (#7285).
+		if _, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, keep); err != nil {
+			return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
 		}
 		if err := publishIntentGraphPhaseWithRepair(
 			ctx,
@@ -358,6 +392,13 @@ func (h WorkloadMaterializationHandler) Handle(
 			totalWrites += len(writeRows)
 		}
 	}
+	// Stale DEFINES / repository-side EXPOSES_ENDPOINT go only after the current
+	// edges above committed, and only for full-generation repositories (#7285).
+	repositoryEdgeRetract, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, keep)
+	if err != nil {
+		return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
+	}
+	totalWrites += int(repositoryEdgeRetract.DefinesDeleted + repositoryEdgeRetract.EndpointEdgesDeleted)
 	phaseStarted := time.Now()
 	if err := publishIntentGraphPhaseWithRepair(
 		ctx,
@@ -439,58 +480,4 @@ func (h WorkloadMaterializationHandler) Handle(
 		SubSignals:      h.refreshResultSignals(ctx, intent, nil, totalWrites, repoReadinessRepoIDs),
 		SubDurations:    workloadMaterializationSubDurations(timing),
 	}, nil
-}
-
-func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
-	ctx context.Context,
-	candidates []WorkloadCandidate,
-) (map[string][]InfrastructurePlatformRow, error) {
-	if h.InfrastructurePlatformLookup == nil {
-		return nil, nil
-	}
-	repoIDs := uniqueProvisioningRepoIDs(candidates)
-	if len(repoIDs) == 0 {
-		return nil, nil
-	}
-	platforms, err := h.InfrastructurePlatformLookup.ListProvisionedPlatforms(ctx, repoIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load provisioned infrastructure platforms: %w", err)
-	}
-	return platforms, nil
-}
-
-func uniqueProvisioningRepoIDs(candidates []WorkloadCandidate) []string {
-	seen := make(map[string]struct{})
-	var repoIDs []string
-	for _, candidate := range candidates {
-		for _, repoID := range candidate.ProvisioningRepoIDs {
-			if repoID == "" {
-				continue
-			}
-			if _, ok := seen[repoID]; ok {
-				continue
-			}
-			seen[repoID] = struct{}{}
-			repoIDs = append(repoIDs, repoID)
-		}
-	}
-	return repoIDs
-}
-
-func (h WorkloadMaterializationHandler) loadProjectionInputs(
-	ctx context.Context,
-	intent Intent,
-) ([]WorkloadCandidate, map[string][]string, error) {
-	inputLoader := h.InputLoader
-	if inputLoader == nil {
-		inputLoader = CorrelatedWorkloadProjectionInputLoader{
-			FactLoader:     h.FactLoader,
-			ResolvedLoader: h.ResolvedLoader,
-		}
-	}
-	candidates, deploymentEnvironments, err := inputLoader.LoadWorkloadProjectionInputs(ctx, intent)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load workload projection inputs: %w", err)
-	}
-	return candidates, deploymentEnvironments, nil
 }

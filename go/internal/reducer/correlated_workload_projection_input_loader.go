@@ -119,13 +119,31 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
-// resolved deployment sources, and returns only admitted deployable units.
+// resolved deployment sources, and returns only admitted deployable units
+// selected by the intent's entity keys.
 func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	ctx context.Context,
 	intent Intent,
 ) ([]WorkloadCandidate, map[string][]string, error) {
+	inputs, err := l.LoadWorkloadProjectionScopeInputs(ctx, intent)
+	if err != nil {
+		return nil, nil, err
+	}
+	return inputs.Candidates, inputs.DeploymentEnvironments, nil
+}
+
+// LoadWorkloadProjectionScopeInputs is LoadWorkloadProjectionInputs plus the
+// scope generation's complete admitted set. It admits every scope candidate
+// once and then narrows the admitted set to the intent's entity keys. The
+// narrowing matches on repository identity only and admission neither reads
+// nor changes it, so the narrowed set equals the one filtering before
+// admission produced (#7285 retract-scope ruling).
+func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInputs(
+	ctx context.Context,
+	intent Intent,
+) (WorkloadProjectionInputs, error) {
 	if l.FactLoader == nil {
-		return nil, nil, fmt.Errorf("correlated workload projection fact loader is required")
+		return WorkloadProjectionInputs{}, fmt.Errorf("correlated workload projection fact loader is required")
 	}
 
 	envelopes, err := loadFactsForKinds(
@@ -136,7 +154,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		[]string{factKindRepository, factKindFile},
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load facts for correlated workload projection: %w", err)
+		return WorkloadProjectionInputs{}, fmt.Errorf("load facts for correlated workload projection: %w", err)
 	}
 
 	candidates, deploymentEnvironments := ExtractWorkloadCandidates(envelopes)
@@ -148,7 +166,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	// (foreign scopes are undiscoverable before the read itself); the
 	// corpus-wide fence below covers the foreign side.
 	if !ownResolutionGenerationReady(l.ResolutionActiveLookup, intent, candidates) {
-		return nil, nil, workloadMaterializationResolutionNotReadyError{
+		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
@@ -163,17 +181,17 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	// between the verdict and the rows it admits.
 	read, err := readCorpusFencedResolvedRelationships(ctx, l.ResolvedLoader, l.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
+		return WorkloadProjectionInputs{}, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
 	}
 	if read.fenceErr != nil {
-		return nil, nil, workloadMaterializationResolutionNotReadyError{
+		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 			cause:        read.fenceErr,
 		}
 	}
 	if !read.complete {
-		return nil, nil, workloadMaterializationResolutionNotReadyError{
+		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,
 			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
@@ -191,19 +209,25 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		)
 	}
 
+	// Admit the whole scope first: the stale-edge retract keeps what the
+	// scope generation supports, never what this intent's keys select.
+	admitted, err := admittedCorrelatedWorkloadCandidates(intent, candidates)
+	if err != nil {
+		return WorkloadProjectionInputs{}, err
+	}
+	written := admitted
 	if len(intent.EntityKeys) > 0 {
 		entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 		if err != nil {
-			return nil, nil, err
+			return WorkloadProjectionInputs{}, err
 		}
-		candidates = filterDeployableUnitCandidates(candidates, entityKeys)
+		written = filterDeployableUnitCandidates(admitted, entityKeys)
 	}
-
-	admitted, err := admittedCorrelatedWorkloadCandidates(intent, candidates)
-	if err != nil {
-		return nil, nil, err
-	}
-	return admitted, deploymentEnvironments, nil
+	return WorkloadProjectionInputs{
+		Candidates:             written,
+		ScopeCandidates:        admitted,
+		DeploymentEnvironments: deploymentEnvironments,
+	}, nil
 }
 
 // CorpusFencedResolvedRelationshipLoader returns the active resolved

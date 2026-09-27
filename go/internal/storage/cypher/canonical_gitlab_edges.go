@@ -36,8 +36,8 @@ SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_
 
 // retractGitlabDefinesJobEdgesCypher deletes stale DEFINES_JOB edges from this
 // materialization's GitlabPipeline source nodes. DEFINES_JOB / NEEDS are MERGE-only
-// edges between surviving nodes, so neither repository_cleanup (DETACH DELETE of
-// the Repository node only) nor entity_retract (edges of DELETED nodes only)
+// edges between surviving nodes, so neither repository_cleanup (path-conflict
+// Repository retirement only) nor entity_retract (edges of DELETED nodes only)
 // removes a stale edge when both endpoints are refreshed to the current
 // generation but the relationship changed. Scoping by the projecting source uids
 // and deleting only projector/canonical edges whose generation_id differs from

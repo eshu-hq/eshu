@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -44,12 +45,11 @@ type DefaultHandlers struct {
 	SemanticEntityWriter               semantic.EntityWriter
 	WorkloadProjectionInputLoader      WorkloadProjectionInputLoader
 	WorkloadDependencyLookup           WorkloadDependencyGraphLookup
-	// InstanceRetractionLookup resolves superseded WorkloadInstance ids (e.g. a
-	// pre-canonical environment alias key retired by the #5473 environment-alias
-	// contract) so workload materialization can retract the orphaned node and its
-	// INSTANCE_OF/DEPLOYMENT_SOURCE/RUNS_ON edges after the replacement MERGE
-	// write commits. Nil keeps existing reducer behavior (no retraction).
+	// InstanceRetractionLookup resolves superseded WorkloadInstance ids (#5473)
+	// for workload materialization; nil keeps existing behavior (no retraction).
 	InstanceRetractionLookup WorkloadInstanceRetractionLookup
+	// RepositoryEdgeReader guards the #7285 stale DEFINES/EXPOSES_ENDPOINT retract.
+	RepositoryEdgeReader retract.Reader
 
 	// FactLoader loads fact envelopes for workload and infrastructure
 	// platform materialization.

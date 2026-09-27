@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -54,6 +55,31 @@ func (e cypherExecutorGate) ProbeGraphExists(ctx context.Context, query string, 
 	}
 	defer release()
 	return prober.ProbeGraphExists(ctx, query, params)
+}
+
+// ExecuteCypherCountingRelationshipDeletes forwards the #7285 stale
+// repository-edge retract's delete-counting write through the gate, so the
+// wrapped chain's counting capability survives the wrapper. It draws one
+// shared permit like ExecuteCypher.
+func (e cypherExecutorGate) ExecuteCypherCountingRelationshipDeletes(
+	ctx context.Context,
+	query string,
+	params map[string]any,
+) (int64, error) {
+	release, err := e.gate.Acquire(ctx, "materialize_cypher")
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	counter, ok := e.inner.(retract.CountingExecutor)
+	if !ok {
+		// The write still runs; the caller learns the count was not measured.
+		if err := e.inner.ExecuteCypher(ctx, query, params); err != nil {
+			return 0, err
+		}
+		return 0, retract.ErrUncounted
+	}
+	return counter.ExecuteCypherCountingRelationshipDeletes(ctx, query, params)
 }
 
 // ExecuteCypherGroup holds one shared permit for the complete atomic group.

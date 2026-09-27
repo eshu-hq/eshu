@@ -39,6 +39,16 @@ func (w *CanonicalNodeWriter) buildRepositoryStatements(mat canonical.CanonicalM
 	}}
 }
 
+// buildRepositoryCleanupStatements retires a DIFFERENT-id Repository that
+// still holds this repository's path (a re-keyed or moved repository). It
+// never deletes the Repository node it is about to re-MERGE: that node carries
+// edges owned by other writers (reducer DEFINES, EXPOSES_ENDPOINT,
+// DEPLOYMENT_SOURCE, typed repository relationships, codeowners, submodule
+// pins, provenance), and a retry of the same generation is not followed by a
+// re-run of those writers, so deleting it lost them for good (#7285). The
+// upsert that follows is MERGE + SET over the projector-owned properties, and
+// stale projector-owned CONTAINS / REPO_CONTAINS targets are removed by the
+// retract phase.
 func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.Repository == nil {
 		return nil
@@ -51,14 +61,6 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.Can
 	}
 	r := mat.Repository
 	return []Statement{
-		{
-			Operation: OperationCanonicalRetract,
-			Cypher:    canonicalNodeRepositoryIDCleanupCypher,
-			Parameters: map[string]any{
-				"repo_id":                   r.RepoID,
-				StatementMetadataSummaryKey: "repository_cleanup lookup=id",
-			},
-		},
 		{
 			Operation: OperationCanonicalRetract,
 			Cypher:    canonicalNodeRepositoryPathCleanupCypher,

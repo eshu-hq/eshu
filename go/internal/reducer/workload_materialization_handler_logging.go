@@ -63,6 +63,8 @@ func logWorkloadMaterializationCompleted(
 		log.ScopeID(intent.ScopeID),
 		log.GenerationID(intent.GenerationID),
 		log.Domain(string(DomainWorkloadMaterialization)),
+		slog.String("intent_id", intent.IntentID),
+		slog.Any("entity_keys", intent.EntityKeys),
 		slog.Int("candidate_count", len(candidates)),
 		slog.Int("workload_row_count", workloadRows),
 		slog.Int("instance_row_count", instanceRows),

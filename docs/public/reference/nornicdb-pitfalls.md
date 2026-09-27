@@ -1241,22 +1241,22 @@ and the pin moves past it, a probe in front of a retract becomes a redundant
 round trip rather than a saving, and the guards added for this reason can be
 removed together.
 
-This guard covers only the rationale `EXPLAINS` retract. `canonical_retract.go`'s
-code-call retracts, `edge/writer/sql.go`, `canonical_inheritance_retract.go`,
-`canonical_documentation_edges.go`, `canonical_codeowners_edges.go`,
-`canonical_submodule_edges.go`, and `canonical_deployable_unit_edges.go` build
-the same label-anchored `MATCH ... DELETE rel` shape and none of them probe
-before deleting. `edge/writer/shell_exec.go` belongs on the list too, and is
-worth a closer look if anyone guards these: its two retracts anchor the TARGET
-label but leave the source endpoint untyped (`MATCH ()-[rel:EXECUTES_SHELL]->(target)`),
-and the table above shows leaving an endpoint untyped costing an order of
-magnitude more than anchoring it.
+Guarded: the rationale `EXPLAINS` retract (probe), and the #7285 workload
+stale-edge retract in `reducer/workload/retract`, which reads each repository's
+`DEFINES` and repository-side `EXPOSES_ENDPOINT` targets and sends an id-scoped
+`DELETE rel` only for the stale pairs (none in steady state), falling back to its
+keep-list delete when the read fails; that fallback's cost was not measured.
+Known-unguarded: `canonical_retract.go`'s code-call retracts, `edge/writer/sql.go`,
+`canonical_inheritance_retract.go`, `canonical_documentation_edges.go`,
+`canonical_codeowners_edges.go`, `canonical_submodule_edges.go`, and
+`canonical_deployable_unit_edges.go` build the same label-anchored
+`MATCH ... DELETE rel` shape and none of them probe. `edge/writer/shell_exec.go`
+belongs on the list too: its two retracts leave the source endpoint untyped
+(`MATCH ()-[rel:EXECUTES_SHELL]->(target)`), and the table above shows leaving an
+endpoint untyped costing an order of magnitude more than anchoring it.
 
-They are known-unguarded; guarding them was not in scope for the rationale
-change. None of them were measured — the numbers above cover the `EXPLAINS`
-shape only, and the closest ledger row for the generic shape is
-`ledger:5998-zero-row-explains-delete-source-anchored`. Measure before guarding
-rather than assuming the rationale numbers transfer.
+None of these were measured; the numbers above cover the `EXPLAINS` shape only
+(closest generic row: `ledger:5998-zero-row-explains-delete-source-anchored`). Measure before guarding.
 
 ### Why a small corpus cannot catch this
 

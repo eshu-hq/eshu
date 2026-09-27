@@ -47,7 +47,7 @@ SET r.evidence_source = 'projector/canonical',
 // retractHelmTemplateValueReferenceEdgesCypher deletes stale Helm template-value
 // HELM_VALUE_REFERENCE edges from this materialization's HelmTemplateValueUsage
 // source nodes. The edge is MERGE-only between surviving nodes, so neither
-// repository_cleanup (DETACH DELETE of the Repository node) nor entity_retract
+// repository_cleanup (path-conflict Repository retirement only) nor entity_retract
 // (edges of DELETED nodes only) removes a stale edge when both endpoints survive
 // into the current generation but the value reference changed. The retract is
 // scoped by the HelmTemplateValueUsage source label and is generation-guarded so

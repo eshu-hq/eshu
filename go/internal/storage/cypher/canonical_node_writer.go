@@ -58,7 +58,8 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 // Write executes all canonical writes in strict phase order:
 //
 //	A: retract stale nodes
-//	B: repository_cleanup (skipped for first-generation scopes)
+//	B: repository_cleanup (path-conflict retirement only; skipped for
+//	   first-generation and delta scopes; never deletes the node C re-MERGEs)
 //	C: repository
 //	D: directory nodes (MERGE by path, no parent MATCH)
 //	D2: directory edges (parent CONTAINS, after directory nodes commit)
