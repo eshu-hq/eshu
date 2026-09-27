@@ -48,7 +48,7 @@ func TestCodeReachabilityIncomingEntityIDsBindsTheConsumerGrant(t *testing.T) {
 		if edge.MaxConfidence != 0 {
 			t.Fatalf("MaxConfidence = %v, want 0: an edge the caller cannot see is not evidence", edge.MaxConfidence)
 		}
-		want := "(row.repository_id = ANY($2)) AS consumer_in_grant"
+		want := "(candidate_rows.repository_id = ANY($2)) AS consumer_in_grant"
 		if !strings.Contains(recorder.queries[0], want) {
 			t.Fatalf("reachability SQL is missing %q, so an ungranted consumer still reads as evidence:\n%s", want, recorder.queries[0])
 		}
@@ -76,6 +76,9 @@ func TestCodeReachabilityIncomingEntityIDsBindsTheConsumerGrant(t *testing.T) {
 		}
 		if strings.Contains(recorder.queries[0], "consumer_in_grant") {
 			t.Fatalf("unscoped reachability SQL gained a grant column:\n%s", recorder.queries[0])
+		}
+		if strings.Contains(recorder.queries[0], "repository_id") {
+			t.Fatalf("unscoped reachability SQL must not read consumer repository IDs:\n%s", recorder.queries[0])
 		}
 	})
 
@@ -119,4 +122,42 @@ func TestCodeReachabilityIncomingEntityIDsBindsTheConsumerGrant(t *testing.T) {
 			t.Fatalf("edge.Method = %q, want %q: the granted edge keeps its method", got, want)
 		}
 	})
+}
+
+func TestCodeReachabilityIncomingEntityIDsStartsFromCandidates(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{"entity_id", "min_resolution_method", "consumer_in_grant"},
+		rows:    [][]driver.Value{},
+	}})
+	reader := NewContentReader(db)
+	if _, err := reader.CodeReachabilityIncomingEntityIDs(
+		context.Background(),
+		"repository:library",
+		[]string{"content-entity:library-symbol"},
+		[]string{codeGrantGrantedRepo},
+	); err != nil {
+		t.Fatalf("CodeReachabilityIncomingEntityIDs() error = %v, want nil", err)
+	}
+
+	query := recorder.queries[0]
+	if !strings.Contains(query, "WITH candidate_rows AS MATERIALIZED") {
+		t.Fatalf("reachability SQL does not materialize candidate rows first:\n%s", query)
+	}
+	if got, want := strings.Index(query, "FROM code_reachability_rows"), strings.Index(query, "JOIN ingestion_scopes"); got < 0 || want < 0 || got >= want {
+		t.Fatalf("reachability SQL must select candidate rows before active-scope joins (source=%d join=%d):\n%s", got, want, query)
+	}
+	if !strings.Contains(query, "WHERE entity_id IN ($1)") || !strings.Contains(query, "AND depth > 0") {
+		t.Fatalf("candidate entity and positive-depth filters must be applied inside the candidate selection:\n%s", query)
+	}
+	if !strings.Contains(query, "scope.active_generation_id = candidate_rows.generation_id") || !strings.Contains(query, "generation.status = 'active'") {
+		t.Fatalf("candidate reachability must remain restricted to active generations:\n%s", query)
+	}
+	if !strings.Contains(query, "(candidate_rows.repository_id = ANY($2)) AS consumer_in_grant") {
+		t.Fatalf("scoped reachability must project the consumer grant without filtering rows:\n%s", query)
+	}
+	if strings.Contains(query, "WHERE candidate_rows.repository_id") {
+		t.Fatalf("scoped reachability must retain out-of-grant consumers as hidden markers:\n%s", query)
+	}
 }

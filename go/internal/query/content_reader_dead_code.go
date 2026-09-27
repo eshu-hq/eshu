@@ -127,8 +127,8 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 // a WHERE clause. Filtering the row out would leave the symbol looking
 // unreferenced, which is a wrong answer, not a safe one; keeping it as a
 // grant-less marker lets the caller be told the question cannot be decided from
-// what they may read. An empty list is the unscoped caller, whose statement text
-// and scanned columns are unchanged.
+// what they may read. An empty list is the unscoped caller, whose query omits the
+// repository grant column and retains the two-column scan shape.
 func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
@@ -158,22 +158,28 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
 	grantColumn := ""
+	candidateColumns := "entity_id, min_resolution_method, scope_id, generation_id"
 	if len(allowedRepositoryIDs) > 0 {
 		args = append(args, array.Of(allowedRepositoryIDs))
-		grantColumn = fmt.Sprintf(", (row.repository_id = ANY($%d)) AS consumer_in_grant", len(args))
+		candidateColumns += ", repository_id"
+		grantColumn = fmt.Sprintf(", (candidate_rows.repository_id = ANY($%d)) AS consumer_in_grant", len(args))
 	}
-	// #nosec G202 -- concatenates only $N parameter placeholders (generated from len(args)) into the IN list; entity ID values are bound args, not SQL text
+	// #nosec G202 -- concatenates only fixed column names and generated $N placeholders; entity IDs and grants are bound arguments, not SQL text
 	query := `
-		SELECT DISTINCT row.entity_id, row.min_resolution_method` + grantColumn + `
-		FROM code_reachability_rows AS row
+		WITH candidate_rows AS MATERIALIZED (
+			SELECT ` + candidateColumns + `
+			FROM code_reachability_rows
+			WHERE entity_id IN (` + strings.Join(placeholders, ", ") + `)
+			  AND depth > 0
+		)
+		SELECT DISTINCT candidate_rows.entity_id, candidate_rows.min_resolution_method` + grantColumn + `
+		FROM candidate_rows
 		JOIN ingestion_scopes AS scope
-		  ON scope.scope_id = row.scope_id
-		 AND scope.active_generation_id = row.generation_id
+		  ON scope.scope_id = candidate_rows.scope_id
+		 AND scope.active_generation_id = candidate_rows.generation_id
 		JOIN scope_generations AS generation
-		  ON generation.generation_id = row.generation_id
+		  ON generation.generation_id = candidate_rows.generation_id
 		 AND generation.status = 'active'
-		WHERE row.entity_id IN (` + strings.Join(placeholders, ", ") + `)
-		  AND row.depth > 0
 	`
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
