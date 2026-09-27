@@ -3,11 +3,11 @@
   "schema_version": "1",
   "scopes": [
     {
-      "scope_id": "aws:eshu-fixture-account",
+      "scope_id": "aws:eshu-fixture-can-assume-account",
       "source_system": "aws",
       "scope_kind": "region",
       "collector_kind": "aws",
-      "partition_key": "aws:eshu-fixture-account",
+      "partition_key": "aws:eshu-fixture-can-assume-account",
       "metadata": {
         "account_id": "123456789012",
         "region": "aws-global",

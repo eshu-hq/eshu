@@ -145,6 +145,14 @@ invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invok
 # All three cassettes are projections of their compiled Odù rather than
 # second, independently written fixtures, and
 # TestDirectFamilyCassettesMatchTheirCompiledOdu holds them to it.
+#
+# Each cassette owns its scope: scopes carry one ACTIVE generation
+# (scope.active_generation_id), so driving a second generation into an
+# occupied scope supersedes the first family's generation -- its handler
+# never runs and the sibling exact-set assert fails with zero edges. The
+# iam_can_assume cassette first shipped sharing aws:eshu-fixture-account
+# with iam_instance_profile_role and did exactly that (diagnosed live
+# 2026-09-27); it now drives aws:eshu-fixture-can-assume-account.
 kubernetes_namespace_environment_cassette="${repo_root}/testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 kubernetes_namespace_environment_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family-expected-edges.json"
 iam_instance_profile_role_cassette="${repo_root}/testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
