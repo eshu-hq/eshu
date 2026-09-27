@@ -185,7 +185,7 @@ is not broken out here).
 | `codeownersTools` | 1 | `types.go` (wraps `code/owners/tools.go`) |
 | `kubernetesTools` | 1 | `types.go` (wraps `kubernetes/tools.go`) |
 | `secretsIAMTools` | 5 | `types.go` (wraps `access/posture/tools.go`) |
-| `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
+| `observabilityCoverageTools` | 1 | `types.go` (wraps `observability/coverage/tools.go`) |
 | `supplyChainTools` | 8 | `tools_supply_chain.go` (splices `container/image/tools.go`) |
 | `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
 | `securityAlertReconciliationAggregateTools` | 2 | `types.go` (wraps `alerts/aggregates.go`) |

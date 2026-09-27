@@ -5,12 +5,13 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../../dispatch_observability_coverage.go` and
+4. `tools.go` and `tools_test.go` for the child registration definition.
+5. `../../dispatch_observability_coverage.go` and
    `../../dispatch_observability_coverage_contract_test.go` for the root adapter
    and the production-boundary proof.
-5. `../../dispatch_repositories.go` for the repository switch this family is
+6. `../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../../contract/route/README.md` for the dependency-neutral request contract.
+7. `../../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 
@@ -47,7 +48,8 @@
 
 ## Failure modes
 
-- Importing the MCP root creates a parent-child cycle. Use `routecontract` only.
+- Importing the MCP root creates a parent-child cycle. Use `routecontract`
+  and `toolcontract` only.
 - Dropping one of the twelve keys fails in two different ways, and neither is
   the one you would guess from the key count alone. `limit` is required, so
   dropping it 400s every request with `limit is required`. A scope anchor is

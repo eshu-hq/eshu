@@ -22,4 +22,9 @@
 // while losing coverage_status, source_class, resource_class, or outcome
 // silently widens the page to rows the caller filtered out, and losing
 // after_correlation_id silently breaks keyset paging.
+//
+// Tools returns the client-visible tool definition for the same correlation
+// listing. The parent mcp package splices it at its long-standing
+// registration position, so the definition and the route above stay owned
+// together while registration order stays with the parent.
 package observabilitycoveragetools

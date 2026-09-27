@@ -21,6 +21,7 @@ import (
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
+	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observability/coverage"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
@@ -205,6 +206,12 @@ func containerImageTools() []ToolDefinition {
 // definitions.
 func containerImageAggregateTools() []ToolDefinition {
 	return containerimagetools.AggregateTools()
+}
+
+// observabilityCoverageTools preserves the root package's constructor name
+// while the observability/coverage package owns the registration definition.
+func observabilityCoverageTools() []ToolDefinition {
+	return observabilitycoveragetools.Tools()
 }
 
 // codeQualityTools preserves the root package's constructor name while the
