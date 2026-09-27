@@ -2,6 +2,8 @@ go/internal/query/content_reader_security_secrets.go
   s_bc720f29f5e0fd::t_6cd96c63216c1b 48,249
 go/internal/query/hardcoded_secret_migration_binding_test.go
   s_bc720f29f5e0fd::t_c160d8c67d8a36 28
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_f4084d6a878dff 7
 ---
 {
   "schema_version": "authorship/3.0.0",
