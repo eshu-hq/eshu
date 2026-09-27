@@ -37,45 +37,45 @@ no Tier writer exists yet to enforce anything in the schema).
 ## OCI per-key cardinality (verified facts)
 
 - `ContainerImageTagObservation` uid is `(repository_id, tag,
-  resolved_digest)` (`go/internal/storage/cypher/oci_registry_canonical_writer.go:98-112`
+  resolved_digest)` (`canonicalOCIImageTagObservationUpsertCypher` in `go/internal/storage/cypher/oci_registry_canonical_writer.go`
   builds `canonicalOCIImageTagObservationUpsertCypher`, which `MERGE`s on that
   uid), so one `image_ref` can legitimately have one row per digest the tag
   ever resolved to. `buildOCITagTruthRows`
-  (`go/internal/query/impact/trace_deployment_oci.go:397-433`) depends on that
+  (`buildOCITagTruthRows` in `go/internal/query/impact/trace_deployment_oci.go`) depends on that
   multiplicity: it groups tag-lookup rows by `image_ref` and marks a group
   `ambiguous` the moment it sees more than one distinct digest.
 - `ContainerImageDescriptor`'s uid embeds the repository
-  (`go/internal/collector/ociregistry/identity.go:59`,
+  (`NormalizeDescriptorIdentity` in `go/internal/collector/ociregistry/identity.go`,
   `fmt.Sprintf("oci-descriptor://%s/%s@%s", repository.Registry,
   repository.Repository, digest)`), so a single digest can resolve to more
   than one descriptor across repositories.
 - Only `OciRegistryRepository.uid` carries a uniqueness constraint
-  (`go/internal/graph/schema_test.go:272`,
+  (the `oci_registry_repository_uid_unique` constraint, asserted by `TestSchemaStatementsContainsUIDConstraints` in `go/internal/graph/schema_test.go`,
   `oci_registry_repository_uid_unique`); `digest`
   (`container_image_digest`/`container_image_descriptor_digest`) and
   `image_ref` (`container_image_tag_observation_ref`) are plain, non-unique
-  indexes (`go/internal/graph/schema_tables_indexes.go:255,258`).
+  indexes (`container_image_digest` and `container_image_tag_observation_ref` in `schemaPerformanceIndexes`, `go/internal/graph/schema_tables_indexes.go`).
 - `fetchOCIRepositoriesByUID` batches on `OciRegistryRepository.uid`
-  (`go/internal/query/impact/trace_deployment_oci.go:221-234`), so that
+  (`fetchOCIRepositoriesByUID` in `go/internal/query/impact/trace_deployment_oci.go`), so that
   constraint is a genuine per-key fan-out-1 enforcer.
   `fetchOCIImageTagRows`/`fetchOCIImagesByDigest` batch on `image_ref` and
   `digest`, neither of which is unique, so their existing 250/750 numbers
   describe an observed worst case, not an enforced one.
 - A fail-closed error path is not viable for `FetchOCIImageRegistryTruth`
   today: an error there 500s the whole deployment-chain trace
-  (`go/internal/query/impact/trace_deployment.go:236-242`), and there is no
+  (the `FetchOCIImageRegistryTruth` error path in `(*Handler).TraceDeploymentChain`, `go/internal/query/impact/trace_deployment.go`), and there is no
   corpus measurement to size a safe cap.
 
 ## Tier per-key cardinality (verified facts)
 
 - `blastRadiusTierLookupCypher`
-  (`go/internal/query/impact/blast_radius.go:302-304`) is a single
+  (`blastRadiusTierLookupCypher` in `go/internal/query/impact/blast_radius.go`) is a single
   `MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids
   RETURN ...` with no `LIMIT` and no `DISTINCT`.
 - No `:Tier` writer exists anywhere in non-test Go under `go/cmd` or
   `go/internal`; the only two `:Tier` references outside this read are the
   `tier_name` uniqueness constraint on `Tier.name`
-  (`go/internal/graph/schema_tables.go:121`) and this read itself. A
+  (the `tier_name` constraint in `schemaConstraints`, `go/internal/graph/schema_tables.go`) and this read itself. A
   constraint on `Tier.name` says nothing about how many `Tier` nodes a given
   `Repository` can be `CONTAINS`-linked from.
 - ops-qa read-only status (owner's issue comment, 2026-09-26/27): **0 `:Tier`
