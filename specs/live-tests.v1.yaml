@@ -831,6 +831,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/deployable_unit_retract_scope_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7306 retract-scope proof through the real DeployableUnitCorrelationHandler and EdgeWriter; a matching and a foreign-keyed deployable_unit_correlation intent in both orders and racing (10 trials) must leave only the admitted CORRELATES_DEPLOYABLE_UNIT edge, a foreign-keyed intent must change nothing, and a matching intent must retract a disappeared edge; local neo4j:2026-community runs took 1.11s warm and 19.2s with a cold schema apply on a shared host; runs on both backends in the live-backend CI job
   - file: go/internal/reducer/freshness/links/process_live_test.go
     tag: ~
     class: scheduled

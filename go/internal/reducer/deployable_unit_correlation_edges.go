@@ -294,6 +294,12 @@ func deployableUnitCorrelationRows(
 	return rows
 }
 
+// deployableUnitRetractRowsFromFacts builds the zero-result retract rows, one
+// per repository fact the intent's keys select. It is order-independent only
+// while that selection equals filterDeployableUnitCandidates' (pinned by
+// TestDeployableUnitRetractMatcherAgreesWithCandidateFilter): an intent then
+// leaves a repository alone or rewrites all of its edges (#7306). Widening it
+// to the whole scope while writes stay key-filtered is the #7304 defect.
 func deployableUnitRetractRowsFromFacts(
 	intent Intent,
 	envelopes []facts.Envelope,
