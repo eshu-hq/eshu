@@ -5,14 +5,15 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../../dispatch_container_image.go` and
+4. `tools.go` and `tools_test.go` for the child registration definitions.
+5. `../../dispatch_container_image.go` and
    `../../dispatch_container_image_contract_test.go` for the root adapter and the
    production-boundary proof.
-5. `../../dispatch_repositories.go` for the repository switch this family is
+6. `../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of, and `../../dispatch_supply_chain.go` for the six
    supply-chain builders that stayed behind when two of this family's builders
    left it.
-6. `../../contract/route/README.md` for the dependency-neutral request contract.
+7. `../../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 
@@ -74,7 +75,8 @@
 
 ## Failure modes
 
-- Importing the MCP root creates a parent-child cycle. Use `routecontract` only.
+- Importing the MCP root creates a parent-child cycle. Use `routecontract`
+  and `toolcontract` only.
 - Normalizing the tag-history path onto the sibling prefix selects a path the
   query mux does not serve. This is the likeliest wrong edit in this package.
 - Dropping a key fails differently per route, and only two of the four fail

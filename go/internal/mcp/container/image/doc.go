@@ -38,4 +38,10 @@
 // both repository_id and tag, and its repository_id must carry the
 // oci-registry:// prefix. The two aggregates require nothing, so a filter
 // dropped there returns 200 over a wider scope than the caller asked for.
+//
+// Tools and AggregateTools return the client-visible tool definitions for the
+// same four tools: the listing and tag history, then the count and inventory
+// aggregates. The parent mcp package splices those slices at their
+// long-standing registration positions, so the definitions and the routes
+// above stay owned together while registration order stays with the parent.
 package containerimagetools

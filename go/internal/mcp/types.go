@@ -14,6 +14,7 @@ import (
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
+	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/container/image"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
@@ -56,7 +57,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, supplyChainTools()...)
 	tools = append(tools, supplyChainImpactAggregateTools()...)
 	tools = append(tools, securityAlertReconciliationAggregateTools()...)
-	tools = append(tools, containerImageIdentityAggregateTools()...)
+	tools = append(tools, containerImageAggregateTools()...)
 	tools = append(tools, sbomAttestationAttachmentAggregateTools()...)
 	tools = append(tools, incidentContextTools()...)
 	tools = append(tools, workItemTools()...)
@@ -191,6 +192,19 @@ func codeownersTools() []ToolDefinition {
 // kubernetes package owns the registration definition.
 func kubernetesTools() []ToolDefinition {
 	return kubernetestools.Tools()
+}
+
+// containerImageTools preserves the root package's constructor name while the
+// container/image package owns the identity registration definitions.
+func containerImageTools() []ToolDefinition {
+	return containerimagetools.Tools()
+}
+
+// containerImageAggregateTools preserves the root package's constructor name
+// while the container/image package owns the aggregate registration
+// definitions.
+func containerImageAggregateTools() []ToolDefinition {
+	return containerimagetools.AggregateTools()
 }
 
 // codeQualityTools preserves the root package's constructor name while the

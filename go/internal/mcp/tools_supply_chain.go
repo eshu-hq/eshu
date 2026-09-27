@@ -4,6 +4,16 @@
 package mcp
 
 func supplyChainTools() []ToolDefinition {
+	// img holds the two container-image identity definitions owned by the
+	// container/image package, spliced into this block at their long-standing
+	// positions between the scanner and impact neighbors. The interleaved
+	// neighbors rule out a whole-slice append, so this guard makes an arity
+	// change fail fast here instead of silently dropping a third definition
+	// or panicking on an index below.
+	img := containerImageTools()
+	if len(img) != 2 {
+		panic("containerImageTools must return exactly the two spliced definitions")
+	}
 	return []ToolDefinition{
 		{
 			Name:        "get_vulnerability_scanner_read_contract",
@@ -19,82 +29,8 @@ func supplyChainTools() []ToolDefinition {
 				},
 			},
 		},
-		{
-			Name:        "list_container_image_identities",
-			Description: "List reducer-owned container image identity facts by digest, image reference, source repository bridge, OCI repository, or outcome. Populated by the opt-in oci_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus container-registry credentials), so a default git-only deploy returns an empty page.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"digest": map[string]any{
-						"type":        "string",
-						"description": "Image digest such as sha256:...",
-					},
-					"image_ref": map[string]any{
-						"type":        "string",
-						"description": "Original image reference observed in source or runtime evidence.",
-					},
-					"repository_id": map[string]any{
-						"type":        "string",
-						"description": "OCI repository identity such as oci-registry://registry.example/team/api.",
-					},
-					"source_repository_id": map[string]any{
-						"type":        "string",
-						"description": "source repository id or selector for bridge reads; this is not an OCI image repository identity.",
-					},
-					"outcome": map[string]any{
-						"type":        "string",
-						"description": "Optional reducer identity outcome filter.",
-						"enum":        []string{"exact_digest", "tag_resolved"},
-					},
-					"after_identity_id": map[string]any{
-						"type":        "string",
-						"description": "Identity ID from next_cursor when continuing a truncated page.",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum identity rows to return.",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-				},
-			},
-		},
-		{
-			Name:        "list_container_image_tag_history",
-			Description: "List the bounded, ordered ContainerImageTagObservation history captured for one repository_id+tag (issue #5459): what digest the tag was first observed as, and the order its digests changed. repository_id and tag are both required; the server composes the image_ref anchor from them. A tag that flips back to a previously observed digest (A -> B -> A) collapses onto the same observation node rather than producing a new event, and first_observed_at is a set-once value that holds the FIRST projected observation rather than a full chronological event log -- see the route's doc comment for both limitations. Populated by the opt-in oci_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus container-registry credentials), so a default git-only deploy returns an empty page. Scoped (personal-token) callers see only rows bound to their repository grant through ContainerImage-[:BUILT_FROM]->Repository (#6564): a row is kept only when the image at its resolved_digest is BUILT_FROM a granted repository, previous_digest is omitted unless its image is too, and observations whose image has no BUILT_FROM edge are withheld, so a scoped caller can see less history than the shared ESHU_API_KEY does. mutated is left exactly as observed, so a row with mutated=true and no previous_digest still tells you some prior digest existed, without telling you which. A grant-filtered page is refilled across further reads until it holds limit rows, the history ends, or a small per-request read cap is reached, so a short page does NOT tell you how many rows were withheld; each refill read covers a fixed 200 raw rows whatever limit you asked for, so one request scans a constant 800. A scan that read only withheld rows comes back with zero rows and truncated=true rather than ending the history. Continue with next_cursor, an encrypted token bound to this image_ref -- its plaintext names one row's first_observed_at and uid rather than a row position, so paging is forward-only (an observation inserted before that point is not returned later) and the token stays valid if you change limit mid-walk. Pass it back verbatim as cursor; you cannot parse or synthesize one, and a token this server did not issue -- one issued before a key rotation, or one issued under repository grants other than the ones you hold now -- gets a 400, so restart from page one. Keep following it until truncated is false. What a capped page discloses is a COUNT and never an identity: zero rows with truncated=true means the next 800 raw observations after the row you were last shown, or after the frontier of your previous capped page, held nothing you are entitled to. You cannot aim that span, cannot read the frontier, and never learn a withheld observation's first_observed_at, uid or digest. If the server has no cursor sealing key configured (ESHU_AUTH_SECRET_ENC_KEY/_FILE), a scoped caller's truncated page omits next_cursor and truth.reason says so, and sending a cursor gets a 503; unscoped callers are unaffected. offset is for unscoped/shared-key callers only: a scoped caller sending a non-zero offset gets a 400, and a grant-filtered response omits the offset field. Scoped responses carry grant_filtered=true.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"repository_id": map[string]any{
-						"type":        "string",
-						"description": "OCI repository identity such as oci-registry://registry.example/team/api. Required; must carry the oci-registry:// prefix.",
-					},
-					"tag": map[string]any{
-						"type":        "string",
-						"description": "Tag observed for the image, such as 1.0.0. Required.",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum tag-observation rows to return.",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-					"cursor": map[string]any{
-						"type":        "string",
-						"description": "Continuation token from a truncated page's next_cursor. Pass it back verbatim: it is an authenticated-encryption envelope over a row key, so only a token this deployment issued for this image_ref opens. Edited, synthesized, truncated, foreign-image_ref, pre-rotation and foreign-grant tokens all get a 400 -- restart from page one. The last case covers your own token after your repository grants change mid-walk, not only another caller's. There is no row position inside it, so it is not bound to the limit it was issued for, and a key matching no current row is not an error. This is the only continuation a scoped (personal-token) caller may use, and on a server with no sealing key configured that caller gets a 503 naming the variable instead.",
-					},
-					"offset": map[string]any{
-						"type":        "integer",
-						"description": "Raw row offset for continuation, for unscoped/shared-key callers only. A scoped caller sending a non-zero offset gets a 400 and must use cursor instead; offset=0 names the start of the history and is always legal.",
-						"default":     0,
-						"minimum":     0,
-					},
-				},
-				"required": []string{"repository_id", "tag"},
-			},
-		},
+		img[0],
+		img[1],
 		{
 			Name:        "list_supply_chain_impact_findings",
 			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. The default precise profile requires supported exact-version evidence such as npm, Maven, Cargo, Pub pubspec.lock, NuGet, or Swift Package.resolved. Each row carries `vulnerable_range`, a reachability envelope with states such as reachable, not_called, unknown, unavailable, and missing_evidence, and an advisory-only remediation block (issue #595). Reachability does not change impact truth; JavaScript/TypeScript parser/SCIP package API evidence is partial prioritization evidence, and not_called is emitted only when an ecosystem-specific scanner proves stronger semantics. Exact Kubernetes digest-runtime evidence includes `kubernetes_runtime_workload_refs` plus `kubernetes_runtime_probe.candidate_limit`, bounded across the serialized page to 200 refs; repeated findings share that budget while every eligible finding retains at least one exact ref. Nullable `workload_refs_truncated` never discloses hidden scoped candidates. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision. Findings are seeded by the opt-in vulnerability_intelligence and security_alert collectors (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus advisory-feed or provider credentials), so a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero.",

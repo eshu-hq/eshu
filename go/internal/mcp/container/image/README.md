@@ -23,6 +23,10 @@ bound, offset ceiling, scope-anchor requirement, and `group_by` validation.
 
 - `Route` selects the internal request for a container-image tool without
   executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the identity listing and tag history definitions the parent
+  splices inside its supply-chain block.
+- `AggregateTools` returns the count and inventory aggregate definitions the
+  parent splices at its aggregates position.
 
 See `doc.go` for the godoc contract.
 
