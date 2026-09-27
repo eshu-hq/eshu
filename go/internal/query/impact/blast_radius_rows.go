@@ -4,16 +4,18 @@
 package impact
 
 import (
+	"log/slog"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file holds the pure row-shaping helpers for blast-radius results
-// (dedup, sort, distinct-value extraction). They issue no graph queries, so
-// they live apart from blast_radius.go to keep that dispatcher file
-// under the 500-line cap without moving any query-owner symbol the queryplan
-// manifest keys on (blastRadiusAffected, enrichBlastRadiusTiers).
+// (dedup, sort, distinct-value extraction, tier-ambiguity grouping). They
+// issue no graph queries, so they live apart from blast_radius.go to keep
+// that dispatcher file under the 500-line cap without moving any
+// query-owner symbol the queryplan manifest keys on (blastRadiusAffected,
+// enrichBlastRadiusTiers).
 
 // distinctRepoIDs returns the unique non-empty repo ids from the rows. Used to
 // anchor the terraform_module dependents traversal on concrete source-repo ids
@@ -100,4 +102,55 @@ func sortBlastRadiusRows(rows []map[string]any) {
 		}
 		return querycontract.StringVal(rows[i], "repo") < querycontract.StringVal(rows[j], "repo")
 	})
+}
+
+// blastRadiusRepoTier is one resolved (tier, risk) pair for a repository.
+type blastRadiusRepoTier struct {
+	tier string
+	risk string
+}
+
+// blastRadiusRepoTiers groups blastRadiusTierLookupCypher rows per repo_id
+// and resolves each group to a single (tier, risk) pair, or withholds it
+// (#6590). The statement has no enforced per-repo cardinality (see its doc
+// comment in blast_radius.go), so a repo whose rows disagree -- more than
+// one DISTINCT (tier, risk) pair -- is ambiguous: it is left out of the
+// returned map entirely (the caller then sets no tier/risk key), and logged
+// so an operator can see which repo and how many candidates. Duplicate
+// identical rows for the same repo collapse silently; they are the same
+// fact observed more than once, not ambiguity, and still resolve normally.
+func blastRadiusRepoTiers(rows []map[string]any, logger *slog.Logger) map[string]blastRadiusRepoTier {
+	candidatesByRepo := make(map[string][]blastRadiusRepoTier, len(rows))
+	for _, row := range rows {
+		id := querycontract.StringVal(row, "repo_id")
+		if id == "" {
+			continue
+		}
+		candidate := blastRadiusRepoTier{
+			tier: querycontract.StringVal(row, "tier"),
+			risk: querycontract.StringVal(row, "risk"),
+		}
+		duplicate := false
+		for _, existing := range candidatesByRepo[id] {
+			if existing == candidate {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			candidatesByRepo[id] = append(candidatesByRepo[id], candidate)
+		}
+	}
+	tiers := make(map[string]blastRadiusRepoTier, len(candidatesByRepo))
+	for id, candidates := range candidatesByRepo {
+		if len(candidates) > 1 {
+			if logger != nil {
+				logger.Warn("blast-radius tier enrichment ambiguous; withholding tier",
+					"repo_id", id, "tier_candidates", len(candidates))
+			}
+			continue
+		}
+		tiers[id] = candidates[0]
+	}
+	return tiers
 }

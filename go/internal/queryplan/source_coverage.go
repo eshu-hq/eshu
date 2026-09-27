@@ -72,9 +72,19 @@ type NonHotDisposition struct {
 	MaxKeys      int    `yaml:"max_keys,omitempty"`
 	Label        string `yaml:"label,omitempty"`
 	MaxResults   int    `yaml:"max_results,omitempty"`
-	Delegate     string `yaml:"delegate,omitempty"`
-	Policy       string `yaml:"policy,omitempty"`
-	Operation    string `yaml:"operation,omitempty"`
+	// FanOutMultiplier declares the per-key row multiplicity of one
+	// bounded_key_batch statement: max_results must equal
+	// max_keys * fan_out_multiplier, so max_results is derived from the
+	// multiplier rather than picked independently. It is optional, and
+	// applies only to keyed_support rows with key_bound bounded_key_batch.
+	// Set it only when something in code enforces that every key produces
+	// exactly this many rows -- a uniqueness constraint on the keyed
+	// property, a writer guard, or a schema-fixed label list -- and name
+	// that enforcer in the row's YAML comment.
+	FanOutMultiplier int    `yaml:"fan_out_multiplier,omitempty"`
+	Delegate         string `yaml:"delegate,omitempty"`
+	Policy           string `yaml:"policy,omitempty"`
+	Operation        string `yaml:"operation,omitempty"`
 	// MaxDegree bounds the anchor's CALLS degree in the read's direction for
 	// degree-bounded reads. It describes the reference corpus, not a
 	// production cap: these statements carry no LIMIT by accuracy design
@@ -397,91 +407,6 @@ func flattenCoverage(
 	return flattened, violations
 }
 
-func validateNonHotDisposition(key string, disposition NonHotDisposition) []string {
-	var violations []string
-	if len(disposition.SourceDigest) != sha256.Size*2 {
-		violations = append(violations, fmt.Sprintf("%s: non_hot requires a SHA-256 source_sha256", key))
-	}
-	switch disposition.Class {
-	case NonHotClassKeyedSupport:
-		if disposition.KeyBound != NonHotKeyBoundSingle && disposition.KeyBound != NonHotKeyBoundBatch {
-			violations = append(violations, fmt.Sprintf("%s: keyed_support requires key_bound", key))
-		}
-		if disposition.KeyBound == NonHotKeyBoundBatch && disposition.MaxKeys <= 0 {
-			violations = append(violations, fmt.Sprintf("%s: bounded_key_batch requires max_keys", key))
-		}
-		if disposition.MaxResults <= 0 {
-			violations = append(violations, fmt.Sprintf("%s: keyed_support requires max_results", key))
-		}
-	case NonHotClassLabelInventory:
-		if strings.TrimSpace(disposition.Label) == "" {
-			violations = append(violations, fmt.Sprintf("%s: label_inventory requires label", key))
-		}
-		if disposition.MaxResults <= 0 {
-			violations = append(violations, fmt.Sprintf("%s: label_inventory requires max_results", key))
-		}
-	case NonHotClassDelegated:
-		if disposition.Delegate != "graph_session" && disposition.Delegate != "profiled_callee" {
-			violations = append(violations, fmt.Sprintf("%s: delegated requires delegate", key))
-		}
-	case NonHotClassOperatorQuery:
-		if disposition.Policy != "authenticated_read_endpoint" && disposition.Policy != "validated_query_endpoint" {
-			violations = append(violations, fmt.Sprintf("%s: operator_query requires policy", key))
-		}
-	case NonHotClassBackendMetadata:
-		if disposition.Operation != "relationship_types" {
-			violations = append(violations, fmt.Sprintf("%s: backend_metadata requires operation", key))
-		}
-	case NonHotClassDegreeBounded:
-		if disposition.KeyBound != NonHotKeyBoundSingle {
-			violations = append(violations, fmt.Sprintf(
-				"%s: degree_bounded requires key_bound %q (got %q); single-anchor one-hop CALLS reads use single_key, batched reads use keyed_support",
-				key,
-				NonHotKeyBoundSingle,
-				disposition.KeyBound,
-			))
-		}
-		violations = append(violations, validateNonHotMaxDegree(key, disposition.Class, disposition.MaxDegree)...)
-	case NonHotClassDepthBounded:
-		if disposition.KeyBound != NonHotKeyBoundSingle {
-			violations = append(violations, fmt.Sprintf(
-				"%s: depth_bounded requires key_bound %q (got %q); single-anchor traversals use single_key, batched reads use keyed_support",
-				key,
-				NonHotKeyBoundSingle,
-				disposition.KeyBound,
-			))
-		}
-		violations = append(violations, validateNonHotMaxDegree(key, disposition.Class, disposition.MaxDegree)...)
-		if disposition.MaxDepth != nonHotTransitiveMaxDepth {
-			violations = append(violations, fmt.Sprintf(
-				"%s: depth_bounded requires max_depth == %d (got %d); %d is the handler-enforced clamp ceiling, so a lower bound describes no production path — a tighter production clamp needs a validator update, not a smaller number here",
-				key,
-				nonHotTransitiveMaxDepth,
-				disposition.MaxDepth,
-				nonHotTransitiveMaxDepth,
-			))
-		}
-	default:
-		violations = append(violations, fmt.Sprintf("%s: unsupported non-hot class %q", key, disposition.Class))
-	}
-	return violations
-}
-
-// validateNonHotMaxDegree floors max_degree at the corpus-measured maximum
-// CALLS degree (both directions) so a disposition cannot certify a fan-out
-// below observed reality. A max_degree under the floor is either a stale
-// measurement (the staged corpus grew — re-measure and raise the floor) or
-// a number picked to fit the entry (never the fix).
-func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
-	if maxDegree < nonHotCorpusMaxCALLSDegree {
-		return []string{fmt.Sprintf(
-			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the ops-qa reference corpus (#6649)",
-			key,
-			class,
-			nonHotCorpusMaxCALLSDegree,
-			maxDegree,
-			nonHotCorpusMaxCALLSDegree,
-		)}
-	}
-	return nil
-}
+// validateNonHotDisposition and validateNonHotMaxDegree moved to
+// source_coverage_non_hot.go (#6590), which also carries the
+// fan_out_multiplier check for keyed_support bounded_key_batch rows.

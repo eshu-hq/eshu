@@ -23,7 +23,10 @@ exact call count, and has exactly one disposition:
 - `non_hot_reason` records why an inventory-only support or bounded read is not
   independently registered as a hot query.
 - `non_hot` records a machine-checked closed classification, source digest, and
-  applicable key/result bounds for newly audited support reads.
+  applicable key/result bounds for newly audited support reads. For
+  `keyed_support` rows with `key_bound: bounded_key_batch`, `max_keys` and
+  `max_results` describe one `Run` call (one statement over one key batch),
+  not the total across every batch a caller loops over (#6590).
 
 The production-source test discovers this inventory with the Go parser. A new
 file, symbol, or call, a changed call count, a stale registration, an unknown hot
