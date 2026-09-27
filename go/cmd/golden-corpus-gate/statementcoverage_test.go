@@ -140,6 +140,25 @@ func TestRunStatementCoverageNeverExecuted(t *testing.T) {
 	}
 }
 
+// Neo4j-only enforcement (#6783 retarget): the gate joins only the Neo4j
+// gated runs, with no NornicDB recordings present. A covered manifest passes
+// the neo4j-only invocation and an unexecuted builder fails it.
+func TestRunStatementCoverageNeo4jOnly(t *testing.T) {
+	manifest := writeCoverageManifest(t)
+	neo4j := writeCoverageDir(t, "neo4j", true)
+	if err := runStatementCoveragePhase(t, manifest, neo4j); err != nil {
+		t.Errorf("covered manifest failed the Neo4j-only gate: %v", err)
+	}
+}
+
+func TestRunStatementCoverageNeo4jOnlyNeverExecuted(t *testing.T) {
+	manifest := writeCoverageManifest(t)
+	neo4j := writeCoverageDir(t, "neo4j", false)
+	if err := runStatementCoveragePhase(t, manifest, neo4j); err == nil {
+		t.Errorf("unexecuted builder passed the Neo4j-only gate")
+	}
+}
+
 // An empty capture must fail the gate with the fail-closed finding:
 // passing with zero recordings would prove nothing. Asserting the
 // recorded check (not just the phase error) pins the total == 0 branch:

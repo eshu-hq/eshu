@@ -221,19 +221,21 @@ proof (no Docker):
 cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff' -count=1
 ```
 
-### Statement coverage (NornicDB execution proof)
+### Statement coverage (Neo4j execution proof)
 
-Beyond result parity, CI joins the same pair captures against the checked-in
+Beyond result parity, CI joins the Neo4j pair captures against the checked-in
 statement-builder manifest (`go/internal/queryplan/testdata/statement-builders.yaml`)
-and fails when an inventoried, unexempted builder never executed on a backend,
+and fails when an inventoried, unexempted builder never executed on Neo4j,
 or when a recorded read returned zero rows on every execution without a
 reasoned read exemption (`statement-coverage` in `golden-corpus-gate.yml`,
 same blocking row as the differential oracle in `specs/ci-gates.v1.yaml`).
+Coverage is Neo4j-only: NornicDB is not a coverage target, and builders that
+run only on a NornicDB branch carry a manifest exemption with reason.
 Unmatched executions are advisory (`unattributed`); writes that never carried
-Bolt counters are advisory (`write-without-counters`), since NornicDB does not
-report `PropertiesSet`/`LabelsAdded`. An exemption excuses execution proof,
-never drift: templates, fragments, and the source digest still pin the symbol,
-and the manifest validator rejects any drift in them.
+Bolt counters are advisory (`write-without-counters`), since a MERGE that
+matched-existing legitimately reports zeros. An exemption excuses execution
+proof, never drift: templates, fragments, and the source digest still pin the
+symbol, and the manifest validator rejects any drift in them.
 
 A same-parameter sibling read is judged as one read. When a handler issues
 one single-label `MATCH (v:Label)` per candidate label with byte-identical
@@ -253,13 +255,13 @@ green while a sibling returns rows and shows up only as an advisory miss.
 Reads that share a text modulo label but never shared parameters stay
 independent.
 
-Run it over local captures (single pair is enough; CI merges both pairings by
-backend):
+Run it over local captures (single pair is enough; CI merges both Neo4j
+pairing dirs by backend):
 
 ```bash
 cd go && go run ./cmd/golden-corpus-gate -phase=statement-coverage \
   -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml \
-  -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j
+  -coverage-dirs=/tmp/diff-capture/neo4j
 ```
 
 ### The cross-run lock
