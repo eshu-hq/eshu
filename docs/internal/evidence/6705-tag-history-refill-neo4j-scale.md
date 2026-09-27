@@ -188,13 +188,36 @@ The same held on the n=10,000 granted-control cell:
 Measurement: 3/3 trials (ledger:6705-refill-kept-n10000)
 
 Every one of the six independent process runs -- 3 trials x 2 corpus sizes,
-28 (5000) and 28 (10000) `RefillScopedPage` calls issued per run (1 cold +
-20 warm on the withheld path, 9 pages on the granted control, minus the
-shared cold/first-page double-count) -- passed with the SAME qualitative
+30 `RefillScopedPage` calls issued per corpus size per run (1 cold + 20 warm
+on the withheld path, plus 9 pages on the granted control) -- passed with the SAME qualitative
 result: cap hit exactly at 4 reads on the withheld path, zero granted rows
 lost on the control path, and every observed latency at least an order of
 magnitude under the single 10s bounded-read budget the #6705 fix now shares
 across the whole loop.
+
+## Confirmation on the repo-pinned image
+
+The three runs above used the floating `neo4j:2026-community` tag, which
+resolved to Neo4j `2026.09.0`. ops-qa and the repo's compose files pin
+`neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`,
+which reports `2026.08.1`. One further run on that pinned digest, same test,
+same seed shape, fresh container (`eshu-6705-neo4j`, port 17705, removed
+afterwards), commit `3b0f8ca96` plus the review trims:
+
+| N | variant | reads | cap_reached | truncated | cold (ms) | warm p50 (ms) | warm p95 (ms) | warm max (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 5,000 | withheld | 4 | true | true | 276.51 | 15.53 | 24.11 | 27.44 |
+| 10,000 | withheld | 4 | true | true | 19.99 | 11.19 | 18.95 | 19.02 |
+
+| N | variant | pages | cold (ms) | kept | want |
+| --- | --- | --- | --- | --- | --- |
+| 5,000 | granted | 9 | 8.24 | 850 | 850 |
+| 10,000 | granted | 9 | 3.68 | 850 | 850 |
+
+The pinned run reproduces the floating-tag runs (ledger:6705-refill-pinned-2026-08-1).
+The 276.51 ms n=5,000 cold figure is again the container's first query of
+that shape, a plan-cache cold start. The cap-stays-at-4 conclusion does not
+depend on the image difference.
 
 ## Performance Evidence
 

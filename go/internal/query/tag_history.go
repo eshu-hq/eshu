@@ -353,12 +353,8 @@ func (h *TagHistoryHandler) writeTagHistoryPage(
 }
 
 // writeTagHistoryReadError writes the response for a failed graph read, shared
-// by the tag read and the scoped BUILT_FROM lookup. Its errors.Is translation
-// is a #6705 defensive fallback (#7006 pattern): RefillScopedPage's shared
-// bounded-read deadline already reaches here as querycontract.ErrGraphReadDeadline
-// from a real Neo4jReader, but a GraphQuery that bypasses it can still return a
-// raw context.DeadlineExceeded, and that must never fall through to the 500
-// below or the wrong "query_error" outcome.
+// by the tag read and the scoped BUILT_FROM lookup. A raw DeadlineExceeded from
+// a GraphQuery that bypasses Neo4jReader maps to ErrGraphReadDeadline (#6705).
 func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
 	if errors.Is(err, context.DeadlineExceeded) {
 		err = querycontract.ErrGraphReadDeadline
