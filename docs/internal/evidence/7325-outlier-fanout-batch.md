@@ -17,8 +17,7 @@ fan-out alone, leaving the wrapper-bypass evidence track's
 ## Identity
 
 - Base: `origin/main` `26a514a55`.
-- Worktree: `/Users/linuxdynasty/personal-repos/eshu-hq/worktrees/7325-outlier-fanout`,
-  branch `perf/7325-outlier-fanout-batch`.
+- Branch: `perf/7325-outlier-fanout-batch`, in a dedicated feature worktree.
 - Container (both measurement phases below):
   `docker run -d --name eshu-7325-neo4j -p 17325:7687 -e
   NEO4J_AUTH=neo4j/eshu-7325-pass
