@@ -380,6 +380,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_entity_search_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged disposable PostgreSQL proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1; one local PostgreSQL 18 run took 1.60 s, and the graph live-backend job has no PostgreSQL DSN — promote after CI provisioning and timing evidence
   - file: go/internal/query/content_reader_security_secrets_fallback_live_test.go
     tag: ~
     class: scheduled

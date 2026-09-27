@@ -71,3 +71,45 @@ MCP content-search responses have not been retimed on a deployed patched build.
 same recorded-argument sweep must run after #7237 and #7241 are deployed
 before a sub-second endpoint claim or issue closure. After its PR merges,
 #7241 remains open awaiting deployment and that sweep.
+
+## Post-deployment scoped content-search plan follow-up
+
+Performance Evidence: On the owner-deployed ops-qa image, an exact
+single-repository entity-content page for the one-character `a` argument took
+60.591 seconds at the HTTP client, of which 60.470 seconds was the existing
+`postgres.query` span. The backend was in `DataFileRead` without a blocking
+transaction. A read-only same-session prepared-statement replay crossed from
+custom to generic planning after five mixed repository/pattern arguments. Its
+exact `a` page took 13,214.443 ms with the generic plan and 259,313 shared
+buffer reads; custom plans immediately before and after took 12.376 and
+0.114 ms, using `content_entities_repo_path_start_idx`. These timings show the
+plan choice can account for the tail; they are not a measured endpoint result
+for the new code. The global any-repository content search has a separate plan
+and remains outside this change. A same-local-PostgreSQL 18 ABBA control used
+2,000 narrow fixture rows, the same page SQL and 31-row page, and 200
+query-and-scan samples per mode on one connection. Cached-statement mode had
+median/p95 0.475/0.623 ms; unprepared extended-protocol mode had
+0.484/0.649 ms. The fixture shows about 0.009 ms median and 0.026 ms p95
+local planning/round-trip overhead, with no scale-based speed claim; its small
+table cannot reproduce the QA generic-plan failure.
+
+The single-repository page now selects pgx's unprepared extended-protocol mode
+for that statement only. PostgreSQL receives the same SQL and positional bind
+values, and chooses a plan for each repository/pattern pair. Explicit repository
+sets and any-repository pages retain their prior execution mode. No session-wide
+planner setting, schema, index, or write path changes.
+
+No-Regression Evidence: The focused unit test failed before this edit because
+the page supplied four bind arguments instead of the required mode plus four
+binds, then passed after the edit. A disposable PostgreSQL 18 round trip ran
+seven page requests through the real pgx `database/sql` adapter, returned the
+same ordered offset page `[b, c]` with its repository bound, and found zero
+matching named prepared statements. A normally cached control read on that
+same connection appeared as one named statement, checking that the zero was
+observable. The round trip also exercises text-format result decoding into the
+same entity fields and metadata. This local fixture does not reproduce the
+340,030-row corpus or prove a post-deploy warm p95.
+
+No-Observability-Change: The existing `postgres.query` span keeps
+`db.operation=search_entity_content_page` and error recording; no metric,
+span field, log key, result envelope, or public paging field changes.
