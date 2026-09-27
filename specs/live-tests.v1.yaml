@@ -739,6 +739,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/tag_history_refill_scale_neo4j_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#6705 corpus-scale Neo4j proof for the tag-history refill loop: seeds 5,000 and 10,000 ContainerImage nodes plus 850-observation withheld and granted histories, so it costs real wall time to seed and is env-gated by ESHU_TAG_HISTORY_REFILL_SCALE_LIVE rather than a build tag — promote to blocking with repeated timing evidence"
+    backends: neo4j
   - file: go/internal/reducer/cloud_resource_retract_live_test.go
     tag: ~
     class: scheduled
