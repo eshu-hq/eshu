@@ -176,6 +176,79 @@ diagnostics only; no ops-qa schema or production code changed. The remaining
 <1 s acceptance must be checked on the approved same-topology canary, and a
 further query change still requires its own accuracy-safe theory proof.
 
+## Isolated in-cluster Neo4j/Postgres diagnostic
+
+On 2026-09-27, the reviewed branch `fab269ef8` was transported solely for the
+approved temporary API canary. The baseline was `c15539e80`. Both API
+binaries were built from their exact commits with the unchanged digest-pinned
+Dockerfile, Go 1.26.6 Alpine, `linux/amd64`, CGO enabled, static linker flags,
+and each commit's source epoch. Their SHA-256 digests were
+`070badb6d81bb7942586d76ba1669b2cdb67e04c3dbee261c861911bf7e454a0`
+and `fe7df3d6c4000951014c4339b0f7bd2f62f6840659277273f3e3ea2a402b0c70`,
+respectively. Both were static ELF x86-64 binaries without an interpreter or
+shared-library dependency; the copied files and running `/proc/<pid>/exe`
+matched those hashes inside the canary.
+
+One isolated Pod held a baseline and candidate container, each with the live
+API's 250m/512 MiB request and 1 CPU/2 GiB limit, the same pinned runtime
+image and backend credentials, production query profile, non-root/read-only
+security context, and distinct API ports. No Service or Ingress selected it.
+A dedicated NetworkPolicy denied in-cluster ingress and restricted egress to
+DNS, Postgres, Neo4j, and OTEL. The Postgres DSN reported both
+`default_transaction_read_only=on` and `transaction_read_only=on`; bootstrap
+and OIDC refresh were disabled, and both startup-backfill markers were
+complete. Both APIs connected to the live Neo4j and Postgres Pods, returned
+HTTP 200 from `/healthz`, and served every timed topic request with HTTP 200.
+
+This was **diagnostic only on an incomplete migration state**. Baseline
+`/readyz` reported migration 132 missing; candidate `/readyz` reported
+migration 134 missing. Migration 132 was absent for both binaries. The live
+ledger held the earlier 130/131 path-index receipts but not 133/134. The last
+successful ops-qa schema-bootstrap Job used an image built before merged
+PR #7276 introduced 132; its log reported `applied=0 skipped=151`.
+Neither canary binary was deployment-ready, and no migration was applied.
+
+After one warmup per binary and payload, three sequential `B,C,C,B` blocks
+ran through a loopback-only direct Pod port-forward. No EXPLAIN, migration,
+control request, or other benchmark overlapped either timed block.
+
+| Exact HTTP payload | Baseline median | Candidate median | `<1 s` budget |
+| --- | ---: | ---: | --- |
+| `topic=config`, explicit 16 terms, limit 25, offset 0 | 5.468828 s | 2.771594 s | Missed |
+| Phrase-body topic below, limit 25 | 5.766047 s | 2.897130 s | Missed |
+
+Explicit baseline samples in seconds were `11.259798, 5.472353, 5.300286,
+5.550829, 5.309183, 5.465302`; candidate samples were `3.648028,
+2.604370, 3.272268, 2.827875, 2.401684, 2.715312`. Phrase baseline
+samples were `6.225116, 4.558604, 5.701360, 5.870951, 5.119677,
+5.830733`; candidate samples were `2.311798, 2.894293, 3.051744,
+3.052945, 2.899966, 2.327879`. The phrase was `config content deployment
+environment file function handler module package path repository resource
+service source system workspace`. The explicit terms were the 16 listed in
+the read-only query-shape proof below.
+
+The corpus fingerprint before and after all requests was 144,838 files,
+2,640,262 entities, and `max(content_files.indexed_at)=2026-09-27
+02:38:27.074724+00`. The Neo4j Pod identity/restart count was unchanged;
+both canary containers had zero restarts and zero observed CPU throttles.
+After the timed blocks, normalized no-hit and uncapped two-term response
+hashes matched across binaries. The latter returned 40 rows (20 files and
+20 symbols), with neither pool nor page truncated. The capped canonical
+25-row pages differed: baseline had 25 files/zero symbols, candidate 18
+files/25 symbols. This does not establish capped-page parity or higher
+relevance. Both APIs shut down normally within the 20-minute measurement
+cap. The temporary Pod and dedicated NetworkPolicy were deleted and
+confirmed absent; the live API Deployment remained 1/1 Ready.
+
+A 2026-09-27 03:25 UTC read-only ops-qa diagnostic found neither
+`pgstattuple`/`pageinspect` nor `pgstatginindex`/`gin_metapage_info` available.
+The source GIN index's pending-list size is therefore **NOT_CHECKED**; no
+extension or maintenance command was run. Earlier additive GiST and signature
+screens did not establish a safe subsecond candidate. The remaining measured
+endpoint gap is 1.771594 s, and the source-index time from a separate SQL
+profile cannot be subtracted from the endpoint median. No further production
+change follows from this evidence alone.
+
 ## Existing ops-qa index admission proof
 
 The earlier approved ops-qa index rollout left two full migration receipts:
