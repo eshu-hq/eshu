@@ -204,6 +204,10 @@ with a declared JSON `request_body`. Shapes that set `envelope: true` ask the AP
 for `application/eshu.envelope+json` and assert the returned `{data, truth,
 error}` object directly. MCP shapes use the same flag to keep the tool envelope
 instead of unwrapping `data`.
+The MCP client reads `structuredContent` first, then the embedded JSON resource
+when a large result omits the structured copy. It accepts canonical envelopes
+and plain JSON resources; a malformed resource fails the required shape instead
+of treating the human text summary as a successful payload.
 
 `query_shapes.cli` makes the CLI a first-class read surface for C-9. CLI rows
 declare the `eshu` argv, required response fields, truth class, and optional

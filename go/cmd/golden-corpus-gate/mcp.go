@@ -66,15 +66,21 @@ type mcpToolCallResult struct {
 }
 
 type mcpContentEntry struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string               `json:"type"`
+	Text     string               `json:"text"`
+	Resource *mcpEmbeddedResource `json:"resource"`
+}
+
+type mcpEmbeddedResource struct {
+	MIMEType string `json:"mimeType"`
+	Text     string `json:"text"`
 }
 
 // callTool invokes one MCP tool via tools/call and returns the tool's JSON
 // payload, preferring structuredContent (the canonical machine-readable copy) and
-// falling back to the first text content entry. A transport error, a JSON-RPC
-// error, or a tool-reported isError is returned as an error so the caller records
-// a failing required finding.
+// then a JSON resource before a legacy text content entry. A transport error, a
+// JSON-RPC error, a malformed resource, or a tool-reported isError is returned as
+// an error so the caller records a failing required finding.
 func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]any, preserveEnvelope bool) ([]byte, error) {
 	c.id++
 	if args == nil {
@@ -121,10 +127,50 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 	if len(rpc.Result.StructuredContent) > 0 {
 		return maybeUnwrapTruthEnvelope(rpc.Result.StructuredContent, preserveEnvelope), nil
 	}
+	if resource, found, err := firstJSONResource(rpc.Result.Content); found {
+		if err != nil {
+			return nil, fmt.Errorf("tools/call %s: %w", name, err)
+		}
+		return maybeUnwrapTruthEnvelope(resource, preserveEnvelope), nil
+	}
 	if t := firstText(rpc.Result.Content); t != "" {
 		return maybeUnwrapTruthEnvelope([]byte(t), preserveEnvelope), nil
 	}
-	return nil, fmt.Errorf("tools/call %s: result carried no structuredContent or text content", name)
+	return nil, fmt.Errorf("tools/call %s: result carried no structuredContent, JSON resource, or text content", name)
+}
+
+// firstJSONResource reads the evidence-bearing resource instead of a human
+// summary and rejects a broken resource before it can be mistaken for success.
+func firstJSONResource(entries []mcpContentEntry) ([]byte, bool, error) {
+	for _, entry := range entries {
+		if entry.Type != "resource" {
+			continue
+		}
+		if entry.Resource == nil {
+			return nil, true, fmt.Errorf("resource content block has no resource")
+		}
+		mimeType := entry.Resource.MIMEType
+		if mimeType != "application/json" && mimeType != "application/eshu.envelope+json" {
+			return nil, true, fmt.Errorf("unsupported resource MIME type %q", mimeType)
+		}
+		raw := []byte(entry.Resource.Text)
+		if !json.Valid(raw) {
+			return nil, true, fmt.Errorf("%s resource contains invalid JSON", mimeType)
+		}
+		if mimeType == "application/eshu.envelope+json" {
+			var envelope map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &envelope); err != nil {
+				return nil, true, fmt.Errorf("decode canonical resource envelope: %w", err)
+			}
+			for _, field := range []string{"data", "truth", "error"} {
+				if _, ok := envelope[field]; !ok {
+					return nil, true, fmt.Errorf("canonical resource envelope lacks %s", field)
+				}
+			}
+		}
+		return raw, true, nil
+	}
+	return nil, false, nil
 }
 
 func maybeUnwrapTruthEnvelope(raw []byte, preserveEnvelope bool) []byte {
