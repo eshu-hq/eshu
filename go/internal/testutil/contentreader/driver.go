@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ReaderQueryResult is one queued answer for the fake SQL driver behind
@@ -107,6 +109,15 @@ func (c *contentReaderConn) Close() error {
 // Begin is unimplemented for the same reason as Prepare.
 func (c *contentReaderConn) Begin() (driver.Tx, error) {
 	return nil, fmt.Errorf("Begin not implemented")
+}
+
+// CheckNamedValue preserves pgx's per-query execution mode while leaving
+// ordinary bind values to database/sql's usual conversion.
+func (c *contentReaderConn) CheckNamedValue(value *driver.NamedValue) error {
+	if _, ok := value.Value.(pgx.QueryExecMode); ok {
+		return nil
+	}
+	return driver.ErrSkip
 }
 
 // BeginTx accepts transaction options so query tests can exercise read paths

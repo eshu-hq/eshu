@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -20,7 +21,7 @@ func (cr *ContentReader) searchEntityContentPage(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_page", "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'", []any{repoID, pattern}, limit, offset, true)
 }
 
 // searchEntityContentInRepos searches cached snippets for an explicit repository set.
@@ -31,7 +32,7 @@ func (cr *ContentReader) searchEntityContentInRepos(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_in_repos", "repo_id = ANY(string_to_array($1, E'\\x1f')) AND source_cache ILIKE '%' || $2 || '%'", []any{strings.Join(repoIDs, "\x1f"), pattern}, limit, offset, false)
 }
 
 // searchEntityContentAnyRepoPage searches cached snippets across all repositories.
@@ -41,7 +42,7 @@ func (cr *ContentReader) searchEntityContentAnyRepoPage(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND source_cache ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND source_cache ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset, false)
 }
 
 // searchEntityContentScoped executes a bounded entity-content query using a
@@ -53,6 +54,7 @@ func (cr *ContentReader) searchEntityContentScoped(
 	args []any,
 	limit int,
 	offset int,
+	unprepared bool,
 ) ([]EntityContent, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
@@ -77,6 +79,13 @@ func (cr *ContentReader) searchEntityContentScoped(
 		LIMIT $%d OFFSET $%d
 	`, where, limitArg, offsetArg)
 	args = append(args, limit, offset)
+	if unprepared {
+		// The scoped page varies sharply by repository and search pattern. A
+		// cached named statement can switch to a generic plan that scans the
+		// corpus-wide trigram index even when the first page is in one repo.
+		// pgx consumes this mode before SQL binds; placeholders stay $1..$4.
+		args = append([]any{pgx.QueryExecModeExec}, args...)
+	}
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		err = contentSubstringIndexReadError(err)
