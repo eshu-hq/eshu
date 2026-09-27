@@ -26,15 +26,15 @@ func TestReadOnlyToolsKeepsObservabilityCoverageRegistrationPosition(t *testing.
 		coverageStart := start + 1
 		supplyStart := coverageStart + len(wantCoverage)
 		if supplyStart >= len(tools) {
-			break
+			t.Fatalf("ReadOnlyTools missing ordered secrets/coverage/supply boundary: window [%d:%d] leaves no trailing supply anchor in %d tools", coverageStart, supplyStart, len(tools))
 		}
 		if got := tools[supplyStart].Name; got != "get_vulnerability_scanner_read_contract" {
-			break
+			t.Fatalf("ReadOnlyTools missing ordered secrets/coverage/supply boundary: tool[%d] = %q after the secrets anchor, want %q", supplyStart, got, "get_vulnerability_scanner_read_contract")
 		}
 		if got := tools[coverageStart:supplyStart]; !reflect.DeepEqual(got, wantCoverage) {
-			t.Fatal("ReadOnlyTools observability coverage definitions drifted from observability/coverage.Tools")
+			t.Fatalf("ReadOnlyTools observability coverage definitions drifted from observability/coverage.Tools: got %+v, want %+v", got, wantCoverage)
 		}
 		return
 	}
-	t.Fatal("ReadOnlyTools missing ordered secrets/coverage/supply boundary")
+	t.Fatal("ReadOnlyTools missing ordered secrets/coverage/supply boundary: secrets anchor count_secrets_iam_posture not found")
 }
