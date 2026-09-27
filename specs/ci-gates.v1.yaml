@@ -2753,7 +2753,7 @@ gates:
       - ".github/workflows/golden-corpus-gate.yml"
       - "specs/ci-gates.v1.yaml"
     local:
-      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j)"
+      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/neo4j)"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff|TestStatementCoverage|TestRunStatementCoverage' -count=1 && go test ./internal/backendconformance -run 'TestComputeStatementCoverage' -count=1 && go test ./internal/queryplan -run 'TestDiscoverStatementBuilders|TestValidateBuilderManifest|TestStatementBuildersManifestMatchesProduction' -count=1)"
     ci:
       workflow: golden-corpus-gate.yml
@@ -2770,7 +2770,9 @@ gates:
     # for the rest of the job: the four B-7 capture legs, the check that
     # every leg wrote recordings (which keeps a one-sided capture loss
     # failing closed now that Compare's own check is advisory), and the
-    # #6783 statement coverage check. Per-backend truth is asserted by blocking
+    # #6783 statement coverage check (Neo4j-only per #7331: coverage-dirs
+    # names the neo4j capture only; NornicDB is not a coverage target).
+    # Per-backend truth is asserted by blocking
     # gates (golden-corpus-gate on NornicDB, and the backendconformance
     # WantRows the e2e-tests live lanes run on both backends), so a reproduced
     # divergence is filed as an issue (e.g. #6968), not a merge blocker.

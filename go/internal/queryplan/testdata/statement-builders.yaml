@@ -215,7 +215,7 @@ builders:
           variants:
             - {}
           source_sha256: 859f49c5e59199350d80aaeae51ac46c535520583b5b30ece45921d83b9884a7
-          exempt: B-7 legs never take the bounded-drain path (zero __retract_batch executions on either backend); drain and probe texts derive from the caller's statement at runtime
+          exempt: NornicDB-only path -- PhaseGroupExecutor is wired only when graphBackend == GraphBackendNornicDB, so no Neo4j gated run executes it; drain and probe texts derive from the caller's statement at runtime
 read_exemptions:
   - statement: |-
       MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids RETURN a.id AS repo_id, tier.name AS tier, tier.risk_level AS risk
