@@ -36,7 +36,14 @@ func outlierScopePredicates(repoID string, access querycontract.RepositoryAccess
 	predicates := make([]string, 0, 2)
 	if strings.TrimSpace(repoID) != "" {
 		params["repo_id"] = strings.TrimSpace(repoID)
-		predicates = append(predicates, "coalesce("+alias+".repo_id, '') = $repo_id")
+		// Bare equality, not coalesce(alias.repo_id, '') = $repo_id: the
+		// coalesce wrapper defeats the function_repo_id RANGE index and
+		// forces a NodeByLabelScan of every Function in the graph instead
+		// of a NodeIndexSeek scoped to this repository (#6929). Safe
+		// because Function.repo_id is proven non-null on production graphs
+		// (diag-6929: coalesce's null-default branch never fires), so the
+		// two forms select the same rows.
+		predicates = append(predicates, alias+".repo_id = $repo_id")
 	}
 	if access.Scoped() {
 		// GraphParams merges into params in place; the return is the same

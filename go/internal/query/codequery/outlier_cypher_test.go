@@ -56,6 +56,43 @@ func TestBuildOutlierCohortsCypherShapes(t *testing.T) {
 	}
 }
 
+// TestBuildOutlierCohortsCypherRepoPredicateIsIndexServable pins the
+// anchoring repo-scope predicate to the bare-equality form the planner can
+// seek on `function_repo_id`: the old `coalesce(member.repo_id, "") = $repo_id`
+// defeats that RANGE index and forces a NodeByLabelScan of every Function
+// in the whole graph (issue #6929), decoupling the enumeration's cost from
+// the queried repository's own size. Covers all three cohort sources, both
+// backends, and both scoped and unscoped grant access, since the predicate
+// is emitted once per call from the shared outlierScopePredicates helper
+// regardless of which cohort source or access shape invoked it.
+func TestBuildOutlierCohortsCypherRepoPredicateIsIndexServable(t *testing.T) {
+	t.Parallel()
+
+	accesses := map[string]querycontract.RepositoryAccessFilter{
+		"unscoped": unscopedOutlierAccess(),
+		"scoped":   scopedOutlierAccess(),
+	}
+	for source := range map[codedivergence.CohortSource]struct{}{
+		codedivergence.CohortInterface: {},
+		codedivergence.CohortRouter:    {},
+		codedivergence.CohortPackage:   {},
+	} {
+		for _, backend := range outlierBackends() {
+			for accessName, access := range accesses {
+				cypher, _ := BuildOutlierCohortsCypher(source, "repo-a", backend, access)
+				if !strings.Contains(cypher, "member.repo_id = $repo_id") {
+					t.Errorf("source %q backend %v access %s cypher missing index-servable predicate %q:\n%s",
+						source, backend, accessName, "member.repo_id = $repo_id", cypher)
+				}
+				if strings.Contains(cypher, "coalesce(member.repo_id") {
+					t.Errorf("source %q backend %v access %s cypher still wraps the repo-scope predicate in coalesce(), which defeats the function_repo_id index:\n%s",
+						source, backend, accessName, cypher)
+				}
+			}
+		}
+	}
+}
+
 // TestBuildOutlierCalleeEdgesCypherBatches pins the batched outgoing-CALLS
 // read on both backends: a UNWIND id anchor, one CALLS hop, the callee
 // columns with edge provenance, and repo/grant scope on the callee.
