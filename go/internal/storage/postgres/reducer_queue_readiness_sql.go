@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -180,6 +181,17 @@ var nonCountingReducerRetryFailureClasses = []string{
 // queue retry forever while a counting-assumption model dead-letters.
 func IsNonCountingReducerRetryFailureClass(failureClass string) bool {
 	return isNonCountingReducerRetryFailureClass(failureClass)
+}
+
+// NonCountingReducerRetryFailureClasses returns a copy of every failure class
+// exempt from the reducer retry budget, in declaration order. It exists so a
+// hand-kept consumer of the set (the golden-corpus gate's readiness-deferred
+// map) can assert in tests that it made an explicit decision for every class,
+// including one added here later. The copy keeps callers from mutating the set
+// both claim paths derive their exemption from; storage/postgres stays its
+// single owner.
+func NonCountingReducerRetryFailureClasses() []string {
+	return slices.Clone(nonCountingReducerRetryFailureClasses)
 }
 
 // reducerClaimAttemptCountCaseSQL renders the attempt_count assignment for the

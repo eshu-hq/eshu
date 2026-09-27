@@ -134,6 +134,13 @@ work, which is a slightly less precise message and never a wrong verdict"), so
 its staleness costs a less precise failure message and never a wrong result —
 unlike the registry here, where staleness costs the work itself.
 
+Superseded (2026-09-26, #6184 / #7284): the quoted trade no longer holds. Since
+#6184 the map is also the control decision for `-drain-allow-readiness-deferred`
+pre-maintenance quiescence, where a missing class is counted as live and can
+hold the gate open. #7284 enrolled 19 of these classes, excluded
+`generation_activation_not_ready` with a reason, and added a reverse-direction
+guard; see `7284-golden-readiness-map.md`.
+
 ## Claim-predicate cost under contention (#6014 review)
 
 The review asked for measurement rather than a structural argument: the

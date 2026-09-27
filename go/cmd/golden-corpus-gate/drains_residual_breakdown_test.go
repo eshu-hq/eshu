@@ -6,6 +6,9 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
 // When the drain times out it prints one number: "fact residual=3". That number
@@ -197,5 +200,25 @@ func TestResidualBreakdownCountsServiceCatalogCorpusFenceDeferralAsDeferred(t *t
 	}
 	if !strings.Contains(got, "no live work remained") {
 		t.Errorf("breakdown does not flag the all-deferred case: %s", got)
+	}
+}
+
+// TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness pins the two
+// sides of the #7284 decision through the production classifier: a retrying
+// value_flow_inputs_not_ready row (enrolled) is readiness-deferred, while a
+// retrying generation_activation_not_ready row (excluded by design) stays live,
+// so pre-maintenance quiescence keeps waiting for it.
+func TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "code_value_flow_refresh", Status: "retrying", FailureClass: crossscope.ValueFlowInputsNotReadyFailureClass, Count: 2},
+		{Domain: "workload_materialization", Status: "retrying", FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3},
+	}
+	live, deferred, deadLetter, failed := classifyResidualRows(rows)
+	if live != 3 || deferred != 2 || deadLetter != 0 || failed != 0 {
+		t.Fatalf("classifyResidualRows = live %d deferred %d dead_letter %d failed %d; "+
+			"want live 3 (generation_activation_not_ready) deferred 2 (value_flow_inputs_not_ready)",
+			live, deferred, deadLetter, failed)
 	}
 }
