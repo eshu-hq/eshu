@@ -109,7 +109,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject,s3:putobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject,s3:putobject::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -132,7 +132,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:kms:decrypt",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:kms:decrypt::arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -154,7 +154,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:role/ci-role:attached_managed:Allow:dynamodb:getitem",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:role/ci-role:attached_managed:Allow:dynamodb:getitem::arn:aws:dynamodb:us-east-1:123456789012:table/eshu-fixture-orders:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -176,7 +176,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject::arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -198,7 +198,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Deny:s3:deletebucket",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Deny:s3:deletebucket::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -220,7 +220,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:listbucket",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:listbucket::arn:aws:s3:::eshu-fixture-reports:aws:MultiFactorAuthPresent",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -246,7 +246,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject:s3:deletebucket:arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -271,7 +271,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:iam:passrole",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:iam:passrole::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -293,7 +293,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject::*:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -315,7 +315,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:lambda:invokefunction",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:lambda:invokefunction::*:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -337,7 +337,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:inline:Allow:s3:getobject::arn:aws:s3:::eshu-fixture-ghost:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -359,7 +359,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:trust:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/deployer:trust:Allow:s3:getobject::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -381,7 +381,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/ghost-unscanned:inline:Allow:s3:getobject",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/ghost-unscanned:inline:Allow:s3:getobject::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -403,7 +403,7 @@
         },
         {
           "fact_kind": "aws_iam_permission",
-          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:role/ci-role:inline:Allow:ec2:terminateinstances",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:role/ci-role:inline:Allow:ec2:terminateinstances::arn:aws:s3:::eshu-fixture-reports:",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,

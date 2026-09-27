@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the three DIRECT-materialization families
-# (#6228): kubernetes_namespace_environment, iam_instance_profile_role and
-# iam_can_assume.
+# Live-gate drive/assert callbacks for the four DIRECT-materialization families
+# (#6228): kubernetes_namespace_environment, iam_instance_profile_role,
+# iam_can_assume, and iam_can_perform.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
 # (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
 # and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
 # call the drive/assert callbacks below; the families' registry rows carry
-# cell_kind=custom. iam_can_assume has no fault cells yet: its row carries
-# cell_kind=custom prospectively and the fault gate never dispatches it, so
-# the fault-injection area stays untouched by this change. Callers own strict
-# mode and cleanup.
+# cell_kind=custom. iam_can_assume and iam_can_perform have no fault cells
+# yet: their rows carry cell_kind=custom prospectively and the fault gate
+# never dispatches them, so the fault-injection area stays untouched by this
+# change. Callers own strict mode and cleanup.
 #
-# ONE FILE FOR THREE FAMILIES, unlike the shared-projection families' one file
+# ONE FILE FOR FOUR FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
-# name and a log filename, and each is four lines of real work; three files
-# would be one contract in three places. The per-family REGISTRY ROWS stay
+# name and a log filename, and each is four lines of real work; four files
+# would be one contract in four places. The per-family REGISTRY ROWS stay
 # separate, which is where the split that matters already is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
-# both families straight to a go/internal/storage/cypher writer rather than
+# these families straight to a go/internal/storage/cypher writer rather than
 # through a shared-projection intent row. The gate does not care -- it drives a
 # cassette and asserts an exact edge set either way -- but it does mean the
 # handler is scheduled by an ordinary fact_work_items domain
-# (kubernetes_namespace_materialization / iam_instance_profile_role_materialization)
+# (kubernetes_namespace_materialization / iam_instance_profile_role_materialization
+# / iam_can_assume_materialization / iam_can_perform_materialization)
 # rather than by a shared_followup fact the cassette has to carry.
 
 # ifa_direct_family_drive replays one committed family cassette into a matrix

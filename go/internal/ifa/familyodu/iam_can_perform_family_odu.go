@@ -360,6 +360,22 @@ var iamCanPerformFamilyPermissions = []iamCanPerformFamilyPermissionFixture{
 // the same identity inputs the collector keys its StableID by, in a readable
 // fixture-local format rather than a hex digest, instead of hand-typing a
 // string the expected-edge fixture cannot independently check.
+//
+// The permission half MUST include resources, not-actions, and condition
+// keys, not just principal:source:effect:actions: the collector's stable
+// identity (NewIAMPermissionEnvelope in
+// go/internal/collector/awscloud/iam_permission_envelope.go) folds actions,
+// effect, not_actions, not_resources, policy coordinates, principal, region,
+// resources, statement SID, and the condition summary into StableID, and the
+// replay ingest upserts ON CONFLICT (fact_id) with fact_id derived from
+// (scope, generation, stable_fact_key). A narrower key collapses distinct
+// statements: four fixture statements share deployer:inline:Allow:s3:getobject
+// and differ only in resources/not-actions (KMS type-mismatch, NotAction,
+// wildcard, ghost bucket), so keying on actions alone drives 17 facts live
+// instead of the claimed 20, and three negative controls never reach the
+// extractor. Key narrowness is a silent live-coverage loss the offline guard
+// cannot see (it runs over all 20 facts), so the derivation below carries
+// every collector identity input the fixture varies.
 func iamCanPerformFamilyStableFactKey(factKind, identity string) string {
 	return fmt.Sprintf(
 		"aws:%s:us-east-1:%s:%s",
@@ -434,7 +450,7 @@ func IAMCanPerformFamilyOdu() CatalogOdu {
 			ScopeID:          iamCanPerformFamilyScopeID,
 			GenerationID:     iamCanPerformFamilyGenerationID,
 			FactKind:         facts.AWSIAMPermissionFactKind,
-			StableFactKey:    iamCanPerformFamilyStableFactKey(facts.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+joinCanPerformKeyParts(fixture.Actions)),
+			StableFactKey:    iamCanPerformFamilyStableFactKey(facts.AWSIAMPermissionFactKind, fixture.PrincipalARN+":"+fixture.PolicySource+":"+fixture.Effect+":"+joinCanPerformKeyParts(fixture.Actions)+":"+joinCanPerformKeyParts(fixture.NotActions)+":"+joinCanPerformKeyParts(fixture.Resources)+":"+joinCanPerformKeyParts(fixture.ConditionKeys)),
 			SchemaVersion:    facts.AWSIAMPermissionSchemaVersion,
 			CollectorKind:    iamCanPerformFamilyCollectorKind,
 			SourceConfidence: iamCanPerformFamilySourceConfidence,
