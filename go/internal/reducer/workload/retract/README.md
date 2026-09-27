@@ -41,7 +41,8 @@ stale, so an unconditional retract would pay that cost on every run.
 - No reader (`unguarded_no_reader`) or a failed read (`unguarded_read_failed`)
   runs the two keep-list statements unconditionally. That fails toward
   deleting: a redundant delete is only slow, a skipped one leaves stale edges
-  permanently. A failed read never fails the intent.
+  permanently. A failed read never fails the intent. Both modes log at WARN;
+  `unguarded_no_reader` in production means the reader was not wired.
 - On Neo4j 2026.09.0 the read plans `NodeUniqueIndexSeek` on `repository_id`
   then `Expand(All)` over `DEFINES` (17 db hits on a 12,403-file repository).
   The guarded delete seeks the target's unique index (`workload_id` /

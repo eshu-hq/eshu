@@ -197,9 +197,11 @@ func TestRepositoryEdgesGuardSurfacesDeleteFailure(t *testing.T) {
 }
 
 // TestObserveLogsGuardModeAndReadFailure pins the operator log: the retract
-// mode and stale counts on every run, and a warning carrying the read error
-// when the guard fell back to the unguarded deletes. It swaps the default
-// logger, so it must not run in parallel.
+// mode and stale counts on every run, and a warning when the guard fell back
+// to the unguarded deletes: with the read error after a failed read, and
+// without one when no reader was wired, which in production means the
+// composition root dropped the guard. It swaps the default logger, so it must
+// not run in parallel.
 func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 	var buf bytes.Buffer
 	previous := slog.Default()
@@ -211,6 +213,8 @@ func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 		Result{Repositories: 1, Mode: ModeGuarded, StaleDefines: 2, StaleEndpointEdges: 1, Counted: true}, 0)
 	Observe(context.Background(), nil, "scope", "gen", keep,
 		Result{Repositories: 1, Mode: ModeUnguardedReadFailed, ReadErr: errors.New("graph read timeout"), Counted: true}, 0)
+	Observe(context.Background(), nil, "scope", "gen", keep,
+		Result{Repositories: 1, Mode: ModeUnguardedNoReader, Counted: true}, 0)
 
 	var records []map[string]any
 	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
@@ -220,10 +224,10 @@ func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 		}
 		records = append(records, record)
 	}
-	if len(records) != 2 {
-		t.Fatalf("log lines = %d, want 2", len(records))
+	if len(records) != 3 {
+		t.Fatalf("log lines = %d, want 3", len(records))
 	}
-	guarded, fallback := records[0], records[1]
+	guarded, fallback, noReader := records[0], records[1], records[2]
 	if guarded["level"] != "INFO" || guarded["retract_mode"] != ModeGuarded ||
 		guarded["stale_defines"] != float64(2) || guarded["stale_repository_endpoint_edges"] != float64(1) {
 		t.Fatalf("guarded log = %v, want INFO, guarded mode, 2 + 1 stale", guarded)
@@ -231,5 +235,8 @@ func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 	if fallback["level"] != "WARN" || fallback["retract_mode"] != ModeUnguardedReadFailed ||
 		fallback["read_error"] != "graph read timeout" {
 		t.Fatalf("fallback log = %v, want WARN with the read error", fallback)
+	}
+	if noReader["level"] != "WARN" || noReader["retract_mode"] != ModeUnguardedNoReader {
+		t.Fatalf("no-reader log = %v, want WARN: a missing guard in production is a wiring defect", noReader)
 	}
 }

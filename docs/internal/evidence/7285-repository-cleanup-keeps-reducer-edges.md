@@ -56,7 +56,8 @@ executors, and the Repository element id changed.
     the upsert's own SET list.
   - It is not proof that no other writer exists. It cannot see Cypher split
     across a Go string concatenation, a non-literal label
-    (`fmt.Sprintf("(r:%s)", label)`), a procedure write
+    (`fmt.Sprintf("(r:%s)", label)`), a Repository variable rebound through
+    `UNWIND`, `collect` or a list comprehension, a procedure write
     (`apoc.create.setProperty`), a label-less match, or Cypher in test files.
   - The owned set is derived from `canonicalNodeRepositoryUpsertCypher`, so
     there is no allowlist. A seeded violation turns it red.
@@ -94,8 +95,10 @@ Row 7, a B1 retract racing a same-scope `workload_materialization`, cannot
 happen. Both run in the same domain on the same scope, and the platform-graph
 conflict key serializes them. `TestPlatformGraphConflictKeySameDomainSameScopeSerializes`
 in `storage/postgres` pins that. No claim, lease, ack, heartbeat or fence SQL
-changed: the diff over `storage/postgres/projector_queue*.go` and
-`reducer_queue*.go` is empty.
+changed: the diff over the non-test files matching
+`storage/postgres/projector_queue*.go` and `reducer_queue*.go` is empty. The
+only matching file this PR adds is the test-only
+`reducer_queue_reenqueue_live_test.go`.
 
 Mutation checks:
 
@@ -103,7 +106,10 @@ Mutation checks:
   and mixed-scope tests. It also fails the live Test B at "delta gen-3 own
   DEFINES = [], want [api]".
 - Guard (hermetic): a nil reader, a dropped keep-list in the handler, dropped
-  catalog wiring, and a dropped Go-side keep check each turn a test red. Live:
+  catalog wiring, the `RepositoryEdgeReader` line in `cmd/reducer/main.go`
+  (`TestBuildReducerServiceWiresRepositoryEdgeReader`, RED with the line
+  deleted: no guard read reaches the graph reader), and a dropped Go-side keep
+  check each turn a test red. Live:
   a guarded delete that matches nothing leaves gen-2 at
   `[api billing worker]`.
 - API truth: deleting the `DEFINES` edge before the call makes
@@ -130,7 +136,7 @@ Added per `workload_materialization` run:
 None was separately timed. The fallback keep-list `DELETE` (no reader, or a
 failed read) still pays the zero-row cost on NornicDB.
 
-Observability Evidence: actual deleted edge counts, read from the Bolt write summary through the `retract.CountingExecutor` seam (`go/internal/reducer/workload/retract`, implemented by `cmd/reducer` `reducerCypherExecutor` and forwarded by the backpressure gate), are recorded on the new `eshu_dp_workload_repository_edge_retractions_total` by bounded `write_phase` (`defines_retract`, `repository_endpoint_retract`), kept off `eshu_dp_reconciliation_drift_retractions_total` because ordinary removal is not collector drift, and shown on the operator dashboard's Workload Repository Edge Retractions panel; every run logs `workload repository edge retract completed` with scope_id, generation_id, retract_mode (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`), repository_count, kept_workload_count, kept_endpoint_count, stale_defines, stale_repository_endpoint_edges, defines_deleted, repository_endpoint_edges_deleted, deletes_counted, read_error and duration_s, at warning level when the guard read failed; `TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts`, `TestObserveRecordsMeasuredDeletesOnly`, `TestObserveLogsGuardModeAndReadFailure` and `TestProductionWorkloadMaterializerCountsRepositoryEdgeRetracts` pin the metric, the log and the production wiring.
+Observability Evidence: actual deleted edge counts, read from the Bolt write summary through the `retract.CountingExecutor` seam (`go/internal/reducer/workload/retract`, implemented by `cmd/reducer` `reducerCypherExecutor` and forwarded by the backpressure gate), are recorded on the new `eshu_dp_workload_repository_edge_retractions_total` by bounded `write_phase` (`defines_retract`, `repository_endpoint_retract`), kept off `eshu_dp_reconciliation_drift_retractions_total` because ordinary removal is not collector drift, and shown on the operator dashboard's Workload Repository Edge Retractions panel; every run logs `workload repository edge retract completed` with scope_id, generation_id, retract_mode (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`), repository_count, kept_workload_count, kept_endpoint_count, stale_defines, stale_repository_endpoint_edges, defines_deleted, repository_endpoint_edges_deleted, deletes_counted, read_error and duration_s, at warning level when the guard read failed or no reader was wired (`unguarded_no_reader`, which in production means the composition root dropped the guard, pinned by `TestBuildReducerServiceWiresRepositoryEdgeReader`); `TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts`, `TestObserveRecordsMeasuredDeletesOnly`, `TestObserveLogsGuardModeAndReadFailure` and `TestProductionWorkloadMaterializerCountsRepositoryEdgeRetracts` pin the metric, the log and the production wiring.
 
 ## Review follow-ups
 

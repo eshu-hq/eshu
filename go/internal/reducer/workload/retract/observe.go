@@ -52,6 +52,11 @@ func Observe(
 		// correct, but each one costs proportional to store size on NornicDB.
 		level, readError = slog.LevelWarn, result.ReadErr.Error()
 	}
+	if result.Mode == ModeUnguardedNoReader {
+		// Production always wires a reader, so this mode means the composition
+		// root dropped the guard: every run pays the unguarded delete.
+		level = slog.LevelWarn
+	}
 	slog.Log(ctx, level, "workload repository edge retract completed",
 		"scope_id", scopeID,
 		"generation_id", generationID,

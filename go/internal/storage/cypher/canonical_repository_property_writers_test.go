@@ -39,6 +39,9 @@ import (
 //     "SET r.p = 1"`): each literal is scanned alone;
 //   - a label that is not a literal, such as `fmt.Sprintf("(r:%s)", label)` or
 //     a `%s` label placeholder filled from a constant;
+//   - a Repository variable rebound through `UNWIND`, `collect` or a list
+//     comprehension (`WITH collect(r) AS repos UNWIND repos AS repo SET
+//     repo.p = 1`): only `WITH r AS alias` chains are followed;
 //   - a write through a procedure (`CALL apoc.create.setProperty(r, ...)`) or a
 //     Repository reached with no label at all (`MATCH (n {id: $repo_id})`);
 //   - Cypher in _test.go files, testdata, or outside go/internal and go/cmd.
