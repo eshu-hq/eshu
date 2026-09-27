@@ -279,10 +279,18 @@ Seeded mutations, each RED:
   `FullGenerationRepositoryIDs` tests;
 - a loader without scope truth falling back to its candidates: the skip test.
 
-Performance Evidence: `load_inputs` on a 50-repository scope with an intent keyed to one repository, 400 calls per run, six interleaved base/fix pairs with alternating first mover: median 0.000794 s on `c9f8af0c72` and 0.000995 s on the fix (+0.20 ms, admission of the 49 candidates the filter used to drop); the whole handler with an in-memory executor went from 0.000824 s to 0.001092 s (+0.27 ms, adding the keep-list projection). A git scope holds one repository, where the two paths do the same work. The Ifá fault-injection digests are in the PR.
+Performance Evidence: `load_inputs` on a 50-repository scope with an intent keyed to one repository, 400 calls per run, six interleaved base/fix pairs with alternating first mover: median 0.000794 s on `c9f8af0c72` and 0.000995 s on the fix (+0.20 ms, admission of the 49 candidates the filter used to drop); the whole handler with an in-memory executor went from 0.000824 s to 0.001092 s (+0.27 ms, adding the keep-list projection). A git scope holds one repository, where the two paths do the same work.
 
 ## Not checked
 
+- **Ifá fault-injection shard 1, locally.** Not run:
+  `scripts/verify-ifa-fault-injection.sh` hardcodes
+  `ESHU_GRAPH_BACKEND=nornicdb`, and the owner's rule is never to start
+  NornicDB locally. The local mechanism proof stands in: the live Neo4j
+  both-orders-plus-race test, the real-loader key table and the seeded
+  mutations above. CI shard 1 is the digest check: all three
+  `repo_dependency` cells (baseline, killworker, failgraphwrite) must equal
+  `bad9985d0d382b11cc7ebe620de4e28f712a712cd6a20318e0495dc1f3195c49`.
 - **deployable_unit_correlation retract.** `retractDeployableUnitEdges` builds
   its rows from the intent's entity keys, the option-A shape. Whether it has
   the never-fires gap is not checked here and is out of this PR's scope.
