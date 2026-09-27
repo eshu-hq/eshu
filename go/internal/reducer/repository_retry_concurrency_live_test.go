@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -137,6 +139,28 @@ func TestLiveRepositoryZombieAttemptKeepsReducerEdges(t *testing.T) {
 // (cypher.CanonicalRepoDependencyUpsertCypher). The schema's repository_id
 // uniqueness constraint must yield exactly one node, and the projector's SET
 // must own the final evidence_source.
+//
+// NornicDB (unlike Neo4j) can fail a concurrent first-creation MERGE at
+// COMMIT with a UNIQUE constraint violation instead of converging in place
+// (#7304 CI: TransactionCommitFailed, "UNIQUE on Repository.[id] ... already
+// exists"). Production never surfaces this as a failure: every canonical
+// writer and reducer executor is wired through a persistent
+// *cypher.RetryingExecutor (cmd/reducer/executor_adapters.go,
+// cmd/projector/executor_wiring.go), which classifies a MERGE-shaped
+// commit-time UNIQUE conflict as retryable and replays the statement
+// in-process; if that local budget is exhausted, the wrapped error still
+// reports Retryable() true, and the projector/reducer requeue the whole
+// intent, whose MERGE replay matches the now-committed winner
+// (failure.IsRetryable is the live retry-decision authority that requeue
+// path uses -- see internal/projector/failure/dead_letter_triage.go).
+//
+// This test asserts that exact contract instead of assuming a clean commit:
+// every session runs through the same *cypher.RetryingExecutor production
+// wires, and a session whose local retries are exhausted must still be
+// classified retryable before this test performs one more bounded
+// durable-replay of that session's write, mirroring the queue requeue. A
+// session error that fails classification is a real regression and still
+// fails the test immediately.
 func TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode(t *testing.T) {
 	live := openRepoRetryLive(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -144,7 +168,16 @@ func TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode(t *testing.T) {
 	writer := live.writerShapes()["atomic_group"]
 	live.write(ctx, t, writer, live.materialization(retryFixtureOther, "gen-1", true))
 
+	// retryingExec mirrors the persistent *cypher.RetryingExecutor production
+	// wires around every canonical/reducer write: it classifies and replays a
+	// MERGE-shaped commit-time UNIQUE conflict in-process, with the same
+	// classifier the projector's requeue decision (failure.IsRetryable) relies
+	// on, before this test's own durable-replay loop below ever runs.
+	retryingExec := &cypher.RetryingExecutor{Inner: live.exec}
+	retryWriter := cypher.NewCanonicalNodeWriter(retryingExec, 500, nil)
+
 	const sessions = 50
+	const maxDurableReplays = 5
 	for trial := 0; trial < 10; trial++ {
 		fixture := repoFixture{name: fmt.Sprintf("race-%d", trial)}
 		repoID := live.repoID(fixture.name)
@@ -152,29 +185,49 @@ func TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode(t *testing.T) {
 		start := make(chan struct{})
 		errs := make(chan error, sessions)
 		var wg sync.WaitGroup
+		var sessionsReplayed atomic.Int64
 		for session := 0; session < sessions; session++ {
 			wg.Add(1)
 			go func(session int) {
 				defer wg.Done()
 				<-start
-				if session%2 == 0 {
-					errs <- writer.Write(ctx, mat)
+				attempt := func() error {
+					if session%2 == 0 {
+						return retryWriter.Write(ctx, mat)
+					}
+					// A managed transaction, like the production RetryingExecutor,
+					// retries the transient DeadlockDetected two stubs locking both
+					// Repository endpoints in opposite order can raise; the
+					// invariant is one node, not zero transient retries.
+					return retryingExec.ExecuteGroup(ctx, []cypher.Statement{{
+						Cypher: cypher.CanonicalRepoDependencyUpsertCypher,
+						Parameters: map[string]any{
+							"repo_id": repoID, "target_repo_id": live.repoID(retryFixtureOther.name),
+							"evidence_source": "resolver/cross-repo", "generation_id": "reducer-gen",
+							"confidence": 0.9, "evidence_type": "test", "resolved_id": "resolved-" + repoID,
+							"evidence_count": 1, "evidence_kinds": []string{"test"}, "resolution_source": "test",
+							"rationale": "#7285 race", "source_tool": "test",
+						},
+					}})
+				}
+				err := attempt()
+				replays := 0
+				for err != nil && failure.IsRetryable(err) && replays < maxDurableReplays {
+					replays++
+					err = attempt()
+				}
+				if err != nil {
+					if failure.IsRetryable(err) {
+						errs <- fmt.Errorf("session %d: durable replay budget (%d) exhausted: %w", session, maxDurableReplays, err)
+					} else {
+						errs <- fmt.Errorf("session %d: graph write not classified retryable by the production classifier: %w", session, err)
+					}
 					return
 				}
-				// A managed transaction, like the production RetryingExecutor,
-				// retries the transient DeadlockDetected two stubs locking both
-				// Repository endpoints in opposite order can raise; the
-				// invariant is one node, not zero transient retries.
-				errs <- live.exec.ExecuteGroup(ctx, []cypher.Statement{{
-					Cypher: cypher.CanonicalRepoDependencyUpsertCypher,
-					Parameters: map[string]any{
-						"repo_id": repoID, "target_repo_id": live.repoID(retryFixtureOther.name),
-						"evidence_source": "resolver/cross-repo", "generation_id": "reducer-gen",
-						"confidence": 0.9, "evidence_type": "test", "resolved_id": "resolved-" + repoID,
-						"evidence_count": 1, "evidence_kinds": []string{"test"}, "resolution_source": "test",
-						"rationale": "#7285 race", "source_tool": "test",
-					},
-				}})
+				if replays > 0 {
+					sessionsReplayed.Add(1)
+				}
+				errs <- nil
 			}(session)
 		}
 		close(start)
@@ -184,6 +237,9 @@ func TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("trial %d concurrent MERGE: %v", trial, err)
 			}
+		}
+		if n := sessionsReplayed.Load(); n > 0 {
+			t.Logf("trial %d: %d of %d sessions needed a durable replay after NornicDB commit-time contention", trial, n, sessions)
 		}
 		if got := live.count(ctx, t, `MATCH (r:Repository {id: $repo_id}) RETURN count(r) AS count`,
 			map[string]any{"repo_id": repoID}); got != 1 {

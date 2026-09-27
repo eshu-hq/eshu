@@ -152,6 +152,48 @@ Observability Evidence: actual deleted edge counts, read from the Bolt write sum
 | P3-4 `deletes_counted` with no Bolt counter | Recorded: NornicDB's `relationshipsDeleted` reporting is unverified, so the counter could under-report. `stale_*` log fields come from the guard read and do not depend on it. |
 | P3-5 delta with empty paths | Recorded: the projector treats it as full, the retract skips it; stale edges wait for the next full or reconciliation generation. |
 
+## #7304 CI fix: NornicDB commit-time UNIQUE conflict is a test-contract gap
+
+The live-backend CI job's NornicDB leg failed
+`TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode` (matrix row 5, 50
+concurrent first-creation MERGEs of one Repository id):
+`Neo.ClientError.Transaction.TransactionCommitFailed` with
+`commit failed: constraint violation: Constraint violation (UNIQUE on
+Repository.[id]): Node with id=... already exists`. This is not a product
+regression: on NornicDB a concurrent first-creation MERGE can lose at commit
+instead of converging in place the way Neo4j does, and production never
+surfaces it as a failure, because every canonical writer and reducer executor
+is wired through a persistent `*cypher.RetryingExecutor`
+(`cmd/reducer/executor_adapters.go`, `cmd/projector/executor_wiring.go`) whose
+`classifyRetryableGraphWriteGroupError` recognizes a MERGE-shaped commit-time
+UNIQUE conflict (`go/internal/storage/cypher/retryable_error.go`,
+`isNornicDBCommitTimeUniqueConflict`) and replays the statement in-process;
+if that local budget is exhausted the wrapped error still reports
+`Retryable() == true`, and the projector/reducer requeue the whole intent,
+whose MERGE replay matches the now-committed winner. The test called
+`writer.Write` / `live.exec.ExecuteGroup` directly with no retry and
+`t.Fatal`'d on any error, so it asserted a stronger, unproduced contract
+(zero commit-time conflicts) instead of the actual production one (every
+commit-time conflict on this write shape is retryable, and retrying
+converges). The fix routes both write paths in that test through a
+`*cypher.RetryingExecutor` (the exact production wrapper) and adds one more
+bounded (5-attempt) durable-replay loop, gated on
+`failure.IsRetryable` (`internal/projector/failure`, the live retry-decision
+authority also named in `dead_letter_triage.go`), to mirror the durable-queue
+requeue when the in-process budget is exhausted; a session whose error fails
+that classification still fails the test immediately, so the invariant (one
+node, `evidence_source = projector/canonical`) is unrelaxed and the test still
+fails on a genuine regression. `TestRepositoryFirstCreationMergeRaceErrorIsClassifiedRetryable`
+is a hermetic unit proof, using the exact error string from the #7304 CI log,
+that this chain classifies it retryable. Neo4j needed zero durable replays in
+10 local trials of 50 sessions each (`go test ./internal/reducer -tags
+live_nornicdb_answer_truth -run TestLiveRepositoryFirstCreationMergeRaceKeepsOneNode
+-v` against neo4j:2026-community on `bolt://127.0.0.1:38687`, PASS in 11.81s);
+the NornicDB leg was not re-run here (owner rule: never start NornicDB
+locally), so whether it needs the in-process retry, the durable-replay tier,
+or neither remains to be observed from the next CI run's per-trial
+`t.Logf("... sessions needed a durable replay ...")` output.
+
 ## Not checked
 
 - **NornicDB.** By the owner's rule these runs were Neo4j only. The live files
