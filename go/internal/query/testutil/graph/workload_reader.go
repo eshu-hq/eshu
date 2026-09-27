@@ -122,8 +122,27 @@ type OCIBoundedFakeReader struct {
 	Statements []OCIBoundedStatementFixture
 }
 
-// Run implements querycontract.GraphQuery.
+// Run implements querycontract.GraphQuery. Both Run and RunSingle route
+// through the unexported resolve helper and call neither of each other
+// (queryplan's inventory walks this package too, and a fake whose RunSingle
+// answers by literally calling Run reads as its own production graph read --
+// see internal/queryplan/AGENTS.md's "self-delegation shape" note, #6060).
 func (f OCIBoundedFakeReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return f.resolve(cypher, params), nil
+}
+
+// RunSingle implements querycontract.GraphQuery by taking the first row
+// resolve would return.
+func (f OCIBoundedFakeReader) RunSingle(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	rows := f.resolve(cypher, params)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return rows[0], nil
+}
+
+// resolve is the shared answer logic for Run and RunSingle.
+func (f OCIBoundedFakeReader) resolve(cypher string, params map[string]any) []map[string]any {
 	f.T.Helper()
 	for _, stmt := range f.Statements {
 		if !strings.Contains(cypher, stmt.CypherContains) {
@@ -132,17 +151,17 @@ func (f OCIBoundedFakeReader) Run(_ context.Context, cypher string, params map[s
 		limitRaw, ok := params["row_limit"]
 		if !ok {
 			f.T.Fatalf("OCIBoundedFakeReader: row_limit parameter is absent from params for statement %q", stmt.CypherContains)
-			return nil, nil
+			return nil
 		}
 		limit, ok := limitRaw.(int)
 		if !ok {
 			f.T.Fatalf("OCIBoundedFakeReader: row_limit = %#v, want int", limitRaw)
-			return nil, nil
+			return nil
 		}
 		keys, ok := params[stmt.KeyParam].([]string)
 		if !ok {
 			f.T.Fatalf("OCIBoundedFakeReader: %s param = %#v, want []string", stmt.KeyParam, params[stmt.KeyParam])
-			return nil, nil
+			return nil
 		}
 		rows := make([]map[string]any, 0, len(keys))
 		for _, key := range keys {
@@ -154,17 +173,7 @@ func (f OCIBoundedFakeReader) Run(_ context.Context, cypher string, params map[s
 		if len(rows) > limit {
 			rows = rows[:limit]
 		}
-		return rows, nil
+		return rows
 	}
-	return nil, nil
-}
-
-// RunSingle implements querycontract.GraphQuery by taking the first row Run
-// would return.
-func (f OCIBoundedFakeReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	rows, err := f.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
+	return nil
 }

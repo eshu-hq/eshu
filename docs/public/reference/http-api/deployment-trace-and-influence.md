@@ -94,6 +94,22 @@ separately bounds service-matched controller entities and discloses source-scan
 saturation. `image_refs` contains images from returned bounded Kubernetes rows
 only; images belonging solely to omitted rows are not returned.
 
+`image_registry_truth_limits` discloses the bound on the OCI registry-truth
+read that resolves `image_refs` into `image_registry_truth` (issue #6590).
+Every underlying tag-observation and image-by-digest statement carries
+`LIMIT $row_limit` (`statement_row_limit`, 750 = `max_keys_per_statement` x 3);
+`image_registry_truth_complete` is `false` only when an image ref's row set
+could not be resolved within that bound, in which case it is withheld
+entirely -- never a placeholder row in `image_registry_truth` -- and named in
+`truncated_image_refs` with `image_registry_truth_incomplete_reason` set to
+`oci_registry_truth_row_limit_reached`. A tag ref one of whose observations
+resolves to a withheld digest is withheld too, rather than silently reporting
+whichever other digest it also observed as the only match.
+`deployment_overview.image_registry_match_count` and
+`canonical_image_match_count` only count rows that actually resolved, so a
+withheld ref never inflates either count. `image_registry_truth_limits` is
+present whenever the read ran (`image_refs` non-empty); absent otherwise.
+
 The top-level `topology_edges[]` array carries the selected subject backbone:
 `DEFINES` from `repo_id` to `workload_id`, plus `INSTANCE_OF` from every
 returned `instance_id` to that workload. Consumers should treat a missing or
