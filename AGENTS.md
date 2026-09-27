@@ -52,9 +52,9 @@ The order is: (1) focused local proof; (2) a clean preliminary
 `eshu-code-review` plus a captured `ci-gates review-attest` receipt; (3)
 `make pre-push` (the fast local floor); (4) `ci-gates review-attest verify`;
 (5) push. Verify the receipt after `make pre-push`: a match replaces a second
-full semantic review. Changed base, commit, tree, worktree, submodule, PR
-claims, packet, or verdict invalidates the receipt and requires affected proof
-and full review again. Make no edits between verified attestation and push.
+full semantic review. Changed base, commit, tree, worktree, submodule, PR claims,
+packet, or verdict voids the receipt: rerun affected proof and full review (a clean
+base-only rebase gets `eshu-code-review`'s scoped re-review). No edits between verified attestation and push.
 Never publish an unreviewed diff.
 
 ## Mandatory Pre-PR Local Proof
