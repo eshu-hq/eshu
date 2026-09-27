@@ -40,9 +40,11 @@ had moved to Neo4j:
 
 ## 2. Decision
 
-1. **Neo4j is the supported graph backend.** It is the default for local
-   development, CI, and every deployment. Pin it by image digest, and pin the
-   Cypher language version it runs (Cypher 25 today).
+1. **Neo4j is the supported graph backend.** It is already the chart default
+   for deployments. It becomes the default for local development and CI as the
+   phase 2 items in section 6 land; until then `docker-compose.yaml` and the
+   local CLI still start NornicDB. Pin it by image digest, and pin the Cypher
+   language version it runs (Cypher 25 today).
 2. **Correctness, performance budgets and gates are defined against Neo4j.**
    A query is correct when it returns the right rows on the pinned Neo4j. It
    meets its budget when it does so on Neo4j. New query and writer code needs
@@ -105,7 +107,9 @@ execute. This decision extends that work into a compliance gate on Neo4j:
   allowlist.
 - The Cypher language version is pinned, so a Neo4j upgrade surfaces
   deprecations as work items rather than as surprises.
-- The phase runs by default on Neo4j and is a required check.
+- The phase will run by default on Neo4j and is intended to become a required
+  check. It has not landed yet: it is follow-up work under #6783, and it rolls
+  out report-only first.
 
 The openCypher TCK and the Neo4j driver testkit are not adopted for this.
 The TCK tests a database engine's semantics, not whether an application's
@@ -124,13 +128,20 @@ remains the right entry test for NornicDB re-qualification (section 7).
      NornicDB binary.
    - Update the docs that describe NornicDB as the default after the defaults
      switch, not before, so they never describe behavior the code lacks. They
-     are `docs/public/why-eshu.md`, `concepts/how-it-works.md`,
-     `reference/cli-system.md`, `run-locally/local-binaries.md` and
-     `roadmap.md`, plus `skill-fragments/capability-profiles.md` and its
-     generated `expected/` outputs, and the agent-facing
+     are `docs/public/why-eshu.md`, `docs/public/concepts/how-it-works.md`,
+     `docs/public/reference/cli-system.md`,
+     `docs/public/run-locally/local-binaries.md` and
+     `docs/public/roadmap.md`, plus `skill-fragments/capability-profiles.md`
+     and its generated `expected/` outputs, and the agent-facing
      `go/internal/storage/cypher/AGENTS.md` (the "NornicDB default" notes).
      Dated design and evidence docs that describe NornicDB as the default,
      such as designs #430, #431 and #1314, stay unchanged as history.
+   - Switch the CI jobs that run on NornicDB only to Neo4j. Today they are the
+     Ifá determinism, dead-letter and fault-injection matrices
+     (`scripts/verify-ifa-*.sh`), the replay tier
+     (`scripts/verify-replay-tier.sh`) and the read-API latency gate
+     (`read-api-latency-gate.yml`). Until this lands, the supported backend
+     has no blocking concurrency or latency proof.
    - Move the NornicDB CI legs out of the required set, as nightly or
      advisory jobs. Ruleset changes are an owner action.
 3. **Freeze NornicDB-specific growth.**
@@ -161,5 +172,13 @@ all of the following, measured against the same Neo4j pin:
   matches an Eshu statement.
 - The golden-corpus gate and the backend-divergence differential are green,
   with no new allowlist entries.
-- Paired, interleaved A/B runs on the same host show writes and reads within
-  20% of Neo4j.
+- Paired, interleaved A/B runs against the same Neo4j pin on the same host
+  (at least three runs each, alternating, with load recorded) stay within the
+  bar on two measurements:
+  - **Writes:** golden-corpus total wall time, and projector and reducer
+    phase timings, each within 20% of Neo4j.
+  - **Reads:** p95 latency per API route and MCP tool over the #7098 sweep
+    argument sets, each within 20% of Neo4j and under the 1 s read budget.
+
+  The 20% figure is the initial bar and needs the owner's confirmation before
+  any re-qualification run.
