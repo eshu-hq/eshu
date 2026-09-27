@@ -82,8 +82,11 @@ func TestWorkloadMaterializationHandlerMaterializesFromFacts(t *testing.T) {
 	if result.CanonicalWrites == 0 {
 		t.Fatal("CanonicalWrites = 0, want > 0")
 	}
-	if loader.calls != 1 {
-		t.Fatalf("FactLoader.ListFacts calls = %d, want 1", loader.calls)
+	// One full read by the default input loader plus one repository-kind read
+	// for the #7285 full-generation retract gate (a kind-filtered query when
+	// the store implements FactKindLoader, as Postgres does).
+	if loader.calls != 2 {
+		t.Fatalf("FactLoader.ListFacts calls = %d, want 2", loader.calls)
 	}
 	if len(executor.calls) == 0 {
 		t.Fatal("CypherExecutor calls = 0, want > 0")
@@ -741,8 +744,16 @@ func TestWorkloadMaterializationHandlerSkipsUtilityOnlyCandidate(t *testing.T) {
 	if got := result.CanonicalWrites; got != 0 {
 		t.Fatalf("CanonicalWrites = %d, want 0 for utility-only candidate", got)
 	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("len(executor.calls) = %d, want 0", got)
+	// No workload is written. The only statements are the #7285 stale-edge
+	// retracts: a full generation whose repository has no materializable
+	// workload keeps none of this domain's DEFINES / EXPOSES_ENDPOINT edges.
+	for _, call := range executor.calls {
+		if !strings.Contains(call.cypher, "DELETE rel") || strings.Contains(call.cypher, "MERGE") {
+			t.Fatalf("utility-only candidate wrote %q, want only stale-edge retracts", call.cypher)
+		}
+	}
+	if got := len(executor.calls); got != 2 {
+		t.Fatalf("len(executor.calls) = %d, want 2 stale-edge retracts", got)
 	}
 }
 
@@ -800,8 +811,10 @@ func TestWorkloadMaterializationHandlerUsesPreCorrelatedInputLoader(t *testing.T
 	if inputLoader.calls != 1 {
 		t.Fatalf("InputLoader calls = %d, want 1", inputLoader.calls)
 	}
-	if factLoader.calls != 0 {
-		t.Fatalf("FactLoader calls = %d, want 0 when pre-correlated inputs are provided", factLoader.calls)
+	// Pre-correlated inputs skip the full fact load. The single read is the
+	// #7285 repository-kind read that gates the stale-edge retract.
+	if factLoader.calls != 1 {
+		t.Fatalf("FactLoader calls = %d, want 1 (repository facts only) when pre-correlated inputs are provided", factLoader.calls)
 	}
 	if !recordedCallContainsParam(executor.calls, "deployment_repo_id", "repo-payments") {
 		t.Fatal("missing deployment_repo_id row for repo-payments")

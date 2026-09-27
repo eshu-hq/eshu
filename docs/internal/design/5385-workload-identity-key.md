@@ -186,10 +186,10 @@ rg -n --type go 'ResetRepositorySubtreeInGraph' . | rg -v 'internal/graph/mutati
 returns nothing. All three functions in that file have **zero callers** outside their
 own file and test. It is a port of `graph/persistence/mutations.py`, which no longer
 exists here. No CLI subcommand, admin route, or ingester path reaches it. What
-production does on re-ingest is `canonicalNodeRepositoryIDCleanupCypher` —
-`MATCH (r:Repository {id: $repo_id}) DETACH DELETE r` — which removes the Repository
-node and its incident edges only; a shared `Workload` survives that and merely loses one
-`DEFINES` edge, which the reducer re-MERGEs.
+production did on re-ingest was `canonicalNodeRepositoryIDCleanupCypher` (removed by
+#7285: it deleted every reducer edge on a retried Repository) — `DETACH DELETE` of the
+Repository node and its incident edges only; a shared `Workload` survived that and lost
+one `DEFINES` edge, which the reducer re-MERGEd on a first attempt.
 
 The proposed one-clause fix would not have worked either. The delete set has four
 collections, and collection 3 is `OPTIONAL MATCH (owned_workload:Workload {repo_id: r.id})`.

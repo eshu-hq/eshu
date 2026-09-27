@@ -51,7 +51,11 @@ func TestCanonicalNodeWriterAnnotatesAtomicGroupStatementsWithPhaseMetadata(t *t
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	assertGroupedStatementPhase(t, exec.groupStmts, "MATCH (r:Repository {id: $repo_id})\nDETACH DELETE r", "repository_cleanup")
+	for _, stmt := range exec.groupStmts {
+		if repositoryIDDetachDelete(stmt.Cypher) {
+			t.Fatalf("atomic group deletes the Repository by id (#7285): %q", stmt.Cypher)
+		}
+	}
 	assertGroupedStatementPhase(t, exec.groupStmts, "MATCH (r:Repository {path: $path})", "repository_cleanup")
 	assertGroupedStatementPhase(t, exec.groupStmts, "MERGE (r:Repository", "repository")
 	assertGroupedStatementPhase(t, exec.groupStmts, "MERGE (d:Directory", "directories")

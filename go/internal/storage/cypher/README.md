@@ -206,9 +206,9 @@ implements
 `PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
 run sequentially.
 
-The `repository_cleanup` phase is the only replacement barrier left in the
-canonical node path, and it is skipped for first-generation scopes because no
-prior repository identity can exist for that source-local scope. Directory rows
+`repository_cleanup` only retires a different-id `Repository` at this path (skipped for first-generation and delta
+scopes); it never deletes the node the upsert re-MERGEs, whose reducer and cross-scope edges a retry cannot rebuild
+(#7285, `docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`). Directory rows
 use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with
 `MATCH (f:File {path: row.path})`, then send only missing rows through an

@@ -74,3 +74,41 @@ RETURN repo.id AS repo_id,
        p.provider AS platform_provider,
        p.region AS platform_region,
        p.locator AS platform_locator`
+
+// loadInfrastructurePlatforms reads the platforms already provisioned by the
+// candidates' infrastructure repositories; a nil lookup loads none.
+func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
+	ctx context.Context,
+	candidates []WorkloadCandidate,
+) (map[string][]InfrastructurePlatformRow, error) {
+	if h.InfrastructurePlatformLookup == nil {
+		return nil, nil
+	}
+	repoIDs := uniqueProvisioningRepoIDs(candidates)
+	if len(repoIDs) == 0 {
+		return nil, nil
+	}
+	platforms, err := h.InfrastructurePlatformLookup.ListProvisionedPlatforms(ctx, repoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load provisioned infrastructure platforms: %w", err)
+	}
+	return platforms, nil
+}
+
+func uniqueProvisioningRepoIDs(candidates []WorkloadCandidate) []string {
+	seen := make(map[string]struct{})
+	var repoIDs []string
+	for _, candidate := range candidates {
+		for _, repoID := range candidate.ProvisioningRepoIDs {
+			if repoID == "" {
+				continue
+			}
+			if _, ok := seen[repoID]; ok {
+				continue
+			}
+			seen[repoID] = struct{}{}
+			repoIDs = append(repoIDs, repoID)
+		}
+	}
+	return repoIDs
+}

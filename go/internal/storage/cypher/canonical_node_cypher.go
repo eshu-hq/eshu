@@ -114,8 +114,8 @@ DETACH DELETE p`
 
 // --- Phase B: Repository Cypher ---
 
-const canonicalNodeRepositoryIDCleanupCypher = `MATCH (r:Repository {id: $repo_id})
-DETACH DELETE r`
+// There is deliberately no by-id Repository delete here (#7285): the node is
+// MERGEd in place so edges owned by other writers survive re-projection.
 
 const canonicalNodeRepositoryPathCleanupCypher = `MATCH (r:Repository {path: $path})
 WHERE r.id <> $repo_id

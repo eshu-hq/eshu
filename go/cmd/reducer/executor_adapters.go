@@ -146,6 +146,30 @@ func (e reducerCypherExecutor) ExecuteCypher(ctx context.Context, cypher string,
 	return e.retry.Execute(ctx, stmt)
 }
 
+// ExecuteCypherCountingRelationshipDeletes runs one statement exactly as
+// ExecuteCypher does and returns the relationships its committed attempts
+// deleted, read from the Bolt write summary the runner reports through
+// sourcecypher.ReportWriteCounts. It satisfies retract.CountingExecutor
+// (internal/reducer/workload/retract) so the #7285 stale
+// repository-edge retract can record what it removed. Every counter entry is
+// forwarded to a collector already on ctx, so differential capture still sees
+// the statement.
+func (e reducerCypherExecutor) ExecuteCypherCountingRelationshipDeletes(
+	ctx context.Context,
+	cypher string,
+	params map[string]any,
+) (int64, error) {
+	outer := sourcecypher.WriteCountsCollectorFromContext(ctx)
+	collector := sourcecypher.NewWriteCountsCollector()
+	err := e.ExecuteCypher(sourcecypher.WithWriteCountsCollector(ctx, collector), cypher, params)
+	var deleted int64
+	for _, entry := range collector.Entries() {
+		deleted += entry.Counters.RelationshipsDeleted
+		outer.Add(entry)
+	}
+	return deleted, err
+}
+
 // ProbeGraphExists forwards the deployment-source target probe (#6184) to
 // the same persistent RetryingExecutor as ExecuteCypher, satisfying
 // reducer.GraphExistenceProber. Like reducerNeo4jExecutor.ExecuteProbe above,

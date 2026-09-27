@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 )
 
 // workloadMaterializationRepoReadinessKey forwards to
@@ -239,29 +240,56 @@ func projectionRepoReadinessRepoIDs(projection *ProjectionResult) []string {
 	return repoIDs
 }
 
-// scopeRepositoryGraphIDs returns the distinct repository graph_id values for one
-// scope generation. It is the repo-id source for the workload-materialization
-// ZERO-candidate path (#2891): a route-only repo materializes no workload or
-// endpoint row, so its repo id is not in the projection, yet its handles_route
-// rows must still pass the phase gate (and be terminalized by the absent-endpoint
-// presence gate) instead of looping forever. The graph_id read here is the SAME
-// string the handles_route/runs_in intents carry as repo_id and the workload
-// candidates carry as RepoID, so consumer and publisher reconstruct an identical
-// readiness key. It uses the bounded repository-kind fact query (one row per
-// repo), so it adds no file-fact scan to the hot path.
-func scopeRepositoryGraphIDs(
-	ctx context.Context,
-	loader FactLoader,
-	scopeID, generationID string,
-) ([]string, error) {
+// loadScopeRepositoryFacts reads the scope generation's repository facts: the
+// repo ids the zero-candidate path publishes readiness rows for (#2891), and
+// the positive evidence of which repositories this generation fully covers
+// for the stale repository-edge retract (#7285). The read is kind-filtered
+// when the store implements FactKindLoader, as the Postgres FactStore does.
+func loadScopeRepositoryFacts(ctx context.Context, loader FactLoader, scopeID, generationID string) ([]facts.Envelope, error) {
 	if loader == nil {
 		return nil, nil
 	}
 	envelopes, err := loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKindRepository})
 	if err != nil {
-		return nil, fmt.Errorf("load repository facts for repo readiness phases: %w", err)
+		return nil, fmt.Errorf("load repository facts for workload materialization: %w", err)
 	}
-	return repositoryGraphIDsFromEnvelopes(envelopes), nil
+	return envelopes, nil
+}
+
+// retractStaleRepositoryEdges removes this domain's DEFINES and
+// repository-side EXPOSES_ENDPOINT edges that the current full generation no
+// longer supports (#7285, ruling B1). The projector used to wipe them as a side
+// effect of deleting the Repository node on every non-delta attempt; it no
+// longer does, because that delete also destroyed every other writer's edges.
+// Handle calls it only after Materialize committed the current edges; a nil
+// projection (the zero-candidate path) keeps nothing.
+func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
+	ctx context.Context,
+	intent Intent,
+	repositoryFacts []facts.Envelope,
+	projection *ProjectionResult,
+) (retract.Result, error) {
+	repoIDs := retract.FullGenerationRepositoryIDs(repositoryFacts)
+	if len(repoIDs) == 0 {
+		return retract.Result{}, nil
+	}
+	workloadIDs, endpointIDs := map[string][]string{}, map[string][]string{}
+	if projection != nil {
+		for _, row := range projection.WorkloadRows {
+			workloadIDs[row.RepoID] = append(workloadIDs[row.RepoID], row.WorkloadID)
+		}
+		for _, row := range projection.EndpointRows {
+			endpointIDs[row.RepoID] = append(endpointIDs[row.RepoID], row.EndpointID)
+		}
+	}
+	keepLists := retract.KeepLists(repoIDs, workloadIDs, endpointIDs)
+	started := time.Now()
+	result, err := retract.RepositoryEdges(ctx, h.Materializer.executor, h.Materializer.batchSize(), keepLists, EvidenceSourceWorkloads)
+	if err != nil {
+		return result, err
+	}
+	retract.Observe(ctx, h.Instruments, intent.ScopeID, intent.GenerationID, keepLists, result, time.Since(started))
+	return result, nil
 }
 
 // repositoryGraphIDsFromEnvelopes extracts the distinct, sorted repository

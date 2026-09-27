@@ -28,8 +28,8 @@
   modules → structural_edges → package_registry_version_edges →
   package_registry_dependency_edges → package_registry_artifact_edges →
   package_registry_event_edges. Parent nodes must
-  exist before child MATCH statements run, repository cleanup must commit
-  before the repository MERGE, and stale entity cleanup must run after current
+  exist before child MATCH statements run, repository cleanup (path-conflict retirement
+  only, never the node being re-MERGEd, #7285) must commit before the repository MERGE, and stale entity cleanup must run after current
   entity upserts so it can avoid giant `uid IN` exclusion filters. The four
   `package_registry_*_edges` phases run LAST,
   after every node phase they MATCH, because they MATCH multi-label nodes

@@ -329,6 +329,14 @@ values each counter carries.
   truth, publish durable reducer facts, or emit bounded counters.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   re-projection across generations must converge on the same graph truth.
+- **`workload_materialization` owns its stale `DEFINES` retract** — the
+  projector no longer deletes the Repository node on re-projection (#7285), so
+  `Handle` removes (through `workload/retract`) this domain's `DEFINES` and
+  repository-side `EXPOSES_ENDPOINT` edges whose target is no longer current, after
+  `Materialize` commits and on the zero-candidate path, for repositories whose
+  repository fact is not `delta_generation` (a delta reads partial facts).
+  Deleted edges count on `eshu_dp_reconciliation_drift_retractions_total`
+  (`domain=workload_materialization`).
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to `Handler.Handle`; a superseded intent returns without
   projecting stale truth.

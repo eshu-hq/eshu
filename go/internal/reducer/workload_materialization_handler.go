@@ -159,11 +159,17 @@ func (h WorkloadMaterializationHandler) Handle(
 	if err != nil {
 		return Result{}, err
 	}
+	repositoryFacts, err := loadScopeRepositoryFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		return Result{}, err
+	}
 	if len(candidates) == 0 {
 		phaseStarted := time.Now()
-		repoIDs, repoErr := scopeRepositoryGraphIDs(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
-		if repoErr != nil {
-			return Result{}, repoErr
+		repoIDs := repositoryGraphIDsFromEnvelopes(repositoryFacts)
+		// A full generation with no candidate means every workload this domain
+		// defined for these repositories is gone (#7285).
+		if _, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, nil); err != nil {
+			return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
 		}
 		if err := publishIntentGraphPhaseWithRepair(
 			ctx,
@@ -358,6 +364,13 @@ func (h WorkloadMaterializationHandler) Handle(
 			totalWrites += len(writeRows)
 		}
 	}
+	// Stale DEFINES / repository-side EXPOSES_ENDPOINT go only after the current
+	// edges above committed, and only for full-generation repositories (#7285).
+	repositoryEdgeRetract, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, projection)
+	if err != nil {
+		return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
+	}
+	totalWrites += int(repositoryEdgeRetract.DefinesDeleted + repositoryEdgeRetract.EndpointEdgesDeleted)
 	phaseStarted := time.Now()
 	if err := publishIntentGraphPhaseWithRepair(
 		ctx,
@@ -439,42 +452,6 @@ func (h WorkloadMaterializationHandler) Handle(
 		SubSignals:      h.refreshResultSignals(ctx, intent, nil, totalWrites, repoReadinessRepoIDs),
 		SubDurations:    workloadMaterializationSubDurations(timing),
 	}, nil
-}
-
-func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
-	ctx context.Context,
-	candidates []WorkloadCandidate,
-) (map[string][]InfrastructurePlatformRow, error) {
-	if h.InfrastructurePlatformLookup == nil {
-		return nil, nil
-	}
-	repoIDs := uniqueProvisioningRepoIDs(candidates)
-	if len(repoIDs) == 0 {
-		return nil, nil
-	}
-	platforms, err := h.InfrastructurePlatformLookup.ListProvisionedPlatforms(ctx, repoIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load provisioned infrastructure platforms: %w", err)
-	}
-	return platforms, nil
-}
-
-func uniqueProvisioningRepoIDs(candidates []WorkloadCandidate) []string {
-	seen := make(map[string]struct{})
-	var repoIDs []string
-	for _, candidate := range candidates {
-		for _, repoID := range candidate.ProvisioningRepoIDs {
-			if repoID == "" {
-				continue
-			}
-			if _, ok := seen[repoID]; ok {
-				continue
-			}
-			seen[repoID] = struct{}{}
-			repoIDs = append(repoIDs, repoID)
-		}
-	}
-	return repoIDs
 }
 
 func (h WorkloadMaterializationHandler) loadProjectionInputs(
