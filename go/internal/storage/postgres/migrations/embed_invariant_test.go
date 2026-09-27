@@ -36,6 +36,7 @@ import (
 // 132_content_entities_repo_path_start_idx.sql; #7242 added
 // 133_repository_entry_points_index.sql; #7033 adds the path GIN and
 // lifecycle validator as migrations 134-135.
+// #7127 adds 134_changed_since_link_ledger.sql.
 const goldenBootstrapDefinitionsDigest = "4b7533a9ddc79c480011bfff001676d279b8b584b78fa2113d8145ef00d6b6e0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

@@ -3,6 +3,8 @@
 
 package postgres
 
+import linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+
 // resolveChangedSinceScopeQuery resolves one repository-kind (or any) scope and
 // its current active generation for a changed-since diff. It accepts a scope_id
 // or a repository source_key selector ($1 scope_id, $2 repository; an empty
@@ -112,24 +114,15 @@ LIMIT 1
 `
 
 // changedSincePayloadDigestInput is the value every changed-since payload digest
-// hashes. It is the fact payload, except that content_entity rows drop
-// indexed_at: the git collector stamps every content_entity payload with the
-// snapshot time (go/internal/collector/git/content/envelopes.go, the
-// "indexed_at" field of ContentEntityFactEnvelope), so an unchanged entity
-// re-indexed on a new run would otherwise differ from its prior copy and report
-// updated. Nothing reads the field back. Existing generations keep it forever,
-// so the diff normalizes it at read time; only content_entity is normalized
-// because no other kind carries a per-run timestamp of this shape. This is data
-// normalization of a known collector field, not an allowlist. The key removal
-// applies only to object payloads: jsonb "payload - key" raises "cannot delete
-// from scalar" on a scalar payload, which would fail the whole request instead
-// of one key, so a non-object payload digests as itself.
+// hashes: the fact payload, with indexed_at dropped from content_entity object
+// payloads. linksfreshnessstore.PayloadDigestInput documents why and holds the
+// bytes, so the read statement and the link writer (#7127 PR-3a) cannot drift.
 //
 // scripts/lib/golden-corpus-changed-since-sql-fragments.sh is generated from
 // this constant and changedSinceExcludeReducerDerivedKinds so the golden-corpus
 // changed-since oracle cannot drift from the API statement (see
 // changed_since_oracle_fragments_test.go).
-const changedSincePayloadDigestInput = `CASE WHEN fact_kind = 'content_entity' AND jsonb_typeof(payload) = 'object' THEN payload - 'indexed_at' ELSE payload END`
+const changedSincePayloadDigestInput = linksfreshnessstore.PayloadDigestInput
 
 // reducerDerivedFactKindLikePattern matches every reducer-derived fact kind:
 // the reducer writes its materialized output into the source generation after
@@ -137,14 +130,14 @@ const changedSincePayloadDigestInput = `CASE WHEN fact_kind = 'content_entity' A
 // escaped so a kind that merely starts with "reducer" does not match. Shared by
 // the changed-since diff and the collector evidence summary so both classify
 // reducer output by the same shape.
-const reducerDerivedFactKindLikePattern = `'reducer\_%'`
+const reducerDerivedFactKindLikePattern = linksfreshnessstore.ReducerDerivedFactKindLikePattern
 
 // changedSinceExcludeReducerDerivedKinds keeps reducer-derived rows out of a
 // changed-since scan. They exist only in generations the reducer has processed,
 // so their presence tracks reducer scheduling, not repository change, and the
 // route's truth envelope promises persisted fact truth rather than correlation
 // output.
-const changedSinceExcludeReducerDerivedKinds = `fact_kind NOT LIKE ` + reducerDerivedFactKindLikePattern
+const changedSinceExcludeReducerDerivedKinds = linksfreshnessstore.ExcludeReducerDerivedKinds
 
 // changedSinceClassificationCTEs classifies one scope across two generations.
 // A single payload per key uses one SHA-256 digest. Equal minimum digests from
