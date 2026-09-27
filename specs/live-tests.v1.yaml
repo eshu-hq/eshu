@@ -1191,6 +1191,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip (#7282 delta-generation refusal); unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_link_accuracy_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/storage/postgres/changed_since_multiset_live_test.go
     tag: ~
     class: scheduled
@@ -1579,6 +1583,22 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/journal_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/link_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link ledger proof (#7127 PR-3a), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link plan-shape proof (#7127 PR-3a gates G3/G4) that builds 2M link-delta and 3.8M state rows, about 1 minute locally; scheduled, never blocking
   - file: go/internal/storage/postgres/generation_prior_live_test.go
     tag: ~
     class: scheduled
