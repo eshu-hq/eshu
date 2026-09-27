@@ -209,7 +209,7 @@ func TestBuildFileImportCycleRowsFindsReciprocalEdgesAndPaginates(t *testing.T) 
 		},
 	}
 
-	rows, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
+	rows, _, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
 		QueryType: "file_import_cycles",
 		RepoID:    "repo-1",
 		Language:  "python",
@@ -261,7 +261,7 @@ func TestFileImportCycleEdgeRowsCypherDefersDirectionalFilters(t *testing.T) {
 		importDependencyCycleProofEdge("src/a.py", "a.py", "b", 4),
 		importDependencyCycleProofEdge("src/b.py", "b.py", "a", 8),
 	}
-	rows, err := codemodel.BuildFileImportCycleRows(req, edges)
+	rows, _, err := codemodel.BuildFileImportCycleRows(req, edges)
 	if err != nil {
 		t.Fatalf("codemodel.BuildFileImportCycleRows() error = %v, want nil", err)
 	}
@@ -293,7 +293,7 @@ func TestBuildFileImportCycleRowsFailsClosedAtScanLimit(t *testing.T) {
 	t.Parallel()
 
 	edges := make([]map[string]any, querycontract.ImportDependencyInternalScanLimit+1)
-	_, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
+	_, _, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
 		QueryType: "file_import_cycles",
 		RepoID:    "repo-1",
 	}, edges)

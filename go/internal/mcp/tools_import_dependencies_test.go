@@ -12,13 +12,14 @@ func TestResolveRouteMapsImportDependencyToolToBoundedEndpoint(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("investigate_import_dependencies", map[string]any{
-		"query_type":    "imports_by_file",
-		"repo_id":       "repo-1",
-		"source_file":   "src/module_a.py",
-		"target_module": "requests",
-		"language":      "python",
-		"limit":         float64(10),
-		"offset":        float64(5),
+		"query_type":       "imports_by_file",
+		"repo_id":          "repo-1",
+		"source_file":      "src/module_a.py",
+		"target_module":    "requests",
+		"language":         "python",
+		"limit":            float64(10),
+		"offset":           float64(5),
+		"max_cycle_length": float64(6),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -41,6 +42,28 @@ func TestResolveRouteMapsImportDependencyToolToBoundedEndpoint(t *testing.T) {
 	}
 	if got, want := body["offset"], 5; got != want {
 		t.Fatalf("body[offset] = %#v, want %#v", got, want)
+	}
+	if got, want := body["max_cycle_length"], 6; got != want {
+		t.Fatalf("body[max_cycle_length] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteDefaultsMaxCycleLengthToUnset(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("investigate_import_dependencies", map[string]any{
+		"query_type": "file_import_cycles",
+		"repo_id":    "repo-1",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	body, ok := route.Body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
+	}
+	if got, want := body["max_cycle_length"], 0; got != want {
+		t.Fatalf("body[max_cycle_length] = %#v, want %#v (handler defaults to 5)", got, want)
 	}
 }
 
@@ -72,5 +95,18 @@ func TestImportDependencyToolSchemaRequiresScopeAndBounds(t *testing.T) {
 	}
 	if got, want := offset["minimum"], 0; got != want {
 		t.Fatalf("offset minimum = %#v, want %#v", got, want)
+	}
+	maxCycle, ok := properties["max_cycle_length"].(map[string]any)
+	if !ok {
+		t.Fatal("schema properties lacks max_cycle_length for file_import_cycles")
+	}
+	if got, want := maxCycle["default"], 5; got != want {
+		t.Fatalf("max_cycle_length default = %#v, want %#v", got, want)
+	}
+	if got, want := maxCycle["minimum"], 2; got != want {
+		t.Fatalf("max_cycle_length minimum = %#v, want %#v", got, want)
+	}
+	if got, want := maxCycle["maximum"], 8; got != want {
+		t.Fatalf("max_cycle_length maximum = %#v, want %#v", got, want)
 	}
 }

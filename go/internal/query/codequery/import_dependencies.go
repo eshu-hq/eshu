@@ -149,6 +149,13 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 	if h == nil || h.Neo4j == nil {
 		return nil, errImportDependencyUnavailable
 	}
+	if req.EffectiveQueryType() == "file_import_cycles" {
+		rows, enumTruncated, err := imports.CycleRows(ctx, h.Neo4j, req)
+		if err != nil {
+			return nil, err
+		}
+		return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumTruncated), nil
+	}
 	rows, err := h.importDependencyRows(ctx, req)
 	if err != nil {
 		return nil, err

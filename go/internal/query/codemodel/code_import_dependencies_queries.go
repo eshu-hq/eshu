@@ -160,8 +160,10 @@ LIMIT $scan_limit`)
 }
 
 // FileImportCycleEdgeRowsCypher returns a bounded, ordered import-edge list.
-// Reciprocal cycle reconstruction happens in Go so the pinned NornicDB path
-// never relies on a second MATCH or a repeated repository pattern.
+// Bounded simple-cycle enumeration (#6851) happens in Go over this single
+// fetch: the Cypher reciprocal join costs 1522ms/5.5M DbHits where the
+// same fetch profiles at 40ms/27k DbHits. Directional anchors narrow the
+// enumerated cycles in Go after the scan, so the statement carries none.
 func FileImportCycleEdgeRowsCypher(req ImportDependencyRequest) string {
 	var cypher strings.Builder
 	cypher.WriteString("MATCH ")
@@ -355,6 +357,9 @@ type ImportDependencyRequest struct {
 	TargetModule string `json:"target_module"`
 	Limit        int    `json:"limit"`
 	Offset       int    `json:"offset"`
+	// MaxCycleLength bounds file_import_cycles simple-cycle enumeration.
+	// Zero means the default; it is ignored by every other query type.
+	MaxCycleLength int `json:"max_cycle_length"`
 
 	Access repositoryAccessFilter `json:"-"`
 }
@@ -394,6 +399,13 @@ func (r ImportDependencyRequest) Validate() error {
 		if language != "" && language != "python" {
 			return fmt.Errorf("file_import_cycles currently supports python module-name cycle detection")
 		}
+		if r.MaxCycleLength != 0 && (r.MaxCycleLength < importCycleMinMaxLength || r.MaxCycleLength > importCycleMaxMaxLength) {
+			return fmt.Errorf(
+				"max_cycle_length must be between %d and %d",
+				importCycleMinMaxLength,
+				importCycleMaxMaxLength,
+			)
+		}
 	}
 	return nil
 }
@@ -413,6 +425,17 @@ func (r ImportDependencyRequest) EffectiveQueryType() string {
 // NormalizedLanguage lowercases the requested language filter.
 func (r ImportDependencyRequest) NormalizedLanguage() string {
 	return strings.ToLower(strings.TrimSpace(r.Language))
+}
+
+// effectiveMaxCycleLength resolves the file_import_cycles simple-cycle
+// length bound: the caller's max_cycle_length when set and valid, the
+// default otherwise. Validation rejects out-of-range values before any
+// graph read runs, so this resolves rather than clamps.
+func (r ImportDependencyRequest) effectiveMaxCycleLength() int {
+	if r.MaxCycleLength <= 0 {
+		return importCycleDefaultMaxLength
+	}
+	return r.MaxCycleLength
 }
 
 func (r ImportDependencyRequest) normalizedLimit() int {

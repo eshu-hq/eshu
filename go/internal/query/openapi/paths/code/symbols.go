@@ -128,7 +128,7 @@ const Symbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1000 cycles and reports truncated:true with the cap value. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
         "operationId": "investigateImportDependencies",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -144,7 +144,8 @@ const Symbols = `
                     "default": "imports_by_file"
                   },
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)."},
-                  "language": {"type": "string", "description": "Optional language filter. file_import_cycles currently supports python."},
+                  "language": {"type": "string", "description": "Optional language filter. file_import_cycles supports python multi-node cycle detection; other languages are rejected."},
+                  "max_cycle_length": {"type": "integer", "description": "Simple-cycle length bound for file_import_cycles (default 5). Ignored by other query types.", "default": 5, "minimum": 2, "maximum": 8},
                   "source_file": {"type": "string", "description": "Optional repo-relative source file path anchor"},
                   "target_file": {"type": "string", "description": "Optional repo-relative target file path for cross-module call and cycle queries"},
                   "source_module": {"type": "string", "description": "Optional source module name anchor"},
@@ -172,7 +173,7 @@ const Symbols = `
                     "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "cycles": {
                       "type": "array",
-                      "description": "Canonical rows for file_import_cycles query_type.",
+                      "description": "Canonical rows for file_import_cycles query_type: bounded simple Python import cycles ordered length-ascending, then normalized path. cycle_length counts edges; cycle_path closes back on its first file; cycle_edges carries one IMPORTS proof edge per hop. Enumeration stops at 1000 cycles and reports truncated:true with coverage.cycle_enumeration_cap.",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -185,6 +186,7 @@ const Symbols = `
                           "source_line_number": {"type": "integer"},
                           "back_edge_line_number": {"type": "integer"},
                           "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
+                          "cycle_length": {"type": "integer", "description": "Number of import edges in the cycle (2 through max_cycle_length)."},
                           "cycle_path": {"type": "array", "items": {"type": "string"}},
                           "cycle_edges": {
                             "type": "array",

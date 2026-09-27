@@ -41,75 +41,61 @@ type importCycleEdge struct {
 	lineNumber   int
 }
 
-type importCycleDirection struct {
-	repoID       string
-	sourceModule string
-	targetModule string
-}
-
 type importDependencyScopeKey struct {
 	repoID string
 	path   string
 }
 
-// BuildFileImportCycleRows reconstructs reciprocal Python import edges after a
-// bounded candidate scan. Duplicate directed edges retain their earliest
+// BuildFileImportCycleRows enumerates bounded Python simple import cycles
+// after a bounded candidate scan (#6851): reciprocal pairs through
+// max_cycle_length (default 5) file cycles, rotation-deduplicated to the
+// lexicographically smallest start and ordered length-ascending, then
+// normalized path. Duplicate directed edges retain their earliest
 // positive source line.
+//
+// The second return reports whether enumeration hit
+// importCycleEnumerationCap. The response carries that state as
+// truncated:true plus the cap value, so a capped list is never silently
+// partial. The cap (1,000) sits far below the 25,000-row internal scan
+// limit the edge fetch enforces, so the old reciprocal-era overflow guard
+// is subsumed: a capped enumeration always pages truncated.
+//
+// Directional anchors (source_file, target_file, source_module,
+// target_module) match when any cycle member matches, after enumeration:
+// the edge fetch intentionally carries no directional filter so an anchor
+// cannot remove the closing edge of a cycle it belongs to. Narrow
+// repo_id for complete answers on dense graphs: the enumeration cap
+// applies before this filter.
 func BuildFileImportCycleRows(
 	req ImportDependencyRequest,
 	edgeRows []map[string]any,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	if err := ImportDependencyScanBoundError(len(edgeRows)); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	directedEdges := deduplicateImportCycleEdges(req, edgeRows)
-	byDirection := make(map[importCycleDirection][]importCycleEdge, len(directedEdges))
-	for _, edge := range directedEdges {
-		direction := importCycleDirection{
-			repoID:       edge.repoID,
-			sourceModule: edge.sourceModule,
-			targetModule: edge.targetModule,
-		}
-		byDirection[direction] = append(byDirection[direction], edge)
-	}
+	cycles, enumTruncated := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
 
-	cycleRows := make([]map[string]any, 0)
+	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
-	for _, sourceEdge := range directedEdges {
-		reverse := importCycleDirection{
-			repoID:       sourceEdge.repoID,
-			sourceModule: sourceEdge.targetModule,
-			targetModule: sourceEdge.sourceModule,
+	for _, cycle := range cycles {
+		row := importCycleRow(cycle)
+		if !importCycleRowMatches(req, row) {
+			continue
 		}
-		for _, backEdge := range byDirection[reverse] {
-			if sourceEdge.sourceFile >= backEdge.sourceFile {
-				continue
-			}
-			row := importCycleRow(sourceEdge, backEdge)
-			if !importCycleRowMatches(req, row) {
-				continue
-			}
-			key := importCycleRowKey(row)
-			if _, exists := seenCycles[key]; exists {
-				continue
-			}
-			seenCycles[key] = struct{}{}
-			cycleRows = append(cycleRows, row)
-			if len(cycleRows) > querycontract.ImportDependencyInternalScanLimit {
-				return nil, fmt.Errorf(
-					"%w: reciprocal cycle candidates exceed %d",
-					ErrImportDependencyScopeTooBroad,
-					querycontract.ImportDependencyInternalScanLimit,
-				)
-			}
+		key := importCycleRowKey(row)
+		if _, exists := seenCycles[key]; exists {
+			continue
 		}
+		seenCycles[key] = struct{}{}
+		cycleRows = append(cycleRows, row)
 	}
 
 	sort.Slice(cycleRows, func(i, j int) bool {
 		return compareImportCycleRows(cycleRows[i], cycleRows[j]) < 0
 	})
-	return PageImportDependencyRows(req, cycleRows), nil
+	return PageImportDependencyRows(req, cycleRows), enumTruncated, nil
 }
 
 // FilterCrossModuleCallRows removes cross-repository candidates before stable
@@ -302,27 +288,6 @@ func importCycleEdgeFromRow(
 	return edge, true
 }
 
-func importCycleRow(sourceEdge, backEdge importCycleEdge) map[string]any {
-	return map[string]any{
-		"repo_id":               sourceEdge.repoID,
-		"repo_name":             sourceEdge.repoName,
-		"source_file":           sourceEdge.sourceFile,
-		"target_file":           backEdge.sourceFile,
-		"source_module":         backEdge.targetModule,
-		"target_module":         sourceEdge.targetModule,
-		"source_line_number":    sourceEdge.lineNumber,
-		"back_edge_line_number": backEdge.lineNumber,
-	}
-}
-
-func importCycleRowMatches(req ImportDependencyRequest, row map[string]any) bool {
-	return matchesExactRequestValue(req.RepoID, querycontract.StringVal(row, "repo_id")) &&
-		matchesExactRequestValue(req.SourceFile, querycontract.StringVal(row, "source_file")) &&
-		matchesExactRequestValue(req.TargetFile, querycontract.StringVal(row, "target_file")) &&
-		matchesExactRequestValue(req.SourceModule, querycontract.StringVal(row, "source_module")) &&
-		matchesExactRequestValue(req.TargetModule, querycontract.StringVal(row, "target_module"))
-}
-
 func crossModuleCallRowMatches(req ImportDependencyRequest, row map[string]any) bool {
 	sourceRepoID := querycontract.StringVal(row, "source_repo_id")
 	targetRepoID := querycontract.StringVal(row, "target_repo_id")
@@ -366,34 +331,11 @@ func earlierPositiveLine(candidate, current int) bool {
 	return current <= 0 || candidate < current
 }
 
-func importCycleRowKey(row map[string]any) string {
-	return strings.Join([]string{
-		querycontract.StringVal(row, "repo_id"),
-		querycontract.StringVal(row, "source_file"),
-		querycontract.StringVal(row, "target_file"),
-		querycontract.StringVal(row, "source_module"),
-		querycontract.StringVal(row, "target_module"),
-	}, "\x00")
-}
-
 func compareImportCycleEdges(left, right importCycleEdge) int {
 	return compareStrings(
 		[]string{left.repoID, left.sourceFile, left.targetModule, left.sourcePath},
 		[]string{right.repoID, right.sourceFile, right.targetModule, right.sourcePath},
 	)
-}
-
-func compareImportCycleRows(left, right map[string]any) int {
-	comparison := compareRowStrings(left, right, []string{
-		"repo_id", "source_file", "target_file", "source_module", "target_module",
-	})
-	if comparison != 0 {
-		return comparison
-	}
-	if leftLine, rightLine := querycontract.IntVal(left, "source_line_number"), querycontract.IntVal(right, "source_line_number"); leftLine != rightLine {
-		return compareInts(leftLine, rightLine)
-	}
-	return compareInts(querycontract.IntVal(left, "back_edge_line_number"), querycontract.IntVal(right, "back_edge_line_number"))
 }
 
 func compareCrossModuleCallRows(left, right map[string]any) int {
