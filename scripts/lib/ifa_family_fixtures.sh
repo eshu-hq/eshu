@@ -128,8 +128,8 @@ runs_in_expected_edges="${repo_root}/go/internal/ifa/testdata/runsin/ifa-runs-in
 invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json"
 
 # kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
-# and iam_can_perform (#6228) are the first DIRECT-materialization families in
-# either gate. Every family above reaches the graph through the ordering-safe
+# iam_can_perform, and workload_cloud_relationship (#6228) are the
+# DIRECT-materialization families in either gate. Every family above reaches the graph through the ordering-safe
 # shared-projection intent path; the reducer writes these four straight to a
 # go/internal/storage/cypher writer with no intent row in between.
 #
@@ -142,7 +142,7 @@ invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invok
 # such a fact and says so in capitals; these must not carry one, since it would
 # enqueue a domain no handler owns.
 #
-# All three cassettes are projections of their compiled Odù rather than
+# All five cassettes are projections of their compiled Odù rather than
 # second, independently written fixtures, and
 # TestDirectFamilyCassettesMatchTheirCompiledOdu holds them to it.
 #
@@ -161,6 +161,8 @@ iam_can_assume_cassette="${repo_root}/testdata/cassettes/iamcanassume/ifa-iam-ca
 iam_can_assume_expected_edges="${repo_root}/go/internal/ifa/testdata/iamcanassume/ifa-iam-can-assume-family-expected-edges.json"
 iam_can_perform_cassette="${repo_root}/testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json"
 iam_can_perform_expected_edges="${repo_root}/go/internal/ifa/testdata/iamcanperform/ifa-iam-can-perform-family-expected-edges.json"
+workload_cloud_relationship_cassette="${repo_root}/testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
+workload_cloud_relationship_expected_edges="${repo_root}/go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -207,4 +209,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${iam_can_assume_expected_edges}" ]] || { echo "${gate}: iam-can-assume expected-edge set not found: ${iam_can_assume_expected_edges}" >&2; exit 1; }
 	[[ -f "${iam_can_perform_cassette}" ]] || { echo "${gate}: iam-can-perform cassette not found: ${iam_can_perform_cassette}" >&2; exit 1; }
 	[[ -f "${iam_can_perform_expected_edges}" ]] || { echo "${gate}: iam-can-perform expected-edge set not found: ${iam_can_perform_expected_edges}" >&2; exit 1; }
+	[[ -f "${workload_cloud_relationship_cassette}" ]] || { echo "${gate}: workload-cloud-relationship cassette not found: ${workload_cloud_relationship_cassette}" >&2; exit 1; }
+	[[ -f "${workload_cloud_relationship_expected_edges}" ]] || { echo "${gate}: workload-cloud-relationship expected-edge set not found: ${workload_cloud_relationship_expected_edges}" >&2; exit 1; }
 }

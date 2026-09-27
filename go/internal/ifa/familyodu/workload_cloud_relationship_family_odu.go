@@ -44,8 +44,13 @@ const (
 	// workloadCloudRelationshipFamilyScopeID is the single AWS account scope
 	// every fact in this Odù belongs to. The reducer handler loads one scope
 	// generation's aws_resource facts, so a fixture spanning scopes would not
-	// mirror any real intent.
-	workloadCloudRelationshipFamilyScopeID = "aws:eshu-fixture-account"
+	// mirror any real intent. It is a dedicated account, not the shared
+	// aws:eshu-fixture-account the iam_instance_profile_role cassette drives:
+	// scopes carry one ACTIVE generation, so driving a second generation into
+	// an occupied scope supersedes the first family's generation and the
+	// sibling exact-set assert fails with zero edges (diagnosed live on
+	// iam_can_assume 2026-09-27, same lesson).
+	workloadCloudRelationshipFamilyScopeID = "aws:eshu-fixture-workload-relationship-account"
 
 	// workloadCloudRelationshipFamilyAccountID and
 	// workloadCloudRelationshipFamilyRegion are two of the four inputs to the
