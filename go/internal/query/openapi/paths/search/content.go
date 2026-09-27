@@ -187,7 +187,7 @@ const Content = `
       "post": {
         "tags": ["content"],
         "summary": "Search entity content",
-        "description": "Searches entity source code by pattern.",
+        "description": "Searches entity source code by pattern. Pages order by repository ID, relative path, start line, and entity ID; truncated reports whether another matching row follows.",
         "operationId": "searchEntities",
         "x-scoped-token-support": true,
         "requestBody": {

@@ -14,7 +14,7 @@ import (
 func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -65,7 +65,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T
 func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -116,7 +116,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *test
 func TestEnrichEntityResultsWithContentMetadataTSXComponentWrapper(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

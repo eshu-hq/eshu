@@ -14,7 +14,7 @@ import (
 func TestEnrichEntityResultsWithContentMetadata(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -92,7 +92,7 @@ func TestEnrichEntityResultsWithContentMetadata(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataPrefersExistingPythonGraphMetadata(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -162,7 +162,7 @@ func TestEnrichEntityResultsWithContentMetadataPrefersExistingPythonGraphMetadat
 func TestEnrichEntityResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
@@ -206,7 +206,7 @@ func TestEnrichEntityResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) 
 func TestEnrichEntityResultsWithContentMetadataRustImplBlock(t *testing.T) {
 	t.Parallel()
 
-	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+	db := openLegacyEntityMetadataTestDB(t, []contentreader.ReaderQueryResult{
 		{
 			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",

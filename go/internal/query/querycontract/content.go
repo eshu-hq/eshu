@@ -26,6 +26,16 @@ type FileContent struct {
 	SearchBackend string `json:"search_backend,omitempty"`
 }
 
+// EntityContentKey identifies a parsed entity by its repository-local graph
+// location and name. A graph entity ID may differ from the content entity ID,
+// so metadata hydration uses this exact, comparable tuple instead.
+type EntityContentKey struct {
+	RelativePath string
+	EntityType   string
+	EntityName   string
+	StartLine    int
+}
+
 // EntityContent is one parsed entity from the content store.
 type EntityContent struct {
 	EntityID     string         `json:"entity_id"`

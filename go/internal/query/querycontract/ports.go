@@ -80,6 +80,11 @@ type ContentStore interface {
 	// entity-ID set (the impact-trace directed SELECTS scan re-fetches only the
 	// Services that actually selector-match the traced Deployment; #5363).
 	ListRepoEntitiesByIDs(ctx context.Context, repoID string, entityIDs []string, limit int) ([]EntityContent, error)
+	// ListRepoEntitiesByKeys fetches at most two rows for each unique exact
+	// repository-local key, so callers can detect ambiguous metadata matches.
+	// Inputs are bounded to 101 unique keys and results follow first-key order,
+	// then entity_id. A global LIMIT must not starve later keys.
+	ListRepoEntitiesByKeys(ctx context.Context, repoID string, keys []EntityContentKey) ([]EntityContent, error)
 	// ListRepoK8sSelectCandidates returns the narrow matcher projection consumed
 	// by K8s service-selector matching instead of hydrating EntityContent for the
 	// candidate scan (#5363); it never carries the wide metadata JSONB.

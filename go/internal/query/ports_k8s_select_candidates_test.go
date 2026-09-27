@@ -3,7 +3,11 @@
 
 package query
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // The #5363 ContentStore additions on the shared fakePortContentStore double
 // forward from here, split out of ports_test.go to keep that file under the
@@ -18,6 +22,14 @@ func (f fakePortContentStore) ListRepoEntitiesByIDs(
 	limit int,
 ) ([]EntityContent, error) {
 	return f.promoted().ListRepoEntitiesByIDs(ctx, repoID, entityIDs, limit)
+}
+
+func (f fakePortContentStore) ListRepoEntitiesByKeys(
+	ctx context.Context,
+	repoID string,
+	keys []querycontract.EntityContentKey,
+) ([]EntityContent, error) {
+	return f.promoted().ListRepoEntitiesByKeys(ctx, repoID, keys)
 }
 
 func (f fakePortContentStore) ListRepoK8sSelectCandidates(
