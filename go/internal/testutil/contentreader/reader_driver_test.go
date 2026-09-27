@@ -63,6 +63,36 @@ func TestOpenContentReaderTestDBSequencesQueuedResults(t *testing.T) {
 	}
 }
 
+// TestOpenContentReaderTestDBSupportsReadOnlyRepeatableRead proves query
+// tests can exercise production reads that hold a single read-only snapshot.
+// The fake cannot model Postgres isolation, but the transaction must retain the
+// same queued-query assertions as a direct database read.
+func TestOpenContentReaderTestDBSupportsReadOnlyRepeatableRead(t *testing.T) {
+	t.Parallel()
+
+	db := contentreader.OpenReaderTestDB(t, []contentreader.ReaderQueryResult{
+		{Columns: []string{"label"}, Rows: [][]driver.Value{{"snapshot"}}},
+	})
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		t.Fatalf("BeginTx() error = %v, want nil", err)
+	}
+	row := tx.QueryRowContext(context.Background(), "SELECT label FROM widgets")
+	var got string
+	if err := row.Scan(&got); err != nil {
+		t.Fatalf("QueryRowContext().Scan() error = %v, want nil", err)
+	}
+	if got != "snapshot" {
+		t.Fatalf("transaction row = %q, want %q", got, "snapshot")
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Commit() error = %v, want nil", err)
+	}
+}
+
 // TestOpenContentReaderTestDBRejectsMissingQueryFragment proves QueryContains
 // is an assertion rather than decoration: a handler that stops emitting a
 // required SQL fragment must fail the read, not quietly receive the rows.

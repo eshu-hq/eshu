@@ -87,7 +87,7 @@ func fenceBenchRun(t *testing.T, ctx context.Context, db *sql.DB, fenced bool, b
 	t.Helper()
 	for _, stmt := range []string{
 		"TRUNCATE infra_resource_entities",
-		"TRUNCATE content_entities, content_files, content_file_references",
+		"TRUNCATE content_entities, content_files, content_file_references, content_file_secret_lines",
 		"TRUNCATE infra_resource_entity_dirty_repos",
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

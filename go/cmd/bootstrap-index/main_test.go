@@ -65,6 +65,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 			contentIndexesFinalized = true
 			return nil
 		},
+		noopSecretLines(),
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return nil
 		},
@@ -130,6 +131,7 @@ func TestRunReturnsSchemaError(t *testing.T) {
 			t.Fatal("content index finalizer should not run after schema error")
 			return nil
 		},
+		noopSecretLines(),
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			t.Fatal("graph schema check should not run after postgres schema error")
 			return nil
@@ -174,6 +176,7 @@ func TestRunReturnsCollectorError(t *testing.T) {
 			t.Fatal("content index finalizer should not run after collector build error")
 			return nil
 		},
+		noopSecretLines(),
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return nil
 		},

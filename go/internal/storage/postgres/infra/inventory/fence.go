@@ -38,25 +38,33 @@ const WriterSessionSQL = "SET eshu.infra_inventory_writer = '" + writerSessionVa
 // triggers skip.
 const writerSessionValue = "derive"
 
-// WriterConnectOption runs WriterSessionSQL on every new pool connection.
-func WriterConnectOption() stdlib.OptionOpenDB {
+// WriterConnectOption runs WriterSessionSQL on every new pool connection, then
+// each extraSessionSQL statement in order. The extras carry other per-session
+// writer settings a binary opts into, such as the bulk-load setting
+// bootstrap-index adds for the hardcoded-secret side table (#7125).
+func WriterConnectOption(extraSessionSQL ...string) stdlib.OptionOpenDB {
 	return stdlib.OptionAfterConnect(func(ctx context.Context, conn *pgx.Conn) error {
 		if _, err := conn.Exec(ctx, WriterSessionSQL); err != nil {
 			return fmt.Errorf("mark connection as infra inventory writer: %w", err)
+		}
+		for _, statement := range extraSessionSQL {
+			if _, err := conn.Exec(ctx, statement); err != nil {
+				return fmt.Errorf("apply writer session setting %q: %w", statement, err)
+			}
 		}
 		return nil
 	})
 }
 
 // OpenWriterDB opens a database/sql pool over the pgx driver whose
-// connections are marked derive-aware (WriterConnectOption). It does not
-// connect; the first use or a ping does.
-func OpenWriterDB(dsn string) (*sql.DB, error) {
+// connections are marked derive-aware (WriterConnectOption), then run each
+// extraSessionSQL statement. It does not connect; the first use or a ping does.
+func OpenWriterDB(dsn string, extraSessionSQL ...string) (*sql.DB, error) {
 	config, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("parse postgres dsn: %w", err)
 	}
-	return stdlib.OpenDB(*config, WriterConnectOption()), nil
+	return stdlib.OpenDB(*config, WriterConnectOption(extraSessionSQL...)), nil
 }
 
 // readModelReadySQL is the readers' gate: the backfill marker exists and no

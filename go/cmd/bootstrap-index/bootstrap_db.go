@@ -13,6 +13,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -25,8 +26,18 @@ type bootstrapSQLDB struct {
 
 func (b *bootstrapSQLDB) Close() error { return b.raw.Close() }
 
+var _ secretlines.Conner = (*bootstrapSQLDB)(nil)
+
+// Conn pins one connection for the secret-lines bulk-load run lock
+// (secretlines.Conner). The connection keeps its session for the whole run;
+// database/sql never closes an in-use connection for ConnMaxLifetime.
+func (b *bootstrapSQLDB) Conn(ctx context.Context) (*sql.Conn, error) { return b.raw.Conn(ctx) }
+
 func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
-	db, err := runtimecfg.OpenPostgres(ctx, getenv)
+	// Every bootstrap connection is a deferred-derivation session: content_files
+	// triggers skip its writes and the finalizer rebuilds the hardcoded-secret
+	// side table after collection (#7125).
+	db, err := runtimecfg.OpenPostgresWithSession(ctx, getenv, secretlines.DeferredSessionSQL)
 	if err != nil {
 		return nil, err
 	}
