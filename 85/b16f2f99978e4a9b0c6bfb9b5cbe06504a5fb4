@@ -1,0 +1,22 @@
+go/internal/storage/postgres/package_manifest_consumption_backfill_20k_live_test.go
+  s_b0d7e3abc26c5a::t_59eb392958e009 13-15,18-22,27-34,36,41-88,90-104,106,108,110-112,114-116,118-119,121-122,124-130,133,135-140,142-150,154,158-227,229,233-280,283,286-287,290
+docs/internal/evidence/7088-package-consumption-backfill-observability.md
+  s_b0d7e3abc26c5a::t_c4fbfb6a530c75 72-80
+  s_b0d7e3abc26c5a::t_36a49a59445608 104-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "85b16f2f99978e4a9b0c6bfb9b5cbe06504a5fb4",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
