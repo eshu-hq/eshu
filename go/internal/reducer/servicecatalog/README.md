@@ -25,6 +25,7 @@ through the root's compatibility aliases.
 | ownership evidence | `service_materialization.go` | `ServiceOwnershipEvidenceKey`, the shared payload-hash/normalization helpers, and `ServiceMaterializationGenerationID`'s deterministic fingerprint |
 | deployment evidence | `service_materialization_deployment.go` | `ServiceDeploymentEvidenceKey` over the resolved deployment relationship's identity |
 | dependencies evidence | `service_materialization_dependencies.go` | `ServiceDependencyEvidenceKey`, sharing deployment's resolved relationships |
+| corpus-fenced relationship read | `service_catalog_correlation_corpus_fence.go` | `attachServiceRelationshipEvidence` and the `ServiceCatalogCorrelationResolutionNotReadyFailureClass` deferral (#7258) |
 | runtime evidence | `service_materialization_runtime.go` | `ServiceRuntimeEvidenceKey` over the durable platform/environment/workload identity |
 | docs evidence | `service_materialization_docs.go` | `ServiceDocumentationEvidenceKey` over exact documentation-entity mentions |
 | incidents evidence | `service_materialization_incidents.go` | `ServiceIncidentEvidenceKey` over exact PagerDuty routing evidence |
@@ -68,7 +69,8 @@ prefix is a historical artifact of the flat root, not a package boundary.
 | `ServiceScopedDocumentationEvidenceLoader` / `ServiceDocumentationRecord` | the docs evidence loader contract |
 | `ServiceScopedIncidentEvidenceLoader` / `ServiceIncidentRecord` | the incidents evidence loader contract |
 | `ServiceVulnerabilityAdvisoryLoader` / `ServiceVulnerabilityRecord` | the vulnerabilities evidence loader contract |
-| `RepositoryScopedResolvedRelationshipLoader` | the deployment/dependencies shared relationship loader contract (locally redeclared, see below) |
+| `CorpusFencedResolvedRelationshipLoader` | the deployment/dependencies shared, corpus-fenced relationship loader contract (locally redeclared, see below) |
+| `ServiceCatalogCorrelationResolutionNotReadyFailureClass` | the non-counting readiness class of the corpus-fence deferral (#7258) |
 
 ## Package boundary
 
@@ -82,10 +84,10 @@ compatibility aliases in the service-catalog stanza of `compat_correlation.go` s
 callers, plus `cmd/reducer` and `internal/storage/postgres`, compile
 unchanged.
 
-`RepositoryScopedResolvedRelationshipLoader` is declared locally rather than
+`CorpusFencedResolvedRelationshipLoader` is declared locally rather than
 imported from the root, which owns the canonical version
-(`workload_materialization_handler.go`) shared by several still-in-root
-families. Go interfaces are structural, so the same concrete implementation
+(`correlated_workload_projection_input_loader.go`) shared by the workload and
+deployable-unit families. Go interfaces are structural, so the same concrete implementation
 root wires in elsewhere satisfies this local declaration too, without
 duplicating any logic — the established precedent is
 `internal/reducer/code/taint/graph_ports.go`.
@@ -125,8 +127,9 @@ supply as one-line forwarders or aliases (`Intent`, `Result`, `FactLoader`,
 `recordQuarantinedFacts`, `compactStringSlice`, `uniqueSortedStrings`, the
 `decodeServiceCatalog*` schema decoders, and `canonicalPackageSourceURLKey`)
 are now imported from the leaf package that already owned them.
-`RepositoryScopedResolvedRelationshipLoader` is locally redeclared, not
-imported, for the reason above.
+`RepositoryScopedResolvedRelationshipLoader` was locally redeclared, not
+imported, for the reason above (#7258 later replaced it with
+`CorpusFencedResolvedRelationshipLoader`).
 `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` (~19 lines of
 real `net/url` normalization logic, not a forwarder) moved to
 `source.ExactURLMatch`/`NormalizeExactURL`, with a root forwarder
@@ -152,7 +155,15 @@ telemetry-coverage rows point at changed.
   (`payloadcore`/`contract`/`packages/source`/etc.) with a root forwarder,
   or — if the symbol is genuinely root-owned and shared by other still-in-root
   families — redeclare a structurally identical interface locally, the way
-  `RepositoryScopedResolvedRelationshipLoader` does here.
+  `CorpusFencedResolvedRelationshipLoader` does here.
+- **Service relationship evidence is read only through the corpus fence.**
+  `Handle` runs the fused `GetResolvedRelationshipsForReposWithCorpusFence`
+  read before any write; an incomplete verdict returns the
+  `service_catalog_correlation_resolution_not_ready` deferral with nothing
+  written (#7258). The unfenced by-repos read omits a retired-or-pending
+  scope's rows, and a service generation built from it supersedes the prior
+  one with spurious removed evidence that no producer reopens. Never wire an
+  unfenced loader or move the read after a write.
 - **The service-materialization files are this handler's own methods, not a
   sibling family.** Do not split them into a second package; they share
   `ServiceCatalogCorrelationHandler`'s optional loader fields and commit into

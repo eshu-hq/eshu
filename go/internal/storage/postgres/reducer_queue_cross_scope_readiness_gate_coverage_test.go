@@ -136,6 +136,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestServiceMaterializationActiveIndexReplayConvergesLive",
 		"TestServiceMaterializationWriterKeepsScopedLineagesLive",
 		"TestServiceChangedSinceResolvePicksAttributedNewestActiveLive",
+		// #7258: the service catalog handler must defer on the relationship
+		// corpus fence against the real RelationshipStore and service writer,
+		// and the unfenced negative control must reproduce the spurious
+		// changed-since removal. Only real Postgres evaluates the fused fence.
+		"TestServiceCatalogCorpusFenceDefersAndPreservesEvidenceLive",
+		"TestServiceCatalogCorpusFenceUnfencedReadReportsSpuriousRemovalLive",
 		// #6809: the generation retention statements must prepare and run
 		// against the real migrated schema, not a hand-written fixture.
 		"TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive",

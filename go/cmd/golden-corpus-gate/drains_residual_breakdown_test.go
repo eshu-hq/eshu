@@ -179,3 +179,23 @@ func TestCompletionEventBreakdownNamesProducerAndStatus(t *testing.T) {
 		}
 	}
 }
+
+// #7258: a service catalog correlation intent deferred on the relationship
+// corpus fence waits on foreign-scope resolution, not on its own merits. It
+// must read as a readiness wait so pre-maintenance quiescence does not count
+// it as live work.
+func TestResidualBreakdownCountsServiceCatalogCorpusFenceDeferralAsDeferred(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "service_catalog_correlation", Status: "retrying", FailureClass: "service_catalog_correlation_resolution_not_ready", Count: 3},
+	}
+	got := formatResidualBreakdown(rows)
+
+	if !strings.Contains(got, "readiness-deferred=3") {
+		t.Errorf("breakdown does not count the corpus-fence deferral as readiness-deferred: %s", got)
+	}
+	if !strings.Contains(got, "no live work remained") {
+		t.Errorf("breakdown does not flag the all-deferred case: %s", got)
+	}
+}

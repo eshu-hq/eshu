@@ -221,6 +221,16 @@ func (f *fakeRepoScopedResolvedLoader) GetResolvedRelationshipsForRepos(
 	return out, nil
 }
 
+// GetResolvedRelationshipsForReposWithCorpusFence serves the same rows with a
+// closed (complete) corpus fence, the steady state these family tests model.
+func (f *fakeRepoScopedResolvedLoader) GetResolvedRelationshipsForReposWithCorpusFence(
+	ctx context.Context,
+	repoIDs []string,
+) ([]relationships.ResolvedRelationship, bool, error) {
+	out, err := f.GetResolvedRelationshipsForRepos(ctx, repoIDs)
+	return out, true, err
+}
+
 func TestServiceCatalogHandlerCommitsDeploymentFamilyWhenWired(t *testing.T) {
 	t.Parallel()
 

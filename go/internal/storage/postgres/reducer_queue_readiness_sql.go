@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
@@ -159,6 +160,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// CORRELATES_DEPLOYABLE_UNIT. DeployableUnitCorrelationHandler bounds the
 	// wait by elapsed time since the repair cycle began, not by this budget.
 	reducer.SharedEdgeTargetNotReadyFailureClass,
+	// #7258: service catalog correlation deferred on the same corpus fence.
+	// Its deployment and dependency families read resolved relationships by
+	// repository; while a foreign scope's relationship generation is
+	// retired-or-pending that read omits the scope's rows, and committing
+	// the service generation from it reports spurious removed evidence that
+	// nothing reopens. Counting the deferral would dead-letter the intent the
+	// same way.
+	servicecatalog.ServiceCatalogCorrelationResolutionNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

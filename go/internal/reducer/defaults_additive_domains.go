@@ -29,25 +29,29 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	return definitions
 }
 
-// serviceCatalogDeploymentRelationshipLoader returns the repository-scoped
+// serviceCatalogDeploymentRelationshipLoader returns the corpus-fenced
 // resolved-relationship loader used to materialize the service deployment
-// evidence family (#1985), or nil when the deployment family cannot be sourced.
-// The family is only wired when both the service generation lineage writer is
-// present and the configured resolved-relationship loader exposes the
-// repository-scoped read, so deployment evidence is purely additive and never
-// blocks the Stage-1 ownership lineage. The same nil-tolerant assertion pattern
-// is used by the correlated workload projection input loader.
+// (#1985) and dependencies (#1987) evidence families, or nil when the families
+// cannot be sourced. The families are only wired when both the service
+// generation lineage writer is present and the configured resolved-relationship
+// loader exposes the fused single-snapshot fenced read, so evidence is purely
+// additive and never blocks the Stage-1 ownership lineage. A loader with only
+// the unfenced by-repos read is deliberately NOT wired (#7258): that read omits
+// a retired-or-pending scope's rows, and a service generation built from it
+// supersedes the prior one with spurious removed evidence. The same
+// nil-tolerant assertion pattern is used by the correlated workload projection
+// input loader.
 func serviceCatalogDeploymentRelationshipLoader(
 	handlers DefaultHandlers,
-) RepositoryScopedResolvedRelationshipLoader {
+) CorpusFencedResolvedRelationshipLoader {
 	if handlers.ServiceMaterializationWriter == nil || handlers.ResolvedRelationshipLoader == nil {
 		return nil
 	}
-	repoScoped, ok := handlers.ResolvedRelationshipLoader.(RepositoryScopedResolvedRelationshipLoader)
+	fenced, ok := handlers.ResolvedRelationshipLoader.(CorpusFencedResolvedRelationshipLoader)
 	if !ok {
 		return nil
 	}
-	return repoScoped
+	return fenced
 }
 
 // serviceCatalogRuntimeInstanceLoader returns the repository-scoped runtime

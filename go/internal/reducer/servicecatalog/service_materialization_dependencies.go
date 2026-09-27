@@ -17,10 +17,10 @@ import (
 // involve the service's repository. Each relationship becomes one
 // generation-stable service_evidence_snapshots row in the dependencies family,
 // reusing the Stage-1 lineage, payload-hash, and tombstone machinery verbatim.
-// It shares deployment's source verbatim — the same resolved_relationships
-// Postgres path and the same RepositoryScopedResolvedRelationshipLoader — and
-// differs only in which relationship types it admits and its evidence_family
-// label.
+// It shares deployment's source verbatim — the same single corpus-fenced read
+// through CorpusFencedResolvedRelationshipLoader, so it is never built from a
+// partial resolved set (#7258) — and differs only in which relationship types
+// it admits and its evidence_family label.
 //
 // Stable identity: the resolved relationship's Postgres primary key
 // (resolved_id) embeds the resolution generation id (see

@@ -9,23 +9,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
-// RepositoryScopedResolvedRelationshipLoader returns active resolved
-// relationships touching one or more repositories, regardless of which
-// repository generation produced the relationship evidence.
+// CorpusFencedResolvedRelationshipLoader returns the active resolved
+// relationships touching one or more repositories together with the
+// corpus-completeness fence verdict, both evaluated in ONE statement snapshot
+// (#6740). complete is false while any active scope's current relationship
+// generation is retired-or-pending; the rows are then empty and must not be
+// consumed, because the by-repos read silently omits that scope's rows and a
+// service generation built from them would supersede the prior one with
+// spurious removed deployment and dependency evidence (#7258).
 //
-// Declared locally rather than imported from the reducer root: the root's own
-// RepositoryScopedResolvedRelationshipLoader
-// (workload_materialization_handler.go) is genuine root-owned logic shared by
-// several families that have not moved out of root yet (issue #6061), so
-// importing it would violate the rule that a family subpackage never imports
-// the reducer root. Go interfaces are satisfied structurally, so the same
-// concrete implementation root wires into other families' loaders also
-// satisfies this local declaration without any code duplication. taint's
-// GraphQueryRunner and BackfillStateMarker resolve the same
-// problem the same way.
-type RepositoryScopedResolvedRelationshipLoader interface {
-	GetResolvedRelationshipsForRepos(
+// The service catalog handler requires this fenced read rather than the plain
+// by-repos read so production cannot wire an unfenced loader. It is declared
+// locally rather than imported from the reducer root, whose own
+// CorpusFencedResolvedRelationshipLoader is structurally identical: a family
+// subpackage never imports the reducer root (issue #6061), and Go interfaces
+// are satisfied structurally, so *postgres.RelationshipStore satisfies both
+// (TestRelationshipStoreSatisfiesCorpusFencedResolvedRelationshipLoader in
+// go/internal/storage/postgres asserts it).
+type CorpusFencedResolvedRelationshipLoader interface {
+	GetResolvedRelationshipsForReposWithCorpusFence(
 		ctx context.Context,
 		repoIDs []string,
-	) ([]relationships.ResolvedRelationship, error)
+	) (rows []relationships.ResolvedRelationship, complete bool, err error)
 }

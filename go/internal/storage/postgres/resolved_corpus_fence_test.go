@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -138,5 +139,12 @@ func TestRelationshipStoreSatisfiesCorpusFencedResolvedRelationshipLoader(t *tes
 	}
 	if _, ok := loader.(reducer.RepositoryScopedResolvedRelationshipLoader); !ok {
 		t.Fatal("RelationshipStore does not implement reducer.RepositoryScopedResolvedRelationshipLoader")
+	}
+	// #7258: the service catalog handler requires the fenced read through its
+	// own structurally identical interface; production wiring
+	// (serviceCatalogDeploymentRelationshipLoader) type-asserts to it and
+	// leaves the deployment/dependency families unwired when it fails.
+	if _, ok := loader.(servicecatalog.CorpusFencedResolvedRelationshipLoader); !ok {
+		t.Fatal("RelationshipStore does not implement servicecatalog.CorpusFencedResolvedRelationshipLoader")
 	}
 }

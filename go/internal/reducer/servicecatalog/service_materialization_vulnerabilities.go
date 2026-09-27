@@ -13,7 +13,8 @@ import (
 // ServiceVulnerabilityAdvisoryLoader returns the supply-chain advisory evidence
 // that affects one or more repositories, regardless of which fact generation
 // produced it. It is the vulnerabilities analogue of
-// RepositoryScopedResolvedRelationshipLoader: keyed by canonical repository id,
+// CorpusFencedResolvedRelationshipLoader, without a corpus fence: keyed by
+// canonical repository id,
 // not service id, because a service is attributed an advisory ONLY through a real
 // supply-chain impact finding on its repository
 // (service -> repository -> supply_chain_impact_finding -> advisory). The handler

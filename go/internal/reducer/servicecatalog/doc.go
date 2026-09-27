@@ -49,14 +49,23 @@
 // import direction stays one-way: root depends on servicecatalog, never the
 // reverse.
 //
-// RepositoryScopedResolvedRelationshipLoader is declared here rather than
+// CorpusFencedResolvedRelationshipLoader is declared here rather than
 // imported. The reducer root owns an identical interface
-// (workload_materialization_handler.go) shared by several families that have
-// not moved yet, and importing the root to reach it would invert the
-// one-way dependency above. Go interfaces are structural, so a local
+// (correlated_workload_projection_input_loader.go) shared by the workload and
+// deployable-unit families, and importing the root to reach it would invert
+// the one-way dependency above. Go interfaces are structural, so a local
 // declaration with the same method set is satisfied by the same concrete
 // implementation root wires in, without duplicating any logic. The
 // taint package resolves the same problem the same way.
+//
+// The deployment and dependency families read resolved relationships only
+// through that fused, single-snapshot corpus-fenced read (#7258). While any
+// active scope's relationship generation is retired-or-pending the handler
+// returns a retryable error classed
+// ServiceCatalogCorrelationResolutionNotReadyFailureClass before writing
+// anything, so no correlation fact is re-written on retry and no service
+// generation is committed from a partial resolved set. The class is enrolled
+// as a non-counting reducer retry class in internal/storage/postgres.
 //
 // Telemetry: the correlation handler increments
 // eshu_dp_service_catalog_correlations_total (labeled by domain and outcome)

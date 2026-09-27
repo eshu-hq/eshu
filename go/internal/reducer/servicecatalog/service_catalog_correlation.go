@@ -104,9 +104,13 @@ type ServiceCatalogCorrelationHandler struct {
 	// repository so BOTH the deployment evidence family (#1985) and the dependencies
 	// evidence family (#1987) are materialized into the same generation as
 	// ownership. The two families share this single loader and a single bounded
-	// load, then partition the result by relationship type. It is optional: a nil
-	// loader leaves the generation ownership-only, preserving the Stage-1 contract.
-	DeploymentRelationshipLoader RepositoryScopedResolvedRelationshipLoader
+	// load, then partition the result by relationship type. The load is
+	// corpus-fenced (#7258): while any active scope's relationship generation is
+	// retired-or-pending the intent defers with
+	// ServiceCatalogCorrelationResolutionNotReadyFailureClass before any write.
+	// It is optional: a nil loader leaves the generation ownership-only,
+	// preserving the Stage-1 contract.
+	DeploymentRelationshipLoader CorpusFencedResolvedRelationshipLoader
 	// RuntimeInstanceLoader, when set alongside MaterializationWriter, supplies the
 	// materialized runtime instances for each correlated service's repository so
 	// the runtime evidence family (#1986) is materialized into the same generation
@@ -181,6 +185,14 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	decisions := serviceCatalogDecisionsFromIndex(index)
 	counts := serviceCatalogCorrelationCounts(decisions)
 	guardrails := serviceCatalogCorrelationGuardrailStats(decisions)
+	// The corpus-fenced relationship read runs before any write (#7258): an
+	// open fence defers the intent with nothing written, so the retry never
+	// re-writes correlation facts and never commits a service generation
+	// built from a partial resolved set.
+	serviceWrites, err := h.prepareServiceMaterializations(ctx, intent, decisions)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
 	writeResult, err := h.Writer.WriteServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -194,7 +206,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	}
 	h.emitCounters(ctx, counts, guardrails)
 
-	if err := h.commitServiceGenerations(ctx, intent, decisions); err != nil {
+	if err := h.commitServiceGenerations(ctx, serviceWrites, decisions); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("commit service materialization generations: %w", err)
 	}
 
@@ -208,13 +220,34 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	}, nil
 }
 
+// prepareServiceMaterializations builds the per-service ownership writes and
+// attaches the corpus-fenced deployment and dependency families. It performs
+// reads only, so Handle runs it before any write; an open corpus fence returns
+// the retryable deferral unwrapped. It returns nil writes when
+// MaterializationWriter is nil, preserving the existing correlation contract.
+func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	decisions []ServiceCatalogCorrelationDecision,
+) ([]ServiceMaterializationWrite, error) {
+	if h.MaterializationWriter == nil {
+		return nil, nil
+	}
+	writes := buildServiceOwnershipMaterializations(intent.IntentID, intent.ScopeID, decisions)
+	if err := h.attachServiceRelationshipEvidence(ctx, intent.ScopeID, intent.GenerationID, writes, decisions); err != nil {
+		return nil, err
+	}
+	return writes, nil
+}
+
 // commitServiceGenerations writes the additive per-service evidence generation
 // lineage (#1943, #1985, #1986, #1987, #1988) for every service that has at
 // least one owner-bearing correlation decision. Ownership evidence is sourced
 // from the same decisions that produced the reducer_service_catalog_correlation
 // facts; deployment and dependency evidence (when DeploymentRelationshipLoader is
-// wired) are sourced together from the resolved cross-repo relationships of each
-// service's repository, partitioned by relationship type; runtime evidence (when
+// wired) were already attached by prepareServiceMaterializations from the
+// corpus-fenced resolved cross-repo relationships of each service's repository,
+// partitioned by relationship type; runtime evidence (when
 // RuntimeInstanceLoader is wired) is sourced from the materialized runtime
 // instances of each service's repository; docs evidence (when
 // DocumentationEvidenceLoader is wired) is sourced from the documentation facts
@@ -226,15 +259,11 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 // correlation contract.
 func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	ctx context.Context,
-	intent reducercontract.Intent,
+	writes []ServiceMaterializationWrite,
 	decisions []ServiceCatalogCorrelationDecision,
 ) error {
 	if h.MaterializationWriter == nil {
 		return nil
-	}
-	writes := buildServiceOwnershipMaterializations(intent.IntentID, intent.ScopeID, decisions)
-	if err := h.attachServiceRelationshipEvidence(ctx, writes, decisions); err != nil {
-		return err
 	}
 	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
 		return err
@@ -252,47 +281,6 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 		if _, err := h.MaterializationWriter.WriteServiceMaterialization(ctx, write); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// attachServiceRelationshipEvidence loads the resolved cross-repo relationships
-// for the correlated services' repositories once and attaches BOTH the deployment
-// (#1985) and dependencies (#1987) evidence families to the matching per-service
-// writes. Both families share the same resolved_relationships source and loader,
-// so a single bounded load feeds both; the build helpers partition the loaded set
-// by relationship type (deployment vs dependency) so neither family admits the
-// other's edges. It is a no-op when no loader is wired or no decision carries a
-// repository, so both families are purely additive. The relationships are loaded
-// once for all repositories, then partitioned per service by repository id; a
-// service whose repository has no relationships of a family simply carries no rows
-// for that family.
-func (h ServiceCatalogCorrelationHandler) attachServiceRelationshipEvidence(
-	ctx context.Context,
-	writes []ServiceMaterializationWrite,
-	decisions []ServiceCatalogCorrelationDecision,
-) error {
-	if h.DeploymentRelationshipLoader == nil || len(writes) == 0 {
-		return nil
-	}
-	repoByService := serviceRepositoryIndex(decisions)
-	repoIDs := distinctServiceRepositoryIDs(writes, repoByService)
-	if len(repoIDs) == 0 {
-		return nil
-	}
-	resolved, err := h.DeploymentRelationshipLoader.GetResolvedRelationshipsForRepos(ctx, repoIDs)
-	if err != nil {
-		return fmt.Errorf("load service deployment and dependency relationships: %w", err)
-	}
-	deploymentByRepo := groupDeploymentRelationshipsByRepo(resolved)
-	dependencyByRepo := groupDependencyRelationshipsByRepo(resolved)
-	for i := range writes {
-		repoID := repoByService[writes[i].ServiceID]
-		if repoID == "" {
-			continue
-		}
-		writes[i].Deployment = buildServiceDeploymentEvidence(deploymentByRepo[repoID])
-		writes[i].Dependencies = buildServiceDependencyEvidence(dependencyByRepo[repoID])
 	}
 	return nil
 }

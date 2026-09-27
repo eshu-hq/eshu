@@ -12,8 +12,9 @@ import (
 // RepositoryScopedRuntimeInstanceLoader returns the materialized runtime
 // instances for one or more repositories, regardless of which repository
 // generation produced them. It is the runtime-family analogue of
-// RepositoryScopedResolvedRelationshipLoader: the service catalog correlation
-// handler uses it to source the runtime evidence family (#1986) for each
+// CorpusFencedResolvedRelationshipLoader, without a corpus fence (runtime
+// instances are not read from resolved_relationships): the service catalog
+// correlation handler uses it to source the runtime evidence family (#1986) for each
 // correlated service's repository. The returned instances must carry only durable
 // platform/environment/workload identity, never a resolution or materialization
 // generation id, so the runtime service_evidence_key stays generation-stable.

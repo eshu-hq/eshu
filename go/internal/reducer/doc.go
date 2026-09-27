@@ -294,8 +294,11 @@
 // evidence set, so an identical re-materialization is a no-op and a change in any
 // family flips the generation; a dropped evidence row is tombstoned, never
 // silently absent. It is wired into ServiceCatalogCorrelationHandler as an
-// optional MaterializationWriter (with an optional DeploymentRelationshipLoader
-// feeding both the deployment and dependencies families from one bounded load, an
+// optional MaterializationWriter (with an optional corpus-fenced
+// DeploymentRelationshipLoader feeding both the deployment and dependencies
+// families from one bounded load read before any write, deferring with
+// service_catalog_correlation_resolution_not_ready while the relationship
+// corpus fence is open (#7258), an
 // optional RuntimeInstanceLoader for the runtime family, an optional
 // DocumentationEvidenceLoader for the docs family, and an optional
 // IncidentEvidenceLoader for the incidents family) so the existing
