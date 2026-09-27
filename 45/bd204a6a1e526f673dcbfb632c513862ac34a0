@@ -1,0 +1,91 @@
+specs/live-tests.v1.yaml
+  s_bc720f29f5e0fd::t_16fd5852d4c3d0 1936-1939
+.github/workflows/reducer-contention-gate.yml
+  s_bc720f29f5e0fd::t_78bf28d9f91f60 202-206,213
+docs/internal/evidence/7258-service-catalog-corpus-fence.md
+  s_bc720f29f5e0fd::t_f019390c5cf2d8 1-102
+docs/public/observability/telemetry-coverage.md
+  s_bc720f29f5e0fd::t_f062fd7e304d73 65,438
+go/cmd/golden-corpus-gate/AGENTS.md
+  s_bc720f29f5e0fd::t_3b249b5cb03550 101-103
+go/cmd/golden-corpus-gate/README.md
+  s_bc720f29f5e0fd::t_22aee196da822d 207-210
+go/cmd/golden-corpus-gate/drains.go
+  s_bc720f29f5e0fd::t_abed6992531d74 374-377
+go/cmd/golden-corpus-gate/drains_readiness_classes_test.go
+  s_bc720f29f5e0fd::t_ac8f9d2929e9bd 1-39
+go/cmd/golden-corpus-gate/drains_residual_breakdown_test.go
+  s_bc720f29f5e0fd::t_c0991fb423ccb6 182-201
+go/cmd/golden-corpus-gate/mcp.go
+  s_bc720f29f5e0fd::t_9ae217183805fd 69-76,81-83,130-135,139-173
+go/cmd/golden-corpus-gate/mcp_resource_test.go
+  s_bc720f29f5e0fd::t_51bb668d1ff0b3 1-161
+go/internal/mcp/iac/management/AGENTS.md
+  s_bc720f29f5e0fd::t_14944d6f2a1c2c 7-9,14-16
+go/internal/mcp/iac/management/README.md
+  s_bc720f29f5e0fd::t_d1858d682b461f 14-22
+go/internal/mcp/iac/management/doc.go
+  s_bc720f29f5e0fd::t_0ebe0b91a701f4 4-5,8-13
+go/internal/mcp/iac/management/tools.go
+  s_bc720f29f5e0fd::t_18007d61ace3b6 1-217
+go/internal/mcp/iac/management/tools_test.go
+  s_bc720f29f5e0fd::t_a15e8f0391dd20 1-63
+go/internal/mcp/tools_codebase.go
+  s_bc720f29f5e0fd::t_20676f65108a48 8,38-47,109,125-127,130,132
+go/internal/mcp/tools_iac.go
+  s_bc720f29f5e0fd::t_81e59df0faccab 6-8,53,117
+go/internal/reducer/defaults_additive_domains.go
+  s_bc720f29f5e0fd::t_a2f4ab301ab2d9 32,34-43,46,50,54
+go/internal/reducer/defaults_service_catalog_relationship_loader_test.go
+  s_bc720f29f5e0fd::t_7b1fa1d6f83305 1-109
+go/internal/reducer/doc.go
+  s_bc720f29f5e0fd::t_c1f06488f72c89 297-301
+go/internal/reducer/servicecatalog/AGENTS.md
+  s_bc720f29f5e0fd::t_6175f5a48ecf7b 35
+go/internal/reducer/servicecatalog/README.md
+  s_bc720f29f5e0fd::t_1adf56cf76e439 28,72-73,87,89-90,130-132,158-166
+go/internal/reducer/servicecatalog/doc.go
+  s_bc720f29f5e0fd::t_ae7a6db7244da2 52,54-56,61-69
+go/internal/reducer/servicecatalog/service_catalog_correlation.go
+  s_bc720f29f5e0fd::t_24759fcacbb4b8 107-113,188-195,209,223-242,248-250,262
+go/internal/reducer/servicecatalog/service_catalog_correlation_corpus_fence.go
+  s_bc720f29f5e0fd::t_c6fe18e60643a0 1-97
+go/internal/reducer/servicecatalog/service_catalog_correlation_corpus_fence_test.go
+  s_bc720f29f5e0fd::t_39e992c7a29b47 1-344
+go/internal/reducer/servicecatalog/service_catalog_correlation_ports.go
+  s_bc720f29f5e0fd::t_548c0cbcc516ba 12-19,21-30,33
+go/internal/reducer/servicecatalog/service_materialization_dependencies.go
+  s_bc720f29f5e0fd::t_7ab731da8d1c0f 20-23
+go/internal/reducer/servicecatalog/service_materialization_deployment_test.go
+  s_bc720f29f5e0fd::t_44a5a70aae901f 224-233
+go/internal/reducer/servicecatalog/service_materialization_runtime.go
+  s_bc720f29f5e0fd::t_54ecf0922e0efa 15-17
+go/internal/reducer/servicecatalog/service_materialization_vulnerabilities.go
+  s_bc720f29f5e0fd::t_3cbe329fb37427 16-17
+go/internal/storage/postgres/reducer_queue_cross_scope_readiness_gate_coverage_test.go
+  s_bc720f29f5e0fd::t_723fe7838583d9 139-144
+go/internal/storage/postgres/reducer_queue_readiness_claim_gate_test.go
+  s_bc720f29f5e0fd::t_637efaaebcd465 16,80-87,231-237
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  s_bc720f29f5e0fd::t_7de66105ecb936 22,163-170
+go/internal/storage/postgres/resolved_corpus_fence_test.go
+  s_bc720f29f5e0fd::t_fd98fceff7caa6 13,143-149
+go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
+  s_bc720f29f5e0fd::t_45ebfd8364b3c5 1-328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "45bd204a6a1e526f673dcbfb632c513862ac34a0",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
