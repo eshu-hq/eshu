@@ -23,6 +23,8 @@ func TestRenderLayerIndex(t *testing.T) {
 
 	for _, want := range []string{
 		"## Gates by layer",
+		"**Ifá** is Eshu's conformance platform",
+		"An **Odù** is one of its scenarios",
 		"### Hygiene: Is the change well-formed? (1 gate)",
 		"- `go-fmt` (blocking): Fails when Go files are not gofumpt-formatted.",
 		"### Contract: Do declared or generated artifacts match the code? (1 gate)",

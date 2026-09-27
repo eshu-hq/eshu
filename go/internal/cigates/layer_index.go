@@ -28,7 +28,13 @@ func RenderLayerIndex(reg *Registry) string {
 	out.WriteString("## Gates by layer\n\n")
 	out.WriteString("Every gate belongs to one layer. A layer names the question a failing gate\n")
 	out.WriteString("answers, from the cheapest local checks down to the watch-only ones. The\n")
-	out.WriteString("registry's `category` field still records what kind of check a gate is.\n")
+	out.WriteString("registry's `category` field still records what kind of check a gate is.\n\n")
+	out.WriteString("Two Eshu names appear below. **Ifá** is Eshu's conformance platform: it\n")
+	out.WriteString("replays recorded scenarios through the real pipeline at several worker\n")
+	out.WriteString("counts and under injected faults, and checks the results stay the same.\n")
+	out.WriteString("An **Odù** is one of its scenarios: a set of recorded facts whose expected\n")
+	out.WriteString("results are derived from the inputs rather than written by hand. See\n")
+	out.WriteString("[the Ifá conformance platform](../concepts/ifa-conformance-platform.md).\n")
 	for _, layer := range layerOrder {
 		gates := byLayer[layer]
 		if len(gates) == 0 {

@@ -6,6 +6,7 @@ package cigates
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // Layer names how deep in the stack a gate tests: the question a failure of
@@ -33,8 +34,9 @@ const (
 	LayerSecondary Layer = "secondary"
 )
 
-// MaxPurposeLength caps a gate's purpose sentence so the generated reference
-// stays scannable. A purpose that needs more belongs in the gate's own doc.
+// MaxPurposeLength caps a gate's purpose sentence, in characters (runes, so
+// Ifá and Odù count as three letters each), so the generated reference stays
+// scannable. A purpose that needs more belongs in the gate's own doc.
 const MaxPurposeLength = 160
 
 // layerOrder lists the layers from the cheapest, most local checks to the
@@ -105,9 +107,9 @@ func DescriptionCheck(reg *Registry) []error {
 			errs = append(errs, fmt.Errorf("gate %q has no purpose: add one plain sentence saying what it checks", gate.ID))
 		case strings.ContainsAny(gate.Purpose, "\n\r"):
 			errs = append(errs, fmt.Errorf("gate %q purpose must be one line", gate.ID))
-		case len(gate.Purpose) > MaxPurposeLength:
+		case utf8.RuneCountInString(gate.Purpose) > MaxPurposeLength:
 			errs = append(errs, fmt.Errorf("gate %q purpose is %d characters; keep it to %d",
-				gate.ID, len(gate.Purpose), MaxPurposeLength))
+				gate.ID, utf8.RuneCountInString(gate.Purpose), MaxPurposeLength))
 		}
 		if gate.Layer == LayerSecondary && gate.Blocking {
 			errs = append(errs, fmt.Errorf("gate %q is in layer secondary but blocking; secondary gates never block", gate.ID))

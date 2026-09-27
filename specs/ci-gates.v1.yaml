@@ -554,7 +554,7 @@ gates:
     name: CI apt/ripgrep installer test mirror
     category: hygiene
     layer: hygiene
-    purpose: "Runs a hermetic test mirror proving the CI ripgrep/apt installer's checksum and fallback logic works."
+    purpose: "Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker."
     tier: pre-pr
     blocking: true
     triggers:
@@ -609,7 +609,7 @@ gates:
     name: CI Go module pre-warm retry-script test mirror
     category: hygiene
     layer: hygiene
-    purpose: "Runs a hermetic test mirror proving the go-mod-download retry wrapper retries and records attempts correctly."
+    purpose: "Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt."
     tier: pre-pr
     blocking: true
     triggers:
@@ -643,7 +643,7 @@ gates:
     name: Post-merge main-health watcher test mirror
     category: hygiene
     layer: hygiene
-    purpose: "Runs a hermetic test mirror proving the post-merge main-health watcher's issue upsert/close logic is correct."
+    purpose: "Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2712,7 +2712,7 @@ gates:
     name: Read API work budget refresh mirror (static)
     category: hygiene
     layer: performance
-    purpose: "Hermetically tests the script that regenerates read-API work budgets, checking its formulas and regression ratchet."
+    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2734,7 +2734,7 @@ gates:
     name: Cross-backend latency comparator mirror (static)
     category: hygiene
     layer: performance
-    purpose: "Hermetically tests the script that renders the NornicDB-vs-Neo4j latency comparison table, without needing live backends."
+    purpose: "Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2918,7 +2918,7 @@ gates:
     name: Differential NornicDB vs Neo4j oracle (Docker)
     category: exactness
     layer: truth
-    purpose: "Runs the golden corpus with statement capture on NornicDB and Neo4j; empty captures block, row differences are reported as advisory."
+    purpose: "Runs the golden corpus on NornicDB and Neo4j with statement capture; failed runs, empty captures or missing statement coverage block, row diffs are advisory."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4525,8 +4525,8 @@ gates:
   - id: ifa-replay-drive
     name: Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract)
     category: exactness
-    layer: replay
-    purpose: "Drives a recorded cassette through real Postgres/NornicDB and the projector/reducer, then checks the drain result is deterministic."
+    layer: hygiene
+    purpose: "Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4802,7 +4802,7 @@ gates:
     name: Docker image and Helm publication
     category: release
     layer: secondary
-    purpose: "Publishes the Docker image and Helm chart after merge; it runs post-merge and never blocks a pull request."
+    purpose: "Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request."
     tier: manual
     blocking: false
     triggers:

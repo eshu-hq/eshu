@@ -32,7 +32,14 @@ Every gate belongs to one layer. A layer names the question a failing gate
 answers, from the cheapest local checks down to the watch-only ones. The
 registry's `category` field still records what kind of check a gate is.
 
-### Hygiene: Is the change well-formed? (38 gates)
+Two Eshu names appear below. **Ifá** is Eshu's conformance platform: it
+replays recorded scenarios through the real pipeline at several worker
+counts and under injected faults, and checks the results stay the same.
+An **Odù** is one of its scenarios: a set of recorded facts whose expected
+results are derived from the inputs rather than written by hand. See
+[the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
+
+### Hygiene: Is the change well-formed? (39 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -48,9 +55,9 @@ registry's `category` field still records what kind of check a gate is.
 - `filename-stutter` (blocking): Fails when a newly added or renamed path repeats its own directory name (filename stutter).
 - `no-ai-attribution` (blocking): Scans commit messages and added diff lines for AI-attribution text and blocks it.
 - `license-header` (blocking): Checks every .go file in the repo carries the required license header.
-- `ci-install-apt-packages` (blocking): Runs a hermetic test mirror proving the CI ripgrep/apt installer's checksum and fallback logic works.
-- `ci-go-mod-download-retry` (blocking): Runs a hermetic test mirror proving the go-mod-download retry wrapper retries and records attempts correctly.
-- `main-health-watcher` (blocking): Runs a hermetic test mirror proving the post-merge main-health watcher's issue upsert/close logic is correct.
+- `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
+- `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
+- `main-health-watcher` (blocking): Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.
 - `claude-rules-scope` (blocking): Lints .claude/rules files for correct path-scoping so agent rules apply only where intended.
 - `docs-catalog-metadata` (blocking): Checks that public docs pages carry the required catalog metadata (nav/front-matter fields).
@@ -67,6 +74,7 @@ registry's `category` field still records what kind of check a gate is.
 - `nancy` (advisory): Runs Sonatype nancy for Go dependency CVE/license issues; non-blocking since missing credentials mean it scans nothing today.
 - `trivy-fs` (advisory): Scans the filesystem with Trivy for vulnerabilities, secrets, and misconfiguration when installed locally; CI stays authoritative.
 - `golden-corpus-mirror` (blocking): Runs the golden-corpus gate's own hermetic test suite locally, with no Docker, as a static mirror of the real gate.
+- `ifa-replay-drive` (blocking): Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette.
 - `trivy-image` (advisory): Scans the published GHCR container image for known vulnerabilities after publish.
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
@@ -131,12 +139,11 @@ registry's `category` field still records what kind of check a gate is.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
 - `ci-gate-registry` (blocking): Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes.
 
-### Replay: Do recorded inputs through real components give the same result every time? (6 gates)
+### Replay: Do recorded inputs through real components give the same result every time? (5 gates)
 
 - `ifa-determinism` (blocking): Runs each Ifá scenario (Odù) at 1, 2 and 4 workers on real Postgres and NornicDB and fails if the resulting graph differs.
 - `ifa-dead-letter-matrix` (blocking): Drives a deliberately malformed Odù cassette at 1, 2, and 4 workers and fails if the dead-letter row set ever differs.
 - `ifa-fault-injection` (blocking): Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across every graph-write family.
-- `ifa-replay-drive` (blocking): Drives a recorded cassette through real Postgres/NornicDB and the projector/reducer, then checks the drain result is deterministic.
 - `parserfixture-tests` (blocking): Replays recorded parser fixtures against the real parser to prove its output stays deterministic.
 - `replay-tier` (blocking): Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend.
 
@@ -146,7 +153,7 @@ registry's `category` field still records what kind of check a gate is.
 - `golden-corpus-gate` (blocking): Runs the full pipeline over the fixed golden corpus in Docker and fails if queues don't drain or the graph and answers differ from the snapshot.
 - `golden-corpus-gate-neo4j` (advisory): Runs the same golden-corpus pipeline on Neo4j, the supported backend; advisory until main is green on it, then it becomes blocking.
 - `live-backend-tests` (blocking): Runs the CI-class tests from the live-test ledger against NornicDB and Neo4j in Docker and fails on a wrong answer.
-- `golden-corpus-differential` (blocking): Runs the golden corpus with statement capture on NornicDB and Neo4j; empty captures block, row differences are reported as advisory.
+- `golden-corpus-differential` (blocking): Runs the golden corpus on NornicDB and Neo4j with statement capture; failed runs, empty captures or missing statement coverage block, row diffs are advisory.
 - `e2e-tests` (blocking): Boots the full Docker service stack and checks the whole system produces the right end-to-end results.
 - `auth-mcp-e2e` (blocking): Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end.
 
@@ -155,8 +162,8 @@ registry's `category` field still records what kind of check a gate is.
 - `query-plan-regression` (blocking): Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses.
 - `reducer-contention` (blocking): Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention.
 - `read-api-latency-gate` (blocking): Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets.
-- `read-api-work-budget-mirror` (blocking): Hermetically tests the script that regenerates read-API work budgets, checking its formulas and regression ratchet.
-- `backend-latency-compare-mirror` (blocking): Hermetically tests the script that renders the NornicDB-vs-Neo4j latency comparison table, without needing live backends.
+- `read-api-work-budget-mirror` (blocking): Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet.
+- `backend-latency-compare-mirror` (blocking): Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed.
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
@@ -164,7 +171,7 @@ registry's `category` field still records what kind of check a gate is.
 
 - `docs-prose-quality` (advisory): Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate.
 - `docs-contradiction` (advisory): Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline.
-- `docker-publish` (advisory): Publishes the Docker image and Helm chart after merge; it runs post-merge and never blocks a pull request.
+- `docker-publish` (advisory): Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request.
 - `macos-build` (advisory): Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges.
 
 ## All gates

@@ -118,6 +118,23 @@ func TestDescriptionCheck(t *testing.T) {
 	}
 }
 
+func TestDescriptionCheck_CountsCharactersNotBytes(t *testing.T) {
+	t.Parallel()
+	// "Ifá Odù " is 8 characters but 10 bytes; a purpose of exactly
+	// MaxPurposeLength characters must pass even though it is longer in bytes.
+	purpose := strings.Repeat("Ifá Odù ", cigates.MaxPurposeLength/8)
+	if n := len([]rune(purpose)); n != cigates.MaxPurposeLength {
+		t.Fatalf("fixture has %d characters; want %d", n, cigates.MaxPurposeLength)
+	}
+	reg, err := cigates.Load(writeYAML(t, layeredYAML("replay", `"`+purpose+`"`, true)))
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if errs := cigates.DescriptionCheck(reg); len(errs) != 0 {
+		t.Fatalf("DescriptionCheck = %v; want a %d-character multibyte purpose accepted", errs, cigates.MaxPurposeLength)
+	}
+}
+
 func TestDescriptionCheck_RejectsMultiLinePurpose(t *testing.T) {
 	t.Parallel()
 	reg, err := cigates.Load(writeYAML(t, layeredYAML("contract", `"Checks the spec.\nAnd more."`, true)))
