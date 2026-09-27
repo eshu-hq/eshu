@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -28,8 +29,8 @@ func TestOCIRegistryTruthStatementsCarryRecordedRowLimit(t *testing.T) {
 			t.Errorf("%s statement = %q, want LIMIT $row_limit", name, cypher)
 		}
 	}
-	if got, want := ociRegistryTruthRowLimit, testOCIRecordedMaxKeys*3; got != want {
-		t.Fatalf("ociRegistryTruthRowLimit = %d, want %d (testOCIRecordedMaxKeys*3)", got, want)
+	if got, want := oci.RegistryTruthRowLimit, testOCIRecordedMaxKeys*3; got != want {
+		t.Fatalf("oci.RegistryTruthRowLimit = %d, want %d (testOCIRecordedMaxKeys*3)", got, want)
 	}
 }
 
@@ -156,14 +157,14 @@ func TestFetchOCIImageRegistryTruthRowLimitKeepsAmbiguousPairAcrossBoundary(t *t
 	if aRow == nil {
 		t.Fatalf("no truth row for ref A (749 observations) in %#v", result.Rows)
 	}
-	if got := querycontract.StringVal(aRow, "match_strength"); got != ociTagMatchStrength {
-		t.Errorf("ref A match_strength = %q, want %q", got, ociTagMatchStrength)
+	if got := querycontract.StringVal(aRow, "match_strength"); got != oci.TagMatchStrength {
+		t.Errorf("ref A match_strength = %q, want %q", got, oci.TagMatchStrength)
 	}
 	if bRow == nil {
 		t.Fatalf("no truth row for ref B (2 observations, 2 digests) in %#v", result.Rows)
 	}
-	if got := querycontract.StringVal(bRow, "match_strength"); got != ociAmbiguousMatchStrength {
-		t.Errorf("ref B match_strength = %q, want %q", got, ociAmbiguousMatchStrength)
+	if got := querycontract.StringVal(bRow, "match_strength"); got != oci.AmbiguousMatchStrength {
+		t.Errorf("ref B match_strength = %q, want %q", got, oci.AmbiguousMatchStrength)
 	}
 	candidates, _ := bRow["digest_candidates"].([]string)
 	if len(candidates) != 2 {
@@ -172,7 +173,7 @@ func TestFetchOCIImageRegistryTruthRowLimitKeepsAmbiguousPairAcrossBoundary(t *t
 }
 
 // TestFetchOCIImageRegistryTruthDisclosesIrreducibleTagOverflow is decision
-// test 3 (#6590): ref C alone produces exactly ociRegistryTruthRowLimit rows
+// test 3 (#6590): ref C alone produces exactly oci.RegistryTruthRowLimit rows
 // -- an irreducible overflow no continuation statement can resolve, because a
 // same-sized retry can never tell whether C has exactly the limit or more.
 // It must be withheld (never a placeholder row) regardless of whether its
@@ -221,7 +222,7 @@ func TestFetchOCIImageRegistryTruthDisclosesIrreducibleTagOverflow(t *testing.T)
 			if got, want := querycontract.BoolVal(result.Limits, "image_registry_truth_complete"), false; got != want {
 				t.Fatalf("Limits.image_registry_truth_complete = %v, want %v: %#v", got, want, result.Limits)
 			}
-			if got, want := querycontract.StringVal(result.Limits, "image_registry_truth_incomplete_reason"), ociRegistryTruthRowLimitReason; got != want {
+			if got, want := querycontract.StringVal(result.Limits, "image_registry_truth_incomplete_reason"), oci.RegistryTruthRowLimitReason; got != want {
 				t.Errorf("Limits.image_registry_truth_incomplete_reason = %q, want %q", got, want)
 			}
 
@@ -234,8 +235,8 @@ func TestFetchOCIImageRegistryTruthDisclosesIrreducibleTagOverflow(t *testing.T)
 			if dRow == nil {
 				t.Fatalf("no truth row for ref D (resolved out of the continuation statement) in %#v", result.Rows)
 			}
-			if got := querycontract.StringVal(dRow, "match_strength"); got != ociTagMatchStrength {
-				t.Errorf("ref D match_strength = %q, want %q", got, ociTagMatchStrength)
+			if got := querycontract.StringVal(dRow, "match_strength"); got != oci.TagMatchStrength {
+				t.Errorf("ref D match_strength = %q, want %q", got, oci.TagMatchStrength)
 			}
 		})
 	}

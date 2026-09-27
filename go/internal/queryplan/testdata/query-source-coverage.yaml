@@ -401,9 +401,9 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
   - file: impact/trace_deployment_oci.go
     calls:
-      # fan_out_multiplier: 3 -- ENFORCED by ociRegistryTruthRowLimit
-      # (trace_deployment_oci_bounds.go): every statement carries
-      # LIMIT $row_limit (750 = 250 keys x 3), and advanceOCIBoundedRead
+      # fan_out_multiplier: 3 -- ENFORCED by oci.RegistryTruthRowLimit
+      # (impact/oci/bounds.go): every statement carries
+      # LIMIT $row_limit (750 = 250 keys x 3), and oci.AdvanceBoundedRead
       # resumes any batch the limit cuts off with a continuation statement
       # keyed only by the still-incomplete keys, or withholds a key whose
       # rows alone fill the bound (an irreducible overflow -- never a
@@ -413,17 +413,17 @@ source_coverage:
       # real, data-defined input, not a bug: 3x is declared headroom above
       # the 1 observation/ref measured on in-tree corpora and ops-qa, not a
       # corpus worst case.
-      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: b94250c8cd2fe881b7facd452089a188448458762fac1593575c7241db089da2, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
-      # fan_out_multiplier: 3 -- ENFORCED by ociRegistryTruthRowLimit, same
+      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: e00f260a8d9d3342bb81143d55d0fc1923e43ebcd4438a707147dc49edcc0581, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
+      # fan_out_multiplier: 3 -- ENFORCED by oci.RegistryTruthRowLimit, same
       # bound and continuation mechanism as fetchOCIImageTagRows above
       # (#6590). Image uid multiplicity above 1 per digest per label is
       # data-defined, not a bug.
-      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: 90f55b7e9829671f0b4ba21deef03825d2e055f0770a0167b3ae29c208fa0f04, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
+      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: ce9fe7c4fa80ebe3bb2e27f0fdad93b0a678458cb3f421b9de78eba39c34f44b, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
       # fan_out_multiplier: 1 -- enforced by the oci_registry_repository_uid_unique
       # constraint (go/internal/graph/schema_test.go): the batch key is
       # OciRegistryRepository.uid, which the schema guarantees unique, so
       # each key can match at most one repository row.
-      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: 112caca2d19c87a17a7f34799ba61e7c303d8f58feede1eac0d96fc11ae10d33, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 1, max_results: 250}}
+      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: b63226afd9a3ef88cc3f666c6ef56a4a5d840b8d2e4795e872ab430ba90e9d4c, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 1, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8a8ae375580c5df13960ae8c5767a0981b6ef37638bf643db72c5b4cdbf8fa7e, key_bound: single_key, max_results: 2501}}

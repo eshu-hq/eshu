@@ -11,19 +11,15 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const (
-	// ociDigestMatchStrength moved to internal/query/deployment with lane B2
-	// of #6060 (canonicalOCIImageMatchCount is this package's only reader
-	// outside the trace response shaper); see OciDigestMatchStrength there.
-	ociTagMatchStrength        = "tag_resolved_to_digest"
-	ociAmbiguousMatchStrength  = "ambiguous_tag"
-	ociRegistryProjectionBasis = "oci_registry_projection"
-)
-
+// ociImageLookupLabels are the OCI image node labels a digest can resolve
+// to: a plain manifest, an index (multi-platform manifest list), or a bare
+// descriptor. fetchOCIImagesByDigest substitutes each label into
+// ociImageByDigestCypher's anchor in turn.
 var ociImageLookupLabels = []string{
 	"ContainerImage",
 	"ContainerImageIndex",
@@ -37,13 +33,13 @@ func (h *Handler) FetchOCIImageRegistryTruth(
 	ctx context.Context,
 	imageRefs []string,
 	serviceName string,
-) (OCIImageRegistryTruthResult, error) {
+) (oci.RegistryTruthResult, error) {
 	if h == nil || h.Neo4j == nil {
-		return OCIImageRegistryTruthResult{}, nil
+		return oci.RegistryTruthResult{}, nil
 	}
 	result, reasonEvents, err := fetchOCIImageRegistryTruthCore(ctx, h.Neo4j, imageRefs)
 	if err != nil {
-		return OCIImageRegistryTruthResult{}, err
+		return oci.RegistryTruthResult{}, err
 	}
 	h.reportOCIRegistryTruthTruncated(ctx, serviceName, result, reasonEvents)
 	return result, nil
@@ -60,13 +56,13 @@ func (h *Handler) FetchOCIImageRegistryTruth(
 func (h *Handler) reportOCIRegistryTruthTruncated(
 	ctx context.Context,
 	serviceName string,
-	result OCIImageRegistryTruthResult,
+	result oci.RegistryTruthResult,
 	reasonEvents map[string]int,
 ) {
 	if len(result.TruncatedImageRefs) == 0 {
 		return
 	}
-	for _, reason := range []string{ociReasonTagObservationRowLimit, ociReasonImageRowLimit} {
+	for _, reason := range []string{oci.ReasonTagObservationRowLimit, oci.ReasonImageRowLimit} {
 		events := reasonEvents[reason]
 		if events <= 0 {
 			continue
@@ -76,7 +72,7 @@ func (h *Handler) reportOCIRegistryTruthTruncated(
 				ctx, "OCI registry truth row limit reached; image refs withheld as truncated",
 				"service_name", serviceName,
 				"truncated_image_ref_count", len(result.TruncatedImageRefs),
-				"statement_row_limit", ociRegistryTruthRowLimit,
+				"statement_row_limit", oci.RegistryTruthRowLimit,
 				"reason", reason,
 			)
 		}
@@ -109,7 +105,7 @@ func FetchOCIImageRegistryTruthResult(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	imageRefs []string,
-) (OCIImageRegistryTruthResult, error) {
+) (oci.RegistryTruthResult, error) {
 	result, _, err := fetchOCIImageRegistryTruthCore(ctx, reader, imageRefs)
 	return result, err
 }
@@ -117,29 +113,29 @@ func FetchOCIImageRegistryTruthResult(
 // fetchOCIImageRegistryTruthCore is the shared implementation behind
 // FetchOCIImageRegistryTruthResult and the Handler method: it also returns
 // per-reason truncation event counts so the Handler can report them without
-// growing OCIImageRegistryTruthResult beyond its three disclosed fields.
+// growing oci.RegistryTruthResult beyond its three disclosed fields.
 func fetchOCIImageRegistryTruthCore(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	imageRefs []string,
-) (OCIImageRegistryTruthResult, map[string]int, error) {
+) (oci.RegistryTruthResult, map[string]int, error) {
 	if reader == nil || len(imageRefs) == 0 {
-		return OCIImageRegistryTruthResult{}, nil, nil
+		return oci.RegistryTruthResult{}, nil, nil
 	}
 
-	digestRefs, tagRefs := splitOCIImageRefs(imageRefs)
+	digestRefs, tagRefs := oci.SplitImageRefs(imageRefs)
 	reasonEvents := make(map[string]int, 2)
 	truth := make([]map[string]any, 0, len(imageRefs))
 	var truncatedRefs []string
 
 	if len(digestRefs) > 0 {
-		rows, truncatedDigests, events, err := fetchOCIImageDigestRows(ctx, reader, sortedMapKeys(digestRefs))
+		rows, truncatedDigests, events, err := fetchOCIImageDigestRows(ctx, reader, oci.SortedMapKeys(digestRefs))
 		if err != nil {
-			return OCIImageRegistryTruthResult{}, nil, err
+			return oci.RegistryTruthResult{}, nil, err
 		}
-		truth = append(truth, buildOCIDigestTruthRows(rows, digestRefs)...)
+		truth = append(truth, oci.BuildDigestTruthRows(rows, digestRefs)...)
 		if events > 0 {
-			reasonEvents[ociReasonImageRowLimit] += events
+			reasonEvents[oci.ReasonImageRowLimit] += events
 		}
 		for _, digest := range truncatedDigests {
 			truncatedRefs = append(truncatedRefs, digestRefs[digest]...)
@@ -148,15 +144,15 @@ func fetchOCIImageRegistryTruthCore(
 	if len(tagRefs) > 0 {
 		rows, withheldRefs, tagEvents, imageEvents, err := fetchOCIImageTagRows(ctx, reader, tagRefs)
 		if err != nil {
-			return OCIImageRegistryTruthResult{}, nil, err
+			return oci.RegistryTruthResult{}, nil, err
 		}
-		truth = append(truth, buildOCITagTruthRows(rows)...)
+		truth = append(truth, oci.BuildTagTruthRows(rows)...)
 		truncatedRefs = append(truncatedRefs, withheldRefs...)
 		if tagEvents > 0 {
-			reasonEvents[ociReasonTagObservationRowLimit] += tagEvents
+			reasonEvents[oci.ReasonTagObservationRowLimit] += tagEvents
 		}
 		if imageEvents > 0 {
-			reasonEvents[ociReasonImageRowLimit] += imageEvents
+			reasonEvents[oci.ReasonImageRowLimit] += imageEvents
 		}
 	}
 
@@ -166,11 +162,11 @@ func fetchOCIImageRegistryTruthCore(
 		}
 		return querycontract.StringVal(truth[i], "digest") < querycontract.StringVal(truth[j], "digest")
 	})
-	truncatedRefs = sortUniqueStrings(truncatedRefs)
-	return OCIImageRegistryTruthResult{
+	truncatedRefs = oci.SortUniqueStrings(truncatedRefs)
+	return oci.RegistryTruthResult{
 		Rows:               truth,
 		TruncatedImageRefs: truncatedRefs,
-		Limits:             ociRegistryTruthLimits(truncatedRefs),
+		Limits:             oci.RegistryTruthLimits(truncatedRefs),
 	}, reasonEvents, nil
 }
 
@@ -185,8 +181,8 @@ func fetchOCIImageRegistryTruthCore(
 
 // ociImageByDigestCypher is the single-clause per-label image lookup by digest.
 // The verb `%s` is one of ociImageLookupLabels. LIMIT $row_limit bounds the
-// per-batch result set to ociRegistryTruthRowLimit (#6590); advanceOCIBoundedRead
-// resumes any batch it cuts off.
+// per-batch result set to oci.RegistryTruthRowLimit (#6590);
+// oci.AdvanceBoundedRead resumes any batch it cuts off.
 const ociImageByDigestCypher = `
 MATCH (image:%s)
 WHERE image.digest IN $digests
@@ -212,8 +208,8 @@ ORDER BY repository_id`
 
 // ociTagObservationByRefCypher is the single-clause tag-observation lookup that
 // resolves a mutable tag reference to its recorded digest and repository.
-// LIMIT $row_limit bounds the per-batch result set to ociRegistryTruthRowLimit
-// (#6590); advanceOCIBoundedRead resumes any batch it cuts off.
+// LIMIT $row_limit bounds the per-batch result set to oci.RegistryTruthRowLimit
+// (#6590); oci.AdvanceBoundedRead resumes any batch it cuts off.
 const ociTagObservationByRefCypher = `
 MATCH (tag:ContainerImageTagObservation)
 WHERE tag.image_ref IN $image_refs
@@ -229,7 +225,7 @@ LIMIT $row_limit`
 // joining the registry-repository metadata in Go. It preserves the old
 // inner-join semantics (an image with no matching repository is omitted).
 // truncatedDigests names every digest whose image row set could not be
-// resolved within ociRegistryTruthRowLimit; those digests contribute no rows.
+// resolved within oci.RegistryTruthRowLimit; those digests contribute no rows.
 // events counts how many Run calls hit the bound (for telemetry).
 func fetchOCIImageDigestRows(
 	ctx context.Context,
@@ -253,7 +249,7 @@ func fetchOCIImageDigestRows(
 		if !ok {
 			continue
 		}
-		rows = append(rows, joinOCIImageRepository(image, repo))
+		rows = append(rows, oci.JoinImageRepository(image, repo))
 	}
 	return rows, truncatedDigests, events, nil
 }
@@ -265,7 +261,7 @@ func fetchOCIImageDigestRows(
 // repository or resolved image is absent is omitted).
 //
 // withheldRefs names every image ref this call withholds because a statement
-// hit ociRegistryTruthRowLimit: refs whose own tag-observation read
+// hit oci.RegistryTruthRowLimit: refs whose own tag-observation read
 // truncated, AND refs whose resolved digest's image read truncated (#6590 --
 // truncating the digest read can flip a two-digest ref, since the tag row for
 // the withheld digest would otherwise silently disappear through the
@@ -282,17 +278,17 @@ func fetchOCIImageTagRows(
 	}
 	tags := make([]map[string]any, 0, len(imageRefs))
 	var truncatedTagRefs []string
-	for _, batch := range ociKeyBatches(sortUniqueStrings(imageRefs)) {
+	for _, batch := range oci.KeyBatches(oci.SortUniqueStrings(imageRefs)) {
 		keysToQuery := batch
 		for {
 			batchRows, runErr := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{
 				"image_refs": keysToQuery,
-				"row_limit":  ociRegistryTruthRowLimit,
+				"row_limit":  oci.RegistryTruthRowLimit,
 			})
 			if runErr != nil {
 				return nil, nil, 0, 0, runErr
 			}
-			kept, truncated, next := advanceOCIBoundedRead(keysToQuery, batchRows, "image_ref", ociRegistryTruthRowLimit)
+			kept, truncated, next := oci.AdvanceBoundedRead(keysToQuery, batchRows, "image_ref", oci.RegistryTruthRowLimit)
 			tags = append(tags, kept...)
 			if len(truncated) > 0 {
 				tagEvents++
@@ -305,7 +301,7 @@ func fetchOCIImageTagRows(
 		}
 	}
 	if len(tags) == 0 {
-		return nil, sortUniqueStrings(truncatedTagRefs), tagEvents, 0, nil
+		return nil, oci.SortUniqueStrings(truncatedTagRefs), tagEvents, 0, nil
 	}
 	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(tags, "repository_id"))
 	if err != nil {
@@ -333,7 +329,7 @@ func fetchOCIImageTagRows(
 		}
 	}
 
-	imageByDigest := indexOCIImagesByDigest(images)
+	imageByDigest := oci.IndexImagesByDigest(images)
 	rows = make([]map[string]any, 0, len(tags))
 	for _, tag := range tags {
 		ref := querycontract.StringVal(tag, "image_ref")
@@ -345,7 +341,7 @@ func fetchOCIImageTagRows(
 		if !repoOK || !imageOK {
 			continue
 		}
-		rows = append(rows, joinOCITagRepositoryImage(tag, repo, image))
+		rows = append(rows, oci.JoinTagRepositoryImage(tag, repo, image))
 	}
 	withheldRefs = make([]string, 0, len(withheld))
 	for ref := range withheld {
@@ -359,14 +355,14 @@ func fetchOCIImageTagRows(
 // row-limit-bounded query and concatenates the rows. Each row carries
 // image_id, digest, repository_id, and media_type. truncatedDigests names
 // every digest whose row set could not be resolved within
-// ociRegistryTruthRowLimit for at least one label; those digests contribute
+// oci.RegistryTruthRowLimit for at least one label; those digests contribute
 // no rows for that label. events counts how many Run calls hit the bound.
 //
-// digests is sorted and deduplicated on entry through sortUniqueStrings: some
-// callers pass an already-sorted key set (sortedMapKeys(digestRefs)) and some
-// pass an insertion-ordered one (distinctFieldValues), and
-// advanceOCIBoundedRead's irreducible-overflow check depends on every batch's
-// first key being its minimum.
+// digests is sorted and deduplicated on entry through oci.SortUniqueStrings:
+// some callers pass an already-sorted key set (oci.SortedMapKeys(digestRefs))
+// and some pass an insertion-ordered one (distinctFieldValues), and
+// oci.AdvanceBoundedRead's irreducible-overflow check depends on every
+// batch's first key being its minimum.
 func fetchOCIImagesByDigest(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
@@ -375,21 +371,21 @@ func fetchOCIImagesByDigest(
 	if len(digests) == 0 {
 		return nil, nil, 0, nil
 	}
-	sortedDigests := sortUniqueStrings(digests)
+	sortedDigests := oci.SortUniqueStrings(digests)
 	rows = make([]map[string]any, 0, len(sortedDigests)*len(ociImageLookupLabels))
 	var truncated []string
 	for _, label := range ociImageLookupLabels {
-		for _, batch := range ociKeyBatches(sortedDigests) {
+		for _, batch := range oci.KeyBatches(sortedDigests) {
 			keysToQuery := batch
 			for {
 				labelRows, runErr := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{
 					"digests":   keysToQuery,
-					"row_limit": ociRegistryTruthRowLimit,
+					"row_limit": oci.RegistryTruthRowLimit,
 				})
 				if runErr != nil {
 					return nil, nil, 0, runErr
 				}
-				kept, truncatedBatch, next := advanceOCIBoundedRead(keysToQuery, labelRows, "digest", ociRegistryTruthRowLimit)
+				kept, truncatedBatch, next := oci.AdvanceBoundedRead(keysToQuery, labelRows, "digest", oci.RegistryTruthRowLimit)
 				rows = append(rows, kept...)
 				if len(truncatedBatch) > 0 {
 					events++
@@ -402,7 +398,7 @@ func fetchOCIImagesByDigest(
 			}
 		}
 	}
-	return rows, sortUniqueStrings(truncated), events, nil
+	return rows, oci.SortUniqueStrings(truncated), events, nil
 }
 
 // fetchOCIRepositoriesByUID reads the registry repositories for the given uids
@@ -419,7 +415,7 @@ func fetchOCIRepositoriesByUID(
 	if len(uids) == 0 {
 		return result, nil
 	}
-	for _, batch := range ociKeyBatches(uids) {
+	for _, batch := range oci.KeyBatches(uids) {
 		rows, err := reader.Run(ctx, ociRepositoryByUIDCypher, map[string]any{"repository_ids": batch})
 		if err != nil {
 			return nil, err
@@ -432,8 +428,3 @@ func fetchOCIRepositoriesByUID(
 	}
 	return result, nil
 }
-
-// ociMaxKeysPerStatement, ociKeyBatches, indexOCIImagesByDigest,
-// joinOCIImageRepository, and joinOCITagRepositoryImage are pure helpers for
-// these fetchers; they live in trace_deployment_oci_truth.go to keep this
-// file (the three Run-calling fetchers) under the repo's 500-line cap.

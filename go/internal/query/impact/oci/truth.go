@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package oci
 
 import (
 	"sort"
@@ -11,13 +11,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// This file holds the pure OCI registry-truth row builders: parsing image
-// refs into digest- and tag-addressed keys, and shaping raw joined rows into
-// truth rows. They issue no graph query, so they live apart from
-// trace_deployment_oci.go (the three Run-calling fetchers) to keep that file
-// under the repo's 500-line cap (#6590).
+// TagMatchStrength, AmbiguousMatchStrength, and RegistryProjectionBasis are
+// the match_strength/identity_source values a resolved or ambiguous OCI
+// registry-truth row carries. The digest-addressed match_strength
+// (canonical_digest) moved to deployment.OciDigestMatchStrength with lane B2
+// of #6060 (impact.canonicalOCIImageMatchCount is its only reader outside
+// this package's truth builder).
+const (
+	TagMatchStrength        = "tag_resolved_to_digest"
+	AmbiguousMatchStrength  = "ambiguous_tag"
+	RegistryProjectionBasis = "oci_registry_projection"
+)
 
-func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
+// SplitImageRefs partitions imageRefs into digest-addressed refs (grouped by
+// their parsed digest) and tag refs (deduplicated, sorted). A digest-
+// addressed ref (repo@sha256:...) is recognized by ImageRefDigest; every
+// other non-empty ref is treated as a mutable tag reference.
+func SplitImageRefs(imageRefs []string) (map[string][]string, []string) {
 	digestRefs := make(map[string][]string)
 	tagRefs := make([]string, 0, len(imageRefs))
 	seenTags := make(map[string]struct{}, len(imageRefs))
@@ -26,7 +36,7 @@ func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
 		if imageRef == "" {
 			continue
 		}
-		if digest := imageRefDigest(imageRef); digest != "" {
+		if digest := ImageRefDigest(imageRef); digest != "" {
 			digestRefs[digest] = appendUniqueQueryString(digestRefs[digest], imageRef)
 			continue
 		}
@@ -40,7 +50,10 @@ func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
 	return digestRefs, tagRefs
 }
 
-func imageRefDigest(imageRef string) string {
+// ImageRefDigest returns the lowercased sha256 digest an image ref names
+// (repo@sha256:<64 hex chars>), or "" when imageRef does not carry a
+// syntactically valid digest.
+func ImageRefDigest(imageRef string) string {
 	_, digest, ok := strings.Cut(strings.TrimSpace(imageRef), "@")
 	if !ok {
 		return ""
@@ -57,7 +70,10 @@ func imageRefDigest(imageRef string) string {
 	return digest
 }
 
-func buildOCIDigestTruthRows(
+// BuildDigestTruthRows shapes joined digest-addressed image rows (see
+// JoinImageRepository) into truth rows, one per image ref that resolved to
+// each row's digest.
+func BuildDigestTruthRows(
 	rows []map[string]any,
 	digestRefs map[string][]string,
 ) []map[string]any {
@@ -68,13 +84,17 @@ func buildOCIDigestTruthRows(
 			continue
 		}
 		for _, imageRef := range digestRefs[digest] {
-			truth = append(truth, ociTruthRow(row, imageRef, digest, deployment.OciDigestMatchStrength, "digest", false))
+			truth = append(truth, truthRow(row, imageRef, digest, deployment.OciDigestMatchStrength, "digest", false))
 		}
 	}
 	return truth
 }
 
-func buildOCITagTruthRows(rows []map[string]any) []map[string]any {
+// BuildTagTruthRows shapes joined tag-resolved rows (see
+// JoinTagRepositoryImage) into truth rows: a tag ref whose observations
+// resolved to exactly one digest becomes a resolved row; one that resolved
+// to more than one digest becomes an ambiguous row carrying every candidate.
+func BuildTagTruthRows(rows []map[string]any) []map[string]any {
 	grouped := make(map[string][]map[string]any, len(rows))
 	for _, row := range rows {
 		imageRef := strings.TrimSpace(querycontract.StringVal(row, "image_ref"))
@@ -85,7 +105,7 @@ func buildOCITagTruthRows(rows []map[string]any) []map[string]any {
 		grouped[imageRef] = append(grouped[imageRef], row)
 	}
 
-	imageRefs := sortedMapKeys(grouped)
+	imageRefs := SortedMapKeys(grouped)
 	truth := make([]map[string]any, 0, len(imageRefs))
 	for _, imageRef := range imageRefs {
 		group := grouped[imageRef]
@@ -93,10 +113,10 @@ func buildOCITagTruthRows(rows []map[string]any) []map[string]any {
 		if len(digests) != 1 {
 			truth = append(truth, map[string]any{
 				"image_ref":          imageRef,
-				"match_strength":     ociAmbiguousMatchStrength,
+				"match_strength":     AmbiguousMatchStrength,
 				"truth_basis":        "observed_tag",
 				"identity_strength":  "weak_tag",
-				"identity_source":    ociRegistryProjectionBasis,
+				"identity_source":    RegistryProjectionBasis,
 				"ambiguous":          true,
 				"digest_candidates":  digests,
 				"registry":           querycontract.StringVal(group[0], "registry"),
@@ -107,12 +127,12 @@ func buildOCITagTruthRows(rows []map[string]any) []map[string]any {
 			})
 			continue
 		}
-		truth = append(truth, ociTruthRow(group[0], imageRef, digests[0], ociTagMatchStrength, "tag_observation_with_digest", false))
+		truth = append(truth, truthRow(group[0], imageRef, digests[0], TagMatchStrength, "tag_observation_with_digest", false))
 	}
 	return truth
 }
 
-func ociTruthRow(
+func truthRow(
 	row map[string]any,
 	imageRef string,
 	digest string,
@@ -131,7 +151,7 @@ func ociTruthRow(
 		"provider":          querycontract.StringVal(row, "provider"),
 		"match_strength":    matchStrength,
 		"truth_basis":       truthBasis,
-		"identity_source":   ociRegistryProjectionBasis,
+		"identity_source":   RegistryProjectionBasis,
 		"identity_strength": "digest",
 		"ambiguous":         ambiguous,
 	}
@@ -151,7 +171,8 @@ func uniqueSortedRowValues(rows []map[string]any, key string) []string {
 	return values
 }
 
-func sortedMapKeys[T any](values map[string]T) []string {
+// SortedMapKeys returns the sorted keys of values.
+func SortedMapKeys[T any](values map[string]T) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
@@ -172,58 +193,11 @@ func appendUniqueQueryString(values []string, value string) []string {
 	return append(values, value)
 }
 
-// ociMaxKeysPerStatement is the per-statement IN-list bound these reads are
-// recorded against in go/internal/queryplan/testdata/query-source-coverage.yaml
-// (bounded_key_batch, max_keys: 250).
-//
-// The bound used to be an assumption rather than a property of the code (#6590).
-// The keys are deduplicated upstream but their COUNT is not capped: they come
-// from a workload row set capped at ServiceStoryItemLimit rows, but a single
-// workload can declare any number of containers and initContainers, so 50
-// workloads with six images each already puts 300 keys into one IN-list.
-// Enforcing it here makes the recorded bound true by construction.
-//
-// Batching rather than truncating is deliberate: a truncated key set would
-// silently drop images from the deployment trace, which is an accuracy loss.
-// Capping at the source is also wrong -- collectContainerImages lives in the
-// YAML parser, and a cap there would discard facts at ingest.
-const ociMaxKeysPerStatement = 250
-
-// ociKeyBatches splits keys into consecutive batches of at most
-// ociMaxKeysPerStatement, preserving order. It is pure: it issues no statement.
-//
-// That is deliberate. The query-plan registry
-// (go/internal/queryplan/testdata/query-source-coverage.yaml) attributes a
-// graph read to the function that calls Run, and records a separate bound for
-// each of these three reads. A shared helper that called Run itself collapsed
-// three differently-bounded queries into one anonymous callsite and erased the
-// per-query audit this bound exists for. So each fetcher keeps its own Run,
-// looped over these batches, and remains its own registered callsite.
-//
-// Batching preserves every caller's semantics: each read is a keyed IN-list
-// lookup, so all rows for one key land in the same batch; the tag and
-// repository reads join through maps; and fetchOCIImagesByDigest batches
-// inside its per-label loop, so indexOCIImagesByDigest's first-wins ordering
-// across labels is unchanged. A key set within the bound is one batch, so it
-// issues exactly the single statement it always did (plus any row-limit
-// continuation statements #6590 adds when that one batch's fan-out overflows
-// ociRegistryTruthRowLimit).
-func ociKeyBatches(keys []string) [][]string {
-	if len(keys) == 0 {
-		return nil
-	}
-	batches := make([][]string, 0, (len(keys)+ociMaxKeysPerStatement-1)/ociMaxKeysPerStatement)
-	for start := 0; start < len(keys); start += ociMaxKeysPerStatement {
-		batches = append(batches, keys[start:min(start+ociMaxKeysPerStatement, len(keys))])
-	}
-	return batches
-}
-
-// indexOCIImagesByDigest keeps the first image row seen per digest so a tag can
-// resolve its canonical image identity and media type. Digest is the canonical
-// content address, so the first-wins policy is deterministic under the ordered
-// per-label reads.
-func indexOCIImagesByDigest(images []map[string]any) map[string]map[string]any {
+// IndexImagesByDigest keeps the first image row seen per digest so a tag can
+// resolve its canonical image identity and media type. Digest is the
+// canonical content address, so the first-wins policy is deterministic under
+// an ordered per-label read sequence.
+func IndexImagesByDigest(images []map[string]any) map[string]map[string]any {
 	byDigest := make(map[string]map[string]any, len(images))
 	for _, image := range images {
 		digest := querycontract.StringVal(image, "digest")
@@ -237,9 +211,9 @@ func indexOCIImagesByDigest(images []map[string]any) map[string]map[string]any {
 	return byDigest
 }
 
-// joinOCIImageRepository merges a digest-addressed image row with its registry
-// repository into the row shape the digest truth builder consumes.
-func joinOCIImageRepository(image, repo map[string]any) map[string]any {
+// JoinImageRepository merges a digest-addressed image row with its registry
+// repository into the row shape BuildDigestTruthRows consumes.
+func JoinImageRepository(image, repo map[string]any) map[string]any {
 	return map[string]any{
 		"image_id":      querycontract.StringVal(image, "image_id"),
 		"digest":        querycontract.StringVal(image, "digest"),
@@ -251,12 +225,12 @@ func joinOCIImageRepository(image, repo map[string]any) map[string]any {
 	}
 }
 
-// joinOCITagRepositoryImage merges a tag observation with its registry
-// repository and resolved image into the row shape the tag truth builder
+// JoinTagRepositoryImage merges a tag observation with its registry
+// repository and resolved image into the row shape BuildTagTruthRows
 // consumes. The digest and repository_id come from the tag observation, the
-// registry metadata from the repository, and the image identity/media type from
-// the resolved image.
-func joinOCITagRepositoryImage(tag, repo, image map[string]any) map[string]any {
+// registry metadata from the repository, and the image identity/media type
+// from the resolved image.
+func JoinTagRepositoryImage(tag, repo, image map[string]any) map[string]any {
 	return map[string]any{
 		"image_ref":     querycontract.StringVal(tag, "image_ref"),
 		"tag":           querycontract.StringVal(tag, "tag"),

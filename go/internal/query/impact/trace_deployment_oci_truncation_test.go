@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -40,11 +41,11 @@ func TestOCIRegistryTruthTruncationEmitsCounterByReason(t *testing.T) {
 			t.Fatalf("TruncatedImageRefs = %#v, want 1 withheld ref", result.TruncatedImageRefs)
 		}
 
-		if got := ociTruncationCounterValue(t, reader2, ociReasonTagObservationRowLimit); got != 1 {
-			t.Fatalf("counter[%s] = %d, want 1", ociReasonTagObservationRowLimit, got)
+		if got := ociTruncationCounterValue(t, reader2, oci.ReasonTagObservationRowLimit); got != 1 {
+			t.Fatalf("counter[%s] = %d, want 1", oci.ReasonTagObservationRowLimit, got)
 		}
-		if got := ociTruncationCounterValue(t, reader2, ociReasonImageRowLimit); got != 0 {
-			t.Fatalf("counter[%s] = %d, want 0 (ref C never reached the image fetch)", ociReasonImageRowLimit, got)
+		if got := ociTruncationCounterValue(t, reader2, oci.ReasonImageRowLimit); got != 0 {
+			t.Fatalf("counter[%s] = %d, want 0 (ref C never reached the image fetch)", oci.ReasonImageRowLimit, got)
 		}
 	})
 
@@ -67,11 +68,11 @@ func TestOCIRegistryTruthTruncationEmitsCounterByReason(t *testing.T) {
 			t.Fatalf("TruncatedImageRefs = %#v, want 1 withheld ref", result.TruncatedImageRefs)
 		}
 
-		if got := ociTruncationCounterValue(t, reader2, ociReasonImageRowLimit); got != 1 {
-			t.Fatalf("counter[%s] = %d, want 1", ociReasonImageRowLimit, got)
+		if got := ociTruncationCounterValue(t, reader2, oci.ReasonImageRowLimit); got != 1 {
+			t.Fatalf("counter[%s] = %d, want 1", oci.ReasonImageRowLimit, got)
 		}
-		if got := ociTruncationCounterValue(t, reader2, ociReasonTagObservationRowLimit); got != 0 {
-			t.Fatalf("counter[%s] = %d, want 0 (no tag refs in this request)", ociReasonTagObservationRowLimit, got)
+		if got := ociTruncationCounterValue(t, reader2, oci.ReasonTagObservationRowLimit); got != 0 {
+			t.Fatalf("counter[%s] = %d, want 0 (no tag refs in this request)", oci.ReasonTagObservationRowLimit, got)
 		}
 	})
 }

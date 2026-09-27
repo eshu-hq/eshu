@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -223,7 +224,7 @@ func TestLiveOCIRegistryTruthRowLimitBound(t *testing.T) {
 		}
 		row := result.Rows[0]
 		for key, want := range map[string]string{
-			"image_ref": refZ, "digest": digestZ, "match_strength": ociTagMatchStrength,
+			"image_ref": refZ, "digest": digestZ, "match_strength": oci.TagMatchStrength,
 			"registry": "ghcr.io", "repository": "acme/z", "repository_id": repoZ,
 		} {
 			if got := querycontract.StringVal(row, key); got != want {
@@ -270,7 +271,7 @@ func TestLiveOCIRegistryTruthRowLimitBound(t *testing.T) {
 		if got, want := querycontract.BoolVal(result.Limits, "image_registry_truth_complete"), false; got != want {
 			t.Fatalf("image_registry_truth_complete = %v, want %v: %#v", got, want, result.Limits)
 		}
-		if got, want := querycontract.StringVal(result.Limits, "image_registry_truth_incomplete_reason"), ociRegistryTruthRowLimitReason; got != want {
+		if got, want := querycontract.StringVal(result.Limits, "image_registry_truth_incomplete_reason"), oci.RegistryTruthRowLimitReason; got != want {
 			t.Fatalf("image_registry_truth_incomplete_reason = %q, want %q", got, want)
 		}
 		if !containsString(result.TruncatedImageRefs, refX) {
@@ -291,8 +292,8 @@ func TestLiveOCIRegistryTruthRowLimitBound(t *testing.T) {
 		if yRow == nil {
 			t.Fatalf("no truth row for %s (resolved out of the continuation statement) in %#v", refY, result.Rows)
 		}
-		if got := querycontract.StringVal(yRow, "match_strength"); got != ociAmbiguousMatchStrength {
-			t.Errorf("%s match_strength = %q, want %q", refY, got, ociAmbiguousMatchStrength)
+		if got := querycontract.StringVal(yRow, "match_strength"); got != oci.AmbiguousMatchStrength {
+			t.Errorf("%s match_strength = %q, want %q", refY, got, oci.AmbiguousMatchStrength)
 		}
 		candidates := querycontract.StringSliceVal(yRow, "digest_candidates")
 		sort.Strings(candidates)
@@ -305,7 +306,7 @@ func TestLiveOCIRegistryTruthRowLimitBound(t *testing.T) {
 
 	t.Run("plan_retains_index_seek", func(t *testing.T) {
 		operators := reader.explainOperators(ctx, t, ociTagObservationByRefCypher, map[string]any{
-			"image_refs": []string{refX}, "row_limit": ociRegistryTruthRowLimit,
+			"image_refs": []string{refX}, "row_limit": oci.RegistryTruthRowLimit,
 		})
 		joined := strings.Join(operators, ",")
 		if !strings.Contains(joined, "NodeIndexSeek") {

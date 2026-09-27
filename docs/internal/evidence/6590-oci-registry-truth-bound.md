@@ -6,10 +6,11 @@ and image-by-digest reads behind `POST /api/v0/impact/trace-deployment-chain`.
 Both statements previously carried `ORDER BY` only, no `LIMIT`, so the
 `bounded_key_batch` row bound `go/internal/queryplan/testdata/query-source-coverage.yaml`
 declared for them (250 keys, 3x fan-out) was not enforced by anything in code.
-Both now carry `LIMIT $row_limit` (750 = `ociMaxKeysPerStatement` x
-`ociRegistryTruthFanOut`); `advanceOCIBoundedRead` resumes a cut-off batch with
-a continuation statement keyed only by the still-incomplete keys, or, when one
-key alone fills the bound, withholds it as an irreducible overflow (never a
+Both now carry `LIMIT $row_limit` (750 = `oci.MaxKeysPerStatement` x
+`oci.RegistryTruthFanOut`, `go/internal/query/impact/oci/bounds.go`);
+`oci.AdvanceBoundedRead` resumes a cut-off batch with a continuation
+statement keyed only by the still-incomplete keys, or, when one key alone
+fills the bound, withholds it as an irreducible overflow (never a
 placeholder row). This is a correctness fix (adding a previously-missing
 bound), so the required proof is a no-regression measurement on the same
 query shape, not a new-feature benchmark.
@@ -82,7 +83,7 @@ adding `LIMIT $row_limit` never makes the statement slower, and caps the
 worst-case row volume the pre-#6590 shape had no bound on at all. Every
 measured plan retains `NodeIndexSeek` with `PartialTop` (matching the
 orchestrator's theory-proof `EXPLAIN`) on `container_image_tag_observation_ref`,
-never a `NodeByLabelScan`. The 3x fan-out headroom (`ociRegistryTruthFanOut`)
+never a `NodeByLabelScan`. The 3x fan-out headroom (`oci.RegistryTruthFanOut`)
 means the two below-bound cells are the common case in production (1
 observation/ref measured on in-tree corpora and ops-qa); the at-bound and
 overflow cells are the declared worst case this bound exists to disclose

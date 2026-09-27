@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -129,7 +130,7 @@ func TestTraceDeploymentChainDisclosesImageRegistryTruthLimits(t *testing.T) {
 		if got, want := querycontract.BoolVal(limits, "image_registry_truth_complete"), false; got != want {
 			t.Fatalf("image_registry_truth_limits.image_registry_truth_complete = %v, want %v: %#v", got, want, limits)
 		}
-		if got, want := querycontract.StringVal(limits, "image_registry_truth_incomplete_reason"), ociRegistryTruthRowLimitReason; got != want {
+		if got, want := querycontract.StringVal(limits, "image_registry_truth_incomplete_reason"), oci.RegistryTruthRowLimitReason; got != want {
 			t.Fatalf("image_registry_truth_limits.image_registry_truth_incomplete_reason = %q, want %q", got, want)
 		}
 		refs := querycontract.StringSliceVal(limits, "truncated_image_refs")
