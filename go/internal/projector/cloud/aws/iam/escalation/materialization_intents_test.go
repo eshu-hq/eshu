@@ -4,6 +4,7 @@
 package escalation
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -51,7 +52,9 @@ func escalationPermissionEnvelope(factID, policySource, effect, sourceSystem, co
 // publish, and falls back to CollectorKind when SourceRef's SourceSystem is
 // blank. A Deny qualifies: it contributes to the reducer grant's deny set
 // even though it arms no primitive, so a Deny-only generation still needs
-// the intent fanned out.
+// the intent fanned out. A malformed fact never fails the build: it is
+// skipped as a candidate, so an invalid-only generation enqueues nothing
+// while an invalid-then-valid generation still anchors the valid fact.
 func TestBuildIAMEscalationMaterializationReducerIntent(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +98,34 @@ func TestBuildIAMEscalationMaterializationReducerIntent(t *testing.T) {
 		})
 		if _, ok := BuildIAMEscalationMaterializationReducerIntent(testScopeID, testGenerationID, lookup); ok {
 			t.Fatal("expected no intent from a trust-only generation")
+		}
+	})
+
+	t.Run("does not queue from a statement whose payload fails decode", func(t *testing.T) {
+		t.Parallel()
+		invalid := escalationPermissionEnvelope("fact-invalid-inline", "inline", "Allow", "aws", "aws")
+		delete(invalid.Payload, "principal_arn")
+		lookup := projectorintent.NewFactLookup([]facts.Envelope{invalid})
+		got, ok := BuildIAMEscalationMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
+			t.Fatalf("returned (%#v, %t) from input_invalid permission, want zero intent and false", got, ok)
+		}
+	})
+
+	t.Run("skips an undecodable statement and anchors the next valid one", func(t *testing.T) {
+		t.Parallel()
+		invalid := escalationPermissionEnvelope("fact-invalid-inline", "inline", "Allow", "aws", "aws")
+		delete(invalid.Payload, "principal_arn")
+		lookup := projectorintent.NewFactLookup([]facts.Envelope{
+			invalid,
+			escalationPermissionEnvelope("fact-inline", "inline", "Allow", "aws", "aws"),
+		})
+		got, ok := BuildIAMEscalationMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		if !ok {
+			t.Fatal("ok = false, want true")
+		}
+		if got.FactID != "fact-inline" {
+			t.Fatalf("FactID = %q, want fact-inline (first decodable qualifying statement)", got.FactID)
 		}
 	})
 }

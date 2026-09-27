@@ -303,9 +303,9 @@
             ],
             "effect": "Allow",
             "has_conditions": true,
-            "policy_source": "",
+            "policy_source": "inline",
             "principal_arn": "arn:aws:iam::123456789012:user/attacker",
-            "principal_type": "",
+            "principal_type": "user",
             "region": "aws-global",
             "resources": [
               "arn:aws:iam::123456789012:user/victim"

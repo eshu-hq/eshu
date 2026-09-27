@@ -282,6 +282,8 @@ var iamEscalationFamilyPermissions = []iamEscalationFamilyPermissionFixture{
 		// NO EDGE: a conditioned statement — conditions carry key names
 		// only, never values, so the grant cannot trust it.
 		PrincipalARN:  iamEscalationFamilyAttackerUserARN,
+		PrincipalType: "user",
+		PolicySource:  "inline",
 		Effect:        "Allow",
 		Actions:       []string{"iam:putuserpolicy"},
 		Resources:     []string{iamEscalationFamilyVictimUserARN},
