@@ -45,4 +45,12 @@ ifa_live_gate_determinism_only_seams=(
 	# families. The other seven of the thirteen triggers were already matched
 	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
 	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
+	# iam_can_assume (#6228) keeps its three here: it has no fault cells by
+	# design (cell_kind=custom, generic dispatchers reject it), so the Odu,
+	# cassette, and expected-edge set must select ifa-determinism and must
+	# NEVER select ifa-fault-injection. They move to the common table with
+	# the siblings when fault cells land.
+	'go/internal/ifa/familyodu/iam_can_assume_family_odu.go|go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
+	'testdata/cassettes/iamcanassume/**|testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json'
+	'go/internal/ifa/testdata/iamcanassume/**|go/internal/ifa/testdata/iamcanassume/ifa-iam-can-assume-family-expected-edges.json'
 )

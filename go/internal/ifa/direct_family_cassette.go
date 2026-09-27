@@ -28,9 +28,9 @@ import (
 //
 // All three families share one loader rather than carrying a copy each. The
 // shared-projection families each grew their own decoder because each reads a
-// different fact shape; these two read the SAME envelope fields and differ only
-// in which Odù name the projection carries, so a second copy would be two
-// places for one contract to rot.
+// different fact shape; these three read the SAME envelope fields and differ
+// only in which Odù name the projection carries, so a third copy would be
+// three places for one contract to rot.
 
 const (
 	// kubernetesNamespaceEnvironmentFamilyCassettePath and
