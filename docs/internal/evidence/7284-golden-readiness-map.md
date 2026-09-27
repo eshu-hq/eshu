@@ -38,6 +38,14 @@ The map moved out of `drains.go` (495 lines) into
 `drains_readiness_classes.go` to stay under the 500-line cap. It stays a set of
 string literals, so the gate binary takes no production import of the reducer.
 
+> Superseded by #7308 ([7308-readiness-map-split.md](7308-readiness-map-split.md)).
+> The single map is now two sets. The label is derived from
+> `storagepostgres.IsNonCountingReducerRetryFailureClass`, so the gate binary
+> now imports storage/postgres, and `generation_activation_not_ready` is
+> labeled readiness-deferred. The 19 enrolled classes above, with the earlier
+> 17, form `preMaintenanceToleratedFailureClasses`. The exclusion moved to
+> `preMaintenanceBlockingFailureClasses`, which still blocks quiescence.
+
 ## Guard
 
 - `storagepostgres.NonCountingReducerRetryFailureClasses()` returns a clone of
@@ -49,6 +57,13 @@ string literals, so the gate binary takes no production import of the reducer.
 - `TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness` runs the
   production classifier: a retrying `generation_activation_not_ready` row
   counts live and a retrying `value_flow_inputs_not_ready` row counts deferred.
+
+> Superseded by #7308. `TestEveryNonCountingFailureClassIsEnrolledOrExcluded` is
+> now `TestEveryNonCountingFailureClassHasPreMaintenanceDecision`, and
+> `TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness` is now
+> `TestClassifyResidualRowsSplitsToleratedFromBlockingReadiness`. A retrying
+> `generation_activation_not_ready` row now counts as readiness-deferred and
+> pre-maintenance blocking, not live.
 
 ## RED / GREEN
 

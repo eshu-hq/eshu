@@ -229,10 +229,13 @@ scans an entire response.
 - `snapshot.go` — typed view + loader for the B-12 snapshot.
 - `evaluate.go` — pure assertion logic for every phase (unit-tested).
 - `drains.go` — Postgres drain queries + the drain poll loop.
-- `drains_readiness_classes.go` — `readinessDeferredFailureClasses`, the
-  failure classes the drain labels readiness-deferred and pre-maintenance
-  quiescence tolerates; its test guards both directions against the reducer
-  queue's non-counting set (#7284).
+- `drains_readiness_classes.go` — the residual classifier and its two sets
+  (#7308): `readinessDeferred`, the label derived from the reducer queue's
+  non-counting retry set, and `preMaintenanceToleratedFailureClasses`, the
+  reasoned allow-list pre-maintenance quiescence tolerates. A non-counting class
+  outside the allow-list is labeled readiness-deferred but reported as
+  `readiness-not-tolerated` and holds quiescence open. Its tests require an
+  explicit tolerate-or-block decision for every non-counting class.
 - `graph.go` — the `graphCounter` seam and the graph-phase checks (required
   nodes, correlations, count tolerances, property assertions).
 - `graph_bolt.go` — the Bolt `graphCounter`: node, edge, and correlation
