@@ -21,7 +21,7 @@ import (
 )
 
 // openDatabase returns a disposable database with the full bootstrap schema
-// (migration 136 included) and the connection config of that database, so a test can open a
+// (migration 137 included) and the connection config of that database, so a test can open a
 // second pool whose sessions carry DeferredSessionSQL. Set
 // ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN (an administrative postgres-database DSN)
 // and ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 to run these proofs.
