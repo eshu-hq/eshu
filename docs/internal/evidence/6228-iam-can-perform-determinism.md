@@ -22,6 +22,13 @@ post-delta (endpoint pairs + identity_policy_only scope), 6/6 asserts total
 across the matrix. Pre-existing families' cells unchanged (their asserts and
 digests identical to the pre-change runs).
 
+Review P1 found the first live run drove 17 facts, not 20: the permission
+stable key omitted resources/not-actions, collapsing four statements to one
+fact_id at ingest. Fixed by widening the key to the collector identity
+inputs (+ uniqueness test); the re-run above is on the widened keys, and its
+ingestion log shows 60 perform facts committed = 20 x 3 cells. All eleven
+non-producers reach the extractor live in this run.
+
 ## Static re-proof (at head)
 
 - `go test ./internal/ifa/materializededges/ -run TestDirectFamilyCassettes`: ok
