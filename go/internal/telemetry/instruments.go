@@ -305,9 +305,19 @@ type Instruments struct {
 	// (#7001). Labels: operation (bounded: clone, fetch, list_refs).
 	// Repository identity is never a label (unbounded cardinality); it stays
 	// in the paired git_sync_failure log line.
-	GitRepoSyncFailures            metric.Int64Counter
-	DeltaBaselineFallbacks         metric.Int64Counter
-	ReconciliationFullSnapshots    metric.Int64Counter
+	GitRepoSyncFailures    metric.Int64Counter
+	DeltaBaselineFallbacks metric.Int64Counter
+	// ReconciliationFullSnapshots counts git scopes the periodic sweep forced
+	// to a full reconciliation snapshot. Labels: reason (bounded:
+	// never_reconciled, interval_elapsed, in_flight_expired,
+	// retry_after_unprojected).
+	ReconciliationFullSnapshots metric.Int64Counter
+	// ReconciliationSuppressed counts sweep evaluations that held a scope off
+	// because a full generation is still in flight or recently failed to
+	// project (#7288). Labels: reason (bounded: reconcile_in_flight,
+	// reconcile_retry_backoff). Scope identity is never a label; it stays in
+	// the git_reconcile_forced log.
+	ReconciliationSuppressed       metric.Int64Counter
 	ReconciliationDriftRetractions metric.Int64Counter
 	ReconciliationConvergence      metric.Int64Counter
 	DocumentationEntityMentions    metric.Int64Counter
@@ -2295,10 +2305,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ReconciliationFullSnapshots, err = meter.Int64Counter(
 		"eshu_dp_collector_reconciliation_full_snapshots_total",
-		metric.WithDescription("Total git scopes forced to a full reconciliation snapshot to retract delta-path drift"),
+		metric.WithDescription("Total git scopes forced to a full reconciliation snapshot to retract delta-path drift, by bounded reason"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReconciliationFullSnapshots counter: %w", err)
+	}
+
+	inst.ReconciliationSuppressed, err = meter.Int64Counter(
+		"eshu_dp_collector_reconciliation_suppressed_total",
+		metric.WithDescription("Total git reconciliation sweep evaluations held off because a full generation is in flight or in retry backoff, by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReconciliationSuppressed counter: %w", err)
 	}
 
 	inst.ReconciliationDriftRetractions, err = meter.Int64Counter(

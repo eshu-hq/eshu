@@ -106,21 +106,28 @@ checked-out HEAD. At sync time the collector resolves the baseline through
 SELECT source_commit_sha
 FROM scope_generations
 WHERE scope_id = $1
-  AND status IN ('active', 'completed', 'superseded')
-  AND source_commit_sha IS NOT NULL
-  AND source_commit_sha <> ''
-ORDER BY ingested_at DESC, generation_id DESC
+  AND status = 'active'
+  AND activated_at IS NOT NULL
 LIMIT 1
 ```
 
-Only `active`, `completed`, and `superseded` generations count as projected;
-`pending` and `failed` generations never materialized into the graph, so their
-commits must not advance the baseline.
+The baseline is the commit of the scope's **active** generation, the one whose
+content the graph holds. Projector Ack supersedes the old active generation and
+activates the new one in a single transaction, so a reader always sees exactly
+one of them. `pending` and `failed` generations never materialized into the
+graph, and a `superseded` generation may never have activated: a generation that
+is superseded while still pending has `activated_at` NULL. Before #7317 such a
+generation could become the baseline, and the next delta then skipped every
+change between the active commit and it until the next full reconciliation. When
+no generation is active (a failed projection can clear the active pointer), the
+graph content is unknown, so the read returns nothing and the sync takes a full
+snapshot. The partial unique index `scope_generations_active_scope_idx` serves
+the read as a single-row lookup.
 
 The sync falls back to a full snapshot — re-observing the whole repository — when
 no trustworthy baseline exists or a delta would be wrong:
 
-- **First sync** for a scope (no projected generation yet): there is no baseline,
+- **First sync** for a scope, or no active generation: there is no baseline,
   so the full repository is observed.
 - **Divergence / shallow-clone prune**: the recorded baseline is not reachable in
   the local checkout (`git cat-file -e <sha>^{commit}` fails), so a delta diff
@@ -141,47 +148,13 @@ only on first sync or genuine divergence.
 
 Even with a correct baseline, a delta sync can leave stale graph nodes: a missed
 deletion or a retraction that failed after its delta was applied has no later
-delta that mentions the path, so the delta path alone can never clean it. A
-periodic reconciliation catches this drift.
-
-Reconciliation re-uses the proven full-snapshot path rather than a bespoke
-graph-diff. When a git scope has gone longer than `ESHU_REPO_RECONCILE_INTERVAL_HOURS`
-(default 24) without a projected **full** observation, the next sync forces a
-full snapshot for that scope regardless of any usable delta baseline. A full
-generation re-emits every current file under a new `generation_id`, and the
-canonical projector retracts every File/Directory/Entity node carrying a
-different `generation_id` for the repository — so any path that disappeared
-between the last full observation and now is deleted from the graph.
-
-Each generation records whether it was a delta on `scope_generations.is_delta`;
-the sweep finds the last full observation per scope with `LastFullProjectionAt`.
-A reconciliation generation carries an **empty** freshness hint so the
-commit-time skip never elides it: it must re-project even when the content hash
-is unchanged, otherwise drift in the graph would survive and the reconciliation
-timer would never advance.
-
-The sweep is bounded and scheduled, not a full re-index:
-
-- **Scheduled**: it rides the normal sync cadence; a scope is re-observed fully
-  once per interval, then resumes delta sync.
-- **Bounded per cycle**: `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` (default 10) caps how
-  many overdue scopes one selection cycle may force to full, so a fleet that all
-  comes due together does not stampede into simultaneous full snapshots. The
-  remainder are picked up on later cycles.
-- **Disable**: set `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`.
-
-Cost is one full re-observation and projection per scope per interval — the same
-cost as a first sync, paid on a documented cadence. Each forced reconciliation
-increments `eshu_dp_collector_reconciliation_full_snapshots_total`.
-When the canonical graph writer applies that forced snapshot, successful stale
-cleanup statements also increment
-`eshu_dp_reconciliation_drift_retractions_total` with bounded labels:
-`domain="canonical_graph"`, `write_phase`, and `kind="node"` or `kind="edge"`.
-The full-snapshot counter answers "did reconciliation run?"; the drift
-retraction counter answers "did it actually delete stale graph state?" Alert on
-sustained nonzero retractions after the first reconciliation window, and use
-projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
-specific source. Those identifiers are intentionally not metric labels.
+delta that mentions the path. A periodic reconciliation sweep forces a full
+snapshot for a git scope that has gone `ESHU_REPO_RECONCILE_INTERVAL_HOURS`
+(default 24) without a projected full observation, so the canonical projector
+retracts the drift. The sweep does not stack a new full snapshot on top of one
+still in flight, and backs off after a full snapshot that failed to project.
+[Reconciliation Sweep](reconciliation-sweep.md) documents the rule, its bounds,
+and its telemetry.
 
 ## How webhook triggers differ from source truth
 

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // TestCreateRefWorktreesReusesExistingWorktree proves P1-1: an existing
@@ -184,8 +186,13 @@ func (r staticBaselineResolver) LastProjectedCommitSHA(_ context.Context, _ stri
 	return r.sha, nil
 }
 
-func (r staticBaselineResolver) LastFullProjectionAt(_ context.Context, _ string) (time.Time, bool, error) {
-	return time.Now(), true, nil
+func (r staticBaselineResolver) FullReconcileState(_ context.Context, _ string) (scope.FullReconcileState, error) {
+	now := time.Now()
+	return scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now,
+		HasLatestFull: true, LatestFullAt: now,
+		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
+	}, nil
 }
 
 // TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved proves N1:

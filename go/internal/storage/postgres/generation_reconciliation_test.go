@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func TestUpsertScopeGenerationQueryPersistsIsDelta(t *testing.T) {
@@ -21,65 +23,73 @@ func TestUpsertScopeGenerationQueryPersistsIsDelta(t *testing.T) {
 	}
 }
 
-func TestLastFullProjectionAtReturnsTimestamp(t *testing.T) {
+func TestFullReconcileStateScansBothProbes(t *testing.T) {
 	t.Parallel()
 
-	want := time.Date(2026, 6, 13, 9, 0, 0, 0, time.UTC)
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{want}}}}}
+	projected := time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)
+	latest := time.Date(2026, 9, 27, 11, 30, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
+		projected, latest, "pending", false,
+	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	got, ok, err := store.LastFullProjectionAt(context.Background(), "git-repository-scope:acme/app")
+	got, err := store.FullReconcileState(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
-		t.Fatalf("LastFullProjectionAt() error = %v", err)
+		t.Fatalf("FullReconcileState() error = %v", err)
 	}
-	if !ok {
-		t.Fatal("ok = false, want true")
+	want := scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: projected,
+		HasLatestFull: true, LatestFullAt: latest,
+		LatestFullStatus: scope.GenerationStatusPending, LatestFullProjected: false,
 	}
-	if !got.Equal(want) {
-		t.Fatalf("got = %v, want %v", got, want)
+	if got != want {
+		t.Fatalf("FullReconcileState() = %+v, want %+v", got, want)
 	}
 
 	q := queryer.queries[0]
 	for _, fragment := range []string{
-		"ingested_at",
-		"scope_id = $1",
+		"projected.activated_at IS NOT NULL",
+		"projected.is_delta = false",
 		"'active', 'completed', 'superseded'",
-		"is_delta = false",
-		"LIMIT 1",
+		"attempt.is_delta = false",
+		"LEFT JOIN LATERAL",
+		"ORDER BY attempt.ingested_at DESC, attempt.generation_id DESC",
 	} {
 		if !strings.Contains(q, fragment) {
-			t.Fatalf("lastFullProjectionAtQuery missing %q:\n%s", fragment, q)
+			t.Fatalf("fullReconcileStateQuery missing %q:\n%s", fragment, q)
 		}
 	}
 }
 
-func TestLastFullProjectionAtAbsentWhenNoFullGeneration(t *testing.T) {
+func TestFullReconcileStateZeroWhenNoFullGeneration(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{
+		nil, nil, nil, false,
+	}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	_, ok, err := store.LastFullProjectionAt(context.Background(), "git-repository-scope:acme/app")
+	got, err := store.FullReconcileState(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
-		t.Fatalf("LastFullProjectionAt() error = %v", err)
+		t.Fatalf("FullReconcileState() error = %v", err)
 	}
-	if ok {
-		t.Fatal("ok = true, want false (no full projection yet)")
+	if got != (scope.FullReconcileState{}) {
+		t.Fatalf("FullReconcileState() = %+v, want zero state", got)
 	}
 }
 
-func TestLastFullProjectionAtBlankScopeAbsent(t *testing.T) {
+func TestFullReconcileStateBlankScopeDoesNotQuery(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	_, ok, err := store.LastFullProjectionAt(context.Background(), "  ")
+	got, err := store.FullReconcileState(context.Background(), "  ")
 	if err != nil {
-		t.Fatalf("LastFullProjectionAt() error = %v", err)
+		t.Fatalf("FullReconcileState() error = %v", err)
 	}
-	if ok {
-		t.Fatal("ok = true, want false for blank scope")
+	if got != (scope.FullReconcileState{}) {
+		t.Fatalf("FullReconcileState() = %+v, want zero state", got)
 	}
 	if len(queryer.queries) != 0 {
 		t.Fatalf("blank scope must not query, got %d", len(queryer.queries))
