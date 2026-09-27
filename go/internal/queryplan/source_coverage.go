@@ -86,25 +86,12 @@ type NonHotDisposition struct {
 }
 
 // nonHotCorpusMaxCALLSDegree floors max_degree for degree-bounded CALLS
-// reads. Measured value 1125, the larger of both directions, on ops-qa
-// Neo4j 2026.08.1 (804 repositories, 356,547 MERGE-deduped CALLS edges,
-// 2026-09-26): out-degree max 521 (JavaScript, 128,964 nodes), in-degree
-// max 1125 (Java/PHP, 163,032 nodes). One constant covers both
-// `degree_bounded` directions, so it floors at the larger. Supersedes 8,
-// measured over 31 B-7 synthetic fixtures rather than real code (~2 orders
-// of magnitude low); #6556's go/ast sizing of this repo's own module (max
-// 95) used a different methodology/population and is not comparable.
-//
-// PROFILE on Neo4j at both max-degree anchors shows the covered reads stay
-// cheap at this degree (NodeUniqueIndexSeek / VarLengthExpand(Pruning,BFS,All),
-// under 50ms). `nornicDBTransitiveOneHopRows` (transitive_walk.go) runs
-// only on NornicDB and was not re-PROFILEd under the Neo4j-proof rule;
-// follow-up candidate. Full method, distribution, per-language maxima,
-// PROFILE table, and ledger citations (ledger:6649-calls-out-degree-max,
-// ledger:6649-calls-in-degree-max, ledger:6649-transitive-depth10-profile)
-// are in docs/internal/evidence/6649-calls-degree-floor.md (#6649).
-// Re-measure with the same method when the corpus changes materially and
-// raise this floor; never lower an entry's max_degree to fit.
+// reads: the larger of the measured out-degree max (521) and in-degree max
+// (1125) on ops-qa Neo4j 2026.08.1, 2026-09-26. It supersedes the 8 measured
+// on synthetic B-7 fixtures. Method, distributions, and the PROFILE showing
+// the covered Neo4j reads stay cheap at this degree are in
+// docs/internal/evidence/6649-calls-degree-floor.md. Re-measure and raise it
+// when the corpus changes materially; never lower an entry to fit.
 const nonHotCorpusMaxCALLSDegree = 1125
 
 // nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
