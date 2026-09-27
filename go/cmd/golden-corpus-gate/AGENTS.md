@@ -37,6 +37,18 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   subset is reported because B-13 (#3859) made it the primary drain signal. If
   the queue contract changes in `go/internal/storage/postgres`, update the SQL in
   `drains.go` and its rationale comment.
+- **Every non-counting reducer retry class needs an explicit gate decision.**
+  `readinessDeferredFailureClasses` (`drains_readiness_classes.go`) is a
+  diagnostic label for strict drains and a control decision for
+  `-drain-allow-readiness-deferred` pre-maintenance quiescence. When a class is
+  added to `nonCountingReducerRetryFailureClasses` in
+  `go/internal/storage/postgres`, either enroll it in that map or exclude it in
+  `readinessLiveByDesignFailureClasses` (`drains_readiness_classes_test.go`)
+  with a reason. Exclude a class that can sit on a family pre-maintenance cells
+  assert absent and resolves without the maintenance pass, as
+  `generation_activation_not_ready` does.
+  `TestEveryNonCountingFailureClassIsEnrolledOrExcluded` fails on an undecided
+  class (#7284).
 - **The residual breakdown prints the error text, and the bound is the reason it
   can.** `failure_class` is a triage bucket ("projection_bug"), not the failure —
   a real reducer defect and a machine-contention timeout land in the same one, so

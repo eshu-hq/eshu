@@ -341,53 +341,6 @@ func residualBreakdownCountsSQL() string {
 var residualBreakdownSQL = residualBreakdownColumnsSQL + ",\n       " +
 	residualMessageAggregateSQL() + residualBreakdownScopeSQL
 
-// readinessDeferredFailureClasses are the failure classes a work item
-// self-assigns when a readiness gate defers it: it is waiting for an upstream
-// phase to commit, not failing on its own merits. The reducer exempts these from
-// the retry budget for that reason (nonCountingReducerRetryFailureClasses in
-// go/internal/storage/postgres/reducer_queue_readiness_sql.go).
-//
-// Listed here rather than imported to keep the gate free of a runtime reducer
-// dependency. This is also a control decision for pre-maintenance quiescence:
-// a missing readiness class is counted as live work and can block the gate
-// before the maintenance pass that would make the work runnable.
-var readinessDeferredFailureClasses = map[string]bool{
-	"aws_cloud_runtime_drift_state_pending":    true,
-	"aws_cloud_runtime_drift_write_superseded": true,
-	"secrets_iam_endpoint_not_ready":           true,
-	"kubernetes_correlation_nodes_not_ready":   true,
-	"gcp_relationship_nodes_not_ready":         true,
-	"ec2_instance_identity_nodes_not_ready":    true,
-	"cross_scope_producer_not_ready":           true,
-	// #5717: an ec2_instance_uses_ami edge waiting on the EC2 instance node
-	// phase. Without this entry the drain breakdown counts it as live work and
-	// reports "the pipeline just needed longer" for a queue that is actually
-	// blocked on a precondition.
-	"aws_relationship_ec2_instance_nodes_not_ready": true,
-	// #6184: fail-closed cross-repo and deployable-unit deferrals. Without
-	// these entries, work waiting on backward evidence or canonical repository
-	// projection looks live to the pre-maintenance quiescence decision.
-	"cross_repo_backward_evidence_not_ready":                true,
-	"deployable_unit_correlation_resolution_not_ready":      true,
-	"deployable_unit_correlation_canonical_nodes_not_ready": true,
-	"workload_materialization_resolution_not_ready":         true,
-	// #7258: service catalog correlation deferred on the same relationship
-	// corpus fence. Without this entry the deferral looks live to the
-	// pre-maintenance quiescence decision.
-	"service_catalog_correlation_resolution_not_ready": true,
-	// #6759: workload materialization waiting on the deploy Repository node
-	// that another scope's repo_dependency write has not committed yet.
-	"workload_materialization_deployment_source_target_not_ready": true,
-	// #7268: deployable_unit_correlation waiting on an edge-target Repository
-	// node another scope's materialization has not committed yet.
-	"shared_edge_target_not_ready": true,
-	// #6785: USES waiting on its WorkloadInstance endpoint, which itself can
-	// wait on the maintenance pass; CAN_PERFORM waiting on sibling-scope
-	// target nodes.
-	"workload_cloud_relationship_instances_not_ready": true,
-	"iam_can_perform_target_not_ready":                true,
-}
-
 // formatResidualBreakdown renders the residual rows as one line for the drain
 // timeout message.
 //
