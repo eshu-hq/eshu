@@ -152,7 +152,7 @@ source_coverage:
   - file: codequery/wrapper_bypass_read.go
     calls:
       - {symbol: "(*CodeHandler).runWrapperGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 7bdc047dd853a207ad7da8283b15ff3c51cb038564ddd6c3b006e4eb52ff57dc, key_bound: bounded_key_batch, max_keys: 50, max_results: 56250}} # 56250 = 50 keys x corpus CALLS degree 1125 (#6649); audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design)
-      - {symbol: "(*CodeHandler).runOutlierGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 6cac8cd759c59c021714a54da41200e071ace0528784fb6a3f4799f5f1b704b6, key_bound: bounded_key_batch, max_keys: 250, max_results: 281250, fan_out_multiplier: 1125}} # 281250 = 250 keys x corpus CALLS degree 1125 (#6649); dedicated outlier-fanout call site/batch, #7325, kept separate from runWrapperGraphRows's 50-key wrapper-bypass bound above
+      - {symbol: "(*CodeHandler).runOutlierGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 6cac8cd759c59c021714a54da41200e071ace0528784fb6a3f4799f5f1b704b6, key_bound: bounded_key_batch, max_keys: 250, max_results: 281250}} # 281250 = 250 keys x corpus CALLS degree 1125 (#6649); audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design); dedicated outlier-fanout call site/batch, #7325, kept separate from runWrapperGraphRows's 50-key wrapper-bypass bound above
   - file: codequery/relationships/nornicdb.go
     calls:
       - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 11fd7bcd3d51b1d101ae63f3cd2c07b611a5bd1e7791a9c278b64e6645b17164, key_bound: single_key, max_results: 501}}

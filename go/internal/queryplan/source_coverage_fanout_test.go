@@ -118,39 +118,21 @@ func TestValidateSourceCoverageAcceptsFanOutMultiplier(t *testing.T) {
 	}
 }
 
-// TestValidateSourceCoverageOutlierFanoutBatchDerivation seeds a violation
-// pinned to the exact registered values of the #7325 outlier CALLS-fanout
-// row (codequery/wrapper_bypass_read.go:(*CodeHandler).runOutlierGraphRows
-// in testdata/query-source-coverage.yaml): max_keys 250, fan_out_multiplier
-// 1125 (the #6649 corpus CALLS-degree floor), max_results derived as
-// 250 x 1125 = 281250. A max_results that drifts from that derivation --
-// the exact silent-drift risk the #7325 diagnosis flagged for this shared
-// low-level runner symbol -- is rejected (RED); the correct derived value
-// passes (GREEN).
-func TestValidateSourceCoverageOutlierFanoutBatchDerivation(t *testing.T) {
-	digest := strings.Repeat("b", 64)
-	base := NonHotDisposition{
-		Class:            NonHotClassKeyedSupport,
-		SourceDigest:     digest,
-		KeyBound:         NonHotKeyBoundBatch,
-		MaxKeys:          250,
-		FanOutMultiplier: 1125,
-	}
-
-	drifted := base
-	drifted.MaxResults = 281249 // one under the derived 250 x 1125
-	got := validateNonHotDisposition("codequery/wrapper_bypass_read.go:(*CodeHandler).runOutlierGraphRows", drifted)
-	want := "bounded_key_batch requires max_results == max_keys x fan_out_multiplier (250 x 1125 = 281250, got 281249); max_results is derived, not picked"
-	if !containsSubstring(got, want) {
-		t.Fatalf("drifted max_results: validateNonHotDisposition() = %v, want %q", got, want)
-	}
-
-	correct := base
-	correct.MaxResults = 281250
-	if got := validateNonHotDisposition("codequery/wrapper_bypass_read.go:(*CodeHandler).runOutlierGraphRows", correct); len(got) != 0 {
-		t.Fatalf("correct max_results: validateNonHotDisposition() = %v, want no violations", got)
-	}
-}
+// #7325's outlier CALLS-fanout row (runOutlierGraphRows) carries a literal
+// max_results (281250 = 250 keys x the #6649 corpus CALLS-degree floor
+// 1125), not a fan_out_multiplier: nothing in code enforces that every key
+// produces exactly 1125 rows -- 1125 is a measured corpus maximum, not a
+// code-enforced per-key count (see FanOutMultiplier's doc comment in
+// source_coverage.go, which requires a named enforcer -- a uniqueness
+// constraint, writer guard, or schema-fixed label list -- before the field
+// applies). The only validator rule that covers a plain keyed_support
+// literal max_results is "requires max_results" (must be > 0,
+// TestValidateSourceCoverageRejectsIncompleteTypedEvidence), which is
+// already covered generically there and is not specific to this row's
+// value; no rule checks a literal max_results against its derivation
+// comment. A seeded RED/GREEN pinned to the 250 x 1125 = 281250 arithmetic
+// was removed for that reason rather than kept against a rule that does not
+// actually apply to this row.
 
 func containsSubstring(values []string, want string) bool {
 	for _, value := range values {
