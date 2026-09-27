@@ -91,10 +91,14 @@ func TestFailingLinkIsPoisonedAfterMaxAttempts(t *testing.T) {
 			t.Fatalf("attempt %d: RecordFailure = %+v, %v", attempt, record, err)
 		}
 		if attempt < maxAttempts {
-			if record.Poisoned || !record.NextAttemptAt.Equal(clock.Add(linksfreshnessstore.Backoff(attempt))) ||
-				!record.NextAttemptAt.After(lastNext) {
-				t.Fatalf("attempt %d: record %+v, want backoff %s after %s", attempt, record,
-					linksfreshnessstore.Backoff(attempt), lastNext)
+			// Literal ruling 8.10 backoff, not Backoff() as its own oracle.
+			want := []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute}[attempt-1]
+			if record.Poisoned || !record.NextAttemptAt.Equal(clock.Add(want)) || !record.NextAttemptAt.After(lastNext) {
+				t.Fatalf("attempt %d: record %+v, want next_attempt_at %s after the failure", attempt, record, want)
+			}
+			stored := l.attempts(t, scope)
+			if stored.nextAttemptAt == nil || !stored.nextAttemptAt.Equal(clock.Add(want)) || stored.attemptCount != attempt {
+				t.Fatalf("attempt %d: cursor %+v, want attempt_count %d and next_attempt_at +%s", attempt, stored, attempt, want)
 			}
 			if attempt == 1 {
 				if res, err := w.LinkNext(l.ctx, scope); err != nil || !res.Deferred {
@@ -164,5 +168,66 @@ func TestRecordFailureSkipsAHeldCursor(t *testing.T) {
 	_ = holder.Rollback()
 	if c := l.attempts(t, "held-count"); c.attemptCount != 0 {
 		t.Fatalf("attempt_count = %d, want 0", c.attemptCount)
+	}
+}
+
+// TestStaleFailureDoesNotCountAgainstANewerHead is review F3 (ruling 8.10
+// item 4): a failure reported for an activation that another writer has since
+// linked must not be counted against the scope's new head.
+func TestStaleFailureDoesNotCountAgainstANewerHead(t *testing.T) {
+	l := openLedgerDB(t)
+	w := linksfreshnessstore.NewLinkWriter(l.store)
+	staleSeq := l.seedPoisonScope(t, w, "stale")
+	// Another writer links the activation the stale failure is about.
+	if res := mustLink(t, w, l, "stale"); res.ActivationSeq != staleSeq || res.Kind != linksfreshnessstore.LinkKindIncremental {
+		t.Fatalf("link of the stale activation = %+v", res)
+	}
+	// A healthy newer activation is now the head.
+	l.seedGeneration(t, "stale", "stale-g2", false, "superseded", fixtureEpoch.Add(2*time.Hour), time.Time{})
+	l.insertFacts(t, "stale", "stale-g2", baseFacts())
+	l.journal(t, "stale", "stale-g2", "stale-g1")
+
+	record, err := w.RecordFailure(l.ctx, &linksfreshnessstore.FailureError{
+		Class: linksfreshnessstore.FailureStatementTimeout, ScopeID: "stale", ActivationSeq: staleSeq, Err: errors.New("late"),
+	}, 1)
+	if err != nil || record.Counted || record.Poisoned {
+		t.Fatalf("RecordFailure for a linked activation = %+v, %v; want not counted", record, err)
+	}
+	c := l.attempts(t, "stale")
+	if c.attemptCount != 0 || c.attemptSeq != 0 || c.nextAttemptAt != nil || c.poisonedSeq != 0 || c.lastFailureClass != nil {
+		t.Fatalf("stale failure wrote attempt state against the new head: %+v", c)
+	}
+	if res := mustLink(t, w, l, "stale"); res.GenerationID != "stale-g2" || res.Kind != linksfreshnessstore.LinkKindIncremental {
+		t.Fatalf("new head after the stale failure = %+v, want it linked at once", res)
+	}
+}
+
+// TestDigestVersionChangeReRootsTheScope is review F5 (ruling 2.4): a cursor
+// built under another digest_version has no usable state, so the next full
+// generation links as root, the old state rows are deleted, and the cursor
+// takes the current version.
+func TestDigestVersionChangeReRootsTheScope(t *testing.T) {
+	l := openLedgerDB(t)
+	w := linksfreshnessstore.NewLinkWriter(l.store)
+	l.seedPoisonScope(t, w, "digest")
+	l.exec(t, `UPDATE changed_since_scope_cursor SET digest_version = $1 WHERE scope_id = 'digest'`,
+		linksfreshnessstore.DigestVersion-1)
+	l.exec(t, `INSERT INTO changed_since_key_state (scope_id, fact_category, stable_fact_key, fact_kind, state)
+VALUES ('digest', 'facts', 'old-digest-only-key', 'repository', sha256('old'::bytea))`)
+
+	res := mustLink(t, w, l, "digest")
+	if res.Kind != linksfreshnessstore.LinkKindRoot || res.PriorGenerationID != "" || res.GenerationID != "digest-g1" {
+		t.Fatalf("link after a digest_version change = %+v, want a root of digest-g1", res)
+	}
+	if n := l.queryInt(t, `SELECT count(*) FROM changed_since_key_state WHERE stable_fact_key = 'old-digest-only-key'`); n != 0 {
+		t.Fatalf("the re-root kept %d state rows of the old digest", n)
+	}
+	got, n := l.stateDigest(t, "digest")
+	want, wantN := l.aggregateDigest(t, "digest", "digest-g1")
+	if got != want || n != wantN {
+		t.Fatalf("state after the re-root differs from the aggregate of digest-g1")
+	}
+	if v := l.queryInt(t, `SELECT digest_version FROM changed_since_scope_cursor WHERE scope_id = 'digest'`); v != linksfreshnessstore.DigestVersion {
+		t.Fatalf("cursor digest_version = %d, want %d", v, linksfreshnessstore.DigestVersion)
 	}
 }
