@@ -133,13 +133,18 @@ says exactly which slots run where.
 
 ## Why "Ifá"
 
-The name follows the repository's Yoruba naming convention. In Ifá divination,
-an *Odù* is one of the sacred verses a diviner reads to answer a question —
-the unit the whole system is built from. Naming the conformance platform after
-Ifá rather than after the diviner (Orunmila, who reads the Odù) keeps the
-naming lore-correct: the Odù are the units, and the platform is the system
-that holds them. Orunmila is deliberately reserved — if the verdict-rendering
-report ever becomes its own named component, that is the name it gets.
+The name follows the repository's Yoruba naming convention: the product is
+named for Èṣù, the orisha of crossroads and messages. Ifá is the Yoruba
+divination system, recognized by UNESCO as Intangible Cultural Heritage. Its
+literary corpus, the *Odù*, has 256 parts, and each Odù holds many verses,
+called *ẹsẹ*. An Ifá priest, the *babaláwo*, reads them.
+([UNESCO: Ifa divination system](https://ich.unesco.org/en/RL/ifa-divination-system-00146).)
+"Ifá" is also a name of Ọ̀rúnmìlà, the deity of wisdom.
+
+The platform is named Ifá because it is the system that holds the cases. Each
+case is an Odù because, like an Odù holding many verses, one case bundles many
+expectations derived from its inputs. The name refers to the divination system,
+not to Ọ̀rúnmìlà, and no component is named after him.
 
 ## Where to go next
 
