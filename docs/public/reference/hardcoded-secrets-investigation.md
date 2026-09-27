@@ -35,7 +35,7 @@ any known shape is dropped (it is not returned with an empty kind).
 ## How findings are stored and read
 
 Findings are derived once, when a file is written, not on every request.
-Migration `134` adds the `content_file_secret_lines` table: one row per finding
+Migration `137` adds the `content_file_secret_lines` table: one row per finding
 line, keyed `(repo_id, relative_path, line_number)` with the file's language,
 the `finding_kind`, the raw line text, and a stored `suppressed` flag. Postgres
 statement-level triggers on `content_files` keep it in step with every insert,

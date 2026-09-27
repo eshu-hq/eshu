@@ -34,7 +34,7 @@ flowchart LR
 ## Exported surface
 
 - `DeferredSessionSQL`, `SessionSetting` - the per-session setting migration
-  134's triggers test in their `WHEN` clause
+  137's triggers test in their `WHEN` clause
 - `BeginDeferral` - opens an epoch and takes readiness away before the first
   deferred write
 - `Finalize`, `Options`, `Result`, `Database` - the repository-partitioned,
