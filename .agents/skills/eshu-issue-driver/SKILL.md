@@ -47,6 +47,12 @@ commit. Re-verify a subagent's findings yourself before acting on them, and
 before passing them to an executor as verified; a finding is what the subagent
 believes, not what you have confirmed.
 
+Stop a leaf agent once its handoff is consumed. Keep a reviewer alive only
+while its PR is open, because its retained context makes re-review rounds
+cheaper, and stop it when the PR merges or closes. Close idle executors and
+arbiters immediately; a pane left open reads as live work and invites a
+liveness misjudgement.
+
 ## Implement And Promote Each PR
 
 1. Implement and commit the authorized change with focused verification from
@@ -80,6 +86,9 @@ believes, not what you have confirmed.
    Matching inputs reuse the preliminary semantic review. A changed base,
    commit, tree, worktree, submodule, PR claim, review packet, or verdict
    requires affected proof and a new full review/receipt before promotion.
+   The one exception is the scoped base-only re-review that `eshu-code-review`
+   defines (conflict-free rebase, unchanged cumulative patch-id, no file
+   overlap).
    On preflight failure, diagnose and fix it, rerun affected proof, and obtain
    a clean preliminary review before another attempt. Deferred P2 and cosmetic
    P3 findings do not restart this loop. Once pushed, CI's
@@ -103,6 +112,13 @@ believes, not what you have confirmed.
    remains valid, and independent review requirements are met. Confirm local
    HEAD equals the PR head, execute the merge, and verify `MERGED` through the
    GitHub API. Existing session authorization applies without repeated consent.
+   Immediately before the arbiter review of an enqueue, run
+   `bash scripts/dev/pre-enqueue-check.sh <pr> <reviewed-head-sha>` and hand
+   its output to the arbiter. The script checks merge-tree against the merge
+   queue's tip as well as against `origin/main`. A clean merge-tree against
+   main can still conflict in the merge group: #7298 collided with #7295, which
+   was already queued, on a generated `ci-gates.md` row. The script is one
+   read, so it does not replace the two stable CI reads.
 
 For long-running `/goal` drives, load [sustained-drives.md](references/sustained-drives.md)
 for goal composition and bounded waiter/liveness mechanics. The skill does not

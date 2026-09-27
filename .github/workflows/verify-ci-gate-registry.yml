@@ -51,6 +51,7 @@ jobs:
           scripts/test-verify-live-required-status-checks.sh
           scripts/test-resolve-required-gates-pr.sh
           scripts/test-main-health.sh
+          scripts/dev/test-pre-enqueue-check.sh
           (cd go && go test ./internal/cigates -count=1)
 
   verify:

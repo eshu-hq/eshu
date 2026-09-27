@@ -24,17 +24,17 @@ if [ -z "$repo_root" ]; then
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-# Case-insensitive ERE of real AI-attribution markers. Deliberately specific so
-# it matches AI attribution, not prose naming the rule and NOT a normal human
-# Co-authored-by trailer: a Co-authored-by line is flagged only when it names an
-# AI tool (or the Anthropic address). Plus "generated with/by <AI tool>", the
-# Claude Code robot-emoji footer, and the Anthropic noreply address anywhere.
-pattern='co-authored-by:.*(claude|copilot|chatgpt|gpt-|cursor|gemini|codex|anthropic).*<|generated (with|by) (\[?claude|copilot|chatgpt|gpt-|cursor|gemini|codex)|🤖 generated with|noreply@anthropic\.com'
+# The pattern is shared with scripts/dev/pre-enqueue-check.sh; the lib records
+# what it matches and why it is deliberately specific.
+# shellcheck source=scripts/lib/ai-attribution-pattern.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/ai-attribution-pattern.sh"
+pattern="${AI_ATTRIBUTION_PATTERN}"
 
 # The gate's own implementation and docs necessarily contain these patterns.
 # Exclude them from content scans so the gate never flags itself.
 self_excludes=(
   ':(exclude)scripts/verify-no-ai-attribution.sh'
+  ':(exclude)scripts/lib/ai-attribution-pattern.sh'
   ':(exclude)scripts/test-verify-agent-hygiene.sh'
   ':(exclude)docs/public/reference/local-testing/pre-commit-hooks.md'
 )

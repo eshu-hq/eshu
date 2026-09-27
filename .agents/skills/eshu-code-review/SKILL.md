@@ -77,7 +77,22 @@ it themselves. After preflight, `ci-gates review-attest verify` replaces a
 second full semantic review only when the receipt matches. Any changed base,
 commit, tree, worktree, submodule, PR claim, review packet, or verdict
 invalidates it: repeat affected proof and full review, then capture a new
-receipt. Do not edit between verified attestation and push. This receipt
+receipt. One exception is a base-only change. After a rebase that needed no
+conflict resolution, compare the cumulative patch-id, which is one ID over
+the whole diff: `git diff <base>..HEAD | git patch-id --stable`. Compute it
+for the old base and head, and again for the new ones. Overlap is empty when
+`comm -12 <(git diff --name-only <new-base>..HEAD | sort -u) <(git diff
+--name-only <old-base>..<new-base> | sort -u)` prints nothing. If the patch-id
+is unchanged and that overlap is empty, a scoped re-review replaces the full
+one. The scoped re-review must still:
+- confirm the patch-id and the empty overlap itself;
+- check semantic interaction with the new base commits;
+- re-check the claims;
+- rerun affected proof;
+- capture a new receipt.
+
+A conflict, a changed patch-id, or any file overlap requires the full review.
+Do not edit between verified attestation and push. This receipt
 reuses semantic review; it does not waive independent review, current GitHub
 state, CI, or authorization. CI's `required-gates-complete` (with
 `go-core-complete` and `go-race-complete`) is the actual blocking authority
