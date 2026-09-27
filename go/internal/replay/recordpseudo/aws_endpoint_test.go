@@ -74,3 +74,29 @@ func TestRegionShapedCustomerLabelIsPseudonymized(t *testing.T) {
 	got := pseudonymOf(t, key, "dns_name", "db-main-1.c9akciq32.us-east-1.rds.amazonaws.com")
 	mustMatch(t, "region-shaped label", got, `^h[0-9a-f]{10}\.h[0-9a-f]{10}\.us-east-1\.rds\.amazonaws\.com$`)
 }
+
+// TestVerifyAdmitsBareRegionalEndpoints: a bare regional AWS service endpoint
+// (<service word>.<region>.amazonaws.com) is AWS-published whole -- record
+// mode keeps it verbatim -- so Verify admits it with an empty produced set.
+// A customer label in either position stays refused.
+func TestVerifyAdmitsBareRegionalEndpoints(t *testing.T) {
+	for _, host := range []string{
+		"sqs.us-east-1.amazonaws.com",
+		"sns.eu-west-1.amazonaws.com",
+		"s3.us-east-1.amazonaws.com",
+	} {
+		if err := recordpseudo.Verify([]byte(`{"a":"`+host+`"}`), recordpseudo.Set{}); err != nil {
+			t.Errorf("bare regional endpoint %q refused: %v", host, err)
+		}
+	}
+	for _, host := range []string{
+		"sqs.team-b.amazonaws.com",
+		"orders-api.us-east-1.amazonaws.com",
+		"myapp-123.us-east-1.elb.amazonaws.com",
+	} {
+		err := recordpseudo.Verify([]byte(`{"a":"`+host+`"}`), recordpseudo.Set{})
+		if err == nil || !strings.Contains(err.Error(), "alternative hostname") {
+			t.Errorf("customer label in regional-endpoint position passed Verify: %q: %v", host, err)
+		}
+	}
+}

@@ -65,6 +65,15 @@ var servicePrincipalRe = regexp.MustCompile(`^[a-z0-9-]+\.amazonaws\.com$`)
 // additionally admits it only when this run produced the whole host.
 var awsEndpointRe = regexp.MustCompile(`^(?:h[0-9a-f]{10}\.)+(?:(?:` + awsEndpointRegion + `|` + awsEndpointWords + `)\.)*[a-z0-9-]+\.amazonaws\.com$`)
 
+// awsRegionalEndpointRe is a bare regional AWS service endpoint
+// (<service word>.<region>.amazonaws.com) such as
+// sqs.us-east-1.amazonaws.com: AWS-published, so no customer can register
+// either label and the host carries no customer identity. Record mode keeps
+// it verbatim for the same reason, and Verify admits it unconditionally,
+// like a service principal; the h-pseudonym record-mode form above stays
+// membership-checked.
+var awsRegionalEndpointRe = regexp.MustCompile(`^(?:` + awsEndpointWords + `)\.(?:` + awsEndpointRegion + `)\.amazonaws\.com$`)
+
 // accountAllowed admits the AWS documentation account, the zero-prefixed
 // forms, repdigits, and the reserved pseudonym form only when this run minted
 // it.
@@ -94,7 +103,7 @@ func ipv6Allowed(token string) bool   { return ipv6AllowRe.MatchString(token) }
 // hostnameAllowed reports a documented host form. host is the lowercased
 // candidate and original the candidate as it appears in the cassette.
 func hostnameAllowed(host, original string, produced Set) bool {
-	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
+	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || awsRegionalEndpointRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
 		return true
 	}
 	if _, ok := publicHostsList[host]; ok {

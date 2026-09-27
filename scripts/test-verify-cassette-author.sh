@@ -175,6 +175,19 @@ printf 'GREEN service principal: exit %s\n' "${rc}"
 # label fails, including one wedged between an h-label and the AWS words.
 plant_red hostname 'myapp-123.us-east-1.elb.amazonaws.com' hostname-raw-elb
 plant_red hostname 'h0a1b2c3d4e.team-b.us-east-1.rds.amazonaws.com' hostname-raw-mid-label
+# A bare regional service endpoint (<service word>.<region>.amazonaws.com)
+# is AWS-published whole, so it passes; a customer label in either position
+# stays a finding.
+plant_red hostname 'sqs.team-b.amazonaws.com' hostname-word-then-customer
+plant_red hostname 'orders-api.us-east-1.amazonaws.com' hostname-customer-then-region
+regionaldir="${scratch}/aws-regional-endpoint"
+mkdir -p "${regionaldir}"
+printf '{"queue_url":"https://sqs.us-east-1.amazonaws.com/123456789012/orders-events","topic_host":"sns.eu-west-1.amazonaws.com","bucket_host":"s3.us-east-1.amazonaws.com"}\n' >"${regionaldir}/regional.json"
+rc=0
+run_scan "${regionaldir}" "${scratch}/aws-regional-endpoint.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a bare regional AWS service endpoint was flagged; output: $(cat "${scratch}/aws-regional-endpoint.out")"
+printf 'GREEN bare regional AWS service endpoint: exit %s\n' "${rc}"
 endpointdir="${scratch}/aws-endpoint"
 mkdir -p "${endpointdir}"
 printf '{"a":"h1f2e3d4c5b.us-east-1.elb.amazonaws.com","b":"h1f2e3d4c5b.elb.us-east-1.amazonaws.com","c":"h1f2e3d4c5b.h0a1b2c3d4e.us-east-1.rds.amazonaws.com","d":"h1f2e3d4c5b.apigateway.amazonaws.com","e":"h1f2e3d4c5b.h0a1b2c3d4e.h9e8d7c6b5a.cloudformation.amazonaws.com","f":"h1f2e3d4c5b.execute-api.us-east-1.amazonaws.com","g":"000017213864.dkr.ecr.us-east-1.amazonaws.com"}\n' >"${endpointdir}/endpoint.json"
@@ -303,7 +316,7 @@ mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''
 # it and the hand count of 34 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 33 sample(s), expected 34"
+	"negative control carries 34 sample(s), expected 35"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an
