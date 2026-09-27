@@ -12,7 +12,7 @@ instead of diffing two whole generations.
 The store is dark. Nothing reads the ledger yet, and the runner is off unless
 `ESHU_CHANGED_SINCE_LINK_ENABLED=true`.
 
-## Tables (migration 134)
+## Tables (migration 136)
 
 | Table | Holds |
 | --- | --- |

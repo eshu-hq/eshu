@@ -9,7 +9,7 @@ it while sampling the anonymous RSS of every Postgres backend in the
 container every 0.1 s. It writes the combined result to
 docs/internal/evidence/7127-link-writer-scale-results.json.
 
-Schema: migrations 001, 002, 003 (table and columns only) and 134 from the
+Schema: migrations 001, 002, 003 (table and columns only) and 136 from the
 repository, applied as shipped; after the load only the two fact_records
 indexes the link statement can use (fact_records_scope_generation_idx and
 fact_records_scope_generation_keyset_idx, copied from migrations 003 and 099)
@@ -92,7 +92,7 @@ def load(container):
     for name in ("001_ingestion_scopes.sql", "002_scope_generations.sql"):
         psql(container, open(os.path.join(MIGRATIONS, name)).read())
     psql(container, table_only(os.path.join(MIGRATIONS, "003_fact_records.sql")))
-    psql(container, open(os.path.join(MIGRATIONS, "134_changed_since_link_ledger.sql")).read())
+    psql(container, open(os.path.join(MIGRATIONS, "136_changed_since_link_ledger.sql")).read())
     started = time.time()
     psql(container, open(FIXTURE).read())
     loaded = time.time()

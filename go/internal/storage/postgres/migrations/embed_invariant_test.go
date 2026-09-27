@@ -36,14 +36,14 @@ import (
 // 132_content_entities_repo_path_start_idx.sql; #7242 added
 // 133_repository_entry_points_index.sql; #7033 adds the path GIN and
 // lifecycle validator as migrations 134-135.
-// #7127 adds 134_changed_since_link_ledger.sql.
-const goldenBootstrapDefinitionsDigest = "4b7533a9ddc79c480011bfff001676d279b8b584b78fa2113d8145ef00d6b6e0"
+// #7127 adds 136_changed_since_link_ledger.sql.
+const goldenBootstrapDefinitionsDigest = "01f3ee81f2398c6b745930387c727ab2fb656223f39b6e0828d9df7ccd9e86b0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 156
+const goldenBootstrapDefinitionsCount = 157
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

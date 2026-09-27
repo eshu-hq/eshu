@@ -322,6 +322,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// after the write-heavy content projection drain.
 	"content_files_relative_path_trgm_index",
 	"content_files_relative_path_trgm_index_lifecycle",
-	// Migration 134 (#7127) adds the changed-since link ledger tables, without foreign keys.
+	// Migration 136 (#7127) adds the changed-since link ledger tables, without foreign keys.
 	"changed_since_link_ledger",
 }

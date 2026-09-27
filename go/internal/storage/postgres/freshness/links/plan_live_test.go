@@ -17,7 +17,7 @@ import (
 // chainDeltaProbe is the ev access of the shim's chain read (chain_read_v3.sql):
 // the links on the path from $3 back to $2 and their delta rows. The PR-3c
 // read statement builds on this access; gate G4 pins its plan now, because
-// migration 134 freezes the primary key's column order.
+// migration 136 freezes the primary key's column order.
 //
 // ev is the LATERAL form of #7127 ruling 8.4. The plain join form of
 // chain_read_v3.sql fails this gate: with statistics taken at 13k rows and

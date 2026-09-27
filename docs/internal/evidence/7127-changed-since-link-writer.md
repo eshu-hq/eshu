@@ -1,6 +1,6 @@
 # 7127 PR-3a: the dark changed-since link writer
 
-PR-3a of #7127 adds the changed-since link ledger and its writer. Migration 134
+PR-3a of #7127 adds the changed-since link ledger and its writer. Migration 136
 creates six tables. The store `go/internal/storage/postgres/freshness/links`
 links one activation per transaction. The reducer domain
 `go/internal/reducer/freshness/links` journals activations and drives the
@@ -275,10 +275,8 @@ the host.
 
 ### After the rebase onto `810f40225e` and the review fixes
 
-The ledger migration is now 134 (`#7291` landed 133 on main). Open PRs #7305,
-#7206 and #7301 also add a migration numbered 134 (#7301 also adds a 133,
-which collides with main's); whoever lands after this renumbers and re-pins
-the golden digest, count and checksum.
+The ledger migration was then 134 (`#7291` landed 133 on main); it is now 136
+after #7305 landed 134 and 135 (see the next section's first bullet).
 
 | Command | rc |
 | --- | --- |
@@ -295,11 +293,11 @@ the golden digest, count and checksum.
 
 ## Notes for the PR body
 
-- Migration number: this PR ships `134_changed_since_link_ledger.sql`. It
-  was 133 until #7291 landed `133_repository_entry_points_index.sql` on main.
-  Open PRs #7305, #7206 and #7301 also claim 134 (#7301 also adds a 133,
-  which collides with main's); whoever lands after this renumbers and re-pins
-  the golden digest, count and checksum.
+- Migration number: this PR ships `136_changed_since_link_ledger.sql`. It
+  was 133 until #7291 landed 133 on main, then 134 until #7305 landed 134
+  and 135. Open PR #7301 adds 133-138 (136 included) and open PR #7206 adds
+  134; whoever lands after this renumbers and re-pins the golden digest,
+  count and checksum.
 - Naming: the store is `storage/postgres/freshness/links` and the domain
   `reducer/freshness/links`, because the dirgate ledger pins
   `storage/postgres` at 321 files and the naming-glue gate rejects
