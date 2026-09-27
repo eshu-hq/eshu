@@ -28,12 +28,28 @@ import (
 // projector upsert (so re-projection refreshes it) or switch the upsert to a
 // full-replace `SET r = {...}` proven on both backends.
 //
-// Limit: Cypher assembled with a `%s` label placeholder never binds a
-// literal `:Repository`, so it is invisible here, as it is to the ruling's
-// blast-radius scan.
+// This is a literal scan of single Go string literals, not proof that no other
+// Repository property writer exists. It binds a variable to Repository through
+// a node pattern `(r:Repository`, a label predicate `WHERE r:Repository`, and
+// `WITH r AS alias` chains, and flags `SET r.p = ...`, `SET r.p += ...`,
+// `SET r[$key] = ...`, `SET r = ...` and `SET r += ...` outside the owned set.
+// It does not see:
+//
+//   - Cypher split across a Go string concatenation (`"...(r:Repository) " +
+//     "SET r.p = 1"`): each literal is scanned alone;
+//   - a label that is not a literal, such as `fmt.Sprintf("(r:%s)", label)` or
+//     a `%s` label placeholder filled from a constant;
+//   - a write through a procedure (`CALL apoc.create.setProperty(r, ...)`) or a
+//     Repository reached with no label at all (`MATCH (n {id: $repo_id})`);
+//   - Cypher in _test.go files, testdata, or outside go/internal and go/cmd.
+//
+// The live half, TestLiveRepositoryRetryRefreshesProjectorProperties, pins the
+// current property map against a fresh projection on a real backend.
 
 var (
-	repositoryBindingPattern = regexp.MustCompile(`\((\w+):Repository\b`)
+	// repositoryBindingPattern binds a variable to the Repository label in a
+	// node pattern `(r:Repository` and in a label predicate `WHERE r:Repository`.
+	repositoryBindingPattern = regexp.MustCompile(`\b(\w+):Repository\b`)
 	cypherSetClausePattern   = regexp.MustCompile(`(?i)\bSET\b`)
 	cypherClauseEndPattern   = regexp.MustCompile(`(?i)\b(MERGE|MATCH|WITH|RETURN|CREATE|DELETE|DETACH|UNWIND|OPTIONAL|FOREACH|CALL|REMOVE|ON|SET|WHERE|UNION|LIMIT|ORDER)\b`)
 	upsertOwnedPropertyRegex = regexp.MustCompile(`\br\.(\w+)\s*=`)
@@ -54,15 +70,40 @@ func repositoryOwnedProperties(t *testing.T) map[string]bool {
 	return owned
 }
 
+// repositoryBindings returns every variable cypherText binds to a Repository
+// node, directly or through a `WITH v AS alias` chain, in first-seen order.
+func repositoryBindings(cypherText string) []string {
+	seen := map[string]bool{}
+	var bindings []string
+	add := func(variable string) {
+		if !seen[variable] {
+			seen[variable] = true
+			bindings = append(bindings, variable)
+		}
+	}
+	for _, binding := range repositoryBindingPattern.FindAllStringSubmatch(cypherText, -1) {
+		add(binding[1])
+	}
+	for i := 0; i < len(bindings); i++ {
+		alias := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(bindings[i]) + `\s+AS\s+(\w+)\b`)
+		for _, match := range alias.FindAllStringSubmatch(cypherText, -1) {
+			add(match[1])
+		}
+	}
+	return bindings
+}
+
 // repositoryPropertyViolations returns every SET on a Repository-bound
-// variable in cypherText that writes a property outside owned or assigns the
-// whole map (`SET v = ...` / `SET v += ...`).
+// variable in cypherText that writes a property outside owned (`SET v.p = ...`
+// or `SET v.p += ...`), writes a dynamic property (`SET v[$key] = ...`), or
+// assigns the whole map (`SET v = ...` / `SET v += ...`).
 func repositoryPropertyViolations(cypherText string, owned map[string]bool) []string {
 	var violations []string
-	for _, binding := range repositoryBindingPattern.FindAllStringSubmatch(cypherText, -1) {
-		variable := regexp.QuoteMeta(binding[1])
-		propertyWrite := regexp.MustCompile(`\b` + variable + `\.(\w+)\s*=[^=~]`)
+	for _, binding := range repositoryBindings(cypherText) {
+		variable := regexp.QuoteMeta(binding)
+		propertyWrite := regexp.MustCompile(`\b` + variable + `\.(\w+)\s*\+?=[^=~]`)
 		mapWrite := regexp.MustCompile(`\b` + variable + `\s*\+?=[^=~]`)
+		dynamicWrite := regexp.MustCompile(`\b` + variable + `\s*\[`)
 		for _, set := range cypherSetClausePattern.FindAllStringIndex(cypherText, -1) {
 			segment := cypherText[set[1]:]
 			if end := cypherClauseEndPattern.FindStringIndex(segment); end != nil {
@@ -71,11 +112,14 @@ func repositoryPropertyViolations(cypherText string, owned map[string]bool) []st
 			segment += " "
 			for _, write := range propertyWrite.FindAllStringSubmatch(segment, -1) {
 				if !owned[write[1]] {
-					violations = append(violations, binding[1]+"."+write[1])
+					violations = append(violations, binding+"."+write[1])
 				}
 			}
 			if mapWrite.MatchString(segment) {
-				violations = append(violations, binding[1]+" (whole property map)")
+				violations = append(violations, binding+" (whole property map)")
+			}
+			if dynamicWrite.MatchString(segment) {
+				violations = append(violations, binding+"[dynamic property]")
 			}
 		}
 	}
@@ -163,6 +207,14 @@ func TestRepositoryPropertyViolationsDetectsSeededWriters(t *testing.T) {
 		{"reducer stub", "MERGE (target_repo:Repository {id: row.target_repo_id})\nON CREATE SET target_repo.evidence_source = $evidence_source, target_repo.generation_id = $generation_id", nil},
 		{"where equality", "MATCH (r:Repository) WHERE r.id = $id AND r.legacy = $x RETURN r", nil},
 		{"relationship set", "MATCH (r:Repository {id: $id})-[rel:DEFINES]->(w) SET rel.confidence = 1.0, w.name = $n", nil},
+		// #7285 review F3: evasions the first version of the scan missed.
+		{"property increment", "MATCH (r:Repository {id: $id}) SET r.sync_count += 1", []string{"r.sync_count"}},
+		{"aliased binding", "MATCH (r:Repository {id: $id}) WITH r AS repo SET repo.legacy_flag = true", []string{"repo.legacy_flag"}},
+		{"chained alias", "MATCH (r:Repository {id: $id}) WITH r AS a WITH a AS b SET b += $props", []string{"b (whole property map)"}},
+		{"label predicate", "MATCH (r {id: $id}) WHERE r:Repository SET r.legacy_flag = true", []string{"r.legacy_flag"}},
+		{"dynamic property", "MATCH (r:Repository {id: $id}) SET r[$key] = $value", []string{"r[dynamic property]"}},
+		{"aliased owned property", "MATCH (r:Repository {id: $id}) WITH r AS repo SET repo.name = $name", nil},
+		{"alias of another label", "MATCH (r:Repository {id: $id})-[:DEFINES]->(w) WITH w AS workload SET workload.flag = true", nil},
 	}
 	for _, tc := range cases {
 		got := repositoryPropertyViolations(tc.text, owned)
