@@ -1,0 +1,38 @@
+{
+ "events": [
+  {
+   "digests": {
+    "buckets": "ac59d427c2453d95d971588a394ee94633cf854db16c332b73e5c8cb9fa1a071",
+    "deltas": "998d22057927230bc70811e20d5e1d5f489777e52c88de59eaff664863cac1f3",
+    "links": "39d0377d4d373feea983ac2f6f9f97a0ac498420d1ff0b875337abbc952cce6b",
+    "state": "fec55343bb74729904ef2ecaf7cb52b687614bb5a0d308677f2cce69cbd140c7"
+   },
+   "event": "p3_run",
+   "seconds": 4.862595833,
+   "statement": "prefix",
+   "unix": 1790492250.958621
+  },
+  {
+   "digests": {
+    "buckets": "ac59d427c2453d95d971588a394ee94633cf854db16c332b73e5c8cb9fa1a071",
+    "deltas": "998d22057927230bc70811e20d5e1d5f489777e52c88de59eaff664863cac1f3",
+    "links": "39d0377d4d373feea983ac2f6f9f97a0ac498420d1ff0b875337abbc952cce6b",
+    "state": "fec55343bb74729904ef2ecaf7cb52b687614bb5a0d308677f2cce69cbd140c7"
+   },
+   "event": "p3_run",
+   "seconds": 4.907511125,
+   "statement": "current",
+   "unix": 1790492257.5059168
+  },
+  {
+   "equal": true,
+   "event": "p3_done",
+   "unix": 1790492257.505936
+  }
+ ],
+ "fixture": {
+  "index_seconds": 53.1,
+  "load_seconds": 270.3
+ },
+ "go_test_rc": 0
+}

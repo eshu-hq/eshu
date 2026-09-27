@@ -80,6 +80,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionRead,
 	MetricDimensionGauge,
 	MetricDimensionProperty,
+	MetricDimensionLinkKind,
 }
 
 var spanNames = []string{
@@ -185,6 +186,7 @@ var spanNames = []string{
 	SpanPostgresQuery,
 	SpanNeo4jExecute,
 	SpanReducerInfraInventoryReconcile,
+	SpanReducerChangedSinceLink,
 }
 
 var logKeys = []string{

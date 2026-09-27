@@ -48,6 +48,19 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
 | `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
 | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
+| `eshu_dp_changed_since_links_total` | counter | Changed-since link attempts (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, break, failed, poisoned, canceled; `canceled` is a link cut short by reducer shutdown, not counted as a failure). |
+| `eshu_dp_changed_since_link_retries_total` | counter | Non-counting changed-since link misses by `reason` (cursor_locked, generation_locked, slot_busy); nothing written, the cursor did not move. |
+| `eshu_dp_changed_since_link_failures_total` | counter | Counting changed-since link failures by `failure_class` (statement_timeout, connection_lost, sql_error, internal); each is recorded on the scope cursor with backoff. |
+| `eshu_dp_changed_since_chain_breaks_total` | counter | Activations advanced without a link by `reason` (pruned_before_link, delta_without_root, prior_mismatch, overlay_unproven, link_poisoned); the state is kept. |
+| `eshu_dp_changed_since_link_retrying_scopes` | gauge | Scopes with a counted failure pending on their head activation, computed in SQL (fleet-wide). |
+| `eshu_dp_changed_since_link_poisoned_scopes` | gauge | Scopes carrying the link_poisoned marker until their next full link, computed in SQL. |
+| `eshu_dp_changed_since_link_duration_seconds` | histogram | Committed root or incremental link duration by `link_kind`. |
+| `eshu_dp_changed_since_link_delta_rows` | histogram | Link delta rows one link wrote, by `link_kind`. |
+| `eshu_dp_changed_since_link_keys` | histogram | Effective keys of the generation a link reached, by `link_kind`. |
+| `eshu_dp_changed_since_link_backlog` | gauge | Activation rows above their scope cursor. |
+| `eshu_dp_changed_since_link_lag_seconds` | gauge | Age of the oldest activation above its scope cursor. |
+| `eshu_dp_changed_since_state_bytes` | gauge | Total size of `changed_since_key_state`. |
+| `eshu_dp_changed_since_state_rows` | gauge | Planner row estimate of `changed_since_key_state`. |
 
 Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event

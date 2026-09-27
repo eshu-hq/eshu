@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	freshnesslinks "github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -105,6 +106,12 @@ type Service struct {
 	// GenerationRetentionRunner prunes superseded source-generation history in
 	// bounded transactions. Nil disables automated cleanup.
 	GenerationRetentionRunner *maintenance.GenerationRetentionRunner
+
+	// ChangedSinceLinkRunner is the changed_since_link domain (#7127): it
+	// journals generation activations and links each one into the
+	// changed-since ledger. Nil (ESHU_CHANGED_SINCE_LINK_ENABLED unset or
+	// false, the default) disables it and it issues no SQL.
+	ChangedSinceLinkRunner *freshnesslinks.Runner
 
 	// InfraInventoryReconcileRunner re-derives infra read model repositories
 	// whose rows drifted from content_entities (#6793). Nil disables it.

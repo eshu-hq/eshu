@@ -1,0 +1,76 @@
+{
+ "events": [
+  {
+   "event": "p8c_link",
+   "plan": {
+    "class_failures": [
+     "(a) del reads the state table by Index Scan, want Tid Scan"
+    ],
+    "state_rows": 1235834
+   },
+   "scope": "git-repository-scope:repository:r_t1",
+   "seconds": 6.421434084,
+   "statement": "prefix",
+   "timed_out": false,
+   "unix": 1790492499.322895,
+   "window": 0
+  },
+  {
+   "event": "p8c_link",
+   "plan": {
+    "class_failures": [
+     "(a) del reads the state table by Index Scan, want Tid Scan",
+     "(b) Nested Loop (Inner) with inner CTE Scan diff"
+    ],
+    "state_rows": 1
+   },
+   "scope": "git-repository-scope:repository:r_t2",
+   "seconds": 120.009225708,
+   "statement": "prefix",
+   "timed_out": true,
+   "unix": 1790492499.3229818,
+   "window": 0
+  },
+  {
+   "event": "p8c_link",
+   "plan": {
+    "class_failures": [
+     "(a) del reads the state table by Index Scan, want Tid Scan",
+     "(b) Nested Loop (Inner) with inner CTE Scan diff"
+    ],
+    "state_rows": 1
+   },
+   "scope": "git-repository-scope:repository:r_t3",
+   "seconds": 120.006228041,
+   "statement": "prefix",
+   "timed_out": true,
+   "unix": 1790492499.322988,
+   "window": 0
+  },
+  {
+   "event": "p8c_link",
+   "plan": {
+    "class_failures": [
+     "(a) del reads the state table by Index Scan, want Tid Scan",
+     "(b) Nested Loop (Inner) with inner CTE Scan diff"
+    ],
+    "state_rows": 1
+   },
+   "scope": "git-repository-scope:repository:r_t4",
+   "seconds": 120.006306875,
+   "statement": "prefix",
+   "timed_out": true,
+   "unix": 1790492499.322992,
+   "window": 0
+  },
+  {
+   "event": "p8c_done",
+   "links_estimated_at_one_row": 3,
+   "statement": "prefix",
+   "timeouts": 3,
+   "unix": 1790492499.322995
+  }
+ ],
+ "fixture": null,
+ "go_test_rc": 0
+}

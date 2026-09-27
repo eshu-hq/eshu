@@ -76,6 +76,39 @@ but active repository is not treated as an orphan. Each cleanup cycle first
 claims a single Postgres partition lease, so scaled reducer deployments do not
 run duplicate label-wide graph mutations at the same time.
 
+### Changed-since link domain (dark)
+
+The `changed_since_link` domain (#7127) keeps a changed-since ledger (migration
+136). Each generation activation becomes a link: the keys that changed since
+the scope's last linked generation. A later release answers `get_changed_since`
+from these links. Until then nothing reads the ledger. The domain is off by
+default. With `ESHU_CHANGED_SINCE_LINK_ENABLED` unset or `false` it builds no
+runner and issues no SQL. Do not enable it before generation retention cleans
+the ledger tables.
+
+A cycle does four things:
+- It journals active generations that have no activation row.
+- It backfills retained chains for scopes that have no journal rows.
+- It links each scope's backlog, with at most
+  `ESHU_CHANGED_SINCE_LINK_WORKERS` scopes at once.
+- It deletes the ledger rows of deleted scopes.
+
+A link transaction takes its scope's cursor row, then its generation row, then
+for a full link one of `ESHU_CHANGED_SINCE_LINK_SLOTS` database-wide advisory
+slots. It never waits: a miss rolls back and is retried on the next cycle. A
+full link reads the activating generation once at `work_mem` 256MB (backend
+memory up to about 1 GiB) under `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT`.
+
+A delta generation is recorded as a chain break and the scope keeps its
+state. The overlay link for delta generations is not shipped.
+
+A lock miss never counts. A failure once the link statement ran
+(`statement_timeout`, `connection_lost`, `sql_error`, `internal`) is counted on
+the scope's cursor and retried after min(30 min, 30 s × 2^(n-1)). At
+`ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` (default 5) the activation becomes a
+`link_poisoned` chain break: the scope keeps its state, is marked poisoned, and
+links again at its next full generation.
+
 ## Domains And Projection
 
 The default runtime processes workload identity, deployable-unit correlation,
@@ -207,6 +240,13 @@ Important env vars:
 - `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
 - `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
 - `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
+- `ESHU_CHANGED_SINCE_LINK_ENABLED` (default `false`; dark domain, see
+  above), `ESHU_CHANGED_SINCE_LINK_SLOTS` (default `2`),
+  `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT` (default `120s`),
+  `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default `5s`),
+  `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` (default `5`),
+  `ESHU_CHANGED_SINCE_LINK_WORKERS` (default `4`),
+  `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE` (default `10`)
 - `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop is also
   the only thing that repairs rolling-upgrade fence marks; with it off, one
   write from an older binary or manual SQL keeps unscoped infra aggregate reads
@@ -268,6 +308,13 @@ Start with:
 - infra read model reconcile: `eshu_dp_infra_inventory_reconcile_total{outcome}`,
   `eshu_dp_infra_inventory_reconcile_duration_seconds`, span
   `reducer.infra_inventory_reconcile`
+- changed-since link domain (dark): `eshu_dp_changed_since_links_total{link_kind,outcome}`,
+  `eshu_dp_changed_since_link_retries_total{reason}`,
+  `eshu_dp_changed_since_link_failures_total{failure_class}`,
+  `eshu_dp_changed_since_chain_breaks_total{reason}`,
+  `eshu_dp_changed_since_link_retrying_scopes`, `eshu_dp_changed_since_link_poisoned_scopes`,
+  `eshu_dp_changed_since_link_backlog`, `eshu_dp_changed_since_link_lag_seconds`,
+  span `reducer.changed_since_link`
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - graph-backed gauge snapshot health: `eshu_dp_gauge_snapshot_refreshes_total`,
   `eshu_dp_gauge_snapshot_refresh_duration_seconds`,

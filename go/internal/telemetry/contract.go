@@ -82,6 +82,9 @@ const (
 	MetricDimensionReason   = "reason"
 	MetricDimensionKind     = "kind"
 	MetricDimensionAction   = "action"
+	// MetricDimensionLinkKind labels changed-since link metrics with the
+	// closed link kind (root, incremental, none).
+	MetricDimensionLinkKind = "link_kind"
 	// MetricDimensionMCPMethod labels eshu_dp_mcp_transport_auth_denied_total
 	// with the bounded JSON-RPC method a denied MCP transport request named
 	// (initialize, tools/list, tools/call, ping, notifications/initialized,
@@ -309,6 +312,9 @@ const (
 	SpanReducerIntentEnqueue = "reducer_intent.enqueue"
 	SpanReducerRun           = "reducer.run"
 	SpanReducerBatchClaim    = "reducer.batch_claim"
+	// SpanReducerChangedSinceLink wraps one changed-since link transaction
+	// (#7127 PR-3a): one activation of one scope linked, broken or retried.
+	SpanReducerChangedSinceLink = "reducer.changed_since_link"
 	// SpanReducerEshuSearchIndexWrite wraps the reducer-owned persisted search
 	// index write path for curated EshuSearchDocument projection. It covers
 	// document/term retire, document/term upsert, and stats refresh work so a
