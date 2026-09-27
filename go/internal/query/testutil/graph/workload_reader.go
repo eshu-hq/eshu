@@ -112,11 +112,14 @@ type OCIBoundedStatementFixture struct {
 // registry-truth statements (ociTagObservationByRefCypher,
 // ociImageByDigestCypher). It answers from the OCIBoundedStatementFixture
 // whose CypherContains matches, sorted ascending by KeyField and sliced to
-// $row_limit -- the same shape advanceOCIBoundedRead expects from the real
+// $row_limit -- the same shape oci.AdvanceBoundedRead expects from the real
 // backend. It fails the test if $row_limit is absent from params, or is not
-// an int, or no fixture matches: every OCI registry-truth statement carries
-// LIMIT $row_limit (#6590), and a silent zero-row answer would hide that
-// regression rather than fail the test that depends on it.
+// an int: every OCI registry-truth statement carries LIMIT $row_limit
+// (#6590), and a silent zero-row answer would hide that regression rather
+// than fail the test that depends on it. A statement with no matching
+// fixture answers zero rows by design (e.g. tests that omit the
+// ContainerImageDescriptor fixture); add an explicit empty fixture if a
+// test must fail on an unexpected statement.
 type OCIBoundedFakeReader struct {
 	T          *testing.T
 	Statements []OCIBoundedStatementFixture
