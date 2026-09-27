@@ -43,6 +43,22 @@ func TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive(t *test
 	candidateResult := searchBM25PartitionProof(t, ctx, candidateConn, search)
 	assertBM25PartitionProofEquivalent(t, controlResult, candidateResult)
 
+	filteredSearch := search
+	filteredSearch.Anchor = searchretrieval.Anchor{Kind: searchretrieval.ScopeKindService, ID: "svc-payments"}
+	filteredSearch.SourceKinds = []searchdocs.SourceKind{searchdocs.SourceKindRuntimeSummary}
+	filteredSearch.Limit = 2
+	filteredControl := searchBM25PartitionProof(t, ctx, controlConn, filteredSearch)
+	filteredCandidate := searchBM25PartitionProof(t, ctx, candidateConn, filteredSearch)
+	assertBM25PartitionProofEquivalent(t, filteredControl, filteredCandidate)
+	if got := len(filteredCandidate.Candidates); got != 2 {
+		t.Fatalf("filtered candidate count = %d, want 2", got)
+	}
+
+	filteredSearch.Languages = []string{"missing-language"}
+	if got := len(searchBM25PartitionProof(t, ctx, candidateConn, filteredSearch).Candidates); got != 0 {
+		t.Fatalf("missing-language candidate count = %d, want 0", got)
+	}
+
 	terms, termKeys := indexstore.SortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
 	query, args := indexstore.BuildEshuSearchIndexQuery(search, terms, termKeys)
 	var raw []byte

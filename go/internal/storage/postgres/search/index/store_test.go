@@ -222,6 +222,33 @@ func TestEshuSearchIndexStoreNoLanguageFilterOmitsLabelPredicate(t *testing.T) {
 	}
 }
 
+func TestBuildEshuSearchIndexQueryBoundsDocumentLookupsBeforeRanking(t *testing.T) {
+	t.Parallel()
+
+	query, _ := BuildEshuSearchIndexQuery(EshuSearchIndexSearch{
+		ScopeID: "scope-1",
+		RepoID:  "repo-1",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+		Limit:   11,
+	}, []string{"common"}, []string{"term-key"})
+	for _, fragment := range []string{
+		"matched_terms AS MATERIALIZED",
+		"document_frequency AS MATERIALIZED",
+		"JOIN LATERAL (",
+		"LIMIT 1",
+		"GROUP BY d.scope_id, d.generation_id, d.document_id, stats.document_count",
+		"top_hits AS (",
+		"ORDER BY score DESC, document_id ASC",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Errorf("BM25 query missing bounded ranking step %q", fragment)
+		}
+	}
+	if strings.Contains(query, "GROUP BY d.document") {
+		t.Fatal("BM25 query groups full document payload before ranking")
+	}
+}
+
 func searchIndexDocumentFixture(id string, repoID string, title string) searchdocs.Document {
 	return searchdocs.Document{
 		ID:          id,

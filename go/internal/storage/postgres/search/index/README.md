@@ -38,12 +38,11 @@ See `doc.go` for the godoc contract.
 
 ## Telemetry
 
-None. This is a synchronous read with no worker, queue, lease, or retry of
-its own; its caller (the query layer's semantic-search adapter) owns request
-spans and metrics around the call.
-
-No-Observability-Change: this move only relocates the existing reader; it adds
-no new runtime behavior.
+This is a synchronous read with no worker, queue, lease, or retry of its own.
+The query layer's `query.semantic_search` span covers this call; PostgreSQL
+statement timing and plans identify the BM25 statement within a slow request.
+The query rewrite adds no new telemetry label. Language filtering now treats
+non-array labels as empty instead of returning a database error.
 
 ## Gotchas / invariants
 
@@ -51,6 +50,12 @@ no new runtime behavior.
   `ingestion_scopes`; a scope with no active generation gets zero rows
   reported (the store's own `loadStats` and the main query both filter this
   way), not an error.
+- BM25 document frequency counts all postings in the active scope before repo,
+  anchor, source-kind, and language filters. Each matching posting looks up its
+  document by primary key; scoring groups narrow document keys, and the JSONB
+  payload is fetched after the ranked page is bounded. Keep those boundaries
+  when changing the query or its plan.
+- A missing or non-array `Labels` field contributes no language labels.
 - `SortedSearchIndexTerms` and `BuildEshuSearchIndexQuery` are exported only
   because `storage/postgres`'s `eshu_search_index_bm25_partition_live_test.go`
   needs to build the identical BM25 query to run it under `EXPLAIN`. That live
