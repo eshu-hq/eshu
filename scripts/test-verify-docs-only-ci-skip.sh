@@ -99,6 +99,8 @@ needle = (
 	"  - id: go-fmt\n"
 	"    name: Go gofumpt formatting\n"
 	"    category: hygiene\n"
+	"    layer: hygiene\n"
+	'    purpose: "Checks Go source is formatted with gofumpt so diffs stay consistent."\n'
 	"    tier: pre-commit\n"
 	"    blocking: true\n"
 	"    triggers:\n"
