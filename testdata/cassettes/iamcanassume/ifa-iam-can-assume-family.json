@@ -1,0 +1,243 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "aws-global",
+        "service_kind": "iam"
+      },
+      "generation_id": "gen-ifa-iam-can-assume-family-1",
+      "observed_at": "2026-09-27T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_resource:arn:aws:iam::123456789012:role/eshu-runtime",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_resource:arn:aws:iam::123456789012:role/ci-deployer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/ci-deployer",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/ci-deployer",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_resource:arn:aws:iam::123456789012:user/breakglass",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:user/breakglass",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:user/breakglass",
+            "resource_type": "aws_iam_user"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_resource:arn:aws:iam::123456789012:role/unattached-observer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/unattached-observer",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/unattached-observer",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_resource:arn:aws:s3:::eshu-fixture-artifacts",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::eshu-fixture-artifacts",
+            "region": "aws-global",
+            "resource_id": "arn:aws:s3:::eshu-fixture-artifacts",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Allow:arn:aws:iam::123456789012:role/ci-deployer,arn:aws:iam::123456789012:user/breakglass",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::123456789012:role/ci-deployer",
+              "arn:aws:iam::123456789012:user/breakglass"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Deny:arn:aws:iam::123456789012:role/ci-deployer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::123456789012:role/ci-deployer"
+            ],
+            "effect": "Deny",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Allow:*",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "*"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Allow:ec2.amazonaws.com",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "ec2.amazonaws.com"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Allow:arn:aws:iam::999988887777:role/foreign-deployer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::999988887777:role/foreign-deployer"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/ghost-unscanned:trust:Allow:arn:aws:iam::123456789012:role/ci-deployer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::123456789012:role/ci-deployer"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/ghost-unscanned",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:trust:Allow:arn:aws:iam::123456789012:role/eshu-runtime",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::123456789012:role/eshu-runtime"
+            ],
+            "effect": "Allow",
+            "policy_source": "trust",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_permission",
+          "stable_fact_key": "aws:123456789012:aws-global:aws_iam_permission:arn:aws:iam::123456789012:role/eshu-runtime:inline:Allow:arn:aws:iam::123456789012:role/ci-deployer",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "assume_principals": [
+              "arn:aws:iam::123456789012:role/ci-deployer"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+            "region": "aws-global"
+          }
+        }
+      ]
+    }
+  ]
+}

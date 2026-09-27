@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
-// Committed-cassette loaders for the two direct-materialization family Odùs
+// Committed-cassette loaders for the three direct-materialization family Odùs
 // (#6228, under the #6181 umbrella).
 //
 // A cassette is a recorded collector output the live gates replay instead of
@@ -26,7 +26,7 @@ import (
 // tests project the cassette back through loadDirectFamilyOdu and require it to
 // equal the compiled Odù exactly.
 //
-// Both families share one loader rather than carrying a copy each. The
+// All three families share one loader rather than carrying a copy each. The
 // shared-projection families each grew their own decoder because each reads a
 // different fact shape; these two read the SAME envelope fields and differ only
 // in which Odù name the projection carries, so a second copy would be two
@@ -39,6 +39,7 @@ const (
 	// through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
+	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -106,7 +107,20 @@ func LoadIAMInstanceProfileRoleFamilyOdu(cassettePath string) (familyodu.Odu, er
 	return loadDirectFamilyOdu(cassettePath, IAMInstanceProfileRoleFamilyOduName)
 }
 
-// loadDirectFamilyOdu is the shared strict projection behind both loaders.
+// IAMCanAssumeFamilyCassetteFullPath joins repoRoot onto the committed
+// iam_can_assume family cassette path.
+func IAMCanAssumeFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, iamCanAssumeFamilyCassettePath)
+}
+
+// LoadIAMCanAssumeFamilyOdu reads the committed cassette and projects it onto
+// the fact envelopes the reducer's extractor consumes, the iam_can_assume
+// counterpart to LoadIAMInstanceProfileRoleFamilyOdu.
+func LoadIAMCanAssumeFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, IAMCanAssumeFamilyOduName)
+}
+
+// loadDirectFamilyOdu is the shared strict projection behind all three loaders.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // makes every downstream assertion vacuous, which is the failure mode the whole
