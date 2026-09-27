@@ -44,6 +44,7 @@ const (
 	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
 	iamCanPerformFamilyCassettePath                  = "testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json"
 	workloadCloudRelationshipFamilyCassettePath      = "testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
+	iamEscalationFamilyCassettePath                  = "testdata/cassettes/iamescalation/ifa-iam-escalation-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -148,6 +149,19 @@ func WorkloadCloudRelationshipFamilyCassetteFullPath(repoRoot string) string {
 // workload_cloud_relationship counterpart to LoadIAMCanPerformFamilyOdu.
 func LoadWorkloadCloudRelationshipFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, WorkloadCloudRelationshipFamilyOduName)
+}
+
+// IAMEscalationFamilyCassetteFullPath joins repoRoot onto the committed
+// iam_escalation family cassette path.
+func IAMEscalationFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, iamEscalationFamilyCassettePath)
+}
+
+// LoadIAMEscalationFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the reducer's extractor consumes, the
+// iam_escalation counterpart to LoadWorkloadCloudRelationshipFamilyOdu.
+func LoadIAMEscalationFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, IAMEscalationFamilyOduName)
 }
 
 // loadDirectFamilyOdu is the shared strict projection behind all five loaders.

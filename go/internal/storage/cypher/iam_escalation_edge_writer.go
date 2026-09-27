@@ -25,7 +25,7 @@ const canonicalPhaseIAMEscalationEdge = "iam_escalation_edge"
 // relationship hot path (#805 §5.3, mirrored from RUNS_IMAGE #388).
 const iamEscalationEdgeLabel = "CAN_ESCALATE_TO"
 
-// canonicalIAMEscalationEdgeUpsertCypher batches CAN_ESCALATE_TO edge upserts
+// CanonicalIAMEscalationEdgeUpsertCypher batches CAN_ESCALATE_TO edge upserts
 // between an already-materialized IAM principal :CloudResource node and the IAM
 // target :CloudResource node it can escalate to. The relationship type is the
 // static CAN_ESCALATE_TO token; the merged primitive set is written as a list
@@ -34,7 +34,7 @@ const iamEscalationEdgeLabel = "CAN_ESCALATE_TO"
 // the same target converge on one idempotent edge. Two MATCHes precede the MERGE so
 // a row whose principal or target node is absent produces no edge and no fabricated
 // node. Both anchors are uid-indexed :CloudResource lookups (no scan, no N+1).
-const canonicalIAMEscalationEdgeUpsertCypher = `UNWIND $rows AS row
+const CanonicalIAMEscalationEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (p:CloudResource {uid: row.principal_uid})
 MATCH (t:CloudResource {uid: row.target_uid})
 MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)
@@ -44,14 +44,14 @@ SET rel.primitives = row.primitives,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractIAMEscalationEdgesCypher removes this reducer's CAN_ESCALATE_TO edges for
+// RetractIAMEscalationEdgesCypher removes this reducer's CAN_ESCALATE_TO edges for
 // a set of scopes before a fresh generation reprojects them. The relationship type
 // is fixed, so the retract matches that type from any CloudResource and scopes by
 // the edge's own scope_id and evidence_source. The IAM CloudResource endpoints are
 // cross-generation canonical and carry no reducer scope_id, so a node-scoped
 // predicate would make the retract a silent no-op that leaks stale escalation edges
 // across generations (the #388/#1135 lesson).
-const retractIAMEscalationEdgesCypher = `MATCH (p:CloudResource)-[rel:CAN_ESCALATE_TO]->()
+const RetractIAMEscalationEdgesCypher = `MATCH (p:CloudResource)-[rel:CAN_ESCALATE_TO]->()
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -115,7 +115,7 @@ func (w *IAMEscalationEdgeWriter) WriteIAMEscalationEdges(
 		}))
 	}
 
-	stmts := BuildBatchedStatements(canonicalIAMEscalationEdgeUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(CanonicalIAMEscalationEdgeUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMEscalationEdge
@@ -149,7 +149,7 @@ func (w *IAMEscalationEdgeWriter) RetractIAMEscalationEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractIAMEscalationEdgesCypher,
+		Cypher:    RetractIAMEscalationEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

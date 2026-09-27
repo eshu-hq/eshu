@@ -33,6 +33,7 @@ const (
 	FileFactKind                                = familyodu.FileFactKind
 	IAMCanAssumeFamilyOduName                   = familyodu.IAMCanAssumeFamilyOduName
 	IAMCanPerformFamilyOduName                  = familyodu.IAMCanPerformFamilyOduName
+	IAMEscalationFamilyOduName                  = familyodu.IAMEscalationFamilyOduName
 	IAMInstanceProfileRoleFamilyOduName         = familyodu.IAMInstanceProfileRoleFamilyOduName
 	InheritanceFamilyOduName                    = familyodu.InheritanceFamilyOduName
 	KubernetesNamespaceEnvironmentFamilyOduName = familyodu.KubernetesNamespaceEnvironmentFamilyOduName
@@ -147,6 +148,9 @@ func IAMCanAssumeFamilyOdu() CatalogOdu { return familyodu.IAMCanAssumeFamilyOdu
 
 // IAMCanPerformFamilyOdu returns the cataloged IAM can-perform family Odù.
 func IAMCanPerformFamilyOdu() CatalogOdu { return familyodu.IAMCanPerformFamilyOdu() }
+
+// IAMEscalationFamilyOdu returns the cataloged IAM escalation family Odù.
+func IAMEscalationFamilyOdu() CatalogOdu { return familyodu.IAMEscalationFamilyOdu() }
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {

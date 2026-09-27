@@ -1,0 +1,31 @@
+{
+  "odu": "odu:ifa-iam-escalation-family",
+  "note": "Hand-derived from CanonicalIAMEscalationEdgeUpsertCypher (go/internal/storage/cypher/iam_escalation_edge_writer.go), NOT from the port or family name. The template is `UNWIND $rows AS row MATCH (p:CloudResource {uid: row.principal_uid}) MATCH (t:CloudResource {uid: row.target_uid}) MERGE (p)-[rel:CAN_ESCALATE_TO]->(t) SET rel.primitives = row.primitives, ...`, and CAN_ESCALATE_TO is a static token baked into the template (no %s: the merged primitive set lives in rel.primitives, never in the relationship type). iamEscalationEdgeLabel IS \"CAN_ESCALATE_TO\" (the const doubles as the relationship type and the statement-metadata tag); \"IAM_ESCALATION\" appears nowhere in code, so the type is read off the template, never derived from the port or family name. The relationship MERGEs on its two endpoint nodes alone, so there is no identity block and no plain-string SET property: primitives is a LIST (pinned per pair in the guard's merged-primitives table, not here) and scope_id/generation_id/evidence_source are stamped per run by the writer. Each endpoint is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012 everywhere; region aws-global for every IAM node; and the (resource_type, resource_id) pairs (aws_iam_user, arn:aws:iam::123456789012:user/attacker), (aws_iam_user, arn:aws:iam::123456789012:user/victim), (aws_iam_policy, arn:aws:iam::123456789012:policy/team-policy), (aws_iam_role, arn:aws:iam::123456789012:role/exec-role), (aws_iam_role, arn:aws:iam::123456789012:role/deploy-role), (aws_iam_group, arn:aws:iam::123456789012:group/admins). The attacker user sources four edges (source uid b70b554f appears four times: to the policy, the exec role, the group, and the deploy role); the victim user sources the fifth edge back to the attacker. Exactly five edges: the other nine permission facts contribute nothing on purpose -- one self-loop dropped silently, one Deny arming nothing, one conditioned statement the grant cannot trust, one NotAction statement, one wildcard resolving ambiguous, one unscanned ghost-policy ARN, one ghost principal that was never scanned, one deferred sts:AssumeRole, and one user-action/wrong-role-target pair refused by the expected-type check. The bystander role scans as a node but carries no statement.",
+  "edges": [
+    {
+      "relationship_type": "CAN_ESCALATE_TO",
+      "source_entity_id": "b70b554fc0787a73bda123c00d0d5c3df4bca48d41a7ab8e810bbdcd69fcc4db",
+      "target_entity_id": "0547d48134b3ea7004f4aa65c9fc7fd11cbe3d84d1f56a10967323b719d8d43e"
+    },
+    {
+      "relationship_type": "CAN_ESCALATE_TO",
+      "source_entity_id": "b70b554fc0787a73bda123c00d0d5c3df4bca48d41a7ab8e810bbdcd69fcc4db",
+      "target_entity_id": "7f53d2fda5a780a0bd3e302f2c12ffed33757e587bf151cd61e85f3203382867"
+    },
+    {
+      "relationship_type": "CAN_ESCALATE_TO",
+      "source_entity_id": "b70b554fc0787a73bda123c00d0d5c3df4bca48d41a7ab8e810bbdcd69fcc4db",
+      "target_entity_id": "a5388d1d4ba3ed4cd90097cdca050b7f91d38fdbb3a6b2b239b82786b6ef78d7"
+    },
+    {
+      "relationship_type": "CAN_ESCALATE_TO",
+      "source_entity_id": "b70b554fc0787a73bda123c00d0d5c3df4bca48d41a7ab8e810bbdcd69fcc4db",
+      "target_entity_id": "e1cec07643adc9533e38d2889b7e3545322957e42f14a28ee96d9ea8a20edb07"
+    },
+    {
+      "relationship_type": "CAN_ESCALATE_TO",
+      "source_entity_id": "f23d56ffebe7cb11479a5d92f49052066ec824e77ec4e7044db2f39a17ba5fa7",
+      "target_entity_id": "b70b554fc0787a73bda123c00d0d5c3df4bca48d41a7ab8e810bbdcd69fcc4db"
+    }
+  ]
+}

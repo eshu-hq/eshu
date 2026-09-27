@@ -121,6 +121,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.WorkloadCloudRelationshipFamilyCassetteFullPath,
 			load:         ifa.LoadWorkloadCloudRelationshipFamilyOdu,
 		},
+		{
+			name:         ifa.IAMEscalationFamilyOduName,
+			compiled:     ifa.IAMEscalationFamilyOdu,
+			cassettePath: ifa.IAMEscalationFamilyCassetteFullPath,
+			load:         ifa.LoadIAMEscalationFamilyOdu,
+		},
 	}
 }
 
