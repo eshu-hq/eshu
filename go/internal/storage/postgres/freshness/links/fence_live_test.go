@@ -6,6 +6,7 @@ package linksfreshnessstore_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -186,8 +187,9 @@ LIMIT 1`).Scan(&pid)
 	if !killed {
 		t.Fatalf("never caught the incremental statement running (LinkNext = %+v, err=%v)", raced, err)
 	}
-	if err == nil {
-		t.Fatalf("LinkNext survived pg_terminate_backend; the kill landed after commit")
+	var failure *linksfreshnessstore.FailureError
+	if !errors.As(err, &failure) || failure.Class != linksfreshnessstore.FailureConnectionLost {
+		t.Fatalf("killed LinkNext = %v, want a counting connection_lost failure", err)
 	}
 	if got := l.ledgerRows(t, "killed"); got != before {
 		t.Fatalf("killed link left partial rows")
@@ -195,7 +197,19 @@ LIMIT 1`).Scan(&pid)
 	if _, seq := l.cursor(t, "killed"); seq != seqBefore {
 		t.Fatalf("killed link moved the cursor from %d to %d", seqBefore, seq)
 	}
-	if res := mustLink(t, linksfreshnessstore.NewLinkWriter(l.store), l, "killed"); res.Kind != linksfreshnessstore.LinkKindIncremental {
+	// One counted connection_lost; the rerun waits out the backoff.
+	clock := time.Now().UTC()
+	writer := linksfreshnessstore.NewLinkWriter(l.store)
+	writer.Now = func() time.Time { return clock }
+	record, err := writer.RecordFailure(l.ctx, failure, linksfreshnessstore.DefaultMaxAttempts)
+	if err != nil || !record.Counted || record.Attempts != 1 || record.Poisoned {
+		t.Fatalf("RecordFailure after the kill = %+v, %v; want one counted attempt", record, err)
+	}
+	if res, err := writer.LinkNext(l.ctx, "killed"); err != nil || !res.Deferred {
+		t.Fatalf("LinkNext inside the backoff = %+v, %v; want deferred", res, err)
+	}
+	clock = record.NextAttemptAt.Add(time.Second)
+	if res := mustLink(t, writer, l, "killed"); res.Kind != linksfreshnessstore.LinkKindIncremental {
 		t.Fatalf("rerun = %+v, want incremental", res)
 	}
 	if got, want := l.ledgerRows(t, "killed"), l.ledgerRows(t, "reference"); got != want {

@@ -53,12 +53,27 @@ CREATE INDEX IF NOT EXISTS changed_since_key_state_owner_idx
 -- Per-scope writer fence and the generation the state table represents.
 -- state_generation_id is NULL before the first root and after a
 -- digest_version change; a chain break keeps it (#7127 ruling 8.5).
+--
+-- The attempt columns bound a link that keeps failing (#7127 ruling 8.10).
+-- A counting failure of the head activation (attempt_activation_seq) adds one
+-- to attempt_count, records last_failure_class, and backs off until
+-- next_attempt_at. At the attempt limit the activation becomes a
+-- link_poisoned chain break: state_activation_seq advances past it, the state
+-- is kept, and poisoned_activation_seq and poisoned_at mark the scope until
+-- its next full link. Nothing about attempts is written to
+-- changed_since_activations.
 CREATE TABLE IF NOT EXISTS changed_since_scope_cursor (
-    scope_id             TEXT PRIMARY KEY,
-    state_generation_id  TEXT NULL,
-    state_activation_seq BIGINT NOT NULL DEFAULT 0,
-    digest_version       SMALLINT NOT NULL,
-    updated_at           TIMESTAMPTZ NOT NULL
+    scope_id                TEXT PRIMARY KEY,
+    state_generation_id     TEXT NULL,
+    state_activation_seq    BIGINT NOT NULL DEFAULT 0,
+    digest_version          SMALLINT NOT NULL,
+    updated_at              TIMESTAMPTZ NOT NULL,
+    attempt_activation_seq  BIGINT NULL,
+    attempt_count           INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at         TIMESTAMPTZ NULL,
+    last_failure_class      TEXT NULL,
+    poisoned_activation_seq BIGINT NULL,
+    poisoned_at             TIMESTAMPTZ NULL
 );
 
 -- One row per link (older -> newer). prior_generation_id is '' for a root.

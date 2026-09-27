@@ -21,11 +21,14 @@ import (
 type linkOutcome string
 
 const (
-	outcomeIdle   linkOutcome = "idle"
-	outcomeLinked linkOutcome = "linked"
-	outcomeBreak  linkOutcome = "chain_break"
-	outcomeRetry  linkOutcome = "retry"
-	outcomeError  linkOutcome = "error"
+	outcomeIdle     linkOutcome = "idle"
+	outcomeLinked   linkOutcome = "linked"
+	outcomeBreak    linkOutcome = "break"
+	outcomeFailed   linkOutcome = "failed"
+	outcomePoisoned linkOutcome = "poisoned"
+	// outcomeRetry is a non-counting miss. It is counted on
+	// eshu_dp_changed_since_link_retries_total, not on links_total.
+	outcomeRetry linkOutcome = "retry"
 )
 
 // linkOne runs one link transaction under the reducer.changed_since_link span
@@ -54,9 +57,15 @@ func (r *Runner) linkOne(ctx context.Context, scopeID string) linkOutcome {
 }
 
 func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID string, err error) linkOutcome {
+	classify := r.Classify
+	if classify == nil {
+		classify = CountingFailure
+	}
+	if failure := classify(err); failure != nil {
+		return r.recordCounting(ctx, span, failure)
+	}
 	if reducercontract.IsRetryable(err) {
 		reason, _ := store.RetryReasonOf(err)
-		r.count(ctx, store.LinkKindNone, outcomeRetry)
 		if r.Instruments != nil {
 			r.Instruments.ChangedSinceLinkRetries.Add(ctx, 1, metric.WithAttributes(
 				attribute.String(telemetry.MetricDimensionReason, string(reason))))
@@ -66,12 +75,54 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 		}
 		return outcomeRetry
 	}
-	r.count(ctx, store.LinkKindNone, outcomeError)
+	// Uncounted: a failure before the link statement ran (begin, lock reads).
+	r.count(ctx, store.LinkKindNone, outcomeFailed)
 	if span != nil {
 		span.RecordError(err)
 	}
-	r.logError(ctx, "changed-since link failed", err, slog.String("scope_id", scopeID))
-	return outcomeError
+	r.logError(ctx, "changed-since link failed before its statement ran; not counted", err, slog.String("scope_id", scopeID))
+	return outcomeFailed
+}
+
+// recordCounting records a counting failure on the cursor (#7127 ruling 8.10)
+// and reports it; at the attempt limit the activation is poisoned.
+func (r *Runner) recordCounting(ctx context.Context, span trace.Span, failure *store.FailureError) linkOutcome {
+	if span != nil {
+		span.RecordError(failure)
+		span.SetAttributes(attribute.String("changed_since.failure_class", string(failure.Class)))
+	}
+	if r.Instruments != nil {
+		r.Instruments.ChangedSinceLinkFailures.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionFailureClass, string(failure.Class))))
+	}
+	record, err := r.Linker.RecordFailure(ctx, failure, r.Config.MaxAttempts)
+	if err != nil {
+		r.logError(ctx, "changed-since link failure could not be recorded", err,
+			slog.String("scope_id", failure.ScopeID), slog.Int64("activation_seq", failure.ActivationSeq))
+		r.count(ctx, store.LinkKindNone, outcomeFailed)
+		return outcomeFailed
+	}
+	if !record.Poisoned {
+		r.count(ctx, store.LinkKindNone, outcomeFailed)
+		r.logError(ctx, "changed-since link failed", failure.Err,
+			slog.String("scope_id", failure.ScopeID), slog.String("generation_id", failure.GenerationID),
+			slog.Int64("activation_seq", failure.ActivationSeq), slog.String("link_failure_class", string(failure.Class)),
+			slog.Int("attempts", record.Attempts), slog.Bool("counted", record.Counted),
+			slog.Time("next_attempt_at", record.NextAttemptAt))
+		return outcomeFailed
+	}
+	r.count(ctx, store.LinkKindNone, outcomePoisoned)
+	if r.Instruments != nil {
+		r.Instruments.ChangedSinceChainBreaks.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionReason, string(store.BreakLinkPoisoned))))
+	}
+	// One ERROR per poisoning, with the identifiers an operator needs; the
+	// cursor row keeps the durable record.
+	r.logError(ctx, "changed-since link poisoned: activation skipped as a chain break", failure.Err,
+		slog.String("scope_id", failure.ScopeID), slog.String("generation_id", failure.GenerationID),
+		slog.Int64("activation_seq", failure.ActivationSeq), slog.String("link_failure_class", string(failure.Class)),
+		slog.Int("attempts", record.Attempts), slog.String("break_reason", string(store.BreakLinkPoisoned)))
+	return outcomePoisoned
 }
 
 func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.LinkResult, outcome linkOutcome) {
@@ -137,6 +188,8 @@ func (r *Runner) recordGauges(ctx context.Context) {
 	r.Instruments.ChangedSinceLinkLag.Record(ctx, stats.LagSeconds)
 	r.Instruments.ChangedSinceStateBytes.Record(ctx, stats.StateBytes)
 	r.Instruments.ChangedSinceStateRows.Record(ctx, stats.StateRows)
+	r.Instruments.ChangedSinceLinkRetryingScopes.Record(ctx, stats.RetryingScopes)
+	r.Instruments.ChangedSinceLinkPoisonedScopes.Record(ctx, stats.PoisonedScopes)
 }
 
 func (r *Runner) logCycle(ctx context.Context, result CycleResult) {
@@ -152,6 +205,7 @@ func (r *Runner) logCycle(ctx context.Context, result CycleResult) {
 		slog.Int64("journaled_backfill", result.Journal.BackfillRows),
 		slog.Int("linked", result.Linked),
 		slog.Int("chain_breaks", result.Breaks),
+		slog.Int("poisoned", result.Poisoned),
 		slog.Int("retries", result.Retries),
 		slog.Int("failures", result.Failures),
 		slog.Int("orphan_scopes_deleted", result.Orphans),

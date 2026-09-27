@@ -136,6 +136,103 @@ func TestLinkScaleEvidence(t *testing.T) {
 	store := postgres.SQLDB{DB: raw}
 	emit(t, map[string]any{"event": "start", "cpus": runtime.NumCPU(), "load1": hostLoad1()})
 
+	if os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G7_ONLY") == "" {
+		runScaleConcurrency(t, ctx, raw, store)
+	}
+	runScaleTimingRounds(t, ctx, raw, store)
+}
+
+// runScaleTimingRounds is gate G7 (#7127 ruling 8.2): interleaved rounds of
+// bare_b, the L1b statement and the root statement at 256MB, all rolled
+// back, first mover rotated. A round counts only when the host's 1-minute
+// load at its start is below the CPU count. The loop waits out a loaded host
+// (checking every minute) until ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS
+// valid rounds (default 10) are in or ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE
+// (default 8h) passes, so it can run unattended overnight.
+func runScaleTimingRounds(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB) {
+	target, rootScope := scaleTargets[0], scaleTargets[1]
+	resetScaleScopes(t, ctx, raw, []string{target, rootScope})
+	writer := linksfreshnessstore.NewLinkWriter(store)
+	if _, err := writer.LinkNext(ctx, target); err != nil {
+		t.Fatalf("re-root: %v", err)
+	}
+	f0, f1 := scaleGeneration(t, ctx, raw, target, "F0"), scaleGeneration(t, ctx, raw, target, "F1")
+	rootGeneration := scaleGeneration(t, ctx, raw, rootScope, "F0")
+	bare := bareAggregateSQL(t)
+	wantValid, _ := strconv.Atoi(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS"))
+	if wantValid <= 0 {
+		wantValid = 10
+	}
+	maxRounds, _ := strconv.Atoi(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS"))
+	deadline := 8 * time.Hour
+	if d, err := time.ParseDuration(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE")); err == nil && d > 0 {
+		deadline = d
+	}
+	stopAt := time.Now().Add(deadline)
+	valid := 0
+	for round := 0; valid < wantValid && time.Now().Before(stopAt) && (maxRounds <= 0 || round < maxRounds); round++ {
+		load := hostLoad1()
+		isValid := load >= 0 && load < float64(runtime.NumCPU())
+		if !isValid && maxRounds <= 0 {
+			emit(t, map[string]any{"event": "g7_wait", "load1": load})
+			time.Sleep(time.Minute)
+			round--
+			continue
+		}
+		names := []string{"bare_b", "l1b", "root"}
+		rotated := append(names[round%3:], names[:round%3]...)
+		timed := map[string]float64{}
+		for _, name := range rotated {
+			timed[name] = timeRolledBack(t, ctx, raw, name, bare, target, rootScope, f0, f1, rootGeneration)
+		}
+		if isValid {
+			valid++
+		}
+		emit(t, map[string]any{
+			"event": "g7_round", "round": round, "order": rotated, "load1_at_start": load, "valid": isValid,
+			"bare_b_seconds": timed["bare_b"], "l1b_seconds": timed["l1b"], "root_seconds": timed["root"],
+			"ratio": timed["l1b"] / timed["bare_b"], "root_ratio": timed["root"] / timed["bare_b"],
+		})
+	}
+	emit(t, map[string]any{"event": "g7_done", "valid_rounds": valid, "wanted": wantValid})
+}
+
+// timeRolledBack runs one timed statement at the link's transaction settings
+// and rolls it back.
+func timeRolledBack(t *testing.T, ctx context.Context, raw *sql.DB, name, bare, target, rootScope, f0, f1, rootGeneration string) float64 {
+	t.Helper()
+	tx, err := raw.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, s := range []string{`SET LOCAL work_mem = '256MB'`, `SET LOCAL plan_cache_mode = force_custom_plan`} {
+		if _, err := tx.ExecContext(ctx, s); err != nil {
+			t.Fatalf("%s: %v", s, err)
+		}
+	}
+	began := time.Now()
+	switch name {
+	case "bare_b":
+		_, err = tx.ExecContext(ctx, bare, target, f1)
+	case "l1b":
+		_, err = tx.ExecContext(ctx, linksfreshnessstore.IncrementalLinkSQL, target, f1, f0,
+			linksfreshnessstore.DigestVersion, time.Now())
+	default:
+		_, err = tx.ExecContext(ctx, linksfreshnessstore.RootLinkSQL, rootScope, rootGeneration,
+			linksfreshnessstore.DigestVersion, time.Now())
+	}
+	elapsed := time.Since(began).Seconds()
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return elapsed
+}
+
+// runScaleConcurrency is gates G5, G6 and G8: 1, 2 and 4 concurrent
+// incremental 1.0x links on different scopes with a read probe alongside, and
+// the temp files they wrote. The driver samples RssAnon in each window.
+func runScaleConcurrency(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB) {
 	for _, n := range []int{1, 2, 4} {
 		scopes := scaleTargets[:n]
 		resetScaleScopes(t, ctx, raw, scopes)
@@ -204,58 +301,6 @@ LIMIT 2000) AS page`).Scan(&c); err == nil {
 			"delta_rows": results[0].DeltaRows, "keys": results[0].Keys,
 			"temp_files": files1 - files0, "temp_bytes": bytes1 - bytes0,
 			"probe_samples": len(probe), "probe_p50_seconds": probeP50, "probe_p95_seconds": probeP95,
-		})
-	}
-
-	// G7: interleaved rounds of bare_b and the L1b statement at 256MB, both
-	// rolled back, first mover alternating. The state stands at F1 after the
-	// n=4 phase, so re-root the first target at F0 once.
-	target := scaleTargets[0]
-	resetScaleScopes(t, ctx, raw, []string{target})
-	writer := linksfreshnessstore.NewLinkWriter(store)
-	if _, err := writer.LinkNext(ctx, target); err != nil {
-		t.Fatalf("re-root: %v", err)
-	}
-	f0, f1 := scaleGeneration(t, ctx, raw, target, "F0"), scaleGeneration(t, ctx, raw, target, "F1")
-	bare := bareAggregateSQL(t)
-	rounds, _ := strconv.Atoi(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS"))
-	if rounds <= 0 {
-		rounds = 6
-	}
-	for round := range rounds {
-		load := hostLoad1()
-		timed := map[string]float64{}
-		order := []string{"bare_b", "l1b"}
-		if round%2 == 1 {
-			order = []string{"l1b", "bare_b"}
-		}
-		for _, name := range order {
-			tx, err := raw.BeginTx(ctx, nil)
-			if err != nil {
-				t.Fatalf("begin: %v", err)
-			}
-			for _, s := range []string{`SET LOCAL work_mem = '256MB'`, `SET LOCAL plan_cache_mode = force_custom_plan`} {
-				if _, err := tx.ExecContext(ctx, s); err != nil {
-					t.Fatalf("%s: %v", s, err)
-				}
-			}
-			began := time.Now()
-			if name == "bare_b" {
-				_, err = tx.ExecContext(ctx, bare, target, f1)
-			} else {
-				_, err = tx.ExecContext(ctx, linksfreshnessstore.IncrementalLinkSQL, target, f1, f0,
-					linksfreshnessstore.DigestVersion, time.Now())
-			}
-			timed[name] = time.Since(began).Seconds()
-			_ = tx.Rollback()
-			if err != nil {
-				t.Fatalf("round %d %s: %v", round, name, err)
-			}
-		}
-		emit(t, map[string]any{
-			"event": "g7_round", "round": round, "first": order[0], "load1_at_start": load,
-			"valid":          load >= 0 && load < float64(runtime.NumCPU()),
-			"bare_b_seconds": timed["bare_b"], "l1b_seconds": timed["l1b"], "ratio": timed["l1b"] / timed["bare_b"],
 		})
 	}
 }

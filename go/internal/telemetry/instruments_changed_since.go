@@ -25,15 +25,33 @@ func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) 
 	var err error
 	if inst.ChangedSinceLinks, err = meter.Int64Counter(
 		"eshu_dp_changed_since_links_total",
-		metric.WithDescription("Changed-since link transactions by link_kind and outcome"),
+		metric.WithDescription("Changed-since link attempts by link_kind and outcome"),
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceLinks counter: %w", err)
 	}
 	if inst.ChangedSinceLinkRetries, err = meter.Int64Counter(
 		"eshu_dp_changed_since_link_retries_total",
-		metric.WithDescription("Retryable changed-since link outcomes by reason"),
+		metric.WithDescription("Non-counting changed-since link outcomes by reason"),
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceLinkRetries counter: %w", err)
+	}
+	if inst.ChangedSinceLinkFailures, err = meter.Int64Counter(
+		"eshu_dp_changed_since_link_failures_total",
+		metric.WithDescription("Counting changed-since link failures by failure_class"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceLinkFailures counter: %w", err)
+	}
+	if inst.ChangedSinceLinkRetryingScopes, err = meter.Int64Gauge(
+		"eshu_dp_changed_since_link_retrying_scopes",
+		metric.WithDescription("Scopes whose head changed-since activation has a counted failure pending"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceLinkRetryingScopes gauge: %w", err)
+	}
+	if inst.ChangedSinceLinkPoisonedScopes, err = meter.Int64Gauge(
+		"eshu_dp_changed_since_link_poisoned_scopes",
+		metric.WithDescription("Scopes carrying the link_poisoned marker until their next full link"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceLinkPoisonedScopes gauge: %w", err)
 	}
 	if inst.ChangedSinceChainBreaks, err = meter.Int64Counter(
 		"eshu_dp_changed_since_chain_breaks_total",

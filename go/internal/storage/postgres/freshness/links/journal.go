@@ -71,7 +71,8 @@ func (s *JournalStore) begin(ctx context.Context) (db.Transaction, error) {
 // Journal runs one pass in one transaction: first the backfill of at most
 // backfillScopes scopes that have no activation row, in chain order, then
 // one sweeper row for every active generation still missing from the
-// journal. Backfill goes first so a scope's retained history takes lower
+// journal, then a cursor row for every journaled scope that has none. It
+// enqueues nothing. Backfill goes first so a scope's retained history takes lower
 // activation_seq values than its active generation. The pass holds the
 // journal advisory lock so two replicas cannot interleave one scope's rows.
 func (s *JournalStore) Journal(ctx context.Context, backfillScopes int) (JournalResult, error) {
@@ -106,6 +107,9 @@ func (s *JournalStore) Journal(ctx context.Context, backfillScopes int) (Journal
 	}
 	if n, err := res.RowsAffected(); err == nil {
 		result.SweeperRows = n
+	}
+	if _, err := tx.ExecContext(ctx, createCursorsQuery, DigestVersion, s.now()); err != nil {
+		return JournalResult{}, fmt.Errorf("changed-since journal: create cursors: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return JournalResult{}, fmt.Errorf("changed-since journal: commit: %w", err)
@@ -159,12 +163,13 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 }
 
 // BacklogScopes returns up to limit scopes that have an activation above
-// their cursor, oldest pending activation first.
+// their cursor and are not backing off, oldest pending activation first. It
+// is a hint: LinkNext re-reads the head under the cursor lock.
 func (s *JournalStore) BacklogScopes(ctx context.Context, limit int) ([]string, error) {
 	if s == nil || s.database == nil {
 		return nil, errors.New("changed-since journal database is required")
 	}
-	rows, err := s.database.QueryContext(ctx, backlogScopesQuery, limit)
+	rows, err := s.database.QueryContext(ctx, backlogScopesQuery, limit, s.now())
 	if err != nil {
 		return nil, fmt.Errorf("changed-since journal: backlog scopes: %w", err)
 	}
@@ -194,6 +199,10 @@ type LedgerStats struct {
 	// is the planner's estimate.
 	DeltaBytes int64
 	DeltaRows  int64
+	// RetryingScopes have a counted failure pending on their head activation;
+	// PoisonedScopes carry the link_poisoned marker until their next full link.
+	RetryingScopes int64
+	PoisonedScopes int64
 }
 
 // Stats reads the backlog, the lag and the ledger's size.
@@ -203,7 +212,7 @@ func (s *JournalStore) Stats(ctx context.Context) (LedgerStats, error) {
 	}
 	var stats LedgerStats
 	if err := queryOne(ctx, s.database, backlogStatsQuery, []any{s.now()},
-		&stats.BacklogRows, &stats.LagSeconds); err != nil {
+		&stats.BacklogRows, &stats.LagSeconds, &stats.RetryingScopes, &stats.PoisonedScopes); err != nil {
 		return LedgerStats{}, fmt.Errorf("changed-since journal: backlog stats: %w", err)
 	}
 	if err := queryOne(ctx, s.database, ledgerSizeQuery, nil,

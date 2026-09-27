@@ -53,14 +53,17 @@ func TestChangedSinceLinkConfigReadsEveryKnob(t *testing.T) {
 		changedSinceLinkPollIntervalEnv:     "10s",
 		changedSinceLinkWorkersEnv:          "6",
 		changedSinceLinkBackfillScopesEnv:   "25",
+		changedSinceLinkMaxAttemptsEnv:      "7",
 	}))
 	if !cfg.Enabled || cfg.Slots != 3 || cfg.StatementTimeout != 45*time.Second ||
-		cfg.Runner.PollInterval != 10*time.Second || cfg.Runner.Workers != 6 || cfg.Runner.BackfillScopesPerCycle != 25 {
+		cfg.Runner.PollInterval != 10*time.Second || cfg.Runner.Workers != 6 || cfg.Runner.BackfillScopesPerCycle != 25 ||
+		cfg.Runner.MaxAttempts != 7 {
 		t.Fatalf("config = %+v", cfg)
 	}
 	defaults := loadChangedSinceLinkConfig(envMap(nil))
-	if defaults.Enabled || defaults.Slots != 2 || defaults.StatementTimeout != 120*time.Second {
-		t.Fatalf("defaults = %+v, want off, 2 slots, 120s", defaults)
+	if defaults.Enabled || defaults.Slots != 2 || defaults.StatementTimeout != 120*time.Second ||
+		defaults.Runner.PollInterval != 5*time.Second || defaults.Runner.MaxAttempts != 5 {
+		t.Fatalf("defaults = %+v, want off, 2 slots, 120s, 5s poll, 5 attempts", defaults)
 	}
 }
 

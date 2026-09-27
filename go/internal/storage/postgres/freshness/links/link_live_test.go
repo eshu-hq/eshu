@@ -264,6 +264,9 @@ func TestGenerationLockedIsRetryable(t *testing.T) {
 	if _, seq := l.cursor(t, scope); seq != 0 {
 		t.Fatalf("cursor moved to %d on a retry", seq)
 	}
+	if n := l.queryInt(t, `SELECT attempt_count FROM changed_since_scope_cursor WHERE scope_id = $1`, scope); n != 0 {
+		t.Fatalf("generation_locked counted an attempt (%d); it is non-counting", n)
+	}
 	_ = holder.Rollback()
 	if got := mustLink(t, w, l, scope); got.Kind != linksfreshnessstore.LinkKindRoot {
 		t.Fatalf("retry after release = %+v, want root", got)

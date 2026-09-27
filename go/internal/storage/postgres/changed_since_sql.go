@@ -124,19 +124,15 @@ LIMIT 1
 // changed_since_oracle_fragments_test.go).
 const changedSincePayloadDigestInput = linksfreshnessstore.PayloadDigestInput
 
-// reducerDerivedFactKindLikePattern matches every reducer-derived fact kind:
-// the reducer writes its materialized output into the source generation after
-// that generation activates, under a "reducer_" kind prefix. The underscore is
-// escaped so a kind that merely starts with "reducer" does not match. Shared by
-// the changed-since diff and the collector evidence summary so both classify
-// reducer output by the same shape.
+// reducerDerivedFactKindLikePattern matches every reducer-derived fact kind.
+// linksfreshnessstore.ReducerDerivedFactKindLikePattern documents it and holds
+// the bytes; the changed-since diff and the collector evidence summary both
+// classify reducer output through this alias.
 const reducerDerivedFactKindLikePattern = linksfreshnessstore.ReducerDerivedFactKindLikePattern
 
 // changedSinceExcludeReducerDerivedKinds keeps reducer-derived rows out of a
-// changed-since scan. They exist only in generations the reducer has processed,
-// so their presence tracks reducer scheduling, not repository change, and the
-// route's truth envelope promises persisted fact truth rather than correlation
-// output.
+// changed-since scan. linksfreshnessstore.ExcludeReducerDerivedKinds documents
+// it and holds the bytes, which the link writer shares.
 const changedSinceExcludeReducerDerivedKinds = linksfreshnessstore.ExcludeReducerDerivedKinds
 
 // changedSinceClassificationCTEs classifies one scope across two generations.

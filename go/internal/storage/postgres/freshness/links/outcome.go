@@ -41,11 +41,17 @@ const (
 	// but the overlay link is not shipped: its delta-kind ownership proof
 	// (#7127 ruling 8.6, gate G2) has not passed.
 	BreakOverlayUnproven BreakReason = "overlay_unproven"
+	// BreakLinkPoisoned means the activation's link failed with a counting
+	// failure MaxAttempts times. RecordFailure advanced the cursor past it,
+	// kept the state, and set the scope's poison marker, which the next full
+	// link clears (#7127 ruling 8.10).
+	BreakLinkPoisoned BreakReason = "link_poisoned"
 )
 
-// RetryReason names a non-blocking lock miss or a timeout. The transaction
-// rolled back, the cursor did not move, and the same activation must be
-// retried later.
+// RetryReason names a non-counting outcome: a non-blocking lock miss. The
+// transaction rolled back, nothing was written, the cursor did not move, and
+// no attempt is counted (#7127 ruling 8.10). The runner moves on to its next
+// candidate and retries this activation on a later cycle.
 type RetryReason string
 
 const (
@@ -56,9 +62,6 @@ const (
 	RetryGenerationLocked RetryReason = "generation_locked"
 	// RetrySlotBusy means every full-link slot is held.
 	RetrySlotBusy RetryReason = "slot_busy"
-	// RetryStatementTimeout means the link statement exceeded the configured
-	// statement_timeout.
-	RetryStatementTimeout RetryReason = "statement_timeout"
 )
 
 // RetryError reports a retryable link outcome. It satisfies the reducer's
@@ -66,7 +69,12 @@ const (
 // reducer, so callers classify it with contract.IsRetryable.
 type RetryError struct {
 	Reason RetryReason
-	Err    error
+	// ScopeID and ActivationSeq name the head activation when the miss
+	// happened after it was read (generation_locked, slot_busy); zero for
+	// cursor_locked.
+	ScopeID       string
+	ActivationSeq int64
+	Err           error
 }
 
 // Error describes the retry reason and the underlying cause, if any.
@@ -80,7 +88,8 @@ func (e *RetryError) Error() string {
 // Unwrap returns the underlying cause.
 func (e *RetryError) Unwrap() error { return e.Err }
 
-// Retryable reports true: every RetryError is safe to retry.
+// Retryable reports true: every RetryError is safe to retry and counts no
+// attempt.
 func (e *RetryError) Retryable() bool { return true }
 
 // RetryReasonOf returns the reason of a RetryError in err's chain, and false
@@ -97,6 +106,9 @@ func RetryReasonOf(err error) (RetryReason, bool) {
 // scope had no activation above its cursor; nothing else is set then.
 type LinkResult struct {
 	Idle bool
+	// Deferred is set with Idle when the head activation is backing off
+	// after a counting failure and its next_attempt_at is still ahead.
+	Deferred bool
 
 	ScopeID           string
 	GenerationID      string

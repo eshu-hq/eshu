@@ -20,17 +20,18 @@ import (
 // Defaults for Config. The slot count and the statement timeout live on the
 // store (store.DefaultSlots, store.DefaultStatementTimeout).
 const (
-	DefaultPollInterval           = 30 * time.Second
+	DefaultPollInterval           = 5 * time.Second
 	DefaultWorkers                = 4
 	DefaultBackfillScopesPerCycle = 10
 	DefaultMaxLinksPerScope       = 16
 	orphanScopesPerCycle          = 100
 )
 
-// Linker links one activation of one scope per call. store.LinkWriter
-// implements it.
+// Linker links one activation of one scope per call and records counting
+// failures. store.LinkWriter implements it.
 type Linker interface {
 	LinkNext(ctx context.Context, scopeID string) (store.LinkResult, error)
+	RecordFailure(ctx context.Context, failure *store.FailureError, maxAttempts int) (store.FailureRecord, error)
 }
 
 // Journal journals activations and reads the ledger. store.JournalStore
@@ -55,6 +56,9 @@ type Config struct {
 	// MaxLinksPerScope bounds how many activations one scope links in one
 	// cycle, so a long backlog on one scope does not starve the others.
 	MaxLinksPerScope int
+	// MaxAttempts is the counting-failure limit before an activation becomes
+	// a link_poisoned break (store.DefaultMaxAttempts when below 1).
+	MaxAttempts int
 }
 
 func (c Config) pollInterval() time.Duration {
@@ -89,11 +93,12 @@ func (c Config) maxLinksPerScope() int {
 	return c.MaxLinksPerScope
 }
 
-// CycleResult summarizes one runner cycle.
+// CycleResult summarizes one runner cycle. Breaks includes Poisoned.
 type CycleResult struct {
 	Journal  store.JournalResult
 	Linked   int
 	Breaks   int
+	Poisoned int
 	Retries  int
 	Failures int
 	Orphans  int
@@ -110,6 +115,10 @@ type Runner struct {
 	Journal Journal
 	Config  Config
 	Wait    func(context.Context, time.Duration) error
+	// Classify returns the counting failure an error represents, or nil for
+	// a non-counting or uncounted error. Nil uses CountingFailure. Tests plant
+	// a wrong classifier here to prove the gates see it (G16b).
+	Classify func(error) *store.FailureError
 
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
@@ -180,6 +189,7 @@ func (r *Runner) linkScopes(ctx context.Context, scopes []string, result *CycleR
 				mu.Lock()
 				result.Linked += tally.Linked
 				result.Breaks += tally.Breaks
+				result.Poisoned += tally.Poisoned
 				result.Retries += tally.Retries
 				result.Failures += tally.Failures
 				mu.Unlock()
@@ -211,10 +221,13 @@ func (r *Runner) drainScope(ctx context.Context, scopeID string) CycleResult {
 			tally.Linked++
 		case outcomeBreak:
 			tally.Breaks++
+		case outcomePoisoned:
+			tally.Breaks++
+			tally.Poisoned++
 		case outcomeRetry:
 			tally.Retries++
 			return tally
-		case outcomeError:
+		case outcomeFailed:
 			tally.Failures++
 			return tally
 		default:
@@ -222,6 +235,17 @@ func (r *Runner) drainScope(ctx context.Context, scopeID string) CycleResult {
 		}
 	}
 	return tally
+}
+
+// CountingFailure is the production classifier: the store's *FailureError
+// is a counting failure; a *RetryError (non-counting) and any other error
+// (begin, lock reads) are not.
+func CountingFailure(err error) *store.FailureError {
+	var failure *store.FailureError
+	if errors.As(err, &failure) {
+		return failure
+	}
+	return nil
 }
 
 func (r *Runner) deleteOrphans(ctx context.Context) int {

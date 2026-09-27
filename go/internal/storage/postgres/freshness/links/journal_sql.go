@@ -102,9 +102,23 @@ ORDER BY scope.scope_id
 ON CONFLICT (scope_id, generation_id) DO NOTHING
 `
 
+// createCursorsQuery creates the cursor row of every journaled scope that has
+// none, in the journal pass's short transaction, never in a link transaction.
+//
+// $1 digest_version, $2 updated_at.
+const createCursorsQuery = `
+INSERT INTO changed_since_scope_cursor (scope_id, state_generation_id, state_activation_seq, digest_version, updated_at)
+SELECT DISTINCT journal.scope_id, NULL::text, 0::bigint, $1::smallint, $2::timestamptz
+FROM changed_since_activations AS journal
+WHERE NOT EXISTS (SELECT 1 FROM changed_since_scope_cursor AS cursor WHERE cursor.scope_id = journal.scope_id)
+ON CONFLICT (scope_id) DO NOTHING
+`
+
 // backlogScopesQuery lists up to $1 scopes with an activation above their
-// cursor, oldest pending activation first. A scope with no cursor row has
-// never been linked and counts from zero. The journal is bounded by
+// cursor, oldest pending activation first, skipping scopes whose head is
+// backing off until after $2 (now). A scope with no cursor row has never been
+// linked and counts from zero. The list is a hint: the link transaction
+// re-reads the head under the cursor lock (#7127 ruling 8.10). The journal is bounded by
 // generation retention (PR-3d) and holds a few thousand rows, so the scan of
 // it is accepted.
 const backlogScopesQuery = `
@@ -112,18 +126,23 @@ SELECT journal.scope_id
 FROM changed_since_activations AS journal
 LEFT JOIN changed_since_scope_cursor AS cursor ON cursor.scope_id = journal.scope_id
 WHERE journal.activation_seq > COALESCE(cursor.state_activation_seq, 0)
+  AND (cursor.next_attempt_at IS NULL OR cursor.next_attempt_at <= $2)
 GROUP BY journal.scope_id
 ORDER BY min(journal.activation_seq)
 LIMIT $1
 `
 
-// backlogStatsQuery returns the activation rows above their scope cursor and
-// the age of the oldest one in seconds (0 when there is none).
+// backlogStatsQuery returns the activation rows above their scope cursor, the
+// age of the oldest one in seconds (0 when there is none), and the fleet's
+// retrying scopes (a counted failure pending) and poisoned scopes (marker
+// set). It is computed in SQL so any replica reports the fleet.
 //
 // $1 now.
 const backlogStatsQuery = `
 SELECT count(*),
-       COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - min(journal.activated_at))), 0)::float8
+       COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - min(journal.activated_at))), 0)::float8,
+       (SELECT count(*) FROM changed_since_scope_cursor WHERE attempt_count > 0),
+       (SELECT count(*) FROM changed_since_scope_cursor WHERE poisoned_activation_seq IS NOT NULL)
 FROM changed_since_activations AS journal
 LEFT JOIN changed_since_scope_cursor AS cursor ON cursor.scope_id = journal.scope_id
 WHERE journal.activation_seq > COALESCE(cursor.state_activation_seq, 0)

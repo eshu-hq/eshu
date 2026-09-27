@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -22,6 +20,10 @@ const (
 	DefaultSlots = 2
 	// DefaultStatementTimeout bounds one link statement (#7127 ruling 8.3).
 	DefaultStatementTimeout = 120 * time.Second
+	// transactionDeadlineMargin is added to the statement timeout to bound
+	// the whole link transaction, so a stalled worker cannot hold a cursor
+	// row (#7127 ruling 8.10).
+	transactionDeadlineMargin = 30 * time.Second
 )
 
 // LinkWriter links one activation per transaction. It is safe for
@@ -69,8 +71,11 @@ func (w *LinkWriter) statementTimeout() time.Duration {
 
 // cursorState is the locked cursor row of one scope.
 type cursorState struct {
-	stateGenerationID string
-	activationSeq     int64
+	stateGenerationID    string
+	activationSeq        int64
+	attemptActivationSeq int64
+	attemptCount         int
+	nextAttemptAt        sql.NullTime
 }
 
 // activation is one journal row.
@@ -83,25 +88,28 @@ type activation struct {
 
 // LinkNext links the scope's oldest activation above its cursor in one
 // transaction and advances the cursor past it. It returns Idle when there is
-// none. A lock miss, a busy slot or a statement timeout rolls back and
-// returns a *RetryError; the cursor does not move, so the activation is
-// retried. Any other error rolls back and is returned as is.
+// none, and Idle with Deferred when the head is backing off after a counting
+// failure. A lock miss rolls back and returns a non-counting *RetryError. A
+// failure once the link statement ran rolls back and returns a counting
+// *FailureError, which the caller records with RecordFailure. Any other
+// error (begin, the lock reads) rolls back and counts nothing. A context
+// deadline of the statement timeout plus a margin bounds the transaction.
 func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, error) {
-	if w == nil || w.database == nil {
-		return LinkResult{}, errors.New("changed-since link database is required")
-	}
 	if scopeID == "" {
 		return LinkResult{}, errors.New("changed-since link scope_id is required")
 	}
-	beginner, ok := w.database.(db.Beginner)
-	if !ok {
-		return LinkResult{}, errors.New("changed-since link database must support Begin")
+	if w == nil || w.database == nil {
+		return LinkResult{}, errors.New("changed-since link database is required")
 	}
 	start := time.Now()
+	// The cursor row is created by its own autocommit insert, never inside
+	// the link transaction (#7127 ruling 8.10).
 	if _, err := w.database.ExecContext(ctx, ensureCursorQuery, scopeID, DigestVersion, w.now()); err != nil {
 		return LinkResult{}, fmt.Errorf("changed-since link: ensure cursor: %w", err)
 	}
-	tx, err := beginner.Begin(ctx)
+	ctx, cancel := context.WithTimeout(ctx, w.statementTimeout()+transactionDeadlineMargin)
+	defer cancel()
+	tx, err := w.begin(ctx)
 	if err != nil {
 		return LinkResult{}, fmt.Errorf("changed-since link: begin: %w", err)
 	}
@@ -112,19 +120,43 @@ func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, 
 		}
 	}()
 
-	result, err := w.linkInTx(ctx, tx, scopeID)
-	if err != nil {
-		return LinkResult{}, classifyTimeout(err)
+	var failed *FailureError
+	result, err := w.linkInTx(ctx, tx, scopeID, &failed)
+	if err == nil {
+		if err = tx.Commit(); err != nil && failed != nil {
+			err = w.counted(failed, fmt.Errorf("changed-since link: commit: %w", err))
+		}
 	}
-	if err := tx.Commit(); err != nil {
-		return LinkResult{}, classifyTimeout(fmt.Errorf("changed-since link: commit: %w", err))
+	if err != nil {
+		return LinkResult{}, err
 	}
 	committed = true
 	result.Duration = time.Since(start)
 	return result, nil
 }
 
-func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID string) (LinkResult, error) {
+func (w *LinkWriter) begin(ctx context.Context) (db.Transaction, error) {
+	if w == nil || w.database == nil {
+		return nil, errors.New("changed-since link database is required")
+	}
+	beginner, ok := w.database.(db.Beginner)
+	if !ok {
+		return nil, errors.New("changed-since link database must support Begin")
+	}
+	return beginner.Begin(ctx)
+}
+
+// counted wraps an error from the link statement onward as a counting
+// failure of the activation armed in failed.
+func (w *LinkWriter) counted(failed *FailureError, err error) error {
+	failed.Class = ClassifyFailure(err)
+	failed.Err = err
+	return failed
+}
+
+// linkInTx runs the link. Once it has chosen to run a link statement it arms
+// *failed with the activation, so errors from that point on are counted.
+func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID string, failed **FailureError) (LinkResult, error) {
 	cursor, locked, err := lockCursor(ctx, tx, scopeID)
 	if err != nil {
 		return LinkResult{}, err
@@ -132,12 +164,17 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	if !locked {
 		return LinkResult{}, &RetryError{Reason: RetryCursorLocked}
 	}
+	// The caller's candidate list was a hint; the head is re-read here,
+	// under the cursor lock.
 	act, found, err := nextActivation(ctx, tx, scopeID, cursor.activationSeq)
 	if err != nil {
 		return LinkResult{}, err
 	}
 	if !found {
 		return LinkResult{Idle: true, ScopeID: scopeID}, nil
+	}
+	if cursor.attemptActivationSeq == act.seq && cursor.nextAttemptAt.Valid && cursor.nextAttemptAt.Time.After(w.now()) {
+		return LinkResult{Idle: true, Deferred: true, ScopeID: scopeID}, nil
 	}
 	result := LinkResult{
 		ScopeID:       scopeID,
@@ -152,33 +189,46 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	}
 	if !exists {
 		result.Break = BreakPrunedBeforeLink
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq)
+		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
 	}
 	if err := lockGeneration(ctx, tx, scopeID, act.generationID); err != nil {
-		return LinkResult{}, err
+		return LinkResult{}, withActivation(err, scopeID, act.seq)
 	}
 	if isDelta {
 		result.Break = deltaBreakReason(cursor.stateGenerationID, act)
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq)
+		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
 	}
 	if cursor.stateGenerationID == act.generationID {
-		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq)
+		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
 	}
 	if err := w.takeSlot(ctx, tx); err != nil {
-		return LinkResult{}, err
+		return LinkResult{}, withActivation(err, scopeID, act.seq)
 	}
 	if err := w.setLocals(ctx, tx); err != nil {
 		return LinkResult{}, err
 	}
+	*failed = &FailureError{ScopeID: scopeID, GenerationID: act.generationID, ActivationSeq: act.seq}
 	if cursor.stateGenerationID == "" {
 		err = w.root(ctx, tx, scopeID, act.generationID, &result)
 	} else {
 		err = w.incremental(ctx, tx, scopeID, act.generationID, cursor.stateGenerationID, &result)
 	}
-	if err != nil {
-		return LinkResult{}, err
+	if err == nil {
+		err = w.advance(ctx, tx, scopeID, act.generationID, act.seq, true)
 	}
-	return result, w.advance(ctx, tx, scopeID, act.generationID, act.seq)
+	if err != nil {
+		return LinkResult{}, w.counted(*failed, err)
+	}
+	return result, nil
+}
+
+// withActivation names the head activation on a non-counting miss.
+func withActivation(err error, scopeID string, seq int64) error {
+	var retry *RetryError
+	if errors.As(err, &retry) {
+		retry.ScopeID, retry.ActivationSeq = scopeID, seq
+	}
+	return err
 }
 
 // deltaBreakReason classifies a delta activation. The overlay link is not
@@ -209,7 +259,8 @@ func lockCursor(ctx context.Context, tx db.Transaction, scopeID string) (cursorS
 	}
 	var state cursorState
 	var digestVersion int16
-	if err := rows.Scan(&state.stateGenerationID, &state.activationSeq, &digestVersion); err != nil {
+	if err := rows.Scan(&state.stateGenerationID, &state.activationSeq, &digestVersion,
+		&state.attemptActivationSeq, &state.attemptCount, &state.nextAttemptAt); err != nil {
 		return cursorState{}, false, fmt.Errorf("changed-since link: scan cursor: %w", err)
 	}
 	if digestVersion != DigestVersion {
@@ -337,8 +388,8 @@ func (w *LinkWriter) incremental(
 	return nil
 }
 
-func (w *LinkWriter) advance(ctx context.Context, tx db.Transaction, scopeID, stateGenerationID string, seq int64) error {
-	res, err := tx.ExecContext(ctx, advanceCursorQuery, scopeID, stateGenerationID, seq, DigestVersion, w.now())
+func (w *LinkWriter) advance(ctx context.Context, tx db.Transaction, scopeID, stateGenerationID string, seq int64, linked bool) error {
+	res, err := tx.ExecContext(ctx, advanceCursorQuery, scopeID, stateGenerationID, seq, DigestVersion, w.now(), linked)
 	if err != nil {
 		return fmt.Errorf("changed-since link: advance cursor: %w", err)
 	}
@@ -365,13 +416,4 @@ func queryOne(ctx context.Context, q db.Queryer, query string, args []any, dest 
 		return err
 	}
 	return rows.Err()
-}
-
-// classifyTimeout turns SQLSTATE 57014 (statement_timeout) into a retry.
-func classifyTimeout(err error) error {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "57014" {
-		return &RetryError{Reason: RetryStatementTimeout, Err: err}
-	}
-	return err
 }

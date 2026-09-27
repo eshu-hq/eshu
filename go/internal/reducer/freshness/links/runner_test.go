@@ -15,9 +15,18 @@ import (
 // fakeLinker replays a scripted sequence of LinkNext results per scope and
 // records the calls.
 type fakeLinker struct {
-	mu      sync.Mutex
-	scripts map[string][]linkStep
-	calls   map[string]int
+	mu       sync.Mutex
+	scripts  map[string][]linkStep
+	calls    map[string]int
+	recorded []*store.FailureError
+	poison   bool
+}
+
+func (f *fakeLinker) RecordFailure(_ context.Context, failure *store.FailureError, _ int) (store.FailureRecord, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recorded = append(f.recorded, failure)
+	return store.FailureRecord{Counted: true, Attempts: 1, Poisoned: f.poison}, nil
 }
 
 type linkStep struct {
@@ -118,5 +127,40 @@ func TestRunOnceBoundsLinksPerScope(t *testing.T) {
 func TestRunnerRequiresLinkerAndJournal(t *testing.T) {
 	if _, err := (&Runner{}).RunOnce(context.Background()); err == nil {
 		t.Fatal("RunOnce without dependencies succeeded")
+	}
+}
+
+func TestCountingFailureIsRecordedAndNonCountingIsNot(t *testing.T) {
+	failure := &store.FailureError{Class: store.FailureSQLError, ScopeID: "a", ActivationSeq: 7, Err: errors.New("boom")}
+	linker := &fakeLinker{calls: map[string]int{}, scripts: map[string][]linkStep{
+		"a": {{err: failure}},
+		"b": {{err: &store.RetryError{Reason: store.RetrySlotBusy, ScopeID: "b", ActivationSeq: 3}}},
+		"c": {{err: errors.New("begin failed")}},
+	}}
+	runner := &Runner{Linker: linker, Journal: &fakeJournal{scopes: []string{"a", "b", "c"}}}
+	result, err := runner.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if len(linker.recorded) != 1 || linker.recorded[0] != failure {
+		t.Fatalf("recorded failures = %v, want only the counting failure of a", linker.recorded)
+	}
+	if result.Failures != 2 || result.Retries != 1 || result.Poisoned != 0 {
+		t.Fatalf("RunOnce = %+v, want 2 failures (one counted), 1 retry", result)
+	}
+}
+
+func TestPoisonedFailureCountsAsABreakAndDrainsOn(t *testing.T) {
+	failure := &store.FailureError{Class: store.FailureStatementTimeout, ScopeID: "a", ActivationSeq: 1, Err: errors.New("timeout")}
+	linker := &fakeLinker{poison: true, calls: map[string]int{}, scripts: map[string][]linkStep{
+		"a": {{err: failure}, linkedStep(store.LinkKindIncremental)},
+	}}
+	runner := &Runner{Linker: linker, Journal: &fakeJournal{scopes: []string{"a"}}}
+	result, err := runner.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if result.Poisoned != 1 || result.Breaks != 1 || result.Linked != 1 {
+		t.Fatalf("RunOnce = %+v, want one poisoned break then the next activation linked", result)
 	}
 }

@@ -25,7 +25,8 @@ ON CONFLICT (scope_id) DO NOTHING
 // when another writer holds the scope, which the caller turns into a
 // cursor_locked retry; it never waits.
 const lockCursorQuery = `
-SELECT COALESCE(state_generation_id, ''), state_activation_seq, digest_version
+SELECT COALESCE(state_generation_id, ''), state_activation_seq, digest_version,
+       COALESCE(attempt_activation_seq, 0), attempt_count, next_attempt_at
 FROM changed_since_scope_cursor
 WHERE scope_id = $1
 FOR UPDATE SKIP LOCKED
@@ -218,17 +219,58 @@ SELECT delta_rows, files_keys, content_entities_keys, facts_keys,
 FROM lnk
 `
 
-// advanceCursorQuery moves the cursor past one activation. $2 is the new
-// state generation: the linked generation after a link, or the unchanged
-// state generation after a chain break (#7127 ruling 8.5 keeps the state).
+// advanceCursorQuery moves the cursor past one activation and clears the
+// attempt fields. $2 is the new state generation: the linked generation after
+// a link, or the unchanged state generation after a chain break (#7127 ruling
+// 8.5 keeps the state). $6 is true for a root or incremental link, which also
+// clears the poison marker (#7127 ruling 8.10).
 //
-// $1 scope_id, $2 state_generation_id (an empty string stores NULL), $3 activation_seq,
-// $4 digest_version, $5 updated_at.
+// $1 scope_id, $2 state_generation_id (an empty string stores NULL),
+// $3 activation_seq, $4 digest_version, $5 updated_at, $6 linked.
 const advanceCursorQuery = `
 UPDATE changed_since_scope_cursor
 SET state_generation_id = NULLIF($2, ''),
     state_activation_seq = $3,
     digest_version = $4,
-    updated_at = $5
+    updated_at = $5,
+    attempt_activation_seq = NULL,
+    attempt_count = 0,
+    next_attempt_at = NULL,
+    last_failure_class = NULL,
+    poisoned_activation_seq = CASE WHEN $6 THEN NULL ELSE poisoned_activation_seq END,
+    poisoned_at = CASE WHEN $6 THEN NULL ELSE poisoned_at END
+WHERE scope_id = $1
+`
+
+// recordAttemptQuery counts one counting failure of the head activation.
+//
+// $1 scope_id, $2 activation_seq, $3 attempt_count, $4 next_attempt_at,
+// $5 failure class, $6 updated_at.
+const recordAttemptQuery = `
+UPDATE changed_since_scope_cursor
+SET attempt_activation_seq = $2,
+    attempt_count = $3,
+    next_attempt_at = $4,
+    last_failure_class = $5,
+    updated_at = $6
+WHERE scope_id = $1
+`
+
+// poisonActivationQuery turns the head activation into a link_poisoned chain
+// break: the cursor advances past it, state_generation_id and the state rows
+// stay, the attempt fields clear, and the poison marker is set. The last
+// failure class stays as the cause.
+//
+// $1 scope_id, $2 activation_seq, $3 failure class, $4 poisoned_at.
+const poisonActivationQuery = `
+UPDATE changed_since_scope_cursor
+SET state_activation_seq = $2,
+    poisoned_activation_seq = $2,
+    poisoned_at = $4,
+    attempt_activation_seq = NULL,
+    attempt_count = 0,
+    next_attempt_at = NULL,
+    last_failure_class = $3,
+    updated_at = $4
 WHERE scope_id = $1
 `

@@ -70,6 +70,7 @@ const (
 	changedSinceLinkPollIntervalEnv     = "ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL"
 	changedSinceLinkWorkersEnv          = "ESHU_CHANGED_SINCE_LINK_WORKERS"
 	changedSinceLinkBackfillScopesEnv   = "ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE"
+	changedSinceLinkMaxAttemptsEnv      = "ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS"
 )
 
 type changedSinceLinkConfig struct {
@@ -90,6 +91,7 @@ func loadChangedSinceLinkConfig(getenv func(string) string) changedSinceLinkConf
 			PollInterval:           loadDurationOrDefault(getenv, changedSinceLinkPollIntervalEnv, links.DefaultPollInterval),
 			Workers:                loadPositiveIntOrDefault(getenv, changedSinceLinkWorkersEnv, links.DefaultWorkers),
 			BackfillScopesPerCycle: loadPositiveIntOrDefault(getenv, changedSinceLinkBackfillScopesEnv, links.DefaultBackfillScopesPerCycle),
+			MaxAttempts:            loadPositiveIntOrDefault(getenv, changedSinceLinkMaxAttemptsEnv, linkstore.DefaultMaxAttempts),
 		},
 	}
 }

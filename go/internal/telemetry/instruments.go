@@ -253,16 +253,25 @@ type Instruments struct {
 	// scope or generation identifier is ever a label; the per-link log line
 	// carries them.
 	//
-	// ChangedSinceLinks counts link transactions by link_kind (root,
-	// incremental, none) and outcome (linked, chain_break, retry, error).
+	// ChangedSinceLinks counts link attempts by link_kind (root,
+	// incremental, none) and outcome (linked, break, failed, poisoned).
 	ChangedSinceLinks metric.Int64Counter
-	// ChangedSinceLinkRetries counts retryable link outcomes by reason
-	// (cursor_locked, generation_locked, slot_busy, statement_timeout).
+	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
+	// (cursor_locked, generation_locked, slot_busy).
 	ChangedSinceLinkRetries metric.Int64Counter
+	// ChangedSinceLinkFailures counts counting link failures by
+	// failure_class (statement_timeout, connection_lost, sql_error,
+	// internal).
+	ChangedSinceLinkFailures metric.Int64Counter
 	// ChangedSinceChainBreaks counts activations advanced without a link by
 	// reason (pruned_before_link, delta_without_root, prior_mismatch,
-	// overlay_unproven).
+	// overlay_unproven, link_poisoned).
 	ChangedSinceChainBreaks metric.Int64Counter
+	// ChangedSinceLinkRetryingScopes and ChangedSinceLinkPoisonedScopes are
+	// the fleet's scopes with a counted failure pending and with the
+	// link_poisoned marker set, computed in SQL.
+	ChangedSinceLinkRetryingScopes metric.Int64Gauge
+	ChangedSinceLinkPoisonedScopes metric.Int64Gauge
 	// ChangedSinceLinkBacklog is the number of activation rows above their
 	// scope cursor, sampled once per runner cycle.
 	ChangedSinceLinkBacklog metric.Int64Gauge
