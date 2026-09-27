@@ -6,6 +6,7 @@ package mcp
 import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iac/management"
+	replatformingtools "github.com/eshu-hq/eshu/go/internal/mcp/replatforming"
 )
 
 func codebaseTools() []ToolDefinition {
@@ -44,6 +45,16 @@ func codebaseTools() []ToolDefinition {
 	iac := iacmanagementtools.Tools()
 	if len(iac) != 5 {
 		panic("iacmanagementtools.Tools must return exactly the five spliced definitions")
+	}
+	// rplat holds the two replatforming definitions owned by the
+	// replatforming package, spliced into this block at their long-standing
+	// positions around the drift neighbor. The interleaved neighbor rules
+	// out a whole-slice append, so this guard makes an arity change fail
+	// fast here instead of silently dropping a third definition or
+	// panicking on an index below.
+	rplat := replatformingtools.Tools()
+	if len(rplat) != 2 {
+		panic("replatformingtools.Tools must return exactly the two spliced definitions")
 	}
 	tools = append(tools, []ToolDefinition{
 		{
@@ -125,10 +136,10 @@ func codebaseTools() []ToolDefinition {
 		iac[0],
 		iac[1],
 		iac[2],
-		composeReplatformingPlanTool(),
+		rplat[0],
 		awsRuntimeDriftFindingsTool(),
 		iac[3],
-		replatformingRollupsTool(),
+		rplat[1],
 		iac[4],
 	}...)
 	// The three complexity/quality definitions owned by the code/quality

@@ -4,16 +4,16 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
-3. `routes.go` and `routes_test.go` for the child request-selection contract.
+3. `routes.go` and `routes_test.go` for the child request-selection contract,
+   plus `tools.go` and `tools_test.go` for the two tool definitions this
+   package owns.
 4. `../dispatch_iac.go` for the private `replatformingRoute` adapter,
    consulted as a delegation ahead of the switch that held these two arms
    before the extraction, reusing the file that already owned the two body
    builders rather than creating a new one so the root non-test file count
    stays at its dirgate pin.
-5. `../tools_iac.go` for the two advertised schemas
-   (`compose_replatforming_plan`, `get_replatforming_rollups`). They stay at
-   the parent's root and must keep naming the same fields this builder
-   selects.
+5. `../tools_iac.go` for the drift definition that stays at the parent's
+   root. Its schema must keep naming the same fields its builder selects.
 6. `../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/iac/replatforming_plan_handler.go` and
    `go/internal/query/iac/replatforming_rollups_handler.go` for the two
