@@ -225,8 +225,14 @@ LIMIT $row_limit`
 // joining the registry-repository metadata in Go. It preserves the old
 // inner-join semantics (an image with no matching repository is omitted).
 // truncatedDigests names every digest whose image row set could not be
-// resolved within oci.RegistryTruthRowLimit; those digests contribute no rows.
-// events counts how many Run calls hit the bound (for telemetry).
+// resolved within oci.RegistryTruthRowLimit ON AT LEAST ONE LABEL; those
+// digests contribute no rows from ANY label (#6590 gating-review P1, PR
+// #7314). fetchOCIImagesByDigest issues one LIMIT statement per image label
+// and unions every label's kept rows before reporting truncatedDigests, so a
+// digest that overflowed on one label can still have rows on another; those
+// surviving rows are dropped here, before shaping, so a withheld digest
+// never emits a truth row from any label. events counts how many Run calls
+// hit the bound (for telemetry).
 func fetchOCIImageDigestRows(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
@@ -239,6 +245,7 @@ func fetchOCIImageDigestRows(
 	if err != nil {
 		return nil, nil, 0, err
 	}
+	images = dropTruncatedDigestRows(images, truncatedDigests)
 	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(images, "repository_id"))
 	if err != nil {
 		return nil, nil, 0, err
@@ -252,6 +259,30 @@ func fetchOCIImageDigestRows(
 		rows = append(rows, oci.JoinImageRepository(image, repo))
 	}
 	return rows, truncatedDigests, events, nil
+}
+
+// dropTruncatedDigestRows removes every row whose digest field is in
+// truncatedDigests, so a digest withheld because one label's statement
+// overflowed never surfaces a row a DIFFERENT label's statement returned
+// (#6590 gating-review P1, PR #7314): the withheld-never-emitted contract
+// applies per digest, not per label.
+func dropTruncatedDigestRows(rows []map[string]any, truncatedDigests []string) []map[string]any {
+	if len(truncatedDigests) == 0 {
+		return rows
+	}
+	bad := make(map[string]struct{}, len(truncatedDigests))
+	for _, digest := range truncatedDigests {
+		bad[strings.ToLower(strings.TrimSpace(digest))] = struct{}{}
+	}
+	kept := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		digest := strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "digest")))
+		if _, isBad := bad[digest]; isBad {
+			continue
+		}
+		kept = append(kept, row)
+	}
+	return kept
 }
 
 // fetchOCIImageTagRows returns tag-resolved image registry truth. It reads tag

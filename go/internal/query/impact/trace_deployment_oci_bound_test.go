@@ -323,6 +323,118 @@ func TestFetchOCIImageRegistryTruthDigestRowLimitWithholdsAffectedRefs(t *testin
 	}
 }
 
+// TestFetchOCIImageRegistryTruthWithholdsDigestTruncatedOnAnyLabel is the
+// gating-review P1 fix (#6590, PR #7314): fetchOCIImagesByDigest runs one
+// LIMIT statement per image label (ContainerImage, ContainerImageIndex,
+// ContainerImageDescriptor), so a digest can overflow on one label while
+// still returning rows on another. Digest E has 750 rows under
+// ContainerImage (irreducible overflow on that label) and 1 row under
+// ContainerImageIndex; it must be withheld entirely -- no truth row from
+// EITHER label -- and a tag ref resolving to it must stay withheld too.
+// Digest F, present only under ContainerImageIndex and never truncated,
+// must still resolve normally.
+func TestFetchOCIImageRegistryTruthWithholdsDigestTruncatedOnAnyLabel(t *testing.T) {
+	t.Parallel()
+
+	digestE := "sha256:" + strings.Repeat("e", 64)
+	digestF := "sha256:" + strings.Repeat("f", 64)
+	refE := "ghcr.io/acme/x@" + digestE
+	refF := "ghcr.io/acme/x@" + digestF
+	const refG = "ghcr.io/acme/x:g"
+
+	eRowsOnContainerImage := make([]map[string]any, 0, 750)
+	for i := 0; i < 750; i++ {
+		eRowsOnContainerImage = append(eRowsOnContainerImage, ociImageRow(digestE, "repo:e"))
+	}
+
+	bounded := graph.OCIBoundedFakeReader{
+		T: t,
+		Statements: []graph.OCIBoundedStatementFixture{
+			{
+				CypherContains: "MATCH (tag:ContainerImageTagObservation)",
+				KeyParam:       "image_refs",
+				KeyField:       "image_ref",
+				RowsByKey:      map[string][]map[string]any{refG: {ociTagRow(refG, digestE, "repo:e")}},
+			},
+			{
+				CypherContains: "MATCH (image:ContainerImage)",
+				KeyParam:       "digests",
+				KeyField:       "digest",
+				RowsByKey:      map[string][]map[string]any{digestE: eRowsOnContainerImage},
+			},
+			{
+				CypherContains: "MATCH (image:ContainerImageIndex)",
+				KeyParam:       "digests",
+				KeyField:       "digest",
+				RowsByKey: map[string][]map[string]any{
+					digestE: {ociImageRow(digestE, "repo:e2")},
+					digestF: {ociImageRow(digestF, "repo:f")},
+				},
+			},
+		},
+	}
+	repoRows := map[string]map[string]any{
+		"repo:e":  ociRepoRow("repo:e", "ghcr.io", "acme/x", "ghcr"),
+		"repo:e2": ociRepoRow("repo:e2", "ghcr.io", "acme/x", "ghcr"),
+		"repo:f":  ociRepoRow("repo:f", "ghcr.io", "acme/x", "ghcr"),
+	}
+	reader := graph.FakeWorkloadGraphReader{
+		RunFn: func(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "MATCH (repo:OciRegistryRepository)") {
+				ids, _ := params["repository_ids"].([]string)
+				rows := make([]map[string]any, 0, len(ids))
+				for _, id := range ids {
+					if row, ok := repoRows[id]; ok {
+						rows = append(rows, row)
+					}
+				}
+				return rows, nil
+			}
+			return bounded.Run(ctx, cypher, params)
+		},
+	}
+
+	result, err := FetchOCIImageRegistryTruthResult(t.Context(), reader, []string{refE, refF, refG})
+	if err != nil {
+		t.Fatalf("FetchOCIImageRegistryTruthResult() error = %v", err)
+	}
+
+	var eRow, fRow, gRow map[string]any
+	for _, row := range result.Rows {
+		switch querycontract.StringVal(row, "image_ref") {
+		case refE:
+			eRow = row
+		case refF:
+			fRow = row
+		case refG:
+			gRow = row
+		}
+	}
+	if eRow != nil {
+		t.Fatalf("got a truth row for digest E, truncated on ContainerImage but present on ContainerImageIndex: %#v", eRow)
+	}
+	if gRow != nil {
+		t.Fatalf("got a truth row for tag ref G (resolves to truncated digest E): %#v", gRow)
+	}
+	if fRow == nil {
+		t.Fatalf("no truth row for digest F (never truncated, present only on ContainerImageIndex) in %#v", result.Rows)
+	}
+
+	withheld := make(map[string]bool, len(result.TruncatedImageRefs))
+	for _, ref := range result.TruncatedImageRefs {
+		withheld[ref] = true
+	}
+	if !withheld[refE] {
+		t.Errorf("TruncatedImageRefs = %#v, want refE present", result.TruncatedImageRefs)
+	}
+	if !withheld[refG] {
+		t.Errorf("TruncatedImageRefs = %#v, want refG present (references truncated digest E)", result.TruncatedImageRefs)
+	}
+	if withheld[refF] {
+		t.Errorf("TruncatedImageRefs = %#v, want refF absent", result.TruncatedImageRefs)
+	}
+}
+
 func repeatOCITagRow(imageRef, digest, repositoryID string, n int) []map[string]any {
 	rows := make([]map[string]any, 0, n)
 	for i := 0; i < n; i++ {
