@@ -152,14 +152,17 @@ FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d650
 
 # c-ares (a transitive libcurl dependency) is pinned to the patched build for
 # CVE-2026-33630. libexpat is likewise pinned for CVE-2026-76956 and
-# CVE-2026-76957. Pinning them here — rather than relying on a base-image digest
-# bump — is load-bearing: docker-publish.yml imports a persistent type=gha layer
-# cache, and this RUN precedes the go-binary COPY, so a go.mod-only change leaves
+# CVE-2026-76957. libssl3/libcrypto3 (pulled in transitively by curl) are
+# pinned for CVE-2026-45447 (OpenSSL PKCS7_verify use-after-free, #7315).
+# Pinning them here — rather than relying on a base-image digest bump — is
+# load-bearing: docker-publish.yml imports a persistent type=gha layer cache,
+# and this RUN precedes the go-binary COPY, so a go.mod-only change leaves
 # this layer's cache key untouched and BuildKit would reship the old vulnerable
 # packages. The explicit constraints change the layer's cache key (forcing a
 # rebuild that pulls the fixed packages) and fail the build closed if the
-# Alpine 3.21 repo ever regresses below either patched version.
-RUN apk add --no-cache git curl "c-ares>=1.34.8-r0" "libexpat>=2.8.4-r0"
+# Alpine 3.21 repo ever regresses below any patched version.
+RUN apk add --no-cache git curl "c-ares>=1.34.8-r0" "libexpat>=2.8.4-r0" \
+    "libssl3>=3.3.7-r1" "libcrypto3>=3.3.7-r1"
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
