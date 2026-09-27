@@ -337,4 +337,9 @@ var orderedBootstrapDefinitionNames = []string{
 	"supply_chain_readiness_sbom_warning_document_index",
 	// Migration 145 (#7242) seeks workload-name facts by repository scope.
 	"fact_records_workload_names_scope_idx",
+	// Migrations 139-140 (#7279) add the retention key indexes the per-candidate
+	// retained-holder probe reads, one concurrent build per file. Renumbered
+	// from 138-139 after #7206 merged migration 138 first.
+	"fact_records_content_entity_key_idx",
+	"fact_records_file_key_idx",
 }

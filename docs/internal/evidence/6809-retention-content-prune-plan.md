@@ -1,5 +1,19 @@
 # #6809: retention content prunes without planner statistics
 
+> **Superseded by #7279.** The grouped single-pass shape this note chose is no
+> longer the production SQL. Its cost is one full pass over every live fact of a
+> kind, and the prunes and the row count run it while the batch holds
+> `FOR UPDATE` on its `ingestion_scopes` rows, so a fact insert into a locked
+> scope waited 17.8 s and 32.5 s on an 11 GB fixture. #7279 replaced it with a
+> per-candidate probe of two partial key indexes (migrations 138 and 139). The
+> "partial expression indexes" row below was rejected here as 2.5x slower warm
+> at 5x, where a full pass is cheap. The cliff this note avoided was a bitmap
+> heap rescan with no key index; the #7279 probe goes through a key index,
+> refuses to run without one, and holds its plan under cold statistics and a
+> forced generic plan. See
+> [7279-retention-per-candidate-key-probe.md](7279-retention-per-candidate-key-probe.md).
+> The text below is kept as the #6809 record.
+
 Generation retention deletes `content_entities`, `content_files`, and
 `content_file_references` rows whose only live facts sit in the generations
 being pruned. The three prune statements used a `candidate NOT EXISTS retained`

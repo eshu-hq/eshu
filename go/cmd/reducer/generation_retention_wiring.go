@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -49,6 +51,12 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		PolicyScope:              policy.PolicyScope,
 		PolicyRevision:           policy.PolicyRevision,
 	})
+	if errors.Is(err, postgres.ErrGenerationRetentionKeyIndexUnavailable) {
+		// Carry the storage refusal into the runner's contract so it reports
+		// failure reason key_index_unavailable, not a generic store error.
+		return maintenance.GenerationRetentionResult{}, fmt.Errorf("%w: %w",
+			maintenance.ErrGenerationRetentionKeyIndexUnavailable, err)
+	}
 	if err != nil {
 		return maintenance.GenerationRetentionResult{}, err
 	}
@@ -58,6 +66,8 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		Skipped:           result.Skipped,
 		OldestEligibleAge: result.OldestEligibleAge,
 		Duration:          result.Duration,
+		PhaseDurations:    result.PhaseDurations,
+		ScopeLockHold:     result.ScopeLockHold,
 	}, nil
 }
 

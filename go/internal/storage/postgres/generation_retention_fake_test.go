@@ -15,6 +15,9 @@ import (
 type generationRetentionFakeDB struct {
 	candidateRows [][]any
 	countRows     [][]any
+	// missingKeyIndexes answers the key-index precondition query: the names
+	// of the #7279 key indexes the fake database reports missing or invalid.
+	missingKeyIndexes []string
 	// recountRows, when set, answers every row-count query after the first:
 	// the recount the store issues after a row-limit skip.
 	recountRows [][]any
@@ -49,6 +52,12 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 	tx.database.queries = append(tx.database.queries, fakeQueryCall{query: query, args: args})
 	tx.database.statements = append(tx.database.statements, query)
 	switch {
+	case strings.Contains(query, "generation_retention_key_indexes"):
+		rows := make([][]any, 0, len(tx.database.missingKeyIndexes))
+		for _, name := range tx.database.missingKeyIndexes {
+			rows = append(rows, []any{name})
+		}
+		return &queueFakeRows{rows: rows}, nil
 	case strings.Contains(query, "ranked_superseded_generations"):
 		return &queueFakeRows{rows: generationRetentionCandidateFakeRows(tx.database.candidateRows, args)}, nil
 	case strings.Contains(query, "generation_retention_row_counts"):

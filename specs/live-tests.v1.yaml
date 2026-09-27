@@ -1722,6 +1722,26 @@ tests:
     tag: ~
     class: scheduled
     reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_key_index_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_probe_exact_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_probe_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_probe_scale_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (bootstraps an isolated schema and seeds about 820k facts; 62s laptop-local without -race) — too heavy for the reducer-contention-gate 300s budget; run on demand for #7279 scale and scope-lock contention evidence
+  - file: go/internal/storage/postgres/generation_retention_probe_seed_live_test.go
+    tag: ~
+    class: scheduled
+    reason: helpers only (the #7279 probe corpus seed); holds no test, the tests that call it are classified in their own rows
   - file: go/internal/storage/postgres/graph/owner/backfill_live_test.go
     tag: ~
     class: scheduled

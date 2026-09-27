@@ -157,7 +157,9 @@ The content_entities prune used to hit a plan cliff on a database with no
 planner statistics: measured over 150s cold against 429ms analyzed, on the
 statement as it was when this probe first ran. #6809 replaced the three content
 prunes with a single grouped pass that does not depend on statistics, so the
-probe no longer needs to analyze its seed. The plans, the measurements, and
+probe no longer needs to analyze its seed. #7279 later replaced that pass with a
+per-candidate key-index probe that is also independent of statistics
+([7279-retention-per-candidate-key-probe.md](7279-retention-per-candidate-key-probe.md)). The plans, the measurements, and
 their laptop-only status are in
 [6809-retention-content-prune-plan.md](6809-retention-content-prune-plan.md).
 
