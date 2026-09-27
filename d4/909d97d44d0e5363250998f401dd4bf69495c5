@@ -59,6 +59,7 @@ docs/public/reference/telemetry/index.md
   s_bc720f29f5e0fd::t_521e545811f9ea 255-257
 go/internal/storage/postgres/migrations/embed_invariant_test.go
   s_bc720f29f5e0fd::t_521e545811f9ea 47
+  s_bc720f29f5e0fd::t_ecafa5fdef82e3 39-40
 ---
 {
   "schema_version": "authorship/3.0.0",
