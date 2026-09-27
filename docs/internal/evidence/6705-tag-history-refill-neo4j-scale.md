@@ -271,4 +271,5 @@ was added inline in `tag_history.go` rather than split into a new file: that
 directory is pinned at the dirgate 40-file cap
 (`scripts/lib/dirgate-grandfather.tsv`; see the #6564 evidence doc's Package
 Placement section for the same constraint), and `tag_history.go` itself sits
-at exactly 500 non-test lines after this change -- at the cap, not over it.
+at 496 lines after this change, its size on `origin/main` before it -- under
+the cap, not over it.
