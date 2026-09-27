@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package replatformingtools defines pure route selection for the MCP
-// replatforming-planning family.
+// Package replatformingtools defines pure route selection and tool
+// definitions for the MCP replatforming-planning family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
-// to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order (both tools stay at the
-// root in tools_iac.go), global route fanout, the private replatformingRoute
-// adapter, HTTP dispatch, authorization, timeouts, response budgets,
-// envelopes, and telemetry. The query package owns the bounded reads and
+// to a dependency-neutral internal request without executing it, and Tools
+// returns the two tool definitions this package owns. The parent mcp package
+// owns registration order (it splices Tools into ReadOnlyTools at the
+// long-standing positions), global route fanout, the private
+// replatformingRoute adapter, HTTP dispatch, authorization, timeouts,
+// response budgets, envelopes, and telemetry. The query package owns the bounded reads and
 // scope validation behind each /api/v0/replatforming/... path. This package
 // runs no query and must keep every tool name, request path, and body key
 // stable.

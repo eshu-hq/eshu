@@ -9,12 +9,13 @@ readiness rollup (`get_replatforming_rollups`).
 
 ## Ownership boundary
 
-This package owns replatforming-planning family membership and the mapping
-from decoded arguments to a dependency-neutral internal request.
-`internal/mcp` keeps tool registration order (both tools live in
-`tools_iac.go`), global route fanout, the private `replatformingRoute`
-adapter in `dispatch_iac.go`, HTTP dispatch, authorization, timeouts,
-response budgets, envelopes, and telemetry. `internal/query` owns the bounded
+This package owns replatforming-planning family membership, the mapping
+from decoded arguments to a dependency-neutral internal request, and the two
+tool definitions `Tools()` returns. `internal/mcp` keeps tool registration
+order (it splices `Tools()` into `ReadOnlyTools` at the long-standing
+positions), global route fanout, the private `replatformingRoute` adapter in
+`dispatch_iac.go`, HTTP dispatch, authorization, timeouts, response budgets,
+envelopes, and telemetry. `internal/query` owns the bounded
 reads and scope validation behind each `/api/v0/replatforming/...` path,
 including the scope_kind check on the plan route.
 

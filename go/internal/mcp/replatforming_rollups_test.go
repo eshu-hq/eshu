@@ -4,7 +4,6 @@
 package mcp
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -38,21 +37,5 @@ func TestResolveRouteMapsReplatformingRollups(t *testing.T) {
 	// forward an arn that would narrow to one resource.
 	if _, ok := body["arn"]; ok {
 		t.Fatalf("body must not carry arn for the rollup: %#v", body)
-	}
-}
-
-func TestReplatformingRollupsSchemaDocumentsScope(t *testing.T) {
-	t.Parallel()
-
-	tool := replatformingRollupsTool()
-	schema := tool.InputSchema.(map[string]any)
-	if _, ok := schema["anyOf"]; ok {
-		t.Fatal("schema must not advertise top-level anyOf")
-	}
-	if !strings.Contains(tool.Description, "Provide scope_id or account_id") {
-		t.Fatalf("tool description = %q, want scope guidance", tool.Description)
-	}
-	if !strings.Contains(tool.Description, "rejected") {
-		t.Fatalf("tool description = %q, want source-state taxonomy guidance", tool.Description)
 	}
 }
