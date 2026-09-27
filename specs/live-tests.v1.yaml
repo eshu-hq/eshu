@@ -1627,6 +1627,10 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link scale measurement (#7127 PR-3a gates G5-G8), skipped unless ESHU_CHANGED_SINCE_LINK_SCALE_DSN names a database loaded by docs/internal/evidence/7127-link-writer-fixture.sql; driven by docs/internal/evidence/7127-link-writer-scale.py, about 10 minutes with the load
+  - file: go/internal/storage/postgres/freshness/links/scale_proof_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link scale proofs P3/P8b/P8c (#7127 PR-3a, arbiter ruling arb-7127-g8), skipped unless ESHU_CHANGED_SINCE_LINK_SCALE_DSN and ESHU_CHANGED_SINCE_LINK_SCALE_PROOF are set; driven by docs/internal/evidence/7127-link-writer-scale.py --proof
   - file: go/internal/storage/postgres/freshness/links/stale_stats_live_test.go
     tag: ~
     class: scheduled

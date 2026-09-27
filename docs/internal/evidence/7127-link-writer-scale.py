@@ -34,6 +34,11 @@ concurrent 1.0x links (n rotated per round), each window waiting for the load
 to fall below the CPU count, until every n has --valid-rounds valid windows
 or --deadline passes. RssAnon is sampled per window.
 
+--proof p3|p8b|p8c runs one proof of arbiter ruling arb-7127-g8 through
+TestLinkScaleProof (--statement current|prefix selects the fixed statement
+or the frozen pre-fix one); results go to
+7127-link-writer-proof-<proof>-<statement>.json.
+
 Results go to 7127-link-writer-scale-results.json (7127-link-writer-g7-results.json
 with --g7-only, 7127-link-writer-g8-results.json with --g8-only). Remove the
 container afterwards: docker rm -f -v NAME.
@@ -175,6 +180,8 @@ def main():
     parser.add_argument("--rounds", default="6")
     parser.add_argument("--g7-only", action="store_true")
     parser.add_argument("--g8-only", action="store_true")
+    parser.add_argument("--proof", choices=["p3", "p8b", "p8c"])
+    parser.add_argument("--statement", choices=["current", "prefix"], default="current")
     parser.add_argument("--valid-rounds", default="10")
     parser.add_argument("--deadline", default="8h")
     args = parser.parse_args()
@@ -191,7 +198,10 @@ def main():
     sampler.start()
     env.update(ESHU_CHANGED_SINCE_LINK_SCALE_DSN=(
         f"postgres://postgres:pw@127.0.0.1:{args.port}/{DB}?sslmode=disable"))
-    if args.g8_only:
+    if args.proof:
+        env.update(ESHU_CHANGED_SINCE_LINK_SCALE_PROOF=args.proof, ESHU_CHANGED_SINCE_LINK_SCALE_STATEMENT=args.statement,
+                   ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS=args.rounds)
+    elif args.g8_only:
         env.update(ESHU_CHANGED_SINCE_LINK_SCALE_G8_ONLY="1", ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS=args.valid_rounds,
                    ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE=args.deadline)
     elif args.g7_only:
@@ -200,7 +210,7 @@ def main():
                    ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE=args.deadline)
     else:
         env.update(ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS=args.rounds)
-    test = subprocess.Popen([binary, "-test.run", "TestLinkScaleEvidence", "-test.count=1", "-test.v",
+    test = subprocess.Popen([binary, "-test.run", "TestLinkScaleProof" if args.proof else "TestLinkScaleEvidence", "-test.count=1", "-test.v",
                              "-test.timeout", "12h"],
                             cwd=os.path.join(ROOT, "go/internal/storage/postgres/freshness/links"), env=env,
                             stdout=subprocess.PIPE, text=True)
@@ -230,6 +240,8 @@ def main():
     if args.g8_only:
         result["g8_summary"] = g8_summary(result["events"])
     out = G8_RESULTS if args.g8_only else G7_RESULTS if args.g7_only else RESULTS
+    if args.proof:
+        out = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-proof-%s-%s.json" % (args.proof, args.statement))
     json.dump(result, open(out, "w"), indent=1, sort_keys=True)
     open(out, "a").write("\n")
     os.remove(binary)
