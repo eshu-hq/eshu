@@ -1,0 +1,159 @@
+{
+ "events": [
+  {
+   "event": "p8b_run",
+   "load1": 2.27,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 1
+   },
+   "round": 0,
+   "seconds": 6.612455375,
+   "statement": "current",
+   "stats": "absent",
+   "timed_out": false,
+   "unix": 1790492279.507266
+  },
+  {
+   "event": "p8b_run",
+   "load1": 2.41,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 771304
+   },
+   "round": 0,
+   "seconds": 4.955793375,
+   "statement": "current",
+   "stats": "fresh",
+   "timed_out": false,
+   "unix": 1790492284.572764
+  },
+  {
+   "event": "p8b_run",
+   "load1": 2.46,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 766712
+   },
+   "round": 1,
+   "seconds": 5.392156291,
+   "statement": "current",
+   "stats": "fresh",
+   "timed_out": false,
+   "unix": 1790492290.073004
+  },
+  {
+   "event": "p8b_run",
+   "load1": 2.58,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 1
+   },
+   "round": 1,
+   "seconds": 5.088359417,
+   "statement": "current",
+   "stats": "absent",
+   "timed_out": false,
+   "unix": 1790492299.100896
+  },
+  {
+   "event": "p8b_run",
+   "load1": 2.66,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 1
+   },
+   "round": 2,
+   "seconds": 5.293465292,
+   "statement": "current",
+   "stats": "absent",
+   "timed_out": false,
+   "unix": 1790492308.1982431
+  },
+  {
+   "event": "p8b_run",
+   "load1": 2.92,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 763093
+   },
+   "round": 2,
+   "seconds": 5.259548375,
+   "statement": "current",
+   "stats": "fresh",
+   "timed_out": false,
+   "unix": 1790492313.557735
+  },
+  {
+   "event": "p8b_run",
+   "load1": 3.01,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 767733
+   },
+   "round": 3,
+   "seconds": 5.181959041,
+   "statement": "current",
+   "stats": "fresh",
+   "timed_out": false,
+   "unix": 1790492318.858581
+  },
+  {
+   "event": "p8b_run",
+   "load1": 3,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 1
+   },
+   "round": 3,
+   "seconds": 5.185330208,
+   "statement": "current",
+   "stats": "absent",
+   "timed_out": false,
+   "unix": 1790492328.67976
+  },
+  {
+   "event": "p8b_run",
+   "load1": 3.07,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 1
+   },
+   "round": 4,
+   "seconds": 5.39418525,
+   "statement": "current",
+   "stats": "absent",
+   "timed_out": false,
+   "unix": 1790492338.0468218
+  },
+  {
+   "event": "p8b_run",
+   "load1": 3.23,
+   "plan": {
+    "class_failures": null,
+    "state_rows": 788169
+   },
+   "round": 4,
+   "seconds": 5.437377375,
+   "statement": "current",
+   "stats": "fresh",
+   "timed_out": false,
+   "unix": 1790492343.6411679
+  },
+  {
+   "event": "p8b_done",
+   "median_ratio": 1.000650558403362,
+   "ratios": [
+    0.9436594828478796,
+    0.9920564415487163,
+    1.000650558403362,
+    1.0064486367615166,
+    1.3342879483953465
+   ],
+   "statement": "current",
+   "unix": 1790492343.641205
+  }
+ ],
+ "fixture": null,
+ "go_test_rc": 0
+}

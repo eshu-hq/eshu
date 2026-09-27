@@ -107,16 +107,16 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G1 accuracy | PASS | `TestChangedSinceLinkAccuracyAgainstClassificationOracle` (root package). The fixture has three full generations covering update, `indexed_at`-only change, changed non-minimum duplicate, multiplicity change, tombstone, tombstone with an active row, drop, add, kind change, scalar content-entity payload and a `reducer_` kind. After each link the state equals the independent aggregate, and the link deltas equal a diff built from the shipped `changedSinceClassificationCTEs` (SHA-256 over ordered rows, unchanged counts included). The RED writer without the tombstone predicate gives 6 oracle mismatches; the RED writer without `indexed_at` normalization gives 7. |
 | G2 delta oracle | FAIL (not built) | No overlay link and no real-git-collector delta oracle in this PR; scan 0b has no artifact. As ruling 8.6 allows, a delta activation is a chain break (`overlay_unproven` when its prior matches the state), and the overlay follows in its own PR with the collector proof. |
 | G3 plan, L1b | PASS | `TestLinkStatementPlanShape`: exactly one `fact_records` scan, an Index Scan whose condition names `scope_id` and the activating generation (`fact_records_scope_generation_keyset_idx` without ANALYZE, `fact_records_scope_generation_idx` for the 45k-key scope after ANALYZE), and `Triggers` empty, for a 600-key and a 45,000-key scope with and without `ANALYZE`. See deviation 3. |
-| G4 plan, deltas and state | PASS | `TestLinkDeltaChainReadUsesPrimaryKey`: 2,000,000 delta rows over 500 scopes and 5,000 links; the probed scope holds 0.2% of the rows over 4 links. The access is the primary key with `scope_id`, `generation_id` and `prior_generation_id` in the index condition, at most 10 buffers per row plus 64. It holds in `force_custom_plan` and `force_generic_plan`, with statistics from 13k rows (autovacuum off) and after ANALYZE, and it reads 1,600 rows. RED: with the key dropped, the assertions fail. `TestLinkStatementPlanShape`: 3,844,080 state rows over 800 scopes; the state side reads `changed_since_key_state_pkey` by `scope_id` with no sequential scan for the 600-key and 45,000-key scopes; the 600-key link took 5.3 ms against the 100 ms gate. See deviation 4. |
-| G5 temp files | PASS | Scale run: `pg_stat_database.temp_files` and `temp_bytes` deltas were 0 across the root and the incremental 1.0x link at `work_mem` 256MB, and 0 again with 2 and 4 concurrent links. |
-| G6 RssAnon | PASS | Scale run: the peak single-backend `RssAnon` during a 1.0x incremental link was 464,480 kB (453.6 MiB), under the 524,288 kB (512 MiB) gate with an 11% margin. |
-| G7 timing ratio | PASS | Unattended run (`7127-link-writer-scale.py --g7-only --valid-rounds 10`, raw: `7127-link-writer-g7-results.json`), which waits for the host's 1-minute load to fall below 18 before each round: 10 valid rounds (load at start 9.9-17.8), bare_b, L1b and root interleaved with the first mover rotated, all rolled back. L1b/bare_b paired median **1.11** (range 0.35-1.34; 8 of 10 at or under 1.3), gate 1.3x. Root/bare_b paired median **1.67** (range 0.47-3.36; 9 of 10 at or under 3.0), gate 3x: PASS on the median, one round (round 3, 3.356) above 3x; per-round table under "G7 rounds". The spread is wide: two rounds had bare_b outliers (22.3 s and 13.5 s against 4.8-6.9 s elsewhere) that put L1b/bare_b below 0.4, and one root sample (21.1 s against 8.8-12.6 s) is the only root ratio above 3x. The first scale run's 6 rounds were all invalid (load 36.7-70.9) and are not pooled. |
-| G8 cap proof | FAIL (incomplete) | Load-gated rerun (review F1; per-round table under "G8 rounds"): 26 valid windows, **9 / 9 / 8** for n = 1 / 2 / 4, short of the 10 per n required, because the run stopped when three of four links in an n=4 window (round 26) hit the 120 s statement timeout together; cause not established (see "G8 rounds"). Over the valid windows: median slowest wall 6.58 / 6.95 / 8.18 s; median summed RssAnon 367 / 683 / 1388 MiB (max 454 / 908 / 1816 MiB); median read-probe p95 1.8 / 1.7 / 2.2 ms; 0 temp files. The two-link figures (wall within 6% of one link, 0.67 GiB summed memory) are consistent with the 2-slot default, but the gate is not met. The first run's figures (walls under load 19-82) are superseded. |
+| G4 plan, deltas and state | PASS | `TestLinkDeltaChainReadUsesPrimaryKey`: 2,000,000 delta rows over 500 scopes and 5,000 links; the probed scope holds 0.2% of the rows over 4 links. The access is the primary key with `scope_id`, `generation_id` and `prior_generation_id` in the index condition, at most 10 buffers per row plus 64. It holds in `force_custom_plan` and `force_generic_plan`, with statistics from 13k rows (autovacuum off) and after ANALYZE, and it reads 1,600 rows. RED: with the key dropped, the assertions fail. `TestLinkStatementPlanShape`: 3,844,080 state rows over 800 scopes; the state side reads `changed_since_key_state_pkey` by `scope_id` with no sequential scan for the 600-key and 45,000-key scopes; the 600-key link took 5.3 ms against the 100 ms gate. See deviation 4. After the ruling arb-7127-g8 fix the state half also asserts that the delete reads the state table by Tid Scan, and P1 asserts the plan class under four planted statistics states. |
+| G5 temp files | PASS | 0 temp files for 1.0x links at 256MB in every run: the first scale run, the G8 cap proof on the fixed statement (30 windows, n = 1 / 2 / 4) and P8(c) (120 links). |
+| G6 RssAnon | PASS | Fixed statement, G8 cap proof: the peak single-backend RssAnon of a 1.0x link never exceeded 494,280 kB (482.7 MiB) in 30 windows, against 524,288 kB (512 MiB); 5.7% margin. The first run (pre-fix statement) measured 464,480 kB. |
+| G7 timing ratio | PASS | Rerun on the fixed statement (P7): 10 valid rounds (load at start 4.95-13.94 on 18 CPUs), L1b/bare_b paired median **1.086** (range 0.895-1.301; gate 1.3). Root/bare_b median 1.841 against 3x; one round (round 4) reached 4.425, a 27.05 s root sample against 8.3-15.3 s elsewhere. Per-round table in the G8 companion note. |
+| G8 cap proof | PASS | Fixed statement, fresh container, load-gated (P8 a): 10 valid windows for each of n = 1 / 2 / 4; median slowest link wall 6.85 / 7.18 / 7.90 s; median summed RssAnon 468 / 733 / 1,375 MiB (max 507 / 848 / 1,763 MiB); read-probe p95 median 1.5 / 2.2 / 1.7 ms; 0 temp files; no timeout. The earlier stall (round 26) was the statistics-sensitive delete plan, fixed under ruling arb-7127-g8 and proven by P1-P8; see the companion note. |
 | G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. The reducer binary itself was not run: it needs a graph backend, which this proof does not. |
 | G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
 | G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
 | G12 slot outcomes | PASS | Store `TestSlotBusyBlocksFullLinksOnly`; runner `TestRunnerMovesOnPastABusySlot`: with every slot held the full link is a non-counting `slot_busy` (`attempt_count` 0) and the runner moves on; a delta activation of another scope completes in the same cycle. |
-| G13 schema | PASS | `TestLedgerSchemaHasNoForeignKeys`: no foreign key on or referencing the six tables, and `fact_category` and `stable_fact_key` are NOT NULL. RED: a planted FK and a dropped NOT NULL inside a rolled-back transaction are reported. |
+| G13 schema | PASS | `TestLedgerSchemaHasNoForeignKeys`: no foreign key on or referencing the six tables, and `fact_category` and `stable_fact_key` are NOT NULL. RED: a planted FK and a dropped NOT NULL inside a rolled-back transaction are reported. Also asserted: `changed_since_key_state` is an ordinary table (`relkind = 'r'`), because the delete identifies rows by `ctid`. |
 | G14 switch off | PASS | `TestChangedSinceLinkRunnerIsOffByDefault` (`cmd/reducer`): with no environment and with `false`, `changedSinceLinkRunnerFor` returns nil (the runner is not constructed) and a database double that fails on any query, exec or begin sees none. |
 | G15 break keeps state | PASS | `TestChainBreakKeepsStateThenIncremental`: root F0, then two delta breaks (`overlay_unproven`, `prior_mismatch`) keep the state rows and generation. The next full generation links `incremental` F0 -> F3, the state equals the aggregate of F3, and only the 8 changed keys are written. |
 | G16a poison bound | PASS | Runner `TestRunnerPoisonsAFailingLinkAfterMaxAttempts`: a link made to fail every time (a planted trigger) is tried exactly 5 times, then one `link_poisoned` break; the cursor passes the activation once; state rows and `state_generation_id` unchanged; a healthy scope links both its activations in the first cycle. Store `TestFailingLinkIsPoisonedAfterMaxAttempts`: `next_attempt_at` strictly increasing (30 s, 60 s, 120 s, 240 s), deferred inside the backoff. RED: the same check on a runner with no effective limit reports violations. |
@@ -164,126 +164,9 @@ load rule; see their rows):
   belongs to the dark deployment (ruling 8.7).
 
 
-### G7 rounds (unattended run)
-
-Raw data: `7127-link-writer-g7-results.json`. Every round was valid by the load rule. The root basis is not stated in ruling 8.6, so both the median and the maximum are reported: the median passes, and one round is above 3x.
-
-| Round | Load at start | First mover | bare_b (s) | L1b (s) | root (s) | L1b/bare_b | root/bare_b |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | 15.82 | bare_b | 4.90 | 5.29 | 9.15 | 1.079 | 1.868 |
-| 1 | 15.83 | l1b | 22.30 | 7.73 | 10.45 | 0.347 | 0.468 |
-| 2 | 12.90 | root | 6.83 | 8.91 | 11.32 | 1.305 | 1.658 |
-| 3 | 12.02 | bare_b | 6.28 | 8.38 | 21.07 | 1.336 | 3.356 (max, above 3x) |
-| 4 | 10.92 | l1b | 13.45 | 5.08 | 12.61 | 0.377 | 0.938 |
-| 5 | 17.83 | root | 6.93 | 6.03 | 11.84 | 0.870 | 1.708 |
-| 6 | 14.96 | bare_b | 4.82 | 5.13 | 10.24 | 1.065 | 2.123 |
-| 7 | 14.54 | l1b | 6.25 | 7.14 | 10.16 | 1.141 | 1.624 |
-| 8 | 12.05 | root | 5.61 | 6.79 | 8.80 | 1.211 | 1.568 |
-| 9 | 9.92 | bare_b | 5.49 | 6.49 | 9.21 | 1.180 | 1.676 |
-
-Paired medians: L1b/bare_b 1.110 (gate 1.3x, PASS); root/bare_b 1.667 (gate 3x, PASS on the median; maximum 3.356 in round 3).
-
-Contamination note: the reviewer's live tests and mutation runs (a second
-PostgreSQL container) ran on the same host from about 00:20 to 00:50, which
-overlaps rounds 2 to 5 at least. The load-at-start rule cannot see load that
-arrives mid-round. Extra load can only slow a round, so the passing medians
-stand, but the 3.356 root round (round 3, about 00:38) coincides with that
-activity, and the bare_b outliers of rounds 1 and 4 are noise of the same
-kind.
-
-
-### G8 rounds (load-gated unattended run)
-
-Raw data: `7127-link-writer-g8-results.json`, from `7127-link-writer-scale.py --g8-only --valid-rounds 10 --deadline 8h` (started 01:07 EDT, container `postgres:18-alpine` 18.6, 4 slots so n=4 runs at once). Every recorded window was valid: the 1-minute load at its start was below 18.
-
-| Round | n | Load at start | Link walls (s) | Summed RssAnon (kB) | Probe p95 (ms) | Temp files |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0 | 1 | 6.1 | 6.3 | 464,192 | 2.6 | 0 |
-| 1 | 2 | 9.1 | 6.9, 6.8 | 929,488 | 8.6 | 0 |
-| 2 | 4 | 15.2 | 10.7, 10.6, 10.6, 10.5 | 1,860,024 | 3.1 | 0 |
-| 3 | 1 | 13.4 | 6.1 | 464,528 | 2.3 | 0 |
-| 4 | 2 | 12.7 | 7.2, 7.7 | 832,472 | 2.7 | 0 |
-| 5 | 4 | 15.0 | 7.3, 7.2, 7.3, 7.1 | 1,858,832 | 1.5 | 0 |
-| 6 | 1 | 11.9 | 7.7 | 348,148 | 1.9 | 0 |
-| 7 | 2 | 10.2 | 7.1, 7.0 | 723,252 | 1.4 | 0 |
-| 8 | 4 | 12.3 | 12.4, 12.1, 12.4, 12.3 | 1,420,876 | 3.9 | 0 |
-| 9 | 1 | 13.5 | 5.1 | 375,800 | 1.4 | 0 |
-| 10 | 2 | 9.8 | 6.7, 6.5 | 724,780 | 1.2 | 0 |
-| 11 | 4 | 8.3 | 7.6, 7.6, 7.6, 7.5 | 1,421,468 | 2.9 | 0 |
-| 12 | 1 | 8.0 | 6.6 | 377,088 | 1.0 | 0 |
-| 13 | 2 | 6.7 | 7.5, 6.9 | 673,344 | 1.7 | 0 |
-| 14 | 4 | 7.7 | 13.3, 12.9, 13.4, 12.7 | 1,478,036 | 23.7 | 0 |
-| 15 | 1 | 16.4 | 9.1 | 457,812 | 1.8 | 0 |
-| 16 | 2 | 15.7 | 13.4, 13.2 | 697,520 | 9.1 | 0 |
-| 17 | 4 | 17.5 | 8.2, 8.0, 7.8, 7.8 | 1,395,496 | 1.1 | 0 |
-| 18 | 1 | 14.2 | 5.5 | 351,176 | 1.3 | 0 |
-| 19 | 2 | 10.4 | 6.7, 6.5 | 699,704 | 1.4 | 0 |
-| 20 | 4 | 12.2 | 7.7, 8.1, 8.1, 8.1 | 1,368,928 | 1.4 | 0 |
-| 21 | 1 | 10.9 | 6.6 | 340,844 | 1.6 | 0 |
-| 22 | 2 | 10.0 | 6.9, 6.8 | 697,768 | 2.0 | 0 |
-| 23 | 4 | 7.4 | 6.9, 6.9, 7.0, 7.0 | 1,412,148 | 1.1 | 0 |
-| 24 | 1 | 14.6 | 8.8 | 375,268 | 9.7 | 0 |
-| 25 | 2 | 16.8 | 6.3, 6.4 | 691,012 | 0.9 | 0 |
-| 26 | 4 | 10.2 | three of four links cancelled by the 120 s statement timeout | n/a | n/a | n/a |
-
-Per n over the valid windows: median slowest wall 6.58 s / 6.95 s / 8.18 s, median summed RssAnon 375,800 / 699,704 / 1,421,172 kB (max 464,528 / 929,488 / 1,860,024 kB), median probe p95 1.8 / 1.7 / 2.2 ms, 0 temp files, valid windows 9 / 9 / 8.
-
-**Round 26 stall, cause not established.** At 05:30:42 UTC four concurrent incremental links started in a valid window (load 10.2). At 05:32:42 three of them were cancelled by the 120 s statement timeout at the same instant (server log: three `canceling statement due to statement timeout` on the incremental statement); the test stops on the first error. Observations, none proven causal: a WAL-triggered checkpoint started at 05:30:04 and had not completed when the links were cancelled (the previous ones took 80-111 s, 4.4 GB of WAL each); autovacuum of `changed_since_key_state` finished at 05:32:40; that table was 5.3 GB for 3,084,484 live rows, bloated by this harness, which deletes and re-roots up to four 771k-key scopes every round, a churn the production writer does not have. `log_lock_waits` was off, so a lock wait cannot be ruled in or out from the log. Other n=4 windows took 6.9-13.4 s.
-
-### G8 stall diagnosis (round 26)
-
-Established cause: a plan that goes quadratic when the state-table
-statistics say the scope has almost no state rows. It is CPU-bound, with no
-lock wait and no I/O wait.
-
-Evidence, in order:
-
-1. **Reproduced on the churned database** (same container, `log_lock_waits`,
-   `deadlock_timeout=1s`, `log_checkpoints`, `log_autovacuum_min_duration=0`
-   on; n=4 windows only; a 1 s sampler over `pg_stat_activity` with
-   `pg_blocking_pids`, `pg_stat_progress_vacuum` and `pg_stat_checkpointer`).
-   Rounds 0-4 took 6.1-7.5 s. Round 5 (05:47:49-05:49:49 UTC) hit the 120 s
-   timeout on one link: pid 301230 was sampled 110 times over 119.6 s; 109
-   samples had no wait event (on CPU), one `IO/AioIoCompletion`, and
-   `pg_blocking_pids` was empty in every sample. Its three peers finished in
-   6.3 s. `log_lock_waits` logged nothing. The server log shows
-   `automatic analyze of table ... changed_since_key_state` at 05:47:41,
-   8 s before the window, while the harness was deleting and re-rooting the
-   scopes.
-2. **Plan under stale statistics.** In a rolled-back transaction: delete one
-   scope's state rows, `ANALYZE changed_since_key_state`, restore the rows,
-   then `EXPLAIN` the shipped `IncrementalLinkSQL` (custom plan). The state
-   side is estimated at `rows=1` (actual 771,201). The `del` CTE plans as a
-   **Nested Loop** with the scope's state index scan outside and a
-   **CTE Scan on diff** inside, rescanned per state row: about 771k x the
-   deleted keys (1,120 here) of CPU work.
-3. **Timed replay, same transaction shape, scope `r_t4` (state at F0),
-   rolled back:** shipped statement with stale statistics: **cancelled at the
-   60 s cap**; shipped statement after a fresh `ANALYZE`: 24.3 s (the plan
-   drives the delete from `diff` into the primary key, loops=1,120); a
-   candidate that deletes by the state rows' `ctid` carried through `diff`:
-   7.9 s with stale statistics, 14.9 s with fresh ones (Tid Scan). These
-   timings ran while the control's fixture load shared the host, so they
-   separate a bounded plan from a runaway one and nothing finer.
-4. **Control, fresh container, no re-root churn** (roots once, each window's
-   incremental statements rolled back; n=4, 12 windows): no stall, walls
-   6.1-11.8 s.
-
-Rejected: (a) a lock conflict between link transactions (no blocker in any
-sample, nothing from `log_lock_waits`); (b) temp-table or extension locks
-(L1b uses none); (c) checkpoint or WAL stall as the cause (checkpoints ran
-through rounds 0-4 without effect, and the stalled backend was on CPU);
-(d) autovacuum blocking (no blocker; its effect is indirect, through the
-statistics it writes). The slot cap was not involved: this harness sets 4
-slots, so its n=4 windows never contend for a slot.
-
-Production relevance: the trigger is a large scope whose planner estimate is
-far below its real state rows, for example right after its first root, or
-while its statistics predate most of its rows. The production writer does not
-churn the table like this harness, but a scope near the ops-qa maximum (771k
-keys) against an average-sized estimate (median scope 609 rows) is the same
-shape. Proposed disposition: (i) product fix, see the report; G8 reruns after
-the fix.
+The per-round G7 and G8 tables, the G8 stall diagnosis and the fix with
+its proofs are in
+[7127-changed-since-link-writer-g8.md](7127-changed-since-link-writer-g8.md).
 
 ## Mutation checks
 
@@ -307,7 +190,8 @@ lock.
 | Statement | Access | Assertion or reason |
 | --- | --- | --- |
 | `IncrementalLinkSQL` state side | PK prefix `scope_id` | G4 state test |
-| `IncrementalLinkSQL` delete and upsert | PK equality | G4 state test (no seq scan of the state table) |
+| `IncrementalLinkSQL` delete (`del`) | Tid Scan by the `ctid` array from `diff`; no indexable predicate on the target | P1 (`TestIncrementalLinkPlanClassUnderPlantedStatistics`) and G4 |
+| `IncrementalLinkSQL` upsert (`ups`) | arbiter-index probe per row, no join | G4 state test (no seq scan of the state table) |
 | `clearStateQuery` (root after a digest change) | PK prefix `scope_id` | Deletes nothing on a first root; same prefix as the G4 access |
 | `lockCursorQuery`, `advanceCursorQuery`, `ensureCursorQuery` | cursor PK equality | One row per scope |
 | `nextActivationQuery` | `changed_since_activations_scope_seq_idx` | `(scope_id, activation_seq)` with `LIMIT 1` |
@@ -317,6 +201,17 @@ lock.
 | `backfillChainsQuery`, `journalActiveGenerationsQuery` | `ingestion_scopes` scan, journal probes by the unique `(scope_id, generation_id)` | One row per scope |
 | `deleteOrphanScopeStatements` | each table's `scope_id` key prefix | Deleted scopes only |
 | `ledgerSizeQuery` | catalog only | Reads no table rows |
+
+Join audit of the ledger statements (arbiter ruling arb-7127-g8, section 4):
+
+| Statement or CTE | Join | Can it go quadratic on a wrong estimate |
+| --- | --- | --- |
+| `cur` | none | No: one index or bitmap scan, a sort, an aggregate |
+| `diff` | FULL JOIN on two equality columns | No: a full join is a hash or merge join, never a nested loop; an over-estimate may choose a sequential scan of the state table, which is O(fleet) and bounded |
+| `ins`, `ups`, `bk`, `lnk` | none | No: `ups` probes the arbiter index once per row |
+| `del` | none after the fix (Tid Scan) | Was the defect: the key join could plan a nested loop that rescans `diff` per state row |
+| `RootLinkSQL`, `clearStateQuery` | none | No |
+| `backlogScopesQuery`, `backlogStatsQuery`, `orphanScopesQuery`, the journal statements | joins over the journal and the cursor | Bounded by table size: thousands of journal rows, one cursor row per scope |
 
 ## Commands
 
@@ -382,10 +277,15 @@ and re-pins the golden digest, count and checksum.
   durable record.
 - All new live tests are `class: scheduled`; they are local and scheduled
   proof, not the blocking CI lane.
-- G8 is FAIL (incomplete): the load-gated run reached 9 / 9 / 8 valid windows
-  for n = 1 / 2 / 4 and stopped when three of four links of an n=4 window hit
-  the 120 s statement timeout together; the cause is not established. The
-  domain is dark and defaults to 2 slots.
+- G8 found a product defect: the incremental link's delete joined the state
+  table to the diff CTE, and when a scope was absent from the statistics the
+  planner made it quadratic (three of four n=4 links cancelled at 120 s). The
+  arbiter ruled the fix (arb-7127-g8): delete by `ctid` with no indexable
+  predicate on the target, plus a Go row-count invariant. P1-P8 pass on the
+  fixed statement, and G8 now passes with 10 valid windows per n. Small
+  fleets (about 100 scopes or fewer) or a `digest_version` change could hit
+  the defect; a fleet of ops-qa's size probably not in steady state.
+- G7 root/bare_b: median 1.841 passes 3x; one round reached 4.425.
 - Review P3(f) is fixed: the advisory-class collision test derives the
   two-integer lock classes from the code instead of a hand-kept list (six
   sites today, including migration 062's class 5318), fails on any site it
