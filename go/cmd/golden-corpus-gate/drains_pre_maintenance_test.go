@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 var errPreMaintenanceBoom = errors.New("boom")
@@ -259,5 +261,80 @@ func TestPollPreMaintenanceToleratesRepoDependencyIntents(t *testing.T) {
 	}
 	if counts.SharedIntentsRequiredNonterminal != 2 || q.i != 2 {
 		t.Fatalf("poll must have waited for the second reading: counts=%+v polls=%d", counts, q.i)
+	}
+}
+
+// #7308: generation_activation_not_ready is a readiness wait, so the label
+// says readiness-deferred, but the generation check runs in front of every
+// handler, so the row may not have evaluated its gate. It must hold
+// pre-maintenance quiescence open.
+func TestPreMaintenanceBlocksOnGenerationActivationDeferral(t *testing.T) {
+	counts := DrainCounts{FactWorkItemsResidual: 3}
+	rows := []residualRow{{
+		Domain: "workload_materialization", Status: "retrying",
+		FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3,
+	}}
+	msg, quiescent := preMaintenanceQuiescence(counts, rows)
+	if quiescent {
+		t.Fatalf("generation_activation_not_ready must block pre-maintenance quiescence: %q", msg)
+	}
+	for _, want := range []string{"live=0", "readiness-deferred=3", "readiness-not-tolerated=3"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message %q must contain %q", msg, want)
+		}
+	}
+	q := &fakeDrainQuerier{seq: []DrainCounts{counts}, breakdown: rows}
+	_, ok, err := pollUntilDrained(context.Background(), q,
+		strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond, nil, 0, true)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if ok {
+		t.Fatal("pre-maintenance poll must keep waiting on a generation_activation_not_ready row")
+	}
+}
+
+// TestReverifyPreMaintenanceQuiescenceNamesTheRefusal covers runDrains's
+// re-verification (#7308): a refused re-verification records no quiescence
+// check and prints the quiescence message, so the log says which count held
+// it open before the strict verdict fails the drain. A clean one records the
+// check.
+func TestReverifyPreMaintenanceQuiescenceNamesTheRefusal(t *testing.T) {
+	counts := DrainCounts{FactWorkItemsResidual: 3}
+	blocking := []residualRow{{
+		Domain: "deployable_unit_correlation", Status: "retrying",
+		FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3,
+	}}
+	var stderr bytes.Buffer
+	var r Report
+	if reverifyPreMaintenanceQuiescence(context.Background(), &fakeDrainQuerier{breakdown: blocking}, counts, &r, &stderr) {
+		t.Fatal("re-verification must refuse a generation_activation_not_ready residual")
+	}
+	if len(r.Findings) != 0 {
+		t.Fatalf("a refused re-verification must record no check, got %+v", r.Findings)
+	}
+	for _, want := range []string{"pre-maintenance quiescence refused on re-verification", "readiness-not-tolerated=3"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("stderr %q must contain %q", stderr.String(), want)
+		}
+	}
+
+	stderr.Reset()
+	if reverifyPreMaintenanceQuiescence(context.Background(), &fakeDrainQuerier{breakdownErr: errPreMaintenanceBoom}, counts, &r, &stderr) {
+		t.Fatal("an unreadable breakdown must not re-verify quiescence")
+	}
+	if len(r.Findings) != 0 || !strings.Contains(stderr.String(), "residual breakdown unavailable") {
+		t.Fatalf("breakdown error: findings=%+v stderr=%q", r.Findings, stderr.String())
+	}
+
+	stderr.Reset()
+	if !reverifyPreMaintenanceQuiescence(context.Background(), deferredOnlyQuerier(), DrainCounts{FactWorkItemsResidual: 2}, &r, &stderr) {
+		t.Fatalf("tolerated-only residual must re-verify: %q", stderr.String())
+	}
+	if len(r.Findings) != 1 || r.Findings[0].Check != "pre_maintenance_quiescence" || !r.Findings[0].OK {
+		t.Fatalf("clean re-verification must record the quiescence check, got %+v", r.Findings)
+	}
+	if strings.Contains(stderr.String(), "refused") {
+		t.Errorf("clean re-verification must not print a refusal: %q", stderr.String())
 	}
 }
