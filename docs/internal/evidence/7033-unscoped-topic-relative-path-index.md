@@ -145,6 +145,37 @@ This distinct request also improved but missed the <1 s budget. Its capped
 baseline and candidate pages returned 25 files/zero symbols and 17 files/25
 symbols, respectively. No in-cluster canary acceptance is implied.
 
+## Remaining entity-probe diagnosis and rejected shims
+
+On the rebased candidate, one read-only `EXPLAIN (ANALYZE, BUFFERS)` of the
+generated canonical 16-term SQL reported 2,408.894 ms execution: 1,961.386 ms
+in `entity_probe` and 396.647 ms in `file_probe`. The entity bitmap heap scan
+was 1,918.288 ms, including a 1,412.320 ms bitmap OR and a 1,142.368 ms
+`content_entities_source_trgm_idx` scan. This single instrumented plan
+identifies a likely long pole; its times are **not** endpoint timings or an
+interleaved before/after comparison.
+
+Two read-only entity-stage shims ran in separate three-block ABBA experiments
+inside repeatable-read snapshots on the same ops-qa corpus. Name-first with a
+source-cache-only residual changed the entity-stage median from 716.057 to
+99.301 ms, but the capped canonical top 25 overlapped **0/25** and their
+scores fell from 5–7 to 2–3. Source-cache-first with a name-only residual
+preserved the canonical entity top 25 and their 5–7 score range, but changed
+the entity-stage median only from 755.615 to 726.086 ms. Both exactly matched
+the uncapped two-term and no-hit controls. Accuracy rejects the faster
+name-first shape; the source-first saving cannot close the endpoint gap.
+
+A third read-only shim replaced the correlated entity probe with independent
+per-term `UNION ALL` branches while preserving the OR predicate. The full SQL
+matched all 40 uncapped two-term rows and the zero-row no-hit control, but on
+the capped canonical request **24 of the top 25** identities/scores/matched
+terms differed; the baseline score range was 4–12 and the shim's was 3–4.
+This fails the conservative capped-result quality gate, so no performance
+claim or implementation follows from that shape. All three shims were
+diagnostics only; no ops-qa schema or production code changed. The remaining
+<1 s acceptance must be checked on the approved same-topology canary, and a
+further query change still requires its own accuracy-safe theory proof.
+
 ## Existing ops-qa index admission proof
 
 The earlier approved ops-qa index rollout left two full migration receipts:
