@@ -54,7 +54,7 @@ func TestLiveFileImportCyclesBoundedEdgeScan(t *testing.T) {
 		t.Fatalf("bounded edge candidate: %v", err)
 	}
 	duration := time.Since(started)
-	cycleRows, err := codemodel.BuildFileImportCycleRows(req, edgeRows)
+	cycleRows, _, err := codemodel.BuildFileImportCycleRows(req, edgeRows)
 	if err != nil {
 		t.Fatalf("reconstruct exact reciprocal cycles: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestLiveFileImportCyclesBoundedEdgeScan(t *testing.T) {
 		TargetModule: StringVal(firstCycle, "target_module"),
 		Limit:        1,
 	}
-	scopedRows, err := imports.CycleRows(ctx, graph, scopedReq)
+	scopedRows, _, err := imports.CycleRows(ctx, graph, scopedReq)
 	if err != nil {
 		t.Fatalf("directionally scoped cycle read: %v", err)
 	}

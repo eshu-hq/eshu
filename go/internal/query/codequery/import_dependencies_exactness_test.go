@@ -61,7 +61,7 @@ func TestBuildFileImportCycleRowsUsesExactDottedModuleNames(t *testing.T) {
 		importDependencyCycleProofEdge("src/payments.client_extra.py", "payments.client_extra.py", "payment", 16),
 	}
 
-	rows, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
+	rows, _, err := codemodel.BuildFileImportCycleRows(codemodel.ImportDependencyRequest{
 		QueryType: "file_import_cycles",
 		RepoID:    "repo-1",
 		Limit:     10,

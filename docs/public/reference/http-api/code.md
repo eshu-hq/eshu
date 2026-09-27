@@ -16,7 +16,7 @@ Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or i
 | `POST /api/v0/code/structure/inventory` | Bounded structural inventory: functions, classes, top-level elements, dataclasses, documented/decorated symbols, classes with a method, super calls, and function counts by file. |
 | `POST /api/v0/code/topics/investigate` | Broad behavior/topic exploration before exact symbol or relationship lookup. |
 | `POST /api/v0/code/security/secrets/investigate` | Redacted hardcoded-secret findings, confidence, severity, suppression notes, source handles, and coverage. |
-| `POST /api/v0/code/imports/investigate` | Importers, imports by file, package imports, module dependencies, direct Python file cycles, and cross-module calls. |
+| `POST /api/v0/code/imports/investigate` | Importers, imports by file, package imports, module dependencies, bounded simple Python file-import cycles, and cross-module calls. |
 | `POST /api/v0/code/call-graph/metrics` | Hub functions and recursive functions for one repository. |
 | `POST /api/v0/code/flow/taint-path` | Bounded taint-path evidence from active value-flow facts, labeled as derived reducer evidence. |
 | `POST /api/v0/code/flow/reaching-def` | Bounded reaching-definition rows from exact parser-emitted `dataflow_functions` facts. |
@@ -85,11 +85,9 @@ Module, cycle, and call candidates use a 25,000-row internal ceiling. The
 handler requests one extra sentinel row and returns HTTP 422 with an instruction
 to narrow the repository, file, or module scope when that ceiling is exceeded.
 This internal bound is separate from the caller's page limit.
-`file_import_cycles` rows include `repo_id`, `repo_name`, `cycle_path`, and
-`cycle_edges`, where each proof edge names the `IMPORTS` relationship plus
-source/target files, source/target modules, and line numbers when available.
-Empty cycle pages return `cycles=[]`; unavailable graph backends return a
-service-unavailable error instead of pretending the repository is acyclic.
+`file_import_cycles` enumerates bounded simple Python cycles over one bounded edge fetch: reciprocal pairs through `max_cycle_length` (default 5, range 2-8), rotation-deduplicated to the smallest start and ordered length-ascending, then path.
+Anchors match any cycle member after enumeration. Enumeration caps at 1,000 cycles with `truncated:true` plus `coverage.cycle_enumeration_cap`; it runs over all stored `IMPORTS` edges (no type-only/deferred exclusion, no inferred labelling; other languages rejected).
+Rows carry `cycle_length`, the closed `cycle_path`, and per-hop `cycle_edges`. Empty pages return `cycles=[]`; unavailable backends return service-unavailable instead of pretending the repository is acyclic.
 
 `repo_id` is only one of five ways to anchor this route, so a scoped token that
 anchors on a file or module instead is not naming a repository at all. Every
@@ -104,8 +102,8 @@ No-Regression Evidence: all 488 valid request shapes map to 280 hash-frozen
 production query texts in the query-plan gate — 244 shapes and 140 texts per
 caller class, unscoped and scoped. Exactness tests cover empty
 graphs, duplicate edges, dotted-module prefix collisions, language filters,
-paging, repository-path collisions, directionally scoped cycles, truncation,
-and overflow. Cold and immediate-repeat NornicDB timings are
+paging, repository-path collisions, directionally scoped and multi-node cycles, rotation dedupe,
+enumeration-cap truncation, and overflow. Cold and immediate-repeat NornicDB timings are
 recorded in `docs/internal/evidence/5561-import-investigation-bounds.md` against
 the 1.5-second interactive SLO.
 

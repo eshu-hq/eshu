@@ -14,7 +14,9 @@ import (
 
 // Rows dispatches one import-dependency read by the request's effective
 // query type: file import cycles, cross-module calls, or the default
-// import rows.
+// import rows. The cycle enumeration cap state is discarded here; the
+// handler's cycle path reads CycleRows directly so a capped enumeration
+// still reports truncated:true with the cap value.
 func Rows(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -22,7 +24,8 @@ func Rows(
 ) ([]map[string]any, error) {
 	switch req.EffectiveQueryType() {
 	case "file_import_cycles":
-		return CycleRows(ctx, graph, req)
+		rows, _, err := CycleRows(ctx, graph, req)
+		return rows, err
 	case "cross_module_calls":
 		return CrossModuleCalls(ctx, graph, req)
 	default:
@@ -86,18 +89,20 @@ func ImportRows(
 }
 
 // CycleRows reads the file import cycle edges for the request and shapes
-// them into cycle rows.
+// them into bounded simple-cycle rows. The second return reports whether
+// enumeration hit the enumeration cap; callers shaping the response must
+// carry it so a capped list says truncated:true with the cap value.
 func CycleRows(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	req codemodel.ImportDependencyRequest,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	params := Params(req)
 	params["cycle_language"] = "python"
 	params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
 	rows, err := graph.Run(ctx, codemodel.FileImportCycleEdgeRowsCypher(req), params)
 	if err != nil {
-		return nil, fmt.Errorf("query file import cycle edges: %w", err)
+		return nil, false, fmt.Errorf("query file import cycle edges: %w", err)
 	}
 	return codemodel.BuildFileImportCycleRows(req, rows)
 }

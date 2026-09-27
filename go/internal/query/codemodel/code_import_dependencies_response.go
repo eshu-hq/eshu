@@ -9,10 +9,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// ImportDependencyResponse shapes one import-dependency page. For
+// file_import_cycles it reports page truncation only; use
+// ImportDependencyResponseWithCycleEnumeration when the enumeration cap
+// state is known so a capped list still says truncated:true.
 func ImportDependencyResponse(req ImportDependencyRequest, rows []map[string]any) map[string]any {
+	return ImportDependencyResponseWithCycleEnumeration(req, rows, false)
+}
+
+// ImportDependencyResponseWithCycleEnumeration shapes one
+// import-dependency page with the cycle enumeration state attached. When
+// enumTruncated is true the enumeration hit importCycleEnumerationCap,
+// so the page reports truncated:true and the coverage carries the cap
+// value: a capped cycle list is never silently partial.
+func ImportDependencyResponseWithCycleEnumeration(
+	req ImportDependencyRequest,
+	rows []map[string]any,
+	enumTruncated bool,
+) map[string]any {
 	limit := req.normalizedLimit()
 	truncated := len(rows) > limit
-	if truncated {
+	if req.EffectiveQueryType() == "file_import_cycles" && enumTruncated {
+		truncated = true
+	}
+	if len(rows) > limit {
 		rows = rows[:limit]
 	}
 	results := importDependencyResults(req, rows)
@@ -24,7 +44,7 @@ func ImportDependencyResponse(req ImportDependencyRequest, rows []map[string]any
 		"truncated":      truncated,
 		"next_offset":    nextImportDependencyOffset(req.Offset, len(results), truncated),
 		"source_backend": "graph",
-		"coverage":       importDependencyCoverage(req, truncated),
+		"coverage":       importDependencyCoverage(req, truncated, enumTruncated),
 	}
 	switch req.EffectiveQueryType() {
 	case "file_import_cycles":
@@ -78,9 +98,10 @@ func importDependencyResults(req ImportDependencyRequest, rows []map[string]any)
 		item["source_backend"] = "graph"
 		item["source_handle"] = importDependencySourceHandle(row)
 		if req.EffectiveQueryType() == "file_import_cycles" {
-			item["cycle_length"] = 2
-			item["cycle_path"] = []string{querycontract.StringVal(row, "source_file"), querycontract.StringVal(row, "target_file"), querycontract.StringVal(row, "source_file")}
-			item["cycle_edges"] = importDependencyCycleEdges(row)
+			item["cycle_length"], item["cycle_path"], item["cycle_edges"] = importDependencyCycleProof(row)
+			for _, internal := range []string{"cycle_files", "cycle_source_modules", "cycle_target_modules", "cycle_lines"} {
+				delete(item, internal)
+			}
 		}
 		if req.EffectiveQueryType() == "cross_module_calls" {
 			item["relationship_type"] = "CALLS"
@@ -99,10 +120,69 @@ func importDependencyResults(req ImportDependencyRequest, rows []map[string]any)
 	return results
 }
 
-func importDependencyCycleEdges(row map[string]any) []map[string]any {
-	return []map[string]any{
-		importDependencyCycleEdge(row, "source_file", "target_file", "source_module", "target_module", "source_line_number"),
-		importDependencyCycleEdge(row, "target_file", "source_file", "target_module", "source_module", "back_edge_line_number"),
+// importDependencyCycleProof renders one enumerated cycle's public proof:
+// its length, its normalized file path closed back on its start, and one
+// IMPORTS edge per hop. Rows shaped before the enumeration change carry
+// no internal cycle lists; those fall back to the reciprocal-era two-edge
+// proof from the scalar keys so old pages still read.
+func importDependencyCycleProof(row map[string]any) (int, []string, []map[string]any) {
+	files := importCycleStringList(row, "cycle_files")
+	if len(files) < 2 {
+		return 2, []string{
+				querycontract.StringVal(row, "source_file"),
+				querycontract.StringVal(row, "target_file"),
+				querycontract.StringVal(row, "source_file"),
+			}, []map[string]any{
+				importDependencyCycleEdge(row, "source_file", "target_file", "source_module", "target_module", "source_line_number"),
+				importDependencyCycleEdge(row, "target_file", "source_file", "target_module", "source_module", "back_edge_line_number"),
+			}
+	}
+	sourceModules := importCycleStringList(row, "cycle_source_modules")
+	targetModules := importCycleStringList(row, "cycle_target_modules")
+	lines := importCycleIntList(row, "cycle_lines")
+	path := append(append([]string{}, files...), files[0])
+	edges := make([]map[string]any, 0, len(files))
+	for index, file := range files {
+		edge := map[string]any{
+			"relationship_type": "IMPORTS",
+			"source_file":       file,
+			"target_file":       files[(index+1)%len(files)],
+		}
+		if index < len(sourceModules) {
+			edge["source_module"] = sourceModules[index]
+		}
+		if index < len(targetModules) {
+			edge["target_module"] = targetModules[index]
+		}
+		if index < len(lines) && lines[index] > 0 {
+			edge["line_number"] = lines[index]
+		}
+		edges = append(edges, edge)
+	}
+	return len(files), path, edges
+}
+
+// importCycleIntList reads one internal cycle line list back as ints,
+// tolerating the float64 form JSON round-trips produce.
+func importCycleIntList(row map[string]any, key string) []int {
+	switch values := row[key].(type) {
+	case []int:
+		return append([]int{}, values...)
+	case []any:
+		lines := make([]int, 0, len(values))
+		for _, value := range values {
+			switch number := value.(type) {
+			case int:
+				lines = append(lines, number)
+			case float64:
+				lines = append(lines, int(number))
+			default:
+				return nil
+			}
+		}
+		return lines
+	default:
+		return nil
 	}
 }
 
@@ -138,7 +218,7 @@ func importDependencyModuleHandle(row map[string]any) map[string]any {
 }
 
 func importDependencyScope(req ImportDependencyRequest) map[string]any {
-	return map[string]any{
+	scope := map[string]any{
 		"repo_id":       strings.TrimSpace(req.RepoID),
 		"language":      req.NormalizedLanguage(),
 		"source_file":   strings.TrimSpace(req.SourceFile),
@@ -148,23 +228,33 @@ func importDependencyScope(req ImportDependencyRequest) map[string]any {
 		"limit":         req.normalizedLimit(),
 		"offset":        req.Offset,
 	}
+	if req.EffectiveQueryType() == "file_import_cycles" {
+		scope["max_cycle_length"] = req.effectiveMaxCycleLength()
+	}
+	return scope
 }
 
-func importDependencyCoverage(req ImportDependencyRequest, truncated bool) map[string]any {
+func importDependencyCoverage(req ImportDependencyRequest, truncated, enumTruncated bool) map[string]any {
 	queryShape := "repo_file_imports"
 	if req.EffectiveQueryType() == "file_import_cycles" {
-		queryShape = "python_file_import_two_cycle"
+		queryShape = "python_file_import_cycle"
 	}
 	if req.EffectiveQueryType() == "cross_module_calls" {
 		queryShape = "module_anchored_call_edges"
 	}
-	return map[string]any{
+	coverage := map[string]any{
 		"query_shape":          queryShape,
 		"relationship_types":   importDependencyRelationshipTypes(req),
 		"truncated":            truncated,
 		"bounded":              true,
 		"candidate_scan_limit": querycontract.ImportDependencyInternalScanLimit,
 	}
+	if req.EffectiveQueryType() == "file_import_cycles" {
+		coverage["cycle_max_length"] = req.effectiveMaxCycleLength()
+		coverage["cycle_enumeration_cap"] = importCycleEnumerationCap
+		coverage["cycle_enumeration_truncated"] = enumTruncated
+	}
+	return coverage
 }
 
 func importDependencyRelationshipTypes(req ImportDependencyRequest) []string {

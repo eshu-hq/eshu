@@ -6,7 +6,7 @@ package mcp
 func importDependencyTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "investigate_import_dependencies",
-		Description: "Investigate bounded import and module dependency questions such as imports by file, importers, package imports, circular Python file imports, and cross-module calls. Provide at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file applies only to cycle and cross-module queries. Candidate scans above 25,000 rows fail with an instruction to narrow scope. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Investigate bounded import and module dependency questions such as imports by file, importers, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1,000 cycles and reports truncated:true with the cap value. Provide at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file applies only to cycle and cross-module queries. Candidate scans above 25,000 rows fail with an instruction to narrow scope. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -22,7 +22,14 @@ func importDependencyTool() ToolDefinition {
 				},
 				"language": map[string]any{
 					"type":        "string",
-					"description": "Optional language filter. file_import_cycles currently supports python.",
+					"description": "Optional language filter. file_import_cycles supports python multi-node cycle detection; other languages are rejected.",
+				},
+				"max_cycle_length": map[string]any{
+					"type":        "integer",
+					"description": "Simple-cycle length bound for file_import_cycles (default 5). Ignored by other query types.",
+					"default":     5,
+					"minimum":     2,
+					"maximum":     8,
 				},
 				"source_file": map[string]any{
 					"type":        "string",
