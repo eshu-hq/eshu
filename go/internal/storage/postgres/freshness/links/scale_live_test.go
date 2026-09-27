@@ -261,16 +261,42 @@ func runScaleConcurrencyGated(t *testing.T, ctx context.Context, raw *sql.DB, st
 	}
 	stopAt := time.Now().Add(deadline)
 	valid := map[int]int{}
+	// Diagnosis knobs (#7127 G8 stall): ESHU_CHANGED_SINCE_LINK_SCALE_G8_SIZES
+	// narrows the n values (default 1,2,4), _G8_GATE=0 drops the load wait,
+	// and _G8_ROLLBACK=1 roots once and runs every window's incremental
+	// statements in rolled-back transactions, so the state is not re-rooted
+	// each round.
 	sizes := []int{1, 2, 4}
-	for round := 0; time.Now().Before(stopAt); round++ {
-		n := sizes[round%len(sizes)]
-		if valid[1] >= wantValid && valid[2] >= wantValid && valid[4] >= wantValid {
-			break
+	if raw := os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G8_SIZES"); raw != "" {
+		sizes = nil
+		for _, f := range strings.Split(raw, ",") {
+			if v, err := strconv.Atoi(strings.TrimSpace(f)); err == nil && v >= 1 && v <= len(scaleTargets) {
+				sizes = append(sizes, v)
+			}
 		}
+	}
+	gate := os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G8_GATE") != "0"
+	rollback := os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G8_ROLLBACK") == "1"
+	done := func() bool {
+		for _, n := range sizes {
+			if valid[n] < wantValid {
+				return false
+			}
+		}
+		return true
+	}
+	for round := 0; time.Now().Before(stopAt) && !done(); round++ {
+		n := sizes[round%len(sizes)]
 		if valid[n] >= wantValid {
 			continue
 		}
-		if concurrencyRound(t, ctx, raw, store, n, round, true, stopAt) {
+		var ok bool
+		if rollback {
+			ok = rolledBackRound(t, ctx, raw, store, n, round, round < len(sizes))
+		} else {
+			ok = concurrencyRound(t, ctx, raw, store, n, round, gate, stopAt)
+		}
+		if ok || !gate {
 			valid[n]++
 		}
 	}
@@ -361,4 +387,63 @@ LIMIT 2000) AS page`).Scan(&c); err == nil {
 		"probe_samples": len(probe), "probe_p50_seconds": probeP50, "probe_p95_seconds": probeP95,
 	})
 	return isValid
+}
+
+// rolledBackRound times n concurrent incremental statements, each in its own
+// transaction at the link's settings, and rolls them back, so the state stays
+// at F0 and no re-root churn accumulates. setup roots the scopes first.
+func rolledBackRound(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB, n, round int, setup bool) bool {
+	t.Helper()
+	scopes := scaleTargets[:n]
+	if setup {
+		resetScaleScopes(t, ctx, raw, scopes)
+		writer := linksfreshnessstore.NewLinkWriter(store)
+		writer.Slots = 4
+		for _, scopeID := range scopes {
+			if res, err := writer.LinkNext(ctx, scopeID); err != nil || res.Kind != linksfreshnessstore.LinkKindRoot {
+				t.Fatalf("root %s: %+v %v", scopeID, res, err)
+			}
+		}
+	}
+	load := hostLoad1()
+	emit(t, map[string]any{"event": "window_start", "n": n, "round": round, "load1": load, "valid": true})
+	walls := make([]float64, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i, scopeID := range scopes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			f0, f1 := scaleGeneration(t, ctx, raw, scopeID, "F0"), scaleGeneration(t, ctx, raw, scopeID, "F1")
+			tx, err := raw.BeginTx(ctx, nil)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			defer func() { _ = tx.Rollback() }()
+			for _, stmt := range []string{`SET LOCAL work_mem = '256MB'`, `SET LOCAL plan_cache_mode = force_custom_plan`, `SET LOCAL statement_timeout = 120000`} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					errs[i] = err
+					return
+				}
+			}
+			began := time.Now()
+			_, errs[i] = tx.ExecContext(ctx, linksfreshnessstore.IncrementalLinkSQL, scopeID, f1, f0,
+				linksfreshnessstore.DigestVersion, time.Now())
+			walls[i] = time.Since(began).Seconds()
+		}()
+	}
+	wg.Wait()
+	emit(t, map[string]any{"event": "window_end", "n": n, "round": round})
+	var failures []string
+	for i, err := range errs {
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", scopes[i], err))
+		}
+	}
+	emit(t, map[string]any{
+		"event": "incremental", "n": n, "round": round, "valid": true, "load1_at_start": load,
+		"walls_seconds": walls, "errors": failures, "temp_files": 0, "probe_p95_seconds": 0,
+	})
+	return true
 }

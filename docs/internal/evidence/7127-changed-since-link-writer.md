@@ -230,6 +230,61 @@ Per n over the valid windows: median slowest wall 6.58 s / 6.95 s / 8.18 s, medi
 
 **Round 26 stall, cause not established.** At 05:30:42 UTC four concurrent incremental links started in a valid window (load 10.2). At 05:32:42 three of them were cancelled by the 120 s statement timeout at the same instant (server log: three `canceling statement due to statement timeout` on the incremental statement); the test stops on the first error. Observations, none proven causal: a WAL-triggered checkpoint started at 05:30:04 and had not completed when the links were cancelled (the previous ones took 80-111 s, 4.4 GB of WAL each); autovacuum of `changed_since_key_state` finished at 05:32:40; that table was 5.3 GB for 3,084,484 live rows, bloated by this harness, which deletes and re-roots up to four 771k-key scopes every round, a churn the production writer does not have. `log_lock_waits` was off, so a lock wait cannot be ruled in or out from the log. Other n=4 windows took 6.9-13.4 s.
 
+### G8 stall diagnosis (round 26)
+
+Established cause: a plan that goes quadratic when the state-table
+statistics say the scope has almost no state rows. It is CPU-bound, with no
+lock wait and no I/O wait.
+
+Evidence, in order:
+
+1. **Reproduced on the churned database** (same container, `log_lock_waits`,
+   `deadlock_timeout=1s`, `log_checkpoints`, `log_autovacuum_min_duration=0`
+   on; n=4 windows only; a 1 s sampler over `pg_stat_activity` with
+   `pg_blocking_pids`, `pg_stat_progress_vacuum` and `pg_stat_checkpointer`).
+   Rounds 0-4 took 6.1-7.5 s. Round 5 (05:47:49-05:49:49 UTC) hit the 120 s
+   timeout on one link: pid 301230 was sampled 110 times over 119.6 s; 109
+   samples had no wait event (on CPU), one `IO/AioIoCompletion`, and
+   `pg_blocking_pids` was empty in every sample. Its three peers finished in
+   6.3 s. `log_lock_waits` logged nothing. The server log shows
+   `automatic analyze of table ... changed_since_key_state` at 05:47:41,
+   8 s before the window, while the harness was deleting and re-rooting the
+   scopes.
+2. **Plan under stale statistics.** In a rolled-back transaction: delete one
+   scope's state rows, `ANALYZE changed_since_key_state`, restore the rows,
+   then `EXPLAIN` the shipped `IncrementalLinkSQL` (custom plan). The state
+   side is estimated at `rows=1` (actual 771,201). The `del` CTE plans as a
+   **Nested Loop** with the scope's state index scan outside and a
+   **CTE Scan on diff** inside, rescanned per state row: about 771k x the
+   deleted keys (1,120 here) of CPU work.
+3. **Timed replay, same transaction shape, scope `r_t4` (state at F0),
+   rolled back:** shipped statement with stale statistics: **cancelled at the
+   60 s cap**; shipped statement after a fresh `ANALYZE`: 24.3 s (the plan
+   drives the delete from `diff` into the primary key, loops=1,120); a
+   candidate that deletes by the state rows' `ctid` carried through `diff`:
+   7.9 s with stale statistics, 14.9 s with fresh ones (Tid Scan). These
+   timings ran while the control's fixture load shared the host, so they
+   separate a bounded plan from a runaway one and nothing finer.
+4. **Control, fresh container, no re-root churn** (roots once, each window's
+   incremental statements rolled back; n=4, 12 windows): no stall, walls
+   6.1-11.8 s.
+
+Rejected: (a) a lock conflict between link transactions (no blocker in any
+sample, nothing from `log_lock_waits`); (b) temp-table or extension locks
+(L1b uses none); (c) checkpoint or WAL stall as the cause (checkpoints ran
+through rounds 0-4 without effect, and the stalled backend was on CPU);
+(d) autovacuum blocking (no blocker; its effect is indirect, through the
+statistics it writes). The slot cap was not involved: this harness sets 4
+slots, so its n=4 windows never contend for a slot.
+
+Production relevance: the trigger is a large scope whose planner estimate is
+far below its real state rows, for example right after its first root, or
+while its statistics predate most of its rows. The production writer does not
+churn the table like this harness, but a scope near the ops-qa maximum (771k
+keys) against an average-sized estimate (median scope 609 rows) is the same
+shape. Proposed disposition: (i) product fix, see the report; G8 reruns after
+the fix.
+
 ## Mutation checks
 
 Each check mutated one production line, ran the gate's test, and then
