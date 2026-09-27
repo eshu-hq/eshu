@@ -52,8 +52,13 @@ Two typed classes cover LIMIT-free CALLS reads without certifying a bound
 that does not exist: `degree_bounded` (single-anchor one-hop reads, carrying
 the corpus-measured `max_degree`) and `depth_bounded` (single-anchor
 variable-length traversals, carrying `max_degree` plus the handler-enforced
-`max_depth`). Both floors live in `source_coverage.go`; see `#6556` for the
-corpus measurement behind `max_degree`.
+`max_depth`). Both floors live in `source_coverage.go`. `max_degree` floors at 1125, the
+measured maximum CALLS degree over both directions on the ops-qa reference
+corpus; see `#6649` for the method and
+`docs/internal/evidence/6649-calls-degree-floor.md` for the full
+distribution. This supersedes `#6556`'s B-7 synthetic-fixture measurement
+(floor 8), which undercounted real code's fan-out by roughly two orders of
+magnitude.
 `TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest` only requires the
 manifest's prose entries and `grandfatheredNonHotSourceDigests` to hold the same
 set of symbols. Add a prose entry, or convert a typed entry back to prose, and

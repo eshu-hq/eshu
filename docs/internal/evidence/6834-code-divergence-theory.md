@@ -334,8 +334,8 @@ Benchmark Evidence (#6839): backend NornicDB
 one-hop enumeration reads (Function anchor, repo/grant in the anchoring
 WHERE) plus the 50-key-chunked UNWIND callee-edges read through the
 already-pinned `runWrapperGraphRows` runner, so the queryplan bound
-(50 keys x corpus CALLS degree 8, audit max_results 400) covers the new
-reads with no new row. Same-engine dialect parity holds: the
+(50 keys x corpus CALLS degree 1125, audit max_results 56,250 -- raised
+from the original 8/400 by #6649) covers the new reads with no new row. Same-engine dialect parity holds: the
 Neo4j-rendered callee-edges read returns exactly the NornicDB-rendered
 row set on the NornicDB container. Cross-backend parity holds: identical
 four canonical findings on NornicDB and on Neo4j community 2026.05.0

@@ -86,19 +86,13 @@ type NonHotDisposition struct {
 }
 
 // nonHotCorpusMaxCALLSDegree floors max_degree for degree-bounded CALLS
-// reads. Measured value 8: production parser (DefaultEngine.ParsePath) over
-// the 31 B-7 staged corpus fixtures
-// (scripts/lib/golden-corpus-fixtures.sh), restricted to CALLS-eligible call
-// kinds (REFERENCES-mapped kinds, constructor_call INSTANTIATES, and
-// jsx_component REFERENCES are excluded per the reducer and edge-writer
-// contracts), both directions: maximum 7 distinct callees per enclosing
-// function (out-degree, go_comprehensive/goroutines.go FanOut) and maximum 8
-// distinct caller functions per callee name (in-degree, "fmt.Sprintf").
-// Resolution can only drop references, so graph CALLS degree on this corpus
-// cannot exceed either upper bound, and one floor covers both read
-// directions. Re-measure with the same method when the staged corpus changes
-// and raise this floor; never lower an entry's max_degree to fit.
-const nonHotCorpusMaxCALLSDegree = 8
+// reads: the larger of the measured out-degree max (521) and in-degree max
+// (1125) on ops-qa Neo4j 2026.08.1, 2026-09-26. It supersedes the 8 measured
+// on synthetic B-7 fixtures. Method, distributions, and the PROFILE showing
+// the covered Neo4j reads stay cheap at this degree are in
+// docs/internal/evidence/6649-calls-degree-floor.md. Re-measure and raise it
+// when the corpus changes materially; never lower an entry to fit.
+const nonHotCorpusMaxCALLSDegree = 1125
 
 // nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
 // traversals. It is the enforced clamp ceiling in
@@ -481,7 +475,7 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
 	if maxDegree < nonHotCorpusMaxCALLSDegree {
 		return []string{fmt.Sprintf(
-			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the B-7 staged corpus",
+			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the ops-qa reference corpus (#6649)",
 			key,
 			class,
 			nonHotCorpusMaxCALLSDegree,
