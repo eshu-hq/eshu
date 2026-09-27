@@ -65,6 +65,13 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_RECORD_PSEUDONYM_KEY` | string | — | Recording key for collector -mode=record pseudonymization (#6965 Phase 3): at least 32 bytes, generated with `openssl rand -hex 32`, one key per cassette corpus so cross-cassette joins survive, kept with the corpus's other secrets and never committed; only its 8-hex fingerprint is written to the cassette and logged. |
 | `ESHU_REPOS_DIR` | string | — | Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset. |
 
+## collector
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_REPO_RECONCILE_INTERVAL_HOURS` | int | `24` | Hours a git scope may go without a full reconciliation sweep before the ingester's repo-selection collector forces one to retract drift the incremental delta path missed (epic #2340). An explicit 0 disables reconciliation; unset or invalid falls back to the default. Clamped to whole hours. |
+| `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` | int | `10` | Maximum git scopes forced to a full reconciliation snapshot in one repo-selection cycle (epic #2340). An explicit 0 removes the per-cycle cap while reconciliation stays interval-gated; unset or invalid falls back to the default. |
+
 ## collector-aws-cloud
 
 | Variable | Type | Default | Notes |
