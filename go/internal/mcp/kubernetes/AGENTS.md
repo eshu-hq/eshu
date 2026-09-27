@@ -4,13 +4,15 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
-3. `routes.go` and `routes_test.go` for the child request-selection contract.
+3. `routes.go` and `routes_test.go` for the child request-selection contract,
+   plus `tools.go` and `tools_test.go` for the one tool definition this
+   package owns.
 4. `../dispatch_kubernetes.go` and `../dispatch_kubernetes_contract_test.go`
    for the root adapter and the production-boundary proof.
 5. `../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../tools_kubernetes.go` for the advertised schema, which stays at root and
-   must keep naming the same ten fields and the same 1..200 `limit` range.
+6. `tools.go` for the advertised schema, which must keep naming the same ten
+   fields and the same 1..200 `limit` range.
 7. `../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/kubernetes/handler.go` for the handler that reads the keys this
    package selects: the required `limit` and its bound, the anchor rule, and

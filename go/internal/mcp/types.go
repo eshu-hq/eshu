@@ -19,6 +19,7 @@ import (
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
+	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
@@ -184,6 +185,12 @@ func deadCodeTools() []ToolDefinition {
 // code/owners package owns the registration definition.
 func codeownersTools() []ToolDefinition {
 	return codeownerstools.Tools()
+}
+
+// kubernetesTools preserves the root package's constructor name while the
+// kubernetes package owns the registration definition.
+func kubernetesTools() []ToolDefinition {
+	return kubernetestools.Tools()
 }
 
 // codeQualityTools preserves the root package's constructor name while the

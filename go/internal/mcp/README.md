@@ -169,7 +169,7 @@ is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 35 | `tools_codebase.go` (splices `code/intel/tools.go`, `code/dead/tools.go`, `code/divergence/tools.go`, `code/quality/tools.go`), `relationships/code_tools.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
+| `codebaseTools` | 35 | `tools_codebase.go` (splices `code/intel/tools.go`, `code/dead/tools.go`, `code/divergence/tools.go`, `code/quality/tools.go`, `iac/management/tools.go`, `replatforming/tools.go`), `relationships/code_tools.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
 | `codeFlowTools` | 4 | `types.go` (wraps `code/flow/tools.go`) |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
@@ -183,7 +183,7 @@ is not broken out here).
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
 | `serviceCatalogTools` | 1 | `service/catalog_tools.go` |
 | `codeownersTools` | 1 | `types.go` (wraps `code/owners/tools.go`) |
-| `kubernetesTools` | 1 | `tools_kubernetes.go` |
+| `kubernetesTools` | 1 | `types.go` (wraps `kubernetes/tools.go`) |
 | `secretsIAMTools` | 5 | `types.go` (wraps `access/posture/tools.go`) |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
 | `supplyChainTools` | 7 | `tools_supply_chain.go` |
