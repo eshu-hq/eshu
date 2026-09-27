@@ -11,8 +11,10 @@
 //	ci-gates await    — wait for exact blocking checks on a PR head or merge-queue commit
 //	ci-gates contexts — print the required-status context manifest
 //	ci-gates audit-scripts — inventory tracked shell scripts and reference evidence
-//	ci-gates validate — verify that every registry entry's script and workflow exist
+//	ci-gates validate — verify that every registry entry's script and workflow
+//	exist, and that every gate declares a testing layer and a one-line purpose
 //	ci-gates uncovered — print changed paths without local category coverage
+//	ci-gates layers   — print the "Gates by layer" section of the gates reference
 //	ci-gates review-attest — bind and verify the exact inputs of a semantic review
 //
 // The backing registry is specs/ci-gates.v1.yaml, loaded and validated by the

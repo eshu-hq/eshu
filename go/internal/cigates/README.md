@@ -30,10 +30,19 @@ It answers two related questions:
 | `scripttrigger.go` | `checkScriptTriggerCoverage`, called from `DriftCheck` — a gate's own `local.command` / `local.test_command` script, and every `scripts/` file those source, must be matched by one of that gate's triggers ([#5762](https://github.com/eshu-hq/eshu/issues/5762)) |
 | `gopkgtrigger.go` | `checkGoPackageTriggerCoverage`, called from `DriftCheck` — the Go-language half of the same rule: a gate's own `local.command` / `local.test_command` Go packages must be matched by one of that gate's triggers ([#5873](https://github.com/eshu-hq/eshu/issues/5873)) |
 | `glob.go` | `MatchGlob` — doublestar matcher, no external deps |
+| `registry_layer.go` | `Layer`, the seven layer questions, and `DescriptionCheck` — every gate declares a testing layer and a one-line purpose ([#7337](https://github.com/eshu-hq/eshu/issues/7337)) |
+| `layer_index.go` | `RenderLayerIndex` — the "Gates by layer" section of the generated gates reference |
 
 ## Registry format
 
 The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable kebab-case id, a tier, path-glob `triggers`, an optional local command, an optional local self-test command, and a CI workflow reference. `self_test_triggers` may narrow the distinct `test_command` to changes in the verifier harness; every entry must also appear in `triggers`. If the field is absent, the CLI runs the self-test whenever the gate is selected. This fail-closed default keeps unclassified test commands in the promotion path. Gates whose `local` field is absent are CI-only and always require a non-empty `ci_only_reason`. Gates with a local command but no CI workflow are local-only and must carry a non-empty `local_only_reason` when used as replay proof gates.
+
+Every gate also declares a `layer` and a `purpose` ([#7337](https://github.com/eshu-hq/eshu/issues/7337)):
+
+- `layer` names the question a failing gate answers. It is one of `hygiene`, `unit`, `contract`, `replay`, `truth`, `performance` or `secondary`, and the questions live in `registry_layer.go`. It is orthogonal to `category`, which names the kind of check and drives the CLI's `--category` filter.
+- `purpose` is one plain sentence of at most 160 characters saying what the gate checks, written for someone new to the repo.
+- `Load` rejects an unknown layer but allows both fields to be absent, so test registries stay small. `ci-gates validate` runs `DescriptionCheck` on the real registry and requires both fields on every gate, and it rejects a blocking gate in the `secondary` layer.
+- Neither field affects selection, blocking or check identity. They feed only validation and the "Gates by layer" section of `docs/public/reference/ci-gates.md`.
 
 The top-level `required_status_checks` manifest mirrors the contexts expected in
 the effective `main` ruleset. Exactly one entry sets

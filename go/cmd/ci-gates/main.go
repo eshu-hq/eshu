@@ -48,6 +48,8 @@ func main() {
 		err = runValidate(args)
 	case "uncovered":
 		err = runUncovered(args)
+	case "layers":
+		err = runLayers(args)
 	case "review-attest":
 		err = runReviewAttest(args)
 	default:
@@ -215,6 +217,9 @@ func runValidate(args []string) error {
 
 	// #4213 integrity check (script + workflow file existence).
 	allErrs = append(allErrs, reg.Validate(*repoRoot)...)
+
+	// #7337: every gate declares its testing layer and a one-line purpose.
+	allErrs = append(allErrs, cigates.DescriptionCheck(reg)...)
 
 	// #4220 drift check (hook/workflow registry completeness).
 	if *drift {
