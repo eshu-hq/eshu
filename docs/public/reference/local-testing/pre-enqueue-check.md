@@ -28,7 +28,7 @@ error exits `2`.
 | `merge-queue` | The head merges cleanly with the merge-queue tip: the `headCommit` of the last queued entry that is not this PR. A merge-group commit contains every PR ahead of it, so a queue collision that a check against `origin/main` alone misses still fails here. The arm prints the file overlap with each queued PR. An empty queue passes with `queue empty`. |
 | `checks` | `gh pr checks` reports no pending, failing, or cancelled rows. Rows are counted by gh's state bucket, never by line text; skipped rows are allowed. The head's `required-gates-complete` commit status must be `success`, and `mergeStateStatus` must be `CLEAN`. |
 | `threads` | GraphQL `reviewThreads` has zero unresolved threads. A truncated page fails closed. |
-| `body` | The body contains at least one `Closes`/`Fixes`/`Resolves #N`, and none of the AI-attribution text `Generated with` or `Co-Authored-By`. The keywords are listed so the caller can confirm each issue is meant to close on merge. |
+| `body` | The body contains at least one `Closes`/`Fixes`/`Resolves #N`, and no AI attribution as the `no-ai-attribution` gate defines it. That definition, a shared pattern in `scripts/lib/ai-attribution-pattern.sh`, matches an AI-tool co-author trailer, a "generated with" line that names an AI tool, the robot-emoji footer, or the vendor noreply address. Prose that only describes attribution, and a human co-author trailer, both pass. The keywords are listed so the caller can confirm each issue is meant to close on merge. |
 
 The script performs one read. It does not replace the two-consecutive-stable-reads
 rule for CI completion. Run it only after the caller's watcher has seen the full

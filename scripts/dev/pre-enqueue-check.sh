@@ -39,7 +39,8 @@ usage() {
 		'  threads         unresolved review threads == 0' \
 		'  body            at least one closing keyword (Closes/Fixes/Resolves #N),' \
 		'                  listed for the caller to confirm, and no AI attribution' \
-		'                  ("Generated with", "Co-Authored-By")' \
+		'                  (scripts/lib/ai-attribution-pattern.sh, shared with the' \
+		'                  no-ai-attribution gate; prose about attribution passes)' \
 		'' \
 		'This script performs ONE read. The two-consecutive-stable-reads rule for CI' \
 		'completion stays with the caller'\''s watcher: run it only after that watcher' \
@@ -55,6 +56,9 @@ usage() {
 		'  PRE_ENQUEUE_REMOTE  git remote to fetch from (default: origin)' \
 		'  GH, GIT             command overrides for testing (default: gh, git)'
 }
+
+# shellcheck source=scripts/lib/ai-attribution-pattern.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ai-attribution-pattern.sh"
 
 GH="${GH:-gh}"
 GIT="${GIT:-git}"
@@ -240,7 +244,7 @@ fi
 # --- arm 6: body -------------------------------------------------------------
 body="$(jq -r '.body // ""' <<<"${pr_json}")"
 closes="$(rg -oi '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#[0-9]+' <<<"${body}" | paste -sd, -)"
-attrib="$(rg -oi 'generated with|co-authored-by' <<<"${body}" | sort -fu | paste -sd, -)"
+attrib="$(rg -oi -e "${AI_ATTRIBUTION_PATTERN}" <<<"${body}" | sort -fu | paste -sd, -)"
 body_bad=()
 [[ -n "${closes}" ]] || body_bad+=("no closing keyword (Closes/Fixes/Resolves #N)")
 [[ -z "${attrib}" ]] || body_bad+=("AI attribution: ${attrib}")

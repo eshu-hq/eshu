@@ -223,12 +223,27 @@ expect_red "more threads than one page" threads
 new_case no-closing
 edit pr.json '.body = "Tightens the gate. Refs #7332\n"'
 expect_red "missing closing keyword" body
-new_case attribution
-edit pr.json '.body += "\nGenerated with a coding assistant\n"'
-expect_red "AI attribution in body" body
-new_case coauthor
-edit pr.json '.body += "\nCo-Authored-By: someone <x@example.invalid>\n"'
-expect_red "Co-Authored-By trailer in body" body
+# The body arm shares scripts/lib/ai-attribution-pattern.sh with the
+# no-ai-attribution gate. Tool names and the robot emoji are assembled at run
+# time so this file never matches that gate's own content scan.
+ai_tool="$(printf 'Cla%s' 'ude')"
+robot="$(printf '\xF0\x9F\xA4\x96')"
+new_case attribution-footer
+edit pr.json '.body += "\n" + $f + "\n"' --arg f "${robot} Generated with [${ai_tool} Code](https://example.invalid)"
+expect_red "AI tool footer in body" body
+new_case attribution-trailer
+edit pr.json '.body += "\n" + $t + "\n"' --arg t "Co-Authored-By: ${ai_tool} <x@example.invalid>"
+expect_red "AI Co-Authored-By trailer in body" body
+# A body that only DESCRIBES attribution, or credits a human co-author, is
+# not attribution: #7332's own PR body names the trailer it removes.
+new_case attribution-prose
+edit pr.json '.body += "\nThe harness added a `Co-Authored-By` trailer and a generated-with footer; this removes both.\nCo-authored-by: Jane Doe <jane@example.invalid>\nGenerated with a coding assistant in mind.\n"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+check "GREEN prose about attribution and a human co-author pass the body arm" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
 
 # --- usage -------------------------------------------------------------------
 set +e
