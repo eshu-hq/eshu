@@ -212,6 +212,20 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractIAMCanAssumeEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalIAMCanAssumeEdgeUpsertCypherFormat,
 	},
+	// iam_can_perform follows the same single-vocabulary shape as the three
+	// entries above it, minus the %s: CanonicalIAMCanPerformEdgeUpsertCypher
+	// bakes the static CAN_PERFORM token directly into the MERGE (the granted
+	// action set lives in rel.actions, never in the relationship type), so
+	// CAN_PERFORM is still the only type this writer can emit. The template
+	// MERGEs on its two endpoint nodes alone (both are MATCHed, never
+	// merged), so IdentityProperties stays nil — the identity scan yields
+	// nothing. iamCanPerformEdgeLabel ("IAM_CAN_PERFORM") is statement
+	// metadata carried beside the query, not a graph relationship type.
+	"iam_can_perform": {
+		EdgeTypes:      map[string]string{"CAN_PERFORM": "principal to resource effective-permission attachment (CanonicalIAMCanPerformEdgeUpsertCypher)"},
+		RetractCypher:  sourcecypher.RetractIAMCanPerformEdgesCypher,
+		IdentityCypher: sourcecypher.CanonicalIAMCanPerformEdgeUpsertCypher,
+	},
 }
 
 // materializedEdgeIdentityByFamily declares identity for the four

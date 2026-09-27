@@ -41,18 +41,20 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.ShellExecFamilyOdu(),
 	workloadDependencyFamilyOdu(),
 	familyodu.SymbolRuntimeFamilyOdu(),
-	// The first four DIRECT-materialization families (#6228). Every entry
-	// above belongs to reducer.MaterializedEdgeFamilies(); these four belong
-	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of the four
+	// The DIRECT-materialization families (#6228). Every entry
+	// above belongs to reducer.MaterializedEdgeFamilies(); these belong
+	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of them
 	// carry coverage rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
-	// because both live matrices drive them; workload_cloud_relationship and
-	// iam_can_assume still carry their waiver rows. Being cataloged is one of
-	// the four conditions a coverage row asserts, not the whole of it, so none
-	// gets a coverage row on the strength of appearing here.
+	// because both live matrices drive them; workload_cloud_relationship,
+	// iam_can_assume, and iam_can_perform still carry their waiver rows.
+	// Being cataloged is one of the four conditions a coverage row asserts,
+	// not the whole of it, so none gets a coverage row on the strength of
+	// appearing here.
 	familyodu.KubernetesNamespaceEnvironmentFamilyOdu(),
 	familyodu.IAMInstanceProfileRoleFamilyOdu(),
 	familyodu.WorkloadCloudRelationshipFamilyOdu(),
 	familyodu.IAMCanAssumeFamilyOdu(),
+	familyodu.IAMCanPerformFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

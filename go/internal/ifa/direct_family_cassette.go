@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
-// Committed-cassette loaders for the three direct-materialization family Odùs
+// Committed-cassette loaders for the four direct-materialization family Odùs
 // (#6228, under the #6181 umbrella).
 //
 // A cassette is a recorded collector output the live gates replay instead of
@@ -26,20 +26,22 @@ import (
 // tests project the cassette back through loadDirectFamilyOdu and require it to
 // equal the compiled Odù exactly.
 //
-// All three families share one loader rather than carrying a copy each. The
+// All four families share one loader rather than carrying a copy each. The
 // shared-projection families each grew their own decoder because each reads a
-// different fact shape; these three read the SAME envelope fields and differ
-// only in which Odù name the projection carries, so a third copy would be
-// three places for one contract to rot.
+// different fact shape; these four read the SAME envelope fields and differ
+// only in which Odù name the projection carries, so a fourth copy would be
+// four places for one contract to rot.
 
 const (
-	// kubernetesNamespaceEnvironmentFamilyCassettePath and
-	// iamInstanceProfileRoleFamilyCassettePath are repo-root-relative so the
-	// constant stays machine-independent; callers join a repo root onto them
+	// kubernetesNamespaceEnvironmentFamilyCassettePath,
+	// iamInstanceProfileRoleFamilyCassettePath, iamCanAssumeFamilyCassettePath,
+	// and iamCanPerformFamilyCassettePath are repo-root-relative so the
+	// constants stay machine-independent; callers join a repo root onto them
 	// through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
 	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
+	iamCanPerformFamilyCassettePath                  = "testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -118,6 +120,19 @@ func IAMCanAssumeFamilyCassetteFullPath(repoRoot string) string {
 // counterpart to LoadIAMInstanceProfileRoleFamilyOdu.
 func LoadIAMCanAssumeFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, IAMCanAssumeFamilyOduName)
+}
+
+// IAMCanPerformFamilyCassetteFullPath joins repoRoot onto the committed
+// iam_can_perform family cassette path.
+func IAMCanPerformFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, iamCanPerformFamilyCassettePath)
+}
+
+// LoadIAMCanPerformFamilyOdu reads the committed cassette and projects it onto
+// the fact envelopes the reducer's extractor consumes, the iam_can_perform
+// counterpart to LoadIAMCanAssumeFamilyOdu.
+func LoadIAMCanPerformFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, IAMCanPerformFamilyOduName)
 }
 
 // loadDirectFamilyOdu is the shared strict projection behind all three loaders.

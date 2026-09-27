@@ -74,6 +74,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.IAMCanAssumeFamilyOduName,
 		EdgeTypes: []string{"CAN_ASSUME"},
 	},
+	{
+		Family:    iamCanPerformFamily,
+		OduName:   ifa.IAMCanPerformFamilyOduName,
+		EdgeTypes: []string{"CAN_PERFORM"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

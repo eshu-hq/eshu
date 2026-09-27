@@ -32,6 +32,7 @@ const (
 	DocumentationFamilyOduName                  = familyodu.DocumentationFamilyOduName
 	FileFactKind                                = familyodu.FileFactKind
 	IAMCanAssumeFamilyOduName                   = familyodu.IAMCanAssumeFamilyOduName
+	IAMCanPerformFamilyOduName                  = familyodu.IAMCanPerformFamilyOduName
 	IAMInstanceProfileRoleFamilyOduName         = familyodu.IAMInstanceProfileRoleFamilyOduName
 	InheritanceFamilyOduName                    = familyodu.InheritanceFamilyOduName
 	KubernetesNamespaceEnvironmentFamilyOduName = familyodu.KubernetesNamespaceEnvironmentFamilyOduName
@@ -143,6 +144,9 @@ func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 
 // IAMCanAssumeFamilyOdu returns the cataloged IAM can-assume family Odù.
 func IAMCanAssumeFamilyOdu() CatalogOdu { return familyodu.IAMCanAssumeFamilyOdu() }
+
+// IAMCanPerformFamilyOdu returns the cataloged IAM can-perform family Odù.
+func IAMCanPerformFamilyOdu() CatalogOdu { return familyodu.IAMCanPerformFamilyOdu() }
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {

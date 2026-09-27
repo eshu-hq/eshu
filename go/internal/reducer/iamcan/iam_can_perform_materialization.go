@@ -429,6 +429,18 @@ func (h IAMCanPerformMaterializationHandler) recordConditionConfidence(ctx conte
 	))
 }
 
+// SplitIAMCanPerformEnvelopes partitions a mixed envelope slice in one pass so
+// the join index, identity/boundary permission facts, boundary attachment facts,
+// and resource-policy facts are built from a single bounded load.
+//
+// Exported so the Ifá iam_can_perform vacuity guard
+// (go/internal/ifa/materializededges, #6228) partitions its Odù's facts exactly
+// the way this handler partitions a scope generation's load: the guard exercises
+// the production split rather than carrying its own copy of it.
+func SplitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permissions, permissionBoundaries, resourcePolicies []facts.Envelope) {
+	return splitIAMCanPerformEnvelopes(envelopes)
+}
+
 // splitIAMCanPerformEnvelopes partitions a mixed envelope slice in one pass so
 // the join index, identity/boundary permission facts, boundary attachment facts,
 // and resource-policy facts are built from a single bounded load.

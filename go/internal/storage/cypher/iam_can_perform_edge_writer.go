@@ -27,7 +27,7 @@ const canonicalPhaseIAMCanPerformEdge = "iam_can_perform_edge"
 // validation timeout).
 const iamCanPerformEdgeLabel = "CAN_PERFORM"
 
-// canonicalIAMCanPerformEdgeUpsertCypher batches CAN_PERFORM edge upserts between
+// CanonicalIAMCanPerformEdgeUpsertCypher batches CAN_PERFORM edge upserts between
 // an already-materialized IAM principal :CloudResource node and the resource
 // :CloudResource node an identity or resource policy grants a catalogued
 // sensitive action on.
@@ -41,7 +41,7 @@ const iamCanPerformEdgeLabel = "CAN_PERFORM"
 // slice. Two MATCHes precede the MERGE so a row whose principal or resource node
 // is absent produces no edge and no fabricated node. Both anchors are
 // uid-indexed :CloudResource lookups (no scan, no N+1).
-const canonicalIAMCanPerformEdgeUpsertCypher = `UNWIND $rows AS row
+const CanonicalIAMCanPerformEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (p:CloudResource {uid: row.principal_uid})
 MATCH (r:CloudResource {uid: row.resource_uid})
 MERGE (p)-[rel:CAN_PERFORM]->(r)
@@ -53,14 +53,14 @@ SET rel.actions = row.actions,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractIAMCanPerformEdgesCypher removes this reducer's CAN_PERFORM edges for a
+// RetractIAMCanPerformEdgesCypher removes this reducer's CAN_PERFORM edges for a
 // set of scopes before a fresh generation reprojects them. The relationship type
 // is fixed, so the retract matches that type from any CloudResource and scopes by
 // the edge's own scope_id and evidence_source. The CloudResource endpoints are
 // cross-generation canonical and carry no reducer scope_id, so a node-scoped
 // predicate would make the retract a silent no-op that leaks stale CAN_PERFORM
 // edges across generations (the #388/#1135 lesson).
-const retractIAMCanPerformEdgesCypher = `MATCH (p:CloudResource)-[rel:CAN_PERFORM]->()
+const RetractIAMCanPerformEdgesCypher = `MATCH (p:CloudResource)-[rel:CAN_PERFORM]->()
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -124,7 +124,7 @@ func (w *IAMCanPerformEdgeWriter) WriteIAMCanPerformEdges(
 		}))
 	}
 
-	stmts := BuildBatchedStatements(canonicalIAMCanPerformEdgeUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(CanonicalIAMCanPerformEdgeUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMCanPerformEdge
@@ -158,7 +158,7 @@ func (w *IAMCanPerformEdgeWriter) RetractIAMCanPerformEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractIAMCanPerformEdgesCypher,
+		Cypher:    RetractIAMCanPerformEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,
