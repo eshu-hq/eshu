@@ -86,7 +86,7 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_changed_since_state_rows` | gauge | Planner row estimate of `changed_since_key_state`. |
 
 A cleanup cycle checks that `fact_records_content_entity_key_idx` and
-`fact_records_file_key_idx` (migrations 138 and 139) are valid before it locks
+`fact_records_file_key_idx` (migrations 139 and 140) are valid before it locks
 anything. Its content prunes probe those indexes once per candidate key; without
 them each probe would scan `fact_records` while the scope locks are held. When
 either index is missing, invalid (a failed concurrent build), or a different

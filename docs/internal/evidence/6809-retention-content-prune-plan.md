@@ -5,7 +5,7 @@
 > kind, and the prunes and the row count run it while the batch holds
 > `FOR UPDATE` on its `ingestion_scopes` rows, so a fact insert into a locked
 > scope waited 17.8 s and 32.5 s on an 11 GB fixture. #7279 replaced it with a
-> per-candidate probe of two partial key indexes (migrations 138 and 139). The
+> per-candidate probe of two partial key indexes (migrations 139 and 140). The
 > "partial expression indexes" row below was rejected here as 2.5x slower warm
 > at 5x, where a full pass is cheap. The cliff this note avoided was a bitmap
 > heap rescan with no key index; the #7279 probe goes through a key index,
