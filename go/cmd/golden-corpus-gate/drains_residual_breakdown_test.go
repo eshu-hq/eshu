@@ -224,3 +224,23 @@ func TestClassifyResidualRowsSplitsToleratedFromBlockingReadiness(t *testing.T) 
 		t.Errorf("breakdown must label both classes readiness-deferred: %s", line)
 	}
 }
+
+// A generation_activation_not_ready row is a readiness wait, but it clears on
+// the projector Ack without the maintenance pass, so more drain time could
+// have helped. The "no live work remained" claim must not fire for a residual
+// that holds any pre-maintenance-blocking row, even though the row is labeled
+// readiness-deferred.
+func TestResidualBreakdownDoesNotClaimNoProgressForBlockingReadiness(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "workload_materialization", Status: "retrying", FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3},
+	}
+	got := formatResidualBreakdown(rows)
+	if !strings.Contains(got, "live=0 readiness-deferred=3") {
+		t.Errorf("breakdown must still label the row readiness-deferred: %s", got)
+	}
+	if strings.Contains(got, "no live work remained") {
+		t.Errorf("breakdown claims more drain time would not have helped for a row that clears on its own: %s", got)
+	}
+}

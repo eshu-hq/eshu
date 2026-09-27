@@ -44,11 +44,14 @@ As a side effect, failure breakdowns labeled it "live", which is wrong.
 
 - **Strict drains:** none. They still wait for every residual row.
 - **Breakdown:** retrying `generation_activation_not_ready` rows move from
-  `live=` to `readiness-deferred=`. Residual risk **R1**: a residual made only
-  of those rows now carries the suffix "no live work remained … more drain
-  time would not have helped". That can mislead, because the class clears
-  without the maintenance pass once the projector acknowledges the generation.
-  The message is diagnostic only and prints after a drain has already failed.
+  `live=` to `readiness-deferred=`. The suffix "no live work remained … more
+  drain time would not have helped" is suppressed whenever the residual holds
+  a pre-maintenance-blocking row. The class clears without the maintenance
+  pass once the projector acknowledges the generation, so more drain time
+  could have helped. The first version of this change let the suffix fire in
+  that case. The PR review caught it, and
+  `TestResidualBreakdownDoesNotClaimNoProgressForBlockingReadiness` pins the fix
+  (RED before, GREEN after).
 - **Pre-maintenance decision:** none. It tolerates the same 36 classes and
   still blocks on `generation_activation_not_ready`. The quiescence message
   gains one field, `readiness-not-tolerated=N`, after `failed=`. The runner

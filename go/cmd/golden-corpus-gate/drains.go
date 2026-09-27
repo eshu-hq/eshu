@@ -340,8 +340,11 @@ func formatResidualBreakdown(rows []residualRow) string {
 	// Only claim "every residual row is waiting" when that is literally true.
 	// A terminal row in the residual is a different failure with a different
 	// owner, and burying it under a readiness story sends the reader the wrong
-	// way — so any dead_letter or failed row suppresses the claim.
-	if rc.live == 0 && rc.readinessDeferred > 0 && rc.deadLetter == 0 && rc.failed == 0 {
+	// way — so any dead_letter or failed row suppresses the claim. A
+	// pre-maintenance-blocking row (generation_activation_not_ready) suppresses
+	// it too: it clears on the projector Ack without the maintenance pass, so
+	// more drain time could have helped (#7308 review).
+	if rc.live == 0 && rc.readinessDeferred > 0 && rc.preMaintenanceBlocking == 0 && rc.deadLetter == 0 && rc.failed == 0 {
 		summary += " — no live work remained: every residual row is waiting on a readiness precondition, so more drain time would not have helped"
 	}
 	return summary + " [" + strings.Join(details, " ") + "]" + formatResidualMessages(rows)
