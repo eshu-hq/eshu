@@ -272,3 +272,34 @@ func TestLedgerSchemaHasNoForeignKeys(t *testing.T) {
 		t.Fatalf("planted violations not reported: %v", got)
 	}
 }
+
+// TestCursorHeldReturnsRetryWithoutWaiting pins the non-blocking half of G9:
+// a writer that finds the scope's cursor row locked returns cursor_locked at
+// once. The race test above accepts an idle loser, so on its own it would not
+// notice a blocking lock that waits for the winner and then finds no work.
+func TestCursorHeldReturnsRetryWithoutWaiting(t *testing.T) {
+	l := openLedgerDB(t)
+	l.seedScope(t, "held")
+	l.seedGeneration(t, "held", "h0", false, "active", fixtureEpoch, time.Time{})
+	l.journal(t, "held", "h0", "")
+	l.exec(t, `INSERT INTO changed_since_scope_cursor (scope_id, digest_version, updated_at) VALUES ('held', $1, now())`,
+		linksfreshnessstore.DigestVersion)
+	holder, err := l.raw.BeginTx(l.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = holder.Rollback() }()
+	if _, err := holder.ExecContext(l.ctx, `SELECT 1 FROM changed_since_scope_cursor WHERE scope_id = 'held' FOR UPDATE`); err != nil {
+		t.Fatalf("hold cursor: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(l.ctx, 3*time.Second)
+	defer cancel()
+	began := time.Now()
+	_, err = linksfreshnessstore.NewLinkWriter(l.store).LinkNext(ctx, "held")
+	if reason, ok := linksfreshnessstore.RetryReasonOf(err); !ok || reason != linksfreshnessstore.RetryCursorLocked {
+		t.Fatalf("LinkNext with the cursor held = %v after %s, want cursor_locked", err, time.Since(began))
+	}
+	if elapsed := time.Since(began); elapsed > time.Second {
+		t.Fatalf("cursor_locked took %s, want under 1s", elapsed)
+	}
+}

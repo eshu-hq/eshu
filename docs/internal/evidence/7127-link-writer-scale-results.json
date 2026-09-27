@@ -1,0 +1,218 @@
+{
+ "events": [
+  {
+   "cpus": 18,
+   "event": "start",
+   "load1": 21.33,
+   "unix": 1790479912.3975859
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 1,
+   "seconds": 8.043407459,
+   "unix": 1790479921.959717
+  },
+  {
+   "event": "window_start",
+   "load1": 19.14,
+   "n": 1,
+   "unix": 1790479921.966923
+  },
+  {
+   "event": "window_end",
+   "n": 1,
+   "peak_backend_rssanon_kb": 464480,
+   "peak_summed_rssanon_kb": 464480,
+   "unix": 1790479928.290744
+  },
+  {
+   "delta_rows": 4442,
+   "event": "incremental",
+   "keys": 770881,
+   "n": 1,
+   "probe_p50_seconds": 0.001447042,
+   "probe_p95_seconds": 0.002623334,
+   "probe_samples": 32,
+   "temp_bytes": 0,
+   "temp_files": 0,
+   "unix": 1790479929.960202,
+   "walls_seconds": [
+    6.3237404999999995
+   ]
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 2,
+   "seconds": 10.063210375,
+   "unix": 1790479941.746453
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 2,
+   "seconds": 8.847557375,
+   "unix": 1790479950.594097
+  },
+  {
+   "event": "window_start",
+   "load1": 18.7,
+   "n": 2,
+   "unix": 1790479950.600095
+  },
+  {
+   "event": "window_end",
+   "n": 2,
+   "peak_backend_rssanon_kb": 465528,
+   "peak_summed_rssanon_kb": 930260,
+   "unix": 1790479980.504629
+  },
+  {
+   "delta_rows": 4442,
+   "event": "incremental",
+   "keys": 770881,
+   "n": 2,
+   "probe_p50_seconds": 0.002596125,
+   "probe_p95_seconds": 0.034196167,
+   "probe_samples": 142,
+   "temp_bytes": 0,
+   "temp_files": 0,
+   "unix": 1790479982.113663,
+   "walls_seconds": [
+    29.90434425,
+    29.074564667
+   ]
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 4,
+   "seconds": 50.584405583,
+   "unix": 1790480037.469235
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 4,
+   "seconds": 63.741250459,
+   "unix": 1790480101.210796
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 4,
+   "seconds": 29.69530725,
+   "unix": 1790480130.9062269
+  },
+  {
+   "event": "root",
+   "keys": 771201,
+   "n": 4,
+   "seconds": 27.953195208,
+   "unix": 1790480158.85955
+  },
+  {
+   "event": "window_start",
+   "load1": 81.68,
+   "n": 4,
+   "unix": 1790480158.873899
+  },
+  {
+   "event": "window_end",
+   "n": 4,
+   "peak_backend_rssanon_kb": 423740,
+   "peak_summed_rssanon_kb": 1414988,
+   "unix": 1790480191.142551
+  },
+  {
+   "delta_rows": 4442,
+   "event": "incremental",
+   "keys": 770881,
+   "n": 4,
+   "probe_p50_seconds": 0.00141475,
+   "probe_p95_seconds": 0.017308375,
+   "probe_samples": 157,
+   "temp_bytes": 0,
+   "temp_files": 0,
+   "unix": 1790480192.793371,
+   "walls_seconds": [
+    32.268434,
+    32.21995125,
+    32.218185583,
+    30.527267333
+   ]
+  },
+  {
+   "bare_b_seconds": 7.664784167,
+   "event": "g7_round",
+   "first": "bare_b",
+   "l1b_seconds": 8.541105459,
+   "load1_at_start": 70.94,
+   "ratio": 1.1143308504071021,
+   "round": 0,
+   "unix": 1790480229.7367208,
+   "valid": false
+  },
+  {
+   "bare_b_seconds": 7.518072583,
+   "event": "g7_round",
+   "first": "l1b",
+   "l1b_seconds": 7.928955833,
+   "load1_at_start": 69.09,
+   "ratio": 1.0546527378478756,
+   "round": 1,
+   "unix": 1790480245.2077482,
+   "valid": false
+  },
+  {
+   "bare_b_seconds": 7.146204417,
+   "event": "g7_round",
+   "first": "bare_b",
+   "l1b_seconds": 8.48464025,
+   "load1_at_start": 62.48,
+   "ratio": 1.1872932475617426,
+   "round": 2,
+   "unix": 1790480260.857397,
+   "valid": false
+  },
+  {
+   "bare_b_seconds": 6.5473835000000005,
+   "event": "g7_round",
+   "first": "l1b",
+   "l1b_seconds": 7.553011083,
+   "load1_at_start": 51.7,
+   "ratio": 1.1535922835434949,
+   "round": 3,
+   "unix": 1790480274.975769,
+   "valid": false
+  },
+  {
+   "bare_b_seconds": 6.82914225,
+   "event": "g7_round",
+   "first": "bare_b",
+   "l1b_seconds": 8.511109,
+   "load1_at_start": 43.16,
+   "ratio": 1.2462925340294382,
+   "round": 4,
+   "unix": 1790480290.3315468,
+   "valid": false
+  },
+  {
+   "bare_b_seconds": 5.979505541,
+   "event": "g7_round",
+   "first": "l1b",
+   "l1b_seconds": 6.739189667,
+   "load1_at_start": 36.71,
+   "ratio": 1.1270479842841574,
+   "round": 5,
+   "unix": 1790480303.070465,
+   "valid": false
+  }
+ ],
+ "fixture": {
+  "index_seconds": 65.8,
+  "load_seconds": 473.8
+ },
+ "go_test_rc": 0
+}
