@@ -90,7 +90,7 @@ const (
 	iamCanAssumeFamilyBreakglassUserARN = "arn:aws:iam::123456789012:user/breakglass"
 	iamCanAssumeFamilyObserverRoleARN   = "arn:aws:iam::123456789012:role/unattached-observer"
 	iamCanAssumeFamilyGhostRoleARN      = "arn:aws:iam::123456789012:role/ghost-unscanned"
-	iamCanAssumeFamilyForeignRoleARN    = "arn:aws:iam::999988887777:role/foreign-deployer"
+	iamCanAssumeFamilyForeignRoleARN    = "arn:aws:iam::000000000000:role/foreign-deployer"
 )
 
 // iamCanAssumeFamilyResourceFixture describes one aws_resource fact in the
