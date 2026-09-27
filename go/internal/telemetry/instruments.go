@@ -821,6 +821,20 @@ type Instruments struct {
 	// with reason k8s_resource_candidate_scan_truncated_at_5000 for the
 	// specific request that hit it.
 	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
+	// QueryOCIRegistryTruthTruncated counts bounded OCI registry-truth reads
+	// (POST /api/v0/impact/trace-deployment-chain) whose tag-observation or
+	// image-by-digest statement hit its LIMIT $row_limit and had to withhold
+	// one or more image refs (issue #6590: those statements carried no LIMIT
+	// at all before, so the declared per-key row bound was not enforced).
+	// Labels: reason, the closed telemetry.AttrReason set
+	// (tag_observation_row_limit | image_row_limit) naming which statement
+	// shape overflowed. A non-zero rate is the 3 AM operator signal that a
+	// deployment's OCI tag or digest fan-out exceeds
+	// ociRegistryTruthRowLimit; the response also carries
+	// image_registry_truth_complete=false with reason
+	// oci_registry_truth_row_limit_reached and the withheld refs for the
+	// specific request that hit it.
+	QueryOCIRegistryTruthTruncated metric.Int64Counter
 	// QueryScopedGrantDenied counts a scoped caller's read decided closed on
 	// one of the #6786 Go-side grant-decision seams (GetEntityContext,
 	// FetchWorkloadContextForOperation, ResolveWorkloadSelector) --
@@ -3659,6 +3673,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryK8sSelectCandidateScanTruncated counter: %w", err)
+	}
+
+	inst.QueryOCIRegistryTruthTruncated, err = meter.Int64Counter(
+		"eshu_dp_query_oci_registry_truth_truncated_total",
+		metric.WithDescription("Total bounded OCI registry-truth reads whose tag-observation or image-by-digest statement hit its row limit and withheld image refs, by reason (tag_observation_row_limit/image_row_limit)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryOCIRegistryTruthTruncated counter: %w", err)
 	}
 
 	inst.QueryScopedGrantDenied, err = meter.Int64Counter(
