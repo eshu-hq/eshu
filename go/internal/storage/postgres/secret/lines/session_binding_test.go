@@ -11,7 +11,7 @@ import (
 )
 
 // TestMigrationTriggersSkipExactlyTheDeferredSession binds the two Go constants
-// bootstrap-index sets on its connections to the WHEN clause of migration 137's
+// bootstrap-index sets on its connections to the WHEN clause of migration 138's
 // content_files triggers: a rename on either side alone would make the gate
 // silently never (or always) fire.
 func TestMigrationTriggersSkipExactlyTheDeferredSession(t *testing.T) {
@@ -22,7 +22,7 @@ func TestMigrationTriggersSkipExactlyTheDeferredSession(t *testing.T) {
 	for _, trigger := range []string{"content_files_secret_lines_insert", "content_files_secret_lines_update"} {
 		start := strings.Index(migration, "CREATE TRIGGER "+trigger)
 		if start < 0 {
-			t.Fatalf("migration 137 does not create %s", trigger)
+			t.Fatalf("migration 138 does not create %s", trigger)
 		}
 		end := strings.Index(migration[start:], "EXECUTE FUNCTION")
 		if end < 0 || !strings.Contains(migration[start:start+end], when) {

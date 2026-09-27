@@ -110,10 +110,10 @@ func secretLinesBenchMedian(values []time.Duration) time.Duration {
 	return sorted[len(sorted)/2]
 }
 
-// TestContentFileSecretLinesWriteCostLive measures what migration 137's
+// TestContentFileSecretLinesWriteCostLive measures what migration 138's
 // triggers add to the real ContentWriter.Write path (#7125): the same real
 // corpus is written into two disposable databases, one with the side table and
-// triggers and one with them dropped (the pre-137 schema), five interleaved
+// triggers and one with them dropped (the pre-138 schema), five interleaved
 // rounds with alternating first mover, each timing a first write (insert
 // path), a write of changed content (update path), and a write of unchanged
 // content (skip path). It logs medians as No-Regression Evidence and asserts

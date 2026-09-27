@@ -5,7 +5,7 @@
 // content_file_secret_lines side table behind the hardcoded-secret
 // investigation (#7125).
 //
-// Migration 137 keeps the table current with statement-level triggers on
+// Migration 138 keeps the table current with statement-level triggers on
 // content_files, which costs about 0.6 ms of Postgres time per new file. A bulk
 // load (bootstrap-index) cannot absorb that on its critical path, so its
 // sessions run DeferredSessionSQL, the triggers skip them, and this package

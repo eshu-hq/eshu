@@ -14,7 +14,7 @@ import (
 )
 
 // TestReadyTreatsMissingStateTableAsNotReady covers an API or MCP binary that
-// starts before migration 137 has created the readiness table. The side table
+// starts before migration 138 has created the readiness table. The side table
 // cannot be trusted yet, so callers must use the legacy scan; unrelated
 // database failures must still surface.
 func TestReadyTreatsMissingStateTableAsNotReady(t *testing.T) {

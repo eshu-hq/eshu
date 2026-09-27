@@ -51,7 +51,7 @@ retry, though, the invalid index still costs write overhead on every insert
 while serving no reads, so a failed build is worth restarting promptly rather
 than leaving in place.
 
-Migration `137` (#7125) is the one migration that blocks content writes for the
+Migration `138` (#7125) is the one migration that blocks content writes for the
 length of a backfill. It creates the `content_file_secret_lines` side table,
 its derivation function, and two statement-level triggers on `content_files`,
 then derives findings for every existing file in the same transaction. The
@@ -338,13 +338,13 @@ normal freshness.
 
 ### Secret-line finalizer
 
-Migration `137`'s triggers add about 0.6 ms of Postgres time per new file, which
+Migration `138`'s triggers add about 0.6 ms of Postgres time per new file, which
 a bulk load cannot absorb. `eshu-bootstrap-index` therefore treats the
 hardcoded-secret side table the way it already treats the content substring
 indexes: a bulk-load regime with a finalizer, gated by a state row.
 
 - Every bootstrap-index connection runs
-  `SET eshu.secret_lines_derive = 'deferred'`. Migration `137`'s two
+  `SET eshu.secret_lines_derive = 'deferred'`. Migration `138`'s two
   `content_files` triggers test that setting in their `WHEN` clause and skip the
   session's writes. Nothing runs `ALTER TABLE ... DISABLE TRIGGER`, so no lock is
   taken and every other writer (ingester, projector, manual SQL) keeps deriving.

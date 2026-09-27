@@ -4,7 +4,7 @@
 
 `lines` owns the bulk-load lifecycle of `content_file_secret_lines`, the
 Postgres side table that holds one row per hardcoded-secret finding line
-(#7125). Migration 137 derives those rows inside Postgres with statement-level
+(#7125). Migration 138 derives those rows inside Postgres with statement-level
 triggers on `content_files`. This package lets a bulk load (bootstrap-index)
 skip that derivation and rebuild the table once at the end.
 
@@ -34,7 +34,7 @@ flowchart LR
 ## Exported surface
 
 - `DeferredSessionSQL`, `SessionSetting` - the per-session setting migration
-  137's triggers test in their `WHEN` clause
+  138's triggers test in their `WHEN` clause
 - `BeginDeferral` - opens an epoch and takes readiness away before the first
   deferred write
 - `Finalize`, `Options`, `Result`, `Database` - the repository-partitioned,
@@ -105,7 +105,7 @@ flowchart LR
 
 ## Related
 
-- `go/internal/storage/postgres/migrations/137_content_file_secret_lines.sql`
+- `go/internal/storage/postgres/migrations/138_content_file_secret_lines.sql`
 - `go/internal/query/content_reader_security_secrets.go` (the gated read)
 - `go/cmd/bootstrap-index/bootstrap_finalize.go` (the caller)
 - `docs/internal/evidence/7125-secret-lines-side-table.md`

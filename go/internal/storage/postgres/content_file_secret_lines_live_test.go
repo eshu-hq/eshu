@@ -84,13 +84,13 @@ FROM content_file_secret_lines ORDER BY repo_id, relative_path, line_number`)
 }
 
 // TestContentFileSecretLinesMigrationBackfillsAndReappliesLive applies
-// migration 137 to a content_files table that already holds rows (the upgrade
+// migration 138 to a content_files table that already holds rows (the upgrade
 // path): the backfill must produce exactly the expected findings, and applying
 // the file a second time must be a no-op.
 func TestContentFileSecretLinesMigrationBackfillsAndReappliesLive(t *testing.T) {
 	ctx, db := openSecretLinesDatabase(t)
 
-	// Return the database to its pre-133 state, then load rows the migration
+	// Return the database to its pre-138 state, then load rows the migration
 	// must backfill.
 	for _, stmt := range []string{
 		`DROP TRIGGER content_files_secret_lines_insert ON content_files`,
@@ -110,7 +110,7 @@ INSERT INTO content_files (repo_id, relative_path, content, content_hash, line_c
  ('repo-b', 'src/stripe.go', 'stripe = "sk_live_ABCDEFGH12"', 'h4', 1, 'go', now()),
  ('repo-b', 'src/crlf.py', E'x = 1\r\ntoken=abcdefgh1\r\n', 'h5', 2, 'python', now())`)
 	if err != nil {
-		t.Fatalf("seed pre-133 content_files: %v", err)
+		t.Fatalf("seed pre-138 content_files: %v", err)
 	}
 
 	want := []string{
@@ -121,7 +121,7 @@ INSERT INTO content_files (repo_id, relative_path, content, content_hash, line_c
 	}
 	for pass := 1; pass <= 2; pass++ {
 		if _, err := db.ExecContext(ctx, MigrationSQL(secretLinesMigrationName)); err != nil {
-			t.Fatalf("apply migration 137 (pass %d): %v", pass, err)
+			t.Fatalf("apply migration 138 (pass %d): %v", pass, err)
 		}
 		if got := secretLinesSideRows(t, ctx, db); !slices.Equal(got, want) {
 			t.Fatalf("pass %d side rows = %v, want %v", pass, got, want)

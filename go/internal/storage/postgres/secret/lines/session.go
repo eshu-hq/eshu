@@ -12,14 +12,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// SessionSetting is the per-session Postgres setting that migration 137's
+// SessionSetting is the per-session Postgres setting that migration 138's
 // content_files triggers consult in their WHEN clause.
 const SessionSetting = "eshu.secret_lines_derive"
 
 // deferredValue is the setting value that makes the triggers skip a write.
 const deferredValue = "deferred"
 
-// DeferredSessionSQL marks a connection as a bulk-load writer: migration 137's
+// DeferredSessionSQL marks a connection as a bulk-load writer: migration 138's
 // content_files triggers skip that connection's writes, and the caller owns
 // rebuilding content_file_secret_lines afterwards (BeginDeferral before the
 // first write, Finalize after the last). Only bootstrap-index runs it, and not
