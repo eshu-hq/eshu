@@ -202,3 +202,37 @@ ifa_iam_can_assume_assert() {
 		-domain iam_can_assume \
 		-expected "${expected_edges}"
 }
+
+# ifa_iam_can_perform_drive replays the can-perform cassette.
+ifa_iam_can_perform_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive iam-can-perform \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_iam_can_perform_assert pins the three-edge exact set. Called twice per
+# cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
+#
+# The three edges come from three Allow identity statements: two catalog
+# actions (s3:getobject + s3:putobject) converging on ONE S3 edge with the
+# merged sorted action set, one KMS action on a second service family, and
+# one DynamoDB action on a role principal. A regression that emitted one edge
+# per action instead of one per resolved (principal, resource) pair would
+# still produce "some edges" and fail only against an exact set. The
+# fixture's other eleven statements -- type-mismatch, deny, conditioned,
+# NotAction, uncatalogued, absorbed wildcard, standalone wildcard, unscanned
+# target, non-identity source, unscanned principal, wrong target -- must
+# contribute nothing; the extractor drops an unresolvable grant rather than
+# inventing an endpoint, and this set is what holds it to that.
+#
+# The relationship type is CAN_PERFORM, read off the writer's MERGE. It is NOT
+# IAM_CAN_PERFORM, which is statement metadata carried beside the query and
+# never reaches the graph.
+ifa_iam_can_perform_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert iam_can_perform materialized edges (three-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain iam_can_perform \
+		-expected "${expected_edges}"
+}
