@@ -43,8 +43,8 @@ source_coverage:
   - file: codequery/callers.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: b7dc27071813d89a487879f42df7a05db22a47e2a7a6c1be303fadca97ef729e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
-      - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: 072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0, key_bound: single_key, max_degree: 8}}
-      - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: ab22753396c9ea72863716b0eee9c5f2004739a284591629ac04e4c5cca4f9b4, key_bound: single_key, max_degree: 8}}
+      - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: 072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0, key_bound: single_key, max_degree: 1125}}
+      - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: ab22753396c9ea72863716b0eee9c5f2004739a284591629ac04e4c5cca4f9b4, key_bound: single_key, max_degree: 1125}}
   - file: codequery/graph_metrics.go
     calls:
       - {symbol: "(*CodeHandler).CallGraphMetricsData", count: 1, source_sha256: 6f4d5fccc54522e54a3e8bdc98b92aab3805391d4a1d3e009a3bdf7b9034fe89, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
@@ -145,13 +145,13 @@ source_coverage:
           source_sha256: 648ddadfd85eba2d427bc871ef3451609041733cdc6acf9960e73241d9c22888
           key_bound: single_key
           max_results: 1
-      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 51ce417b3c08a1a9580165f74ae68c676bb3a85ccff3bea7739a467d18c9d249, key_bound: single_key, max_degree: 8, max_depth: 10}}
+      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 51ce417b3c08a1a9580165f74ae68c676bb3a85ccff3bea7739a467d18c9d249, key_bound: single_key, max_degree: 1125, max_depth: 10}}
   - file: codequery/transitive_walk.go
     calls:
-      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 393ae1c2582bc083a77b0a2cf52696be5acc4d731703eab24408689b6c9a1c2a, key_bound: single_key, max_degree: 8}}
+      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 393ae1c2582bc083a77b0a2cf52696be5acc4d731703eab24408689b6c9a1c2a, key_bound: single_key, max_degree: 1125}}
   - file: codequery/wrapper_bypass_read.go
     calls:
-      - {symbol: "(*CodeHandler).runWrapperGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 7bdc047dd853a207ad7da8283b15ff3c51cb038564ddd6c3b006e4eb52ff57dc, key_bound: bounded_key_batch, max_keys: 50, max_results: 400}} # 400 = 50 keys x corpus CALLS degree 8; audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design)
+      - {symbol: "(*CodeHandler).runWrapperGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 7bdc047dd853a207ad7da8283b15ff3c51cb038564ddd6c3b006e4eb52ff57dc, key_bound: bounded_key_batch, max_keys: 50, max_results: 56250}} # 56250 = 50 keys x corpus CALLS degree 1125 (#6649); audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design)
   - file: codequery/relationships/nornicdb.go
     calls:
       - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 11fd7bcd3d51b1d101ae63f3cd2c07b611a5bd1e7791a9c278b64e6645b17164, key_bound: single_key, max_results: 501}}

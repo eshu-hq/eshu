@@ -86,19 +86,26 @@ type NonHotDisposition struct {
 }
 
 // nonHotCorpusMaxCALLSDegree floors max_degree for degree-bounded CALLS
-// reads. Measured value 8: production parser (DefaultEngine.ParsePath) over
-// the 31 B-7 staged corpus fixtures
-// (scripts/lib/golden-corpus-fixtures.sh), restricted to CALLS-eligible call
-// kinds (REFERENCES-mapped kinds, constructor_call INSTANTIATES, and
-// jsx_component REFERENCES are excluded per the reducer and edge-writer
-// contracts), both directions: maximum 7 distinct callees per enclosing
-// function (out-degree, go_comprehensive/goroutines.go FanOut) and maximum 8
-// distinct caller functions per callee name (in-degree, "fmt.Sprintf").
-// Resolution can only drop references, so graph CALLS degree on this corpus
-// cannot exceed either upper bound, and one floor covers both read
-// directions. Re-measure with the same method when the staged corpus changes
-// and raise this floor; never lower an entry's max_degree to fit.
-const nonHotCorpusMaxCALLSDegree = 8
+// reads. Measured value 1125, the larger of both directions, on ops-qa
+// Neo4j 2026.08.1 (804 repositories, 356,547 MERGE-deduped CALLS edges,
+// 2026-09-26): out-degree max 521 (JavaScript, 128,964 nodes), in-degree
+// max 1125 (Java/PHP, 163,032 nodes). One constant covers both
+// `degree_bounded` directions, so it floors at the larger. Supersedes 8,
+// measured over 31 B-7 synthetic fixtures rather than real code (~2 orders
+// of magnitude low); #6556's go/ast sizing of this repo's own module (max
+// 95) used a different methodology/population and is not comparable.
+//
+// PROFILE on Neo4j at both max-degree anchors shows the covered reads stay
+// cheap at this degree (NodeUniqueIndexSeek / VarLengthExpand(Pruning,BFS,All),
+// under 50ms). `nornicDBTransitiveOneHopRows` (transitive_walk.go) runs
+// only on NornicDB and was not re-PROFILEd under the Neo4j-proof rule;
+// follow-up candidate. Full method, distribution, per-language maxima,
+// PROFILE table, and ledger citations (ledger:6649-calls-out-degree-max,
+// ledger:6649-calls-in-degree-max, ledger:6649-transitive-depth10-profile)
+// are in docs/internal/evidence/6649-calls-degree-floor.md (#6649).
+// Re-measure with the same method when the corpus changes materially and
+// raise this floor; never lower an entry's max_degree to fit.
+const nonHotCorpusMaxCALLSDegree = 1125
 
 // nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
 // traversals. It is the enforced clamp ceiling in
@@ -481,7 +488,7 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
 	if maxDegree < nonHotCorpusMaxCALLSDegree {
 		return []string{fmt.Sprintf(
-			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the B-7 staged corpus",
+			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the ops-qa reference corpus (#6649)",
 			key,
 			class,
 			nonHotCorpusMaxCALLSDegree,
