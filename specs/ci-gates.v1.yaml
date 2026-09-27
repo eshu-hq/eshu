@@ -658,6 +658,7 @@ gates:
       - "scripts/dev/pre-enqueue-check.sh"
       - "scripts/dev/test-pre-enqueue-check.sh"
       - "scripts/lib/test-pre-enqueue-check-*"
+      - "scripts/lib/ai-attribution-pattern.sh"
     local:
       # pre-enqueue-check.sh only reads GitHub, but a real run needs a live PR
       # and network, so the hermetic mirror IS the verification: a fake `gh`
