@@ -25,6 +25,16 @@ const repositoryEntityCoverageSQL = `
 		ORDER BY entity_count DESC, entity_type
 	`
 
+// repositoryLanguageCoverageSQL is shared by full and context-only coverage so
+// the file-count buckets keep the same language and ordering semantics.
+const repositoryLanguageCoverageSQL = `
+		SELECT coalesce(language, 'unknown') as language, count(*) as file_count
+		FROM content_files
+		WHERE repo_id = $1
+		GROUP BY language
+		ORDER BY file_count DESC
+	`
+
 // RepositoryCoverage returns content-store coverage for one repository.
 func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error) {
 	if cr == nil || cr.db == nil {
@@ -58,13 +68,7 @@ func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) 
 	}
 	coverage.FileIndexedAt = fileIndexedAt
 
-	rows, err := cr.db.QueryContext(ctx, `
-		SELECT coalesce(language, 'unknown') as language, count(*) as file_count
-		FROM content_files
-		WHERE repo_id = $1
-		GROUP BY language
-		ORDER BY file_count DESC
-	`, repoID)
+	rows, err := cr.db.QueryContext(ctx, repositoryLanguageCoverageSQL, repoID)
 	if err != nil {
 		span.RecordError(err)
 		return RepositoryContentCoverage{}, fmt.Errorf("query language distribution: %w", err)
@@ -121,5 +125,47 @@ func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) 
 		coverage.EntityIndexedAt = entityIndexedAt.UTC()
 	}
 
+	return coverage, nil
+}
+
+// RepositoryContextCoverage returns the file summary repository context uses.
+// It avoids the entity aggregate needed by full RepositoryCoverage; the file
+// count is the sum of the grouped file-language counts from the same rows.
+func (cr *ContentReader) RepositoryContextCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error) {
+	if cr == nil || cr.db == nil {
+		return RepositoryContentCoverage{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "repository_context_coverage"),
+			attribute.String("db.sql.table", "content_files"),
+		),
+	)
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, repositoryLanguageCoverageSQL, repoID)
+	if err != nil {
+		span.RecordError(err)
+		return RepositoryContentCoverage{}, fmt.Errorf("query context language distribution: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	coverage := RepositoryContentCoverage{Available: true, Languages: make([]RepositoryLanguageCount, 0)}
+	for rows.Next() {
+		var language RepositoryLanguageCount
+		if err := rows.Scan(&language.Language, &language.FileCount); err != nil {
+			span.RecordError(err)
+			return RepositoryContentCoverage{}, fmt.Errorf("scan context language row: %w", err)
+		}
+		coverage.FileCount += language.FileCount
+		coverage.Languages = append(coverage.Languages, language)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return RepositoryContentCoverage{}, fmt.Errorf("iterate context language rows: %w", err)
+	}
 	return coverage, nil
 }

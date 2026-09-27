@@ -64,6 +64,15 @@ The story's semantic entity and file reads are bounded at 5,000 rows
 (`RepositorySemanticEntityLimit`); a row past that cap is disclosed the same way
 with `repository_semantic_read_truncated_at_5000`, and the semantic overview and
 file-derived stages are then lower bounds.
+The context route uses the same 5,000-file bound for its file-derived
+`infrastructure_overview` and deployment artifacts. It reads one extra sentinel
+row and adds `repository_context_file_read_truncated_at_5000` to
+`partial_reasons` when the repository has more files; those overviews are then
+lower bounds. If the file read fails, it adds
+`repository_context_file_read_degraded` and may omit the overviews.
+If the content-file summary fails, context falls back to graph file counts and
+languages and adds `repository_context_content_coverage_degraded`; the graph
+may lag or omit file classes present in the content store.
 The story's `infrastructure` panel is an auxiliary read layered on top of those
 headline facts: a graph-read failure there keeps the response at `200` with
 an empty panel instead, and `context` carries an additive `partial_reasons`
