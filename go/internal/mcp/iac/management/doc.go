@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package iacmanagementtools defines pure route selection for the MCP
-// IaC-management family.
+// Package iacmanagementtools defines pure route selection and tool
+// definitions for the MCP IaC-management family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
-// to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order (the seven tool
-// definitions stay at the root in tools_codebase.go and tools_iac.go),
-// global route fanout, the private iacManagementRoute adapter, HTTP
-// dispatch, authorization, timeouts, response budgets, envelopes, and
-// telemetry. The query package owns the bounded reads behind each
+// to a dependency-neutral internal request without executing it, and Tools
+// returns the five tool definitions this package owns. The parent mcp
+// package owns registration order (it splices Tools into ReadOnlyTools at
+// the long-standing positions), global route fanout, the private
+// iacManagementRoute adapter, HTTP dispatch, authorization, timeouts,
+// response budgets, envelopes, and telemetry. The query package owns the bounded reads behind each
 // /api/v0/iac/..., /api/v0/terraform/..., and
 // /api/v0/replatforming/ownership-packets path. This package runs no query
 // and must keep every tool name, request path, and body key stable.

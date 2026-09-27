@@ -5,6 +5,7 @@ package mcp
 
 import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
+	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iac/management"
 )
 
 func codebaseTools() []ToolDefinition {
@@ -34,6 +35,16 @@ func codebaseTools() []ToolDefinition {
 	// Appending the whole family slice keeps a future arity change loud at
 	// the order test instead of panicking on an index.
 	tools = append(tools, deadCodeTools()...)
+	// iac holds the five IaC-management definitions owned by the
+	// iac/management package, spliced into this block at their long-standing
+	// positions around the replatforming and drift neighbors. The interleaved
+	// neighbors rule out a whole-slice append, so this guard makes an arity
+	// change fail fast here instead of silently dropping a sixth definition
+	// or panicking on an index below.
+	iac := iacmanagementtools.Tools()
+	if len(iac) != 5 {
+		panic("iacmanagementtools.Tools must return exactly the five spliced definitions")
+	}
 	tools = append(tools, []ToolDefinition{
 		{
 			Name:        "find_dead_iac",
@@ -95,7 +106,7 @@ func codebaseTools() []ToolDefinition {
 					"finding_kinds": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": iacFindingKindsDescription,
+						"description": iacmanagementtools.FindingKindsDescription,
 					},
 					"limit": map[string]any{
 						"type":        "integer",
@@ -111,14 +122,14 @@ func codebaseTools() []ToolDefinition {
 				"required": []string{},
 			},
 		},
-		iacManagementStatusTool(),
-		iacManagementExplanationTool(),
-		terraformImportPlanTool(),
+		iac[0],
+		iac[1],
+		iac[2],
 		composeReplatformingPlanTool(),
 		awsRuntimeDriftFindingsTool(),
-		terraformConfigStateDriftFindingsTool(),
+		iac[3],
 		replatformingRollupsTool(),
-		replatformingOwnershipTool(),
+		iac[4],
 	}...)
 	// The three complexity/quality definitions owned by the code/quality
 	// package splice in at this position to preserve the long-standing

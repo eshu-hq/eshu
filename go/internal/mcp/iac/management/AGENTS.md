@@ -4,17 +4,16 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
-3. `routes.go` and `routes_test.go` for the child request-selection contract.
+3. `routes.go` and `routes_test.go` for the child request-selection contract,
+   plus `tools.go` and `tools_test.go` for the five tool definitions this
+   package owns.
 4. `../../dispatch.go` for `resolveRoute` and the private `iacManagementRoute`
    adapter, consulted as a delegation ahead of the switch that held the
    seven arms before the extraction.
 5. `../../tools_codebase.go` (for `find_dead_iac` and `find_unmanaged_resources`)
-   and `../../tools_iac.go` (for `get_iac_management_status`,
-   `explain_iac_management_status`, `propose_terraform_import_plan`,
-   `list_terraform_config_state_drift_findings`, and
-   `find_unmanaged_resource_owners`) for the seven advertised schemas. They
-   stay at the parent's root and must keep naming the same fields this
-   builder selects.
+   and `../../tools_iac.go` (for the drift and replatforming definitions)
+   for the schemas that stay at the parent's root. They must keep naming the
+   same fields this builder selects.
 6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The `go/internal/query` handler behind each path, for the limit/offset
    clamps and required-field checks this package's defaults must stay

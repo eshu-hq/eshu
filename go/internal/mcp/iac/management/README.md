@@ -11,16 +11,15 @@ builder.
 
 ## Ownership boundary
 
-This package owns IaC-management family membership and the mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp`
-keeps tool registration order (`find_dead_iac` and `find_unmanaged_resources`
-live in `tools_codebase.go`; `get_iac_management_status`,
-`explain_iac_management_status`, `propose_terraform_import_plan`,
-`list_terraform_config_state_drift_findings`, and
-`find_unmanaged_resource_owners` live in `tools_iac.go`), global route
-fanout, the private `iacManagementRoute` adapter in `dispatch.go`, HTTP
-dispatch, authorization, timeouts, response budgets, envelopes, and
-telemetry. `internal/query` owns the bounded reads behind each
+This package owns IaC-management family membership, the mapping from
+decoded arguments to a dependency-neutral internal request, and the five
+tool definitions `Tools()` returns. `internal/mcp` keeps tool registration
+order (it splices `Tools()` into `ReadOnlyTools` at the long-standing
+positions; `find_dead_iac` and `find_unmanaged_resources` stay inline in
+`tools_codebase.go`, and the drift and replatforming definitions stay in
+`tools_iac.go`), global route fanout, the private `iacManagementRoute`
+adapter in `dispatch.go`, HTTP dispatch, authorization, timeouts, response
+budgets, envelopes, and telemetry. `internal/query` owns the bounded reads behind each
 `/api/v0/iac/...`, `/api/v0/terraform/...`, and
 `/api/v0/replatforming/ownership-packets` path.
 
