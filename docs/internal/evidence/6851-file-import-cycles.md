@@ -29,6 +29,9 @@ changed and the 25,000-row scan ceiling still fails closed with HTTP 422.
 
 ## Local proof (pinned `neo4j:2026-community`, kernel 2026.08.1)
 
+Performance Evidence: baseline reciprocal-only path versus bounded
+multi-node enumeration on the same single bounded edge fetch.
+
 Seeded `proof-cycles`: 4,218 `IMPORTS` edges (2-, 3-, and 5-node Python
 cycles, a diamond negative, plus bulk noise at trident scale). Fixture
 intent, graph truth, and API/MCP truth agree: the edge census reads 4,218,
@@ -46,7 +49,7 @@ bound and its validation, and no-regression on the reciprocal path.
 
 ## Observability
 
-No spans, metrics, structured logs, status fields, or pprof surface were
-added, removed, or renamed. The existing
+No-Observability-Change: no spans, metrics, structured logs, status
+fields, or pprof surface were added, removed, or renamed. The existing
 `query.import_dependency_investigation` span attributes (`result_count`,
 `truncated`, `scan_overflow`) and the truth envelope are unchanged.
