@@ -9,6 +9,9 @@ prefix before `ORDER BY relative_path LIMIT 50001`. Root requests keep the
 existing whole-repository read. Language-filtered requests keep their separate
 language and path predicate. The indexed ref still comes from the existing
 unfiltered root context read, and selected-ref validation is unchanged.
+An exact file supplied as `path` now returns 404 with a language filter; the
+previous language-filtered context lookup counted the exact file and returned
+an empty 200. Unfiltered exact-file paths already returned 404.
 
 ## Theory and correctness proof
 
@@ -82,7 +85,7 @@ shipped `LIKE ... ESCAPE '!'` query on that disposable instance returned 52
 rows through `content_files_repo_path_pattern_idx`, 57 buffers, and 0.723 ms
 on its first sample.
 
-No-Regression Evidence: the regression first returned 404 for an existing
+Contract Evidence: the regression first returned 404 for an existing
 late-sorting directory and passed after the handler used the scoped read. Go
 unit tests cover the literal pattern, repository and limit arguments, root
 fallback, one-level and recursive child counts, selected ref, missing path,

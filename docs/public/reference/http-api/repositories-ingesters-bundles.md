@@ -371,9 +371,10 @@ entries add `child_count` (the number of descendant files in that subtree). Use
 `language=<value>` to filter the listing to files of one language/source type
 (e.g. `go`, `python`, `hcl`, `yaml`); aliases expand to a family (`typescript`
 also matches `tsx`, `terraform` also matches `hcl`/`tfvars`). Filtering a real
-path down to zero matches returns an empty `entries` array, not a `404` (path
-existence is resolved unfiltered, so a real directory with no files in the
-requested language is an empty `200`, not a `404`). The `path` subtree scope is
+directory down to zero matches returns an empty `entries` array, not a `404`
+(path existence is resolved unfiltered, so a real directory with no files in
+the requested language is an empty `200`). An exact file supplied as `path`
+returns `404`, including when `language` is set. The `path` subtree scope is
 applied in the content-store read before the 50,000-file cap, with or without a
 language filter. A deep directory whose files sort beyond the whole-repository
 cap is still returned; `truncated=true` means the matching files under `path`

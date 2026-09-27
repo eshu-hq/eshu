@@ -117,8 +117,8 @@ func TestGetRepositoryTreeLanguageFilterUnknownPathReturns404(t *testing.T) {
 	}
 }
 
-// TestGetRepositoryTreeLanguageFilterExactFileReturns404 keeps tree path
-// semantics when the filtered file listing contains the requested file itself.
+// TestGetRepositoryTreeLanguageFilterExactFileReturns404 proves that a
+// language-filtered exact file path returns 404 rather than an empty listing.
 func TestGetRepositoryTreeLanguageFilterExactFileReturns404(t *testing.T) {
 	store := languageListerTreeStore()
 	store.pathExists = false // The path-context lookup checks directory descendants.

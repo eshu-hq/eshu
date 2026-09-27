@@ -126,7 +126,7 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// The scoped read includes descendants only. An exact file path has no
-		// children and remains a 404, matching the previous tree behavior.
+		// children and returns 404, including for language-filtered requests.
 		matched = len(files) > 0
 		matchedKnown = true
 	} else if h.Content != nil {
@@ -245,7 +245,7 @@ func repositoryTreeRef(files []querycontract.FileContent) string {
 // languageFilter, when non-nil, restricts the returned files (and the directory
 // child_counts) to files whose language is in the set. It is applied AFTER the
 // path-prefix match so that `matched` still reflects path existence: filtering a
-// real path down to zero language matches yields an empty listing, not a 404.
+// real directory down to zero language matches yields an empty listing, not a 404.
 func buildRepositoryTree(files []querycontract.FileContent, requestPath string, recursive bool, languageFilter map[string]bool) ([]map[string]any, bool) {
 	prefix := ""
 	if requestPath != "" {
