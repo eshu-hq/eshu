@@ -63,7 +63,7 @@ Outcomes (#7127 ruling 8.10):
   `poisoned_activation_seq` and `poisoned_at` mark the scope until its next
   full link clears them.
 - The whole transaction has a context deadline of the statement timeout plus
-  30 s. The candidate list is a hint; the head is re-read under the lock, and a
+  30 s (`LinkWriter.TransactionDeadline` overrides it; the stall test uses 2 s). The candidate list is a hint; the head is re-read under the lock, and a
   head still backing off returns `Idle` with `Deferred`.
 
 ## Journal

@@ -338,3 +338,49 @@ WHERE class = $1`, linksfreshnessstore.SlotLockClass)
 		t.Fatalf("slot lock class %d collides with %v", linksfreshnessstore.SlotLockClass, classes)
 	}
 }
+
+// TestTransactionDeadlineEndsAStalledLink is review F4 (ruling 8.10 item 6):
+// with a statement timeout far away, only the transaction deadline can end a
+// link stalled on a held state row. It must end within the deadline, as a
+// counting statement_timeout failure, and leave the cursor where it was.
+func TestTransactionDeadlineEndsAStalledLink(t *testing.T) {
+	l := openLedgerDB(t)
+	w := linksfreshnessstore.NewLinkWriter(l.store)
+	l.seedScope(t, "stall")
+	l.seedGeneration(t, "stall", "stall-g0", false, "superseded", fixtureEpoch, fixtureEpoch.Add(time.Hour))
+	l.seedGeneration(t, "stall", "stall-g1", false, "active", fixtureEpoch.Add(time.Hour), time.Time{})
+	l.seedBulkGeneration(t, "stall", "stall-g0", 500, 0)
+	l.seedBulkGeneration(t, "stall", "stall-g1", 500, 1)
+	l.journal(t, "stall", "stall-g0", "")
+	l.journal(t, "stall", "stall-g1", "stall-g0")
+	mustLink(t, w, l, "stall")
+	_, seqBefore := l.cursor(t, "stall")
+
+	holder, err := l.raw.BeginTx(l.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = holder.Rollback() }()
+	if _, err := holder.ExecContext(l.ctx, `SELECT 1 FROM changed_since_key_state
+WHERE scope_id = 'stall' AND stable_fact_key = 'ent:97' FOR UPDATE`); err != nil {
+		t.Fatalf("hold state row: %v", err)
+	}
+	release := time.AfterFunc(15*time.Second, func() { _ = holder.Rollback() })
+	defer release.Stop()
+
+	w.StatementTimeout = time.Hour
+	w.TransactionDeadline = 2 * time.Second
+	began := time.Now()
+	_, err = w.LinkNext(l.ctx, "stall")
+	elapsed := time.Since(began)
+	var failure *linksfreshnessstore.FailureError
+	if !errors.As(err, &failure) || failure.Class != linksfreshnessstore.FailureStatementTimeout {
+		t.Fatalf("stalled link = %v after %s, want a counting statement_timeout", err, elapsed)
+	}
+	if elapsed > 6*time.Second {
+		t.Fatalf("stalled link ended after %s, want about the 2s transaction deadline", elapsed)
+	}
+	if _, seq := l.cursor(t, "stall"); seq != seqBefore {
+		t.Fatalf("deadline moved the cursor from %d to %d", seqBefore, seq)
+	}
+}

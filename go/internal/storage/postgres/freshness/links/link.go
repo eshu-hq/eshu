@@ -38,6 +38,10 @@ type LinkWriter struct {
 	// StatementTimeout bounds each link statement. Values at or below zero use
 	// DefaultStatementTimeout.
 	StatementTimeout time.Duration
+	// TransactionDeadline bounds the whole link transaction, so a stalled
+	// worker cannot hold a cursor row (#7127 ruling 8.10 item 6). Zero or
+	// below uses StatementTimeout plus 30 seconds.
+	TransactionDeadline time.Duration
 	// Now supplies timestamps; nil uses time.Now.
 	Now func() time.Time
 }
@@ -69,6 +73,13 @@ func (w *LinkWriter) statementTimeout() time.Duration {
 	return w.StatementTimeout
 }
 
+func (w *LinkWriter) transactionDeadline() time.Duration {
+	if w.TransactionDeadline > 0 {
+		return w.TransactionDeadline
+	}
+	return w.statementTimeout() + transactionDeadlineMargin
+}
+
 // cursorState is the locked cursor row of one scope.
 type cursorState struct {
 	stateGenerationID    string
@@ -93,7 +104,8 @@ type activation struct {
 // failure once the link statement ran rolls back and returns a counting
 // *FailureError, which the caller records with RecordFailure. Any other
 // error (begin, the lock reads) rolls back and counts nothing. A context
-// deadline of the statement timeout plus a margin bounds the transaction.
+// deadline (TransactionDeadline, by default the statement timeout plus 30 s)
+// bounds the transaction.
 func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, error) {
 	if scopeID == "" {
 		return LinkResult{}, errors.New("changed-since link scope_id is required")
@@ -107,7 +119,7 @@ func (w *LinkWriter) LinkNext(ctx context.Context, scopeID string) (LinkResult, 
 	if _, err := w.database.ExecContext(ctx, ensureCursorQuery, scopeID, DigestVersion, w.now()); err != nil {
 		return LinkResult{}, fmt.Errorf("changed-since link: ensure cursor: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, w.statementTimeout()+transactionDeadlineMargin)
+	ctx, cancel := context.WithTimeout(ctx, w.transactionDeadline())
 	defer cancel()
 	tx, err := w.begin(ctx)
 	if err != nil {
