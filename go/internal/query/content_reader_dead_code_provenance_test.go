@@ -115,18 +115,19 @@ func TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows(t *test
 		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
 	}
 	query := recorder.queries[0]
-	if strings.Contains(query, "row.repository_id =") {
+	if strings.Contains(query, "repository_id =") {
 		t.Fatalf("query is repo-scoped and misses cross-repo reachability rows:\n%s", query)
 	}
 	if !containsAllSubstrings(
 		query,
-		"FROM code_reachability_rows AS row",
-		"scope.active_generation_id = row.generation_id",
+		"WITH candidate_rows AS MATERIALIZED",
+		"FROM code_reachability_rows",
+		"WHERE entity_id IN ($1)",
+		"AND depth > 0",
+		"scope.active_generation_id = candidate_rows.generation_id",
 		"generation.status = 'active'",
-		"row.entity_id IN ($1)",
-		"row.depth > 0",
 	) {
-		t.Fatalf("query missing active-generation entity lookup clauses:\n%s", query)
+		t.Fatalf("query missing candidate-first active-generation lookup clauses:\n%s", query)
 	}
 	if got, want := len(recorder.args[0]), 1; got != want {
 		t.Fatalf("len(args) = %d, want %d for bounded entity lookup args %#v", got, want, recorder.args[0])
