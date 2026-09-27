@@ -383,9 +383,9 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in #6523, and the live determinism matrix drives the family since the workload-cloud-relationship live-cell change (registry row 16, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
   - surface: "materialized_edges:workload_cloud_relationship"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteWorkloadCloudRelationshipEdges -> cypher/workload_cloud_relationship_writer.go merges USES; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in #6523 (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the workload-cloud-relationship live-cell change)"

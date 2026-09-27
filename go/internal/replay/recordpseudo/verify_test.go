@@ -136,7 +136,7 @@ func TestVerifyReservedAccountNeedsMembership(t *testing.T) {
 
 // TestVerifyDocumentationFormsPass mirrors the gate's negative controls.
 func TestVerifyDocumentationFormsPass(t *testing.T) {
-	doc := []byte(`{"a":"123456789012","b":"000000000001","c":"555555555555","d":"arn:aws:s3:::example-bucket","e":"arn:aws:iam::aws:policy/example","f":"192.0.2.10","g":"127.0.0.1","h":"2001:db8::1","i":"::1","j":"00:00:5e:00:53:0a","k":"registry.example.com","l":"github.com","m":"compute.googleapis.com","n":"123456789012.dkr.ecr.us-east-1.amazonaws.com","o":"vault.supply-chain-demo.internal","p":"ip-192-0-2-10","q":"sha256:0e0f26e6dce79a7c164729766618cb750eca10c8b92f9c22","r":"aws_s3_bucket.local_backend_demo","s":"1.2.3.4.5","t":"h1a2b3c4d5e.h0f9e8d7c6b.example"}`)
+	doc := []byte(`{"a":"123456789012","b":"000000000001","c":"555555555555","d":"arn:aws:s3:::example-bucket","e":"arn:aws:iam::aws:policy/example","f":"192.0.2.10","g":"127.0.0.1","h":"2001:db8::1","i":"::1","j":"00:00:5e:00:53:0a","k":"registry.example.com","l":"github.com","m":"compute.googleapis.com","n":"123456789012.dkr.ecr.us-east-1.amazonaws.com","o":"vault.supply-chain-demo.internal","p":"ip-192-0-2-10","q":"sha256:0e0f26e6dce79a7c164729766618cb750eca10c8b92f9c22","r":"aws_s3_bucket.local_backend_demo","s":"1.2.3.4.5","t":"h1a2b3c4d5e.h0f9e8d7c6b.example","u":"sqs.us-east-1.amazonaws.com"}`)
 	if err := recordpseudo.Verify(doc, recordpseudo.Set{}); err != nil {
 		t.Fatalf("documentation forms refused: %v", err)
 	}

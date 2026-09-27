@@ -44,6 +44,16 @@
 // exists. The source Repository must already exist. This explicit setup verb
 // does not change the read-only graph-dump or assert-edges backends.
 //
+// `ifa materialize-workload-endpoints -workload-id ID -environment ENV`
+// prepares the two endpoint nodes the workload_cloud_relationship writer
+// MATCHes for a live conformance cell (#6228). It derives the instance id
+// with the single source of truth the guard mapper shares
+// (materializededges.WorkloadCloudRelationshipInstanceID), MERGEs one
+// Workload node, one WorkloadInstance node, and their INSTANCE_OF edge, and
+// verifies the 1/1/1 graph postcondition. Only the fixture's own positive
+// anchor is seeded. This explicit setup verb does not change the read-only
+// graph-dump or assert-edges backends.
+//
 // `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) is the
 // materialized-edge exhaustiveness gate's live, set-exact non-vacuity
 // assertion. Over the same read-only Bolt connection graph-dump uses, it reads

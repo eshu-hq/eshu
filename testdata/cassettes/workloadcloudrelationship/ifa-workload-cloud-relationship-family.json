@@ -1,0 +1,108 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-workload-relationship-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-workload-relationship-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "resource"
+      },
+      "generation_id": "gen-ifa-workload-cloud-relationship-family-1",
+      "observed_at": "2026-09-27T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_ssm_parameter:/config/orders-api/database-url",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "environment": "prod",
+            "region": "us-east-1",
+            "resource_id": "/config/orders-api/database-url",
+            "resource_type": "aws_ssm_parameter",
+            "service_name": "orders-api",
+            "workload_id": "workload:orders-api"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_sqs_queue:https://sqs.us-east-1.amazonaws.com/123456789012/orders-events",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "environment": "prod",
+            "region": "us-east-1",
+            "resource_id": "https://sqs.us-east-1.amazonaws.com/123456789012/orders-events",
+            "resource_type": "aws_sqs_queue",
+            "workload_ids": [
+              "workload:orders-api"
+            ]
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_sns_topic:arn:aws:sns:us-east-1:123456789012:orders-events",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "environment": "prod",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:sns:us-east-1:123456789012:orders-events",
+            "resource_type": "aws_sns_topic",
+            "service_name": "orders-api"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_dynamodb_table:orders",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "environment": "prod",
+            "region": "us-east-1",
+            "resource_id": "orders",
+            "resource_type": "aws_dynamodb_table",
+            "workload_ids": [
+              "workload:billing-api",
+              "workload:orders-api"
+            ]
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_s3_bucket:eshu-fixture-artifacts",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-artifacts",
+            "resource_type": "aws_s3_bucket",
+            "workload_id": "workload:orders-api"
+          }
+        }
+      ]
+    }
+  ]
+}

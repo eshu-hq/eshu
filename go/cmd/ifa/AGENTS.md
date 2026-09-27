@@ -100,8 +100,15 @@
   Platform through `reducer.InfrastructurePlatformMaterializer`, and verifies
   exactly one resulting Platform node. It redacts connection targets from
   backend-open errors; do not return a raw driver error from the command
-  boundary. Keep this narrow fixture setup as the only write-capable graph verb
-  in this command.
+  boundary.
+- `ifa materialize-workload-endpoints` validates all flags before opening the
+  backend, requires one workload id plus environment, MERGEs exactly one
+  Workload node, one WorkloadInstance node (id derived by the single source
+  of truth the guard mapper shares), and their INSTANCE_OF edge, then
+  verifies the 1/1/1 graph postcondition. It redacts connection targets the
+  same way. Keep these two narrow fixture setups as the only write-capable
+  graph verbs in this command; a third needs its own gate-mirror pin before
+  it lands.
 - `ifa assert-edges` is the non-vacuity check the P2 digest cannot make: it
   MUST fail on a family that materialized zero edges (an empty family passes a
   digest comparison vacuously). Its `edgeTypes` filter is registry-derived via

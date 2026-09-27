@@ -110,7 +110,13 @@ Declared limits:
   form and `Verify` refuses the recording -- fail closed, not a leak --
   until the word list is extended by review. Hosts under `on.aws`,
   `cloudfront.net` and `awsapps.com` still have no allow form and are
-  refused the same way;
+  refused the same way. A bare regional service endpoint
+  (`sqs.us-east-1.amazonaws.com`: a listed service word, then a region,
+  then `amazonaws.com`) is the exception: AWS-published whole, with no
+  customer label anywhere, so record mode keeps it verbatim and both gates
+  admit it unconditionally. A customer label in either position
+  (`sqs.team-b.amazonaws.com`, `orders-api.us-east-1.amazonaws.com`) fits
+  no form and stays refused;
 - a multi-label AWS service principal (`ops.apigateway.amazonaws.com`,
   `delivery.logs.amazonaws.com`) keeps only its last label and suffix; the
   leading AWS-owned labels are pseudonymized like customer labels, so the

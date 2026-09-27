@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the four DIRECT-materialization families
+# Live-gate drive/assert callbacks for the five DIRECT-materialization families
 # (#6228): kubernetes_namespace_environment, iam_instance_profile_role,
-# iam_can_assume, and iam_can_perform.
+# iam_can_assume, iam_can_perform, and workload_cloud_relationship.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
 # (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
 # and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
 # call the drive/assert callbacks below; the families' registry rows carry
-# cell_kind=custom. iam_can_assume and iam_can_perform have no fault cells
+# cell_kind=custom. iam_can_assume, iam_can_perform, and
+# workload_cloud_relationship have no fault cells
 # yet: their rows carry cell_kind=custom prospectively and the fault gate
 # never dispatches them, so the fault-injection area stays untouched by this
 # change. Callers own strict mode and cleanup.
 #
-# ONE FILE FOR FOUR FAMILIES, unlike the shared-projection families' one file
+# ONE FILE FOR FIVE FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
-# name and a log filename, and each is four lines of real work; four files
-# would be one contract in four places. The per-family REGISTRY ROWS stay
+# name and a log filename, and each is four lines of real work; five files
+# would be one contract in five places. The per-family REGISTRY ROWS stay
 # separate, which is where the split that matters already is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
@@ -26,7 +27,8 @@
 # cassette and asserts an exact edge set either way -- but it does mean the
 # handler is scheduled by an ordinary fact_work_items domain
 # (kubernetes_namespace_materialization / iam_instance_profile_role_materialization
-# / iam_can_assume_materialization / iam_can_perform_materialization)
+# / iam_can_assume_materialization / iam_can_perform_materialization /
+# workload_cloud_relationship_materialization)
 # rather than by a shared_followup fact the cassette has to carry.
 
 # ifa_direct_family_drive replays one committed family cassette into a matrix
@@ -236,5 +238,66 @@ ifa_iam_can_perform_assert() {
 	printf '\n=== %s: assert iam_can_perform materialized edges (three-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain iam_can_perform \
+		-expected "${expected_edges}"
+}
+
+# ifa_workload_cloud_relationship_drive replays the workload-cloud-relationship
+# cassette, then seeds the positive anchor's endpoints.
+#
+# The cassette carries aws_resource facts only, so the cell has no
+# workload-domain facts for the workload pipeline to turn into nodes -- yet
+# the writer MATCHes (workload:Workload)<-[:INSTANCE_OF]-(instance) and the
+# handler fails instances_not_ready without them (observed live 2026-09-27).
+# The seed creates exactly the Odù's own positive anchor
+# (workload:orders-api in prod; instance id derived by the single source of
+# truth the guard mapper shares) and nothing else: the service-name-only,
+# ambiguous, and environment-less anchors get no nodes, so the extractor's
+# drop-never-invent restraint still has something to prove live. Follows the
+# repo_dependency materialize-platform-prerequisite precedent (seed + exact
+# output check), not a new idea: MERGEs make it idempotent under handler
+# retries and repeated N-cell drives, and a seed/output drift fails here,
+# not later as zero assert-edges edges.
+ifa_workload_cloud_relationship_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive workload-cloud-relationship \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+	ifa_workload_cloud_relationship_seed_endpoints "${bin_dir}"
+}
+
+ifa_workload_cloud_relationship_seed_endpoints() {
+	local bin_dir="$1" output
+	output="$("${bin_dir}/eshu-ifa" materialize-workload-endpoints \
+		-workload-id workload:orders-api -environment prod)" || return 1
+	printf '%s\n' "${output}"
+	[[ "${output}" == 'instance_id=workload-instance:orders-api:prod verified=1' ]]
+}
+
+# ifa_workload_cloud_relationship_assert pins the two-edge exact set. Called
+# twice per cell for the reason recorded on the namespace assert above:
+# post-delta is the only place an identical-across-N generation-2 mutation
+# shows up.
+#
+# Both edges are explicit_workload_anchor in prod off ONE workload
+# (orders-api): the ssm parameter and the sqs queue, each resolving the same
+# workload-instance:orders-api:prod source to its own CloudResource target. A
+# regression that emitted one edge per anchor attribute instead of one per
+# resolved (instance, resource) pair would still produce "some edges" and fail
+# only against an exact set. The fixture's other three resources -- the
+# service-only sns topic (environment but no workload anchor), the ambiguous
+# dynamodb table (a bare name matching more than one workload), and the
+# environment-less s3 bucket (workload anchor but no environment) -- must
+# contribute nothing; the extractor drops an unresolvable anchor rather than
+# inventing an endpoint, and this set is what holds it to that.
+#
+# The relationship type is USES, read off the writer's MERGE template filled
+# from the closed single-member workloadCloudRelationshipVocabulary. It is NOT
+# WORKLOAD_USES_CLOUD_RESOURCE, which is the workloadCloudRelationshipEdgeLabel
+# const: statement metadata carried beside the query that never reaches the
+# graph.
+ifa_workload_cloud_relationship_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert workload_cloud_relationship materialized edges (two-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain workload_cloud_relationship \
 		-expected "${expected_edges}"
 }

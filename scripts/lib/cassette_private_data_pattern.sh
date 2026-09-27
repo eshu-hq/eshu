@@ -190,8 +190,11 @@ cassette_private_data_patterns() {
 	# service label under googleapis.com, a single label under amazonaws.com
 	# (an AWS service principal such as states.amazonaws.com: a customer
 	# cannot register a name directly under amazonaws.com, so the label is
-	# AWS-owned), ECR under a documentation account, and the corpus's own
-	# synthetic zones.
+	# AWS-owned), a bare regional service endpoint <service>.<region>.amazonaws.com
+	# (AWS-published, e.g. sqs.us-east-1.amazonaws.com: a customer cannot register
+	# either label, so the host carries no customer identity -- record mode keeps
+	# it verbatim for the same reason), ECR under a documentation account, and
+	# the corpus's own synthetic zones.
 	# 0.0.0.0 is the unspecified address, and 0.0.0.0/0 the "any address"
 	# CIDR of a security-group rule (the detector takes the quad without its
 	# prefix). Record mode keeps it; it names no host. Exact, so 0.0.0.1 is
@@ -215,10 +218,12 @@ cassette_private_data_patterns() {
 	# Verify's copy) -- then the single AWS-owned label directly under
 	# amazonaws.com. A raw customer label never fits. Here it is a shape
 	# check on committed files; the recorder's Verify belt also requires that
-	# the run produced the host.
+	# the run produced the host. The same two lines feed the bare regional
+	# service endpoint branch above: with no h-label the shape is AWS-published
+	# whole, so Verify admits it unconditionally, like a service principal.
 	local aws_endpoint_region='(?:us|eu|ap|ca|sa|me|af|il|mx|cn)(?:-gov|-iso[a-z]?)?-(?:east|west|north|south|central|northeast|southeast|northwest|southwest)-[0-9]{1,2}'
 	local aws_endpoint_words='appsync-api|awsapprunner|cache|cloudfront|dkr|ecr|elasticbeanstalk|elb|es|execute-api|lambda-url|rds|s3|s3-website|sns|sqs|sts'
-	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|(?:h[0-9a-f]{10}\\.)+(?:(?:${aws_endpoint_region}|${aws_endpoint_words})\\.)*[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
+	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|(?:${aws_endpoint_words})\\.(?:${aws_endpoint_region})\\.amazonaws\\.com|(?:h[0-9a-f]{10}\\.)+(?:(?:${aws_endpoint_region}|${aws_endpoint_words})\\.)*[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
 	_cpd_allow[nodeip]='(?i)^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$'
 
@@ -272,6 +277,7 @@ cassette_private_data_patterns() {
 		'hostname github''.com'
 		'hostname compute.googleapis''.com'
 		'hostname states.amazonaws''.com'
+		'hostname sqs.us-east-1.amazonaws''.com'
 		'hostname h0a1b2c3d4e.us-east-1.elb.amazonaws''.com'
 		'hostname Microsoft.Ap''p'
 		'hostname 123456789012.dkr.ecr.us-east-1.amazonaws''.com'
@@ -286,15 +292,15 @@ cassette_private_data_patterns() {
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host, a Consul name, two raw labels under amazonaws.com and a raw ELB
 	# endpoint; ipv4 carries three: a bare address, one ending
-	# a sentence, and the neighbour of the unspecified address), 34 allowed
+	# a sentence, and the neighbour of the unspecified address), 35 allowed
 	# samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
 	[[ "${#planted[@]}" -eq 16 ]] \
 		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 16 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 34 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 34 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#allowed[@]}" -eq 35 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 35 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()
