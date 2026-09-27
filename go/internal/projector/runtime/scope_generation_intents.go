@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/s3"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	"github.com/eshu-hq/eshu/go/internal/projector/cicd/run/correlation"
+	iamescalation "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/escalation"
 	iamprofile "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/instance/profile"
 	iamperform "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/perform"
 	iamtrust "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/trust"
@@ -123,6 +124,9 @@ func appendScopeGenerationReducerIntents(
 		intents = append(intents, intent)
 	}
 	if intent, ok := iamperform.BuildIAMCanPerformMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := iamescalation.BuildIAMEscalationMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := s3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
