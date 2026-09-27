@@ -1,0 +1,25 @@
+scripts/lib/markdown-line-cap-grandfather.tsv
+  s_b0d7e3abc26c5a::t_10b532b48497e3 118
+docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
+  s_b0d7e3abc26c5a::t_3ce5d3792403be 62
+  s_b0d7e3abc26c5a::t_da52dc32577c96 144-145,149-161,164-166,173-175
+  s_b0d7e3abc26c5a::t_11505a5076edd9 142-143,146-148,170
+  s_b0d7e3abc26c5a::t_81fca5fe960c17 124-125
+  s_b0d7e3abc26c5a::t_a4422e60faf8b3 45-61,63-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52621416c01831a104a78d677bde014c8bb6bfa5",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
