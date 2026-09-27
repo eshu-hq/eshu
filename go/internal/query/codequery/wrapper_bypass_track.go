@@ -79,6 +79,60 @@ func (h *CodeHandler) runWrapperKeyChunks(
 	return rows, nil
 }
 
+// outlierCalleeEdgeBatchSize caps one UNWIND key list for the
+// convention-outlier CALLS fan-out (readOutlierCalleeEdges). #7325 measured
+// this read alone at repository scale against a pinned Neo4j container
+// seeded with realistic CALLS out-degree (ops-qa reference distribution:
+// mean 2.71, p90 5, p99 21, #6649): raising the chunk size from 50 to 250
+// cuts the fan-out phase and full-sweep warm p50 by roughly 40%, purely by
+// shrinking the round-trip count (PROFILE showed identical per-key
+// NodeUniqueIndexSeek cost at both sizes), with byte-identical
+// rows/findings at every size measured (see
+// docs/internal/evidence/7325-outlier-fanout-batch.md). It is a dedicated
+// constant, not a change to wrapperEvidenceKeyBatchSize: the wrapper-bypass
+// evidence track's three reads were not remeasured and stay at 50.
+const outlierCalleeEdgeBatchSize = 250
+
+// chunkOutlierCalleeEdgeKeys splits ids into order-preserving chunks of at
+// most outlierCalleeEdgeBatchSize keys, mirroring chunkWrapperEvidenceKeys's
+// shape at the outlier fan-out's own batch size. Empty input yields no
+// chunks, so the caller skips the round trip instead of sending an empty
+// UNWIND.
+func chunkOutlierCalleeEdgeKeys(ids []string) [][]string {
+	chunks := [][]string{}
+	for start := 0; start < len(ids); start += outlierCalleeEdgeBatchSize {
+		end := start + outlierCalleeEdgeBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunks = append(chunks, ids[start:end])
+	}
+	return chunks
+}
+
+// runOutlierKeyChunks runs one UNWIND-batched read per key chunk over
+// runOutlierGraphRows and unions the rows, mirroring runWrapperKeyChunks at
+// the outlier fan-out's own batch size and dedicated call site (#7325). One
+// statement never carries more than outlierCalleeEdgeBatchSize anchored
+// keys; the union is exact because readOutlierCalleeEdges's sink is
+// order-insensitive (a map keyed by member id).
+func (h *CodeHandler) runOutlierKeyChunks(
+	ctx context.Context,
+	ids []string,
+	build func(chunk []string) (string, map[string]any),
+) ([]map[string]any, error) {
+	rows := []map[string]any{}
+	for _, chunk := range chunkOutlierCalleeEdgeKeys(ids) {
+		cypher, params := build(chunk)
+		chunkRows, err := h.runOutlierGraphRows(ctx, cypher, params)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, chunkRows...)
+	}
+	return rows, nil
+}
+
 // collectWrapperGraphEvidence runs the three batched one-hop reads for one
 // nominated family: outgoing callees per wrapper (the delegation pairs),
 // callers per distinct target, and fan-in per candidate caller. Each read is

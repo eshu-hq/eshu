@@ -42,6 +42,32 @@ func (h *CodeHandler) runWrapperGraphRows(ctx context.Context, cypher string, pa
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
+// errOutlierGraphUnavailable reports a missing graph reader on the
+// convention-outlier CALLS fan-out (#7325). It wraps the same shared
+// unavailable signal as errWrapperGraphUnavailable so
+// WriteGraphReadError/wrapperGraphUnavailable map and absorb it identically;
+// the distinct message keeps operator-facing logs honest about which track
+// degraded.
+var errOutlierGraphUnavailable = fmt.Errorf("convention-outlier graph reader is unavailable: %w", querycontract.ErrGraphUnavailable)
+
+// runOutlierGraphRows runs backend-rendered Cypher through the graph port
+// for the convention-outlier CALLS fan-out (readOutlierCalleeEdges). It is a
+// dedicated call site, not a reuse of runWrapperGraphRows: #7325 measured
+// the CALLS-fanout read alone at repository scale and found a larger UNWIND
+// batch (250 vs. 50) cuts round trips and full-sweep warm p50 by ~40%,
+// while the wrapper-bypass evidence track's three reads were not
+// remeasured and keep the smaller batch. Keeping the literal graph-port
+// call here, separate from runWrapperGraphRows's, lets
+// go/internal/queryplan/testdata/query-source-coverage.yaml bound each call
+// site's own batch size exactly instead of describing a cross-caller
+// maximum.
+func (h *CodeHandler) runOutlierGraphRows(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	if h == nil || h.Neo4j == nil {
+		return nil, errOutlierGraphUnavailable
+	}
+	return h.Neo4j.Run(ctx, cypher, params)
+}
+
 // qualifyWrapperTarget maps one target's graph evidence through the Slice A
 // qualification into the finding selection. Slice A reads Stats for the
 // fan-in winner alone, so the winner is pre-ranked with the shared order
