@@ -233,7 +233,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		)
 		k8sResources := k8sResourceResult.rows
 		imageRefs := k8sResourceResult.imageRefs
-		imageRegistryTruth, err := h.FetchOCIImageRegistryTruth(r.Context(), imageRefs)
+		imageRegistryTruthResult, err := h.FetchOCIImageRegistryTruth(r.Context(), imageRefs, req.ServiceName)
 		if err != nil {
 			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 				return
@@ -250,8 +250,11 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx["k8s_resources"] = k8sResources
 		ctx["image_refs"] = imageRefs
-		if len(imageRegistryTruth) > 0 {
-			ctx["image_registry_truth"] = imageRegistryTruth
+		if len(imageRegistryTruthResult.Rows) > 0 {
+			ctx["image_registry_truth"] = imageRegistryTruthResult.Rows
+		}
+		if len(imageRegistryTruthResult.Limits) > 0 {
+			ctx["image_registry_truth_limits"] = imageRegistryTruthResult.Limits
 		}
 		ctx["controller_entities"] = deploymentSourceGitOps.controllers
 		ctx["controller_entity_limits"] = deploymentSourceGitOps.controllerLimits

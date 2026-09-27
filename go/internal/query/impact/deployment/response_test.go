@@ -44,6 +44,49 @@ func TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths(t *test
 	}
 }
 
+// TestBuildDeploymentTraceResponsePassesThroughImageRegistryTruthLimits is
+// the response-shaping half of #6590's image_registry_truth_limits
+// disclosure block: buildDeploymentTraceFields must pass the handler-built
+// map through unchanged, and attachOptionalFields must omit the key
+// entirely (never an empty map) when the workload context never set it --
+// the same "caller-owned, additive, absent unless present" contract as
+// k8s_resource_limits and the other *_limits siblings.
+func TestBuildDeploymentTraceResponsePassesThroughImageRegistryTruthLimits(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.SampleServiceDossierContext()
+	ctx["image_registry_truth_limits"] = map[string]any{
+		"max_keys_per_statement":        250,
+		"statement_row_limit":           750,
+		"image_registry_truth_complete": false,
+		"truncated_image_ref_count":     1,
+		"truncated_image_refs":          []string{"ghcr.io/acme/payments-api:latest"},
+	}
+
+	got := BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
+
+	limits := querycontract.MapValue(got, "image_registry_truth_limits")
+	if querycontract.IntVal(limits, "statement_row_limit") != 750 {
+		t.Fatalf("image_registry_truth_limits = %#v, want statement_row_limit 750", limits)
+	}
+	if querycontract.BoolVal(limits, "image_registry_truth_complete") != false {
+		t.Fatalf("image_registry_truth_limits.image_registry_truth_complete = %#v, want false", limits["image_registry_truth_complete"])
+	}
+}
+
+func TestBuildDeploymentTraceResponseOmitsImageRegistryTruthLimitsWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.SampleServiceDossierContext()
+	delete(ctx, "image_registry_truth_limits")
+
+	got := BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
+
+	if _, ok := got["image_registry_truth_limits"]; ok {
+		t.Fatalf("image_registry_truth_limits = %#v, want key absent when unset", got["image_registry_truth_limits"])
+	}
+}
+
 func TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates(t *testing.T) {
 	t.Parallel()
 

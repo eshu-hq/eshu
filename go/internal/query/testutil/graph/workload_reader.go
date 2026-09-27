@@ -5,7 +5,11 @@ package graph
 
 import (
 	"context"
+	"sort"
 	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // FakeWorkloadGraphReader is a graph-read double for getWorkloadContext
@@ -82,4 +86,97 @@ func (f FakeWorkloadGraphReader) RunSingle(ctx context.Context, cypher string, p
 		}
 	}
 	return bestRow, nil
+}
+
+// OCIBoundedStatementFixture configures one bounded OCI registry-truth
+// statement (#6590) for OCIBoundedFakeReader: which Cypher fragment selects
+// it, which IN-list parameter carries its batch keys, which row field is the
+// statement's ORDER BY anchor, and every row the graph holds per key.
+type OCIBoundedStatementFixture struct {
+	// CypherContains selects this statement: the fixture whose fragment the
+	// queried Cypher text contains wins.
+	CypherContains string
+	// KeyParam is the Cypher parameter name holding the batch's IN-list keys
+	// ("image_refs" or "digests").
+	KeyParam string
+	// KeyField is the row field the statement's ORDER BY sorts on first
+	// (image_ref or digest).
+	KeyField string
+	// RowsByKey maps one IN-list key to every row the graph holds for it,
+	// in the statement's own tie-break order (this fixture sorts by
+	// KeyField only and keeps RowsByKey's order for rows sharing a key).
+	RowsByKey map[string][]map[string]any
+}
+
+// OCIBoundedFakeReader is a graph-read double for the bounded OCI
+// registry-truth statements (ociTagObservationByRefCypher,
+// ociImageByDigestCypher). It answers from the OCIBoundedStatementFixture
+// whose CypherContains matches, sorted ascending by KeyField and sliced to
+// $row_limit -- the same shape oci.AdvanceBoundedRead expects from the real
+// backend. It fails the test if $row_limit is absent from params, or is not
+// an int: every OCI registry-truth statement carries LIMIT $row_limit
+// (#6590), and a silent zero-row answer would hide that regression rather
+// than fail the test that depends on it. A statement with no matching
+// fixture answers zero rows by design (e.g. tests that omit the
+// ContainerImageDescriptor fixture); add an explicit empty fixture if a
+// test must fail on an unexpected statement.
+type OCIBoundedFakeReader struct {
+	T          *testing.T
+	Statements []OCIBoundedStatementFixture
+}
+
+// Run implements querycontract.GraphQuery. Both Run and RunSingle route
+// through the unexported resolve helper and call neither of each other
+// (queryplan's inventory walks this package too, and a fake whose RunSingle
+// answers by literally calling Run reads as its own production graph read --
+// see internal/queryplan/AGENTS.md's "self-delegation shape" note, #6060).
+func (f OCIBoundedFakeReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	return f.resolve(cypher, params), nil
+}
+
+// RunSingle implements querycontract.GraphQuery by taking the first row
+// resolve would return.
+func (f OCIBoundedFakeReader) RunSingle(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	rows := f.resolve(cypher, params)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return rows[0], nil
+}
+
+// resolve is the shared answer logic for Run and RunSingle.
+func (f OCIBoundedFakeReader) resolve(cypher string, params map[string]any) []map[string]any {
+	f.T.Helper()
+	for _, stmt := range f.Statements {
+		if !strings.Contains(cypher, stmt.CypherContains) {
+			continue
+		}
+		limitRaw, ok := params["row_limit"]
+		if !ok {
+			f.T.Fatalf("OCIBoundedFakeReader: row_limit parameter is absent from params for statement %q", stmt.CypherContains)
+			return nil
+		}
+		limit, ok := limitRaw.(int)
+		if !ok {
+			f.T.Fatalf("OCIBoundedFakeReader: row_limit = %#v, want int", limitRaw)
+			return nil
+		}
+		keys, ok := params[stmt.KeyParam].([]string)
+		if !ok {
+			f.T.Fatalf("OCIBoundedFakeReader: %s param = %#v, want []string", stmt.KeyParam, params[stmt.KeyParam])
+			return nil
+		}
+		rows := make([]map[string]any, 0, len(keys))
+		for _, key := range keys {
+			rows = append(rows, stmt.RowsByKey[key]...)
+		}
+		sort.SliceStable(rows, func(i, j int) bool {
+			return querycontract.StringVal(rows[i], stmt.KeyField) < querycontract.StringVal(rows[j], stmt.KeyField)
+		})
+		if len(rows) > limit {
+			rows = rows[:limit]
+		}
+		return rows
+	}
+	return nil
 }

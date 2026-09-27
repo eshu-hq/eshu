@@ -9,59 +9,151 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact/oci"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const (
-	// ociDigestMatchStrength moved to internal/query/deployment with lane B2
-	// of #6060 (canonicalOCIImageMatchCount is this package's only reader
-	// outside the trace response shaper); see OciDigestMatchStrength there.
-	ociTagMatchStrength        = "tag_resolved_to_digest"
-	ociAmbiguousMatchStrength  = "ambiguous_tag"
-	ociRegistryProjectionBasis = "oci_registry_projection"
-)
-
+// ociImageLookupLabels are the OCI image node labels a digest can resolve
+// to: a plain manifest, an index (multi-platform manifest list), or a bare
+// descriptor. fetchOCIImagesByDigest substitutes each label into
+// ociImageByDigestCypher's anchor in turn.
 var ociImageLookupLabels = []string{
 	"ContainerImage",
 	"ContainerImageIndex",
 	"ContainerImageDescriptor",
 }
 
+// FetchOCIImageRegistryTruth is the production entrypoint: it runs the
+// bounded OCI registry-truth read and reports truncation to the operator
+// signals (#6590). serviceName is a log field only.
 func (h *Handler) FetchOCIImageRegistryTruth(
 	ctx context.Context,
 	imageRefs []string,
-) ([]map[string]any, error) {
+	serviceName string,
+) (oci.RegistryTruthResult, error) {
 	if h == nil || h.Neo4j == nil {
-		return nil, nil
+		return oci.RegistryTruthResult{}, nil
 	}
-	return FetchOCIImageRegistryTruth(ctx, h.Neo4j, imageRefs)
+	result, reasonEvents, err := fetchOCIImageRegistryTruthCore(ctx, h.Neo4j, imageRefs)
+	if err != nil {
+		return oci.RegistryTruthResult{}, err
+	}
+	h.reportOCIRegistryTruthTruncated(ctx, serviceName, result, reasonEvents)
+	return result, nil
 }
 
+// reportOCIRegistryTruthTruncated fires the 3 AM operator signal for a
+// bounded OCI registry-truth read that had to withhold image refs: a warn
+// log (always, via h.Logger) per reason that actually truncated, and the
+// eshu_dp_query_oci_registry_truth_truncated_total counter (when
+// h.Instruments is wired), mirroring reportK8sSelectCandidatePoolTruncated
+// (trace_deployment_k8s_select.go). service_name and
+// truncated_image_ref_count are log fields, never metric attributes, so the
+// counter stays low-cardinality; its only label is the bounded reason enum.
+func (h *Handler) reportOCIRegistryTruthTruncated(
+	ctx context.Context,
+	serviceName string,
+	result oci.RegistryTruthResult,
+	reasonEvents map[string]int,
+) {
+	if len(result.TruncatedImageRefs) == 0 {
+		return
+	}
+	for _, reason := range []string{oci.ReasonTagObservationRowLimit, oci.ReasonImageRowLimit} {
+		events := reasonEvents[reason]
+		if events <= 0 {
+			continue
+		}
+		if h.Logger != nil {
+			h.Logger.WarnContext(
+				ctx, "OCI registry truth row limit reached; image refs withheld as truncated",
+				"service_name", serviceName,
+				"truncated_image_ref_count", len(result.TruncatedImageRefs),
+				"statement_row_limit", oci.RegistryTruthRowLimit,
+				"reason", reason,
+			)
+		}
+		if h.Instruments != nil && h.Instruments.QueryOCIRegistryTruthTruncated != nil {
+			h.Instruments.QueryOCIRegistryTruthTruncated.Add(ctx, int64(events),
+				metric.WithAttributes(telemetry.AttrReason(reason)))
+		}
+	}
+}
+
+// FetchOCIImageRegistryTruth is the rows-only compatibility wrapper around
+// FetchOCIImageRegistryTruthResult, kept for existing test callers and the
+// impact_trace_deployment_oci_live_test.go live-truth test. Disclosure
+// (truncation, limits) is discarded; production callers must use
+// FetchOCIImageRegistryTruthResult (or the Handler method) instead.
 func FetchOCIImageRegistryTruth(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	imageRefs []string,
 ) ([]map[string]any, error) {
+	result, err := FetchOCIImageRegistryTruthResult(ctx, reader, imageRefs)
+	return result.Rows, err
+}
+
+// FetchOCIImageRegistryTruthResult runs the bounded OCI registry-truth read
+// (#6590) and returns the disclosed result: resolved truth rows, every image
+// ref withheld because a statement's LIMIT $row_limit was reached, and the
+// image_registry_truth_limits disclosure block.
+func FetchOCIImageRegistryTruthResult(
+	ctx context.Context,
+	reader querycontract.GraphQuery,
+	imageRefs []string,
+) (oci.RegistryTruthResult, error) {
+	result, _, err := fetchOCIImageRegistryTruthCore(ctx, reader, imageRefs)
+	return result, err
+}
+
+// fetchOCIImageRegistryTruthCore is the shared implementation behind
+// FetchOCIImageRegistryTruthResult and the Handler method: it also returns
+// per-reason truncation event counts so the Handler can report them without
+// growing oci.RegistryTruthResult beyond its three disclosed fields.
+func fetchOCIImageRegistryTruthCore(
+	ctx context.Context,
+	reader querycontract.GraphQuery,
+	imageRefs []string,
+) (oci.RegistryTruthResult, map[string]int, error) {
 	if reader == nil || len(imageRefs) == 0 {
-		return nil, nil
+		return oci.RegistryTruthResult{}, nil, nil
 	}
 
-	digestRefs, tagRefs := splitOCIImageRefs(imageRefs)
+	digestRefs, tagRefs := oci.SplitImageRefs(imageRefs)
+	reasonEvents := make(map[string]int, 2)
 	truth := make([]map[string]any, 0, len(imageRefs))
+	var truncatedRefs []string
+
 	if len(digestRefs) > 0 {
-		rows, err := fetchOCIImageDigestRows(ctx, reader, sortedMapKeys(digestRefs))
+		rows, truncatedDigests, events, err := fetchOCIImageDigestRows(ctx, reader, oci.SortedMapKeys(digestRefs))
 		if err != nil {
-			return nil, err
+			return oci.RegistryTruthResult{}, nil, err
 		}
-		truth = append(truth, buildOCIDigestTruthRows(rows, digestRefs)...)
+		truth = append(truth, oci.BuildDigestTruthRows(rows, digestRefs)...)
+		if events > 0 {
+			reasonEvents[oci.ReasonImageRowLimit] += events
+		}
+		for _, digest := range truncatedDigests {
+			truncatedRefs = append(truncatedRefs, digestRefs[digest]...)
+		}
 	}
 	if len(tagRefs) > 0 {
-		rows, err := fetchOCIImageTagRows(ctx, reader, tagRefs)
+		rows, withheldRefs, tagEvents, imageEvents, err := fetchOCIImageTagRows(ctx, reader, tagRefs)
 		if err != nil {
-			return nil, err
+			return oci.RegistryTruthResult{}, nil, err
 		}
-		truth = append(truth, buildOCITagTruthRows(rows)...)
+		truth = append(truth, oci.BuildTagTruthRows(rows)...)
+		truncatedRefs = append(truncatedRefs, withheldRefs...)
+		if tagEvents > 0 {
+			reasonEvents[oci.ReasonTagObservationRowLimit] += tagEvents
+		}
+		if imageEvents > 0 {
+			reasonEvents[oci.ReasonImageRowLimit] += imageEvents
+		}
 	}
 
 	sort.SliceStable(truth, func(i, j int) bool {
@@ -70,7 +162,12 @@ func FetchOCIImageRegistryTruth(
 		}
 		return querycontract.StringVal(truth[i], "digest") < querycontract.StringVal(truth[j], "digest")
 	})
-	return truth, nil
+	truncatedRefs = oci.SortUniqueStrings(truncatedRefs)
+	return oci.RegistryTruthResult{
+		Rows:               truth,
+		TruncatedImageRefs: truncatedRefs,
+		Limits:             oci.RegistryTruthLimits(truncatedRefs),
+	}, reasonEvents, nil
 }
 
 // The OCI registry-truth reads deliberately use one anchoring clause per Cypher
@@ -79,11 +176,13 @@ func FetchOCIImageRegistryTruth(
 // join) between the anchor and the projection: the old two-MATCH digest query
 // returned a null `coalesce(image.id, image.descriptor_id)` and the old
 // three-MATCH tag query dropped every row (#5287, proven live over Bolt). Each
-// template below is a single `MATCH … WHERE … RETURN … ORDER BY` shape, and the
-// image↔repository and tag↔repository↔image joins run in Go.
+// template below is a single `MATCH … WHERE … RETURN … ORDER BY … LIMIT` shape,
+// and the image↔repository and tag↔repository↔image joins run in Go.
 
 // ociImageByDigestCypher is the single-clause per-label image lookup by digest.
-// The verb `%s` is one of ociImageLookupLabels.
+// The verb `%s` is one of ociImageLookupLabels. LIMIT $row_limit bounds the
+// per-batch result set to oci.RegistryTruthRowLimit (#6590);
+// oci.AdvanceBoundedRead resumes any batch it cuts off.
 const ociImageByDigestCypher = `
 MATCH (image:%s)
 WHERE image.digest IN $digests
@@ -91,10 +190,13 @@ RETURN coalesce(image.id, image.descriptor_id) AS image_id,
        image.digest AS digest,
        image.repository_id AS repository_id,
        image.media_type AS media_type
-ORDER BY digest`
+ORDER BY digest, repository_id, image_id
+LIMIT $row_limit`
 
 // ociRepositoryByUIDCypher is the single-clause registry-repository lookup that
-// resolves an image/tag `repository_id` to its registry metadata.
+// resolves an image/tag `repository_id` to its registry metadata. No LIMIT: the
+// batch key (OciRegistryRepository.uid) is schema-unique
+// (oci_registry_repository_uid_unique), so fan-out is 1 by construction.
 const ociRepositoryByUIDCypher = `
 MATCH (repo:OciRegistryRepository)
 WHERE repo.uid IN $repository_ids
@@ -106,6 +208,8 @@ ORDER BY repository_id`
 
 // ociTagObservationByRefCypher is the single-clause tag-observation lookup that
 // resolves a mutable tag reference to its recorded digest and repository.
+// LIMIT $row_limit bounds the per-batch result set to oci.RegistryTruthRowLimit
+// (#6590); oci.AdvanceBoundedRead resumes any batch it cuts off.
 const ociTagObservationByRefCypher = `
 MATCH (tag:ContainerImageTagObservation)
 WHERE tag.image_ref IN $image_refs
@@ -113,111 +217,226 @@ RETURN tag.image_ref AS image_ref,
        tag.tag AS tag,
        tag.resolved_digest AS digest,
        tag.repository_id AS repository_id
-ORDER BY image_ref`
+ORDER BY image_ref, digest, repository_id, tag
+LIMIT $row_limit`
 
 // fetchOCIImageDigestRows returns digest-addressed image registry truth by
-// reading each image label with a single-clause query and joining the
-// registry-repository metadata in Go. It preserves the old inner-join
-// semantics (an image with no matching repository is omitted).
+// reading each image label with a single-clause, row-limit-bounded query and
+// joining the registry-repository metadata in Go. It preserves the old
+// inner-join semantics (an image with no matching repository is omitted).
+// truncatedDigests names every digest whose image row set could not be
+// resolved within oci.RegistryTruthRowLimit ON AT LEAST ONE LABEL; those
+// digests contribute no rows from ANY label (#6590 gating-review P1, PR
+// #7314). fetchOCIImagesByDigest issues one LIMIT statement per image label
+// and unions every label's kept rows before reporting truncatedDigests, so a
+// digest that overflowed on one label can still have rows on another; those
+// surviving rows are dropped here, before shaping, so a withheld digest
+// never emits a truth row from any label. events counts how many Run calls
+// hit the bound (for telemetry).
 func fetchOCIImageDigestRows(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	digests []string,
-) ([]map[string]any, error) {
+) (rows []map[string]any, truncatedDigests []string, events int, err error) {
 	if len(digests) == 0 {
-		return nil, nil
+		return nil, nil, 0, nil
 	}
-	images, err := fetchOCIImagesByDigest(ctx, reader, digests)
+	images, truncatedDigests, events, err := fetchOCIImagesByDigest(ctx, reader, digests)
 	if err != nil {
-		return nil, err
+		return nil, nil, 0, err
 	}
+	images = dropTruncatedDigestRows(images, truncatedDigests)
 	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(images, "repository_id"))
 	if err != nil {
-		return nil, err
+		return nil, nil, 0, err
 	}
-	rows := make([]map[string]any, 0, len(images))
+	rows = make([]map[string]any, 0, len(images))
 	for _, image := range images {
 		repo, ok := repos[querycontract.StringVal(image, "repository_id")]
 		if !ok {
 			continue
 		}
-		rows = append(rows, joinOCIImageRepository(image, repo))
+		rows = append(rows, oci.JoinImageRepository(image, repo))
 	}
-	return rows, nil
+	return rows, truncatedDigests, events, nil
+}
+
+// dropTruncatedDigestRows removes every row whose digest field is in
+// truncatedDigests, so a digest withheld because one label's statement
+// overflowed never surfaces a row a DIFFERENT label's statement returned
+// (#6590 gating-review P1, PR #7314): the withheld-never-emitted contract
+// applies per digest, not per label.
+func dropTruncatedDigestRows(rows []map[string]any, truncatedDigests []string) []map[string]any {
+	if len(truncatedDigests) == 0 {
+		return rows
+	}
+	bad := make(map[string]struct{}, len(truncatedDigests))
+	for _, digest := range truncatedDigests {
+		bad[strings.ToLower(strings.TrimSpace(digest))] = struct{}{}
+	}
+	kept := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		digest := strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "digest")))
+		if _, isBad := bad[digest]; isBad {
+			continue
+		}
+		kept = append(kept, row)
+	}
+	return kept
 }
 
 // fetchOCIImageTagRows returns tag-resolved image registry truth. It reads tag
-// observations with a single-clause query, then joins the registry repository
-// (by repository_id) and the canonical image (by resolved digest) in Go,
-// preserving the old inner-join semantics (a tag whose repository or resolved
-// image is absent is omitted).
+// observations with a single-clause, row-limit-bounded query, then joins the
+// registry repository (by repository_id) and the canonical image (by resolved
+// digest) in Go, preserving the old inner-join semantics (a tag whose
+// repository or resolved image is absent is omitted).
+//
+// withheldRefs names every image ref this call withholds because a statement
+// hit oci.RegistryTruthRowLimit: refs whose own tag-observation read
+// truncated, AND refs whose resolved digest's image read truncated (#6590 --
+// truncating the digest read can flip a two-digest ref, since the tag row for
+// the withheld digest would otherwise silently disappear through the
+// existing inner join and leave a real ambiguous_tag looking
+// tag_resolved_to_digest). tagEvents/imageEvents count how many Run calls hit
+// the bound in each statement shape (for telemetry).
 func fetchOCIImageTagRows(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	imageRefs []string,
-) ([]map[string]any, error) {
+) (rows []map[string]any, withheldRefs []string, tagEvents int, imageEvents int, err error) {
 	if len(imageRefs) == 0 {
-		return nil, nil
+		return nil, nil, 0, 0, nil
 	}
 	tags := make([]map[string]any, 0, len(imageRefs))
-	for _, batch := range ociKeyBatches(imageRefs) {
-		batchRows, err := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{"image_refs": batch})
-		if err != nil {
-			return nil, err
+	var truncatedTagRefs []string
+	for _, batch := range oci.KeyBatches(oci.SortUniqueStrings(imageRefs)) {
+		keysToQuery := batch
+		for {
+			batchRows, runErr := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{
+				"image_refs": keysToQuery,
+				"row_limit":  oci.RegistryTruthRowLimit,
+			})
+			if runErr != nil {
+				return nil, nil, 0, 0, runErr
+			}
+			kept, truncated, next := oci.AdvanceBoundedRead(keysToQuery, batchRows, "image_ref", oci.RegistryTruthRowLimit)
+			tags = append(tags, kept...)
+			if len(truncated) > 0 {
+				tagEvents++
+				truncatedTagRefs = append(truncatedTagRefs, truncated...)
+			}
+			if next == nil {
+				break
+			}
+			keysToQuery = next
 		}
-		tags = append(tags, batchRows...)
 	}
 	if len(tags) == 0 {
-		return nil, nil
+		return nil, oci.SortUniqueStrings(truncatedTagRefs), tagEvents, 0, nil
 	}
 	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(tags, "repository_id"))
 	if err != nil {
-		return nil, err
+		return nil, nil, 0, 0, err
 	}
-	images, err := fetchOCIImagesByDigest(ctx, reader, distinctFieldValues(tags, "digest"))
+	images, truncatedDigests, imageEvents, err := fetchOCIImagesByDigest(ctx, reader, distinctFieldValues(tags, "digest"))
 	if err != nil {
-		return nil, err
+		return nil, nil, 0, 0, err
 	}
-	imageByDigest := indexOCIImagesByDigest(images)
-	rows := make([]map[string]any, 0, len(tags))
+
+	withheld := make(map[string]struct{}, len(truncatedTagRefs))
+	for _, ref := range truncatedTagRefs {
+		withheld[ref] = struct{}{}
+	}
+	if len(truncatedDigests) > 0 {
+		badDigests := make(map[string]struct{}, len(truncatedDigests))
+		for _, digest := range truncatedDigests {
+			badDigests[digest] = struct{}{}
+		}
+		for _, tag := range tags {
+			digest := strings.ToLower(strings.TrimSpace(querycontract.StringVal(tag, "digest")))
+			if _, bad := badDigests[digest]; bad {
+				withheld[querycontract.StringVal(tag, "image_ref")] = struct{}{}
+			}
+		}
+	}
+
+	imageByDigest := oci.IndexImagesByDigest(images)
+	rows = make([]map[string]any, 0, len(tags))
 	for _, tag := range tags {
+		ref := querycontract.StringVal(tag, "image_ref")
+		if _, bad := withheld[ref]; bad {
+			continue
+		}
 		repo, repoOK := repos[querycontract.StringVal(tag, "repository_id")]
 		image, imageOK := imageByDigest[querycontract.StringVal(tag, "digest")]
 		if !repoOK || !imageOK {
 			continue
 		}
-		rows = append(rows, joinOCITagRepositoryImage(tag, repo, image))
+		rows = append(rows, oci.JoinTagRepositoryImage(tag, repo, image))
 	}
-	return rows, nil
+	withheldRefs = make([]string, 0, len(withheld))
+	for ref := range withheld {
+		withheldRefs = append(withheldRefs, ref)
+	}
+	sort.Strings(withheldRefs)
+	return rows, withheldRefs, tagEvents, imageEvents, nil
 }
 
-// fetchOCIImagesByDigest reads each OCI image label with a single-clause query
-// and concatenates the rows. Each row carries image_id, digest, repository_id,
-// and media_type.
+// fetchOCIImagesByDigest reads each OCI image label with a single-clause,
+// row-limit-bounded query and concatenates the rows. Each row carries
+// image_id, digest, repository_id, and media_type. truncatedDigests names
+// every digest whose row set could not be resolved within
+// oci.RegistryTruthRowLimit for at least one label; those digests contribute
+// no rows for that label. events counts how many Run calls hit the bound.
+//
+// digests is sorted and deduplicated on entry through oci.SortUniqueStrings:
+// some callers pass an already-sorted key set (oci.SortedMapKeys(digestRefs))
+// and some pass an insertion-ordered one (distinctFieldValues), and
+// oci.AdvanceBoundedRead's irreducible-overflow check depends on every
+// batch's first key being its minimum.
 func fetchOCIImagesByDigest(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	digests []string,
-) ([]map[string]any, error) {
+) (rows []map[string]any, truncatedDigests []string, events int, err error) {
 	if len(digests) == 0 {
-		return nil, nil
+		return nil, nil, 0, nil
 	}
-	rows := make([]map[string]any, 0, len(digests)*len(ociImageLookupLabels))
+	sortedDigests := oci.SortUniqueStrings(digests)
+	rows = make([]map[string]any, 0, len(sortedDigests)*len(ociImageLookupLabels))
+	var truncated []string
 	for _, label := range ociImageLookupLabels {
-		for _, batch := range ociKeyBatches(digests) {
-			labelRows, err := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{"digests": batch})
-			if err != nil {
-				return nil, err
+		for _, batch := range oci.KeyBatches(sortedDigests) {
+			keysToQuery := batch
+			for {
+				labelRows, runErr := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{
+					"digests":   keysToQuery,
+					"row_limit": oci.RegistryTruthRowLimit,
+				})
+				if runErr != nil {
+					return nil, nil, 0, runErr
+				}
+				kept, truncatedBatch, next := oci.AdvanceBoundedRead(keysToQuery, labelRows, "digest", oci.RegistryTruthRowLimit)
+				rows = append(rows, kept...)
+				if len(truncatedBatch) > 0 {
+					events++
+					truncated = append(truncated, truncatedBatch...)
+				}
+				if next == nil {
+					break
+				}
+				keysToQuery = next
 			}
-			rows = append(rows, labelRows...)
 		}
 	}
-	return rows, nil
+	return rows, oci.SortUniqueStrings(truncated), events, nil
 }
 
 // fetchOCIRepositoriesByUID reads the registry repositories for the given uids
 // with one single-clause query and indexes them by repository_id for the Go
-// join.
+// join. No row-limit bound: OciRegistryRepository.uid is schema-unique, so
+// each key can match at most one row (fan_out_multiplier: 1 in
+// query-source-coverage.yaml).
 func fetchOCIRepositoriesByUID(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
@@ -227,7 +446,7 @@ func fetchOCIRepositoriesByUID(
 	if len(uids) == 0 {
 		return result, nil
 	}
-	for _, batch := range ociKeyBatches(uids) {
+	for _, batch := range oci.KeyBatches(uids) {
 		rows, err := reader.Run(ctx, ociRepositoryByUIDCypher, map[string]any{"repository_ids": batch})
 		if err != nil {
 			return nil, err
@@ -239,255 +458,4 @@ func fetchOCIRepositoriesByUID(
 		}
 	}
 	return result, nil
-}
-
-// ociMaxKeysPerStatement is the per-statement IN-list bound these reads are
-// recorded against in go/internal/queryplan/testdata/query-source-coverage.yaml
-// (bounded_key_batch, max_keys: 250).
-//
-// The bound used to be an assumption rather than a property of the code (#6590).
-// The keys are deduplicated upstream but their COUNT is not capped: they come
-// from a workload row set capped at ServiceStoryItemLimit rows, but a single
-// workload can declare any number of containers and initContainers, so 50
-// workloads with six images each already puts 300 keys into one IN-list.
-// Enforcing it here makes the recorded bound true by construction.
-//
-// Batching rather than truncating is deliberate: a truncated key set would
-// silently drop images from the deployment trace, which is an accuracy loss.
-// Capping at the source is also wrong -- collectContainerImages lives in the
-// YAML parser, and a cap there would discard facts at ingest.
-const ociMaxKeysPerStatement = 250
-
-// ociKeyBatches splits keys into consecutive batches of at most
-// ociMaxKeysPerStatement, preserving order. It is pure: it issues no statement.
-//
-// That is deliberate. The query-plan registry
-// (go/internal/queryplan/testdata/query-source-coverage.yaml) attributes a
-// graph read to the function that calls Run, and records a separate bound for
-// each of these three reads. A shared helper that called Run itself collapsed
-// three differently-bounded queries into one anonymous callsite and erased the
-// per-query audit this bound exists for. So each fetcher keeps its own Run,
-// looped over these batches, and remains its own registered callsite.
-//
-// Batching preserves every caller's semantics: each read is a keyed IN-list
-// lookup, so all rows for one key land in the same batch; the tag and
-// repository reads join through maps; and fetchOCIImagesByDigest batches
-// inside its per-label loop, so indexOCIImagesByDigest's first-wins ordering
-// across labels is unchanged. A key set within the bound is one batch, so it
-// issues exactly the single statement it always did.
-func ociKeyBatches(keys []string) [][]string {
-	if len(keys) == 0 {
-		return nil
-	}
-	batches := make([][]string, 0, (len(keys)+ociMaxKeysPerStatement-1)/ociMaxKeysPerStatement)
-	for start := 0; start < len(keys); start += ociMaxKeysPerStatement {
-		batches = append(batches, keys[start:min(start+ociMaxKeysPerStatement, len(keys))])
-	}
-	return batches
-}
-
-// indexOCIImagesByDigest keeps the first image row seen per digest so a tag can
-// resolve its canonical image identity and media type. Digest is the canonical
-// content address, so the first-wins policy is deterministic under the ordered
-// per-label reads.
-func indexOCIImagesByDigest(images []map[string]any) map[string]map[string]any {
-	byDigest := make(map[string]map[string]any, len(images))
-	for _, image := range images {
-		digest := querycontract.StringVal(image, "digest")
-		if digest == "" {
-			continue
-		}
-		if _, exists := byDigest[digest]; !exists {
-			byDigest[digest] = image
-		}
-	}
-	return byDigest
-}
-
-// joinOCIImageRepository merges a digest-addressed image row with its registry
-// repository into the row shape the digest truth builder consumes.
-func joinOCIImageRepository(image, repo map[string]any) map[string]any {
-	return map[string]any{
-		"image_id":      querycontract.StringVal(image, "image_id"),
-		"digest":        querycontract.StringVal(image, "digest"),
-		"registry":      querycontract.StringVal(repo, "registry"),
-		"repository":    querycontract.StringVal(repo, "repository"),
-		"repository_id": querycontract.StringVal(image, "repository_id"),
-		"media_type":    querycontract.StringVal(image, "media_type"),
-		"provider":      querycontract.StringVal(repo, "provider"),
-	}
-}
-
-// joinOCITagRepositoryImage merges a tag observation with its registry
-// repository and resolved image into the row shape the tag truth builder
-// consumes. The digest and repository_id come from the tag observation, the
-// registry metadata from the repository, and the image identity/media type from
-// the resolved image.
-func joinOCITagRepositoryImage(tag, repo, image map[string]any) map[string]any {
-	return map[string]any{
-		"image_ref":     querycontract.StringVal(tag, "image_ref"),
-		"tag":           querycontract.StringVal(tag, "tag"),
-		"digest":        querycontract.StringVal(tag, "digest"),
-		"image_id":      querycontract.StringVal(image, "image_id"),
-		"registry":      querycontract.StringVal(repo, "registry"),
-		"repository":    querycontract.StringVal(repo, "repository"),
-		"repository_id": querycontract.StringVal(tag, "repository_id"),
-		"media_type":    querycontract.StringVal(image, "media_type"),
-		"provider":      querycontract.StringVal(repo, "provider"),
-	}
-}
-
-func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
-	digestRefs := make(map[string][]string)
-	tagRefs := make([]string, 0, len(imageRefs))
-	seenTags := make(map[string]struct{}, len(imageRefs))
-	for _, imageRef := range imageRefs {
-		imageRef = strings.TrimSpace(imageRef)
-		if imageRef == "" {
-			continue
-		}
-		if digest := imageRefDigest(imageRef); digest != "" {
-			digestRefs[digest] = appendUniqueQueryString(digestRefs[digest], imageRef)
-			continue
-		}
-		if _, exists := seenTags[imageRef]; exists {
-			continue
-		}
-		seenTags[imageRef] = struct{}{}
-		tagRefs = append(tagRefs, imageRef)
-	}
-	sort.Strings(tagRefs)
-	return digestRefs, tagRefs
-}
-
-func imageRefDigest(imageRef string) string {
-	_, digest, ok := strings.Cut(strings.TrimSpace(imageRef), "@")
-	if !ok {
-		return ""
-	}
-	digest = strings.ToLower(strings.TrimSpace(digest))
-	if !strings.HasPrefix(digest, "sha256:") || len(digest) != len("sha256:")+64 {
-		return ""
-	}
-	for _, r := range strings.TrimPrefix(digest, "sha256:") {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return ""
-		}
-	}
-	return digest
-}
-
-func buildOCIDigestTruthRows(
-	rows []map[string]any,
-	digestRefs map[string][]string,
-) []map[string]any {
-	truth := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		digest := strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "digest")))
-		if digest == "" {
-			continue
-		}
-		for _, imageRef := range digestRefs[digest] {
-			truth = append(truth, ociTruthRow(row, imageRef, digest, deployment.OciDigestMatchStrength, "digest", false))
-		}
-	}
-	return truth
-}
-
-func buildOCITagTruthRows(rows []map[string]any) []map[string]any {
-	grouped := make(map[string][]map[string]any, len(rows))
-	for _, row := range rows {
-		imageRef := strings.TrimSpace(querycontract.StringVal(row, "image_ref"))
-		digest := strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "digest")))
-		if imageRef == "" || digest == "" {
-			continue
-		}
-		grouped[imageRef] = append(grouped[imageRef], row)
-	}
-
-	imageRefs := sortedMapKeys(grouped)
-	truth := make([]map[string]any, 0, len(imageRefs))
-	for _, imageRef := range imageRefs {
-		group := grouped[imageRef]
-		digests := uniqueSortedRowValues(group, "digest")
-		if len(digests) != 1 {
-			truth = append(truth, map[string]any{
-				"image_ref":          imageRef,
-				"match_strength":     ociAmbiguousMatchStrength,
-				"truth_basis":        "observed_tag",
-				"identity_strength":  "weak_tag",
-				"identity_source":    ociRegistryProjectionBasis,
-				"ambiguous":          true,
-				"digest_candidates":  digests,
-				"registry":           querycontract.StringVal(group[0], "registry"),
-				"repository":         querycontract.StringVal(group[0], "repository"),
-				"repository_id":      querycontract.StringVal(group[0], "repository_id"),
-				"tag":                querycontract.StringVal(group[0], "tag"),
-				"resolved_row_count": len(group),
-			})
-			continue
-		}
-		truth = append(truth, ociTruthRow(group[0], imageRef, digests[0], ociTagMatchStrength, "tag_observation_with_digest", false))
-	}
-	return truth
-}
-
-func ociTruthRow(
-	row map[string]any,
-	imageRef string,
-	digest string,
-	matchStrength string,
-	truthBasis string,
-	ambiguous bool,
-) map[string]any {
-	result := map[string]any{
-		"image_ref":         imageRef,
-		"digest":            digest,
-		"image_id":          querycontract.StringVal(row, "image_id"),
-		"registry":          querycontract.StringVal(row, "registry"),
-		"repository":        querycontract.StringVal(row, "repository"),
-		"repository_id":     querycontract.StringVal(row, "repository_id"),
-		"media_type":        querycontract.StringVal(row, "media_type"),
-		"provider":          querycontract.StringVal(row, "provider"),
-		"match_strength":    matchStrength,
-		"truth_basis":       truthBasis,
-		"identity_source":   ociRegistryProjectionBasis,
-		"identity_strength": "digest",
-		"ambiguous":         ambiguous,
-	}
-	if tag := querycontract.StringVal(row, "tag"); tag != "" {
-		result["tag"] = tag
-		result["identity_strength"] = "tag_observation_with_digest"
-	}
-	return result
-}
-
-func uniqueSortedRowValues(rows []map[string]any, key string) []string {
-	values := make([]string, 0, len(rows))
-	for _, row := range rows {
-		values = appendUniqueQueryString(values, strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, key))))
-	}
-	sort.Strings(values)
-	return values
-}
-
-func sortedMapKeys[T any](values map[string]T) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func appendUniqueQueryString(values []string, value string) []string {
-	if value == "" {
-		return values
-	}
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
 }

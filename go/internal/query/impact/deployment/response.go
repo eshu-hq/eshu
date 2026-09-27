@@ -25,6 +25,7 @@ type deploymentTraceFields struct {
 	uncorrelatedCloudResources, k8sResources           []map[string]any
 	imageRefs                                          []string
 	imageRegistryTruth, controllerEntities             []map[string]any
+	imageRegistryTruthLimits                           map[string]any
 	hostnames, entrypoints, networkPaths               []map[string]any
 	apiSurface                                         map[string]any
 	dependents, consumerRepositories                   []map[string]any
@@ -61,6 +62,7 @@ func buildDeploymentTraceFields(serviceName string, workloadContext map[string]a
 	f.k8sResources, _ = workloadContext["k8s_resources"].([]map[string]any)
 	f.imageRefs, _ = workloadContext["image_refs"].([]string)
 	f.imageRegistryTruth = querycontract.MapSliceValue(workloadContext, "image_registry_truth")
+	f.imageRegistryTruthLimits = querycontract.MapValue(workloadContext, "image_registry_truth_limits")
 	f.controllerEntities, _ = workloadContext["controller_entities"].([]map[string]any)
 	f.hostnames = querycontract.MapSliceValue(workloadContext, "hostnames")
 	f.entrypoints = querycontract.MapSliceValue(workloadContext, "entrypoints")
@@ -293,6 +295,9 @@ func (f *deploymentTraceFields) attachOptionalFields(response map[string]any) {
 	}
 	if len(f.imageRegistryTruth) > 0 {
 		response["image_registry_truth"] = f.imageRegistryTruth
+	}
+	if len(f.imageRegistryTruthLimits) > 0 {
+		response["image_registry_truth_limits"] = f.imageRegistryTruthLimits
 	}
 	if len(f.provenanceOverview) > 0 {
 		response["provenance_overview"] = f.provenanceOverview

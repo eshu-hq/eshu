@@ -127,15 +127,19 @@ EOF
 # (guards the runs-loop field split: the tests field holds |-joined
 # names, so a left-anchored split silently dropped multi-Test files)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "49" ]] || fail "planned runs ${#plan[@]}, want 49 (27 nornicdb + 22 neo4j)"
+[[ "${#plan[@]}" == "50" ]] || fail "planned runs ${#plan[@]}, want 50 (27 nornicdb + 23 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "27" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 27"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "22" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 22"
+[[ "${#plan_neo4j[@]}" == "23" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 23"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*ownership_neo4j_live_test' ||
 	fail "directory ownership regression missing from neo4j plan"
 printf '%s\n' "${plan_nornicdb[@]}" | rg -q '^nornicdb\|[^|]*\|.*ownership_neo4j_live_test' &&
 	fail "neo4j-only directory ownership regression scheduled on nornicdb"
+printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*trace_deployment_oci_bound_live_test' ||
+	fail "OCI registry-truth row-limit proof (#6590) missing from neo4j plan"
+printf '%s\n' "${plan_nornicdb[@]}" | rg -q '^nornicdb\|[^|]*\|.*trace_deployment_oci_bound_live_test' &&
+	fail "neo4j-only OCI registry-truth row-limit proof (#6590) scheduled on nornicdb"
 for backend in nornicdb neo4j; do
 	printf '%s\n' "${plan[@]}" | rg -q "^${backend}\\|[^|]*\\|.*context_uid_anchor_live_test" ||
 		fail "entity-context uid anchor regression missing from ${backend} plan"

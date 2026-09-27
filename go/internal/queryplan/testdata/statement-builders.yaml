@@ -305,8 +305,8 @@ read_exemptions:
       MATCH (s:Workload)-[r:DEPENDS_ON]->(t) RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id, coalesce(s.name, s.path, s.id, s.uid) AS source_name, coalesce(t.id, t.uid, t.name, t.path) AS target_id, coalesce(t.name, t.path, t.id, t.uid) AS target_name, r.rationale AS evidence, r.source_tool AS source_tool ORDER BY s.id, coalesce(t.id, t.uid) LIMIT $limit
     reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload DEPENDS_ON edges exist at all
   - statement: |-
-      MATCH (tag:ContainerImageTagObservation) WHERE tag.image_ref IN $image_refs RETURN tag.image_ref AS image_ref, tag.tag AS tag, tag.resolved_digest AS digest, tag.repository_id AS repository_id ORDER BY image_ref
-    reason: tag observations are written only for supply-chain-demo:1.0.0; the probe refs match no TagObservation node
+      MATCH (tag:ContainerImageTagObservation) WHERE tag.image_ref IN $image_refs RETURN tag.image_ref AS image_ref, tag.tag AS tag, tag.resolved_digest AS digest, tag.repository_id AS repository_id ORDER BY image_ref, digest, repository_id, tag LIMIT $row_limit
+    reason: tag observations are written only for supply-chain-demo:1.0.0; the probe refs match no TagObservation node. Statement text updated for #6590's LIMIT $row_limit bound (ORDER BY gained digest, repository_id, tag as tie-breaks for the bounded-read continuation; the row cause is unchanged -- the probe refs still match nothing)
   - statement: |-
       MATCH (w:Workload) WHERE w.id = $service_name OPTIONAL MATCH (dr:Repository)-[:DEFINES]->(w) RETURN w.id as id, w.name as name, w.repo_id as repo_id, collect(DISTINCT dr.id) as defining ORDER BY w.id LIMIT 1
     reason: no Workload node carries the bound service ids in B-7 writes

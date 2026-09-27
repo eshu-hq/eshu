@@ -124,10 +124,36 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		"WorkloadContext provisioned_platforms[]",
 	)
 	assertProvisionedPlatformSchema(t, workloadProvisionedProperties, "WorkloadContext provisioned_platforms[]")
-	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits"} {
+	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits", "image_registry_truth_limits"} {
 		if _, ok := properties[limitsField]; !ok {
 			t.Fatalf("impact trace schema missing %s", limitsField)
 		}
+	}
+	imageRegistryTruth := testutil.MustMapField(t, properties, "image_registry_truth")
+	if desc, _ := imageRegistryTruth["description"].(string); !strings.Contains(desc, "image_registry_truth_limits") {
+		t.Fatalf("impact trace image_registry_truth description = %q, want a mention of image_registry_truth_limits", desc)
+	}
+	imageRegistryTruthLimits := testutil.MustMapField(t, properties, "image_registry_truth_limits")
+	imageRegistryTruthLimitProperties := testutil.MustMapField(t, imageRegistryTruthLimits, "properties")
+	imageRegistryTruthLimitRequiredFields := []string{
+		"max_keys_per_statement",
+		"statement_row_limit",
+		"image_registry_truth_complete",
+		"truncated_image_ref_count",
+	}
+	imageRegistryTruthLimitFields := append(
+		append([]string(nil), imageRegistryTruthLimitRequiredFields...),
+		"truncated_image_refs", "image_registry_truth_incomplete_reason",
+	)
+	for _, field := range imageRegistryTruthLimitFields {
+		if _, ok := imageRegistryTruthLimitProperties[field]; !ok {
+			t.Fatalf("impact trace image_registry_truth_limits schema missing %s", field)
+		}
+	}
+	assertRequiredProperties(t, imageRegistryTruthLimits, imageRegistryTruthLimitRequiredFields, "impact trace image_registry_truth_limits")
+	reasonProperty := testutil.MustMapField(t, imageRegistryTruthLimitProperties, "image_registry_truth_incomplete_reason")
+	if got, want := reasonProperty["enum"], []any{"oci_registry_truth_row_limit_reached"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("impact trace image_registry_truth_limits.image_registry_truth_incomplete_reason enum = %#v, want %#v", got, want)
 	}
 	runtimeTopologyLimits := testutil.MustMapField(t, properties, "runtime_topology_limits")
 	runtimeTopologyProperties := testutil.MustMapField(t, runtimeTopologyLimits, "properties")

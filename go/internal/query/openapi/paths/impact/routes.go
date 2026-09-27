@@ -234,7 +234,8 @@ const Routes = `
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
 ` + K8sResourceLimits + `
                     "image_refs": {"type": "array", "items": {"type": "string"}},
-                    "image_registry_truth": {"type": "array", "items": {"type": "object"}},
+                    "image_registry_truth": {"type": "array", "description": "OCI registry truth rows resolved for image_refs. A ref withheld by image_registry_truth_limits is absent here without a placeholder row.", "items": {"type": "object"}},
+` + ImageRegistryTruthLimits + `
                     "k8s_relationships": {"type": "array", "items": {"type": "object"}},
                     "deployment_facts": {"type": "array", "items": {"type": "object"}},
                     "controller_driven_paths": {"type": "array", "items": {"type": "object"}},
