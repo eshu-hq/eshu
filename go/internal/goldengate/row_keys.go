@@ -62,7 +62,6 @@ var writePathRowKeys = map[string]struct{}{
 	"optional":       {},
 	"path":           {},
 	"pattern":        {},
-	"payload":        {},
 	"primitives":     {},
 	"properties":     {},
 	"props":          {},
