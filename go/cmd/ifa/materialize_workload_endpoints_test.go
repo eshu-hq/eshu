@@ -149,7 +149,10 @@ func TestRunDispatchesMaterializeWorkloadEndpoints(t *testing.T) {
 // TestRunMaterializeWorkloadEndpointsRedactsBackendConnectionTarget proves a
 // down backend never leaks connection details into gate logs.
 func TestRunMaterializeWorkloadEndpointsRedactsBackendConnectionTarget(t *testing.T) {
-	t.Parallel()
+	// No t.Parallel: this test swaps the package-global
+	// openWorkloadEndpointsBackend, which would race under -race with any
+	// future parallel test touching that global (matches the precedent
+	// file's no-Parallel swap tests).
 	open := openWorkloadEndpointsBackend
 	openWorkloadEndpointsBackend = func(_ context.Context) (workloadEndpointsBackend, func(), error) {
 		return nil, func() {}, errTestWorkloadEndpointsBackendDown

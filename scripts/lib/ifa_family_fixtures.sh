@@ -130,7 +130,7 @@ invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invok
 # kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
 # iam_can_perform, and workload_cloud_relationship (#6228) are the
 # DIRECT-materialization families in either gate. Every family above reaches the graph through the ordering-safe
-# shared-projection intent path; the reducer writes these four straight to a
+# shared-projection intent path; the reducer writes these five straight to a
 # go/internal/storage/cypher writer with no intent row in between.
 #
 # That difference shows up here in one concrete way: none needs a
