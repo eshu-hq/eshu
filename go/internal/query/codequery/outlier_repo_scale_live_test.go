@@ -442,9 +442,13 @@ func liveScaleExplain(ctx context.Context, t *testing.T, session neo4jdriver.Ses
 	return liveScalePlanOperators(summary.Plan())
 }
 
+// containsOp reports whether any plan operator name in ops names want.
+// Neo4j 2026.09.0 suffixes each operator with its runtime source (e.g.
+// "NodeByLabelScan@neo4j"), so this matches by prefix rather than exact
+// equality.
 func containsOp(ops []string, want string) bool {
 	for _, op := range ops {
-		if op == want {
+		if strings.HasPrefix(op, want) {
 			return true
 		}
 	}
