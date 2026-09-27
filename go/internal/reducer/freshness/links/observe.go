@@ -96,17 +96,20 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 	return outcomeFailed
 }
 
-// recordCanceled reports a link the runner's shutdown cut short: an INFO log
-// and outcome=canceled, with no cursor record, no failure class and no ERROR.
-func (r *Runner) recordCanceled(ctx context.Context, span trace.Span, scopeID string, err error) linkOutcome {
+// recordCanceled reports a link the runner's shutdown cut short, during the
+// link or during the record of its failure: an INFO log and
+// outcome=canceled, with no cursor record and no ERROR.
+func (r *Runner) recordCanceled(ctx context.Context, span trace.Span, scopeID string, err error, attrs ...any) linkOutcome {
 	r.count(ctx, store.LinkKindNone, outcomeCanceled)
 	if span != nil {
 		span.SetAttributes(attribute.Bool("changed_since.canceled", true))
 	}
 	if r.Logger != nil {
 		r.Logger.InfoContext(ctx, "changed-since link canceled by shutdown; not counted, retried next cycle",
-			slog.String("scope_id", scopeID), slog.String("error", err.Error()),
-			telemetry.PhaseAttr(telemetry.PhaseReduction))
+			append([]any{
+				slog.String("scope_id", scopeID), slog.String("error", err.Error()),
+				telemetry.PhaseAttr(telemetry.PhaseReduction),
+			}, attrs...)...)
 	}
 	return outcomeCanceled
 }
@@ -124,6 +127,14 @@ func (r *Runner) recordCounting(ctx context.Context, span trace.Span, failure *s
 	}
 	record, err := r.Linker.RecordFailure(ctx, failure, r.Config.MaxAttempts)
 	if err != nil {
+		if ctx.Err() != nil {
+			// Shutdown cut the record transaction short: nothing was
+			// recorded and the cursor did not move, so the next cycle
+			// retries. The observed failure class is kept on the log line.
+			return r.recordCanceled(ctx, span, failure.ScopeID, err,
+				slog.String("link_failure_class", string(failure.Class)),
+				slog.Int64("activation_seq", failure.ActivationSeq))
+		}
 		r.logError(ctx, "changed-since link failure could not be recorded", err,
 			slog.String("scope_id", failure.ScopeID), slog.Int64("activation_seq", failure.ActivationSeq))
 		r.count(ctx, store.LinkKindNone, outcomeFailed)
@@ -209,7 +220,7 @@ func (r *Runner) recordGauges(ctx context.Context) {
 	}
 	stats, err := r.Journal.Stats(ctx)
 	if err != nil {
-		r.logError(ctx, "changed-since ledger stats failed", err)
+		r.logReadError(ctx, "changed-since ledger stats failed", err)
 		return
 	}
 	if r.Instruments == nil {
@@ -244,17 +255,24 @@ func (r *Runner) logCycle(ctx context.Context, result CycleResult) {
 	)
 }
 
-// logError logs an operator-facing ERROR. When the runner's context is done
-// (reducer shutdown) the error is the shutdown itself, so the line drops to
-// INFO with shutdown=true instead of paging on every restart.
-func (r *Runner) logError(ctx context.Context, msg string, err error, attrs ...any) {
-	if r.Logger == nil {
-		return
-	}
-	if ctx.Err() != nil {
+// logReadError logs a failed ledger read (stats, orphan scan or delete, a
+// cycle's journal pass) at ERROR. When the runner's context is done the
+// error is the shutdown itself, so the line drops to INFO with
+// shutdown=true instead of paging on every restart. Recorded link failures
+// and poisonings use logError: they happened, whatever the context.
+func (r *Runner) logReadError(ctx context.Context, msg string, err error, attrs ...any) {
+	if r.Logger != nil && ctx.Err() != nil {
 		r.Logger.InfoContext(ctx, msg, append([]any{
 			log.Err(err), slog.Bool("shutdown", true), telemetry.PhaseAttr(telemetry.PhaseReduction),
 		}, attrs...)...)
+		return
+	}
+	r.logError(ctx, msg, err, attrs...)
+}
+
+// logError logs an operator-facing ERROR.
+func (r *Runner) logError(ctx context.Context, msg string, err error, attrs ...any) {
+	if r.Logger == nil {
 		return
 	}
 	args := append([]any{

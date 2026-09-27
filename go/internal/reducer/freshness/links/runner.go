@@ -138,7 +138,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		}
 		result, err := r.RunOnce(ctx)
 		if err != nil && ctx.Err() == nil {
-			r.logError(ctx, "changed-since link cycle failed", err)
+			r.logReadError(ctx, "changed-since link cycle failed", err)
 		}
 		if err == nil && result.Linked+result.Breaks > 0 && result.Retries+result.Failures == 0 {
 			continue
@@ -253,14 +253,14 @@ func CountingFailure(err error) *store.FailureError {
 func (r *Runner) deleteOrphans(ctx context.Context) int {
 	orphans, err := r.Journal.OrphanScopes(ctx, orphanScopesPerCycle)
 	if err != nil {
-		r.logError(ctx, "changed-since orphan scan failed", err)
+		r.logReadError(ctx, "changed-since orphan scan failed", err)
 		return 0
 	}
 	deleted := 0
 	for _, scopeID := range orphans {
 		ok, err := r.Journal.DeleteOrphanScope(ctx, scopeID)
 		if err != nil {
-			r.logError(ctx, "changed-since orphan delete failed", err, slog.String("scope_id", scopeID))
+			r.logReadError(ctx, "changed-since orphan delete failed", err, slog.String("scope_id", scopeID))
 			continue
 		}
 		if ok {
