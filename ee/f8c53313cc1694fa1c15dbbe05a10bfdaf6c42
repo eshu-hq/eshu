@@ -1,10 +1,14 @@
 go/internal/storage/postgres/issue7033_scoped_rollout_test.go
   s_b0d7e3abc26c5a::t_bdbf58585064f2 99,120,171,184,218,232,252,270
   s_b0d7e3abc26c5a::t_8e671010a10aee 1-85,88-97,100-119,121-153,155-156,158-170,172-183,185-217,219-231,233-251,253-269,271-295
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 86-87,98,154,157
 go/internal/storage/postgres/schema_order_test.go
   s_b0d7e3abc26c5a::t_4c0b66d169eef9 319-322
+  s_b0d7e3abc26c5a::t_281b9be6b305b0 318
 go/internal/storage/postgres/content_files_relative_path_index_live_test.go
   s_b0d7e3abc26c5a::t_8e671010a10aee 1-19,21-83,85-94,96-98,100-138,140-145,147-221
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 20,84,99,139,146
+  s_b0d7e3abc26c5a::t_6b59194c4402a2 95
 docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
   s_b0d7e3abc26c5a::t_fcb4431f6d9485 41-47
   s_b0d7e3abc26c5a::t_955e9df0ae8938 1-18,23-40,48,81-85,88-89,91-94,137-146
@@ -15,10 +19,12 @@ docs/internal/evidence/7033-unscoped-topic-relative-path-index.md
   s_b0d7e3abc26c5a::t_55b53bc004418e 49-80
 go/internal/storage/postgres/content_files_relative_path_skipped_125_live_test.go
   s_b0d7e3abc26c5a::t_8e671010a10aee 1-37,39-41,43-58,60-61,63-92
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 38,42,59,62
 go/internal/query/code_topic_path_first_live_test.go
   s_b0d7e3abc26c5a::t_c8b9355b06ee9f 1-101
 go/internal/storage/postgres/migrations/134_content_files_relative_path_trgm_index_lifecycle.sql
   s_b0d7e3abc26c5a::t_bdbf58585064f2 1-4,6-113
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 5
 go/internal/query/code_topic_test.go
   s_b0d7e3abc26c5a::t_b2a5e9b4a58a22 149
   s_b0d7e3abc26c5a::t_f739d9d59f995c 176-199,204-221,224-232,251,253-256,260-262,265-271,274-277
@@ -38,6 +44,8 @@ go/internal/query/content_reader_code_topic.go
   s_b0d7e3abc26c5a::t_220ecd9f7d4d34 54-58,93-110
 go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
   s_b0d7e3abc26c5a::t_ae48a98a1be578 1-32,34-35,38-65,67-158,160-163,165-166,168-336,338-344,346-458
+  s_b0d7e3abc26c5a::t_7ecffc00a6cc97 33,36,66,159,164,167,337,345
+  s_b0d7e3abc26c5a::t_6b59194c4402a2 37
 go/internal/storage/postgres/README.md
   s_b0d7e3abc26c5a::t_2c1996457d3e68 71-72,946-947
 docs/public/reference/env-registry.md
@@ -65,6 +73,12 @@ go/internal/storage/postgres/schema_content_store.go
   s_b0d7e3abc26c5a::t_13db9ac41a6218 87-91,106-110
 go/internal/storage/postgres/schema_test.go
   s_b0d7e3abc26c5a::t_ec66c970aabcad 297,311-313,322-323,342-344
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_b0d7e3abc26c5a::t_fa187c131ce26b 36-37,44
+  s_b0d7e3abc26c5a::t_a2608b2edb6c8c 38
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_b0d7e3abc26c5a::t_6077c7c905cb61 185
+  s_b0d7e3abc26c5a::t_6b59194c4402a2 186
 ---
 {
   "schema_version": "authorship/3.0.0",
