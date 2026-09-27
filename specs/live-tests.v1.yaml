@@ -302,6 +302,11 @@ tests:
     class: scheduled
     reason: "#7325 realistic-CALLS-density repo-scale Neo4j proof: extends the #6929/#7297 seed with deterministic CALLS out-degree and proves the outlier CALLS-fanout batch size at an effective 50-key batch vs. the committed 250-key batch; env-gated by ESHU_OUTLIER_NEO4J_LIVE rather than a build tag, same sibling gate as outlier_repo_scale_live_test.go — promote to blocking with repeated timing evidence"
     backends: neo4j
+  - file: go/internal/query/codequery/outlier_tail_repo_scale_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7339 high-degree-tail repo-scale Neo4j proof: base plus #7325 density seed plus a deterministic 521-max CALLS tail aligned to production chunk index 1; proves batch 50 vs. 250 rows/findings-identical in both key orders with cold and warm p95; env-gated by ESHU_OUTLIER_NEO4J_LIVE — promote to blocking with repeated timing evidence"
+    backends: neo4j
   - file: go/internal/query/codequery/outlier_live_test.go
     tag: live_nornicdb_convention_outlier
     class: scheduled
