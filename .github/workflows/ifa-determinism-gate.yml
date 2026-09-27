@@ -185,6 +185,7 @@ on:
       - 'go/cmd/golden-corpus-gate/main.go'
       - 'go/cmd/golden-corpus-gate/runner.go'
       - 'go/cmd/golden-corpus-gate/drains.go'
+      - 'go/cmd/golden-corpus-gate/drains_readiness_classes.go'
       - 'go/cmd/golden-corpus-gate/shared.go'
       - 'go/internal/goldengate/snapshot.go'
       - 'go/internal/goldengate/evaluate_drains.go'
