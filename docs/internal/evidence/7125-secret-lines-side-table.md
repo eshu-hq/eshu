@@ -152,7 +152,7 @@ r7a.4xlarge, 16 vCPU, PostgreSQL 18.6, `postgres:18-alpine`
 `sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2`,
 `shared_buffers=2GB work_mem=64MB`) with `TestContentFileSecretLinesWriteCostLive`
 (records-only `ContentWriter.Write`, 12,000 real files, 69 MB, 5 interleaved rounds,
-alternating first mover, commit `8984ba1db8` against a pre-131 schema):
+alternating first mover, commit `8984ba1db8` before the secret-lines migration):
 
 | regime | phase | no triggers (median) | triggers (median) | delta | per file |
 | --- | --- | --- | --- | --- | --- |

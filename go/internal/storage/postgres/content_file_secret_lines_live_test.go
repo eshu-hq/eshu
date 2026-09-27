@@ -90,7 +90,7 @@ FROM content_file_secret_lines ORDER BY repo_id, relative_path, line_number`)
 func TestContentFileSecretLinesMigrationBackfillsAndReappliesLive(t *testing.T) {
 	ctx, db := openSecretLinesDatabase(t)
 
-	// Return the database to its pre-131 state, then load rows the migration
+	// Return the database to its pre-133 state, then load rows the migration
 	// must backfill.
 	for _, stmt := range []string{
 		`DROP TRIGGER content_files_secret_lines_insert ON content_files`,
@@ -110,7 +110,7 @@ INSERT INTO content_files (repo_id, relative_path, content, content_hash, line_c
  ('repo-b', 'src/stripe.go', 'stripe = "sk_live_ABCDEFGH12"', 'h4', 1, 'go', now()),
  ('repo-b', 'src/crlf.py', E'x = 1\r\ntoken=abcdefgh1\r\n', 'h5', 2, 'python', now())`)
 	if err != nil {
-		t.Fatalf("seed pre-131 content_files: %v", err)
+		t.Fatalf("seed pre-133 content_files: %v", err)
 	}
 
 	want := []string{

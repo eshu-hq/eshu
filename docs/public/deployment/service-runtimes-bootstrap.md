@@ -51,7 +51,7 @@ retry, though, the invalid index still costs write overhead on every insert
 while serving no reads, so a failed build is worth restarting promptly rather
 than leaving in place.
 
-Migration `131` (#7125) is the one migration that blocks content writes for the
+Migration `133` (#7125) is the one migration that blocks content writes for the
 length of a backfill. It creates the `content_file_secret_lines` side table,
 its derivation function, and two statement-level triggers on `content_files`,
 then derives findings for every existing file in the same transaction. The
@@ -70,9 +70,9 @@ batched, repository-partitioned rebuild described below runs only for a
 bootstrap-index bulk load.
 
 Roll the schema bootstrap out before the API pods that read the table. If a new
-API pod starts before `131` is applied, the missing readiness table keeps its
+API pod starts before `133` is applied, the missing readiness table keeps its
 hardcoded-secrets investigation on the legacy content scan until migration
-completes. After `131` the triggers keep the table current for every
+completes. After `133` the triggers keep the table current for every
 writer, including older binaries, so no writer fence is needed. A manual
 `TRUNCATE content_files` now needs `CASCADE` (or must also name
 `content_file_secret_lines`).
@@ -338,13 +338,13 @@ normal freshness.
 
 ### Secret-line finalizer
 
-Migration `131`'s triggers add about 0.6 ms of Postgres time per new file, which
+Migration `133`'s triggers add about 0.6 ms of Postgres time per new file, which
 a bulk load cannot absorb. `eshu-bootstrap-index` therefore treats the
 hardcoded-secret side table the way it already treats the content substring
 indexes: a bulk-load regime with a finalizer, gated by a state row.
 
 - Every bootstrap-index connection runs
-  `SET eshu.secret_lines_derive = 'deferred'`. Migration `131`'s two
+  `SET eshu.secret_lines_derive = 'deferred'`. Migration `133`'s two
   `content_files` triggers test that setting in their `WHEN` clause and skip the
   session's writes. Nothing runs `ALTER TABLE ... DISABLE TRIGGER`, so no lock is
   taken and every other writer (ingester, projector, manual SQL) keeps deriving.
