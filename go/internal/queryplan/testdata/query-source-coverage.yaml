@@ -357,7 +357,10 @@ source_coverage:
       # TestNoTierWriterWithoutSingleMembershipContract
       # (storage/cypher/tier_writer_scan_test.go), which fails the build the
       # moment a :Tier writer appears without a tierSingleMembershipWriters
-      # entry naming this row. See #6590.
+      # entry naming this row. fan_out_multiplier: 1 describes the merged output
+      # after blastRadiusRepoTiers withholds ambiguous repos (<=1 row per key),
+      # not raw statement rows: the statement has no LIMIT, so under ambiguity
+      # one Run can return more than max_results rows. See #6590.
       - {symbol: "(*Handler).enrichBlastRadiusTiers", count: 1, non_hot: {class: keyed_support, source_sha256: c3b7a8827f8a9bdfed98c2840dd82c3bedc7877e5c7ce5e3fd59f126026b67d3, key_bound: bounded_key_batch, max_keys: 200, fan_out_multiplier: 1, max_results: 200}}
   - file: impact/change_surface_investigation.go
     calls:
