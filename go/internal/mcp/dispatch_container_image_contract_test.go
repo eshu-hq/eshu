@@ -378,7 +378,7 @@ func TestResolveRouteMapsContainerImageAggregatesForwardSourceRepositoryScope(t 
 func TestContainerImageAggregateToolSchemasAdvertiseSourceRepositoryScope(t *testing.T) {
 	t.Parallel()
 
-	for _, tool := range containerImageIdentityAggregateTools() {
+	for _, tool := range containerImageAggregateTools() {
 		schema := tool.InputSchema.(map[string]any)
 		properties := schema["properties"].(map[string]any)
 		sourceRepository := properties["source_repository_id"].(map[string]any)

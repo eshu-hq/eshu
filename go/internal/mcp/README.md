@@ -186,10 +186,10 @@ is not broken out here).
 | `kubernetesTools` | 1 | `types.go` (wraps `kubernetes/tools.go`) |
 | `secretsIAMTools` | 5 | `types.go` (wraps `access/posture/tools.go`) |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
-| `supplyChainTools` | 7 | `tools_supply_chain.go` |
+| `supplyChainTools` | 8 | `tools_supply_chain.go` (splices `container/image/tools.go`) |
 | `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
 | `securityAlertReconciliationAggregateTools` | 2 | `types.go` (wraps `alerts/aggregates.go`) |
-| `containerImageIdentityAggregateTools` | 2 | `tools_container_image_aggregates.go` |
+| `containerImageAggregateTools` | 2 | `types.go` (wraps `container/image/tools.go`) |
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
