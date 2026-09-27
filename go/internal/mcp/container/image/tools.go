@@ -9,9 +9,9 @@ import (
 
 // Tools returns the container-image identity list definitions owned by this
 // package: the cursor-paged identity listing and the ordered tag history.
-// The parent mcp package splices the whole family slice at its long-standing
-// position inside the supply-chain block, so a future arity change registers
-// automatically instead of panicking on an index.
+// The parent mcp package splices them at their long-standing positions
+// inside the supply-chain block behind an arity guard, so an arity change
+// fails fast there instead of silently mis-registering.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
