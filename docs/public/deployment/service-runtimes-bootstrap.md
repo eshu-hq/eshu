@@ -70,9 +70,9 @@ batched, repository-partitioned rebuild described below runs only for a
 bootstrap-index bulk load.
 
 Roll the schema bootstrap out before the API pods that read the table. If a new
-API pod starts before `137` is applied, the missing readiness table keeps its
+API pod starts before `138` is applied, the missing readiness table keeps its
 hardcoded-secrets investigation on the legacy content scan until migration
-completes. After `137` the triggers keep the table current for every
+completes. After `138` the triggers keep the table current for every
 writer, including older binaries, so no writer fence is needed. A manual
 `TRUNCATE content_files` now needs `CASCADE` (or must also name
 `content_file_secret_lines`).
