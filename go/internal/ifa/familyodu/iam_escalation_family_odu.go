@@ -21,7 +21,7 @@ import (
 // canonicalIAMEscalationEdgeUpsertCypher (no %s: the merged primitive set
 // lives in the rel.primitives property, never in the relationship type, so
 // the MERGE keys on the stable (principal_uid, CAN_ESCALATE_TO, target_uid)
-// triple). It Read it off the template and the iamEscalationEdgeLabel const
+// triple). Read it off the template and the iamEscalationEdgeLabel const
 // (which IS "CAN_ESCALATE_TO": the const doubles as the relationship type
 // and the statement-metadata tag), never by deriving from the port or family
 // name — "IAM_ESCALATION" appears nowhere in code, and a name-derived
@@ -457,7 +457,7 @@ func IAMEscalationFamilyOdu() CatalogOdu {
 
 	return CatalogOdu{
 		Odu:    Odu{Name: IAMEscalationFamilyOduName, Facts: factsForOdu},
-		Detail: "twenty-two facts for the direct-materialization iam_escalation family: seven aws_resource node facts (two edge principals, four escalation targets across policy/role/group, one scanned role with no statements) and fifteen aws_iam_permission identity statements (six edge-producing Allows converging on five CAN_ESCALATE_TO edges with two primitives merging on one role edge, nine deliberate non-producers covering the self-loop, deny, conditioned, NotAction, wildcard, unscanned-target, unscanned-principal, sts:AssumeRole-deferral, and wrong-target branches), so the CAN_ESCALATE_TO expected set proves both primitive resolution and restraint",
+		Detail: "twenty-two facts for the direct-materialization iam_escalation family: seven aws_resource node facts (two edge principals, four escalation targets across policy/role/group, one scanned role with no statements) and fifteen aws_iam_permission identity statements (six edge-producing Allows converging on five CAN_ESCALATE_TO edges with three primitives from two statements merging on one role edge, nine deliberate non-producers covering the self-loop, deny, conditioned, NotAction, wildcard, unscanned-target, unscanned-principal, sts:AssumeRole-deferral, and wrong-target branches), so the CAN_ESCALATE_TO expected set proves both primitive resolution and restraint",
 	}
 }
 

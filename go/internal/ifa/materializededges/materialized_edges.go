@@ -218,7 +218,7 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveInvokesCloudActionMaterializedEdges(odu, invokesCloudActionExpectedEdgesPath(r.RepoRoot))
 	// The DIRECT-materialization families (#6228). Every arm above is a
 	// reducer.MaterializedEdgeFamilies() entry reaching the graph through the
-	// shared-projection intent path; the four below are
+	// shared-projection intent path; the six below are
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//

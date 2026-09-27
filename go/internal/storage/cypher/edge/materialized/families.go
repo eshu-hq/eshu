@@ -150,11 +150,11 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 five of the six carry coverage rows. Registering a family
+	// Since #6309 two of the six carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
-	// drives it. workload_cloud_relationship and iam_can_assume still carry
-	// their waiver rows in
+	// drives it. workload_cloud_relationship, iam_can_assume,
+	// iam_can_perform, and iam_escalation still carry their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment

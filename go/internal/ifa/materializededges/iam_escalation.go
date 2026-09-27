@@ -54,9 +54,9 @@ func iamEscalationExpectedEdgesPath(repoRoot string) string {
 // the write template UNWINDs, so the rows-to-edges mapping is one-for-one
 // with no routing predicate to reproduce. What the fixture proves instead is
 // the extractor's resolution behaviour: six Allows fan out one edge per
-// DISTINCT resolved (principal, target) pair — a policy-target primitive, a
-// role-target primitive, two primitives on one role converging on a single
-// merged-primitives edge, a group-target primitive, a PassRole-family
+// DISTINCT resolved (principal, target) pair — a policy-target primitive,
+// three primitives from two statements converging on a single
+// merged-primitives role edge, a group-target primitive, a PassRole-family
 // multi-action primitive, and a second principal resolving a user target —
 // while a self-loop, a Deny, a conditioned statement, a NotAction, a
 // wildcard, an unscanned target ARN, an unscanned principal, a deferred
