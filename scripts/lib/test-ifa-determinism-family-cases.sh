@@ -266,22 +266,25 @@ require_shell_exec_lib "shell-exec assert-edges domain" "-domain shell_exec"
 require_shell_exec_lib "shell-exec drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected "${expected_edges}"'
 
-# kubernetes_namespace_environment and iam_instance_profile_role (#6228): the
-# first DIRECT-materialization families in the shared cell. They share ONE lib
-# file (scripts/lib/ifa_direct_family_live.sh) because their drive and assert
-# bodies differ only in a cassette path and a domain, but each needle below
-# names its OWN domain, so the shared file cannot let one family's wiring pass
-# for the other's.
+# kubernetes_namespace_environment, iam_instance_profile_role and iam_can_assume
+# (#6228): the first DIRECT-materialization families in the shared cell. They
+# share ONE lib file (scripts/lib/ifa_direct_family_live.sh) because their
+# drive and assert bodies differ only in a cassette path and a domain, but
+# each needle below names its OWN domain, so the shared file cannot let one
+# family's wiring pass for another's.
 #
-# The exact-set assert carries more weight for these two than for most. Both
-# fixtures are built around edges that must NOT exist -- two namespaces whose
-# labels bind no Environment, and two instance profiles (one naming an
-# unscanned role, one with no attachment) that must produce nothing -- and a
+# The exact-set assert carries more weight for these three than for most. All
+# three fixtures are built around edges that must NOT exist -- two namespaces
+# whose labels bind no Environment, two instance profiles (one naming an
+# unscanned role, one with no attachment) that must produce nothing, and seven
+# trust statements (deny, wildcard, service principal, foreign, ghost-source,
+# self-assume, non-trust source) that must resolve to nothing -- and a
 # count-only or digest check cannot tell "correct" from "invented an endpoint".
 require_direct_family_lib "kubernetes-namespace-environment assert-edges domain" "-domain kubernetes_namespace_environment"
 require_direct_family_lib "kubernetes-namespace-environment drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "direct-family assert is exact-set, not a digest" '-expected "${expected_edges}"'
 require_direct_family_lib "iam-instance-profile-role assert-edges domain" "-domain iam_instance_profile_role"
+require_direct_family_lib "iam-can-assume assert-edges domain" "-domain iam_can_assume"
 
 # handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
 # share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive
@@ -312,6 +315,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[invokes_cloud_action]="-domain invokes_cloud_action"
 	[kubernetes_namespace_environment]="-domain kubernetes_namespace_environment"
 	[iam_instance_profile_role]="-domain iam_instance_profile_role"
+	[iam_can_assume]="-domain iam_can_assume"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -383,14 +387,14 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The two DIRECT families (#6228) join the drive half of this list only. Both
-# are dispatched into every N cell through the registry loop, so neither drive
-# function has a legitimate bare-name call in the gate -- but each ASSERT
-# function does have exactly one (the post-delta re-assertion pinned below), so
-# the asserts take a count pin instead of a place here.
+# The three DIRECT families (#6228) join the drive half of this list only. All
+# three are dispatched into every N cell through the registry loop, so no
+# drive function has a legitimate bare-name call in the gate -- but each
+# ASSERT function does have exactly one (the post-delta re-assertion pinned
+# below), so the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -414,15 +418,15 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The two DIRECT families (#6228/#6309) take the same single-post-delta-call
-# shape as the three above. Both were asserted pre-delta ONLY when they landed,
-# and the matrix cannot see that gap: it compares one canonicalized digest per
-# N, so a generation-2 regression that retracts or mutates these edges
-# identically at N=1, 2 and 4 keeps all three digests equal and the gate green
-# while the graph no longer matches the expected set. A count pin alone would
-# be satisfied by the pre-delta call moving out of the loop, so the ordering
-# check below is what says WHERE the surviving call has to be.
-for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert; do
+# The three DIRECT families (#6228/#6309) take the same single-post-delta-call
+# shape as the three above. All three were asserted pre-delta ONLY when they
+# landed, and the matrix cannot see that gap: it compares one canonicalized
+# digest per N, so a generation-2 regression that retracts or mutates these
+# edges identically at N=1, 2 and 4 keeps all three digests equal and the gate
+# green while the graph no longer matches the expected set. A count pin alone
+# would be satisfied by the pre-delta call moving out of the loop, so the
+# ordering check below is what says WHERE the surviving call has to be.
+for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert ifa_iam_can_assume_assert; do
 	# `|| true`, and the shape check that follows it, are load-bearing under
 	# `set -e`: rg exits 1 on ZERO matches, so a bare command substitution
 	# would abort this whole mirror with status 1 and print nothing at all --
@@ -435,10 +439,13 @@ for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_inst
 done
 post_delta_ns_line="$(rg -n --fixed-strings -- 'ifa_kubernetes_namespace_environment_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 post_delta_iam_line="$(rg -n --fixed-strings -- 'ifa_iam_instance_profile_role_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ \
+post_delta_can_line="$(rg -n --fixed-strings -- 'ifa_iam_can_assume_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ && "${post_delta_can_line}" =~ ^[0-9]+$ \
 	&& "${delta_call_line}" -lt "${post_delta_ns_line}" \
 	&& "${post_delta_ns_line}" -lt "${post_delta_dump_line}" \
 	&& "${delta_call_line}" -lt "${post_delta_iam_line}" \
-	&& "${post_delta_iam_line}" -lt "${post_delta_dump_line}" ]] \
-	|| fail "every N cell must exact-assert both DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
+	&& "${post_delta_iam_line}" -lt "${post_delta_dump_line}" \
+	&& "${delta_call_line}" -lt "${post_delta_can_line}" \
+	&& "${post_delta_can_line}" -lt "${post_delta_dump_line}" ]] \
+	|| fail "every N cell must exact-assert all three DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
 }

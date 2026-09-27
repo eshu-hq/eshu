@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the two DIRECT-materialization families
-# (#6228): kubernetes_namespace_environment and iam_instance_profile_role.
+# Live-gate drive/assert callbacks for the three DIRECT-materialization families
+# (#6228): kubernetes_namespace_environment, iam_instance_profile_role and
+# iam_can_assume.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
 # (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
 # and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
 # call the drive/assert callbacks below; the families' registry rows carry
-# cell_kind=custom. Callers own strict mode and cleanup.
+# cell_kind=custom. iam_can_assume has no fault cells yet: its row carries
+# cell_kind=custom prospectively and the fault gate never dispatches it, so
+# the fault-injection area stays untouched by this change. Callers own strict
+# mode and cleanup.
 #
-# ONE FILE FOR TWO FAMILIES, unlike the shared-projection families' one file
+# ONE FILE FOR THREE FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
-# name and a log filename, and both are four lines of real work; two files
-# would be one contract in two places. The per-family REGISTRY ROWS stay
+# name and a log filename, and each is four lines of real work; three files
+# would be one contract in three places. The per-family REGISTRY ROWS stay
 # separate, which is where the split that matters already is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
@@ -44,10 +48,10 @@ _ifa_direct_family_drive() {
 # Each assert below spells its `-domain <family>` flag out literally rather
 # than taking the domain as a parameter. That is deliberate: the domain is the
 # one thing a shared helper must not abstract away, because it is what makes
-# these two families' assertions distinguishable from each other, and
+# these three families' assertions distinguishable from each other, and
 # scripts/lib/test-ifa-determinism-family-cases.sh greps each family's own flag
 # out of this file to prove the wiring exists. A parameterized call would let
-# one family's coverage stand in for the other's and satisfy that check with a
+# one family's coverage stand in for another's and satisfy that check with a
 # single needle.
 
 # ifa_kubernetes_namespace_environment_drive replays the namespace cassette.
@@ -164,5 +168,37 @@ ifa_iam_instance_profile_role_assert() {
 	printf '\n=== %s: assert iam_instance_profile_role materialized edges (two-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain iam_instance_profile_role \
+		-expected "${expected_edges}"
+}
+
+# ifa_iam_can_assume_drive replays the can-assume cassette.
+ifa_iam_can_assume_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive iam-can-assume \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_iam_can_assume_assert pins the two-edge exact set. Called twice per
+# cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
+#
+# Both edges come from ONE Allow trust statement on the eshu-runtime role
+# fanning out to the two scanned principals (the ci-deployer role and the
+# breakglass user), so a regression that emitted one edge per statement
+# instead of one per resolved principal still produces "some edges" and fails
+# only against an exact set. The fixture's other seven statements -- deny,
+# wildcard, service principal, unscanned foreign ARN, unscanned source role,
+# self-assume, non-trust source -- must contribute nothing; the extractor
+# drops an unresolved principal rather than inventing an endpoint, and this
+# set is what holds it to that.
+#
+# The relationship type is CAN_ASSUME, read off the writer's MERGE. It is NOT
+# IAM_CAN_ASSUME, which is statement metadata carried beside the query and
+# never reaches the graph.
+ifa_iam_can_assume_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert iam_can_assume materialized edges (two-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain iam_can_assume \
 		-expected "${expected_edges}"
 }

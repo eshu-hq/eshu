@@ -57,7 +57,7 @@ func canonicalOduJSON(t *testing.T, odu ifa.Odu) string {
 	return string(blob)
 }
 
-// Compiled-catalog/cassette lockstep for the two direct-materialization
+// Compiled-catalog/cassette lockstep for the three direct-materialization
 // families (#6228).
 //
 // Each family keeps the same fixture twice: the Go-compiled Odù that
@@ -67,7 +67,7 @@ func canonicalOduJSON(t *testing.T, odu ifa.Odu) string {
 // guard proves the compiled half; the live gate proves the cassette half. Only
 // these tests prove they are the same fixture.
 //
-// Without them the two drift silently, and the failure is bad in a specific
+// Without them the halves drift silently, and the failure is bad in a specific
 // way: the offline guard keeps passing on the compiled Odù while the live gate
 // drives different facts, so a coverage row would attest to a proof over
 // something other than what it names. That is the same class of defect as a
@@ -75,8 +75,8 @@ func canonicalOduJSON(t *testing.T, odu ifa.Odu) string {
 // had to fix once.
 
 // directFamilyCassetteCase pairs a family's compiled Odù with the loader and
-// path for its committed cassette, so both families run the identical
-// comparison instead of two hand-copied bodies that can diverge.
+// path for its committed cassette, so all families run the identical
+// comparison instead of hand-copied bodies that can diverge.
 type directFamilyCassetteCase struct {
 	// name is the family's Odù catalog name, used to look the compiled Odù up
 	// and to name the subtest.
@@ -102,6 +102,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			compiled:     ifa.IAMInstanceProfileRoleFamilyOdu,
 			cassettePath: ifa.IAMInstanceProfileRoleFamilyCassetteFullPath,
 			load:         ifa.LoadIAMInstanceProfileRoleFamilyOdu,
+		},
+		{
+			name:         ifa.IAMCanAssumeFamilyOduName,
+			compiled:     ifa.IAMCanAssumeFamilyOdu,
+			cassettePath: ifa.IAMCanAssumeFamilyCassetteFullPath,
+			load:         ifa.LoadIAMCanAssumeFamilyOdu,
 		},
 	}
 }

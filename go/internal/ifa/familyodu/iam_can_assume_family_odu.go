@@ -43,7 +43,18 @@ const (
 	// this Odù belongs to. The reducer handler loads one scope generation's
 	// aws_resource + aws_iam_permission facts, so a fixture spanning scopes
 	// would not mirror any real intent.
-	iamCanAssumeFamilyScopeID = "aws:eshu-fixture-account"
+	//
+	// The scope is deliberately NOT aws:eshu-fixture-account, which the
+	// iam_instance_profile_role family cassette already owns. Scopes carry
+	// one ACTIVE generation (scope.active_generation_id); driving a second
+	// generation into an occupied scope supersedes the first family's
+	// generation, its handler never runs, and the sibling exact-set assert
+	// fails with zero edges -- diagnosed live 2026-09-27 on the shared
+	// scope, root-caused to fan-out keyed off the active generation, fixed
+	// by giving this family its own scope. One live generation per scope per
+	// cell is the contract; the sibling cassettes already follow it
+	// (kubernetes_live:eshu-fixture-cluster vs aws:eshu-fixture-account).
+	iamCanAssumeFamilyScopeID = "aws:eshu-fixture-can-assume-account"
 
 	// iamCanAssumeFamilyAccountID and iamCanAssumeFamilyRegion are the account
 	// and region every fact below shares. IAM is a global service, so the
@@ -79,7 +90,7 @@ const (
 	iamCanAssumeFamilyBreakglassUserARN = "arn:aws:iam::123456789012:user/breakglass"
 	iamCanAssumeFamilyObserverRoleARN   = "arn:aws:iam::123456789012:role/unattached-observer"
 	iamCanAssumeFamilyGhostRoleARN      = "arn:aws:iam::123456789012:role/ghost-unscanned"
-	iamCanAssumeFamilyForeignRoleARN    = "arn:aws:iam::999988887777:role/foreign-deployer"
+	iamCanAssumeFamilyForeignRoleARN    = "arn:aws:iam::000000000000:role/foreign-deployer"
 )
 
 // iamCanAssumeFamilyResourceFixture describes one aws_resource fact in the
