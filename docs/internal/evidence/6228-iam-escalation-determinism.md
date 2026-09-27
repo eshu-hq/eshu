@@ -81,3 +81,32 @@ No new series, spans, or log schemas: the builder emits a standard reducer
 intent through the existing fan-out path, and the handler/writer telemetry
 is untouched. Telemetry coverage unchanged by construction; the live run
 exercised the standard reducer/projector signals only.
+
+No-Regression Evidence: no production query-text, extractor, handler,
+trigger-matcher, or dispatch change. The writer const rename
+(canonicalIAMEscalationEdgeUpsertCypher / RetractIAMEscalationEdgesCypher)
+is identifier-only: the MERGE/MATCH statement text is byte-identical, so
+every executed statement is one the pre-change gate already proved. The
+only new graph-write statement is none: this family needs no seed (the
+fixture's collector facts produce committed CloudResource nodes through
+the canonical pipeline, unlike workload_cloud_relationship). The projector
+builder adds one probe over the shared immutable fact index (probe count
+45->46, parity domains 43->44, both pinned). Baseline: pre-change
+origin/main matrix (sibling families' digests). After: this branch's
+matrix run -- digests identical across N=1/2/4 for every pre-existing
+family; iam_escalation asserts 5/5 edges exact pre- and post-delta in all
+three cells. Backend: NornicDB fix-500-e022384c (digest verified equal to
+the pinned sha256:74a8ed...) + Postgres (local determinism stack); Neo4j
+in the CI differential cell. Input shape: 22-fact Odu (7 nodes + 15
+statements: 6 edge-producing Allows converging on 5 edges, 9 deliberate
+non-producers), 5-edge expected set; terminal row counts: 6/6 escalation
+asserts green, 0 failures, empty dead-letter. The fault-injection half is
+explicitly out of scope (no fault cells; row cell_kind=custom rejected by
+generic dispatchers).
+
+No-Observability-Change: no new metrics, spans, logs, or status surfaces.
+The builder emits a standard reducer intent through the existing fan-out
+path with the family's domain label; the handler/writer telemetry is
+untouched. Telemetry evidence: determinism cell logs show the standard
+drive/assert sections with the iam_escalation domain label; no new log
+lines or status keys.
