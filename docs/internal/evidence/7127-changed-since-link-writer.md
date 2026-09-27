@@ -112,7 +112,7 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G6 RssAnon | PASS | Fixed statement, G8 cap proof: the peak single-backend RssAnon of a 1.0x link never exceeded 494,280 kB (482.7 MiB) in 30 windows, against 524,288 kB (512 MiB); 5.7% margin. The first run (pre-fix statement) measured 464,480 kB. |
 | G7 timing ratio | PASS | Rerun on the fixed statement (P7): 10 valid rounds (load at start 4.95-13.94 on 18 CPUs), L1b/bare_b paired median **1.086** (range 0.895-1.301; gate 1.3). Root/bare_b median 1.841 against 3x; one round (round 4) reached 4.425, a 27.05 s root sample against 8.3-15.3 s elsewhere. Per-round table in the G8 companion note. |
 | G8 cap proof | PASS | Fixed statement, fresh container, load-gated (P8 a): 10 valid windows for each of n = 1 / 2 / 4; median slowest link wall 6.85 / 7.18 / 7.90 s; median summed RssAnon 468 / 733 / 1,375 MiB (max 507 / 848 / 1,763 MiB); read-probe p95 median 1.5 / 2.2 / 1.7 ms; 0 temp files; no timeout. The earlier stall (round 26) was the statistics-sensitive delete plan, fixed under ruling arb-7127-g8 and proven by P1-P8; see the companion note. |
-| G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. The reducer binary itself was not run: it needs a graph backend, which this proof does not. |
+| G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. Built binary: two `cmd/reducer` processes, see "G9 on the built binary". |
 | G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
 | G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
 | G12 slot outcomes | PASS | Store `TestSlotBusyBlocksFullLinksOnly`; runner `TestRunnerMovesOnPastABusySlot`: with every slot held the full link is a non-counting `slot_busy` (`attempt_count` 0) and the runner moves on; a delta activation of another scope completes in the same cycle. |
@@ -122,9 +122,48 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G16a poison bound | PASS | Runner `TestRunnerPoisonsAFailingLinkAfterMaxAttempts`: a link made to fail every time (a planted trigger) is tried exactly 5 times, then one `link_poisoned` break; the cursor passes the activation once; state rows and `state_generation_id` unchanged; a healthy scope links both its activations in the first cycle. Store `TestFailingLinkIsPoisonedAfterMaxAttempts`: `next_attempt_at` strictly increasing (30 s, 60 s, 120 s, 240 s), deferred inside the backoff. RED: the same check on a runner with no effective limit reports violations. |
 | G16b non-counting | PASS | `TestNonCountingOutcomesNeverPoison`: slots held, cursor held and generation held, each for MaxAttempts + 2 cycles: `attempt_count` 0 and no poison marker. RED: a planted classifier that counts `slot_busy` counts and poisons. `TestRecordFailureSkipsAHeldCursor`: a count is never written without the cursor lock. |
 | G16c recovery | PASS | `TestFailingLinkIsPoisonedAfterMaxAttempts`: after the poisoning the next full generation links `incremental` from the kept state, the state equals its aggregate, and the marker is cleared. |
-| G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. Like G9, this ran on two OS processes of the compiled test binary with the production `Runner`, not on two reducer binaries: the reducer binary needs a graph backend. The dark deployment supplies the built-binary evidence (review F9). |
+| G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. Like G9, this ran on two OS processes of the compiled test binary with the production `Runner`; the same count held on two built `cmd/reducer` processes (see "G9 on the built binary"). |
 | G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 502 rows on `origin/main` `944c526081`, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
 | G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
+
+## G9 on the built binary
+
+Ruling 8.10 asks for G9 on two reducer processes from the built binary. This
+run used two `cmd/reducer` processes built from this branch (Go code
+identical to `4b2eacc29b`, go1.27.1 darwin/arm64, `eshu-reducer` sha256
+`df2efbe99d95b341…6012e856`), one Postgres (`postgres:18-alpine` 18.6,
+`sha256:77f585114c32…1a1873`) and one Neo4j (`neo4j:2026-community`, Neo4j
+2026.09.0, `sha256:91fb0bf237c4…fdf4e`; not the compose pin, which this host
+did not have). Schema came from the built `eshu-bootstrap-data-plane` (rc 0).
+
+Each process ran with `ESHU_GRAPH_BACKEND=neo4j`,
+`ESHU_CHANGED_SINCE_LINK_ENABLED=true`,
+`ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL=200ms`, the other link knobs at their
+defaults (2 slots, 4 workers, 120 s, 5 attempts), and
+`ESHU_GENERATION_RETENTION_ENABLED=false` with
+`ESHU_QUERY_PROFILE=local_full_stack`, so retention could not prune the
+seeded generations. Both processes were healthy (`/healthz` 200) before the
+seed. The seed is the fixture of `TestTwoProcessRunnersLinkEachActivationOnce`
+as one SQL transaction: 40 scopes, generations g0 and g1 (full, 4,000 facts
+each) and g2 (delta, active), three journal rows per scope. The bootstrap's
+`eshu:global` scope adds one sweeper activation. The backlog drained within
+5 s of the commit. The reference is one process of the same binary on a
+second database, same bootstrap and seed.
+
+| Check | Two processes | Reference (one process) |
+| --- | --- | --- |
+| Outcomes, from each process's `eshu_dp_changed_since_links_total` | A: 21 root, 21 incremental, 21 breaks; B: 20 root, 19 incremental, 19 breaks | 41 root, 40 incremental, 40 breaks |
+| Activations, and outcomes from the `changed-since link` log lines | 121, and 121 lines (A 63, B 58); no (scope, activation_seq) twice; 3 scopes had activations linked by both processes, in order | 121 |
+| `cursor_locked` (non-counting) | A 8, B 7 | 0 |
+| `slot_busy` (non-counting) | A 205, B 222 | 360 |
+| Failures, poisonings | no `link_failures_total` series, `link_poisoned_scopes` 0, no `changed-since link failed` or `poisoned` log line | same |
+| Cursor state | `attempt_count` 0 and no poison marker on every cursor; every cursor at its last activation | same |
+| Ledger equality | md5 of each table (activations, key state 160,000 rows, link deltas 5,160, bucket counts 40, links 80, cursors 40; `race-*` scopes, timestamps excluded) equal to the reference; `eshu:global` rows equal in count | reference |
+
+The only ERROR lines in either log were `claim partition lease: context
+canceled` from the shared-projection runner at SIGTERM, after the drain.
+Commands and raw output (launcher, seed SQL, digest SQL, logs, metrics) stayed
+in the operator scratchpad; both containers were removed afterwards.
 
 ## Scale run
 
@@ -269,8 +308,9 @@ the golden digest, count and checksum.
 - G16f: no Ifá rows, because no `fact_work_items` row is created and no graph
   edge is written; `ifa-determinism` and `ifa-fault-injection` still run on
   the migration change.
-- G9 and G16d ran on two processes of the compiled test binary, not the
-  reducer binary, which needs a graph backend.
+- G9 and G16d ran on two processes of the compiled test binary and on two
+  built `cmd/reducer` processes against Postgres and Neo4j; the ledger of the
+  two-process run equals a one-process reference ("G9 on the built binary").
 - PR-3c must use the LATERAL form of the chain read (G4).
 - Known gap (ruling 8.10 item 10): a poisoned link is not listed by
   `list_dead_letter_work_items` or the status surface; the cursor row is the
