@@ -69,7 +69,7 @@ no Tier writer exists yet to enforce anything in the schema).
 ## Tier per-key cardinality (verified facts)
 
 - `blastRadiusTierLookupCypher`
-  (`go/internal/query/impact/blast_radius.go:293-295`) is a single
+  (`go/internal/query/impact/blast_radius.go:302-304`) is a single
   `MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids
   RETURN ...` with no `LIMIT` and no `DISTINCT`.
 - No `:Tier` writer exists anywhere in non-test Go under `go/cmd` or
