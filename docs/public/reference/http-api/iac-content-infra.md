@@ -661,8 +661,8 @@ return `source_backend=unavailable` instead of reading from a server workspace
 checkout when PostgreSQL is disabled or missing a row. Content search requires
 the PostgreSQL content store.
 
-Content search `limit` defaults to 50, is capped at 200, and uses `offset` with
-a cap of 10000. Entity search rows clip `source_cache` at 4,096 bytes with row and response markers ([read clip](source-cache-clip.md)).
+Content search `limit` defaults to 50, caps at 200, and uses `offset` (max 10000); entity pages sort by repository ID, path, start line, and entity ID, with `truncated` marking more rows.
+Entity search rows clip `source_cache` at 4,096 bytes with row and response markers ([read clip](source-cache-clip.md)).
 
 ## Infrastructure And Impact
 

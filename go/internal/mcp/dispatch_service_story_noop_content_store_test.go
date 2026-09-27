@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // mcpNoopContentStore is a no-op query.ContentStore double used by the
@@ -89,6 +90,14 @@ func (mcpNoopContentStore) ListRepoEntitiesByTypes(context.Context, string, []st
 }
 
 func (mcpNoopContentStore) ListRepoEntitiesByPaths(context.Context, string, []string, int) ([]query.EntityContent, error) {
+	return nil, nil
+}
+
+// ListRepoEntitiesByKeys returns no rows because this service-story double has
+// no parsed entity fixtures to hydrate.
+func (mcpNoopContentStore) ListRepoEntitiesByKeys(
+	context.Context, string, []querycontract.EntityContentKey,
+) ([]query.EntityContent, error) {
 	return nil, nil
 }
 

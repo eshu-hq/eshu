@@ -26,6 +26,20 @@ type FileContent struct {
 	SearchBackend string `json:"search_backend,omitempty"`
 }
 
+// MaxEntityContentKeys bounds one exact-key hydration batch to the largest
+// entity page, including its truncation sentinel row.
+const MaxEntityContentKeys = 101
+
+// EntityContentKey identifies a parsed entity by its repository-local graph
+// location and name. A graph entity ID may differ from the content entity ID,
+// so metadata hydration uses this exact, comparable tuple instead.
+type EntityContentKey struct {
+	RelativePath string
+	EntityType   string
+	EntityName   string
+	StartLine    int
+}
+
 // EntityContent is one parsed entity from the content store.
 type EntityContent struct {
 	EntityID     string         `json:"entity_id"`

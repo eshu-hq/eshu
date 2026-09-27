@@ -72,6 +72,22 @@ writes as a count-free 409. An id-only lookup still reads one row, because
 `reason=grant_denied` once per request, and only when the name lookup, the id
 lookup, and the read model all came back empty.
 
+## Resolver metadata hydration (#7241)
+
+Repository-scoped graph resolution and entity context keep the graph row's ID,
+order, and count. For sparse metadata they batch content lookups by graph ID;
+when an ID is absent or points to a different path/type/name/start line, they
+batch exact location keys in that repository. A key returning multiple content
+rows fails the read instead of selecting arbitrary metadata. Existing graph
+metadata takes precedence, and a matched ID with empty metadata does not
+borrow another row's metadata. No resolver metadata lookup uses source-cache
+substring search.
+
+The handler records count-only ID-hit, key-hit, miss, and ambiguity attributes
+on the request trace. `ContentReader` records separate Postgres query spans
+for the ID and exact-key batches. The public content entity search still uses
+substring semantics and its own bounded, explicitly truncated pages.
+
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,

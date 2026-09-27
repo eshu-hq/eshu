@@ -113,6 +113,7 @@ the graph are unaffected.
   `imported_name` as "this file imports this module", not as "this file imports
   a symbol with no name".
 - Path-based context routes require canonical entity IDs.
+- Content entity search uses stable `(repo_id, relative_path, start_line, entity_id)` pagination and reports `truncated` when another matching row follows.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
 

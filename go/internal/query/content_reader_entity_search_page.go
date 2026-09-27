@@ -73,7 +73,7 @@ func (cr *ContentReader) searchEntityContentScoped(
 		       metadata
 		FROM content_entities
 		WHERE %s
-		ORDER BY repo_id, relative_path, start_line
+		ORDER BY repo_id, relative_path, start_line, entity_id
 		LIMIT $%d OFFSET $%d
 	`, where, limitArg, offsetArg)
 	args = append(args, limit, offset)
