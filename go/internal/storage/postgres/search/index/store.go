@@ -205,8 +205,9 @@ func SortedSearchIndexTerms(counts map[string]int) ([]string, []string) {
 	return terms, termKeys
 }
 
-// BuildEshuSearchIndexQuery is exported for the same root partition-proof
-// live tests as SortedSearchIndexTerms; see its doc comment.
+// BuildEshuSearchIndexQuery builds active-generation BM25 scoring over all
+// matching postings before applying the page limit. It is exported so the
+// root partition-proof live test can EXPLAIN the production query.
 func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, termKeys []string) (string, []any) {
 	args := []any{search.ScopeID, terms, termKeys, search.RepoID, int64(search.Limit)}
 	addArg := func(value any) string {
@@ -244,7 +245,8 @@ func BuildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 			}
 		}
 		if len(langs) > 0 {
-			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text(d.document->'Labels') AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
+			labels := "CASE WHEN jsonb_typeof(d.document->'Labels') = 'array' THEN d.document->'Labels' ELSE '[]'::jsonb END"
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text("+labels+") AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
 		}
 	}
 
@@ -260,17 +262,22 @@ query_terms AS (
     SELECT term, term_key
     FROM unnest($2::text[], $3::text[]) AS q(term, term_key)
 ),
-document_frequency AS (
-    SELECT t.term_key, t.term, count(*)::float8 AS doc_frequency
+matched_terms AS MATERIALIZED (
+    SELECT t.scope_id, t.generation_id, t.document_id, t.term_key, t.term, t.term_frequency
     FROM eshu_search_index_terms t
     JOIN active_generation active ON active.generation_id = t.generation_id
     JOIN query_terms q ON q.term_key = t.term_key AND q.term = t.term
     WHERE t.scope_id = $1
+),
+document_frequency AS MATERIALIZED (
+    SELECT t.term_key, t.term, count(*)::float8 AS doc_frequency
+    FROM matched_terms t
     GROUP BY t.term_key, t.term
 ),
 scored AS (
     SELECT
-        d.document,
+        d.scope_id,
+        d.generation_id,
         d.document_id,
         stats.document_count,
         false AS corpus_may_be_truncated,
@@ -279,28 +286,40 @@ scored AS (
             ((t.term_frequency::float8 * 2.2) /
              (t.term_frequency::float8 + 1.2 * (0.25 + 0.75 * (d.document_length::float8 / NULLIF(stats.average_document_length, 0)))))
         ) AS score
-    FROM eshu_search_index_terms t
-    JOIN active_generation active ON active.generation_id = t.generation_id
-    JOIN query_terms q ON q.term_key = t.term_key AND q.term = t.term
+    FROM matched_terms t
     JOIN document_frequency df ON df.term_key = t.term_key AND df.term = t.term
-    JOIN eshu_search_index_documents d
-      ON d.scope_id = t.scope_id
-     AND d.generation_id = t.generation_id
-     AND d.document_id = t.document_id
+    -- The document PK is unique. LIMIT 1 keeps each posting on that keyed
+    -- lookup before repo and handle filters are applied.
+    JOIN LATERAL (
+        SELECT d.*
+        FROM eshu_search_index_documents d
+        WHERE d.scope_id = t.scope_id
+          AND d.generation_id = t.generation_id
+          AND d.document_id = t.document_id
+        LIMIT 1
+    ) d ON true
     JOIN eshu_search_index_stats stats
       ON stats.scope_id = t.scope_id
      AND stats.generation_id = t.generation_id
-    WHERE t.scope_id = $1
-      AND `)
+    WHERE `)
 	builder.WriteString(strings.Join(conditions, "\n      AND "))
 	builder.WriteString(`
-    GROUP BY d.document, d.document_id, stats.document_count
+    GROUP BY d.scope_id, d.generation_id, d.document_id, stats.document_count
+),
+top_hits AS (
+    -- Group and sort narrow keys; fetch JSONB for only the selected page.
+    SELECT * FROM scored
+    WHERE score > 0
+    ORDER BY score DESC, document_id ASC
+    LIMIT $5
 )
-SELECT document, score, document_count, corpus_may_be_truncated
-FROM scored
-WHERE score > 0
-ORDER BY score DESC, document_id ASC
-LIMIT $5
+SELECT d.document, hits.score, hits.document_count, hits.corpus_may_be_truncated
+FROM top_hits hits
+JOIN eshu_search_index_documents d
+  ON d.scope_id = hits.scope_id
+ AND d.generation_id = hits.generation_id
+ AND d.document_id = hits.document_id
+ORDER BY hits.score DESC, hits.document_id ASC
 `)
 	return builder.String(), args
 }
