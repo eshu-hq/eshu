@@ -97,6 +97,8 @@ with open(path) as f:
 	content = f.read()
 start = content.find("  - id: go-fmt\n")
 end = content.find("\n  - id: ", start + 1)
+if end == -1:
+	end = len(content)
 anchor = '    triggers:\n      - "go/**"\n'
 at = content.find(anchor, start)
 assert 0 <= start < at < end, "go-fmt triggers anchor not found"
