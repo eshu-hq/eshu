@@ -17,16 +17,38 @@ import (
 // a heavily shared repository:tag could otherwise drive an unbounded scan from
 // a single request.
 //
-// Why four: each window costs one keyset read plus one BuiltFromCypher lookup,
-// and the lookup's measured worst case is the pathological one the refill loop
-// actually triggers. A page whose digests have no ContainerImage node is
-// exactly the fully-withheld page that refills, and 400 such missing keys cost
-// 1135-1175 ms cold on a 5,000-image store and 2247 ms at 10,000
-// (docs/internal/evidence/6564-tag-history-grant-binding.md). Four windows
-// bound that at roughly 4.7 s and 9 s. The first still sits inside the handler
-// histogram's 5 s top bucket; the second is honestly an outlier above it, and a
-// larger cap multiplies it further, which is why this is four and not a round
-// ten.
+// Why four, and what actually bounds the request now (#6705): each window
+// costs one keyset read plus one BuiltFromCypher lookup, so a fully-withheld
+// page (the pathological case this loop actually triggers -- digests with no
+// ContainerImage node, or none BUILT_FROM a granted repository) drives up to
+// MaxRefillReads*2 = 8 sequential graph reads. RefillScopedPage derives ONE
+// shared querycontract.WithBoundedGraphReadDeadline budget
+// (querycontract.DefaultGraphReadTimeout, 10s) before the loop's first
+// iteration and reuses it for every one of those 8 reads, so the WALL-CLOCK
+// bound on one request is that single budget, not
+// MaxRefillReads*2*DefaultGraphReadTimeout (which an unbounded per-read
+// timeout would have allowed, roughly 80s -- the #7006 gap this loop
+// inherited until #6705's fix).
+//
+// The count of four windows is still a separate, deliberate choice on top of
+// that shared time budget: it is the per-request disclosure bound documented
+// on RefillScopedPage ("the window is MaxLimit-sized, not limit-sized")
+// stating a scoped caller can learn "at least 800 consecutive rows are
+// withheld" and no finer. It is not sized from the pre-#6705 NornicDB
+// per-lookup latency arithmetic alone (1135-2247ms per BuiltFromCypher call
+// on a 5,000-10,000 image NornicDB store,
+// docs/internal/evidence/6564-tag-history-grant-binding.md) -- that number
+// measured a NornicDB build, not the pinned Neo4j backend, and multiplying a
+// per-call latency by a read count is exactly the reasoning the shared
+// deadline now makes unnecessary for the timeout question. The corpus-scale
+// question that arithmetic was standing in for -- whether four windows'
+// worth of graph work fits comfortably inside one
+// DefaultGraphReadTimeout budget on Neo4j at realistic scale, and whether the
+// count should change -- is measured directly in
+// docs/internal/evidence/6705-tag-history-refill-neo4j-scale.md.
+//
+// Raising this constant multiplies the per-request work inside the SAME
+// shared budget; re-measure there before changing it.
 //
 // Hitting the cap is never served as a complete page: Truncated stays true and
 // the cursor resumes at a key the scan reached, so following it continues the
@@ -115,6 +137,22 @@ func RefillScopedPage(
 	limit int,
 	access querycontract.RepositoryAccessFilter,
 ) (ScopedPage, error) {
+	// #6705: derive ONE shared bounded-read deadline before the loop's first
+	// iteration and reuse it for every subsequent window and BuiltFrom lookup.
+	// This loop can issue up to MaxRefillReads*2 sequential graph reads to
+	// answer ONE logical scoped request, and Neo4jReader.runRead gives EACH
+	// read its own fresh querycontract.DefaultGraphReadTimeout window unless
+	// the caller shares one (the same #7006 gap infra_relationship_filter.go
+	// and entity/context_handler.go closed for their own per-label loops) --
+	// without this, production's raw request context (which carries no
+	// deadline of its own) would let this loop cost up to
+	// MaxRefillReads*2*DefaultGraphReadTimeout (about 80s) instead of the one
+	// bounded-read budget a lone graph statement gets.
+	ctx, cancel := querycontract.WithBoundedGraphReadDeadline(
+		querycontract.WithGraphQueryName(ctx, "tag_history.refill"),
+	)
+	defer cancel()
+
 	page := ScopedPage{Rows: make([]Row, 0, limit)}
 	// lastRaw is the key of the last RAW row consumed, which is where the next
 	// window starts; lastVisible is the key of the last row appended to the

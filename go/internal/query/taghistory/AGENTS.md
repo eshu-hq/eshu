@@ -64,9 +64,19 @@ already caught:
    accepted cost is that a grant change mid-walk ends the walk; that is
    correct, because the filter's answer changed underneath it.
 
-`MaxRefillReads` bounds per-request cost and is justified from measured lookup
-latency in the evidence doc. Raising it multiplies the worst case — re-measure
-before changing it, and prefer the remote instance for any timing claim.
+`MaxRefillReads` bounds per-request cost two ways now (#6705): the read count
+itself (justified from measured lookup latency and the disclosure-granularity
+argument in the evidence docs), and — separately — `RefillScopedPage` derives
+ONE shared `querycontract.WithBoundedGraphReadDeadline` budget before the
+loop's first iteration and reuses it for every one of the loop's up to
+`MaxRefillReads*2` sequential graph reads. Do not remove that shared-deadline
+wrap or re-derive a fresh deadline inside the loop: `Neo4jReader.runRead` gives
+each read its own fresh window otherwise, and an unbounded outer context (which
+production's request context is) turns the request's wall-clock bound from one
+`DefaultGraphReadTimeout` into `MaxRefillReads*2` of them (the #7006 pattern
+this loop had not yet applied). Raising `MaxRefillReads` multiplies the
+per-request work done inside that same shared budget — re-measure before
+changing it, and prefer the remote instance for any timing claim.
 
 ## Bounds are enforced, not declared
 
