@@ -111,7 +111,7 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G5 temp files | PASS | Scale run: `pg_stat_database.temp_files` and `temp_bytes` deltas were 0 across the root and the incremental 1.0x link at `work_mem` 256MB, and 0 again with 2 and 4 concurrent links. |
 | G6 RssAnon | PASS | Scale run: the peak single-backend `RssAnon` during a 1.0x incremental link was 464,480 kB (453.6 MiB), under the 524,288 kB (512 MiB) gate with an 11% margin. |
 | G7 timing ratio | PASS | Unattended run (`7127-link-writer-scale.py --g7-only --valid-rounds 10`, raw: `7127-link-writer-g7-results.json`), which waits for the host's 1-minute load to fall below 18 before each round: 10 valid rounds (load at start 9.9-17.8), bare_b, L1b and root interleaved with the first mover rotated, all rolled back. L1b/bare_b paired median **1.11** (range 0.35-1.34; 8 of 10 at or under 1.3), gate 1.3x. Root/bare_b paired median **1.67** (range 0.47-3.36; 9 of 10 at or under 3.0), gate 3x: PASS on the median, one round (round 3, 3.356) above 3x; per-round table under "G7 rounds". The spread is wide: two rounds had bare_b outliers (22.3 s and 13.5 s against 4.8-6.9 s elsewhere) that put L1b/bare_b below 0.4, and one root sample (21.1 s against 8.8-12.6 s) is the only root ratio above 3x. The first scale run's 6 rounds were all invalid (load 36.7-70.9) and are not pooled. |
-| G8 cap proof | PARTIAL | Scale run, 1, 2 and 4 concurrent 1.0x incremental links on different scopes (4 slots). **Memory:** summed peak `RssAnon` was 453.6 MiB, 908.5 MiB and 1,381.8 MiB; the n=4 sampled peak falls below 4 x 453.6 MiB because the four backends did not peak in the same sweep. **Read probe** (a 2,000-row page read from `fact_records` every 200 ms): p50 1.4 / 2.6 / 1.4 ms and p95 2.6 / 34.2 / 17.3 ms. **Walls:** 6.3 s; 29.9 and 29.1 s; 30.5-32.3 s. The host load rose from 19.1 to 81.7 across the run, so the wall times are not comparable between n values and do not prove or disprove the 2-slot default. The memory figures support the ruling's bound of two links near 1 GiB. **Wall-time leg (review F1):** rerun under the load rule with `7127-link-writer-scale.py --g8-only`; results in `7127-link-writer-g8-results.json` when it finishes. G8 stays PARTIAL until then. |
+| G8 cap proof | FAIL (incomplete) | Load-gated rerun (review F1; per-round table under "G8 rounds"): 26 valid windows, **9 / 9 / 8** for n = 1 / 2 / 4, short of the 10 per n required, because the run stopped when three of four links in an n=4 window (round 26) hit the 120 s statement timeout together; cause not established (see "G8 rounds"). Over the valid windows: median slowest wall 6.58 / 6.95 / 8.18 s; median summed RssAnon 367 / 683 / 1388 MiB (max 454 / 908 / 1816 MiB); median read-probe p95 1.8 / 1.7 / 2.2 ms; 0 temp files. The two-link figures (wall within 6% of one link, 0.67 GiB summed memory) are consistent with the 2-slot default, but the gate is not met. The first run's figures (walls under load 19-82) are superseded. |
 | G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. The reducer binary itself was not run: it needs a graph backend, which this proof does not. |
 | G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
 | G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
@@ -191,6 +191,45 @@ stand, but the 3.356 root round (round 3, about 00:38) coincides with that
 activity, and the bare_b outliers of rounds 1 and 4 are noise of the same
 kind.
 
+
+### G8 rounds (load-gated unattended run)
+
+Raw data: `7127-link-writer-g8-results.json`, from `7127-link-writer-scale.py --g8-only --valid-rounds 10 --deadline 8h` (started 01:07 EDT, container `postgres:18-alpine` 18.6, 4 slots so n=4 runs at once). Every recorded window was valid: the 1-minute load at its start was below 18.
+
+| Round | n | Load at start | Link walls (s) | Summed RssAnon (kB) | Probe p95 (ms) | Temp files |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 1 | 6.1 | 6.3 | 464,192 | 2.6 | 0 |
+| 1 | 2 | 9.1 | 6.9, 6.8 | 929,488 | 8.6 | 0 |
+| 2 | 4 | 15.2 | 10.7, 10.6, 10.6, 10.5 | 1,860,024 | 3.1 | 0 |
+| 3 | 1 | 13.4 | 6.1 | 464,528 | 2.3 | 0 |
+| 4 | 2 | 12.7 | 7.2, 7.7 | 832,472 | 2.7 | 0 |
+| 5 | 4 | 15.0 | 7.3, 7.2, 7.3, 7.1 | 1,858,832 | 1.5 | 0 |
+| 6 | 1 | 11.9 | 7.7 | 348,148 | 1.9 | 0 |
+| 7 | 2 | 10.2 | 7.1, 7.0 | 723,252 | 1.4 | 0 |
+| 8 | 4 | 12.3 | 12.4, 12.1, 12.4, 12.3 | 1,420,876 | 3.9 | 0 |
+| 9 | 1 | 13.5 | 5.1 | 375,800 | 1.4 | 0 |
+| 10 | 2 | 9.8 | 6.7, 6.5 | 724,780 | 1.2 | 0 |
+| 11 | 4 | 8.3 | 7.6, 7.6, 7.6, 7.5 | 1,421,468 | 2.9 | 0 |
+| 12 | 1 | 8.0 | 6.6 | 377,088 | 1.0 | 0 |
+| 13 | 2 | 6.7 | 7.5, 6.9 | 673,344 | 1.7 | 0 |
+| 14 | 4 | 7.7 | 13.3, 12.9, 13.4, 12.7 | 1,478,036 | 23.7 | 0 |
+| 15 | 1 | 16.4 | 9.1 | 457,812 | 1.8 | 0 |
+| 16 | 2 | 15.7 | 13.4, 13.2 | 697,520 | 9.1 | 0 |
+| 17 | 4 | 17.5 | 8.2, 8.0, 7.8, 7.8 | 1,395,496 | 1.1 | 0 |
+| 18 | 1 | 14.2 | 5.5 | 351,176 | 1.3 | 0 |
+| 19 | 2 | 10.4 | 6.7, 6.5 | 699,704 | 1.4 | 0 |
+| 20 | 4 | 12.2 | 7.7, 8.1, 8.1, 8.1 | 1,368,928 | 1.4 | 0 |
+| 21 | 1 | 10.9 | 6.6 | 340,844 | 1.6 | 0 |
+| 22 | 2 | 10.0 | 6.9, 6.8 | 697,768 | 2.0 | 0 |
+| 23 | 4 | 7.4 | 6.9, 6.9, 7.0, 7.0 | 1,412,148 | 1.1 | 0 |
+| 24 | 1 | 14.6 | 8.8 | 375,268 | 9.7 | 0 |
+| 25 | 2 | 16.8 | 6.3, 6.4 | 691,012 | 0.9 | 0 |
+| 26 | 4 | 10.2 | three of four links cancelled by the 120 s statement timeout | n/a | n/a | n/a |
+
+Per n over the valid windows: median slowest wall 6.58 s / 6.95 s / 8.18 s, median summed RssAnon 375,800 / 699,704 / 1,421,172 kB (max 464,528 / 929,488 / 1,860,024 kB), median probe p95 1.8 / 1.7 / 2.2 ms, 0 temp files, valid windows 9 / 9 / 8.
+
+**Round 26 stall, cause not established.** At 05:30:42 UTC four concurrent incremental links started in a valid window (load 10.2). At 05:32:42 three of them were cancelled by the 120 s statement timeout at the same instant (server log: three `canceling statement due to statement timeout` on the incremental statement); the test stops on the first error. Observations, none proven causal: a WAL-triggered checkpoint started at 05:30:04 and had not completed when the links were cancelled (the previous ones took 80-111 s, 4.4 GB of WAL each); autovacuum of `changed_since_key_state` finished at 05:32:40; that table was 5.3 GB for 3,084,484 live rows, bloated by this harness, which deletes and re-roots up to four 771k-key scopes every round, a churn the production writer does not have. `log_lock_waits` was off, so a lock wait cannot be ruled in or out from the log. Other n=4 windows took 6.9-13.4 s.
+
 ## Mutation checks
 
 Each check mutated one production line, ran the gate's test, and then
@@ -263,6 +302,39 @@ and re-pins the golden digest, count and checksum.
 | `verify-telemetry-coverage.sh`, `verify-performance-evidence.sh` (base `origin/main`) | 0, 0 |
 | `mkdocs build --strict --clean` | 0 |
 | `git diff --check origin/main...HEAD` | 0 |
+
+## Notes for the PR body
+
+- Migration number: this PR ships `134_changed_since_link_ledger.sql`. It
+  was 133 until #7291 landed `133_repository_entry_points_index.sql` on main.
+  Open PRs #7301 and #7206 still claim 133; whoever lands after this renumbers
+  and re-pins the golden digest, count and checksum.
+- Naming: the store is `storage/postgres/freshness/links` and the domain
+  `reducer/freshness/links`, because the dirgate ledger pins
+  `storage/postgres` at 321 files and the naming-glue gate rejects
+  `changedsince`.
+- G2 is FAIL (not built): delta activations are `overlay_unproven` breaks.
+- G16f: no Ifá rows, because no `fact_work_items` row is created and no graph
+  edge is written; `ifa-determinism` and `ifa-fault-injection` still run on
+  the migration change.
+- G9 and G16d ran on two processes of the compiled test binary, not the
+  reducer binary, which needs a graph backend.
+- PR-3c must use the LATERAL form of the chain read (G4).
+- G7 root basis is the median (1.667 against 3x); one round reached 3.356
+  while the reviewer's tests loaded the host.
+- Known gap (ruling 8.10 item 10): a poisoned link is not listed by
+  `list_dead_letter_work_items` or the status surface; the cursor row is the
+  durable record.
+- All new live tests are `class: scheduled`; they are local and scheduled
+  proof, not the blocking CI lane.
+- G8 is FAIL (incomplete): the load-gated run reached 9 / 9 / 8 valid windows
+  for n = 1 / 2 / 4 and stopped when three of four links of an n=4 window hit
+  the 120 s statement timeout together; the cause is not established. The
+  domain is dark and defaults to 2 slots.
+- Record-only review items (P3): (b) `LedgerStats.DeltaBytes`/`DeltaRows` are
+  read each cycle but not exported as gauges; (c) the state half of G4 has no
+  seeded RED of its own; (d) one fixture row with a tombstone kind sorting
+  below the active kind would pin the `kind` FILTER in G1.
 
 Performance Evidence: G3/G4 plan shapes above; G5-G8 in "Scale run", measured
 with `7127-link-writer-scale.py` on `7127-link-writer-fixture.sql`.
