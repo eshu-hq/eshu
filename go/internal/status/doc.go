@@ -78,7 +78,9 @@
 // changedsince.MaxSampleLimit. The Unavailable flag distinguishes a scope with no
 // current active generation from a genuinely empty delta so the surface never
 // reports all-unchanged when it cannot diff. UnavailableReason is populated for
-// fail-closed cases such as generation history pruned by retention.
+// fail-closed cases: generation history pruned by retention, and a window with a
+// delta generation at either end, whose partial fact set cannot be diffed as a
+// full snapshot (#7282).
 //
 // changedsince.ServiceFilter and changedsince.ServiceSummary define the
 // service-scope variant (#1943): the same verdict set, counts, sample, and

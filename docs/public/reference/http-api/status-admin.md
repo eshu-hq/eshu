@@ -496,9 +496,9 @@ that resolves to no generation returns `not_found`; a scope with no current
 active generation returns `unavailable=true` (and a `building`/`unavailable`
 freshness state) rather than zero deltas. If generation retention proves the
 prior generation was pruned, the response keeps `unavailable=true`, sets
-`unavailable_reason=retention_expired`, and the truth freshness `next_check`
-points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
-Counts are exact; only the samples are bounded. The capability key is
+`unavailable_reason=retention_expired`, and the truth freshness `next_check` points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
+If the since or current active generation is a delta generation (only changed files' facts plus tombstones), the response is `unavailable=true` with
+`unavailable_reason=baseline_not_comparable` and `since_is_delta`/`current_is_delta`, not a raw diff (#7282). Counts are exact; only samples are bounded. The capability key is
 `freshness.changed_since`. The MCP equivalent is `get_changed_since` and the CLI
 helper is `eshu freshness changed-since`. Scoped tokens receive only granted
 repositories and scopes; an ungranted selector returns not-found. An all-scope

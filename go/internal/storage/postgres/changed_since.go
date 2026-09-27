@@ -28,6 +28,13 @@ import (
 //     SinceGenerationID so the handler emits not_found.
 //   - A scope with no current active generation returns Unavailable=true so the
 //     handler reports an unavailable diff rather than zero deltas.
+//   - A window whose since generation or current active generation is a delta
+//     generation returns Unavailable=true with UnavailableReason
+//     baseline_not_comparable and no diff (#7282). A delta generation holds
+//     only the changed files' facts plus tombstones, so a raw fact-set diff
+//     against it reports every key it did not re-emit as removed or added. A
+//     delta generation strictly between two full endpoints does not trigger
+//     the refusal: both endpoints are complete snapshots.
 //
 // The counts are exact; only the per-classification sample lists are capped at
 // the normalized SampleLimit, with a Truncated flag when more keys matched.
@@ -101,6 +108,15 @@ func (s StatusStore) ComputeChangedSinceDelta(
 	summary.SinceGenerationID = prior.generationID
 	summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(prior.observedAt)
 
+	if prior.isDelta || scope.currentIsDelta {
+		summary.Unavailable = true
+		summary.UnavailableReason = statuspkg.ChangedSinceUnavailableBaselineNotComparable
+		summary.SinceIsDelta = prior.isDelta
+		summary.CurrentIsDelta = scope.currentIsDelta
+		summary.Categories = unavailableChangedSinceCategories()
+		return summary, nil
+	}
+
 	categories, err := s.changedSinceCategories(
 		ctx,
 		scope.scopeID,
@@ -122,6 +138,7 @@ type changedSinceScope struct {
 	repository          string
 	currentGenerationID string
 	currentObservedAt   time.Time
+	currentIsDelta      bool
 	hasPending          bool
 }
 
@@ -158,6 +175,7 @@ func (s StatusStore) resolveChangedSinceScope(
 		&scope.repository,
 		&scope.currentGenerationID,
 		&currentObserved,
+		&scope.currentIsDelta,
 		&scope.hasPending,
 	); err != nil {
 		return changedSinceScope{}, false, fmt.Errorf("resolve changed-since scope: %w", err)
@@ -174,6 +192,7 @@ func (s StatusStore) resolveChangedSinceScope(
 type changedSincePrior struct {
 	generationID string
 	observedAt   time.Time
+	isDelta      bool
 }
 
 func (s StatusStore) resolveChangedSincePriorGeneration(
@@ -203,7 +222,7 @@ func (s StatusStore) resolveChangedSincePriorGeneration(
 
 	var prior changedSincePrior
 	var observed sql.NullTime
-	if err := rows.Scan(&prior.generationID, &observed); err != nil {
+	if err := rows.Scan(&prior.generationID, &observed, &prior.isDelta); err != nil {
 		return changedSincePrior{}, false, fmt.Errorf("resolve changed-since prior generation: %w", err)
 	}
 	if err := rows.Err(); err != nil {

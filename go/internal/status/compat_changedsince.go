@@ -49,7 +49,8 @@ const (
 	ChangedSinceCategoryIncidents       = changedsince.CategoryIncidents
 	ChangedSinceCategoryVulnerabilities = changedsince.CategoryVulnerabilities
 
-	ChangedSinceUnavailableRetentionExpired = changedsince.UnavailableRetentionExpired
+	ChangedSinceUnavailableRetentionExpired      = changedsince.UnavailableRetentionExpired
+	ChangedSinceUnavailableBaselineNotComparable = changedsince.UnavailableBaselineNotComparable
 
 	MaxChangedSinceSampleLimit     = changedsince.MaxSampleLimit
 	DefaultChangedSinceSampleLimit = changedsince.DefaultSampleLimit

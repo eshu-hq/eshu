@@ -1165,6 +1165,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/changed_since_delta_generation_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (#7282 delta-generation refusal); unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/changed_since_multiset_live_test.go
     tag: ~
     class: scheduled
