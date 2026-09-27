@@ -44,6 +44,25 @@ of the caller's `limit`, and that is the second half of the same fix: with
 someone else's". Fixed windows make it a constant 800 raw rows. Do not
 reintroduce a `limit`-sized window as an optimisation.
 
+**The refill loop shares ONE bounded-read deadline (#6705).** Each window costs
+one keyset read plus one `BuiltFromCypher` lookup, so a fully-withheld page
+drives up to `MaxRefillReads*2` -- 8 -- sequential graph reads to answer one
+request. `RefillScopedPage` derives a single
+`querycontract.WithBoundedGraphReadDeadline` budget before its first iteration
+and reuses it for every one of those reads, mirroring the #7006 pattern
+`infra_relationship_filter.go` and `entity/context_handler.go` apply to their
+own per-label loops. Without it, `Neo4jReader.runRead` gives each read its own
+fresh window, and production's raw request context (which carries no deadline
+of its own) would let one request cost up to
+`MaxRefillReads*2*querycontract.DefaultGraphReadTimeout` -- about 80s -- instead
+of the one bounded-read budget a lone graph statement gets. When that shared
+budget is spent mid-loop, the loop returns an error `errors.Is`
+`querycontract.ErrGraphReadDeadline`; `writeTagHistoryReadError`
+(`tag_history.go`) maps it to the existing 504 graph-read-deadline response, the
+same shape `WriteGraphReadError` gives every other bounded-read timeout. Do not
+remove the wrap or move it inside the loop where it would re-derive a fresh
+deadline per iteration instead of sharing one.
+
 **The cursor token, and its seal.** `next_cursor` is a KEYSET token naming one
 row's `(first_observed_at, uid)`, not a row position, and it is SEALED with the
 deployment DEK (AES-256-GCM under a route-specific AAD). Both halves are

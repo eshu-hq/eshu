@@ -4,6 +4,8 @@
 package query
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -351,14 +353,12 @@ func (h *TagHistoryHandler) writeTagHistoryPage(
 }
 
 // writeTagHistoryReadError writes the response for a failed graph read, shared
-// by the tag read and the scoped BUILT_FROM lookup.
-//
-// "query_error" would be the wrong outcome label for a bounded
-// backend-unavailable/backend-timeout sentinel, so the guard runs before that
-// telemetry. It still records under the existing "backend_unavailable" outcome
-// the h.Neo4j == nil branch uses, so a live graph outage or timeout keeps
-// producing a handler-level datapoint instead of silently emitting none.
+// by the tag read and the scoped BUILT_FROM lookup. A raw DeadlineExceeded from
+// a GraphQuery that bypasses Neo4jReader maps to ErrGraphReadDeadline (#6705).
 func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = querycontract.ErrGraphReadDeadline
+	}
 	if WriteGraphReadError(w, r, err, tagHistoryCapability) {
 		recordTagHistoryError(r.Context(), "backend_unavailable")
 		recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
