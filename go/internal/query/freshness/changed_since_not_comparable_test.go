@@ -139,6 +139,9 @@ func TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration
 	if !strings.Contains(noCurrent.Freshness.Detail, "no current active generation") {
 		t.Fatalf("empty reason detail = %q, want the no-current-generation explanation", noCurrent.Freshness.Detail)
 	}
+	if noCurrent.Freshness.Cause != CausePendingRepoGeneration {
+		t.Fatalf("empty reason cause = %q, want %q", noCurrent.Freshness.Cause, CausePendingRepoGeneration)
+	}
 
 	unknown := handler.changedSinceTruthEnvelope(status.ChangedSinceSummary{
 		Unavailable:       true,
@@ -152,5 +155,8 @@ func TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration
 	}
 	if !strings.Contains(unknown.Freshness.Detail, "some_future_reason") {
 		t.Fatalf("unknown reason detail = %q, want it to name the reason", unknown.Freshness.Detail)
+	}
+	if unknown.Freshness.Cause != "" {
+		t.Fatalf("unknown reason cause = %q, want none", unknown.Freshness.Cause)
 	}
 }
