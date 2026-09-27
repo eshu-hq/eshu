@@ -249,9 +249,32 @@ type Instruments struct {
 	GenerationRetentionRowsPruned    metric.Int64Counter
 	GenerationRetentionFailures      metric.Int64Counter
 	GenerationRetentionSkipped       metric.Int64Counter
-	GenerationLivenessRecovered      metric.Int64Counter
-	GenerationLivenessSuperseded     metric.Int64Counter
-	GenerationLivenessFailures       metric.Int64Counter
+	// Changed-since link writer (#7127 PR-3a, reducer/freshness/links). No
+	// scope or generation identifier is ever a label; the per-link log line
+	// carries them.
+	//
+	// ChangedSinceLinks counts link transactions by link_kind (root,
+	// incremental, none) and outcome (linked, chain_break, retry, error).
+	ChangedSinceLinks metric.Int64Counter
+	// ChangedSinceLinkRetries counts retryable link outcomes by reason
+	// (cursor_locked, generation_locked, slot_busy, statement_timeout).
+	ChangedSinceLinkRetries metric.Int64Counter
+	// ChangedSinceChainBreaks counts activations advanced without a link by
+	// reason (pruned_before_link, delta_without_root, prior_mismatch,
+	// overlay_unproven).
+	ChangedSinceChainBreaks metric.Int64Counter
+	// ChangedSinceLinkBacklog is the number of activation rows above their
+	// scope cursor, sampled once per runner cycle.
+	ChangedSinceLinkBacklog metric.Int64Gauge
+	// ChangedSinceLinkLag is the age in seconds of the oldest of them.
+	ChangedSinceLinkLag metric.Float64Gauge
+	// ChangedSinceStateBytes and ChangedSinceStateRows size the
+	// changed_since_key_state table (rows are the planner estimate).
+	ChangedSinceStateBytes       metric.Int64Gauge
+	ChangedSinceStateRows        metric.Int64Gauge
+	GenerationLivenessRecovered  metric.Int64Counter
+	GenerationLivenessSuperseded metric.Int64Counter
+	GenerationLivenessFailures   metric.Int64Counter
 	// PoisonLivenessRecovered counts dead-letter/poison-class fact_work_items
 	// rows re-enqueued to pending by the bounded poison-recovery sweep (#4740).
 	// Only increments when the sweep's bounded auto-retry is enabled; the
@@ -1385,10 +1408,15 @@ type Instruments struct {
 	GenerationRetentionDuration          metric.Float64Histogram
 	GenerationRetentionBatchSize         metric.Int64Histogram
 	GenerationRetentionOldestEligibleAge metric.Float64Histogram
-	CanonicalWriteDuration               metric.Float64Histogram
-	QueueClaimDuration                   metric.Float64Histogram
-	PostgresQueryDuration                metric.Float64Histogram
-	Neo4jQueryDuration                   metric.Float64Histogram
+	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
+	// ChangedSinceLinkKeys describe committed links by link_kind.
+	ChangedSinceLinkDuration  metric.Float64Histogram
+	ChangedSinceLinkDeltaRows metric.Int64Histogram
+	ChangedSinceLinkKeys      metric.Int64Histogram
+	CanonicalWriteDuration    metric.Float64Histogram
+	QueueClaimDuration        metric.Float64Histogram
+	PostgresQueryDuration     metric.Float64Histogram
+	Neo4jQueryDuration        metric.Float64Histogram
 
 	// QueueClaimConflictRetries counts claim statements that lost a transient
 	// database lock conflict and were retried by the storage layer, labeled
@@ -4418,6 +4446,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationRetentionOldestEligibleAge histogram: %w", err)
+	}
+
+	if err := registerChangedSinceLinkInstruments(meter, inst); err != nil {
+		return nil, err
 	}
 
 	canonicalWriteBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

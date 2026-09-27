@@ -48,6 +48,16 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
 | `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
 | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
+| `eshu_dp_changed_since_links_total` | counter | Changed-since link transactions (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, chain_break, retry, error). |
+| `eshu_dp_changed_since_link_retries_total` | counter | Retryable changed-since link outcomes by `reason` (cursor_locked, generation_locked, slot_busy, statement_timeout); the cursor did not move. |
+| `eshu_dp_changed_since_chain_breaks_total` | counter | Activations advanced without a link by `reason` (pruned_before_link, delta_without_root, prior_mismatch, overlay_unproven); the state is kept. |
+| `eshu_dp_changed_since_link_duration_seconds` | histogram | Committed root or incremental link duration by `link_kind`. |
+| `eshu_dp_changed_since_link_delta_rows` | histogram | Link delta rows one link wrote, by `link_kind`. |
+| `eshu_dp_changed_since_link_keys` | histogram | Effective keys of the generation a link reached, by `link_kind`. |
+| `eshu_dp_changed_since_link_backlog` | gauge | Activation rows above their scope cursor. |
+| `eshu_dp_changed_since_link_lag_seconds` | gauge | Age of the oldest activation above its scope cursor. |
+| `eshu_dp_changed_since_state_bytes` | gauge | Total size of `changed_since_key_state`. |
+| `eshu_dp_changed_since_state_rows` | gauge | Planner row estimate of `changed_since_key_state`. |
 
 Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event

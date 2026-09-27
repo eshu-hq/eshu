@@ -357,6 +357,12 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE` | int | `10` | Scopes with no activation journal row whose retained generation chain one changed-since cycle backfills. |
+| `ESHU_CHANGED_SINCE_LINK_ENABLED` | bool | `false` | Run the dark changed_since_link reducer domain (#7127), which journals generation activations and links each one into the changed-since ledger tables. Off by default; with it off the domain issues no SQL. Nothing reads the ledger yet. Enable only after generation retention cleans the ledger tables (PR-3d). |
+| `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` | duration | `30s` | Wait between changed-since link cycles when a cycle was idle, retried, or failed. A cycle that linked work starts the next at once. |
+| `ESHU_CHANGED_SINCE_LINK_SLOTS` | int | `2` | Database-wide cap on concurrent full changed-since links (root and incremental), held as transaction advisory locks shared by every reducer replica. Each full link of a 0.77M-key scope holds up to about 1 GiB of Postgres backend memory at work_mem 256MB. Raise only with the 1/2/4-link cap evidence. |
+| `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT` | duration | `120s` | statement_timeout of one changed-since link statement. A timeout rolls back, leaves the cursor, and is retried (retry reason statement_timeout). |
+| `ESHU_CHANGED_SINCE_LINK_WORKERS` | int | `4` | Scopes one reducer links at once. Full links are further bounded by ESHU_CHANGED_SINCE_LINK_SLOTS across all replicas. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | string | `code-call-projection-runner` | Prefix for the code-call partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | int | `500` | Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | bool | `true` | Enable the reducer side runner that removes stale CodeTaintEvidence nodes and TAINT_FLOWS_TO edges from older active-scope generations. |
