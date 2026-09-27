@@ -69,6 +69,10 @@ COLLECTOR_BACKPRESSURE='eshu_dp_workflow_claim_provider_throttle_total'
 COLLECTOR_RETRIES='eshu_dp_workflow_claim_retries_total'
 COLLECTOR_DEAD_LETTER='eshu_dp_workflow_claim_attempt_budget_exhausted_total'
 
+# Workload materialization's stale repository-edge retract (#7285). Ordinary
+# workload or endpoint removal, kept off COLLECTOR_RECONCILIATION_DRIFT.
+WORKLOAD_REPOSITORY_EDGE_RETRACTIONS='eshu_dp_workload_repository_edge_retractions_total'
+
 # Explicit allowlist of ${NAME} tokens the generator substitutes into the
 # .json.tmpl template files under scripts/lib/. A space-separated string
 # (not a bash array) so it stays safe under bash 3.2 with `set -u` — an
@@ -86,4 +90,5 @@ EDGES_BY_SOURCE_TOOL FILES_BY_LANGUAGE \
  LOCK_ONLY_GATE_LOCKED_ROWS LOCK_ONLY_GATE_LOCK_WAIT API_REQUEST_DURATION \
 API_REQUEST_ERRORS COLLECTOR_RECONCILIATION_FULL \
 COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \
-COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER"
+COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER \
+WORKLOAD_REPOSITORY_EDGE_RETRACTIONS"

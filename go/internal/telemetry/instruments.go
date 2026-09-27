@@ -261,6 +261,12 @@ type Instruments struct {
 	// PoisonLivenessFailures counts poison-recovery sweep failures by bounded
 	// reason (#4740).
 	PoisonLivenessFailures metric.Int64Counter
+	// WorkloadRepoEdgeRetractions counts stale DEFINES and repository-side
+	// EXPOSES_ENDPOINT edges workload_materialization retracted on full
+	// generations (#7285), by bounded write_phase. It is ordinary workload or
+	// endpoint removal, kept off ReconciliationDriftRetractions, which means
+	// collector disagreement.
+	WorkloadRepoEdgeRetractions metric.Int64Counter
 	// GitRepoSyncFailures counts per-repository git sync operations (clone,
 	// fetch, list_refs) that failed and were isolated to that one repository
 	// for the cycle rather than aborting collection for the rest of the fleet
@@ -2217,6 +2223,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReconciliationDriftRetractions counter: %w", err)
+	}
+
+	inst.WorkloadRepoEdgeRetractions, err = meter.Int64Counter(
+		"eshu_dp_workload_repository_edge_retractions_total",
+		metric.WithDescription("Total stale DEFINES and repository-side EXPOSES_ENDPOINT edges workload materialization retracted on full generations, by bounded write_phase"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadRepoEdgeRetractions counter: %w", err)
 	}
 
 	inst.ReconciliationConvergence, err = meter.Int64Counter(

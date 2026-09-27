@@ -71,11 +71,13 @@ stale, so an unconditional retract would pay that cost on every run.
 ## Telemetry
 
 `Observe` adds measured deletes to
-`eshu_dp_reconciliation_drift_retractions_total{domain="workload_materialization",
-write_phase="defines_retract"|"repository_endpoint_retract", kind="edge"}`.
+`eshu_dp_workload_repository_edge_retractions_total{write_phase="defines_retract"|"repository_endpoint_retract"}`.
 It does this only when the executor chain implements `CountingExecutor`; in
 production that is `cmd/reducer`'s `reducerCypherExecutor`, forwarded by the
-graph-write backpressure gate.
+graph-write backpressure gate. This is ordinary workload or endpoint removal,
+so it has its own counter and its own operator-dashboard panel instead of
+sharing `eshu_dp_reconciliation_drift_retractions_total`, which means
+collector disagreement.
 
 Every run also logs `workload repository edge retract completed` with these
 fields:

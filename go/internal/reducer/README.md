@@ -335,8 +335,8 @@ values each counter carries.
   repository-side `EXPOSES_ENDPOINT` edges whose target is no longer current, after
   `Materialize` commits and on the zero-candidate path, for repositories whose
   repository fact is not `delta_generation` (a delta reads partial facts).
-  Deleted edges count on `eshu_dp_reconciliation_drift_retractions_total`
-  (`domain=workload_materialization`).
+  It reads current targets first and sends no DELETE in steady state; deleted
+  edges count on `eshu_dp_workload_repository_edge_retractions_total`.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to `Handler.Handle`; a superseded intent returns without
   projecting stale truth.

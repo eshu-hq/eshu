@@ -262,8 +262,8 @@ func (c *countingRetractExecutor) ExecuteCypherCountingRelationshipDeletes(
 
 // TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts pins the
 // operator signal: actual deleted edges land on
-// eshu_dp_reconciliation_drift_retractions_total under the bounded
-// workload_materialization domain, one write_phase per edge family.
+// eshu_dp_workload_repository_edge_retractions_total, one bounded write_phase
+// per edge family, and not on the collector reconciliation-drift counter.
 func TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts(t *testing.T) {
 	t.Parallel()
 
@@ -286,12 +286,8 @@ func TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts(t *testing.T)
 		t.Fatalf("Collect() error = %v", err)
 	}
 	for _, phase := range []string{retract.PhaseDefines, retract.PhaseRepositoryEndpoint} {
-		attrs := map[string]string{
-			telemetry.MetricDimensionDomain:     retract.MetricDomain,
-			telemetry.MetricDimensionWritePhase: phase,
-			telemetry.MetricDimensionKind:       "edge",
-		}
-		if got := reducerCounterValue(t, rm, "eshu_dp_reconciliation_drift_retractions_total", attrs); got != 3 {
+		attrs := map[string]string{telemetry.MetricDimensionWritePhase: phase}
+		if got := reducerCounterValue(t, rm, "eshu_dp_workload_repository_edge_retractions_total", attrs); got != 3 {
 			t.Fatalf("%s retractions = %d, want 3", phase, got)
 		}
 	}

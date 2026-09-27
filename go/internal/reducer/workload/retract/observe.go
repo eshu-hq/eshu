@@ -13,20 +13,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Bounded label values on eshu_dp_reconciliation_drift_retractions_total.
+// Bounded write_phase label values on
+// eshu_dp_workload_repository_edge_retractions_total.
 const (
-	// MetricDomain is the domain label for stale workload repository edges.
-	MetricDomain = "workload_materialization"
 	// PhaseDefines is the write_phase label for retracted DEFINES edges.
 	PhaseDefines = "defines_retract"
 	// PhaseRepositoryEndpoint is the write_phase label for retracted
 	// repository-side EXPOSES_ENDPOINT edges.
 	PhaseRepositoryEndpoint = "repository_endpoint_retract"
-	kindEdge                = "edge"
 )
 
 // Observe records one completed retract: measured deletes on
-// eshu_dp_reconciliation_drift_retractions_total (skipped when the executor
+// eshu_dp_workload_repository_edge_retractions_total (skipped when the executor
 // chain could not count them) and one "workload repository edge retract
 // completed" log line with the scope, generation, retract mode, keep sizes,
 // stale edges found, deletes, and duration. The log is a warning when the
@@ -39,7 +37,7 @@ func Observe(
 	result Result,
 	duration time.Duration,
 ) {
-	if instruments != nil && instruments.ReconciliationDriftRetractions != nil && result.Counted {
+	if instruments != nil && instruments.WorkloadRepoEdgeRetractions != nil && result.Counted {
 		record(ctx, instruments, PhaseDefines, result.DefinesDeleted)
 		record(ctx, instruments, PhaseRepositoryEndpoint, result.EndpointEdgesDeleted)
 	}
@@ -75,9 +73,7 @@ func record(ctx context.Context, instruments *telemetry.Instruments, phase strin
 	if count <= 0 {
 		return
 	}
-	instruments.ReconciliationDriftRetractions.Add(ctx, count, metric.WithAttributes(
-		telemetry.AttrDomain(MetricDomain),
+	instruments.WorkloadRepoEdgeRetractions.Add(ctx, count, metric.WithAttributes(
 		telemetry.AttrWritePhase(phase),
-		telemetry.AttrKind(kindEdge),
 	))
 }

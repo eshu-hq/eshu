@@ -188,21 +188,23 @@ func TestObserveRecordsMeasuredDeletesOnly(t *testing.T) {
 	got := map[string]int64{}
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
-			if m.Name != "eshu_dp_reconciliation_drift_retractions_total" {
+			if m.Name == "eshu_dp_reconciliation_drift_retractions_total" {
+				// Ordinary workload removal is not collector drift (#7285 F2).
+				t.Fatalf("workload retract recorded on %s, want its own counter", m.Name)
+			}
+			if m.Name != "eshu_dp_workload_repository_edge_retractions_total" {
 				continue
 			}
 			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
-				domain, _ := point.Attributes.Value(telemetry.MetricDimensionDomain)
+				if point.Attributes.Len() != 1 {
+					t.Fatalf("attributes = %v, want write_phase only", point.Attributes.ToSlice())
+				}
 				phase, _ := point.Attributes.Value(telemetry.MetricDimensionWritePhase)
-				kind, _ := point.Attributes.Value(telemetry.MetricDimensionKind)
-				got[domain.AsString()+"/"+phase.AsString()+"/"+kind.AsString()] = point.Value
+				got[phase.AsString()] = point.Value
 			}
 		}
 	}
-	want := map[string]int64{
-		MetricDomain + "/" + PhaseDefines + "/edge":            3,
-		MetricDomain + "/" + PhaseRepositoryEndpoint + "/edge": 2,
-	}
+	want := map[string]int64{PhaseDefines: 3, PhaseRepositoryEndpoint: 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("recorded retractions = %v, want %v", got, want)
 	}

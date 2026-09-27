@@ -22,6 +22,7 @@
 //
 // Delete counts come from the backend write summary when the executor chain
 // implements [CountingExecutor]. [Observe] records them on
-// eshu_dp_reconciliation_drift_retractions_total under the bounded
-// domain [MetricDomain] and logs every run.
+// eshu_dp_workload_repository_edge_retractions_total by bounded write_phase
+// (ordinary removal, kept off the collector reconciliation-drift counter) and
+// logs every run.
 package retract

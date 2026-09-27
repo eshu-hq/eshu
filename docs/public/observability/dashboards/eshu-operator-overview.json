@@ -554,9 +554,9 @@
       "id": 21,
       "type": "timeseries",
       "title": "Collector Reconciliation (full snapshots / drift / convergence)",
-      "description": "Per-second rate of collector reconciliation outcomes. Convergence dominates in a steady state; spikes in drift retraction flag collector disagreement.",
+      "description": "Per-second rate of collector reconciliation outcomes. Convergence dominates in a steady state; spikes in drift retraction flag collector disagreement. Ordinary workload removal is on the Workload Repository Edge Retractions panel, not here.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 63},
+      "gridPos": {"h": 8, "w": 16, "x": 0, "y": 63},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
@@ -575,6 +575,27 @@
           "expr": "sum(rate(eshu_dp_reconciliation_convergence_total[5m]))",
           "legendFormat": "convergence",
           "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Workload Repository Edge Retractions",
+      "description": "Per-second rate of stale DEFINES and repository-side EXPOSES_ENDPOINT edges workload materialization retracted on full generations, by write_phase. Nonzero whenever a repository drops a workload or endpoint; this is ordinary removal, not collector drift. Details, including the guard mode, are on the 'workload repository edge retract completed' log.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 63},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (write_phase) (rate(eshu_dp_workload_repository_edge_retractions_total[5m]))",
+          "legendFormat": "{{write_phase}}",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
