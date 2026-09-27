@@ -226,9 +226,10 @@ ifa_iam_can_perform_drive() {
 # contribute nothing; the extractor drops an unresolvable grant rather than
 # inventing an endpoint, and this set is what holds it to that.
 #
-# The relationship type is CAN_PERFORM, read off the writer's MERGE. It is NOT
-# IAM_CAN_PERFORM, which is statement metadata carried beside the query and
-# never reaches the graph.
+# The relationship type is CAN_PERFORM, read off the writer's MERGE and the
+# iamCanPerformEdgeLabel const (which IS "CAN_PERFORM"). IAM_CAN_PERFORM
+# appears nowhere in code; the type is never derived from the port or family
+# name.
 ifa_iam_can_perform_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert iam_can_perform materialized edges (three-edge exact set) ===\n' "${label}"

@@ -135,7 +135,7 @@ func LoadIAMCanPerformFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, IAMCanPerformFamilyOduName)
 }
 
-// loadDirectFamilyOdu is the shared strict projection behind all three loaders.
+// loadDirectFamilyOdu is the shared strict projection behind all four loaders.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // makes every downstream assertion vacuous, which is the failure mode the whole

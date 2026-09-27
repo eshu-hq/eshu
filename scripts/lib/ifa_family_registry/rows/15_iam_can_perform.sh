@@ -48,9 +48,10 @@ IFA_FAMILY_EXPECTED_VAR[iam_can_perform]="iam_can_perform_expected_edges"
 # a scripted graph-write fault would never fire -- a green cell that tested
 # nothing.
 #
-# It is NOT IAM_CAN_PERFORM. That string is iamCanPerformEdgeLabel, statement
-# metadata carried beside the query; it is not a relationship type and never
-# appears in the graph.
+# It is NOT IAM_CAN_PERFORM: that string appears nowhere in code. The
+# iamCanPerformEdgeLabel const IS "CAN_PERFORM" (it doubles as the
+# relationship type and the statement-metadata tag), so the anchor is read
+# off the template, never derived from the port or family name.
 IFA_FAMILY_ANCHOR[iam_can_perform]="MERGE (p)-[rel:CAN_PERFORM]->(r)"
 # custom, prospectively: no fault cell file exists for this family yet, and the
 # generic public dispatchers reject `cell_kind=custom`, so the fault gate

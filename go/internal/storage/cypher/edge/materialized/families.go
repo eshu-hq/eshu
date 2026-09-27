@@ -219,8 +219,10 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// CAN_PERFORM is still the only type this writer can emit. The template
 	// MERGEs on its two endpoint nodes alone (both are MATCHed, never
 	// merged), so IdentityProperties stays nil — the identity scan yields
-	// nothing. iamCanPerformEdgeLabel ("IAM_CAN_PERFORM") is statement
-	// metadata carried beside the query, not a graph relationship type.
+	// nothing. iamCanPerformEdgeLabel IS "CAN_PERFORM" here (the const
+	// doubles as the relationship type and the statement-metadata tag);
+	// "IAM_CAN_PERFORM" appears nowhere in code, so the type is read off the
+	// template, never derived from the port or family name.
 	"iam_can_perform": {
 		EdgeTypes:      map[string]string{"CAN_PERFORM": "principal to resource effective-permission attachment (CanonicalIAMCanPerformEdgeUpsertCypher)"},
 		RetractCypher:  sourcecypher.RetractIAMCanPerformEdgesCypher,

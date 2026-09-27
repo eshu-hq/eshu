@@ -32,8 +32,10 @@ IFA_FAMILY_PIN_WAIT_KEY="iam_can_perform_materialization"
 # graph-write fault would never fire, and the cell would report green having
 # tested nothing.
 #
-# NOT IAM_CAN_PERFORM -- that is iamCanPerformEdgeLabel,
-# statement metadata beside the query, never a graph relationship type.
+# NOT IAM_CAN_PERFORM -- that string appears nowhere in code. The
+# iamCanPerformEdgeLabel const IS "CAN_PERFORM" (it doubles as the
+# relationship type and the statement-metadata tag), so the anchor is read
+# off the template, never derived from the port or family name.
 IFA_FAMILY_PIN_ANCHOR="MERGE (p)-[rel:CAN_PERFORM]->(r)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is
 # driven in the determinism gate's shared N={1,2,4} cell.

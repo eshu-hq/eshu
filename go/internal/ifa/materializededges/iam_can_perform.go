@@ -22,11 +22,12 @@ const iamCanPerformFamily = "iam_can_perform"
 // CanonicalIAMCanPerformEdgeUpsertCypher MERGEs. There is no %s to fill: the
 // granted action set lives in rel.actions, never in the relationship type.
 //
-// It is NOT iamCanPerformEdgeLabel ("IAM_CAN_PERFORM"), which the writer
-// attaches as statement metadata beside the query and which never reaches
-// the graph. Taking the type from that label is the same name-derived
-// mistake at one level below the port name, and it would make this guard
-// assert an always-empty population.
+// Read it off the template and the iamCanPerformEdgeLabel const, which IS
+// "CAN_PERFORM" (the const doubles as the relationship type and the
+// statement-metadata tag). "IAM_CAN_PERFORM" appears nowhere in code: taking
+// the type from the port or family name is the same name-derived mistake one
+// level above, and it would make this guard assert an always-empty
+// population.
 //
 // Duplicated here as a plain literal rather than imported, and it fails CLOSED:
 // missingDirectFamilyExpectedTypes compares the FIXTURE against the REGISTRY,

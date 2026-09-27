@@ -21,10 +21,12 @@ import (
 // CanonicalIAMCanPerformEdgeUpsertCypher (no %s: the granted action set lives
 // in the rel.actions property, never in the relationship type, so the MERGE
 // keys on the stable (principal_uid, CAN_PERFORM, resource_uid) triple). It
-// is NOT iamCanPerformEdgeLabel ("IAM_CAN_PERFORM"), which is statement
-// metadata carried beside the query rather than a graph relationship type —
-// the same #6181-shaped trap one level below the port name that
-// iam_can_assume_family_odu.go documents for CAN_ASSUME vs IAM_CAN_ASSUME.
+// Read it off the template and the iamCanPerformEdgeLabel const (which IS
+// "CAN_PERFORM": the const doubles as the relationship type and the
+// statement-metadata tag), never by deriving from the port or family name —
+// "IAM_CAN_PERFORM" appears nowhere in code, and a name-derived literal would
+// match no executed statement. (iam_can_assume genuinely has the split this
+// family does not: its label is "IAM_CAN_ASSUME", distinct from CAN_ASSUME.)
 //
 // Facts are built as typed awsv1.Resource / iamv1.Permission values and
 // encoded through factschema.EncodeAWSResource /
