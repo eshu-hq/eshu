@@ -16,7 +16,7 @@ synthetic 50-repository corpus. This run uses Neo4j and the real ops-qa graph.
 ## Result
 
 The #6704 fan-out does not occur on Neo4j. There, `ORDER BY ... LIMIT` after
-the aggregation is one global `Top` operator, so the statement returns exactly
+the aggregation is one global `Top` operator, so the statement returns at most
 `limit` rows however many repository ids it unwinds. At 804 repositories the
 unscoped read answers in under 1 s cold and at warm p95 on every measured cell,
 through both the HTTP route and the MCP tool. It returns the same rows as an
@@ -110,6 +110,9 @@ the statement, the Go re-sort and truncate, and the `repo_name` read.
 | MCP | php | 200 | | 200 | 0.475 s | 0.684 s | 0.817 s |
 
 The largest HTTP warm p95 is 0.530 s (ledger:6704-opsqa-directory-api-warm-p95-max).
+That ledger row covers the eight cells without a `query` filter. The two
+`query` cells (`src`, `js`) have their own row
+(ledger:6704-opsqa-directory-api-query-cells).
 The MCP tool was the slowest surface in this run, at 0.817 s warm p95
 (ledger:6704-opsqa-directory-mcp-warm-p95). The MCP figure includes the tool
 server's own envelope and resource rendering on top of the same HTTP route.
@@ -197,7 +200,7 @@ Performance Evidence: `buildDirectoryCypher` as shipped at `049be7161` ran on
 ops-qa Neo4j 2026.08.1-community against 804 repositories, 43,281 directories
 and 144,010 files, with the `directory_repo_id` index ONLINE. An unscoped php
 read at limit 200 made 772,706 db hits in 311-318 ms of server time. Through
-HTTP, cold was 0.351-0.439 s and warm p95 0.408-0.530 s over ten cells. Through
+HTTP, cold was 0.345-0.439 s and warm p95 0.382-0.530 s over ten cells. Through
 MCP, cold was 0.424-0.475 s and warm p95 0.479-0.817 s over two runs. Rows equal an independent
 Directory-scan oracle.
 
