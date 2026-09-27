@@ -71,8 +71,10 @@ language php and limit 200:
 
 The total is 772,706 db hits. The server-side `Time` over three runs was 318,
 312 and 311 ms (ledger:6704-opsqa-directory-unscoped-server-ms). At limit 50,
-`Top` emits 50 rows over the identical upstream plan. hcl has the same shape:
-the Filter keeps 23,677 rows and the aggregation 6,200.
+`Top` emits 50 rows over the identical upstream plan
+(ledger:6704-opsqa-directory-plan-php-limit50). hcl has the same shape: the
+Filter keeps 23,677 rows and the aggregation 6,200
+(ledger:6704-opsqa-directory-plan-hcl).
 
 This is the plan the query-plan profile gate already asserts on an isolated
 Neo4j. `QP-LANGUAGE-DIRECTORY` in
@@ -126,7 +128,9 @@ Repeated with thirty warm calls:
 | MCP | php | 200 | 200 | 0.424 s | 0.447 s | 0.479 s | 0.490 s |
 | HTTP | go | 200 | 25 | 0.390 s | 0.395 s | 0.441 s | 0.535 s |
 
-The MCP repeat (ledger:6704-opsqa-directory-mcp-warm-p95-n30) puts that
+The HTTP go/200 repeat has its own row
+(ledger:6704-opsqa-directory-http-go200-warm-p95-n30). The MCP repeat
+(ledger:6704-opsqa-directory-mcp-warm-p95-n30) puts that
 surface at 0.479 s warm p95. Across both runs the MCP path is 0.45-0.82 s. It
 stays under 1 s in both, but the first run shows it is sensitive to other load
 on the shared graph.
@@ -152,7 +156,8 @@ comparison is the multiset of `(repo_id, name, file_count)`.
 
 - php: 7,561 rows on each side, and the multisets are equal
   (ledger:6704-opsqa-directory-rows-equal-php).
-- hcl: 6,200 rows on each side, and the multisets are equal.
+- hcl: 6,200 rows on each side, and the multisets are equal
+  (ledger:6704-opsqa-directory-rows-equal-hcl).
 - The HTTP php page at limit 200 equals the oracle's first 200 rows under
   `file_count DESC, repo_id ASC, name ASC`, in the same order. `repo_name` is
   filled on every one of the 200 rows.
