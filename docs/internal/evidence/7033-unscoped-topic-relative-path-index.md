@@ -42,9 +42,54 @@ claim. The earlier live ops-qa endpoint observation was 21.463 s before the
 approved path-index rollout. After that rollout, the exact canonical 16-term
 HTTP request took 11.521734 s on its first observed call, then 2.279568 s
 and 2.284533 s on two repeats. These are **not interleaved before/after**
-measurements and do not establish a speedup; the warm endpoint remains over
-the <1 s budget. A built API/MCP candidate proof is pending separately and
-is not substituted by the SQL result above.
+measurements and do not establish a speedup. The matched built-endpoint proof
+below is separate from these historical calls and from the SQL shim.
+
+## Built-endpoint Neo4j/Postgres proof
+
+Two local API binaries built with Go 1.26.6 from the exact baseline parent
+`6f2672728` and candidate commit
+`968f7b8f94ad22d7f6de277a3aa7330e62f99d34` used the same live ops-qa
+Postgres corpus and Neo4j backend through loopback, direct-Pod port forwards.
+Their SHA-256 digests were respectively
+`62654830e7fa74d7cc403b1ab00b6151059de204f56951fdb1b92153826ddb95`
+and `d8e84ff61a21e31846de5a52ac3545e81503c47fdc5306cdaea055f6d4250e53`.
+Both API processes used the production query profile and a Postgres DSN with
+`default_transaction_read_only=on`, verified before startup. Graph backfill
+markers were complete. The request was `POST /api/v0/code/topics/investigate`
+with topic `config`, the 16 terms listed below, limit 25, and offset 0.
+
+After one warmup per binary, five ABBA blocks returned HTTP 200 on all 20
+calls. The baseline median was **2.107273 s**, the candidate median
+**0.979321 s**, against the **<1 s** budget. The corpus fingerprint before
+and after was 144,838 `content_files`, 2,640,262 `content_entities`, and
+`max(indexed_at)=2026-09-27 00:08:45.783822+00`. The baseline samples in
+seconds were `2.076486, 2.124461, 2.090724, 2.138238, 2.324484,
+2.078702, 2.030057, 2.126646, 2.123823, 2.060433`; candidate samples
+were `0.967924, 0.932942, 0.972175, 1.365053, 1.068303, 1.005354,
+0.961492, 0.991513, 0.986466, 0.971270`. Several candidate calls exceeded
+1 s, so the median has a narrow margin; it is not a tail-latency guarantee.
+An earlier attempt was discarded when a service port-forward emitted an error
+stream timeout. Later sporadic long calls were not assigned a root cause and
+are not folded into a speedup claim.
+
+Behavior controls against those same built endpoints were:
+
+| Request | Baseline/candidate result | Contract observation |
+| --- | --- | --- |
+| `backpressure,microbenchmark`, limit 100 | 40 rows each; normalized count, truncation, and matched-row digest `4951106e351d39d90734b8bfab820a6b01b487ea52b2d4245603a82abf862191` on both | Uncapped ranked result matches. |
+| `issue7033nohitzzx`, limit 100 | Zero rows each; response digest `9d6ea2d98a82ec4de7ffdb62f744d8c45587c791872c32100ef931ecad9a46d3` on both | Empty result matches. |
+| `deployment`, limit 100 | 100 rows each, both truncated; response digest `8cfe4586be098b981642a791e37ef2b13c9f51b24886dc1f952a5c6cc70ef10c` on both | This capped sample happens to match; no general capped parity claim. |
+| Canonical 16 terms, limit 25 | 25 rows each, both truncated; baseline 25 matched files/zero matched symbols, candidate 20 matched files/25 matched symbols | Ranked pages differ. The conditional parity claim applies only when the candidate pool is not truncated. |
+
+This is a **local built-endpoint** comparison on live ops-qa data, not an
+in-cluster canary acceptance measurement. The candidate `/readyz` returned
+503: ops-qa has the earlier path-index migration receipts but not this
+branch's renumbered migration 132, although the exact path GIN index exists
+and the prior substring-index state is `ready`. Baseline readiness returned
+200. No candidate schema migration was applied during this read-only proof;
+the reviewed scoped migration rollout and same-topology canary remain required
+before a PR can claim deployment-ready performance.
 
 ## Read-only ops-qa query-shape proof
 
@@ -76,7 +121,8 @@ pairs (after warmup) measured **181.074 ms** for the unordered shim versus
 **171.429 ms** for the count-gated shape. Both returned 4,000 candidates and
 matched an aggregate checksum in each pair; this stage check is not a full
 ranked-page comparison or a built API measurement. The corrected production
-query and endpoint before/after proof remain pending.
+query's local built-endpoint proof is above; its in-cluster canary acceptance
+proof remains pending.
 
 ## Lifecycle proof
 
@@ -93,20 +139,40 @@ entry point rather than a direct `ApplyDefinitions` call:
 - invalid interrupted concurrent-index cleanup, concurrent production-entry
   migration calls, and reapply behavior.
 
-With PostgreSQL 18.6 and an explicitly disposable administrative database,
-the following command ran all three named live tests and passed twice (7.615 s
-and 7.513 s; both exit 0):
+The earlier twice-passing full-package live-test timings were not retained
+with a source SHA and stdout receipt, so they do not validate this branch.
+On source commit `968f7b8f94ad22d7f6de277a3aa7330e62f99d34`, the host's
+complete `./internal/storage/postgres` package test failed during linking with
+`mapping output file failed: disk quota exceeded`, before any test ran. A
+controlled file-list comparison isolated the link-size trigger to the existing
+`aws_bindings_test.go` blank import of every AWS service binding; excluding
+that one file cut the compiled archive count from 1,965 to 1,004. A file-list
+shard excluding it passed the affected live tests (27.200 s, exit 0), but was
+only partial proof.
+
+The same source commit then passed the **complete package** test in an
+isolated `golang:1.26.6-bookworm` container (image index digest
+`sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36`).
+The worktree was bind-mounted read-only, the module cache read-only, and Go's
+build cache writable; all test files, including `aws_bindings_test.go` and the
+external tests, remained in the package. The focused non-live command below
+passed in 0.064 s (exit 0). With PostgreSQL 18.6 in an explicitly disposable
+container and administrative database, the same complete package binary ran
+the affected live tests in 27.274 s (exit 0):
 
 ```bash
+# Inside the isolated Go container, from the worktree's go/ directory:
+go test ./internal/storage/postgres \
+  -run 'ContentFilesRelativePath|ContentSearchIndex|Issue7033' -count=1
 ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN='<disposable admin DSN>' \
   ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 \
-  CC=clang CGO_CFLAGS=-std=gnu17 \
   go test ./internal/storage/postgres \
-  -run '^TestContentFilesRelativePathIndex.*Live$' -count=1
+  -run '^(TestContentFilesRelativePathIndex.*Live|TestContentSearchIndex.*Live)$' -count=1
 ```
 
-The test container and its volume were removed afterward. This local receipt
-does not authorize using the deferred finalizer on a populated live database.
+The disposable database, PostgreSQL container, and test container were
+removed afterward. This local receipt does not authorize using the deferred
+finalizer on a populated live database.
 
 The opt-in `issue7033_rollout` test runner selects only the embedded, checksum-
 matched migrations 131 and 132. It requires the `public` schema and verifies
