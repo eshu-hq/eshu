@@ -100,7 +100,7 @@ func ociTagRow(imageRef, digest, repositoryID string) map[string]any {
 // decision test 2 (#6590): ref A has 749 tag observations at one digest and
 // ref B has 2 observations at two digests. The first statement's batch
 // [A,B] (sorted) fills to the 750-row bound entirely with A's rows plus one
-// of B's, so advanceOCIBoundedRead must recognize A is already complete (the
+// of B's, so oci.AdvanceBoundedRead must recognize A is already complete (the
 // read reached a later key) and retry only B in a continuation statement.
 func TestFetchOCIImageRegistryTruthRowLimitKeepsAmbiguousPairAcrossBoundary(t *testing.T) {
 	t.Parallel()
