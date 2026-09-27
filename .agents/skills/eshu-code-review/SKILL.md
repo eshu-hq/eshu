@@ -80,9 +80,10 @@ invalidates it: repeat affected proof and full review, then capture a new
 receipt. One exception is a base-only change. After a rebase that needed no
 conflict resolution, compare the cumulative patch-id, which is one ID over
 the whole diff: `git diff <base>..HEAD | git patch-id --stable`. Compute it
-for the old base and head, and again for the new ones. If the patch-id is
-unchanged and no file the diff touches was
-also changed by the base's new commits, a scoped re-review replaces the full
+for the old base and head, and again for the new ones. Overlap is empty when
+`comm -12 <(git diff --name-only <new-base>..HEAD | sort -u) <(git diff
+--name-only <old-base>..<new-base> | sort -u)` prints nothing. If the patch-id
+is unchanged and that overlap is empty, a scoped re-review replaces the full
 one. The scoped re-review must still:
 - confirm the patch-id and the empty overlap itself;
 - check semantic interaction with the new base commits;

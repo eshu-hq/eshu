@@ -248,10 +248,18 @@ fi
 # --- arm 6: body -------------------------------------------------------------
 body="$(jq -r '.body // ""' <<<"${pr_json}")"
 closes="$(rg -oi '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#[0-9]+' <<<"${body}" | paste -sd, -)"
-attrib="$(rg -oi -e "${AI_ATTRIBUTION_PATTERN}" <<<"${body}" | sort -fu | paste -sd, -)"
+# rg exits 1 for "no match" and 2+ for an error (e.g. an invalid pattern); an
+# error must fail the arm, never read as a clean body.
+attrib_hits="$(rg -oi -e "${AI_ATTRIBUTION_PATTERN}" <<<"${body}")"
+attrib_rc=$?
+attrib="$(sort -fu <<<"${attrib_hits}" | sed '/^$/d' | paste -sd, -)"
 body_bad=()
 [[ -n "${closes}" ]] || body_bad+=("no closing keyword (Closes/Fixes/Resolves #N)")
-[[ -z "${attrib}" ]] || body_bad+=("AI attribution: ${attrib}")
+if [[ "${attrib_rc}" -gt 1 ]]; then
+	body_bad+=("attribution scan failed (rg exit ${attrib_rc}); body not verified")
+elif [[ -n "${attrib}" ]]; then
+	body_bad+=("AI attribution: ${attrib}")
+fi
 if [[ ${#body_bad[@]} -eq 0 ]]; then
 	pass body "closing keywords: ${closes} (confirm each is meant to close)"
 else

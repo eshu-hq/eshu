@@ -240,6 +240,17 @@ expect_red "AI tool footer in body" body
 new_case attribution-trailer
 edit pr.json '.body += "\n" + $t + "\n"' --arg t "Co-Authored-By: ${ai_tool} <x@example.invalid>"
 expect_red "AI Co-Authored-By trailer in body" body
+# A broken scan must fail the body arm, not read as "no attribution": this
+# rg stub exits 2 only for the attribution pattern (e.g. an invalid ERE).
+new_case attribution-scan-error
+mkdir -p "${work}/badrg"
+real_rg="$(command -v rg)"
+printf '#!/usr/bin/env bash\nfor a in "$@"; do case "$a" in *co-authored-by:*) exit 2 ;; esac; done\nexec "%s" "$@"\n' "${real_rg}" >"${work}/badrg/rg"
+chmod +x "${work}/badrg/rg"
+saved_path="${PATH}"
+PATH="${work}/badrg:${PATH}"
+expect_red "attribution scan that errors" body
+PATH="${saved_path}"
 new_case attribution-trailer-no-email
 edit pr.json '.body += "\n" + $t + "\n"' --arg t "Co-Authored-By: ${ai_tool}"
 expect_red "AI Co-Authored-By trailer with no email in body" body
