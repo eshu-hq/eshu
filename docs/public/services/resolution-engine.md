@@ -79,7 +79,7 @@ run duplicate label-wide graph mutations at the same time.
 ### Changed-since link domain (dark)
 
 The `changed_since_link` domain (#7127) keeps a changed-since ledger (migration
-133). Each generation activation becomes a link: the keys that changed since
+134). Each generation activation becomes a link: the keys that changed since
 the scope's last linked generation. A later release answers `get_changed_since`
 from these links. Until then nothing reads the ledger. The domain is off by
 default. With `ESHU_CHANGED_SINCE_LINK_ENABLED` unset or `false` it builds no

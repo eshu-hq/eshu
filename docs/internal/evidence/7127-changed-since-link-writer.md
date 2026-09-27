@@ -1,6 +1,6 @@
 # 7127 PR-3a: the dark changed-since link writer
 
-PR-3a of #7127 adds the changed-since link ledger and its writer. Migration 133
+PR-3a of #7127 adds the changed-since link ledger and its writer. Migration 134
 creates six tables. The store `go/internal/storage/postgres/freshness/links`
 links one activation per transaction. The reducer domain
 `go/internal/reducer/freshness/links` journals activations and drives the

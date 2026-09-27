@@ -3,7 +3,7 @@
 ## Purpose
 
 This package runs the dark `changed_since_link` domain of #7127 PR-3a. It keeps
-the changed-since ledger (migration 133) current: every generation activation
+the changed-since ledger (migration 134) current: every generation activation
 becomes a link, meaning the set of keys that changed since the scope's
 previously linked generation. The read path that serves `get_changed_since`
 from the ledger lands in PR-3c. Until then nothing reads these tables.
