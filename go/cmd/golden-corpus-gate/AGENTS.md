@@ -37,18 +37,24 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   subset is reported because B-13 (#3859) made it the primary drain signal. If
   the queue contract changes in `go/internal/storage/postgres`, update the SQL in
   `drains.go` and its rationale comment.
-- **Every non-counting reducer retry class needs an explicit gate decision.**
-  `readinessDeferredFailureClasses` (`drains_readiness_classes.go`) is a
-  diagnostic label for strict drains and a control decision for
-  `-drain-allow-readiness-deferred` pre-maintenance quiescence. When a class is
-  added to `nonCountingReducerRetryFailureClasses` in
-  `go/internal/storage/postgres`, either enroll it in that map or exclude it in
-  `readinessLiveByDesignFailureClasses` (`drains_readiness_classes_test.go`)
-  with a reason. Exclude a class that can sit on a family pre-maintenance cells
-  assert absent and resolves without the maintenance pass, as
+- **The readiness label and the pre-maintenance decision are separate sets
+  (#7308).** The label is derived: `readinessDeferred`
+  (`drains_readiness_classes.go`) calls
+  `storagepostgres.IsNonCountingReducerRetryFailureClass`, so every class the
+  reducer exempts from its retry budget is labeled readiness-deferred in drain
+  breakdowns with no edit here. The control decision for
+  `-drain-allow-readiness-deferred` pre-maintenance quiescence is the
+  hand-kept allow-list `preMaintenanceToleratedFailureClasses`, one reason per
+  class. When a class is added to `nonCountingReducerRetryFailureClasses` in
+  `go/internal/storage/postgres`, it blocks quiescence until you either tolerate
+  it there with a reason or block it in `preMaintenanceBlockingFailureClasses`
+  (`drains_readiness_classes_test.go`) with a reason. Tolerate a class only
+  when a retrying row in it cannot make a pre-cell absence assertion pass for
+  the wrong reason. Block a class that can sit on a family the pre-maintenance
+  cells assert absent before that family's handler evaluated its gate, as
   `generation_activation_not_ready` does.
-  `TestEveryNonCountingFailureClassIsEnrolledOrExcluded` fails on an undecided
-  class (#7284).
+  `TestEveryNonCountingFailureClassHasPreMaintenanceDecision` fails on an
+  undecided class.
 - **The residual breakdown prints the error text, and the bound is the reason it
   can.** `failure_class` is a triage bucket ("projection_bug"), not the failure —
   a real reducer defect and a machine-contention timeout land in the same one, so

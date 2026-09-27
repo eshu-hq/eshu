@@ -174,23 +174,37 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 			_, _ = fmt.Fprintf(stderr, "drains: completion events [%s]\n", line)
 		}
 	}
-	if o.drainAllowReadinessDeferred && !counts.Drained(snap.DrainAssertions) {
-		// Pre-maintenance quiescence pass: the poll already proved no live
-		// work remained, but re-verify against a fresh breakdown before
-		// reporting it -- the queues moved under the poll at least once to
-		// get here. Anything but a clean re-verification falls through to
-		// the strict verdict below, which fails loudly instead of claiming
-		// a pre-state the gate cannot prove.
-		if breakdown, bErr := q.ResidualBreakdown(ctx); bErr != nil {
-			_, _ = fmt.Fprintf(stderr, "drains: residual breakdown unavailable: %v\n", bErr)
-		} else if msg, quiescent := preMaintenanceQuiescence(counts, breakdown); quiescent {
-			_, _ = fmt.Fprintf(stderr, "drains: %s\n", msg)
-			r.AddCheck("drains", "pre_maintenance_quiescence", true, true, msg)
-			return nil
-		}
+	if o.drainAllowReadinessDeferred && !counts.Drained(snap.DrainAssertions) &&
+		reverifyPreMaintenanceQuiescence(ctx, q, counts, r, stderr) {
+		return nil
 	}
 	EvaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)
 	return nil
+}
+
+// reverifyPreMaintenanceQuiescence is the pre-maintenance quiescence pass.
+// The poll already proved no live work remained, but it re-verifies against a
+// fresh breakdown before reporting it -- the queues moved under the poll at
+// least once to get here. On a clean re-verification it records the
+// pre_maintenance_quiescence check and returns true. Anything else returns
+// false so the caller falls through to the strict verdict, which fails loudly
+// instead of claiming a pre-state the gate cannot prove; a refusal prints the
+// quiescence message first, so the log names which count held it open
+// (#7308).
+func reverifyPreMaintenanceQuiescence(ctx context.Context, q drainQuerier, counts DrainCounts, r *Report, stderr io.Writer) bool {
+	breakdown, err := q.ResidualBreakdown(ctx)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "drains: residual breakdown unavailable: %v\n", err)
+		return false
+	}
+	msg, quiescent := preMaintenanceQuiescence(counts, breakdown)
+	if !quiescent {
+		_, _ = fmt.Fprintf(stderr, "drains: pre-maintenance quiescence refused on re-verification, applying the strict verdict: %s\n", msg)
+		return false
+	}
+	_, _ = fmt.Fprintf(stderr, "drains: %s\n", msg)
+	r.AddCheck("drains", "pre_maintenance_quiescence", true, true, msg)
+	return true
 }
 
 func runGraph(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report) error {

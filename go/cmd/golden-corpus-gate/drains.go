@@ -228,47 +228,22 @@ func preMaintenanceBlockingSharedIntents(counts DrainCounts) int64 {
 
 // preMaintenanceQuiescence is the pure predicate behind preMaintenanceQuiescent
 // plus the message the pre-maintenance verdict reports. Only the
-// repo_dependency subset of the shared-intent residual is tolerated; the
-// post-maintenance strict drain re-checks it.
+// repo_dependency subset of the shared-intent residual is tolerated, and only
+// the readiness-deferred rows whose class is in
+// preMaintenanceToleratedFailureClasses; readiness-not-tolerated counts the
+// rest, which hold quiescence open (#7308). The post-maintenance strict drain
+// re-checks everything tolerated here.
 func preMaintenanceQuiescence(counts DrainCounts, rows []residualRow) (string, bool) {
-	live, deferred, deadLetter, failed := classifyResidualRows(rows)
-	quiescent := live == 0 && deadLetter == 0 && failed == 0 &&
+	rc := classifyResidualRows(rows)
+	quiescent := rc.live == 0 && rc.preMaintenanceBlocking == 0 && rc.deadLetter == 0 && rc.failed == 0 &&
 		preMaintenanceBlockingSharedIntents(counts) == 0 &&
 		counts.CrossScopeCompletionEventsNonterminal == 0
-	msg := fmt.Sprintf("pre-maintenance quiescence: live=%d readiness-deferred=%d dead_letter=%d failed=%d "+
+	msg := fmt.Sprintf("pre-maintenance quiescence: live=%d readiness-deferred=%d dead_letter=%d failed=%d readiness-not-tolerated=%d "+
 		"shared-required-nonterminal=%d repo_dependency-deferred=%d completion-events=%d (deferred rows converge after the maintenance pass; the post-maintenance drain stays strict)",
-		live, deferred, deadLetter, failed,
+		rc.live, rc.readinessDeferred, rc.deadLetter, rc.failed, rc.preMaintenanceBlocking,
 		counts.SharedIntentsRequiredNonterminal, counts.RepoDependencyNonterminal,
 		counts.CrossScopeCompletionEventsNonterminal)
 	return msg, quiescent
-}
-
-// classifyResidualRows splits residual groups into live work versus readiness
-// deferrals, with terminal rows counted separately. Shared with
-// formatResidualBreakdown so the poll predicate and the timeout message can
-// never disagree about which row is which.
-func classifyResidualRows(rows []residualRow) (live, deferred, deadLetter, failed int64) {
-	for _, row := range rows {
-		switch {
-		case row.Status == "dead_letter":
-			deadLetter += row.Count
-		// `failed` is terminal, same as dead_letter. Postgres already draws this
-		// line: the outstanding-work count in generation_lifecycle_sql.go is
-		// `status IN ('pending','claimed','running','retrying')`, which excludes
-		// it. Counting a failed row as live would report a stuck pipeline as a
-		// busy one and send the reader looking for progress that is not coming.
-		case row.Status == "failed":
-			failed += row.Count
-		// Claim transitions retain prior failure metadata. Only retrying rows are
-		// waiting on readiness; claimed/running rows are live even when they still
-		// carry a readiness failure from an earlier attempt.
-		case row.Status == "retrying" && readinessDeferredFailureClasses[row.FailureClass]:
-			deferred += row.Count
-		default:
-			live += row.Count
-		}
-	}
-	return live, deferred, deadLetter, failed
 }
 
 // residualRow is one (domain, status, failure_class) group of work items left
@@ -354,18 +329,22 @@ func formatResidualBreakdown(rows []residualRow) string {
 		return ""
 	}
 
-	live, deferred, deadLetter, failed := classifyResidualRows(rows)
+	rc := classifyResidualRows(rows)
 	details := make([]string, 0, len(rows))
 	for _, row := range rows {
 		details = append(details, fmt.Sprintf("%s=%d", residualGroupLabel(row), row.Count))
 	}
 
-	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d failed=%d", live, deferred, deadLetter, failed)
+	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d failed=%d",
+		rc.live, rc.readinessDeferred, rc.deadLetter, rc.failed)
 	// Only claim "every residual row is waiting" when that is literally true.
 	// A terminal row in the residual is a different failure with a different
 	// owner, and burying it under a readiness story sends the reader the wrong
-	// way — so any dead_letter or failed row suppresses the claim.
-	if live == 0 && deferred > 0 && deadLetter == 0 && failed == 0 {
+	// way — so any dead_letter or failed row suppresses the claim. A
+	// pre-maintenance-blocking row (generation_activation_not_ready) suppresses
+	// it too: it clears on the projector Ack without the maintenance pass, so
+	// more drain time could have helped (#7308 review).
+	if rc.live == 0 && rc.readinessDeferred > 0 && rc.preMaintenanceBlocking == 0 && rc.deadLetter == 0 && rc.failed == 0 {
 		summary += " — no live work remained: every residual row is waiting on a readiness precondition, so more drain time would not have helped"
 	}
 	return summary + " [" + strings.Join(details, " ") + "]" + formatResidualMessages(rows)

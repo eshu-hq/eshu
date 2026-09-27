@@ -203,22 +203,44 @@ func TestResidualBreakdownCountsServiceCatalogCorpusFenceDeferralAsDeferred(t *t
 	}
 }
 
-// TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness pins the two
-// sides of the #7284 decision through the production classifier: a retrying
-// value_flow_inputs_not_ready row (enrolled) is readiness-deferred, while a
-// retrying generation_activation_not_ready row (excluded by design) stays live,
-// so pre-maintenance quiescence keeps waiting for it.
-func TestClassifyResidualRowsSplitsEnrolledFromExcludedReadiness(t *testing.T) {
+// TestClassifyResidualRowsSplitsToleratedFromBlockingReadiness pins both sides
+// of the #7308 split through the production classifier: both rows are labeled
+// readiness-deferred, and only the generation_activation_not_ready rows count
+// as pre-maintenance blocking.
+func TestClassifyResidualRowsSplitsToleratedFromBlockingReadiness(t *testing.T) {
 	t.Parallel()
 
 	rows := []residualRow{
 		{Domain: "code_value_flow_refresh", Status: "retrying", FailureClass: crossscope.ValueFlowInputsNotReadyFailureClass, Count: 2},
 		{Domain: "workload_materialization", Status: "retrying", FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3},
 	}
-	live, deferred, deadLetter, failed := classifyResidualRows(rows)
-	if live != 3 || deferred != 2 || deadLetter != 0 || failed != 0 {
-		t.Fatalf("classifyResidualRows = live %d deferred %d dead_letter %d failed %d; "+
-			"want live 3 (generation_activation_not_ready) deferred 2 (value_flow_inputs_not_ready)",
-			live, deferred, deadLetter, failed)
+	got := classifyResidualRows(rows)
+	want := residualCounts{readinessDeferred: 5, preMaintenanceBlocking: 3}
+	if got != want {
+		t.Fatalf("classifyResidualRows = %+v, want %+v", got, want)
+	}
+	line := formatResidualBreakdown(rows)
+	if !strings.Contains(line, "live=0 readiness-deferred=5") {
+		t.Errorf("breakdown must label both classes readiness-deferred: %s", line)
+	}
+}
+
+// A generation_activation_not_ready row is a readiness wait, but it clears on
+// the projector Ack without the maintenance pass, so more drain time could
+// have helped. The "no live work remained" claim must not fire for a residual
+// that holds any pre-maintenance-blocking row, even though the row is labeled
+// readiness-deferred.
+func TestResidualBreakdownDoesNotClaimNoProgressForBlockingReadiness(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "workload_materialization", Status: "retrying", FailureClass: contract.GenerationActivationNotReadyFailureClass, Count: 3},
+	}
+	got := formatResidualBreakdown(rows)
+	if !strings.Contains(got, "live=0 readiness-deferred=3") {
+		t.Errorf("breakdown must still label the row readiness-deferred: %s", got)
+	}
+	if strings.Contains(got, "no live work remained") {
+		t.Errorf("breakdown claims more drain time would not have helped for a row that clears on its own: %s", got)
 	}
 }
