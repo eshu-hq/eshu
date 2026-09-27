@@ -123,7 +123,7 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G16b non-counting | PASS | `TestNonCountingOutcomesNeverPoison`: slots held, cursor held and generation held, each for MaxAttempts + 2 cycles: `attempt_count` 0 and no poison marker. RED: a planted classifier that counts `slot_busy` counts and poisons. `TestRecordFailureSkipsAHeldCursor`: a count is never written without the cursor lock. |
 | G16c recovery | PASS | `TestFailingLinkIsPoisonedAfterMaxAttempts`: after the poisoning the next full generation links `incremental` from the kept state, the state equals its aggregate, and the marker is cleared. |
 | G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. Like G9, this ran on two OS processes of the compiled test binary with the production `Runner`, not on two reducer binaries: the reducer binary needs a graph backend. The dark deployment supplies the built-binary evidence (review F9). |
-| G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 496 rows after the rebase, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
+| G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 502 rows on `origin/main` `944c526081`, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
 | G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
 
 ## Scale run
@@ -236,9 +236,10 @@ the host.
 
 ### After the rebase onto `810f40225e` and the review fixes
 
-The ledger migration is now 134 (`#7291` landed 133 on main). Open PRs #7301
-and #7206 also add a migration numbered 133; whoever lands after this renumbers
-and re-pins the golden digest, count and checksum.
+The ledger migration is now 134 (`#7291` landed 133 on main). Open PRs #7305,
+#7206 and #7301 also add a migration numbered 134 (#7301 also adds a 133,
+which collides with main's); whoever lands after this renumbers and re-pins
+the golden digest, count and checksum.
 
 | Command | rc |
 | --- | --- |
@@ -257,8 +258,9 @@ and re-pins the golden digest, count and checksum.
 
 - Migration number: this PR ships `134_changed_since_link_ledger.sql`. It
   was 133 until #7291 landed `133_repository_entry_points_index.sql` on main.
-  Open PRs #7301 and #7206 still claim 133; whoever lands after this renumbers
-  and re-pins the golden digest, count and checksum.
+  Open PRs #7305, #7206 and #7301 also claim 134 (#7301 also adds a 133,
+  which collides with main's); whoever lands after this renumbers and re-pins
+  the golden digest, count and checksum.
 - Naming: the store is `storage/postgres/freshness/links` and the domain
   `reducer/freshness/links`, because the dirgate ledger pins
   `storage/postgres` at 321 files and the naming-glue gate rejects
@@ -270,8 +272,6 @@ and re-pins the golden digest, count and checksum.
 - G9 and G16d ran on two processes of the compiled test binary, not the
   reducer binary, which needs a graph backend.
 - PR-3c must use the LATERAL form of the chain read (G4).
-- G7 root basis is the median (1.667 against 3x); one round reached 3.356
-  while the reviewer's tests loaded the host.
 - Known gap (ruling 8.10 item 10): a poisoned link is not listed by
   `list_dead_letter_work_items` or the status surface; the cursor row is the
   durable record.
