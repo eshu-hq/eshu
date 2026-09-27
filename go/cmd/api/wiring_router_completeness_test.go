@@ -169,18 +169,19 @@ func newFullyWiredTestRouter(t *testing.T) *query.APIRouter {
 // this constructor's scope -- and APIRouter.Ask, which neither entrypoint
 // ever assigns (POST /api/v0/ask is mounted directly on the mux instead).
 var routerFieldsNotWiredByNewRouter = map[string]string{
-	"AdminDeadLetters":             "MCP-only: the API's Admin handler already covers dead-letter queries; cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminDeadLetters handler instead",
-	"AdminInputInvalidFacts":       "MCP-only: the API's Admin handler already covers input-invalid-facts queries (AdminHandler.Mount, issue #4630); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminInputInvalidFacts handler instead",
-	"Setup":                        "wired later by wireAPI once providerSecretKeyring/bootstrapMode exist",
-	"OIDCLogin":                    "wired later by wireAPI once a live OIDC provider resolver exists",
-	"SAML":                         "wired later by wireAPI once a live SAML provider resolver exists",
-	"GitHubLogin":                  "wired later by wireAPI once a live GitHub provider resolver exists",
-	"AuthProviders":                "wired later by wireAPI, composed from OIDCLogin/SAML/GitHubLogin built after this constructor returns",
-	"AdminProviderConfigReads":     "wired later by wireAPI",
-	"AdminProviderConfigMutations": "wired later by wireAPI",
-	"SignInPolicyReads":            "wired later by wireAPI",
-	"SignInPolicyMutations":        "wired later by wireAPI",
-	"Ask":                          "POST /api/v0/ask is mounted directly on the mux by wireAPI/buildAskHandler; APIRouter.Ask is never assigned on either entrypoint",
+	"AdminDeadLetters":               "MCP-only: the API's Admin handler already covers dead-letter queries; cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminDeadLetters handler instead",
+	"AdminInputInvalidFacts":         "MCP-only: the API's Admin handler already covers input-invalid-facts queries (AdminHandler.Mount, issue #4630); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminInputInvalidFacts handler instead",
+	"AdminChangedSincePoisonedLinks": "MCP-only: the API's Admin handler already covers changed-since poisoned-links queries (AdminHandler.Mount, issue #7290); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminChangedSincePoisonedLinks handler instead",
+	"Setup":                          "wired later by wireAPI once providerSecretKeyring/bootstrapMode exist",
+	"OIDCLogin":                      "wired later by wireAPI once a live OIDC provider resolver exists",
+	"SAML":                           "wired later by wireAPI once a live SAML provider resolver exists",
+	"GitHubLogin":                    "wired later by wireAPI once a live GitHub provider resolver exists",
+	"AuthProviders":                  "wired later by wireAPI, composed from OIDCLogin/SAML/GitHubLogin built after this constructor returns",
+	"AdminProviderConfigReads":       "wired later by wireAPI",
+	"AdminProviderConfigMutations":   "wired later by wireAPI",
+	"SignInPolicyReads":              "wired later by wireAPI",
+	"SignInPolicyMutations":          "wired later by wireAPI",
+	"Ask":                            "POST /api/v0/ask is mounted directly on the mux by wireAPI/buildAskHandler; APIRouter.Ask is never assigned on either entrypoint",
 
 	// Nested interface fields: gated on runtime config that this
 	// constructor-level test does not (and should not) flip on, or wired

@@ -3,7 +3,7 @@
 
 package status
 
-// Admin is the OpenAPI path fragment documenting the 13 `/api/v0/admin/*`
+// Admin is the OpenAPI path fragment documenting the 14 `/api/v0/admin/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
 const Admin = `
@@ -203,6 +203,39 @@ const Admin = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Input-invalid-facts query timed out"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/admin/changed-since/poisoned-links/query": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Query poisoned and retrying changed-since links",
+        "description": "Returns a bounded deterministic page of durable changed_since_scope_cursor rows that are poisoned (the link hit its counting-failure limit, #7127 ruling 8.10) or retrying (a counted failure is pending on the scope's head activation). The changed-since link writer (go/internal/storage/postgres/freshness/links) is a runner over its own ledger, not a fact_work_items queue domain, so this state never appears in the dead-letter or reducer_input_invalid_facts surfaces (#7290). Requires limit and timeout_ms; supports optional status (poisoned|retrying), scope_id, and a forward keyset cursor (the last scope_id of a prior page). Returns truncated=true and next_cursor when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "x-scoped-token-support": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["limit", "timeout_ms"],
+                "properties": {
+                  "status": {"type": "string", "enum": ["poisoned", "retrying"]},
+                  "scope_id": {"type": "string"},
+                  "cursor": {"type": "string", "description": "The last scope_id of a prior page's items; returns rows with a greater scope_id."},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                  "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 30000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "504": {"description": "Changed-since poisoned-links query timed out"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

@@ -87,6 +87,11 @@ type stubAdminStore struct {
 	inputInvalidFactFilter InputInvalidFactListFilter
 	inputInvalidFactCalls  int
 	inputInvalidFactErr    error
+
+	changedSincePoisonedLinkRows   []ChangedSincePoisonedLink
+	changedSincePoisonedLinkFilter ChangedSincePoisonedLinkFilter
+	changedSincePoisonedLinkCalls  int
+	changedSincePoisonedLinkErr    error
 }
 
 func (s *stubAdminStore) ListWorkItems(_ context.Context, _ WorkItemFilter) ([]WorkItem, error) {
@@ -162,6 +167,15 @@ func (s *stubAdminStore) ListReducerInputInvalidFacts(
 	s.inputInvalidFactCalls++
 	s.inputInvalidFactFilter = f
 	return s.inputInvalidFactRows, s.inputInvalidFactErr
+}
+
+func (s *stubAdminStore) ListChangedSincePoisonedLinks(
+	_ context.Context,
+	f ChangedSincePoisonedLinkFilter,
+) ([]ChangedSincePoisonedLink, error) {
+	s.changedSincePoisonedLinkCalls++
+	s.changedSincePoisonedLinkFilter = f
+	return s.changedSincePoisonedLinkRows, s.changedSincePoisonedLinkErr
 }
 
 // --- helpers ---

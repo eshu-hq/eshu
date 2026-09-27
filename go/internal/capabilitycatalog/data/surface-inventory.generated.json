@@ -738,6 +738,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/admin/changed-since/poisoned-links/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/admin/dead-letter",
       "readiness": "implemented"
     },
@@ -3291,6 +3296,11 @@
     {
       "category": "mcp_tool",
       "name": "list_aws_runtime_drift_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_changed_since_poisoned_links",
       "readiness": "implemented"
     },
     {

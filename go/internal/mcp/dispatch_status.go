@@ -57,6 +57,8 @@ func statusRoute(toolName string, args map[string]any) (*routecontract.Request, 
 		return &routecontract.Request{Method: "POST", Path: "/api/v0/admin/dead-letters/query", Body: body}, true, nil
 	case "list_reducer_input_invalid_facts":
 		return reducerInputInvalidFactsRoute(args)
+	case "list_changed_since_poisoned_links":
+		return changedSincePoisonedLinksRoute(args)
 	case "get_freshness_causality":
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/freshness-causality"}, true, nil
 	case "get_collector_readiness":
@@ -180,4 +182,34 @@ func reducerInputInvalidFactsRoute(args map[string]any) (*routecontract.Request,
 		}
 	}
 	return &routecontract.Request{Method: "POST", Path: "/api/v0/admin/input-invalid-facts/query", Body: body}, true, nil
+}
+
+// changedSincePoisonedLinksRoute builds the
+// POST /api/v0/admin/changed-since/poisoned-links/query route for
+// list_changed_since_poisoned_links (#7290): the changed-since link writer
+// (go/internal/storage/postgres/freshness/links) is a runner over its own
+// changed_since_scope_cursor ledger, not a fact_work_items queue domain, so
+// its poisoned and retrying scopes never appear in list_dead_letter_work_items
+// (#7127 ruling 8.10). limit and timeout_ms are required; status, scope_id,
+// and cursor are optional passthrough filters. Extracted from statusRoute to
+// keep that switch under the funlen cap.
+func changedSincePoisonedLinksRoute(args map[string]any) (*routecontract.Request, bool, error) {
+	limit := intOr(args, "limit", 0)
+	if limit <= 0 {
+		return nil, true, fmt.Errorf("limit is required")
+	}
+	timeoutMS := intOr(args, "timeout_ms", 0)
+	if timeoutMS <= 0 {
+		return nil, true, fmt.Errorf("timeout_ms is required")
+	}
+	body := map[string]any{
+		"limit":      limit,
+		"timeout_ms": timeoutMS,
+	}
+	for _, key := range []string{"status", "scope_id", "cursor"} {
+		if value := strings.TrimSpace(str(args, key)); value != "" {
+			body[key] = value
+		}
+	}
+	return &routecontract.Request{Method: "POST", Path: "/api/v0/admin/changed-since/poisoned-links/query", Body: body}, true, nil
 }

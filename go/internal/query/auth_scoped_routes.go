@@ -169,6 +169,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedInputInvalidFactListRoute(r) {
 		return true
 	}
+	if scopedChangedSincePoisonedLinksRoute(r) {
+		return true
+	}
 	if scopedFreshnessCausalityRoute(r) {
 		return true
 	}

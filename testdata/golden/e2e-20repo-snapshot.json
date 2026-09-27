@@ -6641,6 +6641,21 @@
           "timeout_ms": 5000
         }
       },
+      "list_changed_since_poisoned_links": {
+        "description": "MCP tool coverage for the bounded changed-since poisoned/retrying link read (#7290). The changed-since link writer ships dark (ESHU_CHANGED_SINCE_LINK_ENABLED default off, #7127 ruling 8.10 item 10), so the corpus never activates it and produces no poisoned or retrying changed_since_scope_cursor row; this asserts the bounded empty-page shape only.",
+        "required_response_fields": [
+          "count",
+          "items",
+          "limit",
+          "schema_version",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "limit": 10,
+          "timeout_ms": 5000
+        }
+      },
       "list_reducer_input_invalid_facts": {
         "description": "MCP tool coverage for the durable fail-closed suppression admission path. The live helper first creates a harmless CVE-2026-99999 suppression through the authenticated producer so the operator scope and its active generation exist, then injects one eshu_policy suppression with an unknown justification directly at the fact-storage/reducer seam for CVE-2026-00010 and reopens that producer-created generation's real reducer work item. This deliberately bypasses producer JSON-Schema conformance to exercise the hostile external-fact boundary without adding a duplicate work item that queue supersession could skip. The reducer must quarantine it as input_invalid/justification while the live HTTP finding remains active; the helper removes only the malformed source fact before exercising the authenticated generation-rewrite API, leaving durable quarantine evidence bound to the runtime generation for MCP readback.",
         "required_response_fields": [

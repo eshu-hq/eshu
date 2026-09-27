@@ -11,7 +11,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 166
+	expectedCount := 167
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -107,6 +107,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_hosted_readiness",
 		"get_operator_control_plane",
 		"list_dead_letter_work_items",
+		"list_changed_since_poisoned_links",
 		"get_freshness_causality",
 		"get_hosted_governance_status",
 		"get_semantic_capability_status",
@@ -320,8 +321,8 @@ func TestContentTools(t *testing.T) {
 
 func TestRuntimeTools(t *testing.T) {
 	tools := runtimeTools()
-	if len(tools) != 15 {
-		t.Errorf("Expected 15 runtime tools, got %d", len(tools))
+	if len(tools) != 16 {
+		t.Errorf("Expected 16 runtime tools, got %d", len(tools))
 	}
 }
 
@@ -380,7 +381,7 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"component_id": "dev.eshu.collector.aws"}
 	case "get_collector_extraction_readiness":
 		return map[string]any{"family": "pagerduty"}
-	case "list_dead_letter_work_items":
+	case "list_dead_letter_work_items", "list_changed_since_poisoned_links":
 		return map[string]any{"limit": 10, "timeout_ms": 5000}
 	case "list_reducer_input_invalid_facts":
 		return map[string]any{"scope_id": "sample-scope", "generation_id": "sample-generation", "limit": 10, "timeout_ms": 5000}

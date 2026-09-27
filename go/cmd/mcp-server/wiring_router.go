@@ -320,6 +320,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Store:       query.NewPostgresAdminStore(db),
 			Instruments: instruments,
 		},
+		AdminChangedSincePoisonedLinks: &query.AdminChangedSincePoisonedLinksHandler{
+			Store:       query.NewPostgresAdminStore(db),
+			Instruments: instruments,
+		},
 		// CloudInventory backs the list_cloud_resource_inventory MCP tool. It must
 		// be mounted here (mirroring cmd/api/wiring.go) or the advertised tool
 		// dispatches to /api/v0/cloud/inventory and 404s on the standalone MCP

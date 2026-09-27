@@ -223,6 +223,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"PATCH /api/v0/auth/browser-session/context":                                    scopedRouteIdentityBound,
 	"POST /api/v0/admin/dead-letters/query":                                         scopedRouteGrantBound,
 	"POST /api/v0/admin/input-invalid-facts/query":                                  scopedRouteGrantBound,
+	"POST /api/v0/admin/changed-since/poisoned-links/query":                         scopedRouteGrantBound,
 	"POST /api/v0/ask":                                                              scopedRouteTransitive,
 	"POST /api/v0/auth/admin/idp-group-mappings":                                    scopedRouteIdentityBound,
 	"POST /api/v0/auth/admin/provider-configs":                                      scopedRouteIdentityBound,
