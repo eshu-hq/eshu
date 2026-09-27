@@ -22,7 +22,7 @@ No-Regression Evidence: the only change to the hot statements is one extra colum
 - **Plans:** identical node for node.
   - Scope statement: an `Index Scan` on `ingestion_scopes_pkey`, a nested-loop `Index Scan` on `scope_generations_pkey`, and an `Index Only Scan` subplan on `scope_generations_scope_idx`.
   - Generation statement: a `Bitmap Index Scan` on `scope_generations_scope_generation_idx` feeding a top-N heapsort.
-- **Buffers:** equal.
+- **Buffers:** equal, apart from 2-3 extra buffers on the two cold first runs, which are also the source of the maxima below.
 - **Execution time** (the spread is noise at this scale):
 
   | Statement | Old median (range) | New median (range) |

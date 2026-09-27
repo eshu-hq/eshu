@@ -124,3 +124,33 @@ func TestChangedSinceUnavailableReasonIsRecordedOnTheSpan(t *testing.T) {
 		t.Fatalf("%s = %v on a served diff, want it absent", telemetry.SpanAttrChangedSinceUnavailableReason, got)
 	}
 }
+
+// TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration
+// pins the envelope switch: only an empty reason means the scope has no
+// current active generation. A reason the switch does not know must name
+// itself in the detail and carry no pending-generation cause, so a future
+// reason added without its own case shows up instead of inheriting the wrong
+// explanation (#7286 review).
+func TestChangedSinceUnknownUnavailableReasonIsNotMistakenForNoCurrentGeneration(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{}
+	noCurrent := handler.changedSinceTruthEnvelope(status.ChangedSinceSummary{Unavailable: true})
+	if !strings.Contains(noCurrent.Freshness.Detail, "no current active generation") {
+		t.Fatalf("empty reason detail = %q, want the no-current-generation explanation", noCurrent.Freshness.Detail)
+	}
+
+	unknown := handler.changedSinceTruthEnvelope(status.ChangedSinceSummary{
+		Unavailable:       true,
+		UnavailableReason: "some_future_reason",
+	})
+	if unknown.Freshness.State != querycontract.FreshnessUnavailable {
+		t.Fatalf("unknown reason state = %q, want %q", unknown.Freshness.State, querycontract.FreshnessUnavailable)
+	}
+	if strings.Contains(unknown.Freshness.Detail, "no current active generation") {
+		t.Fatalf("unknown reason detail = %q, must not claim the scope has no current generation", unknown.Freshness.Detail)
+	}
+	if !strings.Contains(unknown.Freshness.Detail, "some_future_reason") {
+		t.Fatalf("unknown reason detail = %q, want it to name the reason", unknown.Freshness.Detail)
+	}
+}

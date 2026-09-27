@@ -221,9 +221,15 @@ func (h *Handler) changedSinceTruthEnvelope(summary status.ChangedSinceSummary) 
 			// No closed FreshnessCause fits: nothing is lagging. The window
 			// itself cannot be diffed, and unavailable_reason carries why.
 			envelope.Freshness.Detail = changedSinceNotComparableDetail(summary)
-		default:
+		case "":
+			// The reader leaves the reason empty only when the scope has no
+			// current active generation.
 			envelope.Freshness.Detail = "the scope has no current active generation, so a changed-since diff cannot be computed yet"
 			WithCause(envelope, CausePendingRepoGeneration)
+		default:
+			// A reason without its own case names itself rather than inheriting
+			// another reason's explanation; add a case when adding a reason.
+			envelope.Freshness.Detail = fmt.Sprintf("the changed-since diff is unavailable (%s)", summary.UnavailableReason)
 		}
 	case summary.Building:
 		envelope.Freshness.State = querycontract.FreshnessBuilding
