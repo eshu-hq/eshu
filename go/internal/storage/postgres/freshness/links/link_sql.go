@@ -4,10 +4,11 @@
 package linksfreshnessstore
 
 // SlotLockClass is the first key of the two-integer advisory lock that holds
-// one full-link slot: pg_try_advisory_xact_lock(SlotLockClass, slot). The
-// two-integer keyspace in the tree otherwise holds the schema bootstrap class
-// 5318 and hashtext() namespaces; the live test asserts none of those equals
-// this class.
+// one full-link slot: pg_try_advisory_xact_lock(SlotLockClass, slot).
+// TestSlotLockClassDiffersFromTreeKeys derives every other two-integer lock
+// class in the module from the code (SQL literals, hashtext() arguments and
+// the Go constants bound to them) and fails if one equals this class or
+// cannot be resolved.
 const SlotLockClass = 7127
 
 // ensureCursorQuery creates the scope's cursor row outside the link

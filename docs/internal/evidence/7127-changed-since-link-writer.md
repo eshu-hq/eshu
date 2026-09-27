@@ -331,6 +331,10 @@ and re-pins the golden digest, count and checksum.
   for n = 1 / 2 / 4 and stopped when three of four links of an n=4 window hit
   the 120 s statement timeout together; the cause is not established. The
   domain is dark and defaults to 2 slots.
+- Review P3(f) is fixed: the advisory-class collision test derives the
+  two-integer lock classes from the code instead of a hand-kept list (six
+  sites today, including migration 062's class 5318), fails on any site it
+  cannot resolve, and has a seeded RED (a planted SQL and Go site).
 - Record-only review items (P3): (b) `LedgerStats.DeltaBytes`/`DeltaRows` are
   read each cycle but not exported as gauges; (c) the state half of G4 has no
   seeded RED of its own; (d) one fixture row with a tombstone kind sorting
