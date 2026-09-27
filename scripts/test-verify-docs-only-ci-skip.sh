@@ -95,21 +95,14 @@ import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = (
-	"  - id: go-fmt\n"
-	"    name: Go gofumpt formatting\n"
-	"    category: hygiene\n"
-	"    layer: hygiene\n"
-	'    purpose: "Checks Go source is formatted with gofumpt so diffs stay consistent."\n'
-	"    tier: pre-commit\n"
-	"    blocking: true\n"
-	"    triggers:\n"
-	'      - "go/**"\n'
-)
-assert needle in content, "go-fmt gate anchor not found — registry shape changed?"
-mutated = needle.replace('      - "go/**"\n', '      - "go/**"\n      - ".agents/**"\n')
+start = content.find("  - id: go-fmt\n")
+end = content.find("\n  - id: ", start + 1)
+anchor = '    triggers:\n      - "go/**"\n'
+at = content.find(anchor, start)
+assert 0 <= start < at < end, "go-fmt triggers anchor not found"
+at += len(anchor)
 with open(path, "w") as f:
-	f.write(content.replace(needle, mutated, 1))
+	f.write(content[:at] + '      - ".agents/**"\n' + content[at:])
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 2 should fail when a code-gated gate's trigger is swallowed by the filter's negations"
