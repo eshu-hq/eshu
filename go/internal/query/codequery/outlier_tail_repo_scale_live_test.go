@@ -339,7 +339,7 @@ func TestLiveOutlierTailRepoScaleNeo4j(t *testing.T) {
 		t.Logf("%s tail probe (250 high-degree keys): rows=%d cold=%s warm-p50=%s warm-p95=%s max=%s edge-hash=%s",
 			c.label, rows, tailCold, tailP50, tailP95, tailMax, tailHash)
 
-		// Whole-cohort fan-out: 1 warm-up + 3 timed.
+		// Whole-cohort fan-out: 1 warm-up + 1 timed.
 		if _, _, err := c.handler.readOutlierCalleeEdges(ctx, c.keys, liveScaleRepo); err != nil {
 			t.Fatalf("readOutlierCalleeEdges warm-up @%s: %v", c.label, err)
 		}
