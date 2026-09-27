@@ -317,11 +317,13 @@ var orderedBootstrapDefinitionNames = []string{
 	"content_entities_repo_path_start_idx",
 	// Migration 133 (#7242) narrows repository-context entry-point reads.
 	"repository_entry_points_index",
-	// migrations 134-135 (#7033) add the all-repository relative_path GIN and
+	// Migrations 134-135 (#7033) add the all-repository relative_path GIN and
 	// extend the deferred content-index lifecycle to build and validate it only
 	// after the write-heavy content projection drain.
 	"content_files_relative_path_trgm_index",
 	"content_files_relative_path_trgm_index_lifecycle",
 	// Migration 136 (#7127) adds the changed-since link ledger tables, without foreign keys.
 	"changed_since_link_ledger",
+	// Migration 137 (#7248) bounds repository tree reads by a literal path prefix under ICU.
+	"content_files_repo_path_pattern_idx",
 }

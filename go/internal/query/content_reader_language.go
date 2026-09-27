@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
@@ -80,8 +81,8 @@ func (cr *ContentReader) ListRepoFilesByLanguage(ctx context.Context, repoID str
 	return results, nil
 }
 
-// RepoFilePathContext reports whether requestPath exists in the repository's
-// indexed file set (as a file or a directory prefix) and the repository's indexed
+// RepoFilePathContext reports whether requestPath exists as a directory prefix
+// in the repository's indexed file set and the repository's indexed
 // commit ref, both computed UNFILTERED by language in a single query. The tree
 // handler uses it on the language-filtered path so a real directory with zero
 // files in the requested language still returns an empty listing (not a 404) and
@@ -113,7 +114,7 @@ func (cr *ContentReader) RepoFilePathContext(ctx context.Context, repoID, reques
 		  EXISTS (
 		    SELECT 1 FROM content_files
 		    WHERE repo_id = $1
-		      AND ($2 = '' OR relative_path = $2 OR strpos(relative_path, $2 || '/') = 1)
+		      AND ($2 = '' OR strpos(relative_path, $2 || '/') = 1)
 		  ),
 		  coalesce((
 		    SELECT commit_sha FROM content_files
@@ -127,4 +128,58 @@ func (cr *ContentReader) RepoFilePathContext(ctx context.Context, repoID, reques
 		return false, "", fmt.Errorf("repo file path context: %w", err)
 	}
 	return exists, ref, nil
+}
+
+// ListRepoFilesByPath returns indexed files strictly beneath one directory,
+// ordered by relative path and capped after the path predicate. An empty path
+// delegates to the whole-repository listing. The path is escaped as a literal
+// LIKE prefix so %, _, and ! in file names do not widen the subtree.
+func (cr *ContentReader) ListRepoFilesByPath(ctx context.Context, repoID, pathPrefix string, limit int) ([]FileContent, error) {
+	if pathPrefix == "" {
+		return cr.ListRepoFiles(ctx, repoID, limit)
+	}
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "list_repo_files_by_path"),
+			attribute.String("db.sql.table", "content_files"),
+		),
+	)
+	defer span.End()
+
+	if limit <= 0 {
+		limit = 500
+	}
+	pattern := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(pathPrefix) + "/%"
+	rows, err := cr.db.QueryContext(ctx, `
+		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
+		       '', content_hash, line_count, coalesce(language, ''),
+		       coalesce(artifact_type, '')
+		FROM content_files
+		WHERE repo_id = $1 AND relative_path LIKE $2 ESCAPE '!'
+		ORDER BY relative_path
+		LIMIT $3
+	`, repoID, pattern, limit)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("list repo files by path: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []FileContent
+	for rows.Next() {
+		var file FileContent
+		if err := rows.Scan(&file.RepoID, &file.RelativePath, &file.CommitSHA,
+			&file.Content, &file.ContentHash, &file.LineCount, &file.Language, &file.ArtifactType); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan repo file by path: %w", err)
+		}
+		results = append(results, file)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return results, err
+	}
+	return results, nil
 }

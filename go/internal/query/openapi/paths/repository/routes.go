@@ -367,7 +367,7 @@ const Routes = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository file tree",
-        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. The 50,000-file cap applies after path and language selection; truncated means the matching subtree exceeds the cap. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryTree",
         "x-scoped-token-support": true,
         "parameters": [

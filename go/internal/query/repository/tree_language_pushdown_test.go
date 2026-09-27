@@ -116,3 +116,18 @@ func TestGetRepositoryTreeLanguageFilterUnknownPathReturns404(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 }
+
+// TestGetRepositoryTreeLanguageFilterExactFileReturns404 keeps tree path
+// semantics when the filtered file listing contains the requested file itself.
+func TestGetRepositoryTreeLanguageFilterExactFileReturns404(t *testing.T) {
+	store := languageListerTreeStore()
+	store.pathExists = false // The path-context lookup checks directory descendants.
+	store.byLanguage = []querycontract.FileContent{
+		{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Language: "markdown"},
+	}
+
+	w := requestRepositoryTree(t, &Handler{Content: store}, "/api/v0/repositories/repo-1/tree?path=README.md&language=markdown")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("file path status = %d, want 404; body = %s", w.Code, w.Body.String())
+	}
+}
