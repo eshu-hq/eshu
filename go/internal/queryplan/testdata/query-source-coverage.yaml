@@ -352,7 +352,13 @@ source_coverage:
           source_sha256: 4d10912a32f6ebbca39335e4dc947f72a619b28ef0b5a8acf17ff2c299229843
           key_bound: single_key
           max_results: 1005
-      - {symbol: "(*Handler).enrichBlastRadiusTiers", count: 1, non_hot: {class: keyed_support, source_sha256: 4ae0a3ab9199d571f6f7ce9c3dc672bf9ce21d3c2c7f756549ab4add70331989, key_bound: bounded_key_batch, max_keys: 200, max_results: 200}}
+      # fan_out_multiplier: 1 -- no :Tier writer exists in-tree today, so a
+      # repo belonging to exactly one tier holds only vacuously; enforcer is
+      # TestNoTierWriterWithoutSingleMembershipContract
+      # (storage/cypher/tier_writer_scan_test.go), which fails the build the
+      # moment a :Tier writer appears without a tierSingleMembershipWriters
+      # entry naming this row. See #6590.
+      - {symbol: "(*Handler).enrichBlastRadiusTiers", count: 1, non_hot: {class: keyed_support, source_sha256: c3b7a8827f8a9bdfed98c2840dd82c3bedc7877e5c7ce5e3fd59f126026b67d3, key_bound: bounded_key_batch, max_keys: 200, fan_out_multiplier: 1, max_results: 200}}
   - file: impact/change_surface_investigation.go
     calls:
       - symbol: "(*Handler).resolveChangeSurfaceTarget"
@@ -392,9 +398,23 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
   - file: impact/trace_deployment_oci.go
     calls:
+      # assumes ≤1 observation per ref / ≤1 image per digest per label; NOT
+      # enforced -- observation uid is (repository_id, tag, resolved_digest)
+      # and descriptor uid embeds the repository, so multiplicity is
+      # data-defined; see #6590; the OCI result-bound follow-up the
+      # 2026-09-07 decision records stays tracked there.
       - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: 47ec44864fc2e260161cef608d97dac5b3e1b9ef0a6c102cb7146f34305ddd9d, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
+      # assumes ≤1 observation per ref / ≤1 image per digest per label; NOT
+      # enforced -- observation uid is (repository_id, tag, resolved_digest)
+      # and descriptor uid embeds the repository, so multiplicity is
+      # data-defined; see #6590; the OCI result-bound follow-up the
+      # 2026-09-07 decision records stays tracked there.
       - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: c1ff7b0177c42a1654ab071ef2e13e8a971ec893216882aa1b1048b3f77bc739, key_bound: bounded_key_batch, max_keys: 250, max_results: 750}}
-      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: 112caca2d19c87a17a7f34799ba61e7c303d8f58feede1eac0d96fc11ae10d33, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
+      # fan_out_multiplier: 1 -- enforced by the oci_registry_repository_uid_unique
+      # constraint (go/internal/graph/schema_test.go): the batch key is
+      # OciRegistryRepository.uid, which the schema guarantees unique, so
+      # each key can match at most one repository row.
+      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: 112caca2d19c87a17a7f34799ba61e7c303d8f58feede1eac0d96fc11ae10d33, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 1, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8a8ae375580c5df13960ae8c5767a0981b6ef37638bf643db72c5b4cdbf8fa7e, key_bound: single_key, max_results: 2501}}

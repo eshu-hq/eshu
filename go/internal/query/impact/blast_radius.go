@@ -290,6 +290,15 @@ func crossplaneXrdBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
 // a SEPARATE single-clause query: folding it into the affected query as a
 // trailing OPTIONAL MATCH re-triggers the multi-clause literal-text / row-drop
 // defects on this build. The IN list is bounded by the response limit.
+//
+// Cardinality (#6590): this statement carries no LIMIT and no DISTINCT, and
+// nothing in the schema or write path enforces that a repository belongs to
+// at most one Tier -- no :Tier writer exists in-tree today
+// (tier_writer_scan_test.go fails closed the moment one appears without a
+// registered single-membership contract). So one repo_id can legitimately
+// come back with more than one row; blastRadiusRepoTiers resolves that by
+// withholding tier/risk for any repo whose rows disagree, rather than
+// picking one arbitrarily.
 const blastRadiusTierLookupCypher = `MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier)
 WHERE a.id IN $repo_ids
 RETURN a.id AS repo_id, tier.name AS tier, tier.risk_level AS risk`
@@ -472,22 +481,19 @@ func (h *Handler) enrichBlastRadiusTiers(ctx context.Context, affected []map[str
 		}
 		return
 	}
-	tiers := make(map[string]map[string]string, len(rows))
-	for _, row := range rows {
-		id := querycontract.StringVal(row, "repo_id")
-		if id == "" {
-			continue
-		}
-		tiers[id] = map[string]string{"tier": querycontract.StringVal(row, "tier"), "risk": querycontract.StringVal(row, "risk")}
-	}
+	tiers := blastRadiusRepoTiers(rows, h.Logger)
 	for _, row := range affected {
 		if t, ok := tiers[querycontract.StringVal(row, "repo_id")]; ok {
-			if t["tier"] != "" {
-				row["tier"] = t["tier"]
+			if t.tier != "" {
+				row["tier"] = t.tier
 			}
-			if t["risk"] != "" {
-				row["risk"] = t["risk"]
+			if t.risk != "" {
+				row["risk"] = t.risk
 			}
 		}
 	}
 }
+
+// blastRadiusRepoTier/blastRadiusRepoTiers (#6590 tier-ambiguity grouping)
+// live in blast_radius_rows.go, keeping this file under the 500-line cap
+// without moving enrichBlastRadiusTiers, the manifest-keyed query owner.
