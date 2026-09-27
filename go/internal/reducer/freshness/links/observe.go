@@ -26,6 +26,10 @@ const (
 	outcomeBreak    linkOutcome = "break"
 	outcomeFailed   linkOutcome = "failed"
 	outcomePoisoned linkOutcome = "poisoned"
+	// outcomeCanceled is a link cut short because the runner's own context
+	// ended (reducer shutdown). It is not a failure: the transaction rolled
+	// back, the cursor did not move, and the next cycle retries.
+	outcomeCanceled linkOutcome = "canceled"
 	// outcomeRetry is a non-counting miss. It is counted on
 	// eshu_dp_changed_since_link_retries_total, not on links_total.
 	outcomeRetry linkOutcome = "retry"
@@ -57,6 +61,14 @@ func (r *Runner) linkOne(ctx context.Context, scopeID string) linkOutcome {
 }
 
 func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID string, err error) linkOutcome {
+	// The runner's context ended (shutdown) while the link ran. The check is
+	// on this context, not on the error: the link's own transaction deadline
+	// and statement timeout end in context errors too, but leave this
+	// context live, and they must still count. Recording now would also fail,
+	// since RecordFailure needs this context.
+	if ctx.Err() != nil {
+		return r.recordCanceled(ctx, span, scopeID, err)
+	}
 	classify := r.Classify
 	if classify == nil {
 		classify = CountingFailure
@@ -82,6 +94,21 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 	}
 	r.logError(ctx, "changed-since link failed before its statement ran; not counted", err, slog.String("scope_id", scopeID))
 	return outcomeFailed
+}
+
+// recordCanceled reports a link the runner's shutdown cut short: an INFO log
+// and outcome=canceled, with no cursor record, no failure class and no ERROR.
+func (r *Runner) recordCanceled(ctx context.Context, span trace.Span, scopeID string, err error) linkOutcome {
+	r.count(ctx, store.LinkKindNone, outcomeCanceled)
+	if span != nil {
+		span.SetAttributes(attribute.Bool("changed_since.canceled", true))
+	}
+	if r.Logger != nil {
+		r.Logger.InfoContext(ctx, "changed-since link canceled by shutdown; not counted, retried next cycle",
+			slog.String("scope_id", scopeID), slog.String("error", err.Error()),
+			telemetry.PhaseAttr(telemetry.PhaseReduction))
+	}
+	return outcomeCanceled
 }
 
 // recordCounting records a counting failure on the cursor (#7127 ruling 8.10)
@@ -176,6 +203,10 @@ func (r *Runner) count(ctx context.Context, kind store.LinkKind, outcome linkOut
 }
 
 func (r *Runner) recordGauges(ctx context.Context) {
+	if ctx.Err() != nil {
+		// Shutting down: the stats read would fail on the done context.
+		return
+	}
 	stats, err := r.Journal.Stats(ctx)
 	if err != nil {
 		r.logError(ctx, "changed-since ledger stats failed", err)
@@ -213,8 +244,17 @@ func (r *Runner) logCycle(ctx context.Context, result CycleResult) {
 	)
 }
 
+// logError logs an operator-facing ERROR. When the runner's context is done
+// (reducer shutdown) the error is the shutdown itself, so the line drops to
+// INFO with shutdown=true instead of paging on every restart.
 func (r *Runner) logError(ctx context.Context, msg string, err error, attrs ...any) {
 	if r.Logger == nil {
+		return
+	}
+	if ctx.Err() != nil {
+		r.Logger.InfoContext(ctx, msg, append([]any{
+			log.Err(err), slog.Bool("shutdown", true), telemetry.PhaseAttr(telemetry.PhaseReduction),
+		}, attrs...)...)
 		return
 	}
 	args := append([]any{

@@ -254,7 +254,7 @@ type Instruments struct {
 	// carries them.
 	//
 	// ChangedSinceLinks counts link attempts by link_kind (root,
-	// incremental, none) and outcome (linked, break, failed, poisoned).
+	// incremental, none) and outcome (linked, break, failed, poisoned, canceled).
 	ChangedSinceLinks metric.Int64Counter
 	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
 	// (cursor_locked, generation_locked, slot_busy).

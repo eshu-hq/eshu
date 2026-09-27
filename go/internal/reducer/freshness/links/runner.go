@@ -230,6 +230,8 @@ func (r *Runner) drainScope(ctx context.Context, scopeID string) CycleResult {
 		case outcomeFailed:
 			tally.Failures++
 			return tally
+		case outcomeCanceled:
+			return tally
 		default:
 			return tally
 		}

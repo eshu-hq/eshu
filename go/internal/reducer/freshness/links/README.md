@@ -43,6 +43,7 @@ interval is `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default 5s).
 | `break` | A delta generation, a pruned generation, or a delta whose prior is unknown. The overlay link is not shipped, so every delta activation is a break (`delta_without_root`, `prior_mismatch`, `overlay_unproven`, `pruned_before_link`). | Advanced; the state is kept. |
 | non-counting miss | `cursor_locked`, `generation_locked`, `slot_busy`. The runner moves on to the next candidate. | Unchanged; nothing written. |
 | `failed` | A counting failure: `statement_timeout`, `connection_lost`, `sql_error`, `internal`. Recorded with backoff min(30 min, 30 s × 2^(n-1)). | Unchanged; `attempt_count` +1, `next_attempt_at` set. |
+| `canceled` | The reducer shut down while the link ran (the runner's own context ended). Logged at INFO; no failure class, no ERROR. The link's own transaction deadline or statement timeout is not this: it is `failed`. | Unchanged; nothing recorded; the next cycle retries. |
 | `poisoned` | The `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS`-th counting failure (default 5): a `link_poisoned` break. | Advanced past the activation; state kept; marker set until the next full link. |
 
 A poisoned link does not appear in `list_dead_letter_work_items` or the

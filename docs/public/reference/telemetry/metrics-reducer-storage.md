@@ -48,7 +48,7 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
 | `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
 | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
-| `eshu_dp_changed_since_links_total` | counter | Changed-since link attempts (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, break, failed, poisoned). |
+| `eshu_dp_changed_since_links_total` | counter | Changed-since link attempts (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, break, failed, poisoned, canceled; `canceled` is a link cut short by reducer shutdown, not counted as a failure). |
 | `eshu_dp_changed_since_link_retries_total` | counter | Non-counting changed-since link misses by `reason` (cursor_locked, generation_locked, slot_busy); nothing written, the cursor did not move. |
 | `eshu_dp_changed_since_link_failures_total` | counter | Counting changed-since link failures by `failure_class` (statement_timeout, connection_lost, sql_error, internal); each is recorded on the scope cursor with backoff. |
 | `eshu_dp_changed_since_chain_breaks_total` | counter | Activations advanced without a link by `reason` (pruned_before_link, delta_without_root, prior_mismatch, overlay_unproven, link_poisoned); the state is kept. |
