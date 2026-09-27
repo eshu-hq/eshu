@@ -19,6 +19,12 @@ func Tools() []toolcontract.ToolDefinition {
 	}
 }
 
+// findingKindsDescription matches iacmanagementtools.FindingKindsDescription
+// word for word. It is a package-level copy rather than an import because
+// nested MCP packages import only contract/route and contract/tool; drift
+// between the copies is caught by TestIACToolFindingKindsDescriptionsStayInParity.
+const findingKindsDescription = "Optional finding kinds. When omitted, defaults to actionable existence findings: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, and ambiguous_cloud_resource. Explicitly select image_version_drift or value_comparison_inconclusive to include managed value drift or degraded comparison evidence."
+
 func composePlanTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "compose_replatforming_plan",
@@ -54,7 +60,7 @@ func rollupsSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds. When omitted, defaults to actionable existence findings: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, and ambiguous_cloud_resource. Explicitly select image_version_drift or value_comparison_inconclusive to include managed value drift or degraded comparison evidence.", // Matches iacmanagementtools.FindingKindsDescription; kept literal here because nested MCP packages import only contract/route and contract/tool. Drift is caught by TestIACToolFindingKindsDescriptionsStayInParity.
+				"description": findingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
@@ -118,7 +124,7 @@ func composePlanSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds. When omitted, defaults to actionable existence findings: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, and ambiguous_cloud_resource. Explicitly select image_version_drift or value_comparison_inconclusive to include managed value drift or degraded comparison evidence.", // Matches iacmanagementtools.FindingKindsDescription; kept literal here because nested MCP packages import only contract/route and contract/tool. Drift is caught by TestIACToolFindingKindsDescriptionsStayInParity.
+				"description": findingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
