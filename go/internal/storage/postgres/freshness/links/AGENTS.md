@@ -25,6 +25,15 @@
   attempt columns. At the limit it poisons (a `link_poisoned` break), never
   halts (#7127 ruling 8.10). Never write attempt state to
   `changed_since_activations`: PR-3b's Ack lock-order proof depends on it.
+- The incremental statement's `del` deletes by the `ctid` array the diff read
+  and must carry no indexable predicate on the target: no key join and no
+  `scope_id = $1`. Either gives the planner an index path that goes
+  quadratic, or scans the whole scope, when the scope's state rows are
+  estimated at one (the G8 stall, arbiter ruling arb-7127-g8). The scope
+  guard is `RETURNING t.scope_id` plus the row-count invariant in
+  `incremental()`; never drop the invariant, because without it a broken
+  fence silently skips a delete. `TestIncrementalLinkPlanClassUnderPlantedStatistics`
+  is the gate.
 - No foreign key may be added to any ledger table (gate G13). See
   `README.md` for the reason.
 - The overlay link is not shipped. A delta activation is a break until the

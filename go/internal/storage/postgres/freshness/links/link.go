@@ -388,11 +388,20 @@ func (w *LinkWriter) root(ctx context.Context, tx db.Transaction, scopeID, gener
 func (w *LinkWriter) incremental(
 	ctx context.Context, tx db.Transaction, scopeID, generationID, priorID string, result *LinkResult,
 ) error {
-	var files, entities, facts, deleted, upserted, buckets int64
+	var files, entities, facts, deleted, upserted, buckets, expectedDeletes, expectedUpserts, foreignDeletes int64
 	if err := queryOne(ctx, tx, IncrementalLinkSQL,
 		[]any{scopeID, generationID, priorID, DigestVersion, w.now()},
-		&result.DeltaRows, &files, &entities, &facts, &deleted, &upserted, &buckets); err != nil {
+		&result.DeltaRows, &files, &entities, &facts, &deleted, &upserted, &buckets,
+		&expectedDeletes, &expectedUpserts, &foreignDeletes); err != nil {
 		return fmt.Errorf("changed-since link: incremental: %w", err)
+	}
+	// The row-count invariant (#7127 arbiter ruling arb-7127-g8): the ctid
+	// delete is exact only under the per-scope fence. Any other count means
+	// a row changed under the statement or a foreign row was deleted; the
+	// caller rolls back and records a counting failure.
+	if deleted != expectedDeletes || upserted != expectedUpserts || foreignDeletes != 0 {
+		return fmt.Errorf("changed-since link: incremental: row-count invariant broken: deleted %d of %d, upserted %d of %d, foreign deletes %d",
+			deleted, expectedDeletes, upserted, expectedUpserts, foreignDeletes)
 	}
 	result.Kind = LinkKindIncremental
 	result.PriorGenerationID = priorID

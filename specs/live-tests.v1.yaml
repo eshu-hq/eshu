@@ -1591,6 +1591,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/fence_breach_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link fence-breach invariant proof (#7127 PR-3a, arbiter ruling arb-7127-g8 P4), untagged and gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/storage/postgres/freshness/links/fence_live_test.go
     tag: ~
     class: scheduled
@@ -1607,10 +1611,18 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link plan-shape proof (#7127 PR-3a gates G3/G4) that builds 2M link-delta and 3.8M state rows, about 1 minute locally; scheduled, never blocking
+  - file: go/internal/storage/postgres/freshness/links/plan_stats_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link plan class under planted statistics (#7127 PR-3a, arbiter ruling arb-7127-g8 P1), about 30s; scheduled, never blocking
   - file: go/internal/storage/postgres/freshness/links/poison_live_test.go
     tag: ~
     class: scheduled
     reason: changed-since link poison-bound proof (#7127 PR-3a gates G16a/G16c), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link re-key timing under absent statistics (#7127 PR-3a, arbiter ruling arb-7127-g8 P2), about 80s including a 60s RED timeout; scheduled, never blocking
   - file: go/internal/storage/postgres/freshness/links/scale_live_test.go
     tag: ~
     class: scheduled

@@ -287,7 +287,22 @@ FROM generate_series(0, 797) AS s, generate_series(1, 4760) AS k`)
 		for _, scopeID := range []string{"small", "mid"} {
 			nodes, triggers := explainLink(scopeID)
 			checkG3(label, scopeID, nodes, triggers)
-			if failures := indexAccessFailures(nodes, "changed_since_key_state", "changed_since_key_state_pkey",
+			// The delete reads the state table by Tid Scan (arbiter ruling
+			// arb-7127-g8); every other state access must use the primary
+			// key by scope_id.
+			var nonTid []planNode
+			tidScans := 0
+			for _, n := range nodes {
+				if n.str("Relation Name") == "changed_since_key_state" && n.str("Node Type") == "Tid Scan" {
+					tidScans++
+					continue
+				}
+				nonTid = append(nonTid, n)
+			}
+			if tidScans == 0 {
+				t.Fatalf("G4 state %s %s: the delete does not read the state table by Tid Scan", label, scopeID)
+			}
+			if failures := indexAccessFailures(nonTid, "changed_since_key_state", "changed_since_key_state_pkey",
 				[]string{"scope_id"}, 0); len(failures) > 0 {
 				t.Fatalf("G4 state %s %s: %s", label, scopeID, strings.Join(failures, "; "))
 			}

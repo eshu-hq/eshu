@@ -234,6 +234,9 @@ WHERE contype = 'f'
         'changed_since_scope_cursor', 'changed_since_links', 'changed_since_link_deltas',
         'changed_since_link_bucket_counts'))
 UNION ALL
+SELECT 'changed_since_key_state is relkind ' || relkind::text || ', want an ordinary table (ctid identity)'
+FROM pg_class WHERE oid = 'changed_since_key_state'::regclass AND relkind <> 'r'
+UNION ALL
 SELECT 'nullable ' || attname || ' on changed_since_link_deltas'
 FROM pg_attribute
 WHERE attrelid = 'changed_since_link_deltas'::regclass

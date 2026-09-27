@@ -142,6 +142,9 @@ SELECT delta_rows, files_keys, content_entities_keys, facts_keys FROM lnk
 // a link delta with its classification, count the buckets, and move the state
 // to $2. A full generation can drop any key, so every state row of the scope
 // is visited; the state side is read by the primary key's scope_id prefix.
+// The result row ends with the deleted, upserted and bucket counts, the
+// expected deletes and upserts, and the deleted rows of another scope; the
+// writer fails the link unless they agree (the row-count invariant).
 //
 // Classification per key, matching changedSinceDeltaQuery for two full
 // generations: no prior and no current active row is dropped (a tombstone of
@@ -159,8 +162,9 @@ diff AS MATERIALIZED (
            COALESCE(s.stable_fact_key, c.stable_fact_key) AS k,
            s.fact_kind AS prior_kind, COALESCE(c.kind, c.any_kind) AS current_kind,
            s.state AS prior_state, c.state AS current_state,
-           COALESCE(c.tombstoned, FALSE) AS tombstoned, c.owner_uri
-    FROM (SELECT * FROM changed_since_key_state WHERE scope_id = $1) AS s
+           COALESCE(c.tombstoned, FALSE) AS tombstoned, c.owner_uri,
+           s.state_ctid
+    FROM (SELECT ctid AS state_ctid, * FROM changed_since_key_state WHERE scope_id = $1) AS s
     FULL JOIN cur AS c ON c.cat = s.fact_category AND c.stable_fact_key = s.stable_fact_key
     WHERE s.state IS DISTINCT FROM c.state
        OR (c.state IS NOT NULL AND s.fact_kind IS DISTINCT FROM c.kind)
@@ -182,11 +186,20 @@ ins AS (
     RETURNING fact_category, classification
 ),
 del AS (
+    -- Delete by the ctid the diff read, with NO indexable predicate on the
+    -- target (#7127 arbiter ruling arb-7127-g8). A key join, or a scope_id
+    -- predicate here, gives the planner an index path on the state table,
+    -- and with the scope estimated at one row it runs that path per diff
+    -- row or filters every state row of the scope: the G8 stall. A ctid
+    -- array leaves only a Tid Scan whatever the statistics. The scope guard
+    -- is RETURNING t.scope_id, checked in Go with the row counts below:
+    -- under a broken fence EvalPlanQual skips a changed row, and the counts
+    -- turn that into a failed link.
     DELETE FROM changed_since_key_state AS t
-    USING diff AS d
-    WHERE t.scope_id = $1 AND t.fact_category = d.cat AND t.stable_fact_key = d.k
-      AND d.current_state IS NULL
-    RETURNING 1
+    WHERE t.ctid = ANY (ARRAY(
+              SELECT d.state_ctid FROM diff AS d
+              WHERE d.current_state IS NULL AND d.state_ctid IS NOT NULL))
+    RETURNING t.scope_id
 ),
 ups AS (
     INSERT INTO changed_since_key_state (scope_id, fact_category, stable_fact_key, fact_kind, state, owner_uri)
@@ -216,7 +229,12 @@ lnk AS (
     RETURNING delta_rows, files_keys, content_entities_keys, facts_keys
 )
 SELECT delta_rows, files_keys, content_entities_keys, facts_keys,
-       (SELECT count(*) FROM del), (SELECT count(*) FROM ups), (SELECT count(*) FROM bk)
+       (SELECT count(*) FROM del),
+       (SELECT count(*) FROM ups),
+       (SELECT count(*) FROM bk),
+       (SELECT count(*) FROM diff WHERE current_state IS NULL AND state_ctid IS NOT NULL),
+       (SELECT count(*) FROM diff WHERE current_state IS NOT NULL),
+       (SELECT count(*) FROM del WHERE scope_id IS DISTINCT FROM $1)
 FROM lnk
 `
 

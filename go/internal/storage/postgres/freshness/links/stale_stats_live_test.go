@@ -112,6 +112,10 @@ FROM generate_series(1, 20000) AS k`)
 		t.Errorf("stale statistics plan the incremental link with %v; it rescans diff once per state row", loops)
 	}
 
+	// The plan-shape assertion above is the primary signal. The wall bound is
+	// a secondary guard sized for a shared host: the fixed link measured
+	// 194 ms here and the stalled plan 12.7 s, so 5 s sits a factor of 25
+	// above the one and 2.5 below the other.
 	const bound = 5 * time.Second
 	w.StatementTimeout = 30 * time.Second
 	res, err := w.LinkNext(l.ctx, scope)
