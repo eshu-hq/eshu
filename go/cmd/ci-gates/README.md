@@ -314,6 +314,10 @@ Checks that every script (`command` and `test_command`) and workflow file
 referenced by the registry exists on disk. Exits non-zero and prints each broken
 reference. Used by `scripts/verify-ci-gates-registry.sh`.
 
+It also runs `DescriptionCheck` ([#7337](https://github.com/eshu-hq/eshu/issues/7337)):
+every gate must declare a `layer` and a one-line `purpose` of at most 160
+characters, and a blocking gate cannot be in the `secondary` layer.
+
 With `--drift` ([#4220](https://github.com/eshu-hq/eshu/issues/4220)) it also
 runs the hook/preflight/workflow lockstep check: every local pre-commit hook
 must map to a gate `hook_id` or a `hygiene_hooks` entry, every gate `hook_id`
@@ -339,6 +343,21 @@ to race exactly the changed packages no race gate already runs — so it never
 double-races a registry-owned package (graph-write or replay), and the exclusion
 is derived from the registry rather than a hard-coded list. A CI-only gate (no
 local command) does not count as covering.
+
+### layers
+
+```bash
+ci-gates layers --registry specs/ci-gates.v1.yaml
+```
+
+Prints the "Gates by layer" section of `docs/public/reference/ci-gates.md`
+([#7337](https://github.com/eshu-hq/eshu/issues/7337)). There is one heading per
+non-empty layer, carrying the question that layer answers, and one bullet per
+gate with its id, blocking status and `purpose`. Gates without a layer are
+listed last under "Unlabeled", so a missing label shows up instead of being
+dropped. `scripts/generate-ci-gates-doc.sh` calls this subcommand, so the layer
+questions are defined once, in `internal/cigates`. It reads the registry only
+and changes nothing.
 
 ## Thin shell wrappers
 
