@@ -1,0 +1,42 @@
+go/internal/query/content_reader_security_secrets.go
+  s_bc720f29f5e0fd::t_5d6b212f036aa8 23-24,85-86
+  s_bc720f29f5e0fd::t_58ed4363d33c70 54
+  s_bc720f29f5e0fd::t_37ef8e428c5fa2 91-112
+  s_bc720f29f5e0fd::t_e0f4b2b3c83121 8,25-28,87-90,113,131,161-170
+  s_bc720f29f5e0fd::t_5c9a47e7a96cf4 55-57
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_ba2d1d1622922f 131-146
+docs/public/reference/hardcoded-secrets-investigation.md
+  s_bc720f29f5e0fd::t_f00e368977cb5d 70-73
+  s_bc720f29f5e0fd::t_5c9a47e7a96cf4 69,74
+go/internal/query/content_reader_security_secrets_test.go
+  s_bc720f29f5e0fd::t_7eb9c539df40f7 20,58,160-193
+  s_bc720f29f5e0fd::t_7b3ac93d2440b9 90
+go/internal/query/content_reader_security_secrets_fallback_live_test.go
+  s_bc720f29f5e0fd::t_5d6b212f036aa8 10,12,110-176
+  s_bc720f29f5e0fd::t_ce645af12654c5 177-178
+go/internal/query/content_reader_security_secrets_benchmark_test.go
+  s_bc720f29f5e0fd::t_873e2a32d022d5 1-44
+go/internal/testutil/contentreader/reader_driver_test.go
+  s_bc720f29f5e0fd::t_bcdd56fbd2bb10 66-95
+go/internal/query/content_reader_security_secrets_live_test.go
+  s_bc720f29f5e0fd::t_873e2a32d022d5 20
+go/internal/testutil/contentreader/driver.go
+  s_bc720f29f5e0fd::t_962af8a78fe2ae 112-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "82eee63427f352092558eed5a41ab4e4cd52a8b8",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
