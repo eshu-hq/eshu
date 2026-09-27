@@ -1,0 +1,41 @@
+docs/internal/evidence/7125-secret-lines-side-table.md
+  s_bc720f29f5e0fd::t_b131953c5fc8e2 6,259,274,436
+go/internal/query/README.md
+  s_bc720f29f5e0fd::t_ae7dadb4840bbb 1156,1160
+go/internal/query/content_reader_security_secrets.go
+  s_bc720f29f5e0fd::t_9532ce5a1ef209 48,249
+go/internal/query/hardcoded_secret_migration_binding_test.go
+  s_bc720f29f5e0fd::t_1cde9d1eac3c48 28
+go/internal/storage/postgres/content_file_secret_lines_live_test.go
+  s_bc720f29f5e0fd::t_6a2b6c69922f8f 87,124
+go/internal/storage/postgres/content_file_secret_lines_writebench_live_test.go
+  s_bc720f29f5e0fd::t_79f7b30d87023d 113
+go/internal/storage/postgres/secret/lines/README.md
+  s_bc720f29f5e0fd::t_f04faf8bf74204 7,108
+go/internal/storage/postgres/secret/lines/doc.go
+  s_bc720f29f5e0fd::t_ed0f7d314b727c 8
+go/internal/storage/postgres/secret/lines/helpers_test.go
+  s_bc720f29f5e0fd::t_e5da67ca347a91 24
+go/internal/storage/postgres/secret/lines/session.go
+  s_bc720f29f5e0fd::t_79d182b1f2eff0 15,22
+go/internal/storage/postgres/secret/lines/session_binding_test.go
+  s_bc720f29f5e0fd::t_ca808ab1abba6e 14,25
+go/internal/storage/postgres/secret/lines/session_test.go
+  s_bc720f29f5e0fd::t_55c14074f3ef95 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a65ed18cbd24bcf9f2b627eb4dcdfb53e72b16a",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
