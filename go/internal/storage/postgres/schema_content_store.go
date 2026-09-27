@@ -84,10 +84,11 @@ CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
     ON repository_refs (repo_id, is_default, name);
 `
 
-// contentStoreSearchIndexSchemaSQL defines three load-bearing pg_trgm GIN
-// indexes. The file-content and entity-source indexes bound all-repository
-// source searches; the entity-name index bounds exact and substring global name
-// searches. Cold bootstrap defers all three until the write-heavy drain ends.
+// contentStoreSearchIndexSchemaSQL defines four load-bearing pg_trgm GIN
+// indexes. The file-content, relative-path, and entity-source indexes bound
+// all-repository source searches; the entity-name index bounds exact and
+// substring global name searches. Cold bootstrap defers all four until the
+// write-heavy drain ends.
 // See #4862, #4980, #5318, evidence-4980-deferred-content-gin.md, and the #5318
 // evidence note for the measured index roles.
 const contentFilesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
@@ -102,7 +103,11 @@ const contentEntityNamesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS conte
     ON content_entities USING gin (entity_name gin_trgm_ops);
 `
 
-const contentStoreSearchIndexSchemaSQL = contentFilesSearchIndexSchemaSQL + contentEntitiesSearchIndexSchemaSQL + contentEntityNamesSearchIndexSchemaSQL
+const contentFilesRelativePathSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_relative_path_trgm_idx
+    ON content_files USING gin (relative_path gin_trgm_ops);
+`
+
+const contentStoreSearchIndexSchemaSQL = contentFilesSearchIndexSchemaSQL + contentEntitiesSearchIndexSchemaSQL + contentEntityNamesSearchIndexSchemaSQL + contentFilesRelativePathSearchIndexSchemaSQL
 
 const contentStoreFilterIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
     ON content_files (artifact_type);

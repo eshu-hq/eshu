@@ -36,6 +36,11 @@ design: >
   in the reason.
 
 tests:
+  - file: go/cmd/api/issue7033_canary_startup_live_test.go
+    tag: issue7033_canary_startup
+    class: scheduled
+    reason: isolated Neo4j canary startup proof requires a disposable PostgreSQL database and an explicit Neo4j endpoint; not compatible with the deterministic live-backend runner
+    backends: neo4j
   - file: go/cmd/bootstrap-data-plane/postgres_schema_tracking_live_test.go
     tag: integration
     class: scheduled
@@ -239,6 +244,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/code_topic_path_first_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL path/content partition proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
   - file: go/internal/query/codequery/chain/call_chain_grant_clause_live_test.go
     tag: live_nornicdb_call_chain
     class: scheduled
@@ -1362,6 +1371,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/content_files_relative_path_index_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL concurrent-index recovery and legacy-upgrade proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
+  - file: go/internal/storage/postgres/content_files_relative_path_skipped_125_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL out-of-order migration receipt proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
   - file: go/internal/storage/postgres/content_entities_k8s_select_partial_index_live_test.go
     tag: integration
     class: scheduled
@@ -1598,6 +1615,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/issue7033_scoped_rollout_legacy_live_test.go
+    tag: issue7033_rollout
+    class: scheduled
+    reason: tagged helper-only legacy-receipt validator compiled into the explicitly authorized #7033 rollout proof; no standalone test is eligible for automated live-backend execution
+  - file: go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
+    tag: issue7033_rollout
+    class: scheduled
+    reason: explicitly authorized #7033 schema-mutation proof requires a fully identified rollout target and must never run in automated live-backend execution
   - file: go/internal/storage/postgres/identity_provider_config_live_test.go
     tag: ~
     class: scheduled

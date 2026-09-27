@@ -46,7 +46,7 @@ state, facts, queues, status, content, and recovery data.
 
 On a fresh Compose database, `db-migrate` sets
 `ESHU_DEFER_CONTENT_SEARCH_INDEXES=true`. It creates the content tables without
-the two exact substring-search trigram GIN indexes, and `bootstrap-index`
+the four exact substring-search trigram GIN indexes, and `bootstrap-index`
 restores those indexes after source-local content projection drains. API and
 MCP all-repository substring searches return `503` while the durable lifecycle
 is `not_built`, `building`, or `failed`; repository-scoped content reads remain

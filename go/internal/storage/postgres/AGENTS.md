@@ -856,7 +856,7 @@ search documents cap context at 4,096 bytes, omit governed rows, and implement
 token rather than arbitrary-substring semantics. The accuracy-preserving fix
 keeps the exact GINs but defers their initial creation until cold content
 projection drains. `content_substring_index_state` fences unscoped reads until
-both exact indexes validate and bootstrap-index has run `ANALYZE`. Existing
+all four exact indexes validate and bootstrap-index has run `ANALYZE`. Existing
 indexes are never dropped during restart, upgrade, or steady-state ingestion.
 See `evidence-4980-deferred-content-gin.md` for the before/after, exactness,
 plan, restart, failure, and lock-exclusion proof.

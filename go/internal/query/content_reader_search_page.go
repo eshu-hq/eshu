@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -133,4 +135,55 @@ func (cr *ContentReader) searchFileContentScoped(
 		return results, err
 	}
 	return results, nil
+}
+
+func codeTopicFilters(req codequery.CodeTopicInvestigationRequest) ([]string, []any, int) {
+	filters := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	nextArg := 1
+	if strings.TrimSpace(req.RepoID) != "" {
+		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
+		args = append(args, strings.TrimSpace(req.RepoID))
+		nextArg++
+	} else {
+		filters = append(filters, "eshu_require_content_substring_indexes_ready()")
+		// #5167 W3 P1: bind a corpus-wide search to the caller's grant so the
+		// LIMIT/OFFSET page is taken from the granted set, not cross-tenant.
+		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
+	}
+	if strings.TrimSpace(req.Language) != "" {
+		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))
+		args = append(args, strings.TrimSpace(req.Language))
+		nextArg++
+	}
+	return filters, args, nextArg
+}
+
+func splitCodeTopicTerms(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, "\x1f")
+	terms := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			terms = append(terms, part)
+		}
+	}
+	return terms
+}
+
+// appendRepositoryGrantFilter binds a corpus-wide content read to the caller's
+// granted repository ids at the SQL WHERE (#5167 W3 P1 filter-before-limit).
+// Shared by codeTopicFilters, symbolSearchFilters, hardcodedSecretFilters and
+// structuralInventoryWhere. Empty is a no-op (unscoped shared/admin callers);
+// a grantless SCOPED caller never reaches here (codeContentGrantScope closes
+// it first). nextArg must equal len(args)+1; returns the next free index.
+func appendRepositoryGrantFilter(filters []string, args []any, nextArg int, allowedRepositoryIDs []string) ([]string, []any, int) {
+	if len(allowedRepositoryIDs) == 0 {
+		return filters, args, nextArg
+	}
+	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
+	args = append(args, array.Of(allowedRepositoryIDs))
+	return filters, args, nextArg + 1
 }

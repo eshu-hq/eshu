@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -50,8 +51,11 @@ func codeTopicCandidateCap(termCount int) int {
 // #7008: entity_probe bounds each per-term match with `CROSS JOIN LATERAL
 // (... LIMIT codeTopicCandidateCap)` -- both its OR branches are indexed, so
 // BitmapOr keeps that cheap. file_probe UNIONs one independently bounded
-// branch per term instead: relative_path has no substring index, and the
-// LATERAL form forced every term's content Seq Scan to run serially with no
+// branch per term instead: a materialized path pool establishes the remaining
+// content-only capacity before its branch starts. The path predicate can use
+// the relative-path trigram index; the content-only branch excludes path hits
+// so an uncapped pool preserves the prior OR-match set without duplicate rows.
+// The LATERAL form forced every term's content Seq Scan to run serially with no
 // parallel workers (measured >35s on 9 terms; top-level per-term SELECTs let
 // the planner parallelize each branch, measured ~16-23s for the same 9).
 // entity_pool_capped/file_pool_capped detect, from the already-materialized
@@ -85,11 +89,26 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
 		// #nosec G201 -- nextArg/where/candidateCap are integer/placeholder-only; no user data concatenated
-		fileBranches[i] = fmt.Sprintf(`(SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
-		    least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
-		  FROM content_files f
-		  WHERE (f.relative_path ILIKE '%%' || $%[1]d || '%%' OR f.content ILIKE '%%' || $%[1]d || '%%')
-		  %[2]s LIMIT %[3]d)`, nextArg, where, candidateCap)
+		fileBranches[i] = fmt.Sprintf(`(
+		  WITH path_pool AS MATERIALIZED (
+		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
+		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
+		    FROM content_files f
+		    WHERE f.relative_path ILIKE '%%' || $%[1]d || '%%'
+		    %[2]s LIMIT %[3]d
+		  ),
+		  content_pool AS (
+		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
+		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
+		    FROM content_files f
+		    WHERE f.content ILIKE '%%' || $%[1]d || '%%'
+		      AND f.relative_path NOT ILIKE '%%' || $%[1]d || '%%'
+		    %[2]s LIMIT (SELECT %[3]d - count(*) FROM path_pool)
+		  )
+		  SELECT * FROM path_pool
+		  UNION ALL
+		  SELECT * FROM content_pool
+		)`, nextArg, where, candidateCap)
 		args = append(args, term)
 		nextArg++
 	}
@@ -169,6 +188,16 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	}
 	defer func() { _ = rows.Close() }()
 
+	results, poolTruncated, err := scanCodeTopicEvidenceRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		return results, err
+	}
+	span.SetAttributes(attribute.Bool("code_topic.pool_truncated", poolTruncated))
+	return results, nil
+}
+
+func scanCodeTopicEvidenceRows(rows *sql.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) {
 	var results []codequery.CodeTopicEvidenceRow
 	poolTruncated := false
 	for rows.Next() {
@@ -188,8 +217,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 			&row.Score,
 			&row.PoolTruncated,
 		); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan code topic result: %w", err)
+			return nil, false, fmt.Errorf("scan code topic result: %w", err)
 		}
 		row.MatchedTerms = splitCodeTopicTerms(matchedTerms)
 		if row.PoolTruncated {
@@ -198,62 +226,9 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return results, err
+		return results, poolTruncated, err
 	}
-	span.SetAttributes(attribute.Bool("code_topic.pool_truncated", poolTruncated))
-	return results, nil
-}
-
-func codeTopicFilters(req codequery.CodeTopicInvestigationRequest) ([]string, []any, int) {
-	filters := make([]string, 0, 3)
-	args := make([]any, 0, 3)
-	nextArg := 1
-	if strings.TrimSpace(req.RepoID) != "" {
-		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
-		args = append(args, strings.TrimSpace(req.RepoID))
-		nextArg++
-	} else {
-		filters = append(filters, "eshu_require_content_substring_indexes_ready()")
-		// #5167 W3 P1: bind a corpus-wide search to the caller's grant so the
-		// LIMIT/OFFSET page is taken from the granted set, not cross-tenant.
-		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, req.AllowedRepositoryIDs)
-	}
-	if strings.TrimSpace(req.Language) != "" {
-		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))
-		args = append(args, strings.TrimSpace(req.Language))
-		nextArg++
-	}
-	return filters, args, nextArg
-}
-
-func splitCodeTopicTerms(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	parts := strings.Split(value, "\x1f")
-	terms := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part = strings.TrimSpace(part); part != "" {
-			terms = append(terms, part)
-		}
-	}
-	return terms
-}
-
-// appendRepositoryGrantFilter binds a corpus-wide content read to the caller's
-// granted repository ids at the SQL WHERE (#5167 W3 P1 filter-before-limit).
-// Shared by codeTopicFilters, symbolSearchFilters, hardcodedSecretFilters and
-// structuralInventoryWhere. Empty is a no-op (unscoped shared/admin callers);
-// a grantless SCOPED caller never reaches here (codeContentGrantScope closes
-// it first). nextArg must equal len(args)+1; returns the next free index.
-func appendRepositoryGrantFilter(filters []string, args []any, nextArg int, allowedRepositoryIDs []string) ([]string, []any, int) {
-	if len(allowedRepositoryIDs) == 0 {
-		return filters, args, nextArg
-	}
-	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
-	args = append(args, array.Of(allowedRepositoryIDs))
-	return filters, args, nextArg + 1
+	return results, poolTruncated, nil
 }
 
 // ---- Code divergence reads (epic #6833, child #6836) ----
