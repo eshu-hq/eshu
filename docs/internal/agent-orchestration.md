@@ -113,10 +113,12 @@ cross-family workhorse or as an independent verifier in adversarial-verification
 passes (a different model lineage catches what a single family rationalizes
 away).
 
-The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus, Codex
-Luna/Terra/Sol, and Muse Spark at low/high/xhigh effort. A caller's explicit
-model override can still win per task or session. The coordinator selects the
-tier when it dispatches; a leaf agent does not downgrade its own model.
+The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus,
+Codex Luna at high effort and Sol at medium or high effort, and Muse Spark
+at low/high/xhigh effort.
+Codex role files take precedence over a spawn model override; the main
+session model is independent. The coordinator selects the tier when it
+dispatches; a leaf agent does not downgrade its own model.
 Muse currently uses one model across the tiers, so its savings come from
 reasoning effort and bounded scopes rather than selecting a cheaper model.
 

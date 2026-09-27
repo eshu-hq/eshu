@@ -3,7 +3,7 @@
   "models": {
     "codex": {
       "fast": {"model": "gpt-6-luna", "effort": "high"},
-      "workhorse": {"model": "gpt-5.6-terra", "effort": "high"},
+      "workhorse": {"model": "gpt-6-sol", "effort": "medium"},
       "deep": {"model": "gpt-6-sol", "effort": "high"}
     },
     "claude": {
