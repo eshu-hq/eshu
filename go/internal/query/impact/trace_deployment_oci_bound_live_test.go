@@ -304,6 +304,70 @@ func TestLiveOCIRegistryTruthRowLimitBound(t *testing.T) {
 		}
 	})
 
+	t.Run("digest_truncated_on_one_label_withheld_from_all_labels", func(t *testing.T) {
+		// Gating-review P1 (PR #7314): fetchOCIImagesByDigest runs one LIMIT
+		// statement per image label, and a digest can overflow on one label
+		// while still returning rows on another. Digest M overflows on
+		// ContainerImage (750 rows) but also has a row on ContainerImageIndex;
+		// it must be withheld entirely, from every label. Digest N, present
+		// only under ContainerImageIndex and never truncated, must still
+		// resolve.
+		// ImageRefDigest requires a syntactically valid hex digest (0-9a-f)
+		// for a digest-addressed ref (repo@sha256:...); "m"/"n" are not hex,
+		// unlike the tag-only digests above (resolved_digest is an opaque
+		// string there, never parsed as a ref).
+		digestM := ociLiveDigest("d1")
+		digestN := ociLiveDigest("d2")
+		repoM := ociLivePrefix + "repo-m"
+		repoM2 := ociLivePrefix + "repo-m2"
+		repoN := ociLivePrefix + "repo-n"
+		refM := ociLivePrefix + "img-m@" + digestM
+		refN := ociLivePrefix + "img-n@" + digestN
+
+		for _, seed := range []struct {
+			uid, repository string
+		}{
+			{repoM, "acme/m"}, {repoM2, "acme/m2"}, {repoN, "acme/n"},
+		} {
+			reader.write(ctx, t, `CREATE (:OciRegistryRepository {uid: $uid, registry: 'ghcr.io', repository: $repository, provider: 'ghcr'})`,
+				map[string]any{"uid": seed.uid, "repository": seed.repository})
+		}
+		// One UNWIND write creates all 750 ContainerImage rows for digest M,
+		// keeping this live proof cheap.
+		reader.write(ctx, t,
+			`UNWIND range(0, 749) AS i CREATE (:ContainerImage {id: $prefix + toString(i), digest: $digest, repository_id: $repo, media_type: 'application/vnd.oci.image.manifest.v1+json', seq: i})`,
+			map[string]any{"prefix": ociLivePrefix + "image-m-", "digest": digestM, "repo": repoM})
+		reader.write(ctx, t,
+			`CREATE (:ContainerImageIndex {id: $id, digest: $digest, repository_id: $repo, media_type: 'application/vnd.oci.image.index.v1+json'})`,
+			map[string]any{"id": ociLivePrefix + "index-m", "digest": digestM, "repo": repoM2})
+		reader.write(ctx, t,
+			`CREATE (:ContainerImageIndex {id: $id, digest: $digest, repository_id: $repo, media_type: 'application/vnd.oci.image.index.v1+json'})`,
+			map[string]any{"id": ociLivePrefix + "index-n", "digest": digestN, "repo": repoN})
+
+		result, err := FetchOCIImageRegistryTruthResult(ctx, reader, []string{refM, refN})
+		if err != nil {
+			t.Fatalf("FetchOCIImageRegistryTruthResult() error = %v", err)
+		}
+		var mRow, nRow map[string]any
+		for _, row := range result.Rows {
+			switch querycontract.StringVal(row, "image_ref") {
+			case refM:
+				mRow = row
+			case refN:
+				nRow = row
+			}
+		}
+		if mRow != nil {
+			t.Fatalf("got a truth row for digest M, truncated on ContainerImage but present on ContainerImageIndex: %#v", mRow)
+		}
+		if nRow == nil {
+			t.Fatalf("no truth row for digest N (never truncated, present only on ContainerImageIndex) in %#v", result.Rows)
+		}
+		if !containsString(result.TruncatedImageRefs, refM) {
+			t.Fatalf("TruncatedImageRefs = %#v, want %s present", result.TruncatedImageRefs, refM)
+		}
+	})
+
 	t.Run("plan_retains_index_seek", func(t *testing.T) {
 		operators := reader.explainOperators(ctx, t, ociTagObservationByRefCypher, map[string]any{
 			"image_refs": []string{refX}, "row_limit": oci.RegistryTruthRowLimit,

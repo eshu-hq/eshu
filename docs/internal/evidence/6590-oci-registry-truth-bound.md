@@ -109,4 +109,25 @@ overflow (withheld, `image_registry_truth_complete=false`,
 `truncated_image_refs` names it) while a two-digest ref sorted after it
 resolves `ambiguous_tag` with both `digest_candidates` out of the
 continuation statement; (c) `EXPLAIN` on the production statement retains
-`NodeIndexSeek`, never `NodeByLabelScan`.
+`NodeIndexSeek`, never `NodeByLabelScan`; (d) a digest that overflows
+`fetchOCIImagesByDigest`'s `ContainerImage`-label statement while still
+carrying a row under `ContainerImageIndex` is withheld entirely -- no truth
+row from either label -- while a sibling digest present only under
+`ContainerImageIndex` and never truncated still resolves.
+
+## Gating-review P1 fix: cross-label truncation (PR #7314)
+
+`fetchOCIImagesByDigest` runs one `LIMIT $row_limit` statement per image
+label (`ContainerImage`, `ContainerImageIndex`, `ContainerImageDescriptor`)
+and unions every label's kept rows, recording `truncatedDigests` when ANY
+label's statement hit the bound. `fetchOCIImageDigestRows` originally shaped
+truth rows from that union before applying the truncation, so a digest that
+overflowed on one label while still returning rows on another landed in
+both `Rows` and `TruncatedImageRefs` -- breaking the withheld-never-emitted
+contract this bound exists to keep. Fixed by `dropTruncatedDigestRows`,
+applied to the fetched images before the registry-repository join, mirroring
+the filter `fetchOCIImageTagRows` already applied to tag refs. Regression:
+`TestFetchOCIImageRegistryTruthWithholdsDigestTruncatedOnAnyLabel`
+(`go/internal/query/impact/trace_deployment_oci_bound_test.go`), RED against
+the prior head, GREEN after the fix; live proof (d) above confirms it
+against a real backend.
