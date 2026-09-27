@@ -821,6 +821,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/reducer/freshness/links/process_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link runner two-process race proof (#7127 PR-3a gates G9/G16d), spawns two copies of the compiled test binary against one cloned database; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/reducer/freshness/links/runner_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link runner poison and non-counting proofs (#7127 PR-3a gates G12/G16a/G16b), each with its planted RED; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/reducer/provenance_replay_tombstone_live_test.go
     tag: ~
     class: scheduled

@@ -15,11 +15,12 @@
 //
 // The storage package (storage/postgres/freshness/links) owns every
 // statement, the per-scope cursor fence and the database-wide full-link
-// slots. A retryable outcome (cursor_locked, generation_locked, slot_busy,
-// statement_timeout) satisfies contract.RetryableError. It stops that scope
-// for the cycle and leaves its cursor alone, so the next cycle retries the
-// same activation. There is no work-item queue: the journal and the cursor are
-// the durable queue, so there is nothing to dead-letter.
+// slots. A non-counting miss (cursor_locked, generation_locked, slot_busy)
+// stops that scope for the cycle and writes nothing. A counting failure
+// (statement_timeout, connection_lost, sql_error, internal) is recorded on
+// the cursor with backoff, and at Config.MaxAttempts the activation becomes a
+// link_poisoned chain break (#7127 ruling 8.10). There is no work-item queue:
+// the journal and the cursor are the durable queue.
 //
 // The domain is dark. cmd/reducer builds a Runner only when
 // ESHU_CHANGED_SINCE_LINK_ENABLED=true, and a nil Runner issues no SQL.

@@ -37,10 +37,17 @@ amended by 8.5, 2.8, 7 and 8.6):
   `linksfreshnessstore.PayloadDigestInput` and the root constant is an alias,
   so the read statement, the golden-corpus fragments file and the writer hash
   the same bytes (`TestChangedSinceOracleFragmentsMatchGoConstants` green).
-- **Outcomes.** A miss on any lock, or a statement timeout (SQLSTATE 57014),
-  rolls back and returns `*RetryError` with `cursor_locked`,
-  `generation_locked`, `slot_busy` or `statement_timeout`. It satisfies
-  `reducercontract.RetryableError`, and the cursor does not move.
+- **Outcomes (ruling 8.10).** A lock miss rolls back and returns a
+  non-counting `*RetryError` (`cursor_locked`, `generation_locked`,
+  `slot_busy`), writes nothing, and the runner moves on. A failure once the
+  link statement ran is a counting `*FailureError` (`statement_timeout`,
+  `connection_lost`, `sql_error`, `internal`). `RecordFailure` counts it in a
+  second short transaction under the cursor lock, backs off
+  min(30 min, 30 s × 2^(n-1)), and at `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS`
+  (default 5) records a `link_poisoned` chain break: the cursor advances, the
+  state stays, and the poison marker is set until the next full link clears
+  it. The transaction has a context deadline of the statement timeout plus
+  30 s; the candidate list is a hint and the head is re-read under the lock.
 - **Chain break (ruling 8.5).** A chain break advances
   `state_activation_seq`, keeps the state, and records its reason:
   - `pruned_before_link`: the generation row is absent;
@@ -73,47 +80,58 @@ amended by 8.5, 2.8, 7 and 8.6):
      domain is `reducer/freshness/links`.
    - `cmd/reducer` sits at the 40-file cap, so the wiring lives in
      `generation_retention_wiring.go`.
-2. **Runner, not a queue domain.** The journal and the per-scope cursor are
-   the durable queue, so there are no `fact_work_items` rows. A retryable
-   outcome leaves the cursor, and the next cycle retries the same activation.
-   The question went to the coordinator, and this note records the answer the
-   PR ships with. G16's dead-letter and fault-injection rows follow from it.
+2. **Runner, not a queue domain (ruling 8.10, Q1).** The journal and the
+   per-scope cursor are the durable queue; no `fact_work_items` row is
+   created and no graph edge is written. The ruling's queue-domain wording in
+   2.5, 8.6 and G16 is withdrawn; the runner carries its own poison bound and
+   G16 is replaced by G16a-G16f.
 3. **G3 index name.** Ruling 8.6 names `fact_records_scope_generation_idx`,
    but the shim fixture had only migration 003's indexes. On the full
    bootstrap the planner also picks `fact_records_scope_generation_keyset_idx`
    (`scope_id, generation_id, observed_at, fact_id`, migration 099), which
    reads the same single (scope, generation) range. The test accepts either
    index and fails on any other access shape.
-4. **G4 chain read shape.** The plain join form of `ev` in the shim's
+4. **G4 chain read shape (PR-3c must use the LATERAL form).** The plain join form of `ev` in the shim's
    `chain_read_v3.sql` fails at 2M rows with stale statistics. Its custom plan
    is a Bitmap Heap Scan whose index condition is `scope_id = 's0007'` only, so
    it reads every retained delta of the scope. The `links CROSS JOIN LATERAL
    (... OFFSET 0)` form that ruling 8.4 allows passes in both plan-cache modes
    with stale and with fresh statistics. PR-3c's read statement must use it,
-   and needs its own equality run against v1.
+   and needs its own equality run against v1. The test keeps the plain join
+   as a guard: it must still fail with stale statistics.
 
 ## Gates G1-G16
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
 | G1 accuracy | PASS | `TestChangedSinceLinkAccuracyAgainstClassificationOracle` (root package). The fixture has three full generations covering update, `indexed_at`-only change, changed non-minimum duplicate, multiplicity change, tombstone, tombstone with an active row, drop, add, kind change, scalar content-entity payload and a `reducer_` kind. After each link the state equals the independent aggregate, and the link deltas equal a diff built from the shipped `changedSinceClassificationCTEs` (SHA-256 over ordered rows, unchanged counts included). The RED writer without the tombstone predicate gives 6 oracle mismatches; the RED writer without `indexed_at` normalization gives 7. |
-| G2 delta oracle | FAIL (not built) | No overlay link and no real-git-collector delta oracle in this PR. Scan 0b has no artifact. Per ruling 8.6, a delta activation is a chain break (`overlay_unproven` when its prior matches the state), and the overlay follows in its own PR with the collector proof. |
+| G2 delta oracle | FAIL (not built) | No overlay link and no real-git-collector delta oracle in this PR; scan 0b has no artifact. As ruling 8.6 allows, a delta activation is a chain break (`overlay_unproven` when its prior matches the state), and the overlay follows in its own PR with the collector proof. |
 | G3 plan, L1b | PASS | `TestLinkStatementPlanShape`: exactly one `fact_records` scan, an Index Scan whose condition names `scope_id` and the activating generation (`fact_records_scope_generation_keyset_idx` without ANALYZE, `fact_records_scope_generation_idx` for the 45k-key scope after ANALYZE), and `Triggers` empty, for a 600-key and a 45,000-key scope with and without `ANALYZE`. See deviation 3. |
 | G4 plan, deltas and state | PASS | `TestLinkDeltaChainReadUsesPrimaryKey`: 2,000,000 delta rows over 500 scopes and 5,000 links; the probed scope holds 0.2% of the rows over 4 links. The access is the primary key with `scope_id`, `generation_id` and `prior_generation_id` in the index condition, at most 10 buffers per row plus 64. It holds in `force_custom_plan` and `force_generic_plan`, with statistics from 13k rows (autovacuum off) and after ANALYZE, and it reads 1,600 rows. RED: with the key dropped, the assertions fail. `TestLinkStatementPlanShape`: 3,844,080 state rows over 800 scopes; the state side reads `changed_since_key_state_pkey` by `scope_id` with no sequential scan for the 600-key and 45,000-key scopes; the 600-key link took 5.3 ms against the 100 ms gate. See deviation 4. |
 | G5 temp files | PASS | Scale run: `pg_stat_database.temp_files` and `temp_bytes` deltas were 0 across the root and the incremental 1.0x link at `work_mem` 256MB, and 0 again with 2 and 4 concurrent links. |
 | G6 RssAnon | PASS | Scale run: the peak single-backend `RssAnon` during a 1.0x incremental link was 464,480 kB (453.6 MiB), under the 524,288 kB (512 MiB) gate with an 11% margin. |
 | G7 timing ratio | NOT_CHECKED | Scale run: 6 interleaved rounds were recorded with the first mover alternating, and **0 were valid**. The host's 1-minute load was 36.7-70.9 on 18 CPUs at every round start, against a validity bound of load below 18. The invalid rounds give L1b/bare_b paired ratios of 1.05-1.25 (median 1.14); they are not pooled and are not a pass. Root at 8.0 s against same-run bare_b samples of 6.0-7.7 s is also invalid by the same rule. Ruling 8.2's fallback is to rerun on the remote test machine from the reviewed branch. |
 | G8 cap proof | PARTIAL | Scale run, 1, 2 and 4 concurrent 1.0x incremental links on different scopes (4 slots). **Memory:** summed peak `RssAnon` was 453.6 MiB, 908.5 MiB and 1,381.8 MiB; the n=4 sampled peak falls below 4 x 453.6 MiB because the four backends did not peak in the same sweep. **Read probe** (a 2,000-row page read from `fact_records` every 200 ms): p50 1.4 / 2.6 / 1.4 ms and p95 2.6 / 34.2 / 17.3 ms. **Walls:** 6.3 s; 29.9 and 29.1 s; 30.5-32.3 s. The host load rose from 19.1 to 81.7 across the run, so the wall times are not comparable between n values and do not prove or disprove the 2-slot default. The memory figures support the ruling's bound of two links near 1 GiB. |
-| G9 fence | PASS | `TestLinkFenceOneWinnerPerActivation`: 24 rounds of 4 concurrent `LinkWriter`s released together on one scope with a 3,000-row generation. Every round gives exactly one root link, one link row and one cursor advance, and every loser returns `cursor_locked` in under 1 s (or idle after the winner committed). `TestCursorHeldReturnsRetryWithoutWaiting` pins the non-blocking half deterministically: with the cursor held by another session, the result is `cursor_locked` in under 1 s. Both ran in the compiled test binary against PostgreSQL 18, not in the reducer binary. |
-| G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: 150k-row generations. The incremental statement is held mid-statement by a row lock on a state row it must update, then terminated with `pg_terminate_backend`. The ledger rows and the cursor are unchanged afterwards. The rerun links, and all ledger rows equal an uninterrupted reference scope built from the same fixture. |
-| G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: with the generation held `FOR UPDATE`, the result is `generation_locked` in under 1 s, the cursor does not move, and the link succeeds after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation gives `pruned_before_link`. |
-| G12 slot outcomes | PASS | `TestSlotBusyBlocksFullLinksOnly`: with both slots held, a full link returns `slot_busy` while a delta activation (a break) still advances; the full link succeeds after release. |
+| G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. The reducer binary itself was not run: it needs a graph backend, which this proof does not. |
+| G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
+| G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
+| G12 slot outcomes | PASS | Store `TestSlotBusyBlocksFullLinksOnly`; runner `TestRunnerMovesOnPastABusySlot`: with every slot held the full link is a non-counting `slot_busy` (`attempt_count` 0) and the runner moves on; a delta activation of another scope completes in the same cycle. |
 | G13 schema | PASS | `TestLedgerSchemaHasNoForeignKeys`: no foreign key on or referencing the six tables, and `fact_category` and `stable_fact_key` are NOT NULL. RED: a planted FK and a dropped NOT NULL inside a rolled-back transaction are reported. |
-| G14 switch off | PASS | `TestChangedSinceLinkRunnerIsOffByDefault` (`cmd/reducer`): with no environment and with `false`, no runner is built, and a database double that fails the test on any query, exec or begin sees none. A nil `Service.ChangedSinceLinkRunner` is never started. |
+| G14 switch off | PASS | `TestChangedSinceLinkRunnerIsOffByDefault` (`cmd/reducer`): with no environment and with `false`, `changedSinceLinkRunnerFor` returns nil (the runner is not constructed) and a database double that fails on any query, exec or begin sees none. |
 | G15 break keeps state | PASS | `TestChainBreakKeepsStateThenIncremental`: root F0, then two delta breaks (`overlay_unproven`, `prior_mismatch`) keep the state rows and generation. The next full generation links `incremental` F0 -> F3, the state equals the aggregate of F3, and only the 8 changed keys are written. |
-| G16 repo gates | PARTIAL | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 489 rows, all classified). All six variables are in `go/internal/envregistry` and the generated reference. Ifa dead-letter and fault-injection rows: the domain has no work-item queue (deviation 2); the other side runners (generation retention, infra reconcile) have no Ifa rows either. |
+| G16a poison bound | PASS | Runner `TestRunnerPoisonsAFailingLinkAfterMaxAttempts`: a link made to fail every time (a planted trigger) is tried exactly 5 times, then one `link_poisoned` break; the cursor passes the activation once; state rows and `state_generation_id` unchanged; a healthy scope links both its activations in the first cycle. Store `TestFailingLinkIsPoisonedAfterMaxAttempts`: `next_attempt_at` strictly increasing (30 s, 60 s, 120 s, 240 s), deferred inside the backoff. RED: the same check on a runner with no effective limit reports violations. |
+| G16b non-counting | PASS | `TestNonCountingOutcomesNeverPoison`: slots held, cursor held and generation held, each for MaxAttempts + 2 cycles: `attempt_count` 0 and no poison marker. RED: a planted classifier that counts `slot_busy` counts and poisons. `TestRecordFailureSkipsAHeldCursor`: a count is never written without the cursor lock. |
+| G16c recovery | PASS | `TestFailingLinkIsPoisonedAfterMaxAttempts`: after the poisoning the next full generation links `incremental` from the kept state, the state equals its aggregate, and the marker is cleared. |
+| G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. |
+| G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 492 rows, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
+| G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
 
 ## Scale run
+
+The scale run (G5, G6, G8) measured the link statements before the ruling
+8.10 changes; those changes add cursor columns, the failure accounting and a
+transaction deadline, and leave `RootLinkSQL` and `IncrementalLinkSQL`
+unchanged.
 
 Generator: `7127-link-writer-scale.py` (driver) and
 `7127-link-writer-fixture.sql` (rows). Raw output:
@@ -170,7 +188,9 @@ lock.
 | `clearStateQuery` (root after a digest change) | PK prefix `scope_id` | Deletes nothing on a first root; same prefix as the G4 access |
 | `lockCursorQuery`, `advanceCursorQuery`, `ensureCursorQuery` | cursor PK equality | One row per scope |
 | `nextActivationQuery` | `changed_since_activations_scope_seq_idx` | `(scope_id, activation_seq)` with `LIMIT 1` |
-| `backlogScopesQuery`, `backlogStatsQuery`, `orphanScopesQuery` | full scan of the journal and the cursor | The journal holds one row per activation, bounded by generation retention once PR-3d lands (T0: about 5,161 activations per 7 days on ops-qa); the cursor has one row per scope |
+| `backlogScopesQuery` (the runner's candidate read) | journal and cursor only | Plan-checked in `TestLinkDeltaChainReadUsesPrimaryKey` at the 8.4 fixture size (5,000 journal rows, 500 cursors, a fifth backing off): it reads only those two tables, 1.62 ms execution |
+| `backlogStatsQuery`, `orphanScopesQuery` | full scan of the journal and the cursor | The journal holds one row per activation, bounded by generation retention once PR-3d lands (T0: about 5,161 activations per 7 days on ops-qa); the cursor has one row per scope |
+| `recordAttemptQuery`, `poisonActivationQuery`, `createCursorsQuery` | cursor PK equality; the journal's unique `(scope_id, generation_id)` probe | One row per scope |
 | `backfillChainsQuery`, `journalActiveGenerationsQuery` | `ingestion_scopes` scan, journal probes by the unique `(scope_id, generation_id)` | One row per scope |
 | `deleteOrphanScopeStatements` | each table's `scope_id` key prefix | Deleted scopes only |
 | `ledgerSizeQuery` | catalog only | Reads no table rows |
@@ -180,14 +200,14 @@ lock.
 Every command ran from `go/` unless noted, with `ESHU_POSTGRES_TEST_DSN` set
 to the disposable container.
 
-- `go test ./internal/storage/postgres/freshness/links -count=1` (live): ok, 158 s
-- `go test ./internal/storage/postgres/freshness/links -run CursorHeld -count=1 -v` (live): ok
-- `go test ./internal/storage/postgres -run TestChangedSinceLinkAccuracy -count=1 -v` (live): ok
+- `go test ./internal/storage/postgres/freshness/links ./internal/reducer/freshness/links -count=1 -timeout 40m` (live): ok, 143.6 s and 72.9 s
+- `go test ./internal/storage/postgres -run ChangedSince -count=1` (live, includes G1 and the existing changed-since statement tests): ok
+- `go test ./internal/storage/postgres -run TestChangedSinceOracleFragmentsMatchGoConstants -v`: PASS, `scripts/lib/golden-corpus-changed-since-sql-fragments.sh` unchanged
 - `go test ./internal/storage/postgres/... ./internal/reducer/... ./cmd/reducer ./internal/telemetry/... ./internal/envregistry -count=1` (no DSN): ok, 107 packages
 - `go test -race ./internal/reducer/freshness/links -count=1`: ok
 - `docs/internal/evidence/7127-link-writer-scale.py --container eshu-7127-3a-pg --port 25471 --rounds 6` (repo root): rc 0
-- `bash scripts/verify-live-tests-ledger.sh` (repo root): ok, 489 rows
-- `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh` (repo root): ok
+- `bash scripts/verify-live-tests-ledger.sh` (repo root): ok, 492 rows
+- `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh` (repo root): rc 0 (after the coverage row was widened to `go/internal/reducer/freshness/links/*.go`; with `observe.go` alone it flagged `runner.go` as an uncovered stage)
 - `mkdocs build --strict --clean --config-file docs/mkdocs.yml` (repo root, via `uv run`): rc 0
 - `git diff --cached --check`: rc 0
 

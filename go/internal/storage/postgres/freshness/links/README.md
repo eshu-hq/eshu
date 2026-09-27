@@ -47,8 +47,24 @@ is the multixact shape that deadlocked the projector claim in #7115.
    `IncrementalLinkSQL`.
 6. Advance the cursor. Commit.
 
-A statement timeout (SQLSTATE 57014) is `RetryError{statement_timeout}`.
-Every `RetryError` satisfies the reducer's `contract.RetryableError`.
+Outcomes (#7127 ruling 8.10):
+
+- **Non-counting, no write:** `cursor_locked`, `generation_locked`, `slot_busy`
+  (`*RetryError`, which satisfies the reducer's `contract.RetryableError`).
+- **Counting:** a failure once the link statement ran (`*FailureError`):
+  `statement_timeout` (57014 or the transaction deadline), `connection_lost`
+  (57P01-57P03, class 08, a broken connection), `sql_error`, `internal`. A
+  failure of begin or of the lock reads counts nothing.
+- `RecordFailure` counts a counting failure in a second short transaction
+  under the cursor lock, only if the head is still the failed activation:
+  `attempt_count + 1`, `next_attempt_at = now + min(30 min, 30 s * 2^(n-1))`.
+  At the limit (default 5) the activation becomes a `link_poisoned` chain
+  break: the cursor advances past it, the state stays, and
+  `poisoned_activation_seq` and `poisoned_at` mark the scope until its next
+  full link clears them.
+- The whole transaction has a context deadline of the statement timeout plus
+  30 s. The candidate list is a hint; the head is re-read under the lock, and a
+  head still backing off returns `Idle` with `Deferred`.
 
 ## Journal
 

@@ -11,9 +11,11 @@
 // LOCKED, the per-scope writer fence), the activating generation (FOR KEY
 // SHARE SKIP LOCKED after a plain existence read, which keeps generation
 // retention off it), and for a full link one of Slots advisory slots
-// (pg_try_advisory_xact_lock(SlotLockClass, slot)). A miss on any of them, or
-// a statement timeout, rolls back and returns a *RetryError; the cursor does
-// not move. A full generation links as root (no state yet) or incremental
+// (pg_try_advisory_xact_lock(SlotLockClass, slot)). A miss on any of them
+// rolls back and returns a non-counting *RetryError; the cursor does not move.
+// A failure once the link statement ran returns a counting *FailureError;
+// RecordFailure counts it on the cursor row with backoff and, at the limit,
+// turns the activation into a link_poisoned chain break. A full generation links as root (no state yet) or incremental
 // (state at an earlier generation) in one statement that reads the
 // activating generation once. A delta generation, a pruned generation, or a
 // delta whose prior is unknown is a chain break: the cursor advances and the

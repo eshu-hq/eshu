@@ -10,8 +10,11 @@
 
 ## Invariants
 
-- The runner never succeeds on a retryable outcome. `drainScope` stops the
-  scope, and the cursor stays where it was.
+- The runner never succeeds on a miss or a failure. A non-counting miss
+  (`cursor_locked`, `generation_locked`, `slot_busy`) writes nothing and moves
+  to the next candidate; a counting failure goes through `RecordFailure`,
+  which poisons at `MaxAttempts` (#7127 ruling 8.10, gates G16a and G16b).
+  Never make a lock miss count, and never drop the attempt limit.
 - With `ESHU_CHANGED_SINCE_LINK_ENABLED` unset or false, `cmd/reducer` builds
   no runner and the domain issues no SQL (gate G14, pinned by
   `cmd/reducer/changed_since_link_wiring_test.go`).

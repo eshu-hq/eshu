@@ -32,21 +32,28 @@ Each cycle does the following:
 Full links (root and incremental) also need one of
 `ESHU_CHANGED_SINCE_LINK_SLOTS` database-wide advisory slots (default 2).
 Each full link runs at `work_mem` 256MB under
-`ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT` (default 120s).
+`ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT` (default 120s). The poll
+interval is `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default 5s).
 
 ## Outcomes
 
 | Outcome | Meaning | Cursor |
 | --- | --- | --- |
-| `linked` | A root or incremental link committed. | Advanced to the linked generation. |
-| `chain_break` | A delta generation, a pruned generation, or a delta whose prior is unknown. The overlay link is not shipped, so every delta activation is a break (reasons `delta_without_root`, `prior_mismatch`, `overlay_unproven`, `pruned_before_link`). | Advanced; the state is kept. |
-| `retry` | `cursor_locked`, `generation_locked`, `slot_busy` or `statement_timeout`. | Unchanged. |
-| `error` | Any other failure. It is logged with `failure_class=changed_since_link_error`. | Unchanged. |
+| `linked` | A root or incremental link committed. | Advanced to the linked generation; attempt fields and the poison marker clear. |
+| `break` | A delta generation, a pruned generation, or a delta whose prior is unknown. The overlay link is not shipped, so every delta activation is a break (`delta_without_root`, `prior_mismatch`, `overlay_unproven`, `pruned_before_link`). | Advanced; the state is kept. |
+| non-counting miss | `cursor_locked`, `generation_locked`, `slot_busy`. The runner moves on to the next candidate. | Unchanged; nothing written. |
+| `failed` | A counting failure: `statement_timeout`, `connection_lost`, `sql_error`, `internal`. Recorded with backoff min(30 min, 30 s × 2^(n-1)). | Unchanged; `attempt_count` +1, `next_attempt_at` set. |
+| `poisoned` | The `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS`-th counting failure (default 5): a `link_poisoned` break. | Advanced past the activation; state kept; marker set until the next full link. |
+
+A poisoned link does not appear in `list_dead_letter_work_items` or the
+status surface; the cursor row is the durable record (#7127 ruling 8.10,
+known gap).
 
 ## Telemetry
 
 - `eshu_dp_changed_since_links_total{link_kind, outcome}`
-- `eshu_dp_changed_since_link_retries_total{reason}`
+- `eshu_dp_changed_since_link_retries_total{reason}` (non-counting misses)
+- `eshu_dp_changed_since_link_failures_total{failure_class}`
 - `eshu_dp_changed_since_chain_breaks_total{reason}`
 - `eshu_dp_changed_since_link_duration_seconds{link_kind}`
 - `eshu_dp_changed_since_link_delta_rows{link_kind}`
@@ -55,6 +62,9 @@ Each full link runs at `work_mem` 256MB under
 - `eshu_dp_changed_since_link_lag_seconds`
 - `eshu_dp_changed_since_state_bytes`
 - `eshu_dp_changed_since_state_rows`
+- `eshu_dp_changed_since_link_retrying_scopes`, `eshu_dp_changed_since_link_poisoned_scopes` (computed in SQL, fleet-wide)
+- One ERROR `changed-since link poisoned` log per poisoning, with scope,
+  generation, sequence, failure class and attempts.
 - The span `reducer.changed_since_link` covers each link and carries the
   scope, generation, prior, sequence, kind and break reason.
 - One `changed-since link` log line is written per committed link.
@@ -67,5 +77,8 @@ At 3 AM, read the signals this way:
 - A rising backlog and lag mean the writer is behind.
 - `retries_total{reason="slot_busy"}` means the full-link slots are
   saturated.
+- `retrying_scopes` above zero means links are failing now;
+  `poisoned_scopes` above zero means those scopes skipped an activation and
+  answer from the fallback until their next full generation.
 - `chain_breaks_total` says why a scope's state stopped following its active
   generation.

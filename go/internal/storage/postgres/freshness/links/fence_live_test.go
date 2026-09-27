@@ -14,6 +14,7 @@ import (
 	"time"
 
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	lockstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 )
 
 // seedBulkGeneration inserts n content_entity facts for one generation in one
@@ -315,5 +316,25 @@ func TestCursorHeldReturnsRetryWithoutWaiting(t *testing.T) {
 	}
 	if elapsed := time.Since(began); elapsed > time.Second {
 		t.Fatalf("cursor_locked took %s, want under 1s", elapsed)
+	}
+}
+
+// TestSlotLockClassDiffersFromTreeKeys checks the full-link slot class
+// against every other two-integer advisory lock class in the tree (#7127
+// ruling 8.10, Q2 condition 4): the shared-projection partition leases,
+// the content-search finalizer, the deferred-maintenance namespace and the
+// schema bootstrap class 5318. Single-bigint keys are a separate key space.
+func TestSlotLockClassDiffersFromTreeKeys(t *testing.T) {
+	l := openLedgerDB(t)
+	classes := l.queryStrings(t, `
+SELECT name || '=' || class FROM (VALUES
+    ('shared_projection_partition_leases', hashtext('shared_projection_partition_leases')),
+    ('eshu_content_substring_indexes', hashtext('eshu_content_substring_indexes')),
+    ('`+lockstore.DeferredMaintenanceLockNamespace+`', hashtext('`+lockstore.DeferredMaintenanceLockNamespace+`')),
+    ('schema_bootstrap', 5318)
+) AS keys(name, class)
+WHERE class = $1`, linksfreshnessstore.SlotLockClass)
+	if len(classes) != 0 {
+		t.Fatalf("slot lock class %d collides with %v", linksfreshnessstore.SlotLockClass, classes)
 	}
 }

@@ -6,6 +6,7 @@ package linksfreshnessstore_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -124,6 +125,58 @@ FROM generate_series(0, 499) AS s, generate_series(1, 10) AS k`)
 		}
 	}
 	check("stale statistics")
+
+	// Guard: the plain join form of ev from the shim's chain_read_v3.sql
+	// fails the same assertions with stale statistics (a bitmap scan whose
+	// index condition names scope_id only), which is why PR-3c must use the
+	// LATERAL form above. If this ever passes, re-evaluate the LATERAL rule.
+	plainJoin := strings.Replace(chainDeltaProbe, `FROM links l CROSS JOIN LATERAL (
+    SELECT dd.fact_category, dd.stable_fact_key, dd.prior_state, dd.current_state
+    FROM changed_since_link_deltas dd
+    WHERE dd.scope_id = $1 AND dd.generation_id = l.generation_id AND dd.prior_generation_id = l.prior_generation_id
+    OFFSET 0
+  ) AS d`, `FROM links l JOIN changed_since_link_deltas d
+    ON d.scope_id = $1 AND d.generation_id = l.generation_id AND d.prior_generation_id = l.prior_generation_id`, 1)
+	if plainJoin == chainDeltaProbe {
+		t.Fatal("plain-join guard: LATERAL anchor not found in chainDeltaProbe")
+	}
+	plainNodes, _ := planNodes(t, explainPrepared(t, l.ctx, conn, "force_custom_plan", plainJoin, args))
+	if failures := indexAccessFailures(plainNodes, "changed_since_link_deltas", "changed_since_link_deltas_pkey", columns, 10); len(failures) == 0 {
+		t.Fatalf("plain-join guard: the join form passed with stale statistics; re-evaluate the LATERAL rule for PR-3c")
+	} else {
+		t.Logf("plain-join guard (expected RED): %s", strings.Join(failures, "; "))
+	}
+
+	// The runner's candidate read (#7127 ruling 8.10) at this fixture size:
+	// one journal row per link (5,000) and one cursor per scope (500), a
+	// fifth of them backing off. It reads only the journal and the cursor.
+	l.exec(t, `
+INSERT INTO changed_since_activations (scope_id, generation_id, prior_generation_id, source, activated_at)
+SELECT 's' || lpad(s::text, 4, '0'), 'g' || k, NULL, 'sweeper', now()
+FROM generate_series(0, 499) AS s, generate_series(1, 10) AS k ORDER BY k, s`)
+	l.exec(t, `
+INSERT INTO changed_since_scope_cursor (scope_id, state_activation_seq, digest_version, updated_at, next_attempt_at)
+SELECT 's' || lpad(s::text, 4, '0'), (s % 7) * 500, 1, now(), CASE WHEN s % 5 = 0 THEN now() + interval '1 hour' END
+FROM generate_series(0, 499) AS s`)
+	l.exec(t, `ANALYZE changed_since_activations`)
+	l.exec(t, `ANALYZE changed_since_scope_cursor`)
+	var candidatePlan string
+	if err := l.raw.QueryRowContext(l.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+linksfreshnessstore.BacklogScopesQueryForTest,
+		32, time.Now()).Scan(&candidatePlan); err != nil {
+		t.Fatalf("explain candidates: %v", err)
+	}
+	candidateNodes, _ := planNodes(t, candidatePlan)
+	for _, n := range candidateNodes {
+		if rel := n.str("Relation Name"); rel != "" && rel != "changed_since_activations" && rel != "changed_since_scope_cursor" {
+			t.Fatalf("candidate read touches %s", rel)
+		}
+	}
+	var doc []map[string]any
+	_ = json.Unmarshal([]byte(candidatePlan), &doc)
+	t.Logf("candidate read over 5,000 journal rows and 500 cursors: %.2f ms execution", doc[0]["Execution Time"])
+	if ms, _ := doc[0]["Execution Time"].(float64); ms > 1000 {
+		t.Fatalf("candidate read took %.0f ms at the 8.4 fixture size", ms)
+	}
 	l.exec(t, `ANALYZE changed_since_link_deltas`)
 	check("fresh statistics")
 
@@ -208,10 +261,13 @@ FROM generate_series(0, 797) AS s, generate_series(1, 4760) AS k`)
 		a := accesses[0]
 		// Ruling 8.6 names fact_records_scope_generation_idx; the shim's
 		// fixture had only migration 003's indexes. On the full bootstrap the
-		// planner may pick fact_records_scope_generation_keyset_idx
-		// (scope_id, generation_id, observed_at, fact_id, migration 099),
-		// which reads the same single (scope, generation) range. Either is
-		// the one-scan shape; any other index or a sequential scan fails.
+		// planner may also pick fact_records_scope_generation_keyset_idx
+		// (scope_id, generation_id, observed_at, fact_id, migration 099).
+		// Both are (scope_id, generation_id, ...) prefix range scans and the
+		// planner picks between them by cost, so either passes, but only
+		// with exactly one fact_records scan whose index condition binds both
+		// scope_id and the activating generation. Any other index, an index
+		// condition on scope_id alone, or a sequential scan fails.
 		scopeGenerationIndex := a.indexName == "fact_records_scope_generation_idx" ||
 			a.indexName == "fact_records_scope_generation_keyset_idx"
 		if !scopeGenerationIndex || !strings.Contains(a.indexCond, "scope_id = '"+scopeID+"'") ||

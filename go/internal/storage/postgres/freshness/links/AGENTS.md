@@ -19,6 +19,12 @@
   or the state construction bumps `DigestVersion`, which re-roots every scope.
 - A chain break keeps the state and advances only `state_activation_seq`
   (#7127 ruling 8.5).
+- Lock misses never count an attempt and write nothing. Only a failure once
+  the link statement ran is a counting `*FailureError`, and only
+  `RecordFailure`, under the cursor lock and after the rollback, writes the
+  attempt columns. At the limit it poisons (a `link_poisoned` break), never
+  halts (#7127 ruling 8.10). Never write attempt state to
+  `changed_since_activations`: PR-3b's Ack lock-order proof depends on it.
 - No foreign key may be added to any ledger table (gate G13). See
   `README.md` for the reason.
 - The overlay link is not shipped. A delta activation is a break until the

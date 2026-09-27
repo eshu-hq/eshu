@@ -102,6 +102,13 @@ memory up to about 1 GiB) under `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT`.
 A delta generation is recorded as a chain break and the scope keeps its
 state. The overlay link for delta generations is not shipped.
 
+A lock miss never counts. A failure once the link statement ran
+(`statement_timeout`, `connection_lost`, `sql_error`, `internal`) is counted on
+the scope's cursor and retried after min(30 min, 30 s × 2^(n-1)). At
+`ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` (default 5) the activation becomes a
+`link_poisoned` chain break: the scope keeps its state, is marked poisoned, and
+links again at its next full generation.
+
 ## Domains And Projection
 
 The default runtime processes workload identity, deployable-unit correlation,
@@ -236,7 +243,8 @@ Important env vars:
 - `ESHU_CHANGED_SINCE_LINK_ENABLED` (default `false`; dark domain, see
   above), `ESHU_CHANGED_SINCE_LINK_SLOTS` (default `2`),
   `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT` (default `120s`),
-  `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default `30s`),
+  `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default `5s`),
+  `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` (default `5`),
   `ESHU_CHANGED_SINCE_LINK_WORKERS` (default `4`),
   `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE` (default `10`)
 - `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop is also
@@ -302,7 +310,9 @@ Start with:
   `reducer.infra_inventory_reconcile`
 - changed-since link domain (dark): `eshu_dp_changed_since_links_total{link_kind,outcome}`,
   `eshu_dp_changed_since_link_retries_total{reason}`,
+  `eshu_dp_changed_since_link_failures_total{failure_class}`,
   `eshu_dp_changed_since_chain_breaks_total{reason}`,
+  `eshu_dp_changed_since_link_retrying_scopes`, `eshu_dp_changed_since_link_poisoned_scopes`,
   `eshu_dp_changed_since_link_backlog`, `eshu_dp_changed_since_link_lag_seconds`,
   span `reducer.changed_since_link`
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
