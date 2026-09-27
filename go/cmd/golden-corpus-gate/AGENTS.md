@@ -98,6 +98,9 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   invokes each tool via `POST /mcp/message` (served standalone, no SSE) and
   unwraps the MCP truth envelope `{data, truth, error}` — the payload is under
   `data`, so the shape is asserted against `data`, not the envelope. A tool whose
+  large result has no `structuredContent` supplies the complete JSON in an
+  embedded resource; consume that before any human text summary, and fail a
+  malformed resource as a required finding. A tool whose
   route the MCP server does not mount returns `isError`+`HTTP 404` even though it
   is advertised; fix the route (mirror `cmd/api/wiring.go`), do not drop the
   assertion. Tools needing a selector pass it in `arguments` (`get_repo_summary`
