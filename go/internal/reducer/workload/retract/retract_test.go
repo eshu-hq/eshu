@@ -177,9 +177,9 @@ func TestObserveRecordsMeasuredDeletesOnly(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 	keep := []KeepList{{RepoID: "repository:a"}}
-	Observe(context.Background(), inst, "scope", "gen", keep, Result{Repositories: 1, DefinesDeleted: 3, EndpointEdgesDeleted: 2, Counted: true}, 0)
-	Observe(context.Background(), inst, "scope", "gen", keep, Result{Repositories: 1, DefinesDeleted: 7}, 0) // uncounted: not recorded
-	Observe(context.Background(), nil, "scope", "gen", keep, Result{Counted: true, DefinesDeleted: 1}, 0)    // nil instruments
+	Observe(context.Background(), inst, Run{ScopeID: "scope", GenerationID: "gen"}, keep, Result{Repositories: 1, DefinesDeleted: 3, EndpointEdgesDeleted: 2, Counted: true}, 0)
+	Observe(context.Background(), inst, Run{ScopeID: "scope", GenerationID: "gen"}, keep, Result{Repositories: 1, DefinesDeleted: 7}, 0) // uncounted: not recorded
+	Observe(context.Background(), nil, Run{ScopeID: "scope", GenerationID: "gen"}, keep, Result{Counted: true, DefinesDeleted: 1}, 0)    // nil instruments
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {

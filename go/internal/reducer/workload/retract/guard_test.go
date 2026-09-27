@@ -209,11 +209,11 @@ func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 	defer slog.SetDefault(previous)
 
 	keep := []KeepList{{RepoID: "repository:a"}}
-	Observe(context.Background(), nil, "scope", "gen", keep,
+	Observe(context.Background(), nil, Run{ScopeID: "scope", GenerationID: "gen"}, keep,
 		Result{Repositories: 1, Mode: ModeGuarded, StaleDefines: 2, StaleEndpointEdges: 1, Counted: true}, 0)
-	Observe(context.Background(), nil, "scope", "gen", keep,
+	Observe(context.Background(), nil, Run{ScopeID: "scope", GenerationID: "gen"}, keep,
 		Result{Repositories: 1, Mode: ModeUnguardedReadFailed, ReadErr: errors.New("graph read timeout"), Counted: true}, 0)
-	Observe(context.Background(), nil, "scope", "gen", keep,
+	Observe(context.Background(), nil, Run{ScopeID: "scope", GenerationID: "gen"}, keep,
 		Result{Repositories: 1, Mode: ModeUnguardedNoReader, Counted: true}, 0)
 
 	var records []map[string]any
@@ -238,5 +238,31 @@ func TestObserveLogsGuardModeAndReadFailure(t *testing.T) {
 	}
 	if noReader["level"] != "WARN" || noReader["retract_mode"] != ModeUnguardedNoReader {
 		t.Fatalf("no-reader log = %v, want WARN: a missing guard in production is a wiring defect", noReader)
+	}
+}
+
+// TestObserveLogsIntentAndSkippedMode pins the #7285 retract-scope log
+// contract: every line names its intent and entity keys, so an operator can
+// match a retract to the intent that ran it, and a retract skipped for lack
+// of scope truth warns, because its stale edges stay until a later run. It
+// swaps the default logger, so it must not run in parallel.
+func TestObserveLogsIntentAndSkippedMode(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(previous)
+
+	run := Run{ScopeID: "scope", GenerationID: "gen", IntentID: "intent-1", EntityKeys: []string{"repo:repository:b"}}
+	Observe(context.Background(), nil, run, nil, Result{Repositories: 2, Mode: ModeSkippedNoScopeTruth}, 0)
+
+	var record map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record); err != nil {
+		t.Fatalf("decode log line %q: %v", buf.Bytes(), err)
+	}
+	keys, _ := record["entity_keys"].([]any)
+	if record["level"] != "WARN" || record["retract_mode"] != ModeSkippedNoScopeTruth ||
+		record["intent_id"] != "intent-1" || len(keys) != 1 || keys[0] != "repo:repository:b" ||
+		record["repository_count"] != float64(2) {
+		t.Fatalf("skipped log = %v, want WARN, skipped mode, the intent id and its entity keys", record)
 	}
 }

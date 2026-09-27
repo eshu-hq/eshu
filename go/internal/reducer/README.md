@@ -336,7 +336,13 @@ values each counter carries.
   `Materialize` commits and on the zero-candidate path, for repositories whose
   repository fact is not `delta_generation` (a delta reads partial facts).
   It reads current targets first and sends no DELETE in steady state; deleted
-  edges count on `eshu_dp_workload_repository_edge_retractions_total`.
+  edges count on `eshu_dp_workload_repository_edge_retractions_total`. The
+  keep-list is the scope generation's admitted set
+  (`WorkloadProjectionInputs.ScopeCandidates`, from
+  `LoadWorkloadProjectionScopeInputs`), never the intent's entity-filtered
+  candidates, so an intent keyed to another repository cannot delete a
+  sibling intent's edges. An input loader without
+  `ScopeWorkloadProjectionInputLoader` skips the retract and warns.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to `Handler.Handle`; a superseded intent returns without
   projecting stale truth.

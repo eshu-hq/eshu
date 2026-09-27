@@ -21,7 +21,7 @@ removes its own stale edges.
 | `RepositoryEdges` | `retract.go` | guarded or keep-list retract, batched |
 | `Reader`, guard reads and id-scoped deletes, `Mode*` | `guard.go` | read current targets, compute the stale set, delete only it |
 | `Executor`, `CountingExecutor`, `ErrUncounted` | `retract.go` | graph port and the optional delete-count capability |
-| `Observe` | `observe.go` | metric and completion log |
+| `Run`, `Observe` | `observe.go` | the intent a retract ran for; metric and completion log |
 
 ## Guard (NornicDB#296)
 
@@ -65,9 +65,18 @@ stale, so an unconditional retract would pay that cost on every run.
 - The caller runs it after the current edges committed, and only for
   repositories from `FullGenerationRepositoryIDs`. A delta generation reads
   partial facts and never retracts.
-- It is idempotent. A retry deletes nothing new. Same-scope races cannot happen,
-  because the reducer queue's platform-graph conflict key serializes
-  `workload_materialization` per scope.
+- The keep-lists are a fact of the scope generation, not of one intent: the
+  workloads and endpoints every admitted candidate in the scope projects to,
+  taken before the intent's entity-key filter. A keep-list is never built
+  from an entity-filtered projection: an intent keyed to another repository
+  would then delete what a sibling intent wrote, and the graph would depend on
+  intent order (#7304 fault-injection failure). A caller that cannot supply
+  the scope set skips the retract with `ModeSkippedNoScopeTruth`.
+- It is idempotent. A retry deletes nothing new. The reducer queue's
+  platform-graph conflict key serializes `workload_materialization` per scope,
+  but correctness does not rely on it: with scope-wide keep-lists no intent's
+  deletes overlap any intent's writes, so any order or interleaving ends at
+  the same graph.
 
 ## Telemetry
 
@@ -85,15 +94,21 @@ fields:
 
 - `scope_id`
 - `generation_id`
-- `retract_mode` (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`)
-- `repository_count`
-- `kept_workload_count`
-- `kept_endpoint_count`
+- `intent_id`, `entity_keys` (the intent that ran the retract; its keys bound
+  what it writes, never what the retract keeps)
+- `retract_mode` (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`,
+  `skipped_no_scope_truth`)
+- `repository_count` (for a skipped retract, the repositories left unretracted)
+- `kept_workload_count`, `kept_endpoint_count` (the scope generation's admitted
+  workloads and endpoints, not what this intent wrote; the written counts are
+  `workload_row_count` and `endpoint_row_count` on `workload materialization
+  completed`)
 - `stale_defines`, `stale_repository_endpoint_edges` (found by the guard read)
 - `defines_deleted`
 - `repository_endpoint_edges_deleted`
 - `deletes_counted`
-- `read_error` (the log is a warning when this is set)
+- `read_error` (the log is a warning when this is set, and also for
+  `unguarded_no_reader` and `skipped_no_scope_truth`)
 - `duration_s`
 
 Evidence: `docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`.

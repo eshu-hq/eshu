@@ -256,25 +256,98 @@ func loadScopeRepositoryFacts(ctx context.Context, loader FactLoader, scopeID, g
 	return envelopes, nil
 }
 
+// repositoryEdgeKeepSource is what the #7285 stale-edge retract keeps: the
+// scope generation's complete admitted candidate set. scopeTruth is false when
+// the input loader could not supply that set; the retract then skips rather
+// than keep an entity-filtered projection.
+type repositoryEdgeKeepSource struct {
+	scopeTruth   bool
+	candidates   []WorkloadCandidate
+	environments map[string][]string
+}
+
+// loadProjectionInputs loads this intent's inputs and the retract keep source.
+// A nil InputLoader uses the correlated loader, which supplies scope truth.
+func (h WorkloadMaterializationHandler) loadProjectionInputs(
+	ctx context.Context,
+	intent Intent,
+) (WorkloadProjectionInputs, repositoryEdgeKeepSource, error) {
+	var inputLoader WorkloadProjectionInputLoader = CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:     h.FactLoader,
+		ResolvedLoader: h.ResolvedLoader,
+	}
+	if h.InputLoader != nil {
+		inputLoader = h.InputLoader
+	}
+	var inputs WorkloadProjectionInputs
+	var err error
+	scopeLoader, scopeTruth := inputLoader.(ScopeWorkloadProjectionInputLoader)
+	if scopeTruth {
+		inputs, err = scopeLoader.LoadWorkloadProjectionScopeInputs(ctx, intent)
+	} else {
+		inputs.Candidates, inputs.DeploymentEnvironments, err = inputLoader.LoadWorkloadProjectionInputs(ctx, intent)
+	}
+	if err != nil {
+		return WorkloadProjectionInputs{}, repositoryEdgeKeepSource{}, fmt.Errorf("load workload projection inputs: %w", err)
+	}
+	return inputs, repositoryEdgeKeepSource{
+		scopeTruth:   scopeTruth,
+		candidates:   inputs.ScopeCandidates,
+		environments: inputs.DeploymentEnvironments,
+	}, nil
+}
+
 // retractStaleRepositoryEdges removes this domain's DEFINES and
 // repository-side EXPOSES_ENDPOINT edges that the current full generation no
 // longer supports (#7285, ruling B1). The projector used to wipe them as a side
 // effect of deleting the Repository node on every non-delta attempt; it no
 // longer does, because that delete also destroyed every other writer's edges.
-// Handle calls it only after Materialize committed the current edges; a nil
-// projection (the zero-candidate path) keeps nothing.
+// Handle calls it only after this intent's writes committed.
+//
+// The keep-list is a fact of the scope generation, not of the intent: it holds
+// every workload and endpoint the scope's admitted candidates project to,
+// whatever this intent's entity keys select. Built from the entity-filtered
+// projection instead, an intent keyed to another repository would delete the
+// edges a sibling intent wrote, and the final graph would depend on which
+// intent ran last. A keep source without scope truth skips the retract.
 func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
 	ctx context.Context,
 	intent Intent,
 	repositoryFacts []facts.Envelope,
-	projection *ProjectionResult,
+	keep repositoryEdgeKeepSource,
 ) (retract.Result, error) {
 	repoIDs := retract.FullGenerationRepositoryIDs(repositoryFacts)
 	if len(repoIDs) == 0 {
 		return retract.Result{}, nil
 	}
+	run := retract.Run{
+		ScopeID: intent.ScopeID, GenerationID: intent.GenerationID,
+		IntentID: intent.IntentID, EntityKeys: intent.EntityKeys,
+	}
+	if !keep.scopeTruth {
+		skipped := retract.Result{Repositories: len(repoIDs), Mode: retract.ModeSkippedNoScopeTruth}
+		retract.Observe(ctx, h.Instruments, run, nil, skipped, 0)
+		return skipped, nil
+	}
+	started := time.Now()
+	keepLists := scopeKeepLists(repoIDs, keep)
+	result, err := retract.RepositoryEdges(ctx, h.Materializer.executor, h.RepositoryEdgeReader,
+		h.Materializer.batchSize(), keepLists, EvidenceSourceWorkloads)
+	if err != nil {
+		return result, err
+	}
+	retract.Observe(ctx, h.Instruments, run, keepLists, result, time.Since(started))
+	return result, nil
+}
+
+// scopeKeepLists projects the scope's admitted candidates through the same
+// builder the write path uses and keys the workload and endpoint ids by
+// repository. Those ids depend only on the candidate, so the write path's
+// infrastructure-platform read is not needed here.
+func scopeKeepLists(repoIDs []string, keep repositoryEdgeKeepSource) []retract.KeepList {
 	workloadIDs, endpointIDs := map[string][]string{}, map[string][]string{}
-	if projection != nil {
+	if len(keep.candidates) > 0 {
+		projection := BuildProjectionRowsWithInfrastructurePlatforms(keep.candidates, keep.environments, nil)
 		for _, row := range projection.WorkloadRows {
 			workloadIDs[row.RepoID] = append(workloadIDs[row.RepoID], row.WorkloadID)
 		}
@@ -282,15 +355,7 @@ func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
 			endpointIDs[row.RepoID] = append(endpointIDs[row.RepoID], row.EndpointID)
 		}
 	}
-	keepLists := retract.KeepLists(repoIDs, workloadIDs, endpointIDs)
-	started := time.Now()
-	result, err := retract.RepositoryEdges(ctx, h.Materializer.executor, h.RepositoryEdgeReader,
-		h.Materializer.batchSize(), keepLists, EvidenceSourceWorkloads)
-	if err != nil {
-		return result, err
-	}
-	retract.Observe(ctx, h.Instruments, intent.ScopeID, intent.GenerationID, keepLists, result, time.Since(started))
-	return result, nil
+	return retract.KeepLists(repoIDs, workloadIDs, endpointIDs)
 }
 
 // repositoryGraphIDsFromEnvelopes extracts the distinct, sorted repository

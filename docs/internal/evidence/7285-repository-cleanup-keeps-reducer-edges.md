@@ -38,6 +38,10 @@ executors, and the Repository element id changed.
   - The retract anchors on the `repository_id` unique index and uses a
     per-repository keep-list, scoped by `evidence_source =
     'finalization/workloads'`.
+  - The keep-list is scope-wide: every workload and endpoint the scope
+    generation's admitted candidates project to, taken before the intent's
+    entity-key filter. The writes stay filtered. A keep-list is never built
+    from an entity-filtered projection (see "#7304 fault-injection fix" below).
   - It runs after `Materialize` commits, and on the zero-candidate path.
   - It covers only repositories whose repository fact is not
     `delta_generation`.
@@ -91,10 +95,17 @@ generation's reducer rows succeed, re-enqueueing the same intents reports
 `updated_at` unchanged. An enqueue that reopens succeeded rows turns it red
 (`Count = 2`).
 
-Row 7, a B1 retract racing a same-scope `workload_materialization`, cannot
-happen. Both run in the same domain on the same scope, and the platform-graph
-conflict key serializes them. `TestPlatformGraphConflictKeySameDomainSameScopeSerializes`
-in `storage/postgres` pins that. No claim, lease, ack, heartbeat or fence SQL
+Row 7, a B1 retract against a same-scope `workload_materialization`: two
+same-scope intents cannot overlap, because the platform-graph conflict key
+serializes them (`TestPlatformGraphConflictKeySameDomainSameScopeSerializes` in
+`storage/postgres`). That closes the race, not the hazard. The first version of
+B1 was order-dependent: an intent keyed to another repository retracted the
+edges a sibling intent had written, one after the other, and the #7304
+fault-injection gate caught it. Serialization cannot fix sequential order. The
+scope-wide keep-list below does, and
+`TestLiveRepositoryEdgeRetractKeepsScopeWorkloadsInEveryIntentOrder` pins both
+orders plus a racing leg that does not rely on the queue fence. No claim,
+lease, ack, heartbeat or fence SQL
 changed: the diff over the non-test files matching
 `storage/postgres/projector_queue*.go` and `reducer_queue*.go` is empty. The
 only matching file this PR adds is the test-only
@@ -136,7 +147,7 @@ Added per `workload_materialization` run:
 None was separately timed. The fallback keep-list `DELETE` (no reader, or a
 failed read) still pays the zero-row cost on NornicDB.
 
-Observability Evidence: actual deleted edge counts, read from the Bolt write summary through the `retract.CountingExecutor` seam (`go/internal/reducer/workload/retract`, implemented by `cmd/reducer` `reducerCypherExecutor` and forwarded by the backpressure gate), are recorded on the new `eshu_dp_workload_repository_edge_retractions_total` by bounded `write_phase` (`defines_retract`, `repository_endpoint_retract`), kept off `eshu_dp_reconciliation_drift_retractions_total` because ordinary removal is not collector drift, and shown on the operator dashboard's Workload Repository Edge Retractions panel; every run logs `workload repository edge retract completed` with scope_id, generation_id, retract_mode (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`), repository_count, kept_workload_count, kept_endpoint_count, stale_defines, stale_repository_endpoint_edges, defines_deleted, repository_endpoint_edges_deleted, deletes_counted, read_error and duration_s, at warning level when the guard read failed or no reader was wired (`unguarded_no_reader`, which in production means the composition root dropped the guard, pinned by `TestBuildReducerServiceWiresRepositoryEdgeReader`); `TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts`, `TestObserveRecordsMeasuredDeletesOnly`, `TestObserveLogsGuardModeAndReadFailure` and `TestProductionWorkloadMaterializerCountsRepositoryEdgeRetracts` pin the metric, the log and the production wiring.
+Observability Evidence: actual deleted edge counts, read from the Bolt write summary through the `retract.CountingExecutor` seam (`go/internal/reducer/workload/retract`, implemented by `cmd/reducer` `reducerCypherExecutor` and forwarded by the backpressure gate), are recorded on the new `eshu_dp_workload_repository_edge_retractions_total` by bounded `write_phase` (`defines_retract`, `repository_endpoint_retract`), kept off `eshu_dp_reconciliation_drift_retractions_total` because ordinary removal is not collector drift, and shown on the operator dashboard's Workload Repository Edge Retractions panel; every run logs `workload repository edge retract completed` with scope_id, generation_id, intent_id, entity_keys, retract_mode (`guarded`, `unguarded_no_reader`, `unguarded_read_failed`, `skipped_no_scope_truth`), repository_count, kept_workload_count, kept_endpoint_count, stale_defines, stale_repository_endpoint_edges, defines_deleted, repository_endpoint_edges_deleted, deletes_counted, read_error and duration_s, at warning level when the guard read failed or no reader was wired (`unguarded_no_reader`, which in production means the composition root dropped the guard, pinned by `TestBuildReducerServiceWiresRepositoryEdgeReader`); `TestWorkloadMaterializationRecordsRepositoryEdgeRetractCounts`, `TestObserveRecordsMeasuredDeletesOnly`, `TestObserveLogsGuardModeAndReadFailure`, `TestObserveLogsIntentAndSkippedMode` and `TestProductionWorkloadMaterializerCountsRepositoryEdgeRetracts` pin the metric, the log and the production wiring.
 
 ## Review follow-ups
 
@@ -194,8 +205,87 @@ locally), so whether it needs the in-process retry, the durable-replay tier,
 or neither remains to be observed from the next CI run's per-trial
 `t.Logf("... sessions needed a durable replay ...")` output.
 
+## #7304 fault-injection fix: the retract keep-list is scope-wide
+
+### Defect
+
+The Ifá fault-injection shard 1 digests disagreed: baseline and killworker
+`repo_dependency` cells gave `64682b26…`, failgraphwrite and every main cell
+gave `bad9985d0d382b11cc7ebe620de4e28f712a712cd6a20318e0495dc1f3195c49`. The
+baseline graph was the wrong one: it lacked the fixture's
+`Repository -DEFINES-> Workload` edge.
+
+Root-Cause Evidence: the #7304 CI reducer log shows a
+`workload_materialization` intent keyed `repo:<target repository>` in the
+source scope logging `kept_workload_count=0 stale_defines=1 defines_deleted=1`.
+
+- `CorrelatedWorkloadProjectionInputLoader` narrows candidates to the intent's
+  entity keys. The first B1 built its keep-list from that narrowed projection,
+  but retracted for every full-generation repository in the scope.
+- Foreign keys in a scope are designed behaviour: the repo_dependency replay
+  keys `PROVISIONS_DEPENDENCY_FOR` to the target repository, and the
+  deployment_mapping replay falls back to `repo:<scope id>`.
+- So a foreign-keyed intent kept nothing and deleted what a sibling intent
+  wrote, and the final graph depended on which intent ran last. The fault cell
+  reordered the intents (a resolution-not-ready deferral pushed the matching
+  intent last), which is why only that cell was right.
+
+### Fix (arbiter option B)
+
+- The loader admits the whole scope candidate set once, then narrows the
+  admitted set to the entity keys for the writes.
+  `LoadWorkloadProjectionScopeInputs` returns both. Filtering and admission
+  commute: the filter reads only repository identity, which admission does not
+  change, so the writes are unchanged.
+- The keep-list comes from the admitted scope set, through the same
+  `BuildProjectionRowsWithInfrastructurePlatforms` builder the writes use. Its
+  workload and endpoint ids depend only on the candidate, so the platform read
+  is not repeated.
+- The repository set stays `FullGenerationRepositoryIDs`. A disappeared
+  workload is absent from the scope set, so any intent retracts it, including
+  one keyed to a foreign repository.
+- A loader that cannot supply the scope set (no
+  `ScopeWorkloadProjectionInputLoader`) skips the retract and logs at warning
+  with `retract_mode=skipped_no_scope_truth`. It never falls back to its
+  filtered candidates. Production wires the correlated loader.
+- The retract log now carries `intent_id` and `entity_keys`, and
+  `workload materialization completed` carries both too. `kept_workload_count`
+  and `kept_endpoint_count` now count the scope generation's admitted set, not
+  what the intent wrote. The written count is that log's `workload_row_count`.
+- An admission error on a candidate the intent's keys would have dropped now
+  fails the intent. That is fail-closed, and it is a behaviour change.
+
+### Proof
+
+RED runs are on `c9f8af0c72`, GREEN on the fix, Neo4j only
+(`neo4j:2026-community` 2026.09.0, `sha256:91fb0bf2…`).
+
+| Test | `c9f8af0c72` | fix |
+| --- | --- | --- |
+| `TestWorkloadMaterializationKeepListIsScopeWideForEveryEntityKey` (real loader; keys: matching `workload:`, matching `repo:`, foreign `repo:`, `repo:<scope id>`, none; guarded and unguarded) | FAIL: foreign and scope-id rows delete the current edge; keep-lists `[]` | PASS |
+| `TestBuildReducerServiceKeepsScopeWorkloadsForForeignKeyedIntent` (`cmd/reducer`, production composition root) | FAIL: 1 `DEFINES` DELETE | PASS |
+| `TestLiveRepositoryEdgeRetractKeepsScopeWorkloadsInEveryIntentOrder` (both orders, 10 racing trials, disappearance) | FAIL: "matching then foreign" ends `DEFINES=[] EXPOSES_ENDPOINT=[]`; a race trial ends `DEFINES=[]` | PASS (1.18 s) |
+| `TestWorkloadMaterializationForeignKeyedIntentRetractsTrueDisappearance` | PASS (the old code over-retracts) | PASS |
+| `TestWorkloadMaterializationDeferralAndFailedWriteIssueNoRetract` | PASS | PASS |
+| `TestWorkloadMaterializationSkipsRetractWithoutScopeTruth` | n/a (new capability) | PASS |
+
+Seeded mutations, each RED:
+
+- keep-list from the filtered candidates: the key-table test and the
+  composition-root test;
+- repository set restricted by the entity keys (option A): the disappearance
+  test;
+- `delta_generation` treated as full: the existing delta, mixed-scope and
+  `FullGenerationRepositoryIDs` tests;
+- a loader without scope truth falling back to its candidates: the skip test.
+
+Performance Evidence: `load_inputs` on a 50-repository scope with an intent keyed to one repository, 400 calls per run, six interleaved base/fix pairs with alternating first mover: median 0.000794 s on `c9f8af0c72` and 0.000995 s on the fix (+0.20 ms, admission of the 49 candidates the filter used to drop); the whole handler with an in-memory executor went from 0.000824 s to 0.001092 s (+0.27 ms, adding the keep-list projection). A git scope holds one repository, where the two paths do the same work. The Ifá fault-injection digests are in the PR.
+
 ## Not checked
 
+- **deployable_unit_correlation retract.** `retractDeployableUnitEdges` builds
+  its rows from the intent's entity keys, the option-A shape. Whether it has
+  the never-fires gap is not checked here and is out of this PR's scope.
 - **NornicDB.** By the owner's rule these runs were Neo4j only. The live files
   are `class: ci` rows in `specs/live-tests.v1.yaml`, so the live-backend CI
   job runs them on the pinned NornicDB. Two risks are open there:

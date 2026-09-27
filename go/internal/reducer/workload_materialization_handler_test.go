@@ -1007,6 +1007,20 @@ func (f *stubWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	return f.candidates, f.deploymentEnvironments, nil
 }
 
+// LoadWorkloadProjectionScopeInputs models a loader whose scope generation
+// admits exactly its candidates, as an intent without entity keys sees it.
+func (f *stubWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInputs(
+	ctx context.Context,
+	intent Intent,
+) (WorkloadProjectionInputs, error) {
+	candidates, deploymentEnvironments, err := f.LoadWorkloadProjectionInputs(ctx, intent)
+	return WorkloadProjectionInputs{
+		Candidates:             candidates,
+		ScopeCandidates:        candidates,
+		DeploymentEnvironments: deploymentEnvironments,
+	}, err
+}
+
 type stubInfrastructurePlatformLookup struct {
 	platforms map[string][]InfrastructurePlatformRow
 	repoIDs   []string

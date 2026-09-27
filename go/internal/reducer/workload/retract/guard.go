@@ -21,6 +21,12 @@ const (
 	// ModeUnguardedReadFailed ran the keep-list deletes unconditionally
 	// because the guard read failed (fail toward deleting).
 	ModeUnguardedReadFailed = "unguarded_read_failed"
+	// ModeSkippedNoScopeTruth sent no read and no delete because the caller
+	// could not supply the scope generation's complete admitted set. A
+	// keep-list is never built from an entity-filtered projection: that one
+	// would delete the edges a sibling intent keyed to other entities wrote.
+	// Only the caller chooses this mode; RepositoryEdges never does.
+	ModeSkippedNoScopeTruth = "skipped_no_scope_truth"
 )
 
 // Reader is the graph read port for the guard: one parameterized read

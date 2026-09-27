@@ -820,6 +820,10 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic nonce-scoped #7285 B1 stale DEFINES/EXPOSES_ENDPOINT retract proof through the real WorkloadMaterializationHandler; local neo4j:2026-community runs took 0.64s-1.13s per test (1.8s-2.2s package) on a shared host; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/repository_edge_scope_keep_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7285 retract-scope proof (arbiter option B) through the real CorrelatedWorkloadProjectionInputLoader; a matching and a foreign-keyed workload_materialization intent in both orders and racing (10 trials) must leave one final DEFINES and EXPOSES_ENDPOINT set, and a foreign-keyed intent must still retract a disappeared workload; local neo4j:2026-community runs took 1.18s for the test (15.7s for the #7285 live package set) on a shared host; runs on both backends in the live-backend CI job
   - file: go/internal/reducer/repository_retry_concurrency_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

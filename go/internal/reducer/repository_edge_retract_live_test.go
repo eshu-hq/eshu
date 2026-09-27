@@ -52,6 +52,14 @@ func (l liveCandidateLoader) LoadWorkloadProjectionInputs(
 	return l.candidates, nil, nil
 }
 
+// LoadWorkloadProjectionScopeInputs reports its candidates as the whole
+// scope generation: each intent here owns a single-repository scope.
+func (l liveCandidateLoader) LoadWorkloadProjectionScopeInputs(
+	context.Context, reducer.Intent,
+) (reducer.WorkloadProjectionInputs, error) {
+	return reducer.WorkloadProjectionInputs{Candidates: l.candidates, ScopeCandidates: l.candidates}, nil
+}
+
 // handleWorkloads runs one workload_materialization intent for repo with the
 // named workloads as candidates, each exposing /v1/<name>.
 func (l *repoRetryLive) handleWorkloads(

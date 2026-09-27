@@ -11,7 +11,10 @@
 // [RepositoryEdges] deletes the DEFINES and repository-side EXPOSES_ENDPOINT
 // edges carrying one evidence source whose target is not in the repository's
 // [KeepList]. [FullGenerationRepositoryIDs] restricts that to repositories
-// whose generation is a full snapshot, never a delta.
+// whose generation is a full snapshot, never a delta. Keep-lists hold what the
+// whole scope generation admits, never one intent's entity-filtered
+// projection; a caller without that set skips the retract
+// ([ModeSkippedNoScopeTruth]).
 //
 // With a [Reader] wired, [RepositoryEdges] first reads each repository's
 // current targets and deletes only the stale ones, by id, so a steady-state run
@@ -24,5 +27,5 @@
 // implements [CountingExecutor]. [Observe] records them on
 // eshu_dp_workload_repository_edge_retractions_total by bounded write_phase
 // (ordinary removal, kept off the collector reconciliation-drift counter) and
-// logs every run.
+// logs every run with the intent ([Run]) it ran for.
 package retract

@@ -21,3 +21,8 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   share a name with a `RETURN` alias (#6786 shape X9).
 - A missing reader or a failed read runs the keep-list deletes (fail toward
   deleting). Never turn a read failure into a skipped retract.
+- Build keep-lists from the scope generation's complete admitted set, never
+  from an entity-filtered projection: an intent keyed to another repository
+  would delete a sibling intent's edges. When the caller cannot supply that
+  set, it skips with `ModeSkippedNoScopeTruth` and warns; that is the only
+  skipped retract, and it is the caller's decision, not `RepositoryEdges`'.

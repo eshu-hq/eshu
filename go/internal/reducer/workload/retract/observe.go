@@ -23,16 +23,30 @@ const (
 	PhaseRepositoryEndpoint = "repository_endpoint_retract"
 )
 
+// Run identifies the reducer intent one retract ran for, so the completion log
+// can be matched to its intent without timestamps.
+type Run struct {
+	ScopeID      string
+	GenerationID string
+	IntentID     string
+	// EntityKeys are the intent's entity keys. They bound what the intent
+	// writes, never what the retract keeps.
+	EntityKeys []string
+}
+
 // Observe records one completed retract: measured deletes on
 // eshu_dp_workload_repository_edge_retractions_total (skipped when the executor
 // chain could not count them) and one "workload repository edge retract
-// completed" log line with the scope, generation, retract mode, keep sizes,
-// stale edges found, deletes, and duration. The log is a warning when the
-// guard read failed and the unguarded deletes ran. instruments may be nil.
+// completed" log line with the intent, retract mode, keep sizes, stale edges
+// found, deletes, and duration. The keep sizes count the scope generation's
+// admitted set, not what this intent wrote. The log is a warning when the
+// guard read failed and the unguarded deletes ran, when no reader was wired,
+// and when the caller skipped the retract for lack of scope truth.
+// instruments may be nil.
 func Observe(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	scopeID, generationID string,
+	run Run,
 	keepLists []KeepList,
 	result Result,
 	duration time.Duration,
@@ -57,9 +71,16 @@ func Observe(
 		// root dropped the guard: every run pays the unguarded delete.
 		level = slog.LevelWarn
 	}
+	if result.Mode == ModeSkippedNoScopeTruth {
+		// Stale edges stay until a run with scope truth: production wires the
+		// correlated loader, so this means the composition root changed.
+		level = slog.LevelWarn
+	}
 	slog.Log(ctx, level, "workload repository edge retract completed",
-		"scope_id", scopeID,
-		"generation_id", generationID,
+		"scope_id", run.ScopeID,
+		"generation_id", run.GenerationID,
+		"intent_id", run.IntentID,
+		"entity_keys", run.EntityKeys,
 		"retract_mode", result.Mode,
 		"repository_count", result.Repositories,
 		"kept_workload_count", keptWorkloads,
