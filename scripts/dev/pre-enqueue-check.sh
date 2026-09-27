@@ -175,6 +175,10 @@ else
 			overlap="$(comm -12 <(printf '%s\n' "${pr_files}") <(printf '%s\n' "${qfiles}") | sed '/^$/d' | paste -sd, -)"
 			note merge-queue "queued #${qpr} (position ${qpos}) file overlap: ${overlap:-none}"
 		done < <(jq -r '.[] | [.pullRequest.number, .position] | @tsv' <<<"${others}")
+		# An entry's headCommit is the GitHub-built merge-group commit (main
+		# plus every PR up to that entry), not the PR's own head. #7311's
+		# entry 26a514a55 has parent main 98394122f; its PR head was
+		# f9992c17f. So merging against the last entry covers the whole queue.
 		tip="$(jq -r '.[-1].headCommit.oid // empty' <<<"${others}")"
 		tip_pr="$(jq -r '.[-1].pullRequest.number' <<<"${others}")"
 		if [[ -z "${tip}" ]]; then

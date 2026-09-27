@@ -220,6 +220,12 @@ expect_red "unresolved review thread" threads
 new_case threads-truncated
 edit threads.json '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage = true'
 expect_red "more threads than one page" threads
+new_case queue-truncated
+edit queue.json '.data.repository.mergeQueue.entries.pageInfo.hasNextPage = true'
+expect_red "more queue entries than one page" merge-queue
+new_case unknown-bucket
+edit checks.json '. + [{name:"future-check",state:"STALE",bucket:"stale"}]'
+expect_red "check row with an unrecognized bucket" checks
 new_case no-closing
 edit pr.json '.body = "Tightens the gate. Refs #7332\n"'
 expect_red "missing closing keyword" body
@@ -234,6 +240,9 @@ expect_red "AI tool footer in body" body
 new_case attribution-trailer
 edit pr.json '.body += "\n" + $t + "\n"' --arg t "Co-Authored-By: ${ai_tool} <x@example.invalid>"
 expect_red "AI Co-Authored-By trailer in body" body
+new_case attribution-trailer-no-email
+edit pr.json '.body += "\n" + $t + "\n"' --arg t "Co-Authored-By: ${ai_tool}"
+expect_red "AI Co-Authored-By trailer with no email in body" body
 # A body that only DESCRIBES attribution, or credits a human co-author, is
 # not attribution: #7332's own PR body names the trailer it removes.
 new_case attribution-prose

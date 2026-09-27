@@ -78,8 +78,10 @@ second full semantic review only when the receipt matches. Any changed base,
 commit, tree, worktree, submodule, PR claim, review packet, or verdict
 invalidates it: repeat affected proof and full review, then capture a new
 receipt. One exception is a base-only change. After a rebase that needed no
-conflict resolution, compare cumulative `git patch-id --stable` over
-`base..HEAD`. If the patch-id is unchanged and no file the diff touches was
+conflict resolution, compare the cumulative patch-id, which is one ID over
+the whole diff: `git diff <base>..HEAD | git patch-id --stable`. Compute it
+for the old base and head, and again for the new ones. If the patch-id is
+unchanged and no file the diff touches was
 also changed by the base's new commits, a scoped re-review replaces the full
 one. The scoped re-review must still:
 - confirm the patch-id and the empty overlap itself;
