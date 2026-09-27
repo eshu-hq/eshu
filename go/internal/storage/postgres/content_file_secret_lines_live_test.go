@@ -84,7 +84,7 @@ FROM content_file_secret_lines ORDER BY repo_id, relative_path, line_number`)
 }
 
 // TestContentFileSecretLinesMigrationBackfillsAndReappliesLive applies
-// migration 133 to a content_files table that already holds rows (the upgrade
+// migration 136 to a content_files table that already holds rows (the upgrade
 // path): the backfill must produce exactly the expected findings, and applying
 // the file a second time must be a no-op.
 func TestContentFileSecretLinesMigrationBackfillsAndReappliesLive(t *testing.T) {
@@ -121,7 +121,7 @@ INSERT INTO content_files (repo_id, relative_path, content, content_hash, line_c
 	}
 	for pass := 1; pass <= 2; pass++ {
 		if _, err := db.ExecContext(ctx, MigrationSQL(secretLinesMigrationName)); err != nil {
-			t.Fatalf("apply migration 133 (pass %d): %v", pass, err)
+			t.Fatalf("apply migration 136 (pass %d): %v", pass, err)
 		}
 		if got := secretLinesSideRows(t, ctx, db); !slices.Equal(got, want) {
 			t.Fatalf("pass %d side rows = %v, want %v", pass, got, want)

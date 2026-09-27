@@ -3,7 +3,7 @@
 `POST /api/v0/code/security/secrets/investigate` and the MCP tool
 `investigate_hardcoded_secrets` took 33 s median (49 s max) unscoped on ops-qa,
 and 3.9 s even scoped to the largest repository. This change moves the detection
-from every read to the content write: migration 133 adds a
+from every read to the content write: migration 136 adds a
 `content_file_secret_lines` side table that Postgres triggers keep current, and
 `InvestigateHardcodedSecrets` reads that table once it is ready and uses the
 legacy `content_files` scan until then. The design and its
@@ -256,7 +256,7 @@ section), against 0.28 ms per new or changed file in the local backend-CPU figur
 
 Design (arbiter ruling for #7125, write-path follow-up). Bootstrap-index opens every
 connection with `SET eshu.secret_lines_derive = 'deferred'`
-(`DeferredSessionSQL` in `storage/postgres/secret/lines`); migration 133's two `content_files` triggers
+(`DeferredSessionSQL` in `storage/postgres/secret/lines`); migration 136's two `content_files` triggers
 carry `WHEN (current_setting('eshu.secret_lines_derive', true) IS DISTINCT FROM
 'deferred')` and skip such a session. This is the migration 109 precedent
 (`eshu.infra_inventory_writer`, set through the same pgx `AfterConnect` hook):
@@ -271,7 +271,7 @@ is recorded for `eshu.infra_inventory_writer` in the connection-pooler paragraph
 `6793-infra-read-model-fence.md`, after its lock-hold discussion.
 
 State machine (the `content_substring_index_state` precedent, plus an epoch):
-`content_file_secret_lines_state` is `ready` after migration 133 (its backfill made the
+`content_file_secret_lines_state` is `ready` after migration 136 (its backfill made the
 table complete) and on a fresh install. `BeginDeferral` runs right after the schema
 applies and before any write: one autocommit statement, state `not_built`, `epoch + 1`.
 After the pipeline drains, `Finalize(epoch)` claims `building`, rebuilds the table, and
@@ -433,7 +433,7 @@ clone/fetch (never rsync), per the `eshu-remote-validation` skill:
 
 ## Migration lock window
 
-Migration 133 takes `SHARE ROW EXCLUSIVE` on `content_files` from the foreign key
+Migration 136 takes `SHARE ROW EXCLUSIVE` on `content_files` from the foreign key
 until its transaction commits, so the backfill blocks content writes (not reads).
 About 0.27 ms per file, 38 s at 145k files on ops-qa, linear. A fresh install
 backfills nothing. This is the upgrade path only: a bulk load never runs the

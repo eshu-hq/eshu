@@ -4,7 +4,7 @@
 
 `lines` owns the bulk-load lifecycle of `content_file_secret_lines`, the
 Postgres side table that holds one row per hardcoded-secret finding line
-(#7125). Migration 133 derives those rows inside Postgres with statement-level
+(#7125). Migration 136 derives those rows inside Postgres with statement-level
 triggers on `content_files`. This package lets a bulk load (bootstrap-index)
 skip that derivation and rebuild the table once at the end.
 

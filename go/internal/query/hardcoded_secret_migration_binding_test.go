@@ -25,7 +25,7 @@ func secretLinesMigrationSQL(t testing.TB) string {
 			return def.SQL
 		}
 	}
-	t.Fatalf("embedded migration %q not found; #7125 needs 133_%s.sql", secretLinesMigrationName, secretLinesMigrationName)
+	t.Fatalf("embedded migration %q not found; #7125 needs 134_%s.sql", secretLinesMigrationName, secretLinesMigrationName)
 	return ""
 }
 

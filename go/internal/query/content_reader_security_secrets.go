@@ -45,7 +45,7 @@ func (cr *ContentReader) InvestigateHardcodedSecrets(
 
 // InvestigateHardcodedSecretsWithSource reads classified hardcoded-secret
 // findings and reports which storage path served them. While
-// content_file_secret_lines is published ready (migration 133, #7125) the read
+// content_file_secret_lines is published ready (migration 134, #7125) the read
 // is an ordered primary-key scan of that side table that stops at LIMIT. While
 // it is not (a bootstrap-index bulk load skipped the write-time derivation and
 // its finalizer has not completed) the read runs the legacy content_files scan,
@@ -246,7 +246,7 @@ func hardcodedSecretFilters(req codequery.HardcodedSecretInvestigationRequest) (
 }
 
 // hardcodedSecretLegacyScanQuery builds the corpus-scan read that served the
-// investigation before migration 133 (#7125) and now serves it while
+// investigation before migration 134 (#7125) and now serves it while
 // content_file_secret_lines is not published ready. It is the pre-change
 // builder, unchanged: hardcoded_secret_legacy_golden_test.go keeps a frozen
 // copy and a guard requires this query to equal it byte for byte for every

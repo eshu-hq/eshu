@@ -1153,11 +1153,11 @@ live in [evidence-notes.md](evidence-notes.md).
   Unsupported language metadata and repository-root
   `test/`, `tests/`, and `__tests__/` paths stay out of default cleanup results.
 - Ready-state hardcoded-secret reads scan `content_file_secret_lines`
-  (migration 133, #7125) by primary key to `LIMIT`
+  (migration 136, #7125) by primary key to `LIMIT`
   (`content_reader_security_secrets.go`), applying scope, kind, and suppression
   before `LIMIT` and `OFFSET`. Until ready, the legacy `content_files` scan
   preserves results. The Go pattern and `hardcodedSecretSQLSuppressionPredicate()`
-  are bound to migration 133 by `hardcoded_secret_migration_binding_test.go`;
+  are bound to migration 136 by `hardcoded_secret_migration_binding_test.go`;
   changes need a new re-derivation migration. Keep suppression in SQL and
   `content_files` scans confined to the unready fallback.
 - Content reads return `source_backend=unavailable` when Postgres does not have
