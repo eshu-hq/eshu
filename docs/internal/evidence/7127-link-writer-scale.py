@@ -18,7 +18,7 @@ tractable; gate G3's plan-shape test runs on the full bootstrap instead.
 
 Usage (from the repository root):
     docs/internal/evidence/7127-link-writer-scale.py --container NAME --port PORT [--start-container]
-        [--skip-load] [--rounds N] [--g7-only --valid-rounds 10 --deadline 8h]
+        [--skip-load] [--rounds N] [--g7-only | --g8-only] [--valid-rounds 10 --deadline 8h]
 
 The test binary is built once at start (go test -c), so later edits to the
 tree cannot change what runs. --g7-only runs gate G7 alone and waits out a
@@ -29,8 +29,14 @@ after --deadline. That mode is meant to run unattended, e.g. overnight:
     docs/internal/evidence/7127-link-writer-scale.py --container eshu-7127-g7 --port 25472 \
         --start-container --g7-only --valid-rounds 10 --deadline 8h
 
+--g8-only runs gate G8 alone under the same load rule: rounds of 1, 2 and 4
+concurrent 1.0x links (n rotated per round), each window waiting for the load
+to fall below the CPU count, until every n has --valid-rounds valid windows
+or --deadline passes. RssAnon is sampled per window.
+
 Results go to 7127-link-writer-scale-results.json (7127-link-writer-g7-results.json
-with --g7-only). Remove the container afterwards: docker rm -f -v NAME.
+with --g7-only, 7127-link-writer-g8-results.json with --g8-only). Remove the
+container afterwards: docker rm -f -v NAME.
 """
 
 import argparse
@@ -47,6 +53,7 @@ MIGRATIONS = os.path.join(ROOT, "go/internal/storage/postgres/migrations")
 FIXTURE = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-fixture.sql")
 RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-scale-results.json")
 G7_RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-g7-results.json")
+G8_RESULTS = os.path.join(ROOT, "docs/internal/evidence/7127-link-writer-g8-results.json")
 CONTAINER_ARGS = ["-e", "POSTGRES_PASSWORD=pw", "-e", "POSTGRES_DB=eshu", "--memory", "12g", "--shm-size", "2g",
                   "postgres:18-alpine", "-c", "shared_buffers=1GB", "-c", "work_mem=64MB",
                   "-c", "maintenance_work_mem=1GB", "-c", "effective_cache_size=6GB", "-c", "random_page_cost=1.1",
@@ -132,6 +139,33 @@ def start_container(name, port):
     raise SystemExit("container did not become ready")
 
 
+def median(values):
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def g8_summary(events):
+    """Per n over valid windows: median of the slowest link's wall, median and
+    max summed RssAnon, median probe p95."""
+    ends = {(e["n"], e["round"]): e for e in events if e["event"] == "window_end"}
+    summary = {}
+    for n in (1, 2, 4):
+        rounds = [e for e in events if e["event"] == "incremental" and e["n"] == n and e.get("valid")]
+        if not rounds:
+            continue
+        rss = [ends[(n, e["round"])]["peak_summed_rssanon_kb"] for e in rounds if (n, e["round"]) in ends]
+        summary[str(n)] = {
+            "valid_rounds": len(rounds),
+            "median_slowest_wall_seconds": median([max(e["walls_seconds"]) for e in rounds]),
+            "median_summed_rssanon_kb": median(rss) if rss else None,
+            "max_summed_rssanon_kb": max(rss) if rss else None,
+            "median_probe_p95_seconds": median([e["probe_p95_seconds"] for e in rounds]),
+            "temp_files": sum(e["temp_files"] for e in rounds),
+        }
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--container", required=True)
@@ -140,6 +174,7 @@ def main():
     parser.add_argument("--skip-load", action="store_true")
     parser.add_argument("--rounds", default="6")
     parser.add_argument("--g7-only", action="store_true")
+    parser.add_argument("--g8-only", action="store_true")
     parser.add_argument("--valid-rounds", default="10")
     parser.add_argument("--deadline", default="8h")
     args = parser.parse_args()
@@ -156,7 +191,10 @@ def main():
     sampler.start()
     env.update(ESHU_CHANGED_SINCE_LINK_SCALE_DSN=(
         f"postgres://postgres:pw@127.0.0.1:{args.port}/{DB}?sslmode=disable"))
-    if args.g7_only:
+    if args.g8_only:
+        env.update(ESHU_CHANGED_SINCE_LINK_SCALE_G8_ONLY="1", ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS=args.valid_rounds,
+                   ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE=args.deadline)
+    elif args.g7_only:
         env.update(ESHU_CHANGED_SINCE_LINK_SCALE_G7_ONLY="1", ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS="0",
                    ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS=args.valid_rounds,
                    ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE=args.deadline)
@@ -172,10 +210,11 @@ def main():
         if not line.startswith("EVIDENCE "):
             continue
         event = json.loads(line[len("EVIDENCE "):])
+        window = (event.get("n"), event.get("round", 0))
         if event["event"] == "window_start":
-            starts[event["n"]] = event["unix"]
+            starts[window] = event["unix"]
         if event["event"] == "window_end":
-            single, total = window_peak(sweeps, starts[event["n"]], event["unix"])
+            single, total = window_peak(sweeps, starts[window], event["unix"])
             event["peak_backend_rssanon_kb"] = single
             event["peak_summed_rssanon_kb"] = total
         result["events"].append(event)
@@ -188,7 +227,9 @@ def main():
         result["g7_median_l1b_over_bare_b"] = sorted(valid)[len(valid) // 2] if len(valid) % 2 else \
             (sorted(valid)[len(valid) // 2 - 1] + sorted(valid)[len(valid) // 2]) / 2
         result["g7_max_root_over_bare_b"] = max(roots)
-    out = G7_RESULTS if args.g7_only else RESULTS
+    if args.g8_only:
+        result["g8_summary"] = g8_summary(result["events"])
+    out = G8_RESULTS if args.g8_only else G7_RESULTS if args.g7_only else RESULTS
     json.dump(result, open(out, "w"), indent=1, sort_keys=True)
     open(out, "a").write("\n")
     os.remove(binary)

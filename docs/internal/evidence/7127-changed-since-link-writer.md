@@ -111,7 +111,7 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G5 temp files | PASS | Scale run: `pg_stat_database.temp_files` and `temp_bytes` deltas were 0 across the root and the incremental 1.0x link at `work_mem` 256MB, and 0 again with 2 and 4 concurrent links. |
 | G6 RssAnon | PASS | Scale run: the peak single-backend `RssAnon` during a 1.0x incremental link was 464,480 kB (453.6 MiB), under the 524,288 kB (512 MiB) gate with an 11% margin. |
 | G7 timing ratio | PASS | Unattended run (`7127-link-writer-scale.py --g7-only --valid-rounds 10`, raw: `7127-link-writer-g7-results.json`), which waits for the host's 1-minute load to fall below 18 before each round: 10 valid rounds (load at start 9.9-17.8), bare_b, L1b and root interleaved with the first mover rotated, all rolled back. L1b/bare_b paired median **1.11** (range 0.35-1.34; 8 of 10 at or under 1.3), gate 1.3x. Root/bare_b paired median **1.67** (range 0.47-3.36; 9 of 10 at or under 3.0), gate 3x: PASS on the median, one round (round 3, 3.356) above 3x; per-round table under "G7 rounds". The spread is wide: two rounds had bare_b outliers (22.3 s and 13.5 s against 4.8-6.9 s elsewhere) that put L1b/bare_b below 0.4, and one root sample (21.1 s against 8.8-12.6 s) is the only root ratio above 3x. The first scale run's 6 rounds were all invalid (load 36.7-70.9) and are not pooled. |
-| G8 cap proof | PARTIAL | Scale run, 1, 2 and 4 concurrent 1.0x incremental links on different scopes (4 slots). **Memory:** summed peak `RssAnon` was 453.6 MiB, 908.5 MiB and 1,381.8 MiB; the n=4 sampled peak falls below 4 x 453.6 MiB because the four backends did not peak in the same sweep. **Read probe** (a 2,000-row page read from `fact_records` every 200 ms): p50 1.4 / 2.6 / 1.4 ms and p95 2.6 / 34.2 / 17.3 ms. **Walls:** 6.3 s; 29.9 and 29.1 s; 30.5-32.3 s. The host load rose from 19.1 to 81.7 across the run, so the wall times are not comparable between n values and do not prove or disprove the 2-slot default. The memory figures support the ruling's bound of two links near 1 GiB. |
+| G8 cap proof | PARTIAL | Scale run, 1, 2 and 4 concurrent 1.0x incremental links on different scopes (4 slots). **Memory:** summed peak `RssAnon` was 453.6 MiB, 908.5 MiB and 1,381.8 MiB; the n=4 sampled peak falls below 4 x 453.6 MiB because the four backends did not peak in the same sweep. **Read probe** (a 2,000-row page read from `fact_records` every 200 ms): p50 1.4 / 2.6 / 1.4 ms and p95 2.6 / 34.2 / 17.3 ms. **Walls:** 6.3 s; 29.9 and 29.1 s; 30.5-32.3 s. The host load rose from 19.1 to 81.7 across the run, so the wall times are not comparable between n values and do not prove or disprove the 2-slot default. The memory figures support the ruling's bound of two links near 1 GiB. **Wall-time leg (review F1):** rerun under the load rule with `7127-link-writer-scale.py --g8-only`; results in `7127-link-writer-g8-results.json` when it finishes. G8 stays PARTIAL until then. |
 | G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. The reducer binary itself was not run: it needs a graph backend, which this proof does not. |
 | G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
 | G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
@@ -122,8 +122,8 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G16a poison bound | PASS | Runner `TestRunnerPoisonsAFailingLinkAfterMaxAttempts`: a link made to fail every time (a planted trigger) is tried exactly 5 times, then one `link_poisoned` break; the cursor passes the activation once; state rows and `state_generation_id` unchanged; a healthy scope links both its activations in the first cycle. Store `TestFailingLinkIsPoisonedAfterMaxAttempts`: `next_attempt_at` strictly increasing (30 s, 60 s, 120 s, 240 s), deferred inside the backoff. RED: the same check on a runner with no effective limit reports violations. |
 | G16b non-counting | PASS | `TestNonCountingOutcomesNeverPoison`: slots held, cursor held and generation held, each for MaxAttempts + 2 cycles: `attempt_count` 0 and no poison marker. RED: a planted classifier that counts `slot_busy` counts and poisons. `TestRecordFailureSkipsAHeldCursor`: a count is never written without the cursor lock. |
 | G16c recovery | PASS | `TestFailingLinkIsPoisonedAfterMaxAttempts`: after the poisoning the next full generation links `incremental` from the kept state, the state equals its aggregate, and the marker is cleared. |
-| G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. |
-| G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 492 rows, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
+| G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. Like G9, this ran on two OS processes of the compiled test binary with the production `Runner`, not on two reducer binaries: the reducer binary needs a graph backend. The dark deployment supplies the built-binary evidence (review F9). |
+| G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 496 rows after the rebase, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
 | G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
 
 ## Scale run
@@ -156,7 +156,8 @@ full bootstrap.
 G7 rounds, all invalid (load at start: 70.9, 69.1, 62.5, 51.7, 43.2, 36.7):
 L1b/bare_b ratios were 1.11, 1.05, 1.19, 1.15, 1.25 and 1.13.
 
-What this run does not measure:
+What this first scale run does not measure (G7 and G8 were rerun under the
+load rule; see their rows):
 - the timing gates under a valid load;
 - cold cache;
 - the read-API latency of a real deployment with the domain on and off. That
@@ -181,6 +182,14 @@ Raw data: `7127-link-writer-g7-results.json`. Every round was valid by the load 
 | 9 | 9.92 | bare_b | 5.49 | 6.49 | 9.21 | 1.180 | 1.676 |
 
 Paired medians: L1b/bare_b 1.110 (gate 1.3x, PASS); root/bare_b 1.667 (gate 3x, PASS on the median; maximum 3.356 in round 3).
+
+Contamination note: the reviewer's live tests and mutation runs (a second
+PostgreSQL container) ran on the same host from about 00:20 to 00:50, which
+overlaps rounds 2 to 5 at least. The load-at-start rule cannot see load that
+arrives mid-round. Extra load can only slow a round, so the passing medians
+stand, but the 3.356 root round (round 3, about 00:38) coincides with that
+activity, and the bare_b outliers of rounds 1 and 4 are noise of the same
+kind.
 
 ## Mutation checks
 
@@ -227,7 +236,7 @@ to the disposable container.
 - `go test -race ./internal/reducer/freshness/links -count=1`: ok
 - `docs/internal/evidence/7127-link-writer-scale.py --container eshu-7127-3a-pg --port 25471 --rounds 6` (repo root): rc 0
 - `docs/internal/evidence/7127-link-writer-scale.py --container eshu-7127-3a-g7 --port 25472 --start-container --g7-only --valid-rounds 10 --deadline 100m` (repo root): rc 0, 10 valid rounds
-- `bash scripts/verify-live-tests-ledger.sh` (repo root): ok, 492 rows
+- `bash scripts/verify-live-tests-ledger.sh` (repo root): ok, 492 rows before the rebase onto `810f40225e`; see the post-rebase commands below
 - `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh` (repo root): rc 0 (after the coverage row was widened to `go/internal/reducer/freshness/links/*.go`; with `observe.go` alone it flagged `runner.go` as an uncovered stage)
 - `mkdocs build --strict --clean --config-file docs/mkdocs.yml` (repo root, via `uv run`): rc 0
 - `git diff --cached --check`: rc 0
@@ -235,6 +244,25 @@ to the disposable container.
 The fixture SQL is deterministic. The results JSON is a measurement, not a
 regenerable artifact: a rerun produces new timings, and the RSS figures follow
 the host.
+
+### After the rebase onto `810f40225e` and the review fixes
+
+The ledger migration is now 134 (`#7291` landed 133 on main). Open PRs #7301
+and #7206 also add a migration numbered 133; whoever lands after this renumbers
+and re-pins the golden digest, count and checksum.
+
+| Command | rc |
+| --- | --- |
+| `go build ./...` | 0 |
+| `go test ./internal/storage/postgres/freshness/links ./internal/reducer/freshness/links -count=1` (live) | 0 (66.3 s, 13.3 s) |
+| `go test -race` on the same two packages (live) | 0 (60.7 s, 18.8 s) |
+| `go test ./internal/storage/postgres -run ChangedSince -count=1` (live, G1 and the existing changed-since tests) | 0 |
+| `go test ./internal/storage/postgres/... ./internal/reducer/... ./cmd/reducer ./internal/telemetry/... ./internal/envregistry -count=1` | 0 (107 packages) |
+| `verify-live-tests-ledger.sh` | 0 (496 rows) |
+| `verify-env-registry-doc.sh`, `verify-package-docs.sh`, `verify-dirgate.sh --all`, `verify-markdown-line-cap.sh --all` | 0 each |
+| `verify-telemetry-coverage.sh`, `verify-performance-evidence.sh` (base `origin/main`) | 0, 0 |
+| `mkdocs build --strict --clean` | 0 |
+| `git diff --check origin/main...HEAD` | 0 |
 
 Performance Evidence: G3/G4 plan shapes above; G5-G8 in "Scale run", measured
 with `7127-link-writer-scale.py` on `7127-link-writer-fixture.sql`.

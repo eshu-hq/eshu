@@ -136,6 +136,10 @@ func TestLinkScaleEvidence(t *testing.T) {
 	store := postgres.SQLDB{DB: raw}
 	emit(t, map[string]any{"event": "start", "cpus": runtime.NumCPU(), "load1": hostLoad1()})
 
+	if os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G8_ONLY") != "" {
+		runScaleConcurrencyGated(t, ctx, raw, store)
+		return
+	}
 	if os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_G7_ONLY") == "" {
 		runScaleConcurrency(t, ctx, raw, store)
 	}
@@ -229,78 +233,132 @@ func timeRolledBack(t *testing.T, ctx context.Context, raw *sql.DB, name, bare, 
 	return elapsed
 }
 
-// runScaleConcurrency is gates G5, G6 and G8: 1, 2 and 4 concurrent
-// incremental 1.0x links on different scopes with a read probe alongside, and
-// the temp files they wrote. The driver samples RssAnon in each window.
+// runScaleConcurrency is gates G5, G6 and G8 in one ungated pass: 1, 2 and 4
+// concurrent incremental 1.0x links on different scopes with a read probe
+// alongside, and the temp files they wrote. The driver samples RssAnon in
+// each window.
 func runScaleConcurrency(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB) {
 	for _, n := range []int{1, 2, 4} {
-		scopes := scaleTargets[:n]
-		resetScaleScopes(t, ctx, raw, scopes)
-		writer := linksfreshnessstore.NewLinkWriter(store)
-		writer.Slots = 4
-		files0, bytes0 := tempStats(t, ctx, raw)
-		for _, scopeID := range scopes {
-			res, err := writer.LinkNext(ctx, scopeID)
-			if err != nil || res.Kind != linksfreshnessstore.LinkKindRoot {
-				t.Fatalf("root %s: %+v %v", scopeID, res, err)
-			}
-			emit(t, map[string]any{"event": "root", "n": n, "seconds": res.Duration.Seconds(), "keys": res.Keys})
+		concurrencyRound(t, ctx, raw, store, n, 0, false, time.Time{})
+	}
+}
+
+// runScaleConcurrencyGated is gate G8 under the load rule of #7127 ruling
+// 8.2 (review F1): rounds of 1, 2 and 4 concurrent links, the n value rotated
+// per round, until every n has ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS
+// (default 10) valid rounds or ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE
+// (default 8h) passes. Before each measured window it waits (checking every
+// minute) for the host's 1-minute load to fall below the CPU count; a window
+// counts only when the load at its start is below it.
+func runScaleConcurrencyGated(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB) {
+	wantValid, _ := strconv.Atoi(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS"))
+	if wantValid <= 0 {
+		wantValid = 10
+	}
+	deadline := 8 * time.Hour
+	if d, err := time.ParseDuration(os.Getenv("ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE")); err == nil && d > 0 {
+		deadline = d
+	}
+	stopAt := time.Now().Add(deadline)
+	valid := map[int]int{}
+	sizes := []int{1, 2, 4}
+	for round := 0; time.Now().Before(stopAt); round++ {
+		n := sizes[round%len(sizes)]
+		if valid[1] >= wantValid && valid[2] >= wantValid && valid[4] >= wantValid {
+			break
 		}
-		probeStop := make(chan struct{})
-		var probe []float64
-		var probeWG sync.WaitGroup
-		probeWG.Add(1)
-		go func() {
-			defer probeWG.Done()
-			for {
-				select {
-				case <-probeStop:
-					return
-				default:
-				}
-				began := time.Now()
-				var c int64
-				if err := raw.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT 1 FROM fact_records
+		if valid[n] >= wantValid {
+			continue
+		}
+		if concurrencyRound(t, ctx, raw, store, n, round, true, stopAt) {
+			valid[n]++
+		}
+	}
+	emit(t, map[string]any{"event": "g8_done", "valid_n1": valid[1], "valid_n2": valid[2], "valid_n4": valid[4], "wanted": wantValid})
+}
+
+// concurrencyRound resets n target scopes, roots them, and times n concurrent
+// incremental links with the read probe alongside. With gate set it first
+// waits for the host load to fall below the CPU count (until stopAt; zero waits without bound). It
+// reports whether the window was valid under the load rule.
+func concurrencyRound(t *testing.T, ctx context.Context, raw *sql.DB, store postgres.SQLDB, n, round int, gate bool, stopAt time.Time) bool {
+	t.Helper()
+	scopes := scaleTargets[:n]
+	resetScaleScopes(t, ctx, raw, scopes)
+	writer := linksfreshnessstore.NewLinkWriter(store)
+	writer.Slots = 4
+	files0, bytes0 := tempStats(t, ctx, raw)
+	for _, scopeID := range scopes {
+		res, err := writer.LinkNext(ctx, scopeID)
+		if err != nil || res.Kind != linksfreshnessstore.LinkKindRoot {
+			t.Fatalf("root %s: %+v %v", scopeID, res, err)
+		}
+		emit(t, map[string]any{"event": "root", "n": n, "round": round, "seconds": res.Duration.Seconds(), "keys": res.Keys})
+	}
+	load := hostLoad1()
+	if gate {
+		for !(load >= 0 && load < float64(runtime.NumCPU())) && (stopAt.IsZero() || time.Now().Before(stopAt)) {
+			emit(t, map[string]any{"event": "g8_wait", "n": n, "round": round, "load1": load})
+			time.Sleep(time.Minute)
+			load = hostLoad1()
+		}
+	}
+	isValid := load >= 0 && load < float64(runtime.NumCPU())
+	probeStop := make(chan struct{})
+	var probe []float64
+	var probeWG sync.WaitGroup
+	probeWG.Add(1)
+	go func() {
+		defer probeWG.Done()
+		for {
+			select {
+			case <-probeStop:
+				return
+			default:
+			}
+			began := time.Now()
+			var c int64
+			if err := raw.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT 1 FROM fact_records
 WHERE scope_id = 'git-repository-scope:repository:r_noise1' AND generation_id = md5('noise1' || 'b') || md5('b' || 'noise1')
 LIMIT 2000) AS page`).Scan(&c); err == nil {
-					probe = append(probe, time.Since(began).Seconds())
-				}
-				time.Sleep(200 * time.Millisecond)
+				probe = append(probe, time.Since(began).Seconds())
 			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+	emit(t, map[string]any{"event": "window_start", "n": n, "round": round, "load1": load, "valid": isValid})
+	var wg sync.WaitGroup
+	results := make([]linksfreshnessstore.LinkResult, n)
+	errs := make([]error, n)
+	for i, scopeID := range scopes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = writer.LinkNext(ctx, scopeID)
 		}()
-		emit(t, map[string]any{"event": "window_start", "n": n, "load1": hostLoad1()})
-		var wg sync.WaitGroup
-		results := make([]linksfreshnessstore.LinkResult, n)
-		errs := make([]error, n)
-		for i, scopeID := range scopes {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				results[i], errs[i] = writer.LinkNext(ctx, scopeID)
-			}()
-		}
-		wg.Wait()
-		emit(t, map[string]any{"event": "window_end", "n": n})
-		close(probeStop)
-		probeWG.Wait()
-		files1, bytes1 := tempStats(t, ctx, raw)
-		walls := []float64{}
-		for i := range results {
-			if errs[i] != nil || results[i].Kind != linksfreshnessstore.LinkKindIncremental {
-				t.Fatalf("n=%d incremental %d: %+v %v", n, i, results[i], errs[i])
-			}
-			walls = append(walls, results[i].Duration.Seconds())
-		}
-		sort.Float64s(probe)
-		probeP50, probeP95 := 0.0, 0.0
-		if len(probe) > 0 {
-			probeP50, probeP95 = probe[len(probe)/2], probe[len(probe)*95/100]
-		}
-		emit(t, map[string]any{
-			"event": "incremental", "n": n, "walls_seconds": walls,
-			"delta_rows": results[0].DeltaRows, "keys": results[0].Keys,
-			"temp_files": files1 - files0, "temp_bytes": bytes1 - bytes0,
-			"probe_samples": len(probe), "probe_p50_seconds": probeP50, "probe_p95_seconds": probeP95,
-		})
 	}
+	wg.Wait()
+	emit(t, map[string]any{"event": "window_end", "n": n, "round": round})
+	close(probeStop)
+	probeWG.Wait()
+	files1, bytes1 := tempStats(t, ctx, raw)
+	walls := []float64{}
+	for i := range results {
+		if errs[i] != nil || results[i].Kind != linksfreshnessstore.LinkKindIncremental {
+			t.Fatalf("n=%d incremental %d: %+v %v", n, i, results[i], errs[i])
+		}
+		walls = append(walls, results[i].Duration.Seconds())
+	}
+	sort.Float64s(probe)
+	probeP50, probeP95 := 0.0, 0.0
+	if len(probe) > 0 {
+		probeP50, probeP95 = probe[len(probe)/2], probe[len(probe)*95/100]
+	}
+	emit(t, map[string]any{
+		"event": "incremental", "n": n, "round": round, "valid": isValid, "load1_at_start": load,
+		"walls_seconds": walls, "delta_rows": results[0].DeltaRows, "keys": results[0].Keys,
+		"temp_files": files1 - files0, "temp_bytes": bytes1 - bytes0,
+		"probe_samples": len(probe), "probe_p50_seconds": probeP50, "probe_p95_seconds": probeP95,
+	})
+	return isValid
 }
