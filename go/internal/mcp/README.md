@@ -169,7 +169,7 @@ is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 35 | `tools_codebase.go` (splices `code/intel/tools.go`, `code/dead/tools.go`, `code/divergence/tools.go`, `code/quality/tools.go`, `iac/management/tools.go`, `replatforming/tools.go`), `relationships/code_tools.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
+| `codebaseTools` | 37 | `tools_codebase.go` (splices `code/intel/tools.go`, `code/dead/tools.go`, `code/divergence/tools.go`, `code/quality/tools.go`, `iac/management/tools.go`, `replatforming/tools.go`), `relationships/code_tools.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
 | `codeFlowTools` | 4 | `types.go` (wraps `code/flow/tools.go`) |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
