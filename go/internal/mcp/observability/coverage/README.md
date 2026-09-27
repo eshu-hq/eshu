@@ -20,6 +20,8 @@ reaches, including scope anchoring, the 1-200 limit bound, and cursor paging.
 
 - `Route` selects the internal request for an observability-coverage tool
   without executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the correlation listing definition the parent splices at
+  its long-standing position between the secrets and supply-chain blocks.
 
 See `doc.go` for the godoc contract.
 
@@ -27,6 +29,8 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
   internal-request shapes used by `Route`.
+- `internal/mcp/contract/tool` owns the dependency-neutral tool definition
+  shape returned by `Tools`.
 
 ## Telemetry
 

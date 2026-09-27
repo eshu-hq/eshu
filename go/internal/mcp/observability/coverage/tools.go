@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package observabilitycoveragetools
 
-func observabilityCoverageTools() []ToolDefinition {
-	return []ToolDefinition{
+import (
+	toolcontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the observability coverage correlation definition owned by
+// this package. The parent mcp package splices the whole family slice at its
+// long-standing position, so a future arity change registers automatically
+// instead of panicking on an index.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_observability_coverage_correlations",
 			Description: "List reducer-owned observability coverage correlations: whether a monitored cloud resource or service has alarm, dashboard, log, or trace coverage, and which coverage gaps remain, by scope, provider, coverage signal, observability object, target resource, or target service.",
