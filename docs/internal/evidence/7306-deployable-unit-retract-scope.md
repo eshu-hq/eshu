@@ -19,8 +19,8 @@ which builds its rows from the intent's entity keys, has either failure:
   sends a foreign key to this domain.
 - **(b): no retract-shape defect.** The only reachable gap is a collector
   key-contract mismatch in dependency mode. There the handler neither writes
-  nor retracts for the repository. That belongs to a separate issue, not to
-  this retract.
+  nor retracts for the repository. That is tracked as #7316, not as a
+  defect in this retract.
 
 No production code changed. This change adds pinning tests and a doc comment
 on `deployableUnitRetractRowsFromFacts`.
@@ -93,7 +93,7 @@ Paths are relative to `go/` at base `origin/main` `7e844df0be`; citations name t
 - The same basename-versus-`DisplayName` mismatch affects the other
   `repo:`/`workload:` + basename follow-ups. The #7285 arbiter ruling listed it
   as NOT_CHECKED. It is a collector key-contract defect, not a retract-shape
-  defect, and is left for a separate issue.
+  defect, and is tracked as #7316.
 
 ### Delta generations (existing policy, not key-related)
 
