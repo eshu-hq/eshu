@@ -120,6 +120,16 @@ func workloadCloudRelationshipInstanceID(workloadID, environment string) string 
 	return "workload-instance:" + strings.TrimPrefix(workloadID, "workload:") + ":" + environment
 }
 
+// WorkloadCloudRelationshipInstanceID is the exported single source of truth
+// for the derivation above. The live determinism cell's endpoint seed
+// (eshu-ifa materialize-workload-endpoints, #6228) must key the
+// WorkloadInstance node by exactly this id: the writer MATCHes the instance,
+// so a seed that disagreed with the mapper would key nodes the edges never
+// attach to. Callers must not re-derive the format.
+func WorkloadCloudRelationshipInstanceID(workloadID, environment string) string {
+	return workloadCloudRelationshipInstanceID(workloadID, environment)
+}
+
 // workloadCloudRelationshipRowsToExpectedEdges converts the extractor's rows
 // one-for-one into the edge identity the write template MERGEs.
 //

@@ -242,11 +242,34 @@ ifa_iam_can_perform_assert() {
 }
 
 # ifa_workload_cloud_relationship_drive replays the workload-cloud-relationship
-# cassette.
+# cassette, then seeds the positive anchor's endpoints.
+#
+# The cassette carries aws_resource facts only, so the cell has no
+# workload-domain facts for the workload pipeline to turn into nodes -- yet
+# the writer MATCHes (workload:Workload)<-[:INSTANCE_OF]-(instance) and the
+# handler fails instances_not_ready without them (observed live 2026-09-27).
+# The seed creates exactly the Odù's own positive anchor
+# (workload:orders-api in prod; instance id derived by the single source of
+# truth the guard mapper shares) and nothing else: the service-name-only,
+# ambiguous, and environment-less anchors get no nodes, so the extractor's
+# drop-never-invent restraint still has something to prove live. Follows the
+# repo_dependency materialize-platform-prerequisite precedent (seed + exact
+# output check), not a new idea: MERGEs make it idempotent under handler
+# retries and repeated N-cell drives, and a seed/output drift fails here,
+# not later as zero assert-edges edges.
 ifa_workload_cloud_relationship_drive() {
 	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
 	_ifa_direct_family_drive workload-cloud-relationship \
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+	ifa_workload_cloud_relationship_seed_endpoints "${bin_dir}"
+}
+
+ifa_workload_cloud_relationship_seed_endpoints() {
+	local bin_dir="$1" output
+	output="$("${bin_dir}/eshu-ifa" materialize-workload-endpoints \
+		-workload-id workload:orders-api -environment prod)" || return 1
+	printf '%s\n' "${output}"
+	[[ "${output}" == 'instance_id=workload-instance:orders-api:prod verified=1' ]]
 }
 
 # ifa_workload_cloud_relationship_assert pins the two-edge exact set. Called
@@ -254,17 +277,17 @@ ifa_workload_cloud_relationship_drive() {
 # post-delta is the only place an identical-across-N generation-2 mutation
 # shows up.
 #
-# Both edges come from ONE workload (orders-api in prod): the ssm parameter
-# anchored by workload+service and the sqs queue anchored by workload-only
-# through the plural key spelling, each resolving the same
+# Both edges are explicit_workload_anchor in prod off ONE workload
+# (orders-api): the ssm parameter and the sqs queue, each resolving the same
 # workload-instance:orders-api:prod source to its own CloudResource target. A
 # regression that emitted one edge per anchor attribute instead of one per
 # resolved (instance, resource) pair would still produce "some edges" and fail
 # only against an exact set. The fixture's other three resources -- the
-# service-name-only sns topic, the ambiguous two-workload dynamodb table, the
-# environment-less s3 bucket -- must contribute nothing; the extractor drops
-# an unresolvable anchor rather than inventing an endpoint, and this set is
-# what holds it to that.
+# service-only sns topic (environment but no workload anchor), the ambiguous
+# dynamodb table (a bare name matching more than one workload), and the
+# environment-less s3 bucket (workload anchor but no environment) -- must
+# contribute nothing; the extractor drops an unresolvable anchor rather than
+# inventing an endpoint, and this set is what holds it to that.
 #
 # The relationship type is USES, read off the writer's MERGE template filled
 # from the closed single-member workloadCloudRelationshipVocabulary. It is NOT

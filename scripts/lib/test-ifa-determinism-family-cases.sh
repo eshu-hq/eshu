@@ -295,6 +295,18 @@ require_direct_family_lib "iam-can-perform assert-edges domain" "-domain iam_can
 require_direct_family_lib "iam-can-perform drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "workload-cloud-relationship assert-edges domain" "-domain workload_cloud_relationship"
 require_direct_family_lib "workload-cloud-relationship drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "workload-cloud-relationship drive seeds the positive anchor endpoints" 'materialize-workload-endpoints'
+require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:orders-api -environment prod'
+# The seed's ids must come from the committed cassette's own positive anchor,
+# not from a stale copy in the drive fn: if the Odù ever renames the anchor,
+# the seed would key nodes the edges never attach to and the live assert
+# would fail with zero edges and no pointer back here. Pin the agreement
+# where the failure names the drift.
+workload_cassette_path="$(cd "$(dirname "${script}")/.." && pwd)/testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
+rg --fixed-strings --quiet -- '"workload_id": "workload:orders-api"' "${workload_cassette_path}" \
+	|| fail "workload-cloud-relationship seed keys workload:orders-api but the committed cassette carries no such anchor -- seed and Odù have drifted"
+rg --fixed-strings --quiet -- '"environment": "prod"' "${workload_cassette_path}" \
+	|| fail "workload-cloud-relationship seed keys environment prod but the committed cassette carries no such environment -- seed and Odù have drifted"
 
 # handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
 # share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive

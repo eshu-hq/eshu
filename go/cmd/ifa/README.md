@@ -104,6 +104,16 @@ session.
   `InfrastructurePlatformMaterializer` with one row, and verifies the exact
   Platform exists before printing its ID. The source Repository must already
   exist. This is explicit gate setup, not a reducer or deployment command.
+- `ifa materialize-workload-endpoints -workload-id ID -environment ENV` -
+  prepares the two endpoint nodes the workload_cloud_relationship writer
+  MATCHes for a live Ifá conformance cell. The command derives the instance
+  id with the single source of truth the guard mapper shares
+  (`materializededges.WorkloadCloudRelationshipInstanceID`), MERGEs one
+  Workload node, one WorkloadInstance node, and their INSTANCE_OF edge, and
+  verifies the 1/1/1 graph postcondition before printing the instance id.
+  Only the fixture's own positive anchor is seeded; negative and ambiguous
+  anchors get no nodes. This is explicit gate setup, not a reducer or
+  deployment command.
 
 #### Platform prerequisite performance and observability (#5999)
 
