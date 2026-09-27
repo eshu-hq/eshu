@@ -5,7 +5,8 @@
 and 3.9 s even scoped to the largest repository. This change moves the detection
 from every read to the content write: migration 133 adds a
 `content_file_secret_lines` side table that Postgres triggers keep current, and
-`InvestigateHardcodedSecrets` reads only that table. The design and its
+`InvestigateHardcodedSecrets` reads that table once it is ready and uses the
+legacy `content_files` scan until then. The design and its
 rejected alternatives are in the arbiter ruling for #7125; this page records the
 proof for the implementation. A second design step (bulk-load gate, finalizer,
 and a readiness-gated read) exists because the write-time derivation measured too

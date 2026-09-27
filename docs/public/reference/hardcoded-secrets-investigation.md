@@ -40,9 +40,9 @@ line, keyed `(repo_id, relative_path, line_number)` with the file's language,
 the `finding_kind`, the raw line text, and a stored `suppressed` flag. Postgres
 statement-level triggers on `content_files` keep it in step with every insert,
 content or language change, key move, and delete (including generation
-retention), and the migration backfills existing files. The investigation then
-reads only that table, as an ordered primary-key scan that stops at the page
-limit, so cost follows the page size instead of the corpus size. Filters
+retention), and the migration backfills existing files. Once ready, the
+investigation reads that table as an ordered primary-key scan that stops at the
+page limit, so cost follows the page size instead of the corpus size. Filters
 (repository or grant, language, `finding_kinds`, suppression) are applied before
 the limit, and the response, ordering, and paging are the same as the earlier
 corpus scan produced.
