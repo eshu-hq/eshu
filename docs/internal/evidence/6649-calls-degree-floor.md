@@ -100,7 +100,7 @@ shape. Per the repo's Neo4j-proof rule (test against Neo4j, not NornicDB),
 this symbol's own NornicDB-branch behavior was not re-measured in this pass;
 raising `max_degree` for its registry row keeps the same disposition class
 this PR found it in, but does not certify that its NornicDB-branch cost is
-actually bounded by degree. That is a follow-up candidate: either anchor
+actually bounded by degree. That follow-up is tracked in #7300: either anchor
 `source`/`target` on the same labeled pattern the call-chain readers already
 use, or register the symbol hot and profile its NornicDB-branch cost
 directly, before treating its `degree_bounded` classification as fully
