@@ -162,7 +162,7 @@ base, head, diff, worktree, submodules, claims, packet, and verdict are
 byte-for-byte the reviewed inputs. A failure names the changed binding and
 requires another full review. This receipt is local proof for the agent
 workflow; it does not replace GitHub review or a required hosted check, and
-`make pre-push` does not require community contributors to create one.
+`make pre-push` does not require community contributors to create one. Before a merge-queue enqueue, run the [pre-enqueue check](local-testing/pre-enqueue-check.md).
 
 For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +

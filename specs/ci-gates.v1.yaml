@@ -649,6 +649,31 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: pre-enqueue-check
+    name: Pre-enqueue merge-queue check test mirror
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/dev/pre-enqueue-check.sh"
+      - "scripts/dev/test-pre-enqueue-check.sh"
+      - "scripts/lib/test-pre-enqueue-check-*"
+    local:
+      # pre-enqueue-check.sh only reads GitHub, but a real run needs a live PR
+      # and network, so the hermetic mirror IS the verification: a fake `gh`
+      # on PATH serves per-case JSON and a local bare repository stands in for
+      # origin, so each fail-closed arm (head, merge-tree vs main and vs the
+      # queue tip, checks, required-gates-complete, merge state, threads,
+      # closing keyword, attribution) has a seeded RED beside one all-green
+      # case (docs/public/reference/local-testing/pre-enqueue-check.md).
+      command: "bash scripts/dev/test-pre-enqueue-check.sh"
+      test_command: ""
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry test mirror"
+    requirements: []
+    ci_only_reason: ""
+
   # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
 
   - id: openapi-surface
