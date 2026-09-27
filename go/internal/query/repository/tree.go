@@ -36,6 +36,14 @@ type repoFileLanguageLister interface {
 	RepoFilePathContext(ctx context.Context, repoID, requestPath string) (bool, string, error)
 }
 
+// repoFilePathLister scopes unfiltered tree reads to a requested directory
+// before the file cap. The context read at the repository root supplies the
+// indexed ref without scanning the requested subtree a second time.
+type repoFilePathLister interface {
+	ListRepoFilesByPath(ctx context.Context, repoID, pathPrefix string, limit int) ([]querycontract.FileContent, error)
+	RepoFilePathContext(ctx context.Context, repoID, requestPath string) (bool, string, error)
+}
+
 // getRepositoryTree returns one directory level (or the full subtree with
 // ?recursive=true) of a repository's indexed files, derived from the content
 // store. The directory layout is reconstructed from content_files relative
@@ -106,6 +114,21 @@ func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		languageFilter = nil
+	} else if lister, ok := h.Content.(repoFilePathLister); ok && requestPath != "" && len(languageList) == 0 {
+		_, indexedRef, err = lister.RepoFilePathContext(ctx, repoID, "")
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			return
+		}
+		files, err = lister.ListRepoFilesByPath(ctx, repoID, requestPath, repositoryTreeFileLimit+1)
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			return
+		}
+		// The scoped read includes descendants only. An exact file path has no
+		// children and returns 404, including for language-filtered requests.
+		matched = len(files) > 0
+		matchedKnown = true
 	} else if h.Content != nil {
 		files, err = h.Content.ListRepoFiles(ctx, repoID, repositoryTreeFileLimit+1)
 		if err != nil {
@@ -222,7 +245,7 @@ func repositoryTreeRef(files []querycontract.FileContent) string {
 // languageFilter, when non-nil, restricts the returned files (and the directory
 // child_counts) to files whose language is in the set. It is applied AFTER the
 // path-prefix match so that `matched` still reflects path existence: filtering a
-// real path down to zero language matches yields an empty listing, not a 404.
+// real directory down to zero language matches yields an empty listing, not a 404.
 func buildRepositoryTree(files []querycontract.FileContent, requestPath string, recursive bool, languageFilter map[string]bool) ([]map[string]any, bool) {
 	prefix := ""
 	if requestPath != "" {

@@ -83,7 +83,7 @@ func TestContentReaderListRepoFilesByLanguageEmptyFallsBack(t *testing.T) {
 }
 
 // TestContentReaderRepoFilePathContextReportsExistenceAndRef proves the path/ref
-// lookup resolves existence (file or directory prefix) and the indexed commit in
+// lookup resolves directory-prefix existence and the indexed commit in
 // a single unfiltered query, so the tree handler can distinguish an empty
 // language listing from a missing path.
 func TestContentReaderRepoFilePathContextReportsExistenceAndRef(t *testing.T) {
@@ -109,5 +109,8 @@ func TestContentReaderRepoFilePathContextReportsExistenceAndRef(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
 		}
+	}
+	if strings.Contains(query, "relative_path = $2") {
+		t.Fatalf("exact file path must not count as a tree directory:\n%s", query)
 	}
 }

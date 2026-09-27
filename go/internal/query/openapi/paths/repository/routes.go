@@ -367,12 +367,12 @@ const Routes = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository file tree",
-        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. The 50,000-file cap applies after path and language selection; truncated means the matching subtree exceeds the cap. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryTree",
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"},
-          {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root."},
+          {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root. An exact file path returns 404, including with a language filter."},
           {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Branch name or commit SHA selector. The request succeeds only when the selector resolves to the indexed commit; unavailable or unindexed refs return an error."},
           {"name": "recursive", "in": "query", "required": false, "schema": {"type": "boolean"}, "description": "When true, return the full subtree instead of a single directory level."},
           {"name": "language", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Filter the listing to files of this language/source-type (e.g. go, python, hcl, yaml). Aliases expand to a family: typescript also matches tsx; terraform also matches hcl/tfvars. A path with no matching files returns an empty listing, not 404."}
