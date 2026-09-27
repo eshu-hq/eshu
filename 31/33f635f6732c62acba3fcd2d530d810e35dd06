@@ -48,10 +48,16 @@ go/internal/query/content_reader_entity.go
   s_b0d7e3abc26c5a::t_f6538d7bcf66fb 358
 go/internal/storage/postgres/schema_order_test.go
   s_bc720f29f5e0fd::t_419f811cd56a2d 330
+  s_bc720f29f5e0fd::t_0f64c84762c07b 329
 specs/live-tests.v1.yaml
   s_bc720f29f5e0fd::t_260a4d48f1c351 52-55,373-384,1430-1441,2034-2053
 docs/public/reference/telemetry/index.md
   s_bc720f29f5e0fd::t_521e545811f9ea 255-257
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_bc720f29f5e0fd::t_0f64c84762c07b 40-41,48
+  s_bc720f29f5e0fd::t_a2f66c86fcdef3 42
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_bc720f29f5e0fd::t_0f64c84762c07b 190
 ---
 {
   "schema_version": "authorship/3.0.0",
