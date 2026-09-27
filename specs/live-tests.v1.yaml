@@ -293,6 +293,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/query/codequery/outlier_density_repo_scale_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#7325 realistic-CALLS-density repo-scale Neo4j proof: extends the #6929/#7297 seed with deterministic CALLS out-degree and proves the outlier CALLS-fanout batch size at an effective 50-key batch vs. the committed 250-key batch; env-gated by ESHU_OUTLIER_NEO4J_LIVE rather than a build tag, same sibling gate as outlier_repo_scale_live_test.go — promote to blocking with repeated timing evidence"
+    backends: neo4j
   - file: go/internal/query/codequery/outlier_live_test.go
     tag: live_nornicdb_convention_outlier
     class: scheduled

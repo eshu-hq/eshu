@@ -708,15 +708,15 @@ func TestLiveOutlierRepoScaleNeo4j(t *testing.T) {
 		memberIDs = append(memberIDs, id)
 	}
 	sort.Strings(memberIDs)
-	chunkCount := (len(memberIDs) + 49) / 50
+	chunkCount := (len(memberIDs) + outlierCalleeEdgeBatchSize - 1) / outlierCalleeEdgeBatchSize
 	edgesStart := time.Now()
 	if _, _, err := handler.readOutlierCalleeEdges(ctx, memberIDs, liveScaleRepo); err != nil {
 		t.Fatalf("readOutlierCalleeEdges: %v", err)
 	}
 	edgesElapsed := time.Since(edgesStart)
 	remainder := p50 - seedsElapsed - edgesElapsed
-	t.Logf("phase breakdown: cohorts=%d members=%d calls-fanout-chunks(50/chunk)~=%d; seed-reads=%s callee-edges-fanout=%s remainder(mediation+hydration+assembly)~=%s",
-		len(cohorts), len(memberIDs), chunkCount, seedsElapsed, edgesElapsed, remainder)
+	t.Logf("phase breakdown: cohorts=%d members=%d calls-fanout-chunks(%d/chunk)~=%d; seed-reads=%s callee-edges-fanout=%s remainder(mediation+hydration+assembly)~=%s",
+		len(cohorts), len(memberIDs), outlierCalleeEdgeBatchSize, chunkCount, seedsElapsed, edgesElapsed, remainder)
 	dominant := "seed-enumeration reads"
 	dominantValue := seedsElapsed
 	if edgesElapsed > dominantValue {

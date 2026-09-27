@@ -118,6 +118,22 @@ func TestValidateSourceCoverageAcceptsFanOutMultiplier(t *testing.T) {
 	}
 }
 
+// #7325's outlier CALLS-fanout row (runOutlierGraphRows) carries a literal
+// max_results (281250 = 250 keys x the #6649 corpus CALLS-degree floor
+// 1125), not a fan_out_multiplier: nothing in code enforces that every key
+// produces exactly 1125 rows -- 1125 is a measured corpus maximum, not a
+// code-enforced per-key count (see FanOutMultiplier's doc comment in
+// source_coverage.go, which requires a named enforcer -- a uniqueness
+// constraint, writer guard, or schema-fixed label list -- before the field
+// applies). The only validator rule that covers a plain keyed_support
+// literal max_results is "requires max_results" (must be > 0,
+// TestValidateSourceCoverageRejectsIncompleteTypedEvidence), which is
+// already covered generically there and is not specific to this row's
+// value; no rule checks a literal max_results against its derivation
+// comment. A seeded RED/GREEN pinned to the 250 x 1125 = 281250 arithmetic
+// was removed for that reason rather than kept against a rule that does not
+// actually apply to this row.
+
 func containsSubstring(values []string, want string) bool {
 	for _, value := range values {
 		if strings.Contains(value, want) {

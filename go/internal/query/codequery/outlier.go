@@ -194,7 +194,9 @@ func (h *CodeHandler) readOutlierCohortSeeds(
 
 // readOutlierCalleeEdges runs the batched outgoing-CALLS read over ids in
 // UNWIND chunks, unioning the rows. One statement never carries more than
-// the shared evidence batch size; the union is exact because every sink is
+// outlierCalleeEdgeBatchSize keys (#7325; a dedicated batch size and call
+// site, not the wrapper-bypass evidence track's shared
+// wrapperEvidenceKeyBatchSize); the union is exact because every sink is
 // order-insensitive. Names maps callee ids to display names for mediation
 // sentences.
 func (h *CodeHandler) readOutlierCalleeEdges(
@@ -204,7 +206,7 @@ func (h *CodeHandler) readOutlierCalleeEdges(
 ) (map[string][]codedivergence.OutlierCallerEdge, map[string]string, error) {
 	backend := h.graphBackend()
 	access := codeGrantAccessFilter(ctx)
-	rows, err := h.runWrapperKeyChunks(ctx, ids, func(chunk []string) (string, map[string]any) {
+	rows, err := h.runOutlierKeyChunks(ctx, ids, func(chunk []string) (string, map[string]any) {
 		return BuildOutlierCalleeEdgesCypher(chunk, repoID, backend, access)
 	})
 	if err != nil {
