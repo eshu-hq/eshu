@@ -63,7 +63,7 @@ var issue7033ExistingIndexes = []issue7033ExpectedIndex{
 
 // TestIssue7033ScopedRolloutLive is intentionally build-tagged and refuses to
 // run without the explicit, fully identified production target. It applies only
-// migrations 133 and 134 for the #7033 relative-path index rollout.
+// migrations 134 and 135 for the #7033 relative-path index rollout.
 func TestIssue7033ScopedRolloutLive(t *testing.T) {
 	config, err := issue7033RolloutConfigFromEnv(os.Getenv)
 	if err != nil {
@@ -158,6 +158,8 @@ func runIssue7033ScopedRollout(
 	if err := applyBootstrapDefinitionsWith(ctx, exec, definitions[:1], logger, coordination); err != nil {
 		return fmt.Errorf("apply migration 134: %w", err)
 	}
+	// The preflight is outside this advisory lock; rechecking before migration
+	// 135 publishes readiness makes a raced malformed index fail closed.
 	if err := issue7033ExactTrigramIndex(ctx, database, issue7033ExpectedIndex{
 		name: issue7033RelativePathIndexName, table: "content_files", column: "relative_path",
 	}); err != nil {
@@ -336,15 +338,20 @@ func issue7033ValidatePathIndexAndReceipts(
 	if lifecycleApplied && !indexApplied {
 		return errors.New("migration 135 receipt exists without migration 134 receipt")
 	}
-	if !indexApplied {
-		var exists bool
-		if err := queryer.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", "public."+issue7033RelativePathIndexName).Scan(&exists); err != nil {
-			return fmt.Errorf("read existing relative-path index: %w", err)
-		}
-		if exists {
-			return errors.New("untracked relative-path index collides with migration 134")
-		}
+	if indexApplied {
+		return issue7033ExactTrigramIndex(ctx, queryer, issue7033ExpectedIndex{
+			name: issue7033RelativePathIndexName, table: "content_files", column: "relative_path",
+		})
+	}
+	var exists bool
+	if err := queryer.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", "public."+issue7033RelativePathIndexName).Scan(&exists); err != nil {
+		return fmt.Errorf("read existing relative-path index: %w", err)
+	}
+	if !exists {
 		return nil
+	}
+	if err := issue7033ValidateLegacyPathIndexReceipts(ctx, queryer); err != nil {
+		return err
 	}
 	return issue7033ExactTrigramIndex(ctx, queryer, issue7033ExpectedIndex{
 		name: issue7033RelativePathIndexName, table: "content_files", column: "relative_path",
@@ -397,7 +404,7 @@ func issue7033ExactTrigramIndex(
 ) error {
 	var exact bool
 	err := queryer.QueryRowContext(ctx, `
-SELECT i.indisvalid AND i.indisready
+SELECT i.indisvalid AND i.indisready AND i.indislive
   AND NOT i.indisunique
   AND i.indnkeyatts = 1 AND i.indnatts = 1
   AND i.indpred IS NULL AND i.indexprs IS NULL
@@ -425,7 +432,7 @@ WHERE index_schema.nspname = 'public'
 		return fmt.Errorf("read index public.%s: %w", index.name, err)
 	}
 	if !exact {
-		return fmt.Errorf("index public.%s is not the exact valid ready gin_trgm_ops definition", index.name)
+		return fmt.Errorf("index public.%s is not the exact valid ready live gin_trgm_ops definition", index.name)
 	}
 	return nil
 }
