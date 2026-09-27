@@ -7,11 +7,18 @@ package reducer_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -211,22 +218,64 @@ RETURN count(rel) AS count`, 0},
 	}
 }
 
-// assertQueryLayerDefiningRepo runs the query layer's workload candidate read
-// shape (query/entity workload_lookup.go workloadCandidateCypher) and requires
-// the workload to resolve its defining repository, so graph truth and the
-// get_workload_context answer agree.
+// assertQueryLayerDefiningRepo is API truth (arbiter ruling, RED shape item
+// 5): the production get_workload_context HTTP handler
+// (query/entity Handler.GetWorkloadContext, behind the MCP tool of that name)
+// reads the live graph and must answer with the workload's defining
+// repository. Its repo_id comes from the workload's incoming DEFINES edge, so
+// an empty-shell workload answers repo_id "".
 func (l *repoRetryLive) assertQueryLayerDefiningRepo(ctx context.Context, t *testing.T, repoID string) {
 	t.Helper()
-	rows, err := l.exec.readRows(ctx, `MATCH (w:Workload) WHERE w.id = $workload_id
-OPTIONAL MATCH (dr:Repository)-[:DEFINES]->(w)
-RETURN w.id as id, collect(DISTINCT dr.id) as defining`, map[string]any{"workload_id": l.workloadID("payments")})
-	if err != nil || len(rows) != 1 {
-		t.Fatalf("query-layer workload read: rows=%d err=%v", len(rows), err)
+	registerContextOverviewCapability.Do(func() {
+		// Production registers it from root package query's capability
+		// matrix, which this test binary does not link; use the same
+		// family declaration (query/entity main_test.go does the same).
+		querycontract.RegisterCapabilities(querycontract.CapabilityRegistration{
+			Capability: repository.ContextOverviewCapability, Support: repository.ContextOverviewSupport(),
+		})
+	})
+	handler := &entity.Handler{Neo4j: liveGraphQuery{exec: l.exec}, Profile: querycontract.ProfileLocalAuthoritative}
+	workloadID := l.workloadID("payments")
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/"+workloadID+"/context", nil).WithContext(ctx)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType) // the {data, truth} shape MCP callers get
+	req.SetPathValue("workload_id", workloadID)
+	rec := httptest.NewRecorder()
+	handler.GetWorkloadContext(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get_workload_context status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	defining, _ := rows[0]["defining"].([]any)
-	if len(defining) != 1 || defining[0] != repoID {
-		t.Fatalf("workload defining repositories = %v, want [%s] (empty-shell workload)", defining, repoID)
+	var body struct {
+		Data struct {
+			ID     string `json:"id"`
+			RepoID string `json:"repo_id"`
+		} `json:"data"`
 	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode get_workload_context body %s: %v", rec.Body.String(), err)
+	}
+	if body.Data.ID != workloadID || body.Data.RepoID != repoID {
+		t.Fatalf("get_workload_context = id %q repo_id %q, want %q defined by %q (empty-shell workload); body = %s",
+			body.Data.ID, body.Data.RepoID, workloadID, repoID, rec.Body.String())
+	}
+}
+
+// registerContextOverviewCapability registers the capability
+// get_workload_context gates on, once per test binary.
+var registerContextOverviewCapability sync.Once
+
+// liveGraphQuery is the query layer's GraphQuery port over the live driver.
+type liveGraphQuery struct{ exec provenanceReplayExecutor }
+
+func (q liveGraphQuery) Run(ctx context.Context, cypherText string, params map[string]any) ([]map[string]any, error) {
+	return q.exec.readRows(ctx, cypherText, params)
+}
+
+func (q liveGraphQuery) RunSingle(ctx context.Context, cypherText string, params map[string]any) (map[string]any, error) {
+	rows, err := q.exec.readRows(ctx, cypherText, params)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
 }
 
 // TestLiveRepositoryRetryRefreshesProjectorProperties is the live half of
