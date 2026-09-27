@@ -30,7 +30,8 @@ Go-side bound stays as it is; this record changes no code.
 ## Identity
 
 - Cluster: ops-qa, namespace `eshu`. Identity checked with
-  `aws sts get-caller-identity --profile ops-qa` (account 055929692761).
+  `aws sts get-caller-identity --profile ops-qa` before the run. Account and
+  repository identifiers are omitted.
 - API and MCP image: `ghcr.io/eshu-hq/eshu:sha-5583d45@sha256:e4014933cfd00bdf0da38b11d01153a32936988210a4826f18b22c7cbc5e9b27`.
   `git diff 5583d45 origin/main` over `language/cypher.go`, `language/directory.go`
   and `language/handler.go` is empty at `049be7161`, so the deployed statement
@@ -46,9 +47,13 @@ Go-side bound stays as it is; this record changes no code.
   `POST /api/v0/code/language-query` and `tools/call execute_language_query`,
   made with the unscoped admin key over `kubectl port-forward`.
 - `absolute_target_applicable: true` for ops-qa. It holds 804 repositories,
-  against the 896 of the reference profile. The cost grows with directory and
-  edge volume (see [Width slope](#width-slope)), so the 11% gap in repository
-  count is well inside the headroom below.
+  against the 896 of the reference profile. Repository count is not the cost
+  axis. The cost follows directory and CONTAINS volume (see
+  [Width slope](#width-slope)), and ops-qa's volume per repository is not
+  known to match the reference profile's. The applicability rests on headroom
+  instead: the unscoped statement uses about a third of the 1 s budget, so a
+  reference corpus up to about 2.9 times ops-qa's directory and edge volume
+  still fits.
 
 ## Plan
 
@@ -84,7 +89,10 @@ index seek at 804 repositories, not a Directory label scan.
 ## Latency through the product surfaces
 
 Each cell is one cold call followed by ten warm calls on the same arguments,
-measured client-side. The time covers the whole handler path: `allRepositoryIDs`,
+measured client-side. Warm p95 is the nearest-rank percentile. With ten warm
+calls it equals the slowest warm call, so read it as the worst of ten, not as
+a stable percentile. The two cells closest to the budget were repeated with
+thirty warm calls (below). The time covers the whole handler path: `allRepositoryIDs`,
 the statement, the Go re-sort and truncate, and the `repo_name` read.
 
 | surface | language | limit | query | rows | cold | warm p50 | warm p95 |
@@ -102,9 +110,30 @@ the statement, the Go re-sort and truncate, and the `repo_name` read.
 | MCP | php | 200 | | 200 | 0.475 s | 0.684 s | 0.817 s |
 
 The largest HTTP warm p95 is 0.530 s (ledger:6704-opsqa-directory-api-warm-p95-max).
-The MCP tool is the slowest surface at 0.817 s warm p95
+The MCP tool was the slowest surface in this run, at 0.817 s warm p95
 (ledger:6704-opsqa-directory-mcp-warm-p95). The MCP figure includes the tool
 server's own envelope and resource rendering on top of the same HTTP route.
+Three read-only diagnosis probes for other issues were running against
+ops-qa's Neo4j during that run.
+
+Repeated with thirty warm calls:
+
+| surface | language | limit | rows | cold | warm p50 | warm p95 | warm max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| MCP | php | 200 | 200 | 0.424 s | 0.447 s | 0.479 s | 0.490 s |
+| HTTP | go | 200 | 25 | 0.390 s | 0.395 s | 0.441 s | 0.535 s |
+
+The MCP repeat (ledger:6704-opsqa-directory-mcp-warm-p95-n30) puts that
+surface at 0.479 s warm p95. Across both runs the MCP path is 0.45-0.82 s. It
+stays under 1 s in both, but the first run shows it is sensitive to other load
+on the shared graph.
+
+Scope. These cells are the Directory branch only (`entity_type: directory`).
+The same route and MCP tool also appear as offenders in #7098, with their
+slow calls on other entity types (the sweep's `entity_type: function`,
+repository-scoped). Those calls, code inventory and the `by-language` and
+`language-inventory` routes are tracked in #7247 and are not measured here.
+The 1 s figure is the read budget #7098 applies to every endpoint.
 
 The unscoped admin caller is the widest grant the route can serve. A scoped
 caller unwinds its own granted ids, which are a subset of these 804, so its
@@ -146,7 +175,7 @@ The cost follows the Directory and CONTAINS volume of the repositories
 unwound, not the repository count itself. The ids above 400 hold the heavier
 repositories. At about 0.4 µs per db hit, and with about 0.1 s of fixed handler
 cost measured over the HTTP route, the unscoped read reaches 1 s near
-2.2 million db hits. That is roughly 2.8 times the current corpus's directory
+2.2 million db hits. That is roughly 2.9 times the current corpus's directory
 and edge volume. That is the next bottleneck to watch. Past that point, the
 materialized per-repository directory count that #6704 lists becomes the
 candidate, and it would need its own theory proof.
@@ -169,7 +198,7 @@ ops-qa Neo4j 2026.08.1-community against 804 repositories, 43,281 directories
 and 144,010 files, with the `directory_repo_id` index ONLINE. An unscoped php
 read at limit 200 made 772,706 db hits in 311-318 ms of server time. Through
 HTTP, cold was 0.351-0.439 s and warm p95 0.408-0.530 s over ten cells. Through
-MCP, cold was 0.475 s and warm p95 0.817 s. Rows equal an independent
+MCP, cold was 0.424-0.475 s and warm p95 0.479-0.817 s over two runs. Rows equal an independent
 Directory-scan oracle.
 
 No-Observability-Change: this record changes no code. The existing
