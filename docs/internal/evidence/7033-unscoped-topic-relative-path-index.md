@@ -242,18 +242,50 @@ confirmed absent; the live API Deployment remained 1/1 Ready.
 
 A 2026-09-27 03:25 UTC read-only ops-qa diagnostic found neither
 `pgstattuple`/`pageinspect` nor `pgstatginindex`/`gin_metapage_info` available.
-The source GIN index's pending-list size is therefore **NOT_CHECKED**; no
-extension or maintenance command was run. Earlier additive GiST and signature
-screens did not establish a safe subsecond candidate. The remaining measured
-endpoint gap is 1.771594 s, and the source-index time from a separate SQL
-profile cannot be subtracted from the endpoint median. No further production
-change follows from this evidence alone.
 The existing `eshu` database role is not a superuser, cannot execute any
 `pg_read_binary_file` overload, and can resolve the target source GIN index.
 An OS-level metapage read was rejected: it would bypass that database
 permission boundary and could observe a stale disk page rather than the
-buffer-locked state that `pgstatginindex` reads. Pending-list pressure remains
-**NOT_CHECKED** pending an authorized isolated clone or diagnostic capability.
+buffer-locked state that `pgstatginindex` reads.
+
+An approved, isolated EBS copy of the same 2026-09-27 ops-qa PostgreSQL 18.3
+volume recovered WAL and ran with Unix-socket-only access, no application
+clients, autovacuum, replication, or network listener. `pgstattuple` was
+installed **only on the clone**. At approximately 04:53 UTC,
+`pgstatginindex` returned pending pages/tuples of **121/2,332** for entity
+name, **356/564** for entity `source_cache`, **98/28** for file content, and
+**508/4,394** for file relative path. All four GIN indexes had no reloptions
+override, and the effective `gin_pending_list_limit` was the 4 MiB default.
+The source and path pending lists occupied approximately 2.78 MiB and
+3.97 MiB of 8 KiB pages, respectively. These counts establish a pending
+list but do **not** attribute any portion of query latency to it.
+
+The temporary superuser socket rule was removed after the scoped read.
+`gin_clean_pending_list` was **not** run. The copied EBS volume was only
+1% initialized, so no timing was taken on it; a matched causal timing test
+would require two fully initialized copies and an ingest-cost proof before
+adopting durable cleanup policy. The clone Pod, PVC, PV, NetworkPolicy,
+ConfigMap, and copied EBS volume were deleted and verified absent. The live
+PostgreSQL Pod remained Ready and its source EBS volume attached. Earlier
+additive GiST and signature screens did not establish a safe subsecond
+candidate. The remaining measured endpoint gap is 1.771594 s, and the
+source-index time from a separate SQL profile cannot be subtracted from the
+endpoint median. No production change follows from the pending-list
+diagnostic alone.
+
+A subsequent read-only ops-qa screen generated the exact candidate SQL from
+the Go query builder for the same 16 explicit terms. Planner-only
+`EXPLAIN (FORMAT JSON, SETTINGS)` estimated total cost **45,912.78**, below
+the server's `jit_above_cost=100000`; disabling JIT therefore has no
+demonstrated target. Two full `EXPLAIN (ANALYZE, BUFFERS, SETTINGS)` attempts
+hit a 10 s statement timeout and are **not** latency measurements. A bounded
+16-term entity-probe plan took 8,675.514 ms cold, then 1,435.770 and
+1,254.753 ms warm. Warm `content_entities_source_trgm_idx` scan times were
+57.334 and 53.022 ms per loop across 16 loops; all 3,594 heap blocks were
+exact, with no lossy bitmap or temp spill reported. A query-local `work_mem`
+increase has no observed spill to address. The differing cold/warm SQL runs
+are not comparable to the earlier interleaved HTTP canary, and none proves
+a subsecond endpoint candidate.
 
 ## Existing ops-qa index admission proof
 
