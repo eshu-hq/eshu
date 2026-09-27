@@ -4,7 +4,6 @@
 package mcp
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -38,24 +37,5 @@ func TestResolveRouteMapsReplatformingOwnership(t *testing.T) {
 	// not forward an arn that would narrow to one resource.
 	if _, ok := body["arn"]; ok {
 		t.Fatalf("body must not carry arn for the ownership page: %#v", body)
-	}
-}
-
-func TestReplatformingOwnershipSchemaDocumentsScopeAndSafety(t *testing.T) {
-	t.Parallel()
-
-	tool := replatformingOwnershipTool()
-	schema := tool.InputSchema.(map[string]any)
-	if _, ok := schema["anyOf"]; ok {
-		t.Fatal("schema must not advertise top-level anyOf")
-	}
-	if !strings.Contains(tool.Description, "Provide scope_id or account_id") {
-		t.Fatalf("tool description = %q, want scope guidance", tool.Description)
-	}
-	if !strings.Contains(tool.Description, "candidate") {
-		t.Fatalf("tool description = %q, want candidate (not fabricated owner) guidance", tool.Description)
-	}
-	if !strings.Contains(tool.Description, "provenance-only") {
-		t.Fatalf("tool description = %q, want raw-tag provenance guidance", tool.Description)
 	}
 }

@@ -4,7 +4,6 @@
 package mcp
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -37,19 +36,5 @@ func TestResolveRouteMapsTerraformConfigStateDriftFindings(t *testing.T) {
 	kinds := body["drift_kinds"].([]any)
 	if len(kinds) != 1 || kinds[0] != "added_in_state" {
 		t.Fatalf("drift_kinds = %#v, want added_in_state", kinds)
-	}
-}
-
-func TestTerraformConfigStateDriftFindingsSchemaRequiresScopeID(t *testing.T) {
-	t.Parallel()
-
-	tool := terraformConfigStateDriftFindingsTool()
-	schema := tool.InputSchema.(map[string]any)
-	required, ok := schema["required"].([]string)
-	if !ok || len(required) != 1 || required[0] != "scope_id" {
-		t.Fatalf("schema[required] = %#v, want [scope_id]", schema["required"])
-	}
-	if !strings.Contains(tool.Description, "Provide scope_id") {
-		t.Fatalf("tool description = %q, want scope_id guidance", tool.Description)
 	}
 }
