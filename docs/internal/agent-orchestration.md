@@ -235,9 +235,10 @@ uses its native child tool with that configuration or invokes `muse-exec`
 itself; the user does not run the launcher.
 
 Codex custom role files bind models only when the active spawn tool can select
-the named role. Use a custom-role selector such as `agent_type` when it is
-available. The older Codex 0.156.1 CLI/app schema tested here exposed a task
-name and optional model override, but no custom-role selector. A child merely
+the named role. When the active spawn tool offers a custom-role selector, use
+it to select the role file directly. The older Codex 0.156.1 CLI/app schema
+tested here exposed a task name and optional model override, but no custom-role
+selector. A child merely
 named `debug_eshu_deep` inherits its parent's model; that name does not load
 `debug-eshu-deep.toml`. The coordinator must pass the manifest's model, effort,
 access, and instructions explicitly to a native child, or invoke
