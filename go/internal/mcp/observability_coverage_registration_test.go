@@ -14,8 +14,9 @@ func TestReadOnlyToolsKeepsObservabilityCoverageRegistrationPosition(t *testing.
 	t.Parallel()
 
 	wantCoverage := observabilitycoveragetools.Tools()
-	if got := observabilityCoverageTools(); !reflect.DeepEqual(got, wantCoverage) {
-		t.Fatal("root observabilityCoverageTools wrapper drifted from observability/coverage.Tools")
+	gotWrapper := observabilityCoverageTools()
+	if !reflect.DeepEqual(gotWrapper, wantCoverage) {
+		t.Fatalf("root observabilityCoverageTools wrapper drifted from observability/coverage.Tools: got %+v, want %+v", gotWrapper, wantCoverage)
 	}
 
 	tools := ReadOnlyTools()
