@@ -127,10 +127,10 @@ handles_route_expected_edges="${repo_root}/go/internal/ifa/testdata/handlesroute
 runs_in_expected_edges="${repo_root}/go/internal/ifa/testdata/runsin/ifa-runs-in-family-expected-edges.json"
 invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json"
 
-# kubernetes_namespace_environment, iam_instance_profile_role and iam_can_assume
-# (#6228) are the first DIRECT-materialization families in either gate. Every
-# family above reaches the graph through the ordering-safe shared-projection
-# intent path; the reducer writes these three straight to a
+# kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
+# and iam_can_perform (#6228) are the first DIRECT-materialization families in
+# either gate. Every family above reaches the graph through the ordering-safe
+# shared-projection intent path; the reducer writes these four straight to a
 # go/internal/storage/cypher writer with no intent row in between.
 #
 # That difference shows up here in one concrete way: none needs a
@@ -159,6 +159,8 @@ iam_instance_profile_role_cassette="${repo_root}/testdata/cassettes/iaminstancep
 iam_instance_profile_role_expected_edges="${repo_root}/go/internal/ifa/testdata/iaminstanceprofilerole/ifa-iam-instance-profile-role-family-expected-edges.json"
 iam_can_assume_cassette="${repo_root}/testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
 iam_can_assume_expected_edges="${repo_root}/go/internal/ifa/testdata/iamcanassume/ifa-iam-can-assume-family-expected-edges.json"
+iam_can_perform_cassette="${repo_root}/testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json"
+iam_can_perform_expected_edges="${repo_root}/go/internal/ifa/testdata/iamcanperform/ifa-iam-can-perform-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -203,4 +205,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${iam_instance_profile_role_expected_edges}" ]] || { echo "${gate}: iam-instance-profile-role expected-edge set not found: ${iam_instance_profile_role_expected_edges}" >&2; exit 1; }
 	[[ -f "${iam_can_assume_cassette}" ]] || { echo "${gate}: iam-can-assume cassette not found: ${iam_can_assume_cassette}" >&2; exit 1; }
 	[[ -f "${iam_can_assume_expected_edges}" ]] || { echo "${gate}: iam-can-assume expected-edge set not found: ${iam_can_assume_expected_edges}" >&2; exit 1; }
+	[[ -f "${iam_can_perform_cassette}" ]] || { echo "${gate}: iam-can-perform cassette not found: ${iam_can_perform_cassette}" >&2; exit 1; }
+	[[ -f "${iam_can_perform_expected_edges}" ]] || { echo "${gate}: iam-can-perform expected-edge set not found: ${iam_can_perform_expected_edges}" >&2; exit 1; }
 }

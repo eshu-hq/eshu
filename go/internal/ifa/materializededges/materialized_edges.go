@@ -222,13 +222,13 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
-	// A registered guard is NOT a coverage claim. Since #6309 two of the four
+	// A registered guard is NOT a coverage claim. Since #6309 two of the five
 	// families carry coverage rows instead of waivers in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because both live
-	// matrices drive them; workload_cloud_relationship and iam_can_assume
-	// still carry their waiver rows. What these arms buy is that a coverage
-	// row COULD resolve, which is one of the three things those waiver reasons
-	// said was missing.
+	// matrices drive them; workload_cloud_relationship, iam_can_assume, and
+	// iam_can_perform still carry their waiver rows. What these arms buy is
+	// that a coverage row COULD resolve, which is one of the three things
+	// those waiver reasons said was missing.
 	case kubernetesNamespaceEnvironmentFamily:
 		return resolveKubernetesNamespaceEnvironmentMaterializedEdges(odu, kubernetesNamespaceEnvironmentExpectedEdgesPath(r.RepoRoot))
 	case iamInstanceProfileRoleFamily:
@@ -237,6 +237,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveWorkloadCloudRelationshipMaterializedEdges(odu, workloadCloudRelationshipExpectedEdgesPath(r.RepoRoot))
 	case iamCanAssumeFamily:
 		return resolveIAMCanAssumeMaterializedEdges(odu, iamCanAssumeExpectedEdgesPath(r.RepoRoot))
+	case iamCanPerformFamily:
+		return resolveIAMCanPerformMaterializedEdges(odu, iamCanPerformExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

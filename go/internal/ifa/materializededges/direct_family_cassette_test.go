@@ -109,6 +109,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.IAMCanAssumeFamilyCassetteFullPath,
 			load:         ifa.LoadIAMCanAssumeFamilyOdu,
 		},
+		{
+			name:         ifa.IAMCanPerformFamilyOduName,
+			compiled:     ifa.IAMCanPerformFamilyOdu,
+			cassettePath: ifa.IAMCanPerformFamilyCassetteFullPath,
+			load:         ifa.LoadIAMCanPerformFamilyOdu,
+		},
 	}
 }
 
