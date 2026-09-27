@@ -21,6 +21,7 @@ The reducer drains queue work items through the worker pool, projects shared edg
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
+| package-consumption sidecar repair (#7088) | go/cmd/reducer/package_manifest_backfill.go:44 | `eshu_dp_package_manifest_backfill_passes_total`, `eshu_dp_package_manifest_backfill_duration_seconds`, `eshu_dp_package_manifest_backfill_last_success_unixtime`, `eshu_dp_package_manifest_backfill_dirty_scopes`, `eshu_dp_package_manifest_backfill_cursor_updated_unixtime`, `eshu_dp_package_manifest_backfill_ready` | reducer maintenance |
 | queue claim | go/internal/reducer/service.go:189 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`, `eshu_dp_worker_pool_active` | reducer runtime |
 | intent enqueue | go/internal/projector/runtime/projection.go (`Runtime.Project`) | `eshu_dp_reducer_intents_enqueued_total` | reducer runtime |
 | intent contract boundary | go/internal/projector/intent/contract.go | `No-Observability-Change: dependency-neutral reducer-intent value and source-label helper shared by root assembly and extracted family packages; it performs no projection, queue write, retry, storage call, or graph work and emits no signal of its own. Root intent assembly and enqueue remain covered by eshu_dp_reducer_intents_enqueued_total (intent enqueue row above)` | reducer runtime |
@@ -1069,6 +1070,7 @@ call matches a documented set, and every documented set has a matching variable 
 | projector-ack-wait-seconds | 1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600 |
 | projector-stage-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900 |
+| package-manifest-backfill-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300 |
 | retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |
 | retention-batch-count | 1, 2, 4, 8, 16, 32, 64, 100 |
 | retention-age-seconds | 3600, 21600, 43200, 86400, 259200, 604800, 1209600, 2592000, 7776000 |
@@ -1098,8 +1100,6 @@ call matches a documented set, and every documented set has a matching variable 
 | code-fingerprint-seconds | 0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5 |
 | lock-only-gate-lock-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10 |
 
-Bucket sets for `eshu_dp_cloud_resource_list_*` are defined in
-`go/internal/query/cloud_resources_metrics.go`, next to the code that emits
-them, rather than in `go/internal/telemetry/instruments.go`. The table above
-covers instruments registered in `instruments.go`, which is what the bucket
-check reads, so those sets are deliberately absent from it (#5548).
+Bucket sets for `eshu_dp_cloud_resource_list_*` live in
+`go/internal/query/cloud_resources_metrics.go`, outside this table's registered
+instrument scope, and are omitted (#5548).

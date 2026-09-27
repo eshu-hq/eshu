@@ -87,10 +87,8 @@ See `doc.go` for the godoc contract. Key groups:
 `Instruments` holds all pre-registered OTEL metric instruments. Create with `NewInstruments(meter)`.
 Observable gauges require a separate `RegisterObservableGauges` call once the queue and worker observers are wired.
 `RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows` gauge when a shared-acceptance observer is available.
-`RegisterGraphOrphanObservableGauge` adds the `eshu_dp_graph_orphan_nodes` gauge
-when the reducer has a graph orphan observer. Graph-backed gauge callbacks must
-not read the graph on the collection goroutine: the reducer feeds them from
-`telemetry/snapshot`, whose refresher reads off the scrape path (#7062).
+`RegisterGraphOrphanObservableGauge` adds `eshu_dp_graph_orphan_nodes` when the reducer has a graph orphan observer. Graph-backed gauge callbacks must
+not read the graph on the collection goroutine; `telemetry/snapshot` refreshes them off the scrape path (#7062).
 
 #### Counters (Int64)
 
@@ -119,6 +117,7 @@ not read the graph on the collection goroutine: the reducer feeds them from
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
 | `SharedAcceptanceStaleWrites` | `eshu_dp_shared_acceptance_stale_writes_total` |
+| `PackageManifestBackfillPasses` | `eshu_dp_package_manifest_backfill_passes_total` (bounded `outcome`: contended, failed, incomplete, ready) |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |

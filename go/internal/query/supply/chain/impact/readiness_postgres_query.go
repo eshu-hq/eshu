@@ -16,7 +16,11 @@ const ListReadinessQuery = ListReadinessQueryCore +
 // consumption/registry, SBOM component/attestation, container image identity,
 // vulnerability source snapshot) scoped to the caller's target — CVE ID,
 // package ID, repository ID, image digest, or image ref, in any combination.
-const ListReadinessQueryCore = `
+const ListReadinessQueryCore = listSupplyChainImpactReadinessQueryCoreBeforePackageManifest +
+	listSupplyChainImpactReadinessPackageManifestQuery +
+	listSupplyChainImpactReadinessQueryCoreAfterPackageManifest
+
+const listSupplyChainImpactReadinessQueryCoreBeforePackageManifest = `
 WITH advisory_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -96,7 +100,7 @@ package_consumption_correlation_active AS (
       AND generation.status = 'active'
 ),
 package_manifest_active AS (
-    SELECT fact.payload, fact.observed_at
+    SELECT fact.fact_id, fact.payload, fact.observed_at
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = fact.scope_id
@@ -109,6 +113,7 @@ package_manifest_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
       AND fact.payload->>'entity_type' = 'Variable'
+      AND NULLIF(fact.payload->>'config_kind', '') IS NULL
       AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
       -- #7007: push the repository anchor down into the CTE instead of
       -- filtering it only in the downstream family/ecosystem consumers
@@ -123,8 +128,23 @@ package_manifest_active AS (
       -- identical output, bounded to the requested repository's own rows
       -- instead of every repository's.
       AND ($11 = '' OR fact.payload->>'repo_id' = $11)
+    UNION ALL
+    SELECT fact.fact_id, fact.payload, fact.observed_at
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'content_entity'
+      AND fact.source_system = 'git'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+      AND fact.payload->>'entity_type' = 'Variable'
+      AND fact.payload->>'config_kind' = 'dependency'
+      AND ($11 = '' OR fact.payload->>'repo_id' = $11)
 ),
-
 package_registry_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -148,19 +168,6 @@ package_registry_warning_active AS (
       ON generation.scope_id = fact.scope_id
      AND generation.generation_id = fact.generation_id
     WHERE fact.fact_kind = 'package_registry.warning'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
-),
-sbom_component_active AS (
-    SELECT fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = ANY($5::text[])
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
@@ -213,6 +220,15 @@ target_image_digests AS (
       AND identity.matches_image_ref
       AND NULLIF(TRIM(identity.digest), '') IS NOT NULL
 ),
+target_consumption_keys AS (
+    SELECT DISTINCT ecosystem, package_name
+    FROM UNNEST($17::text[], $18::text[]) AS key(ecosystem, package_name)
+),
+target_consumption_package_ids AS (
+    SELECT DISTINCT NULLIF(TRIM(package_id), '') AS package_id
+    FROM UNNEST($19::text[]) AS package_id
+    WHERE NULLIF(TRIM(package_id), '') IS NOT NULL
+),
 target_vulnerability_source_ecosystems AS (
     SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem
     FROM package_manifest_active
@@ -229,9 +245,8 @@ target_vulnerability_source_ecosystems AS (
     WHERE $10 <> ''
       AND registry.payload->>'package_id' = $10
     UNION
-    SELECT DISTINCT NULLIF(LOWER(TRIM(component.payload->>'ecosystem')), '') AS ecosystem
-    FROM sbom_component_active AS component
-    WHERE component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
+    SELECT DISTINCT ecosystem
+    FROM target_consumption_keys
     UNION
     SELECT DISTINCT NULLIF(LOWER(TRIM(
         CASE
@@ -270,16 +285,14 @@ target_advisory_packages AS (
     SELECT DISTINCT NULLIF(TRIM($10), '') AS package_id
     WHERE $10 <> ''
     UNION
+    SELECT package_id
+    FROM target_consumption_package_ids
+    UNION
     SELECT DISTINCT NULLIF(TRIM(consumption.payload->>'package_id'), '') AS package_id
     FROM package_consumption_correlation_active AS consumption
     WHERE $11 <> ''
       AND consumption.payload->>'repository_id' = $11
       AND NULLIF(TRIM(consumption.payload->>'package_id'), '') IS NOT NULL
-    UNION
-    SELECT DISTINCT NULLIF(TRIM(component.payload->>'package_id'), '') AS package_id
-    FROM sbom_component_active AS component
-    WHERE component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
-      AND NULLIF(TRIM(component.payload->>'package_id'), '') IS NOT NULL
 ),
 vulnerability_advisory AS (
     SELECT
@@ -331,24 +344,24 @@ package_consumption_correlation AS (
         NULL::text AS unsupported_targets_json
     FROM package_consumption_correlation_active
     WHERE ($11 = '' OR payload->>'repository_id' = $11)
-      AND ($10 = '' OR payload->>'package_id' = $10)
+      AND (
+          NOT $20
+          OR payload->>'package_id' IN (SELECT package_id FROM target_consumption_package_ids)
+      )
 ),
-package_manifest_dependency AS (
-    SELECT
-        'package.consumption' AS family,
-        COUNT(*)::int AS fact_count,
-        MAX(observed_at) AS latest_observed_at,
-        NULL::boolean AS target_incomplete,
-        NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json,
-        NULL::text AS source_states_json,
-        NULL::text AS unsupported_targets_json
-    FROM package_manifest_active
-    WHERE ($11 = '' OR payload->>'repo_id' = $11)
-),
+`
+
+const listSupplyChainImpactReadinessQueryCoreAfterPackageManifest = listSupplyChainImpactReadinessQueryCoreAfterPackageManifestPrefix +
+	listSupplyChainImpactReadinessSBOMComponentQuery +
+	listSupplyChainImpactReadinessQueryCoreAfterPackageManifestSuffix
+
+const listSupplyChainImpactReadinessQueryCoreAfterPackageManifestPrefix = `
 package_registry_scope_packages AS (
     SELECT DISTINCT NULLIF(TRIM($10), '') AS package_id
     WHERE $10 <> ''
+    UNION
+    SELECT package_id
+    FROM target_consumption_package_ids
     UNION
     SELECT DISTINCT NULLIF(TRIM(consumption.payload->>'package_id'), '') AS package_id
     FROM package_consumption_correlation_active AS consumption
@@ -382,20 +395,9 @@ package_registry AS (
         NULL::text AS unsupported_targets_json
     FROM package_registry_scoped
 ),
-sbom_component AS (
-    SELECT
-        'sbom.component' AS family,
-        COUNT(*)::int AS fact_count,
-        MAX(observed_at) AS latest_observed_at,
-        NULL::boolean AS target_incomplete,
-        NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json,
-        NULL::text AS source_states_json,
-        NULL::text AS unsupported_targets_json
-    FROM sbom_component_active
-    WHERE payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
-),
-sbom_attestation AS (
+`
+
+const listSupplyChainImpactReadinessQueryCoreAfterPackageManifestSuffix = `sbom_attestation AS (
     SELECT
         'sbom.attestation' AS family,
         COUNT(*)::int AS fact_count,

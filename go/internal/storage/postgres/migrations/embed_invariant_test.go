@@ -7,6 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -38,14 +41,15 @@ import (
 // lifecycle validator as migrations 134-135; #7127 added
 // 136_changed_since_link_ledger.sql; #7248 added
 // 137_content_files_repo_path_pattern_idx.sql; #7125 adds
-// 138_content_file_secret_lines.sql.
-const goldenBootstrapDefinitionsDigest = "f3767c6259c7d00f6d9bd467154c878a7a64bf4b0c14330f70fdcfcff4e58e05"
+// 138_content_file_secret_lines.sql; #7088 adds package-consumption identity
+// and readiness indexes in migrations 139-144.
+const goldenBootstrapDefinitionsDigest = "bbbcfe8f6c6bbaa0d226d251955f70cca22002c16987b93eecee42dcd07252c0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 159
+const goldenBootstrapDefinitionsCount = 165
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
@@ -61,6 +65,28 @@ func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	if got != goldenBootstrapDefinitionsDigest {
 		t.Fatalf("BootstrapDefinitions() digest = %s, want %s (Name/Path/SQL/order must stay byte-identical)",
 			got, goldenBootstrapDefinitionsDigest)
+	}
+}
+
+// TestBootstrapDefinitionsHaveUniqueSequenceNumbers keeps recent migrations
+// from claiming the same ordering slot after concurrent PRs merge. Older
+// migrations intentionally reuse several slots, so the guard starts at 100.
+func TestBootstrapDefinitionsHaveUniqueSequenceNumbers(t *testing.T) {
+	seen := make(map[int]string)
+	for _, def := range BootstrapDefinitions() {
+		filename := path.Base(def.Path)
+		parts := strings.SplitN(filename, "_", 2)
+		if len(parts) != 2 {
+			t.Fatalf("migration %q has no sequence prefix", filename)
+		}
+		sequence, err := strconv.Atoi(parts[0])
+		if err != nil || sequence < 100 {
+			continue
+		}
+		if previous, exists := seen[sequence]; exists {
+			t.Fatalf("migration sequence %d is shared by %q and %q", sequence, previous, filename)
+		}
+		seen[sequence] = filename
 	}
 }
 

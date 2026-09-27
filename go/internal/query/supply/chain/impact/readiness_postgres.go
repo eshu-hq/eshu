@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -18,6 +19,13 @@ const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
 // needs; *sql.DB satisfies it.
 type ReadinessQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// readinessTransactionStarter begins the one read-only snapshot used to
+// resolve readiness targets and count their evidence. It is optional so
+// narrow queryer doubles can continue to exercise the row decoder.
+type readinessTransactionStarter interface {
+	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
 }
 
 // PostgresReadinessStore reads bounded source-fact counts and
@@ -59,13 +67,76 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	if !query.hasFactAnchor() {
 		return ReadinessSnapshot{}, nil
 	}
+	database := s.DB
+	var transaction *sql.Tx
+	starter, canStartTransaction := s.DB.(readinessTransactionStarter)
+	if query.needsTargetResolution() && !canStartTransaction {
+		return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness target resolution requires a repeatable-read transaction")
+	}
+	if canStartTransaction {
+		var err error
+		transaction, err = starter.BeginTx(ctx, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+			ReadOnly:  true,
+		})
+		if err != nil {
+			return ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
+		}
+		defer func() { _ = transaction.Rollback() }()
+		database = transaction
+	}
+
+	target := readinessTarget{}
+	if query.needsTargetResolution() {
+		ready, err := packageManifestConsumptionKeysReady(ctx, database)
+		if err != nil {
+			return ReadinessSnapshot{}, err
+		}
+		if !ready {
+			return ReadinessSnapshot{}, fmt.Errorf("package manifest consumption keys are not ready")
+		}
+		target, err = resolveReadinessTarget(ctx, database, query)
+		if err != nil {
+			return ReadinessSnapshot{}, err
+		}
+		if err := validateReadinessTargetKeyOwners(ctx, database, target); err != nil {
+			return ReadinessSnapshot{}, err
+		}
+	}
+
+	snapshot, err := s.readSupplyChainImpactReadiness(ctx, database, query, target)
+	if err != nil {
+		return ReadinessSnapshot{}, err
+	}
+	if transaction != nil {
+		if err := transaction.Commit(); err != nil {
+			return ReadinessSnapshot{}, fmt.Errorf("commit supply chain impact readiness snapshot: %w", err)
+		}
+	}
+	return snapshot, nil
+}
+
+func (q ReadinessQuery) needsTargetResolution() bool {
+	return strings.TrimSpace(q.CVEID) != "" ||
+		strings.TrimSpace(q.PackageID) != "" ||
+		strings.TrimSpace(q.SubjectDigest) != "" ||
+		strings.TrimSpace(q.ImageRef) != ""
+}
+
+func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
+	ctx context.Context,
+	database ReadinessQueryer,
+	query ReadinessQuery,
+	target readinessTarget,
+) (ReadinessSnapshot, error) {
 	window := s.FreshnessWindow
 	if window <= 0 {
 		window = supplyChainImpactReadinessFreshnessWindow
 	}
 	freshnessCutoff := time.Now().UTC().Add(-window)
+	targetEcosystems, targetPackageNames, targetPackageIDs, targetResolved := readinessTargetArguments(target, query)
 
-	rows, err := s.DB.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		ListReadinessQuery,
 		array.Of(vulnerabilityAdvisoryFactKinds),
@@ -84,6 +155,10 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 		query.ImageRef,
 		array.Of(vulnerabilityOSPackageFactKinds),
 		array.Of(scannerWorkerAnalysisFactKinds),
+		array.Of(targetEcosystems),
+		array.Of(targetPackageNames),
+		array.Of(targetPackageIDs),
+		targetResolved,
 	)
 	if err != nil {
 		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)

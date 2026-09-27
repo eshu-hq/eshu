@@ -25,6 +25,27 @@ Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.
 
+## Package-Consumption Sidecar Repair
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_package_manifest_backfill_passes_total` | counter | Reducer repair attempts by closed `outcome`: `contended` (another replica owns the advisory lock), `failed`, `incomplete` (successful bounded pass, readiness still false), or `ready`. |
+| `eshu_dp_package_manifest_backfill_duration_seconds` | histogram | Election plus pass wall time by the same outcome; failed attempts are included. |
+| `eshu_dp_package_manifest_backfill_last_success_unixtime` | gauge | Unix second of the last successful elected pass; use `time() - eshu_dp_package_manifest_backfill_last_success_unixtime` for pass age. It is absent until the first success. |
+| `eshu_dp_package_manifest_backfill_dirty_scopes` | gauge | Dirty scopes after an elected successful pass, capped at 26; 26 means at least two 25-scope repair passes remain. Sampled by one bounded SQL read per pass, never by the scrape callback. |
+| `eshu_dp_package_manifest_backfill_cursor_updated_unixtime` | gauge | Unix second when the initial scope-walk cursor last advanced; zero before the first scope. A flat cursor with `ready=0` and repeated `incomplete` passes warrants checking the per-scope progress logs. |
+| `eshu_dp_package_manifest_backfill_ready` | gauge | One when both sidecars are ready after an elected successful pass, zero otherwise. Contended and failed passes do not overwrite the last known value. |
+
+The reducer emits a structured elected-pass log with `ready`,
+`dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;
+contention and failure have separate structured logs. A progress-sampling
+failure warns and leaves the progress gauges stale without failing the repair pass.
+Storage writes key=value process logs for each completed scope during the
+initial walk and dirty repair. These signals describe reducer repair progress; the API readiness
+reader remains the authority for a particular request. A missing pass gauge
+after startup or a growing pass age indicates the elected repair is not
+completing. Metric labels never contain scope IDs or package names.
+
 ## Persisted Search Index
 
 | Metric | Type | Use |

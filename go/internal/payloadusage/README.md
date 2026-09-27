@@ -71,7 +71,7 @@ cover — naming the specific handler file, fact kind, and field.
 
 `Gate` also runs `CheckRawPayloadConvention` against the loader, relationships,
 and replay surfaces. It allows the current documented raw reads through a fixed
-25-entry exemption budget, skips `factschema_decode*.go` seam files, and fails
+68-entry exemption budget, skips `factschema_decode*.go` seam files, and fails
 on any new `.Payload["field"]` or `payloadString` / `payloadStrings` read. That
 turns the W2c/W2d convention into a ratchet: exemptions can be removed as typed
 seams land, but adding one requires an explicit budget change in review.

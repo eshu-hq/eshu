@@ -188,6 +188,12 @@ var migrationShippedChecksums = map[string]string{
 	"136_changed_since_link_ledger.sql":                                      "36f729b946cda5fdbf10a4be17cc7a464379a67843c33397e5e4da2570a01567",
 	"137_content_files_repo_path_pattern_idx.sql":                            "d97673a1f5e508670a363ce5155e3fb3e15d63420ffe118872daef58807dce04",
 	"138_content_file_secret_lines.sql":                                      "5120eb3707f30206b4557c37981e6d6cce0b14a1fc4712a6924bc8367e01ff11",
+	"139_package_manifest_consumption_keys.sql":                              "c44439104659962562485125ce372423f743dc37dec1a4170a8ccfd21970bfcf",
+	"140_supply_chain_readiness_target_indexes.sql":                          "67042ceca9792d2bea05e8ff4abe884d2ecad8b6edb36144223cb8768cea6464",
+	"141_supply_chain_readiness_sbom_component_index.sql":                    "d0be4897b8c773657b31bd147a2db9369992db13d1a6ba8ad77853fd3b30995c",
+	"142_supply_chain_readiness_package_registry_index.sql":                  "5a5f8ebeaaf99dea3d2be00ac47b39eab5de743760dad89660430107bb155f22",
+	"143_package_registry_identity_keys.sql":                                 "a8d4b79db352c1b4434bd71cb815a9e6d8b72b4aa6a2ec5e4e3589dac64d1d64",
+	"144_supply_chain_readiness_sbom_warning_document_index.sql":             "5bc9a0ad53931b790be24fa386d2bcfea7d0834c75a2e88c384604220f6a163f",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

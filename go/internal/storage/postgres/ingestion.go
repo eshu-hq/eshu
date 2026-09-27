@@ -219,6 +219,9 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := lockstore.AcquireDeferredMaintenanceRepoSharedLock(ctx, tx, lockstore.DeferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, setPackageManifestConsumptionKeysWriterSQL); err != nil {
+		return fmt.Errorf("mark package manifest consumption key writer: %w", err)
+	}
 	// Held from here until tx.Commit() releases it (recordSharedLockHoldDuration
 	// below measures that window; issue #4451, § T8).
 	sharedLockAcquiredAt := time.Now()
@@ -287,6 +290,12 @@ func (s IngestionStore) commitScopeGeneration(
 		generation.GenerationID,
 		func(batch []facts.Envelope) error {
 			if err := refreshRelationshipReferenceCandidateKeys(ctx, tx, batch); err != nil {
+				return err
+			}
+			if err := refreshPackageManifestConsumptionKeys(ctx, tx, batch); err != nil {
+				return err
+			}
+			if err := refreshPackageRegistryIdentityKeys(ctx, tx, batch); err != nil {
 				return err
 			}
 			for _, envelope := range batch {

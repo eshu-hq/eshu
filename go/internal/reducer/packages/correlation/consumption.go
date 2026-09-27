@@ -130,11 +130,17 @@ type PackageManifestDependency struct {
 func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsumptionDecision {
 	identities := ExtractPackageRegistryIdentities(envelopes)
 	dependencies := ExtractPackageManifestDependencies(envelopes)
-	identityByKey := make(map[string]PackageRegistryIdentity)
+	identityByKey := make(map[string]packageRegistryIdentityMatch)
 	for _, identity := range identities {
 		for _, name := range identity.Names {
 			for _, key := range PackageConsumptionKeys(identity.Ecosystem, name) {
-				identityByKey[key] = identity
+				previous, exists := identityByKey[key]
+				if exists && previous.Identity.PackageID != identity.PackageID {
+					previous.Ambiguous = true
+					identityByKey[key] = previous
+					continue
+				}
+				identityByKey[key] = packageRegistryIdentityMatch{Identity: identity}
 			}
 		}
 	}
@@ -379,7 +385,7 @@ func packageManifestDependencyNeedsProvenChain(dependency PackageManifestDepende
 }
 
 func packageConsumptionIdentityForDependency(
-	identityByKey map[string]PackageRegistryIdentity,
+	identityByKey map[string]packageRegistryIdentityMatch,
 	dependency PackageManifestDependency,
 ) (PackageRegistryIdentity, bool) {
 	names := []string{dependency.DependencyName}
@@ -387,12 +393,17 @@ func packageConsumptionIdentityForDependency(
 		names = append(names, strings.TrimSpace(dependency.PackageNamespace)+"/"+dependency.DependencyName)
 	}
 	for _, key := range PackageConsumptionKeys(dependency.PackageManager, names...) {
-		identity, ok := identityByKey[key]
-		if ok {
-			return identity, true
+		match, ok := identityByKey[key]
+		if ok && !match.Ambiguous {
+			return match.Identity, true
 		}
 	}
 	return PackageRegistryIdentity{}, false
+}
+
+type packageRegistryIdentityMatch struct {
+	Identity  PackageRegistryIdentity
+	Ambiguous bool
 }
 
 // PackageConsumptionKeys returns the registry-identity join keys for one
@@ -400,15 +411,10 @@ func packageConsumptionIdentityForDependency(
 // family joins owner records through the same keys the consumption builder
 // uses, and supply-chain impact keys manifest evidence the same way.
 func PackageConsumptionKeys(ecosystem string, packageNames ...string) []string {
-	normalizedEcosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))
-	if normalizedEcosystem == "" {
-		return nil
-	}
-	keys := make([]string, 0, len(packageNames))
-	for _, packageName := range packageNames {
-		for _, candidate := range PackageConsumptionNameCandidates(normalizedEcosystem, packageName) {
-			keys = append(keys, string(normalizedEcosystem)+"\x00"+candidate)
-		}
+	identityKeys := packageidentity.ConsumptionKeys(ecosystem, packageNames...)
+	keys := make([]string, 0, len(identityKeys))
+	for _, key := range identityKeys {
+		keys = append(keys, string(key.Ecosystem)+"\x00"+key.PackageName)
 	}
 	return payloadcore.UniqueSortedStrings(keys)
 }
@@ -421,56 +427,7 @@ func PackageConsumptionNameCandidates(
 	ecosystem packageidentity.Ecosystem,
 	packageName string,
 ) []string {
-	packageName = strings.TrimSpace(packageName)
-	if packageName == "" {
-		return nil
-	}
-	normalizedName, ok := packageConsumptionNormalizedName(ecosystem, packageName)
-	candidates := make([]string, 0, 2)
-	if ok {
-		candidates = append(candidates, normalizedName)
-	}
-	candidates = append(candidates, strings.ToLower(packageName))
-	return payloadcore.UniqueSortedStrings(candidates)
-}
-
-func packageConsumptionNormalizedName(
-	ecosystem packageidentity.Ecosystem,
-	packageName string,
-) (string, bool) {
-	rawName, namespace := packageConsumptionRawNameAndNamespace(ecosystem, packageName)
-	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
-		Ecosystem:      ecosystem,
-		Registry:       "manifest.local",
-		RawName:        rawName,
-		Namespace:      namespace,
-		PackageManager: string(ecosystem),
-	})
-	if err != nil {
-		return "", false
-	}
-	if namespace != "" {
-		return strings.TrimRight(namespace, "/") + "/" + strings.TrimLeft(identity.NormalizedName, "/"), true
-	}
-	return identity.NormalizedName, true
-}
-
-func packageConsumptionRawNameAndNamespace(
-	ecosystem packageidentity.Ecosystem,
-	packageName string,
-) (string, string) {
-	packageName = strings.TrimSpace(packageName)
-	if ecosystem != packageidentity.EcosystemMaven && ecosystem != packageidentity.EcosystemHex {
-		return packageName, ""
-	}
-	namespace, name, ok := strings.Cut(packageName, ":")
-	if !ok {
-		namespace, name, ok = strings.Cut(packageName, "/")
-	}
-	if !ok {
-		return packageName, ""
-	}
-	return strings.TrimSpace(name), strings.TrimSpace(namespace)
+	return packageidentity.ConsumptionNameCandidates(ecosystem, packageName)
 }
 
 func packageManifestDependencyFilter(envelopes []facts.Envelope) PackageManifestDependencyFactFilter {

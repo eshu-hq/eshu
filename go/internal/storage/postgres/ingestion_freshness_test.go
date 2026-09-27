@@ -168,7 +168,7 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
-	if got, want := len(db.tx.execs), 4; got != want {
+	if got, want := len(db.tx.execs), 5; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got, want := telemetry.SkippedRefreshCount(), uint64(0); got != want {
