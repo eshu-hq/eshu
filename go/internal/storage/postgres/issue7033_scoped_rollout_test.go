@@ -95,7 +95,7 @@ func TestIssue7033ScopedRolloutSelectsOnlyExactMigrations(t *testing.T) {
 	}
 }
 
-func TestIssue7033ScopedRolloutAppliesOnly133And134ThenRetriesLive(t *testing.T) {
+func TestIssue7033ScopedRolloutAppliesOnly134And135ThenRetriesLive(t *testing.T) {
 	ctx, database, definitions := issue7033ScopedRolloutWith125Through129DeferredLive(t)
 	config := issue7033RolloutTargetConfig(t, ctx, database)
 

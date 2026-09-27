@@ -159,7 +159,8 @@ func runIssue7033ScopedRollout(
 		return fmt.Errorf("apply migration 134: %w", err)
 	}
 	// The preflight is outside this advisory lock; rechecking before migration
-	// 135 publishes readiness makes a raced malformed index fail closed.
+	// Rechecking before 135 publishes readiness fails closed if a malformed
+	// replacement races the preflight.
 	if err := issue7033ExactTrigramIndex(ctx, database, issue7033ExpectedIndex{
 		name: issue7033RelativePathIndexName, table: "content_files", column: "relative_path",
 	}); err != nil {

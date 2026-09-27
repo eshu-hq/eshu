@@ -4,18 +4,19 @@
 
 `investigate_code_topic` can probe `content_files.relative_path` without a
 repository constraint. The primary key starts with `repo_id`, so it cannot
-bound that substring probe. Migration 133 adds
+bound that substring probe. Migration 134 adds
 `content_files_relative_path_trgm_idx` as a `gin_trgm_ops` index. It runs with
 `CREATE INDEX CONCURRENTLY` for normal upgrades. Cold bootstrap records its
 deferred no-op variant and `EnsureContentSearchIndexes` builds the same index
-only after the write-heavy projection drain.
+only after the write-heavy projection drain. Main's independent repository
+entry-point index owns migration 133; this branch preserves it unchanged.
 
-A populated live upgrade without the index must use migration 133's concurrent
-build, then validate the catalog before migration 134 publishes readiness.
+A populated live upgrade without the index must use migration 134's concurrent
+build, then validate the catalog before migration 135 publishes readiness.
 `EnsureContentSearchIndexes` is a non-concurrent, transactional finalizer for
-deferred bootstrap, not a live substitute for migration 133.
+deferred bootstrap, not a live substitute for migration 134.
 
-Migration 134 extends `eshu_content_substring_indexes_valid()` to require the
+Migration 135 extends `eshu_content_substring_indexes_valid()` to require the
 exact path-index shape. A wrong, partial, or invalid same-name index prevents
 the ready state and guarded reads; an operator must remove it before the
 finalizer can build the exact index. An absent index can be built by the
@@ -202,8 +203,9 @@ HTTP 200 from `/healthz`, and served every timed topic request with HTTP 200.
 
 This was **diagnostic only on an incomplete migration state**. Baseline
 `/readyz` reported migration 132 missing; candidate `/readyz` reported
-migration 134 missing. Migration 132 was absent for both binaries. The live
-ledger held the earlier 130/131 path-index receipts but not 133/134. The last
+the then-numbered migration 134 missing. Migration 132 was absent for both
+binaries. The live ledger held the earlier 130/131 path-index receipts but not
+the then-numbered 133/134. The last
 successful ops-qa schema-bootstrap Job used an image built before merged
 PR #7276 introduced 132; its log reported `applied=0 skipped=151`.
 Neither canary binary was deployment-ready, and no migration was applied.
@@ -294,18 +296,18 @@ The earlier approved ops-qa index rollout left two full migration receipts:
 `ef395de0a2c1ad86fcbc1f82abcda08c83e689508a1197d6e2848695978a8e41`
 and `131_content_files_relative_path_trgm_index_lifecycle.sql` with checksum
 `c0494bb1489ca3900f62675aacf0b37cd5524e868ba96a124640f6142b14ef2b`.
-The new 133 index SQL has the same bytes and checksum as that earlier 130
-index SQL, but a different tracked path; the new 134 lifecycle has different
+The new 134 index SQL has the same bytes and checksum as that earlier 130
+index SQL, but a different tracked path; the new 135 lifecycle has different
 SQL bytes from the earlier 131 lifecycle. Both old receipts must remain in
 the ledger.
 
 A read-only admission shim on ops-qa compared both exact path, variant, and
-checksum triples; checked that no 133 receipt exists; checked the public
-index's table, single `relative_path` key, GIN access method, `gin_trgm_ops`,
+checksum triples; checked that no then-candidate 133 receipt existed; checked
+the public index's table, single `relative_path` key, GIN access method, `gin_trgm_ops`,
 nonpartial/nonexpression shape, and valid/ready/live flags; and checked
 `content_substring_index_state=ready` with the current validator returning
 true. All five booleans were true, with exit 0. This proves that ops-qa meets
-the proposed narrow legacy-adoption predicate. It does **not** apply 133/134,
+the proposed narrow legacy-adoption predicate. It does **not** apply 134/135,
 prove a future no-op, or authorize treating a different same-name index as
 equivalent. [PostgreSQL 18's `CREATE INDEX` documentation](https://www.postgresql.org/docs/18/sql-createindex.html)
 explicitly does not guarantee definition equality for `IF NOT EXISTS`.
@@ -348,11 +350,11 @@ proof remains pending.
 Disposable PostgreSQL 18 live tests exercise the production tracked bootstrap
 entry point rather than a direct `ApplyDefinitions` call:
 
-- populated pre-133 ready state plus indexed content, tracked 133 concurrent
-  migration, tracked 134 lifecycle migration, then a guarded unscoped
+- populated pre-134 ready state plus indexed content, tracked 134 concurrent
+  migration, tracked 135 lifecycle migration, then a guarded unscoped
   `relative_path ILIKE` read;
 - wrong btree and partial GIN same-name path indexes while the other three
-  lifecycle indexes are exact; 134 moves state to `not_built`, finalization
+  lifecycle indexes are exact; 135 moves state to `not_built`, finalization
   fails closed, then removing the malformed index lets the finalizer recover to
   `ready` with the exact GIN;
 - invalid interrupted concurrent-index cleanup, concurrent production-entry
@@ -400,20 +402,20 @@ container with the final worktree and module cache bind-mounted read-only:
 new opt-in `issue7033_rollout` disposable-Postgres matrix passed in 16.540 s,
 exit 0, with the final split test-file layout. Its adoption case preserves
 both exact legacy 130/131 receipts and the existing index OID/relfilenode
-while tracked 133/134 complete and readiness stays `ready`. Negative cases
+while tracked 134/135 complete and readiness stays `ready`. Negative cases
 reject missing or wrong legacy receipts, a malformed same-name index, and a
-134 receipt without 133 before target DDL; a 133-only retry completes 134.
+135 receipt without 134 before target DDL; a 134-only retry completes 135.
 The behavioral regression was first red with the exact legacy receipts and
 index, failing at the untracked-index preflight, then green after the narrow
 admission change. The host's earlier disk-quota linker failure is not treated
 as a passing package test.
 
 The opt-in `issue7033_rollout` test runner selects only the embedded, checksum-
-matched migrations 133 and 134. It requires the `public` schema and verifies
+matched migrations 134 and 135. It requires the `public` schema and verifies
 the target system identifier, database, current schema, primary role,
 prerequisite receipts and three exact existing GIN indexes in a read-only
-preflight. It applies tracked migration 133,
-checks the exact new index, then applies tracked migration 134 and checks the
+preflight. It applies tracked migration 134,
+checks the exact new index, then applies tracked migration 135 and checks the
 four-index readiness contract. On a disposable PostgreSQL 18.6 database, the
 runner applied those two migrations and retried idempotently. Wrong target,
 incomplete index state, a mismatched prerequisite ledger receipt, and a
@@ -422,9 +424,15 @@ regression was red first: with `search_path=custom,public`, the unguarded
 runner created its index in `custom` before failing its `public` postcheck.
 Separate live regressions prove both that migration 125 can remain unapplied
 during this scoped rollout and that all unrelated migrations 125–129 can remain
-unapplied while 133–134 run. Normal bootstrap subsequently applies 125–129
-without replaying 133 or 134; the rescoped service index and content-index
+unapplied while 134–135 run. Normal bootstrap subsequently applies 125–129
+without replaying 134 or 135; the rescoped service index and content-index
 readiness remain valid on disposable PostgreSQL 18.
+
+After rebasing onto main's migration 133, the 156-definition embedded digest
+and default Postgres, query, and API package tests passed. The tagged #7033
+fixture matrix passed against disposable PostgreSQL 18.6 with the guarded
+rollout entrypoint excluded. That entrypoint separately refused to run without
+its explicit target opt-in. The disposable container was removed afterward.
 
 An opt-in `issue7033_canary_startup` test used disposable PostgreSQL and
 Neo4j to prove a Neo4j-backed API starts with both backfill markers complete,

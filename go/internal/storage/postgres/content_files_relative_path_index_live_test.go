@@ -17,7 +17,7 @@ func TestContentFilesRelativePathIndexMigrationRecoversInvalidConcurrentBuildLiv
 	exec := SQLDB{DB: database}
 	migration, _, preMigration := contentFilesRelativePathIndexMigrations(t)
 	if err := applyBootstrapDefinitionsWith(ctx, exec, preMigration, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply pre-133 schema: %v", err)
+		t.Fatalf("apply pre-134 schema: %v", err)
 	}
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO content_files (repo_id, relative_path, content, content_hash, line_count, indexed_at)
@@ -81,7 +81,7 @@ func TestContentFilesRelativePathIndexLegacyUpgradeLive(t *testing.T) {
 	migration, lifecycle, preMigration := contentFilesRelativePathIndexMigrations(t)
 
 	if err := applyBootstrapDefinitionsWith(ctx, exec, preMigration, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply populated pre-133 schema: %v", err)
+		t.Fatalf("apply populated pre-134 schema: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 	if _, err := database.ExecContext(ctx, `
@@ -92,11 +92,11 @@ VALUES ('legacy-repo', 'internal/legacy-target.go', 'legacy proof', 'legacy-hash
 	}
 
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{migration}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply tracked 133 concurrent index migration: %v", err)
+		t.Fatalf("apply tracked 134 concurrent index migration: %v", err)
 	}
 	assertContentFilesRelativePathIndexDefinition(t, ctx, database)
 	if err := applyBootstrapDefinitionsWith(ctx, exec, []Definition{lifecycle}, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-		t.Fatalf("apply tracked 134 lifecycle migration: %v", err)
+		t.Fatalf("apply tracked 135 lifecycle migration: %v", err)
 	}
 	assertContentSearchIndexState(t, database, "ready")
 
@@ -136,7 +136,7 @@ ON content_files USING gin (relative_path gin_trgm_ops) WHERE relative_path <> '
 			migration, lifecycle, preMigration := contentFilesRelativePathIndexMigrations(t)
 
 			if err := applyBootstrapDefinitionsWith(ctx, exec, preMigration, slog.Default(), schemaBootstrapCoordination{}); err != nil {
-				t.Fatalf("apply populated pre-133 schema: %v", err)
+				t.Fatalf("apply populated pre-134 schema: %v", err)
 			}
 			assertContentSearchIndexState(t, database, "ready")
 			if _, err := database.ExecContext(ctx, tc.sql); err != nil {
