@@ -51,8 +51,8 @@ writes byte-unchanged (details below).
 `DEFINES_JOB` and `NEEDS` were initially MERGE-only. On a re-projection where a
 job's `needs:` changes but both endpoint jobs survive (refreshed to the current
 generation), the old job-to-job `NEEDS` (and pipeline-to-job `DEFINES_JOB`) edge
-persisted: `repository_cleanup` only DETACH-DELETEs the `Repository` node (its
-incident edges), and `entity_retract` only removes edges of DELETED nodes —
+persisted: `repository_cleanup` never touched them (since #7285 it only retires a
+different-id `Repository` at the same path), and `entity_retract` only removes edges of DELETED nodes —
 neither touches an edge between two surviving nodes. The structural-edge phase
 now emits two generation-scoped retract statements BEFORE the MERGE:
 

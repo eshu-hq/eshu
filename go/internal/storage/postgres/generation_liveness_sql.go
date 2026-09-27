@@ -77,9 +77,8 @@ RETURNING generation.scope_id, generation.generation_id
 // facts (no re-clone). It does NOT reopen downstream reducer rows that already
 // succeeded for the generation: their re-enqueue is ON CONFLICT DO NOTHING. The
 // re-projection therefore must not destroy what those reducers wrote, which is
-// why canonical repository_cleanup never deletes the Repository node (#7285).
-// The re-drive
-// budget lives in the work item payload
+// why repository_cleanup no longer deletes the re-projected Repository (#7285).
+// The re-drive budget lives in the work item payload
 // (liveness_recovery_attempts) and is bounded by $2 so a poison scope cannot
 // loop forever; once the budget is exhausted the generation is left active for
 // an operator to inspect via the recovery endpoint or a manual replay.
