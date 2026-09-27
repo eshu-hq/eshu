@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -61,13 +62,13 @@ func TestContentReaderListRepoEntitiesByKeysQueriesEachUniqueKey(t *testing.T) {
 func TestContentReaderListRepoEntitiesByKeysRejectsOversizeBatch(t *testing.T) {
 	t.Parallel()
 	reader := NewContentReader(openContentReaderTestDB(t, nil))
-	keys := make([]querycontract.EntityContentKey, 102)
+	keys := make([]querycontract.EntityContentKey, querycontract.MaxEntityContentKeys+1)
 	for i := range keys {
 		keys[i].StartLine = i + 1
 	}
 	_, err := reader.ListRepoEntitiesByKeys(context.Background(), "repo-1", keys)
-	if err == nil || !strings.Contains(err.Error(), "101") {
-		t.Fatalf("oversize batch error = %v, want explicit 101-key bound", err)
+	if err == nil || !strings.Contains(err.Error(), strconv.Itoa(querycontract.MaxEntityContentKeys)) {
+		t.Fatalf("oversize batch error = %v, want explicit %d-key bound", err, querycontract.MaxEntityContentKeys)
 	}
 }
 

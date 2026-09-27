@@ -6,6 +6,8 @@ package content_test
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -39,6 +41,22 @@ func TestPortContentStoreListRepoEntitiesByKeysBoundsEachUniqueKey(t *testing.T)
 		if got[i].EntityID != id {
 			t.Fatalf("row %d ID = %q, want %q", i, got[i].EntityID, id)
 		}
+	}
+}
+
+func TestPortContentStoreListRepoEntitiesByKeysRejectsOversizeBatch(t *testing.T) {
+	t.Parallel()
+	keys := make([]querycontract.EntityContentKey, querycontract.MaxEntityContentKeys+1)
+	for i := range keys {
+		keys[i].StartLine = i + 1
+	}
+	store := content.FakePortContentStore{}
+	if _, err := store.ListRepoEntitiesByKeys(t.Context(), "repo-1", keys[:querycontract.MaxEntityContentKeys]); err != nil {
+		t.Fatalf("maximum-size batch error = %v", err)
+	}
+	_, err := store.ListRepoEntitiesByKeys(t.Context(), "repo-1", keys)
+	if err == nil || !strings.Contains(err.Error(), strconv.Itoa(querycontract.MaxEntityContentKeys)) {
+		t.Fatalf("oversize batch error = %v, want %d-key bound", err, querycontract.MaxEntityContentKeys)
 	}
 }
 

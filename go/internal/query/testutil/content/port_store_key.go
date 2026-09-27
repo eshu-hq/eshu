@@ -28,8 +28,8 @@ func (f FakePortContentStore) ListRepoEntitiesByKeys(
 			continue
 		}
 		seen[key] = struct{}{}
-		if len(seen) > 101 {
-			return nil, fmt.Errorf("list repo entities by keys: exceeds 101 unique keys")
+		if len(seen) > querycontract.MaxEntityContentKeys {
+			return nil, fmt.Errorf("list repo entities by keys: exceeds %d unique keys", querycontract.MaxEntityContentKeys)
 		}
 		var matches []querycontract.EntityContent
 		for _, entity := range f.Entities {

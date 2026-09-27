@@ -65,8 +65,6 @@ func (cr *ContentReader) ListRepoEntitiesByIDs(
 	return scanEntityContentRows(rows, span, "scan repo entity by id")
 }
 
-const maxEntityContentKeys = 101
-
 // ListRepoEntitiesByKeys reads at most two content rows for each unique exact
 // path, type, name, and line key in one repository. Two rows expose ambiguity
 // without allowing a busy key to starve later keys from the result page.
@@ -90,8 +88,8 @@ func (cr *ContentReader) ListRepoEntitiesByKeys(
 		}
 		seen[key] = struct{}{}
 		unique = append(unique, key)
-		if len(unique) > maxEntityContentKeys {
-			err := fmt.Errorf("list repo entities by keys: exceeds %d unique keys", maxEntityContentKeys)
+		if len(unique) > querycontract.MaxEntityContentKeys {
+			err := fmt.Errorf("list repo entities by keys: exceeds %d unique keys", querycontract.MaxEntityContentKeys)
 			span.RecordError(err)
 			return nil, err
 		}
