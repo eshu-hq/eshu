@@ -401,18 +401,24 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
   - file: impact/trace_deployment_oci.go
     calls:
-      # assumes ≤1 observation per ref / ≤1 image per digest per label; NOT
-      # enforced -- observation uid is (repository_id, tag, resolved_digest)
-      # and descriptor uid embeds the repository, so multiplicity is
-      # data-defined; see #6590; the OCI result-bound follow-up the
-      # 2026-09-07 decision records stays tracked there.
-      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: 47ec44864fc2e260161cef608d97dac5b3e1b9ef0a6c102cb7146f34305ddd9d, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
-      # assumes ≤1 observation per ref / ≤1 image per digest per label; NOT
-      # enforced -- observation uid is (repository_id, tag, resolved_digest)
-      # and descriptor uid embeds the repository, so multiplicity is
-      # data-defined; see #6590; the OCI result-bound follow-up the
-      # 2026-09-07 decision records stays tracked there.
-      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: c1ff7b0177c42a1654ab071ef2e13e8a971ec893216882aa1b1048b3f77bc739, key_bound: bounded_key_batch, max_keys: 250, max_results: 750}}
+      # fan_out_multiplier: 3 -- ENFORCED by ociRegistryTruthRowLimit
+      # (trace_deployment_oci_bounds.go): every statement carries
+      # LIMIT $row_limit (750 = 250 keys x 3), and advanceOCIBoundedRead
+      # resumes any batch the limit cuts off with a continuation statement
+      # keyed only by the still-incomplete keys, or withholds a key whose
+      # rows alone fill the bound (an irreducible overflow -- never a
+      # placeholder row); overflow is disclosed via
+      # image_registry_truth_limits (#6590). Observation uid is
+      # (repository_id, tag, resolved_digest), so multiplicity above 1 is
+      # real, data-defined input, not a bug: 3x is declared headroom above
+      # the 1 observation/ref measured on in-tree corpora and ops-qa, not a
+      # corpus worst case.
+      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: b94250c8cd2fe881b7facd452089a188448458762fac1593575c7241db089da2, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
+      # fan_out_multiplier: 3 -- ENFORCED by ociRegistryTruthRowLimit, same
+      # bound and continuation mechanism as fetchOCIImageTagRows above
+      # (#6590). Image uid multiplicity above 1 per digest per label is
+      # data-defined, not a bug.
+      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: 90f55b7e9829671f0b4ba21deef03825d2e055f0770a0167b3ae29c208fa0f04, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 3, max_results: 750}}
       # fan_out_multiplier: 1 -- enforced by the oci_registry_repository_uid_unique
       # constraint (go/internal/graph/schema_test.go): the batch key is
       # OciRegistryRepository.uid, which the schema guarantees unique, so
