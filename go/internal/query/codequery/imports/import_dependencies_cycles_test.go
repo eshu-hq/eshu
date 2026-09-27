@@ -257,6 +257,70 @@ func TestBuildFileImportCycleRowsTruncatesAtEnumerationCap(t *testing.T) {
 	}
 }
 
+func TestBuildFileImportCycleRowsOrdersMixedLengths(t *testing.T) {
+	t.Parallel()
+
+	// File names sort opposite to cycle length on purpose: the 5-node
+	// cycle owns the smallest files, so enumeration meets it first and
+	// only the final length-ascending sort produces [2 3 5].
+	edges := []map[string]any{
+		importDependencyCycleProofEdge("src/zz1.py", "zz1.py", "zz2", 1),
+		importDependencyCycleProofEdge("src/zz2.py", "zz2.py", "zz1", 2),
+		importDependencyCycleProofEdge("src/mm1.py", "mm1.py", "mm2", 3),
+		importDependencyCycleProofEdge("src/mm2.py", "mm2.py", "mm3", 4),
+		importDependencyCycleProofEdge("src/mm3.py", "mm3.py", "mm1", 5),
+		importDependencyCycleProofEdge("src/aa1.py", "aa1.py", "aa2", 6),
+		importDependencyCycleProofEdge("src/aa2.py", "aa2.py", "aa3", 7),
+		importDependencyCycleProofEdge("src/aa3.py", "aa3.py", "aa4", 8),
+		importDependencyCycleProofEdge("src/aa4.py", "aa4.py", "aa5", 9),
+		importDependencyCycleProofEdge("src/aa5.py", "aa5.py", "aa1", 10),
+	}
+
+	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 25}
+	_, resp := buildCycleResponse(t, req, edges)
+	cycles, ok := resp["cycles"].([]map[string]any)
+	if !ok || len(cycles) != 3 {
+		t.Fatalf("cycles = %#v, want three mixed-length cycles", resp["cycles"])
+	}
+	for index, want := range []int{2, 3, 5} {
+		if got := codequery.IntVal(cycles[index], "cycle_length"); got != want {
+			t.Fatalf("cycles[%d].cycle_length = %d, want %d", index, got, want)
+		}
+	}
+	if got := codequery.StringVal(cycles[0], "source_file"); got != "src/zz1.py" {
+		t.Fatalf("cycles[0].source_file = %q, want the 2-cycle lead", got)
+	}
+	if got := codequery.StringVal(cycles[2], "source_file"); got != "src/aa1.py" {
+		t.Fatalf("cycles[2].source_file = %q, want the 5-cycle lead", got)
+	}
+}
+
+func TestCycleProofFallsBackForLegacyRows(t *testing.T) {
+	t.Parallel()
+
+	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 25}
+	resp := codemodel.ImportDependencyResponse(req, []map[string]any{{
+		"repo_id": "repo-1", "repo_name": "platform",
+		"source_file": "src/a.py", "target_file": "src/b.py",
+		"source_module": "a", "target_module": "b",
+		"source_line_number": 8, "back_edge_line_number": 13,
+	}})
+	cycles, ok := resp["cycles"].([]map[string]any)
+	if !ok || len(cycles) != 1 {
+		t.Fatalf("cycles = %#v, want the legacy row shaped", resp["cycles"])
+	}
+	if got := codequery.IntVal(cycles[0], "cycle_length"); got != 2 {
+		t.Fatalf("cycle_length = %d, want 2", got)
+	}
+	wantPath := []string{"src/a.py", "src/b.py", "src/a.py"}
+	if got := cycleStrings(t, cycles[0]["cycle_path"]); strings.Join(got, "\x00") != strings.Join(wantPath, "\x00") {
+		t.Fatalf("cycle_path = %q, want %q", got, wantPath)
+	}
+	if edges, ok := cycles[0]["cycle_edges"].([]map[string]any); !ok || len(edges) != 2 {
+		t.Fatalf("cycle_edges = %#v, want two proof edges", cycles[0]["cycle_edges"])
+	}
+}
+
 func TestImportDependencyRequestRejectsBadMaxCycleLength(t *testing.T) {
 	t.Parallel()
 
