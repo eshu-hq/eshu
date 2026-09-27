@@ -248,6 +248,12 @@ screens did not establish a safe subsecond candidate. The remaining measured
 endpoint gap is 1.771594 s, and the source-index time from a separate SQL
 profile cannot be subtracted from the endpoint median. No further production
 change follows from this evidence alone.
+The existing `eshu` database role is not a superuser, cannot execute any
+`pg_read_binary_file` overload, and can resolve the target source GIN index.
+An OS-level metapage read was rejected: it would bypass that database
+permission boundary and could observe a stale disk page rather than the
+buffer-locked state that `pgstatginindex` reads. Pending-list pressure remains
+**NOT_CHECKED** pending an authorized isolated clone or diagnostic capability.
 
 ## Existing ops-qa index admission proof
 
