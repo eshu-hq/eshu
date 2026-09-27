@@ -54,14 +54,31 @@ func TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive(t *test
 		t.Fatalf("apply shipped migrations through %s: %v", secretLinesMigration, err)
 	}
 	assertMigrationLedgerCount(t, ctx, database, boundary)
+	for _, table := range []string{"package_manifest_consumption_keys", "package_registry_identity_keys"} {
+		assertMigrationTablePresence(t, ctx, database, table, false)
+	}
 	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, definitions, logger, schemaBootstrapCoordination{}); err != nil {
 		t.Fatalf("upgrade through package-consumption migrations: %v", err)
 	}
 	assertMigrationLedgerCount(t, ctx, database, len(definitions))
+	for _, table := range []string{"package_manifest_consumption_keys", "package_registry_identity_keys"} {
+		assertMigrationTablePresence(t, ctx, database, table, true)
+	}
 	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: database}, definitions, logger, schemaBootstrapCoordination{}); err != nil {
 		t.Fatalf("reapply package-consumption migrations: %v", err)
 	}
 	assertMigrationLedgerCount(t, ctx, database, len(definitions))
+}
+
+func assertMigrationTablePresence(t *testing.T, ctx context.Context, database *sql.DB, table string, want bool) {
+	t.Helper()
+	var got bool
+	if err := database.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", "public."+table).Scan(&got); err != nil {
+		t.Fatalf("check migration table %s: %v", table, err)
+	}
+	if got != want {
+		t.Fatalf("migration table %s exists = %t, want %t", table, got, want)
+	}
 }
 
 func assertMigrationLedgerCount(t *testing.T, ctx context.Context, database *sql.DB, want int) {
