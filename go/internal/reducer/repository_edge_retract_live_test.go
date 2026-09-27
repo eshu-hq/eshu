@@ -78,9 +78,10 @@ func (l *repoRetryLive) handleWorkloadsErr(
 		})
 	}
 	handler := reducer.WorkloadMaterializationHandler{
-		FactLoader:   liveRepoFactLoader{repoIDs: []string{repoID}, delta: delta},
-		InputLoader:  liveCandidateLoader{candidates: candidates},
-		Materializer: l.materializer(),
+		FactLoader:           liveRepoFactLoader{repoIDs: []string{repoID}, delta: delta},
+		InputLoader:          liveCandidateLoader{candidates: candidates},
+		Materializer:         l.materializer(),
+		RepositoryEdgeReader: l.edgeReader(),
 	}
 	now := time.Now().UTC()
 	result, err := handler.Handle(ctx, reducer.Intent{
@@ -135,9 +136,22 @@ func assertTargets(t *testing.T, label string, got []string, want ...string) {
 // writer's DEFINES on the same repository, and every edge of another
 // repository (including a same-named workload); a delta generation never
 // retracts; the zero-candidate path retracts all of this repository's own
-// edges; and the retract is idempotent.
+// edges; and the retract is idempotent. It runs the production guarded path
+// (read current targets, delete only stale ids) and the no-reader fallback
+// (keep-list DELETE); the guarded path must send no DELETE when nothing is
+// stale (review F1, NornicDB#296).
 func TestLiveRepositoryEdgeRetractKeepsOnlyCurrentCandidates(t *testing.T) {
-	live := openRepoRetryLive(t)
+	for _, mode := range []string{"guarded", "unguarded"} {
+		t.Run(mode, func(t *testing.T) {
+			live := openRepoRetryLive(t)
+			live.unguarded = mode == "unguarded"
+			assertRepositoryEdgeRetract(t, live)
+		})
+	}
+}
+
+func assertRepositoryEdgeRetract(t *testing.T, live *repoRetryLive) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	writer := live.writerShapes()["atomic_group"]
@@ -155,13 +169,24 @@ SET w.name = 'foreign' MERGE (r)-[rel:DEFINES]->(w) SET rel.evidence_source = 'o
 
 	// Full generation 2 keeps only "api".
 	for attempt := 1; attempt <= 2; attempt++ { // the second pass proves idempotency
+		before := live.retractDeletes.Load()
 		live.handleWorkloads(ctx, t, repo, "gen-2", false, "api")
+		sent := live.retractDeletes.Load() - before
 		label := fmt.Sprintf("gen-2 attempt %d", attempt)
 		assertTargets(t, label+" own DEFINES", live.ownEdgeTargets(ctx, t, repo, "DEFINES", own), "api")
 		assertTargets(t, label+" own EXPOSES_ENDPOINT", live.ownEdgeTargets(ctx, t, repo, "EXPOSES_ENDPOINT", own), "/v1/api")
 		assertTargets(t, label+" other-writer DEFINES", live.ownEdgeTargets(ctx, t, repo, "DEFINES", "other/writer"), "foreign")
 		assertTargets(t, label+" other repository DEFINES", live.ownEdgeTargets(ctx, t, other, "DEFINES", own), "billing")
 		assertTargets(t, label+" other repository EXPOSES_ENDPOINT", live.ownEdgeTargets(ctx, t, other, "EXPOSES_ENDPOINT", own), "/v1/billing")
+		// Attempt 1 has stale billing/worker edges; attempt 2 is steady
+		// state. The guarded path sends a DELETE only for real stale edges.
+		want := int64(2)
+		if !live.unguarded && attempt == 2 {
+			want = 0
+		}
+		if sent != want {
+			t.Fatalf("%s sent %d retract DELETE statements, want %d", label, sent, want)
+		}
 	}
 
 	// A delta generation reads partial facts: it must never retract, even

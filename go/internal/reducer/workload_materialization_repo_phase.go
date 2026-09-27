@@ -284,7 +284,8 @@ func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
 	}
 	keepLists := retract.KeepLists(repoIDs, workloadIDs, endpointIDs)
 	started := time.Now()
-	result, err := retract.RepositoryEdges(ctx, h.Materializer.executor, h.Materializer.batchSize(), keepLists, EvidenceSourceWorkloads)
+	result, err := retract.RepositoryEdges(ctx, h.Materializer.executor, h.RepositoryEdgeReader,
+		h.Materializer.batchSize(), keepLists, EvidenceSourceWorkloads)
 	if err != nil {
 		return result, err
 	}

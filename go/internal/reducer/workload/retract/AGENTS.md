@@ -14,6 +14,10 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
 - Never retract a repository outside `FullGenerationRepositoryIDs`. A delta
   generation's candidates are partial, so an absent workload there is not
   evidence of removal.
-- The zero-row `DELETE` cost on NornicDB (NornicDB#296, `nornicdb-pitfalls.md`)
-  is unmeasured for this id-anchored shape. Measure it before adding a probe
-  guard.
+- Keep the guard: with a `Reader`, delete only the stale ids the read found,
+  and send no `DELETE` when nothing is stale (NornicDB#296: a zero-row
+  relationship `DELETE` costs proportional to store size). The read must keep
+  the keep-list delete's `MATCH`/`WHERE`, and its `UNWIND` variable must not
+  share a name with a `RETURN` alias (#6786 shape X9).
+- A missing reader or a failed read runs the keep-list deletes (fail toward
+  deleting). Never turn a read failure into a skipped retract.

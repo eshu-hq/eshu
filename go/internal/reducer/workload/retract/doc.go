@@ -13,6 +13,13 @@
 // [KeepList]. [FullGenerationRepositoryIDs] restricts that to repositories
 // whose generation is a full snapshot, never a delta.
 //
+// With a [Reader] wired, [RepositoryEdges] first reads each repository's
+// current targets and deletes only the stale ones, by id, so a steady-state run
+// sends no DELETE: on NornicDB a zero-row relationship DELETE costs
+// proportional to store size (NornicDB#296). With no reader, or when the read
+// fails, it fails toward deleting and runs the keep-list statements
+// unconditionally; a skipped retract would leave stale edges permanently.
+//
 // Delete counts come from the backend write summary when the executor chain
 // implements [CountingExecutor]. [Observe] records them on
 // eshu_dp_reconciliation_drift_retractions_total under the bounded

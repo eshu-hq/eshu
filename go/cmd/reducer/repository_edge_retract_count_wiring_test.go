@@ -53,7 +53,9 @@ func TestProductionWorkloadMaterializerCountsRepositoryEdgeRetracts(t *testing.T
 			outer := sourcecypher.NewWriteCountsCollector()
 			ctx := sourcecypher.WithWriteCountsCollector(context.Background(), outer)
 
-			result, err := retract.RepositoryEdges(ctx, newProbedWorkloadMaterializer(cypherExec, nil, nil).CypherExecutor(), 500,
+			// No reader: the unguarded keep-list path, so both statements run
+			// and the counts come from the session's write summaries.
+			result, err := retract.RepositoryEdges(ctx, newProbedWorkloadMaterializer(cypherExec, nil, nil).CypherExecutor(), nil, 500,
 				[]retract.KeepList{{RepoID: "repository:r_payments", WorkloadIDs: []string{"workload:api"}}},
 				reducer.EvidenceSourceWorkloads)
 			if err != nil {

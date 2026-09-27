@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -95,7 +96,12 @@ type WorkloadMaterializationHandler struct {
 	// default) makes retraction a no-op, keeping the hot workload materialization
 	// path byte-identical.
 	InstanceRetractionLookup WorkloadInstanceRetractionLookup
-	PhasePublisher           GraphProjectionPhasePublisher
+	// RepositoryEdgeReader reads current DEFINES / repository-side
+	// EXPOSES_ENDPOINT targets so the #7285 stale-edge retract deletes only
+	// stale ids and issues no DELETE in steady state. Nil runs the keep-list
+	// deletes unconditionally (correct, but a zero-row DELETE per run).
+	RepositoryEdgeReader retract.Reader
+	PhasePublisher       GraphProjectionPhasePublisher
 	// RepairQueue captures exact workload-materialization phase rows when graph
 	// writes have committed but phase publication fails.
 	RepairQueue GraphProjectionPhaseRepairQueue

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
@@ -41,6 +43,28 @@ type repoRetryLive struct {
 	exec    provenanceReplayExecutor
 	backend string
 	prefix  string
+	// unguarded drops the stale-edge retract's graph reader, so the
+	// keep-list DELETEs run unconditionally (the no-reader fallback).
+	unguarded bool
+	// retractDeletes counts the DEFINES / EXPOSES_ENDPOINT DELETE
+	// statements the workload materializer sent to the graph.
+	retractDeletes atomic.Int64
+}
+
+// liveEdgeReader is the stale-edge retract's graph read port over the live
+// driver: a read-mode session, as the reducer's production graph reader.
+type liveEdgeReader struct{ exec provenanceReplayExecutor }
+
+func (r liveEdgeReader) Run(ctx context.Context, query string, params map[string]any) ([]map[string]any, error) {
+	return r.exec.readRows(ctx, query, params)
+}
+
+// edgeReader returns the reader handleWorkloads wires, nil when unguarded.
+func (l *repoRetryLive) edgeReader() retract.Reader {
+	if l.unguarded {
+		return nil
+	}
+	return liveEdgeReader{exec: l.exec}
 }
 
 // openRepoRetryLive connects with NoAuth, applies the production schema for
@@ -215,9 +239,16 @@ func (l *repoRetryLive) write(ctx context.Context, t *testing.T, w *cypher.Canon
 // not move into a managed transaction, see nornicdb-pitfalls.md), and it
 // retries driver-retryable errors such as DeadlockDetected, as the production
 // sourcecypher.RetryingExecutor wrapping it does.
-type reducerExecutor struct{ exec provenanceReplayExecutor }
+type reducerExecutor struct {
+	exec           provenanceReplayExecutor
+	retractDeletes *atomic.Int64
+}
 
 func (r reducerExecutor) ExecuteCypher(ctx context.Context, cypherText string, params map[string]any) error {
+	if r.retractDeletes != nil && strings.Contains(cypherText, "DELETE rel") &&
+		(strings.Contains(cypherText, "-[rel:DEFINES]->") || strings.Contains(cypherText, "-[rel:EXPOSES_ENDPOINT]->")) {
+		r.retractDeletes.Add(1)
+	}
 	var err error
 	for attempt := 0; attempt < 8; attempt++ {
 		err = r.exec.Execute(ctx, cypher.Statement{Cypher: cypherText, Parameters: params})
@@ -238,7 +269,7 @@ func (r reducerExecutor) ExecuteCypherGroup(ctx context.Context, statements []re
 }
 
 func (l *repoRetryLive) materializer() *reducer.WorkloadMaterializer {
-	return reducer.NewWorkloadMaterializer(reducerExecutor{exec: l.exec})
+	return reducer.NewWorkloadMaterializer(reducerExecutor{exec: l.exec, retractDeletes: &l.retractDeletes})
 }
 
 // relationshipTypeCounts returns every relationship incident to the

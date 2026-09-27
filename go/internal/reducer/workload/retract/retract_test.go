@@ -90,7 +90,7 @@ func TestRepositoryEdgesCountsDeletesPerBatch(t *testing.T) {
 	exec := &countingExecutor{deleted: 2}
 	keepLists := KeepLists([]string{"repository:a", "repository:b"},
 		map[string][]string{"repository:a": {"workload:a", "workload:a"}}, nil)
-	result, err := RepositoryEdges(context.Background(), exec, 1, keepLists, "finalization/workloads")
+	result, err := RepositoryEdges(context.Background(), exec, nil, 1, keepLists, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RepositoryEdges() error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestRepositoryEdgesReportsUncountedChains(t *testing.T) {
 		"no counting capability": &recordingExecutor{},
 		"uncounted sentinel":     &countingExecutor{deleted: 9, uncounted: true},
 	} {
-		result, err := RepositoryEdges(context.Background(), exec, 500, []KeepList{{RepoID: "repository:a"}}, "src")
+		result, err := RepositoryEdges(context.Background(), exec, nil, 500, []KeepList{{RepoID: "repository:a"}}, "src")
 		if err != nil {
 			t.Fatalf("%s: error = %v, want the write to succeed", name, err)
 		}
@@ -145,7 +145,7 @@ func TestRepositoryEdgesValidatesInputs(t *testing.T) {
 	t.Parallel()
 
 	keep := []KeepList{{RepoID: "repository:a"}}
-	if result, err := RepositoryEdges(context.Background(), nil, 500, nil, "src"); err != nil || result.Repositories != 0 {
+	if result, err := RepositoryEdges(context.Background(), nil, nil, 500, nil, "src"); err != nil || result.Repositories != 0 {
 		t.Fatalf("empty keep-lists = %+v, %v; want a no-op", result, err)
 	}
 	cases := map[string]struct {
@@ -161,7 +161,7 @@ func TestRepositoryEdgesValidatesInputs(t *testing.T) {
 		"endpoint statement": {&recordingExecutor{errOnCall: 2, err: errors.New("late")}, keep, "src", "retract stale repository endpoint edges: late"},
 	}
 	for name, tc := range cases {
-		_, err := RepositoryEdges(context.Background(), tc.exec, 500, tc.keep, tc.source)
+		_, err := RepositoryEdges(context.Background(), tc.exec, nil, 500, tc.keep, tc.source)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: error = %v, want %q", name, err, tc.want)
 		}

@@ -28,8 +28,9 @@ const (
 // Observe records one completed retract: measured deletes on
 // eshu_dp_reconciliation_drift_retractions_total (skipped when the executor
 // chain could not count them) and one "workload repository edge retract
-// completed" log line with the scope, generation, keep sizes, deletes, and
-// duration. instruments may be nil.
+// completed" log line with the scope, generation, retract mode, keep sizes,
+// stale edges found, deletes, and duration. The log is a warning when the
+// guard read failed and the unguarded deletes ran. instruments may be nil.
 func Observe(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
@@ -47,15 +48,25 @@ func Observe(
 		keptWorkloads += len(keep.WorkloadIDs)
 		keptEndpoints += len(keep.EndpointIDs)
 	}
-	slog.InfoContext(ctx, "workload repository edge retract completed",
+	level, readError := slog.LevelInfo, ""
+	if result.ReadErr != nil {
+		// The guard read failed and the unguarded keep-list deletes ran:
+		// correct, but each one costs proportional to store size on NornicDB.
+		level, readError = slog.LevelWarn, result.ReadErr.Error()
+	}
+	slog.Log(ctx, level, "workload repository edge retract completed",
 		"scope_id", scopeID,
 		"generation_id", generationID,
+		"retract_mode", result.Mode,
 		"repository_count", result.Repositories,
 		"kept_workload_count", keptWorkloads,
 		"kept_endpoint_count", keptEndpoints,
+		"stale_defines", result.StaleDefines,
+		"stale_repository_endpoint_edges", result.StaleEndpointEdges,
 		"defines_deleted", result.DefinesDeleted,
 		"repository_endpoint_edges_deleted", result.EndpointEdgesDeleted,
 		"deletes_counted", result.Counted,
+		"read_error", readError,
 		"duration_s", duration.Seconds(),
 	)
 }

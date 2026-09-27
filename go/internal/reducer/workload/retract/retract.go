@@ -57,12 +57,24 @@ type KeepList struct {
 
 // Result reports one stale repository-edge retract. Counted is false when the
 // executor chain cannot report relationship delete counters; the deleted
-// fields are then zero, not a measured zero.
+// fields are then zero, not a measured zero. A guarded retract that found
+// nothing stale issues no delete and reports Counted with zero deletes.
 type Result struct {
 	Repositories         int
 	DefinesDeleted       int64
 	EndpointEdgesDeleted int64
 	Counted              bool
+	// Mode names how the deletes were chosen: ModeGuarded (read first,
+	// delete only stale targets) or one of the unguarded fallbacks that run
+	// the keep-list deletes unconditionally.
+	Mode string
+	// StaleDefines and StaleEndpointEdges count the stale edges the guard
+	// read found. They are zero outside ModeGuarded.
+	StaleDefines       int
+	StaleEndpointEdges int
+	// ReadErr is the guard read failure behind ModeUnguardedReadFailed, kept
+	// for the log. It never fails the retract.
+	ReadErr error
 }
 
 // Executor is the graph write port: one parameterized Cypher statement. It is
@@ -131,9 +143,17 @@ func KeepLists(repoIDs []string, workloadIDs, endpointIDs map[string][]string) [
 // read (FullGenerationRepositoryIDs), and MUST call it after the current edges
 // committed, so a partial read or a failed write never retracts a current
 // edge. Both statements are idempotent: a retry deletes nothing new.
+//
+// With a reader it first reads the repositories' current targets and deletes
+// only the stale ones, by id, so a steady-state run issues no DELETE at all
+// (NornicDB#296: a zero-row relationship DELETE costs proportional to store
+// size). With no reader, or when the read fails, it fails toward deleting:
+// the keep-list statements run unconditionally, which is correct and only
+// slower. A skipped retract would leave stale edges permanently.
 func RepositoryEdges(
 	ctx context.Context,
 	executor Executor,
+	reader Reader,
 	batchSize int,
 	keepLists []KeepList,
 	evidenceSource string,
@@ -151,33 +171,81 @@ func RepositoryEdges(
 	if batchSize <= 0 {
 		batchSize = len(keepLists)
 	}
-	rows := make([]map[string]any, 0, len(keepLists))
 	for _, keep := range keepLists {
 		if strings.TrimSpace(keep.RepoID) == "" {
 			return result, fmt.Errorf("stale repository edge retract requires a repository id")
 		}
+	}
+	result.Repositories = len(keepLists)
+	if reader == nil {
+		result.Mode = ModeUnguardedNoReader
+		return keepListRetract(ctx, executor, batchSize, keepLists, evidenceSource, result)
+	}
+	stale, err := readStaleEdges(ctx, reader, batchSize, keepLists, evidenceSource)
+	if err != nil {
+		result.Mode, result.ReadErr = ModeUnguardedReadFailed, err
+		return keepListRetract(ctx, executor, batchSize, keepLists, evidenceSource, result)
+	}
+	result.Mode = ModeGuarded
+	result.StaleDefines, result.StaleEndpointEdges = len(stale.defines), len(stale.endpoints)
+	return deleteStale(ctx, executor, batchSize, stale, evidenceSource, result)
+}
+
+// keepListRetract runs the two unguarded keep-list statements over every
+// repository.
+func keepListRetract(
+	ctx context.Context,
+	executor Executor,
+	batchSize int,
+	keepLists []KeepList,
+	evidenceSource string,
+	result Result,
+) (Result, error) {
+	rows := make([]map[string]any, 0, len(keepLists))
+	for _, keep := range keepLists {
 		rows = append(rows, map[string]any{
 			"repo_id":           keep.RepoID,
 			"keep_workload_ids": payloadcore.NonNilStrings(keep.WorkloadIDs),
 			"keep_endpoint_ids": payloadcore.NonNilStrings(keep.EndpointIDs),
 		})
 	}
-	result.Repositories = len(rows)
-	defines, definesCounted, err := executeBatches(ctx, executor, batchSize, definesCypher, rows, evidenceSource)
+	return runRetract(ctx, executor, batchSize, evidenceSource, result,
+		retractStatement{cypher: definesCypher, rows: rows},
+		retractStatement{cypher: endpointCypher, rows: rows})
+}
+
+// retractStatement is one delete template and the rows it runs over.
+type retractStatement struct {
+	cypher string
+	rows   []map[string]any
+}
+
+// runRetract runs the DEFINES then the EXPOSES_ENDPOINT statement, skipping
+// either one when it has no rows, and records the measured deletes.
+func runRetract(
+	ctx context.Context,
+	executor Executor,
+	batchSize int,
+	evidenceSource string,
+	result Result,
+	defines, endpoints retractStatement,
+) (Result, error) {
+	definesDeleted, definesCounted, err := executeBatches(ctx, executor, batchSize, defines.cypher, defines.rows, evidenceSource)
 	if err != nil {
 		return result, fmt.Errorf("retract stale workload defines edges: %w", err)
 	}
-	endpoints, endpointsCounted, err := executeBatches(ctx, executor, batchSize, endpointCypher, rows, evidenceSource)
+	endpointsDeleted, endpointsCounted, err := executeBatches(ctx, executor, batchSize, endpoints.cypher, endpoints.rows, evidenceSource)
 	if err != nil {
 		return result, fmt.Errorf("retract stale repository endpoint edges: %w", err)
 	}
-	result.DefinesDeleted, result.EndpointEdgesDeleted = defines, endpoints
+	result.DefinesDeleted, result.EndpointEdgesDeleted = definesDeleted, endpointsDeleted
 	result.Counted = definesCounted && endpointsCounted
 	return result, nil
 }
 
 // executeBatches runs cypher over rows in batchSize chunks and sums the
-// relationship delete counters when the executor can report them.
+// relationship delete counters when the executor can report them. No rows
+// issue no statement, which is a measured zero.
 func executeBatches(
 	ctx context.Context,
 	executor Executor,
@@ -186,6 +254,9 @@ func executeBatches(
 	rows []map[string]any,
 	evidenceSource string,
 ) (int64, bool, error) {
+	if len(rows) == 0 {
+		return 0, true, nil
+	}
 	counter, counted := executor.(CountingExecutor)
 	var deleted int64
 	for start := 0; start < len(rows); start += batchSize {
