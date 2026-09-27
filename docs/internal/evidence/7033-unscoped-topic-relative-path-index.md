@@ -399,8 +399,23 @@ After the rebase and exact legacy-index admission change, the **complete**
 `./internal/storage/postgres` package passed in the isolated Go 1.26.6
 container with the final worktree and module cache bind-mounted read-only:
 `go test ./internal/storage/postgres -count=1` took 2.603 s, exit 0. The
-new opt-in `issue7033_rollout` disposable-Postgres matrix passed in 16.540 s,
-exit 0, with the final split test-file layout. Its adoption case preserves
+new opt-in `issue7033_rollout` disposable-Postgres matrix passed on a fresh
+PostgreSQL 18.6 container. From the worktree's `go/` directory, this
+reproduction used an administrative DSN connected to the container's
+`postgres` database (the proof helper creates and drops isolated databases):
+
+```bash
+ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN='<disposable PostgreSQL 18.6 admin DSN to postgres database>' \
+  ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 \
+  go test -tags issue7033_rollout ./internal/storage/postgres \
+  -run '^TestIssue7033ScopedRollout(Config|Selects|Applies|Then|Rejects|Adopts|Retries)' -count=1
+```
+
+This selected all 12 tagged fixture tests, excluding the separately guarded
+`TestIssue7033ScopedRolloutLive` target-mutation entrypoint. The package test
+reported 34.995 s, exit 0; `go test -list` confirmed the selected set. An
+earlier 16.540 s result was not accompanied by its exact invocation, so it is
+not used as the reproducible receipt. The adoption case preserves
 both exact legacy 130/131 receipts and the existing index OID/relfilenode
 while tracked 134/135 complete and readiness stays `ready`. Negative cases
 reject missing or wrong legacy receipts, a malformed same-name index, and a
