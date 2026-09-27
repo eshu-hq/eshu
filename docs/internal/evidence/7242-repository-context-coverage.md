@@ -51,8 +51,9 @@ from 0.838 to 0.771 ms, so no new language index is included. The measured
 cold heap-read cost remains an endpoint latency risk.
 
 A disposable PostgreSQL 18 live test applied all 154 migrations, seeded
-12,403 files and 241,726 entities, and called both production Go methods in
-one process. `RepositoryCoverage` took 59.601 ms and the new
+12,403 files and 241,726 entities by setting
+`ESHU_TEST_CONTEXT_COVERAGE_ENTITY_ROWS=241726`, and called both production
+Go methods in one process. `RepositoryCoverage` took 59.601 ms and the new
 `RepositoryContextCoverage` took 1.766 ms in that sequence. File count and
 ordered language groups matched exactly; an empty repository matched too.
 This is a local, warm fixture measurement. It is not comparable to the
