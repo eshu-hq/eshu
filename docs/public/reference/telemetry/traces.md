@@ -77,8 +77,9 @@ and document decoding. The raw SQL adapter does not emit a per-statement
 
 When a vector-ready reader is configured, semantic and hybrid modes emit
 `query.semantic_search.vector_ready` around the freshness probe, with
-`search.vector_ready.outcome` set to `missing`, `present`, or `error`.
-Keyword mode skips that probe. These child spans do not record query text,
+`search.vector_ready.outcome` set to `missing`, `present`, `not_signaled`, or `error`.
+A configured reader returning no signal uses `not_signaled`, matching the fresh
+no-op truth envelope. Keyword mode skips that probe. These child spans do not record query text,
 repository or scope IDs, document IDs, user IDs, or vector identity.
 
 ### Search-stage instrumentation cost (#7243)

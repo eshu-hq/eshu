@@ -460,7 +460,7 @@ show that cost. The existing route-duration histogram covers the full request.
 The persisted BM25 read emits `query.semantic_search.persisted_index` with `stats_complete`, `query_returned`, `first_row`,
 `rows_complete`, and `stage_error` events. Their timestamps separate stats, ranking-query return, first-row wait, row drain/decode,
 and the failed stage. Vector-backed modes emit `query.semantic_search.vector_ready` with `search.vector_ready.outcome` set to
-`missing`, `present`, or `error`; keyword mode skips that probe. These spans record no query text, repository ID, or vector identity.
+`missing`, `present`, `not_signaled`, or `error`; keyword mode skips that probe. `not_signaled` leaves the truth envelope fresh. These spans record no query text, repository ID, or vector identity.
 
 **Degraded search is expected, not an error, in no-provider mode.** Eshu runs
 deterministic keyword search with no embedder configured by design (the

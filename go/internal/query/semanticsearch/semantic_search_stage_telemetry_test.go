@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -27,6 +28,7 @@ func TestSearchVectorReadyProbeSpanTracksOutcome(t *testing.T) {
 	}{
 		{name: "keyword skips probe", mode: searchbench.ModeKeyword, calls: 0},
 		{name: "missing watermark", mode: searchbench.ModeHybrid, ready: SearchVectorReadyFreshness{Signaled: true}, outcome: "missing", calls: 1},
+		{name: "configured reader without signal", mode: searchbench.ModeHybrid, ready: SearchVectorReadyFreshness{}, outcome: "not_signaled", calls: 1},
 		{name: "present watermark", mode: searchbench.ModeSemantic, ready: SearchVectorReadyFreshness{Signaled: true, Present: true}, outcome: "present", calls: 1},
 		{name: "probe error", mode: searchbench.ModeHybrid, err: errors.New("private probe detail"), outcome: "error", calls: 1},
 	} {
@@ -41,7 +43,10 @@ func TestSearchVectorReadyProbeSpanTracksOutcome(t *testing.T) {
 			ctx, parent := semanticSearchTracer.Start(context.Background(), "request")
 			ready := &fakeSearchVectorReadyReader{freshness: tc.ready, err: tc.err}
 			handler := &SemanticSearchHandler{SearchVectorReady: ready}
-			handler.truthWithSearchVectorFreshness((&http.Request{}).WithContext(ctx), tc.mode)
+			truth := handler.truthWithSearchVectorFreshness((&http.Request{}).WithContext(ctx), tc.mode)
+			if tc.name == "configured reader without signal" && truth.Freshness.State != querycontract.FreshnessFresh {
+				t.Fatalf("no-signal freshness = %q, want fresh", truth.Freshness.State)
+			}
 			parent.End()
 
 			if ready.calls != tc.calls {

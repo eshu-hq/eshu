@@ -75,6 +75,8 @@ func (h *SemanticSearchHandler) truthWithSearchVectorFreshness(r *http.Request, 
 	if err != nil {
 		outcome = "error"
 		span.SetStatus(codes.Error, "watermark probe failed")
+	} else if !watermark.Signaled {
+		outcome = "not_signaled"
 	} else if watermark.Present {
 		outcome = "present"
 	}
