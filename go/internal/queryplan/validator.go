@@ -225,6 +225,15 @@ func validatePlan(entry Entry) []string {
 	}
 	for _, forbidden := range entry.Plan.ForbiddenOperators {
 		forbidden = strings.TrimSpace(forbidden)
+		// Neo4j has no UnboundedExpand operator, so forbidding it guards
+		// nothing. Unbounded traversal is caught by the Cypher text rule
+		// above and, live, from the expansion operator's details (#7335).
+		if forbidden == "UnboundedExpand" {
+			violations = append(violations, fmt.Sprintf(
+				"%s: UnboundedExpand is not a Neo4j operator; unbounded variable-length traversal is checked from plan details instead",
+				entry.ID))
+			continue
+		}
 		if _, exists := seen[forbidden]; exists {
 			violations = append(violations, fmt.Sprintf("%s: forbidden plan operator %s", entry.ID, forbidden))
 		}
