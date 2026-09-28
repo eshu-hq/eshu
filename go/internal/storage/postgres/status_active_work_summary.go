@@ -17,8 +17,10 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-// activeWorkSummaryColumns are the only fact_work_items columns the five
-// summary sections read, so the materialized active set stays small (#6794).
+// activeWorkSummaryColumns retains wide detail only for rows whose summary
+// consumers may read it. Terminal history otherwise stays narrow (#7009).
+// Keep payload eligibility in sync with eligible in status_blockage.go and
+// failure text eligibility in sync with latestQueueFailureSelect below.
 const activeWorkSummaryColumns = `work.work_item_id,
          work.scope_id,
          work.generation_id,
@@ -31,10 +33,15 @@ const activeWorkSummaryColumns = `work.work_item_id,
          work.claim_until,
          work.created_at,
          work.updated_at,
-         work.payload,
-         work.failure_class,
-         work.failure_message,
-         work.failure_details,
+         CASE WHEN work.stage = 'reducer'
+                   AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+              THEN work.payload END AS payload,
+         CASE WHEN work.status IN ('retrying', 'failed', 'dead_letter')
+              THEN work.failure_class END AS failure_class,
+         CASE WHEN work.status IN ('retrying', 'failed', 'dead_letter')
+              THEN work.failure_message END AS failure_message,
+         CASE WHEN work.status IN ('retrying', 'failed', 'dead_letter')
+              THEN work.failure_details END AS failure_details,
          work.provenance_edge_identity_upgrade_required`
 
 // latestQueueFailureSelect lists active work items that are retrying, failed,
