@@ -66,6 +66,18 @@ Those timeouts provide no completed generic plan or latency value. Earlier
 same-argument diagnosis recorded a severe generic source tail, but it was not
 a fresh paired baseline for this candidate.
 
+Performance Evidence: the read-only `EXPLAIN (ANALYZE, BUFFERS)` checks above
+compare the recorded `showImage` argument on the same QA corpus, including the
+84.99 ms custom source versus 33.37 ms generic source cost. The short `a`
+argument completed in 286.56/52.94 ms with custom name/source plans; generic
+name timed out at 3 seconds and generic source exceeded the 10-second client
+bound. These are SQL read measurements, not deployed endpoint p95.
+
+Observability Evidence: both filtered reads retain `postgres.query` spans with
+`db.operation=search_code_entity_names` and
+`db.operation=search_code_entity_content`. Exact-name requests omit the source
+read and its span; query errors are recorded on the read's span.
+
 Automatic plan selection, other corpus arguments, and the patched API/MCP
 cold/warm p95 are **NOT_CHECKED**. The long-pattern source plan tradeoff is
 accepted here only to avoid the measured short-pattern generic timeout; it is
