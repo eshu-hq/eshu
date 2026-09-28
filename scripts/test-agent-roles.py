@@ -84,6 +84,31 @@ def main():
         assert writer.returncode == 0
         writer_args = json.loads(writer.stdout)["argv"]
         assert writer_args[writer_args.index("--sandbox") + 1] == "workspace-write"
+        # Deep and arbiter roles: each harness binds its own model for the tier.
+        for harness, arbiter_model in (("claude", "fable"), ("codex", "gpt-6-astra")):
+            assert manifest["models"][harness]["arbiter"]["model"] == arbiter_model
+        assert "arbiter" in manifest["models"]["muse"]
+        arbiter_claude = (root / ".claude" / "agents" / "arbiter-eshu.md").read_text()
+        assert "model: fable\n" in arbiter_claude and "effort: high\n" in arbiter_claude
+        assert "tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage\n" in arbiter_claude
+        assert "RULING:" in arbiter_claude
+        arbiter_codex = (root / ".codex" / "agents" / "arbiter-eshu.toml").read_text()
+        assert 'model = "gpt-6-astra"' in arbiter_codex and 'sandbox_mode = "read-only"' in arbiter_codex
+        arbiter = run(root, "codex-exec", "arbiter-eshu", "Decide", "--dry-run")
+        assert arbiter.returncode == 0
+        arbiter_args = json.loads(arbiter.stdout)["argv"]
+        assert arbiter_args[arbiter_args.index("--model") + 1] == "gpt-6-astra"
+        assert arbiter_args[arbiter_args.index("--sandbox") + 1] == "read-only"
+        deep_model = manifest["models"]["claude"]["deep"]["model"]
+        deep_review = (root / ".claude" / "agents" / "review-eshu-deep.md").read_text()
+        assert "model: " + deep_model + "\n" in deep_review and "skills: eshu-code-review\n" in deep_review
+        assert "tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage\n" in deep_review
+        deep_develop = (root / ".claude" / "agents" / "develop-eshu-deep.md").read_text()
+        assert "model: " + deep_model + "\n" in deep_develop
+        assert "tools:" not in deep_develop.split("---", 2)[1]
+        deep_writer = run(root, "codex-exec", "develop-eshu-deep", "Implement", "--dry-run")
+        deep_writer_args = json.loads(deep_writer.stdout)["argv"]
+        assert deep_writer_args[deep_writer_args.index("--sandbox") + 1] == "workspace-write"
         print("agent-roles: generation, inheritance, permission drift, and launcher routing pass")
 
 

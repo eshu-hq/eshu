@@ -76,9 +76,11 @@ def route(prompt: str, harness: str, cwd: str = "") -> str:
     if "eshu-performance-rigor" in skills or re.search(r"\b(benchmark|profil|bottleneck|latency)", lower):
         roles.append("perf-eshu-deep" if deep else "perf-eshu")
     if re.search(r"\b(implement|fix|patch|code|apply|tighten|refactor|migrate)\b|\b(update|change|add|write|build)\s+(?:code|tests?|feature|schema|implementation)\b", lower):
-        roles.append("develop-eshu")
+        roles.append("develop-eshu-deep" if deep else "develop-eshu")
     if "eshu-code-review" in skills or re.search(r"\b(review|pr.readiness)\b", lower):
-        roles.append("review-eshu")
+        roles.append("review-eshu-deep" if deep else "review-eshu")
+    if re.search(r"\b(arbiter|arbitrate|design call|waiver)\b", lower):
+        roles.append("arbiter-eshu")
     if "golang-engineering" in skills and not roles:
         roles.append("develop-eshu")
     if not roles:

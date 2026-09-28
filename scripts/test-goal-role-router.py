@@ -58,6 +58,30 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertIn("debug-eshu-deep", output)
         self.assertIn("gpt-6-sol effort=high", output)
 
+    def test_arbiter_decision_routes_arbiter_tier(self):
+        """A goal that escalates design calls names the arbiter role and its binding per harness."""
+        prompt = "/goal Drive issue with eshu-issue-driver; take each design call to an arbiter"
+        claude = context(prompt, "claude")
+        codex = context(prompt, "codex")
+        self.assertIn("- arbiter-eshu:", claude)
+        self.assertIn("fable effort=high", claude)
+        self.assertIn("- arbiter-eshu:", codex)
+        self.assertIn("gpt-6-astra effort=high", codex)
+
+    def test_difficult_implementation_and_review_use_deep_roles(self):
+        output = context("/goal Implement a difficult lease fix using golang-engineering, then review it using eshu-code-review", "codex")
+        self.assertIn("- develop-eshu-deep:", output)
+        self.assertIn("- review-eshu-deep:", output)
+        self.assertNotIn("- develop-eshu:", output)
+        self.assertNotIn("- review-eshu:", output)
+
+    def test_ordinary_implementation_keeps_workhorse_roles(self):
+        output = context("/goal Implement a fix using golang-engineering, then review it using eshu-code-review", "codex")
+        self.assertIn("- develop-eshu:", output)
+        self.assertIn("- review-eshu:", output)
+        self.assertNotIn("-deep:", output)
+        self.assertNotIn("arbiter-eshu", output)
+
     def test_long_inline_goal_is_not_mistaken_for_a_path(self):
         output = context("/goal " + "Drive issue with eshu-issue-driver. " * 20 + "Review using eshu-code-review.", "claude")
         self.assertIn("review-eshu", output)
