@@ -23,6 +23,9 @@ func TestGraphSummaryHotEntitiesNeo4jUsesBoundedDegreePage(t *testing.T) {
 			if got, want := params["edge_scan_limit"], codequery.CallGraphMetricsEdgeScanLimit+1; got != want {
 				t.Fatalf("edge_scan_limit = %#v, want %#v", got, want)
 			}
+			if got, want := params["rank_limit"], 2; got != want {
+				t.Fatalf("rank_limit = %#v, want %#v", got, want)
+			}
 			return []map[string]any{
 				{"raw_edges": int64(3), "invalid_uid_edges": int64(0), "function_id": "a", "function_name": "alpha", "file_path": "a.go", "incoming": int64(2), "outgoing": int64(1), "total_degree": int64(3)},
 				{"raw_edges": int64(3), "invalid_uid_edges": int64(0), "function_id": "b", "function_name": "beta", "file_path": "b.go", "incoming": int64(1), "outgoing": int64(1), "total_degree": int64(2)},
