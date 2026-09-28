@@ -188,3 +188,34 @@ func TestRefillScopedPageReturnsDeadlineErrorWhenBudgetExhaustedMidLoop(t *testi
 		t.Fatalf("page.Reads = %d, want %d (the first window succeeded before the second's keyset read hit the spent budget)", got, want)
 	}
 }
+
+// refillDriverTimeoutGraph blocks every read until ctx is done and then
+// returns what the Neo4j Go driver surfaced in #7353: an error that is not
+// ctx.Err() and does not wrap context.DeadlineExceeded.
+type refillDriverTimeoutGraph struct{}
+
+func (refillDriverTimeoutGraph) Run(ctx context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	<-ctx.Done()
+	return nil, errors.New("ConnectivityError: Timeout while reading from connection")
+}
+
+func (refillDriverTimeoutGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+// TestRefillScopedPageClassifiesExpiredBudgetAsDeadline is the #7353 guard for
+// the refill loop: once its shared bounded deadline has expired, whatever error
+// the reader returned must come back as querycontract.ErrGraphReadDeadline, so
+// the handler answers 504 backend_timeout rather than a generic 500. The
+// handler cannot classify this itself -- the bounded ctx is local to
+// RefillScopedPage and the request ctx may still be live.
+func TestRefillScopedPageClassifiesExpiredBudgetAsDeadline(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	_, err := RefillScopedPage(ctx, refillDriverTimeoutGraph{}, "oci-registry://ghcr.io/eshu-hq/demo:1.0.0", nil, 10, refillDeadlineTestAccess())
+	if !errors.Is(err, querycontract.ErrGraphReadDeadline) {
+		t.Fatalf("err = %v, want it to wrap querycontract.ErrGraphReadDeadline", err)
+	}
+}

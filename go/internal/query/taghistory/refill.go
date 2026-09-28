@@ -163,7 +163,10 @@ func RefillScopedPage(
 	for page.Reads < MaxRefillReads {
 		window, more, err := ReadWindow(ctx, graph, imageRef, lastRaw, MaxLimit)
 		if err != nil {
-			return page, err
+			// #7353: a read that outlives the shared budget can return a
+			// driver error that is not ctx.Err(); classify on ctx so the
+			// handler still answers the 504 deadline contract.
+			return page, querycontract.ClassifyBoundedGraphReadError(ctx, err)
 		}
 		page.Reads++
 		if len(window) == 0 {
@@ -175,7 +178,7 @@ func RefillScopedPage(
 			edges, err = LookupBuiltFromRepositories(ctx, graph, digests)
 			if err != nil {
 				// Fail closed: never fall back to the unfiltered window.
-				return page, err
+				return page, querycontract.ClassifyBoundedGraphReadError(ctx, err)
 			}
 		}
 

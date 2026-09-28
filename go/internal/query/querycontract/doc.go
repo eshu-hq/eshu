@@ -23,6 +23,11 @@
 // callers compile unchanged while a handler-family subpackage can decode rows
 // by importing rowvalue directly.
 //
+// It owns the bounded graph-read error contract: the ErrGraphReadDeadline and
+// ErrGraphUnavailable sentinels, WriteGraphReadError's stable 504/503 mapping,
+// and ClassifyBoundedGraphReadError, which turns any read error into the
+// deadline sentinel once the bounded read context has expired (#7353).
+//
 // The readiness types and their two Build functions live here; deciding when to
 // run the probe and attaching the result to a response body stays in package
 // query, because that is request-time orchestration rather than contract.

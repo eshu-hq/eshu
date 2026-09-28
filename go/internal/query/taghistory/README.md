@@ -57,7 +57,9 @@ of its own) would let one request cost up to
 `MaxRefillReads*2*querycontract.DefaultGraphReadTimeout` -- about 80s -- instead
 of the one bounded-read budget a lone graph statement gets. When that shared
 budget is spent mid-loop, the loop returns an error `errors.Is`
-`querycontract.ErrGraphReadDeadline`; `writeTagHistoryReadError`
+`querycontract.ErrGraphReadDeadline`, whatever error the reader returned: it
+classifies each read error with `querycontract.ClassifyBoundedGraphReadError`
+on the shared context (#7353); `writeTagHistoryReadError`
 (`tag_history.go`) maps it to the existing 504 graph-read-deadline response, the
 same shape `WriteGraphReadError` gives every other bounded-read timeout. Do not
 remove the wrap or move it inside the loop where it would re-derive a fresh

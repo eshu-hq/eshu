@@ -138,6 +138,14 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 // sibling scoped_grant_live_test.go. The package cannot import root query's
 // Neo4jReader without a cycle.
 //
+// Run applies the production reader's deadline rule (#7353): Neo4jReader's
+// graphReadResult checks the caller's context before the driver error, so a
+// read that outlives an expired context reports a graph-read deadline (504)
+// even when the driver returns a ConnectivityError ("Timeout while reading
+// from connection") that does not wrap context.DeadlineExceeded. Returning
+// that raw driver error instead made a cold-stack timeout read as a 500 here
+// that production never answers.
+//
 // database defaults to "nornic" (the zero value triggers that default in
 // sessionConfig below) when a construction site does not set it explicitly;
 // every construction site in this package now does, via liveGraphBackend.
@@ -159,11 +167,11 @@ func (r entityLiveReader) Run(ctx context.Context, cypher string, params map[str
 	defer func() { _ = session.Close(ctx) }()
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
-		return nil, err
+		return nil, querycontract.ClassifyBoundedGraphReadError(ctx, err)
 	}
 	records, err := result.Collect(ctx)
 	if err != nil {
-		return nil, err
+		return nil, querycontract.ClassifyBoundedGraphReadError(ctx, err)
 	}
 	rows := make([]map[string]any, 0, len(records))
 	for _, record := range records {

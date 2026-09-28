@@ -296,6 +296,20 @@ family. Callers clip after the page is trimmed to its limit and after any hybrid
 re-rank, which reads the full body. `EntityContentSearchRow` shapes the
 `search_entity_content` row map and adds `source_handle`.
 
+`ClassifyBoundedGraphReadError` (`graphreaderr.go`) decides a graph-read timeout
+from the bounded context, not only from the error. Once that context's
+deadline has expired, a Neo4j driver read can fail with a `ConnectivityError`
+("Timeout while reading from connection") that does not wrap
+`context.DeadlineExceeded` (#7353). The production `Neo4jReader` already checks
+the context first and returns a deadline error, so this is hardening: a reader
+that bypasses it (the entity live-test reader did) otherwise turned that
+timeout into a generic 500 through an `errors.Is` check on the error alone.
+Call it with the context the reads ran under (the one
+`WithBoundedGraphReadDeadline` returned) before `WriteGraphReadError`. A
+canceled context and a live-context error keep their own mapping, and an error
+that already carries `ErrGraphUnavailable` stays a 503, so the handler's
+`failure_class` log and its response agree.
+
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states
 when converting it into matcher input.

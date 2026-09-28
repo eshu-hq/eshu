@@ -91,6 +91,50 @@ up_err="$(PATH="${seed_dir}/fakebin:${PATH}" bash "${script}" --backend nornicdb
 [[ ! -f "${ESHU_LIVE_RUNNER_STUB_MARKER}" ]] ||
 	fail "failed up littered its half-started stack"
 
+# ── Neo4j runs on the Docker host's native platform (#7353) ──────────────
+# (the pinned image is a multi-arch index; forcing linux/amd64 on an arm64
+# host ran the JVM under emulation and made cold planning blow the 10s
+# entity-context budget. An explicit NEO4J_PLATFORM still wins, and an
+# unknown or unreadable arch leaves the compose file's own default.)
+mkdir -p "${seed_dir}/archbin"
+cat >"${seed_dir}/archbin/docker" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "version" && -n "${ESHU_STUB_DOCKER_ARCH:-}" ]] || exit 1
+printf '%s\n' "${ESHU_STUB_DOCKER_ARCH}"
+EOF
+chmod +x "${seed_dir}/archbin/docker"
+# platform_probe <docker arch> [NEO4J_PLATFORM]: the platform the runner
+# resolves for neo4j with a stubbed docker reporting that server arch.
+platform_probe() {
+	local -a override=(-u NEO4J_PLATFORM)
+	[[ -z "${2:-}" ]] || override=("NEO4J_PLATFORM=$2")
+	env "${override[@]}" PATH="${seed_dir}/archbin:${PATH}" ESHU_STUB_DOCKER_ARCH="$1" \
+		ESHU_LIVE_RUNNER_SELFTEST=1 bash "${script}" --backend neo4j 2>&1 |
+		{ rg '^neo4j_platform=' || true; } | cut -d= -f2-
+}
+for case in arm64=linux/arm64 aarch64=linux/arm64 amd64=linux/amd64 x86_64=linux/amd64 s390x= =; do
+	arch="${case%%=*}"
+	want="${case#*=}"
+	got="$(platform_probe "${arch}")"
+	[[ "${got}" == "${want}" ]] ||
+		fail "docker arch '${arch}' resolved neo4j platform '${got}', want '${want}'"
+done
+got="$(platform_probe arm64 linux/amd64)"
+[[ "${got}" == "linux/amd64" ]] || fail "explicit NEO4J_PLATFORM=linux/amd64 overridden to '${got}'"
+# --backend nornicdb never starts Neo4j, so it must not probe docker at all.
+probe_marker="${seed_dir}/docker-version-called"
+cat >"${seed_dir}/archbin/docker" <<EOF
+#!/usr/bin/env bash
+touch "${probe_marker}"
+printf 'arm64\n'
+EOF
+got="$(env -u NEO4J_PLATFORM PATH="${seed_dir}/archbin:${PATH}" ESHU_LIVE_RUNNER_SELFTEST=1 \
+	bash "${script}" --backend nornicdb 2>&1 | { rg '^neo4j_platform=' || true; } | cut -d= -f2-)"
+[[ ! -e "${probe_marker}" ]] || fail "--backend nornicdb probed docker for a neo4j platform"
+[[ -z "${got}" ]] || fail "--backend nornicdb resolved neo4j platform '${got}', want none"
+rg -q 'platform: \$\{NEO4J_PLATFORM:-linux/amd64\}' "${repo_root}/docker-compose.live-backend-neo4j.yml" ||
+	fail "neo4j live-backend compose must still honour NEO4J_PLATFORM"
+
 # ── Image pins match the canonical compose files (no silent drift) ───────
 nornicdb_compose="$(probe | rg '^nornicdb_compose=' | cut -d= -f2-)"
 neo4j_compose="$(probe | rg '^neo4j_compose=' | cut -d= -f2-)"
