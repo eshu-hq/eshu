@@ -34,14 +34,25 @@ type GenerationRetentionPolicy struct {
 }
 
 // GenerationRetentionResult summarizes one bounded cleanup transaction.
-// RowsPruned is keyed by bounded table or data-class names.
+// RowsPruned is keyed by bounded table or data-class names. PhaseDurations is
+// keyed by the storage implementation's closed phase names, and ScopeLockHold
+// is how long the transaction held its scope row locks, the window a concurrent
+// fact insert into one of those scopes waits out (#7279).
 type GenerationRetentionResult struct {
 	GenerationsPruned int
 	RowsPruned        map[string]int64
 	Skipped           map[string]int
 	OldestEligibleAge time.Duration
 	Duration          time.Duration
+	PhaseDurations    map[string]time.Duration
+	ScopeLockHold     time.Duration
 }
+
+// ErrGenerationRetentionKeyIndexUnavailable marks a cycle the pruner refused
+// because an index its retention statements depend on is missing or invalid
+// (#7279). The runner reports it as failure reason key_index_unavailable and
+// retries on its next poll; an operator rebuilds the index to clear it.
+var ErrGenerationRetentionKeyIndexUnavailable = errors.New("generation retention key index unavailable")
 
 // GenerationRetentionPruner runs one bounded generation-retention cleanup
 // transaction.
@@ -162,6 +173,14 @@ func (r *GenerationRetentionRunner) recordResult(ctx context.Context, result Gen
 		if result.OldestEligibleAge > 0 {
 			r.Instruments.GenerationRetentionOldestEligibleAge.Record(ctx, result.OldestEligibleAge.Seconds())
 		}
+		for phase, duration := range result.PhaseDurations {
+			r.Instruments.GenerationRetentionPhaseDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(
+				attribute.String("phase", phase),
+			))
+		}
+		if result.ScopeLockHold > 0 {
+			r.Instruments.GenerationRetentionScopeLockHold.Record(ctx, result.ScopeLockHold.Seconds())
+		}
 		for reason, count := range result.Skipped {
 			if count <= 0 {
 				continue
@@ -184,25 +203,43 @@ func (r *GenerationRetentionRunner) recordResult(ctx context.Context, result Gen
 		slog.Any("skipped_by_reason", result.Skipped),
 		slog.Float64("duration_seconds", result.Duration.Seconds()),
 		slog.Float64("oldest_eligible_age_seconds", result.OldestEligibleAge.Seconds()),
+		slog.Float64("scope_lock_hold_seconds", result.ScopeLockHold.Seconds()),
+		slog.Any("phase_seconds", generationRetentionPhaseSeconds(result.PhaseDurations)),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 }
 
 func (r *GenerationRetentionRunner) recordFailure(ctx context.Context, err error) {
+	reason, failureClass, message := "store_error", "generation_retention_error", "generation retention cycle failed"
+	if errors.Is(err, ErrGenerationRetentionKeyIndexUnavailable) {
+		reason = "key_index_unavailable"
+		failureClass = "generation_retention_key_index_unavailable"
+		message = "generation retention cycle refused: retention key index missing or invalid"
+	}
 	if r.Instruments != nil {
 		r.Instruments.GenerationRetentionFailures.Add(ctx, 1, metric.WithAttributes(
-			attribute.String("reason", "store_error"),
+			attribute.String("reason", reason),
 		))
 	}
 	if r.Logger != nil {
 		r.Logger.ErrorContext(
 			ctx,
-			"generation retention cycle failed",
+			message,
 			log.Err(err),
-			telemetry.FailureClassAttr("generation_retention_error"),
+			telemetry.FailureClassAttr(failureClass),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
 	}
+}
+
+// generationRetentionPhaseSeconds converts phase durations to seconds for the
+// cycle log.
+func generationRetentionPhaseSeconds(phases map[string]time.Duration) map[string]float64 {
+	seconds := make(map[string]float64, len(phases))
+	for phase, duration := range phases {
+		seconds[phase] = duration.Seconds()
+	}
+	return seconds
 }
 
 func generationRetentionRowsPrunedTotal(rows map[string]int64) int64 {

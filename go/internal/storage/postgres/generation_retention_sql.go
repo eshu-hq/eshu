@@ -3,6 +3,12 @@
 
 package postgres
 
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
 const generationRetentionCandidateQuery = `
 WITH locked_scopes AS (
     SELECT scope.scope_id
@@ -81,49 +87,86 @@ FOR UPDATE OF generation, scope SKIP LOCKED
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The doomed_* CTEs keep the prunes' grouped shape: one pass over the live facts
-// of a kind, hash-joined to the small candidate list, with a HAVING equivalent to
-// the prunes' bool_or(generation_id = ANY($1)) AND NOT bool_or(generation_id <>
-// ALL($1)), so no plan can rescan the retained facts once per candidate key.
+// Its cost follows the batch, not fact_records (#7279). candidate_* reads only
+// the candidates' own facts, through scope_generations and the (scope_id,
+// generation_id) prefix of fact_records_scope_generation_idx, and doomed_*
+// keeps a key only when a NOT EXISTS probe of the key index
+// (fact_records_content_entity_key_idx, fact_records_file_key_idx) finds no
+// live fact outside $1. The fact_records arm is scope-joined the same way, so
+// no plan skip-scans the index once per candidate over every scope. The earlier
+// grouped pass read every live fact of a kind on every call while the scope
+// locks were held. The store runs this only after it has checked both key
+// indexes are valid; without them each probe would scan the table (#6809).
 const generationRetentionRowCountsQuery = `
 WITH generation_retention_row_counts AS (
     SELECT candidate.generation_id, candidate.rank
     FROM unnest($1::text[]) WITH ORDINALITY AS candidate(generation_id, rank)
 ),
-doomed_files AS (
-    SELECT row.payload->>'repo_id' AS repo_id,
-           row.payload->>'relative_path' AS relative_path,
+candidate_files AS (
+    SELECT fact.payload->>'repo_id' AS repo_id,
+           fact.payload->>'relative_path' AS relative_path,
            max(candidate.rank) AS attributed_rank
-    FROM fact_records AS row
-    LEFT JOIN generation_retention_row_counts AS candidate
-      ON candidate.generation_id = row.generation_id
-    WHERE row.fact_kind = 'file'
-      AND row.is_tombstone = FALSE
-      AND row.payload->>'repo_id' <> ''
-      AND row.payload->>'relative_path' <> ''
+    FROM generation_retention_row_counts AS candidate
+    JOIN scope_generations AS generation
+      ON generation.generation_id = candidate.generation_id
+    JOIN fact_records AS fact
+      ON fact.scope_id = generation.scope_id
+     AND fact.generation_id = generation.generation_id
+    WHERE fact.fact_kind = 'file'
+      AND fact.is_tombstone = FALSE
+      AND fact.payload->>'repo_id' <> ''
+      AND fact.payload->>'relative_path' <> ''
     GROUP BY 1, 2
-    HAVING bool_or(candidate.rank IS NOT NULL)
-       AND NOT bool_or(candidate.rank IS NULL)
+),
+doomed_files AS (
+    SELECT candidate_key.repo_id, candidate_key.relative_path, candidate_key.attributed_rank
+    FROM candidate_files AS candidate_key
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM fact_records AS retained
+        WHERE retained.fact_kind = 'file'
+          AND retained.is_tombstone = FALSE
+          AND retained.payload->>'repo_id' = candidate_key.repo_id
+          AND retained.payload->>'relative_path' = candidate_key.relative_path
+          AND retained.generation_id <> ALL($1::text[])
+    )
+),
+candidate_entities AS (
+    SELECT fact.payload->>'repo_id' AS repo_id,
+           fact.payload->>'entity_id' AS entity_id,
+           max(candidate.rank) AS attributed_rank
+    FROM generation_retention_row_counts AS candidate
+    JOIN scope_generations AS generation
+      ON generation.generation_id = candidate.generation_id
+    JOIN fact_records AS fact
+      ON fact.scope_id = generation.scope_id
+     AND fact.generation_id = generation.generation_id
+    WHERE fact.fact_kind = 'content_entity'
+      AND fact.is_tombstone = FALSE
+      AND fact.payload->>'repo_id' <> ''
+      AND fact.payload->>'entity_id' <> ''
+    GROUP BY 1, 2
 ),
 doomed_entities AS (
-    SELECT row.payload->>'repo_id' AS repo_id,
-           row.payload->>'entity_id' AS entity_id,
-           max(candidate.rank) AS attributed_rank
-    FROM fact_records AS row
-    LEFT JOIN generation_retention_row_counts AS candidate
-      ON candidate.generation_id = row.generation_id
-    WHERE row.fact_kind = 'content_entity'
-      AND row.is_tombstone = FALSE
-      AND row.payload->>'repo_id' <> ''
-      AND row.payload->>'entity_id' <> ''
-    GROUP BY 1, 2
-    HAVING bool_or(candidate.rank IS NOT NULL)
-       AND NOT bool_or(candidate.rank IS NULL)
+    SELECT candidate_key.repo_id, candidate_key.entity_id, candidate_key.attributed_rank
+    FROM candidate_entities AS candidate_key
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM fact_records AS retained
+        WHERE retained.fact_kind = 'content_entity'
+          AND retained.is_tombstone = FALSE
+          AND retained.payload->>'repo_id' = candidate_key.repo_id
+          AND retained.payload->>'entity_id' = candidate_key.entity_id
+          AND retained.generation_id <> ALL($1::text[])
+    )
 )
 SELECT candidate.generation_id, 'fact_records' AS table_name, COUNT(row.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
 LEFT JOIN fact_records AS row
-  ON candidate.generation_id = row.generation_id
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'fact_work_items' AS table_name, COUNT(row.generation_id) AS row_count
@@ -247,21 +290,35 @@ WHERE generation_id = ANY($1::text[])
 `
 
 // pruneContentFileReferencesForGenerationsQuery deletes the content_file_references
-// rows whose only live facts sit in the pruned generations. One grouped pass
-// over the live facts of the kind keeps a key when any generation outside $1
-// still holds it, so no join pairs two scans of fact_records and no plan can
-// rescan the retained facts once per candidate key.
-// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
-// planner had no statistics, minutes of work for a few thousand keys (#6809).
+// rows whose only live facts sit in the pruned generations (#7279). It reads
+// the candidates' own file facts through the (scope_id, generation_id) index
+// prefix and keeps a key when a NOT EXISTS probe of fact_records_file_key_idx
+// finds a live fact in any generation outside $1, so its cost follows the batch
+// and not fact_records. Without that index the probe would scan fact_records
+// once per candidate key, the #6809 cliff, so the store refuses the cycle
+// unless the index is valid.
 const pruneContentFileReferencesForGenerationsQuery = `
-WITH doomed AS (
-    SELECT payload->>'repo_id' AS repo_id, payload->>'relative_path' AS relative_path
-    FROM fact_records
-    WHERE fact_kind = 'file' AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> '' AND payload->>'relative_path' <> ''
-    GROUP BY 1, 2
-    HAVING bool_or(generation_id = ANY($1::text[]))
-       AND NOT bool_or(generation_id <> ALL($1::text[]))
+WITH candidate_keys AS (
+    SELECT DISTINCT fact.payload->>'repo_id' AS repo_id, fact.payload->>'relative_path' AS relative_path
+    FROM scope_generations AS generation
+    JOIN fact_records AS fact
+      ON fact.scope_id = generation.scope_id
+     AND fact.generation_id = generation.generation_id
+    WHERE generation.generation_id = ANY($1::text[])
+      AND fact.fact_kind = 'file' AND fact.is_tombstone = FALSE
+      AND fact.payload->>'repo_id' <> '' AND fact.payload->>'relative_path' <> ''
+),
+doomed AS (
+    SELECT candidate_key.repo_id, candidate_key.relative_path
+    FROM candidate_keys AS candidate_key
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM fact_records AS retained
+        WHERE retained.fact_kind = 'file' AND retained.is_tombstone = FALSE
+          AND retained.payload->>'repo_id' = candidate_key.repo_id
+          AND retained.payload->>'relative_path' = candidate_key.relative_path
+          AND retained.generation_id <> ALL($1::text[])
+    )
 )
 DELETE FROM content_file_references AS t
 USING doomed AS d
@@ -269,21 +326,35 @@ WHERE t.repo_id = d.repo_id AND t.relative_path = d.relative_path
 `
 
 // pruneContentEntitiesForGenerationsQuery deletes the content_entities
-// rows whose only live facts sit in the pruned generations. One grouped pass
-// over the live facts of the kind keeps a key when any generation outside $1
-// still holds it, so no join pairs two scans of fact_records and no plan can
-// rescan the retained facts once per candidate key.
-// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
-// planner had no statistics, minutes of work for a few thousand keys (#6809).
+// rows whose only live facts sit in the pruned generations (#7279). It reads
+// the candidates' own content_entity facts through the (scope_id, generation_id) index
+// prefix and keeps a key when a NOT EXISTS probe of fact_records_content_entity_key_idx
+// finds a live fact in any generation outside $1, so its cost follows the batch
+// and not fact_records. Without that index the probe would scan fact_records
+// once per candidate key, the #6809 cliff, so the store refuses the cycle
+// unless the index is valid.
 const pruneContentEntitiesForGenerationsQuery = `
-WITH doomed AS (
-    SELECT payload->>'repo_id' AS repo_id, payload->>'entity_id' AS entity_id
-    FROM fact_records
-    WHERE fact_kind = 'content_entity' AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> '' AND payload->>'entity_id' <> ''
-    GROUP BY 1, 2
-    HAVING bool_or(generation_id = ANY($1::text[]))
-       AND NOT bool_or(generation_id <> ALL($1::text[]))
+WITH candidate_keys AS (
+    SELECT DISTINCT fact.payload->>'repo_id' AS repo_id, fact.payload->>'entity_id' AS entity_id
+    FROM scope_generations AS generation
+    JOIN fact_records AS fact
+      ON fact.scope_id = generation.scope_id
+     AND fact.generation_id = generation.generation_id
+    WHERE generation.generation_id = ANY($1::text[])
+      AND fact.fact_kind = 'content_entity' AND fact.is_tombstone = FALSE
+      AND fact.payload->>'repo_id' <> '' AND fact.payload->>'entity_id' <> ''
+),
+doomed AS (
+    SELECT candidate_key.repo_id, candidate_key.entity_id
+    FROM candidate_keys AS candidate_key
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM fact_records AS retained
+        WHERE retained.fact_kind = 'content_entity' AND retained.is_tombstone = FALSE
+          AND retained.payload->>'repo_id' = candidate_key.repo_id
+          AND retained.payload->>'entity_id' = candidate_key.entity_id
+          AND retained.generation_id <> ALL($1::text[])
+    )
 )
 DELETE FROM content_entities AS t
 USING doomed AS d
@@ -291,21 +362,35 @@ WHERE t.repo_id = d.repo_id AND t.entity_id = d.entity_id
 `
 
 // pruneContentFilesForGenerationsQuery deletes the content_files
-// rows whose only live facts sit in the pruned generations. One grouped pass
-// over the live facts of the kind keeps a key when any generation outside $1
-// still holds it, so no join pairs two scans of fact_records and no plan can
-// rescan the retained facts once per candidate key.
-// The previous NOT EXISTS shape did exactly that under a nested loop whenever the
-// planner had no statistics, minutes of work for a few thousand keys (#6809).
+// rows whose only live facts sit in the pruned generations (#7279). It reads
+// the candidates' own file facts through the (scope_id, generation_id) index
+// prefix and keeps a key when a NOT EXISTS probe of fact_records_file_key_idx
+// finds a live fact in any generation outside $1, so its cost follows the batch
+// and not fact_records. Without that index the probe would scan fact_records
+// once per candidate key, the #6809 cliff, so the store refuses the cycle
+// unless the index is valid.
 const pruneContentFilesForGenerationsQuery = `
-WITH doomed AS (
-    SELECT payload->>'repo_id' AS repo_id, payload->>'relative_path' AS relative_path
-    FROM fact_records
-    WHERE fact_kind = 'file' AND is_tombstone = FALSE
-      AND payload->>'repo_id' <> '' AND payload->>'relative_path' <> ''
-    GROUP BY 1, 2
-    HAVING bool_or(generation_id = ANY($1::text[]))
-       AND NOT bool_or(generation_id <> ALL($1::text[]))
+WITH candidate_keys AS (
+    SELECT DISTINCT fact.payload->>'repo_id' AS repo_id, fact.payload->>'relative_path' AS relative_path
+    FROM scope_generations AS generation
+    JOIN fact_records AS fact
+      ON fact.scope_id = generation.scope_id
+     AND fact.generation_id = generation.generation_id
+    WHERE generation.generation_id = ANY($1::text[])
+      AND fact.fact_kind = 'file' AND fact.is_tombstone = FALSE
+      AND fact.payload->>'repo_id' <> '' AND fact.payload->>'relative_path' <> ''
+),
+doomed AS (
+    SELECT candidate_key.repo_id, candidate_key.relative_path
+    FROM candidate_keys AS candidate_key
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM fact_records AS retained
+        WHERE retained.fact_kind = 'file' AND retained.is_tombstone = FALSE
+          AND retained.payload->>'repo_id' = candidate_key.repo_id
+          AND retained.payload->>'relative_path' = candidate_key.relative_path
+          AND retained.generation_id <> ALL($1::text[])
+    )
 )
 DELETE FROM content_files AS t
 USING doomed AS d
@@ -316,3 +401,52 @@ const deleteScopeGenerationsForRetentionQuery = `
 DELETE FROM scope_generations
 WHERE generation_id = ANY($1::text[])
 `
+
+// generationRetentionKeyIndexesQuery returns the name of every retention key
+// index that is not a valid, ready, non-unique two-column btree over the
+// expected key expressions with the retention statements' partial predicate.
+// It reads only pg_catalog, so it takes no lock on fact_records. to_regclass
+// resolves both names through the session's search_path, as the retention
+// statements do.
+const generationRetentionKeyIndexesQuery = `
+WITH generation_retention_key_indexes(index_name, key_column, fact_kind) AS (
+    VALUES
+        ('fact_records_content_entity_key_idx', 'entity_id', 'content_entity'),
+        ('fact_records_file_key_idx', 'relative_path', 'file')
+)
+SELECT expected.index_name
+FROM generation_retention_key_indexes AS expected
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM pg_index AS index_state
+    JOIN pg_class AS index_relation ON index_relation.oid = index_state.indexrelid
+    JOIN pg_am AS access_method ON access_method.oid = index_relation.relam
+    WHERE index_state.indexrelid = to_regclass(expected.index_name)
+      AND index_state.indrelid = to_regclass('fact_records')
+      AND access_method.amname = 'btree'
+      AND index_state.indisvalid
+      AND index_state.indisready
+      AND NOT index_state.indisunique
+      AND index_state.indnkeyatts = 2
+      AND index_state.indnatts = 2
+      AND pg_get_expr(index_state.indexprs, index_state.indrelid)
+          = format('(payload ->> ''repo_id''::text), (payload ->> %L::text)', expected.key_column)
+      AND pg_get_expr(index_state.indpred, index_state.indrelid)
+          = format('((fact_kind = %L::text) AND (is_tombstone = false))', expected.fact_kind)
+)
+ORDER BY expected.index_name
+`
+
+// execRowsAffected runs one retention statement and returns its affected row
+// count.
+func execRowsAffected(ctx context.Context, exec db.Executor, query string, args ...any) (int64, error) {
+	result, err := exec.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
+}

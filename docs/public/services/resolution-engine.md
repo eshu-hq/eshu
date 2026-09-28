@@ -304,7 +304,9 @@ Start with:
   `eshu_dp_generation_retention_skipped_total`
 - retention histograms: `eshu_dp_generation_retention_duration_seconds`,
   `eshu_dp_generation_retention_batch_size`,
-  `eshu_dp_generation_retention_oldest_eligible_age_seconds`
+  `eshu_dp_generation_retention_oldest_eligible_age_seconds`,
+  `eshu_dp_generation_retention_phase_duration_seconds{phase}`,
+  `eshu_dp_generation_retention_scope_lock_hold_seconds`
 - infra read model reconcile: `eshu_dp_infra_inventory_reconcile_total{outcome}`,
   `eshu_dp_infra_inventory_reconcile_duration_seconds`, span
   `reducer.infra_inventory_reconcile`

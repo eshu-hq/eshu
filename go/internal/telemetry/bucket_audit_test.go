@@ -96,6 +96,8 @@ func bucketAuditTable() []bucketAuditEntry {
 		// ---- generation retention ----
 		{MetricName: "eshu_dp_generation_retention_duration_seconds", Buckets: []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}},
 		{MetricName: "eshu_dp_generation_retention_oldest_eligible_age_seconds", Buckets: []float64{3600, 21600, 43200, 86400, 259200, 604800, 1209600, 2592000, 7776000}},
+		{MetricName: "eshu_dp_generation_retention_phase_duration_seconds", Buckets: []float64{0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60, 300}},
+		{MetricName: "eshu_dp_generation_retention_scope_lock_hold_seconds", Buckets: []float64{0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60, 300}},
 
 		// ---- canonical write / retract / phase ----
 		{MetricName: "eshu_dp_canonical_write_duration_seconds", Buckets: []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},

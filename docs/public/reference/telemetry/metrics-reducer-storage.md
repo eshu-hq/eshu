@@ -64,11 +64,13 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | --- | --- | --- |
 | `eshu_dp_generation_retention_generations_pruned_total` | counter | Superseded generations pruned by bounded retention cleanup. |
 | `eshu_dp_generation_retention_rows_pruned_total` | counter | Rows pruned by bounded table/data-class label. |
-| `eshu_dp_generation_retention_failures_total` | counter | Cleanup failures by bounded reason. |
+| `eshu_dp_generation_retention_failures_total` | counter | Cleanup failures by bounded reason: `store_error`, or `key_index_unavailable` when a cycle is refused because a retention key index is missing or invalid. |
 | `eshu_dp_generation_retention_skipped_total` | counter | Candidate generations skipped by bounded reason such as `row_limit`. |
 | `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
 | `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
 | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
+| `eshu_dp_generation_retention_phase_duration_seconds` | histogram | Cleanup transaction time by bounded `phase`: `key_index_check`, `select_candidates`, `count_rows`, `record_events`, `delete_shared_projection_intents`, `prune_content_file_references`, `lock_infra_repositories`, `prune_content_entities`, `delete_infra_orphans`, `prune_content_files`, `delete_scope_generations`, `commit`. |
+| `eshu_dp_generation_retention_scope_lock_hold_seconds` | histogram | How long one cleanup transaction held its `ingestion_scopes` row locks. A fact insert into one of those scopes waits up to this long. |
 | `eshu_dp_changed_since_links_total` | counter | Changed-since link attempts (#7127, dark) by `link_kind` (root, incremental, none) and `outcome` (linked, break, failed, poisoned, canceled; `canceled` is a link cut short by reducer shutdown, not counted as a failure). |
 | `eshu_dp_changed_since_link_retries_total` | counter | Non-counting changed-since link misses by `reason` (cursor_locked, generation_locked, slot_busy); nothing written, the cursor did not move. |
 | `eshu_dp_changed_since_link_failures_total` | counter | Counting changed-since link failures by `failure_class` (statement_timeout, connection_lost, sql_error, internal); each is recorded on the scope cursor with backoff. |
@@ -82,6 +84,16 @@ provider-native identifiers stay in spans, structured logs, or durable facts.
 | `eshu_dp_changed_since_link_lag_seconds` | gauge | Age of the oldest activation above its scope cursor. |
 | `eshu_dp_changed_since_state_bytes` | gauge | Total size of `changed_since_key_state`. |
 | `eshu_dp_changed_since_state_rows` | gauge | Planner row estimate of `changed_since_key_state`. |
+
+A cleanup cycle checks that `fact_records_content_entity_key_idx` and
+`fact_records_file_key_idx` (migrations 146 and 147) are valid before it locks
+anything. Its content prunes probe those indexes once per candidate key; without
+them each probe would scan `fact_records` while the scope locks are held. When
+either index is missing, invalid (a failed concurrent build), or a different
+shape, the cycle is refused: `eshu_dp_generation_retention_failures_total{reason="key_index_unavailable"}`
+increments and the reducer logs `failure_class=generation_retention_key_index_unavailable`
+with the index name. Rebuild the index (a restart reruns the migration, which
+drops an invalid index first) and the next poll proceeds.
 
 Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event

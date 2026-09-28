@@ -149,6 +149,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestGenerationRetentionContentPrunesDeleteExactRowsLive",
 		"TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive",
 		"TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive",
+		"TestGenerationRetentionProbeMatchesGroupedPassLive",
+		"TestGenerationRetentionProbePlansStayOnKeyIndexesLive",
+		"TestGenerationRetentionRefusesWithoutValidKeyIndexLive",
+		"TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive",
 		// #6475 part B: the changed-since resolve binds the caller's grant on
 		// the lineage row's scope_id; only real Postgres runs that predicate.
 		"TestServiceChangedSinceBindsGrantToLineageScopeLive",

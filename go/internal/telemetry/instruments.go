@@ -1474,6 +1474,14 @@ type Instruments struct {
 	GenerationRetentionDuration          metric.Float64Histogram
 	GenerationRetentionBatchSize         metric.Int64Histogram
 	GenerationRetentionOldestEligibleAge metric.Float64Histogram
+	// GenerationRetentionPhaseDuration splits one retention transaction into
+	// its bounded phases (key_index_check, select_candidates, count_rows, the
+	// prunes, commit) via phase (#7279).
+	GenerationRetentionPhaseDuration metric.Float64Histogram
+	// GenerationRetentionScopeLockHold is how long one retention transaction
+	// held its ingestion_scopes row locks: the wait a concurrent fact insert
+	// into one of those scopes can see (#7279).
+	GenerationRetentionScopeLockHold metric.Float64Histogram
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.
 	ChangedSinceLinkDuration  metric.Float64Histogram
@@ -4615,6 +4623,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationRetentionOldestEligibleAge histogram: %w", err)
+	}
+
+	if err := registerGenerationRetentionPhaseInstruments(meter, inst); err != nil {
+		return nil, err
 	}
 
 	if err := registerChangedSinceLinkInstruments(meter, inst); err != nil {

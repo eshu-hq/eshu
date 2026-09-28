@@ -5,9 +5,6 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -28,23 +25,18 @@ const (
 )
 
 // generationRetentionWorkMemStatement raises work_mem for the retention
-// transaction only. The three content prunes aggregate one pass over every live
-// fact of a kind; on a server left at the default 4MB work_mem the planner sorts
-// that pass on disk (Sort -> GroupAggregate, an 11MB external merge at 5x) and
-// the prunes run 1.5-1.9x slower warm than the previous statements. At 16MB and
-// above the prunes plan a HashAggregate and run 23-40% faster than the previous
-// statements warm at 5x; cold plans do not change (remote measurement, AWS
-// r7a.4xlarge, PostgreSQL 18.6, docs/internal/evidence/6809-retention-content-prune-plan.md).
-// 64MB is 4x the smallest value proven at 5x, chosen to keep a hash aggregate at
-// larger fact counts.
+// transaction only. #6809 set it for the grouped prunes, which aggregated one
+// pass over every live fact of a kind and sorted it on disk at the default 4MB
+// (docs/internal/evidence/6809-retention-content-prune-plan.md). Since #7279 the
+// statements aggregate only the batch's candidate keys (one DISTINCT or GROUP
+// BY per kind, bounded by BatchGenerationLimit generations, about 300k facts on
+// the first ops-qa backlog), and 64MB keeps those aggregates in memory.
 //
 // work_mem is a per-plan-node allowance, not a per-statement budget: each sort or
 // hash node may use up to 64MB (a hash node up to twice that,
-// hash_mem_multiplier), and one statement can hold several such nodes. The bound
-// is proven for the content prunes; the row-count statement's sorts stay in
-// memory at 64MB only on the laptop cold shape (remote warm plan unmeasured).
-// SET LOCAL reverts at commit or rollback, so it never touches the pooled
-// session or the server setting.
+// hash_mem_multiplier), and one statement can hold several such nodes. SET
+// LOCAL reverts at commit or rollback, so it never touches the pooled session or
+// the server setting.
 const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 
 // GenerationRetentionPolicy bounds automated cleanup of superseded source-local
@@ -101,12 +93,20 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 // generation identifiers. Each event's row_counts charges a content row shared
 // by several pruned generations to the newest of them, so the events sum per
 // table to the deletes (recounted after a row-limit skip).
+//
+// PhaseDurations is keyed by the closed GenerationRetentionPhase* set.
+// ScopeLockHold is the time from the candidate statement, which locks the
+// batch's ingestion_scopes and scope_generations rows, to the end of the
+// commit that releases them: the window a concurrent fact insert into one of
+// those scopes waits out (#7279).
 type GenerationRetentionResult struct {
 	GenerationsPruned int
 	RowsPruned        map[string]int64
 	Skipped           map[string]int
 	OldestEligibleAge time.Duration
 	Duration          time.Duration
+	PhaseDurations    map[string]time.Duration
+	ScopeLockHold     time.Duration
 }
 
 // GenerationRetentionStore prunes superseded source-local generation history in
@@ -125,6 +125,10 @@ func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionSto
 // PruneSupersededGenerations deletes one bounded batch of superseded
 // generations outside the retained window. It records safe retention events
 // before deletion and removes generation-owned rows through FK cascades.
+//
+// Before it locks anything it checks that both retention key indexes are
+// valid; if either is not, it refuses the cycle with an error wrapping
+// ErrGenerationRetentionKeyIndexUnavailable and changes nothing (#7279).
 func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
@@ -156,79 +160,36 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 
 	result := GenerationRetentionResult{
-		RowsPruned: make(map[string]int64),
-		Skipped:    make(map[string]int),
+		RowsPruned:     make(map[string]int64),
+		Skipped:        make(map[string]int),
+		PhaseDurations: make(map[string]time.Duration),
 	}
+	phaseStart := time.Now()
+	if err := checkGenerationRetentionKeyIndexes(ctx, tx); err != nil {
+		return GenerationRetentionResult{}, err
+	}
+	result.PhaseDurations[GenerationRetentionPhaseKeyIndexCheck] = time.Since(phaseStart)
+
+	// The candidate statement takes the scope and generation row locks; they
+	// are held until the commit below, and ScopeLockHold measures that window.
+	lockStart := time.Now()
 	candidates, rowCounts, eventRowCounts, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
-	if len(candidates) == 0 {
-		if err := tx.Commit(); err != nil {
-			return GenerationRetentionResult{}, fmt.Errorf("generation retention: commit empty batch: %w", err)
-		}
-		committed = true
-		result.Duration = time.Since(start)
-		return result, nil
-	}
-	result.OldestEligibleAge = oldestEligibleAge(now, candidates)
-
-	generationIDs := retentionGenerationIDs(candidates)
-	for tableName, count := range rowCounts {
-		result.RowsPruned[tableName] = count
-	}
-
-	for _, candidate := range candidates {
-		if err := s.recordRetentionEvent(ctx, tx, candidate, policy, eventRowCounts[candidate.generationID], now); err != nil {
+	if len(candidates) > 0 {
+		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, eventRowCounts, policy, now, &result); err != nil {
 			return GenerationRetentionResult{}, err
 		}
 	}
-	if affected, err := execRowsAffected(ctx, tx, deleteSharedProjectionIntentsForGenerationsQuery, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: delete shared projection intents: %w", err)
-	} else {
-		result.RowsPruned["shared_projection_intents"] = affected
-	}
-	if affected, err := execRowsAffected(ctx, tx, deleteSharedProjectionUnroutableIntentsForGenerationsQuery, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: delete shared projection unroutable intents: %w", err)
-	} else {
-		result.RowsPruned["shared_projection_unroutable_intents"] = affected
-	}
-	if affected, err := execRowsAffected(ctx, tx, pruneContentFileReferencesForGenerationsQuery, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content references: %w", err)
-	} else {
-		result.RowsPruned["content_file_references"] = affected
-	}
-	// The infra read model mirrors content_entities (#6793): lock its
-	// repositories before the content prune, drop its orphans after it.
-	if err := inventory.LockRepositoriesForGenerations(ctx, tx, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: %w", err)
-	}
-	if affected, err := execRowsAffected(ctx, tx, pruneContentEntitiesForGenerationsQuery, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content entities: %w", err)
-	} else {
-		result.RowsPruned["content_entities"] = affected
-	}
-	if affected, err := inventory.DeleteOrphanedRows(ctx, tx, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: %w", err)
-	} else {
-		result.RowsPruned["infra_resource_entities"] = affected
-	}
-	if affected, err := execRowsAffected(ctx, tx, pruneContentFilesForGenerationsQuery, generationIDs); err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content files: %w", err)
-	} else {
-		result.RowsPruned["content_files"] = affected
-	}
-	generationsPruned, err := execRowsAffected(ctx, tx, deleteScopeGenerationsForRetentionQuery, generationIDs)
-	if err != nil {
-		return GenerationRetentionResult{}, fmt.Errorf("generation retention: delete scope generations: %w", err)
-	}
-	result.GenerationsPruned = int(generationsPruned)
-	result.RowsPruned["scope_generations"] = generationsPruned
 
+	phaseStart = time.Now()
 	if err := tx.Commit(); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: commit: %w", err)
 	}
 	committed = true
+	result.PhaseDurations[GenerationRetentionPhaseCommit] = time.Since(phaseStart)
+	result.ScopeLockHold = time.Since(lockStart)
 	result.Duration = time.Since(start)
 	return result, nil
 }
@@ -243,7 +204,9 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 	excludedGenerationIDs := make([]string, 0)
 	searchLimit := generationRetentionSkipSearchLimit(policy.BatchGenerationLimit)
 	for {
+		phaseStart := time.Now()
 		candidates, err := s.selectCandidates(ctx, tx, now, policy, excludedGenerationIDs)
+		result.PhaseDurations[GenerationRetentionPhaseSelectCandidates] += time.Since(phaseStart)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -252,7 +215,9 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		}
 
 		generationIDs := retentionGenerationIDs(candidates)
+		phaseStart = time.Now()
 		_, eventRowCounts, _, err := s.countRows(ctx, tx, generationIDs)
+		result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -268,7 +233,9 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 		if len(selected) > 0 && len(skipped) > 0 {
 			// Skipped generations stay on disk and protect keys the first count
 			// charged to a selected one; recount (totals only shrink) (#6809).
+			phaseStart = time.Now()
 			rowCounts, selectedEventRowCounts, _, err = s.countRows(ctx, tx, retentionGenerationIDs(selected))
+			result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -400,41 +367,87 @@ func (s GenerationRetentionStore) countRows(
 	return totals, perGeneration, total, nil
 }
 
-func (s GenerationRetentionStore) recordRetentionEvent(
+// Retention cycle phases reported in GenerationRetentionResult.PhaseDurations.
+// The set is closed so it can label a metric: every phase after
+// GenerationRetentionPhaseKeyIndexCheck runs while the batch holds its
+// ingestion_scopes and scope_generations row locks.
+const (
+	GenerationRetentionPhaseKeyIndexCheck         = "key_index_check"
+	GenerationRetentionPhaseSelectCandidates      = "select_candidates"
+	GenerationRetentionPhaseCountRows             = "count_rows"
+	GenerationRetentionPhaseRecordEvents          = "record_events"
+	GenerationRetentionPhaseDeleteIntents         = "delete_shared_projection_intents"
+	GenerationRetentionPhasePruneFileReferences   = "prune_content_file_references"
+	GenerationRetentionPhaseLockInfraRepositories = "lock_infra_repositories"
+	GenerationRetentionPhasePruneEntities         = "prune_content_entities"
+	GenerationRetentionPhaseDeleteInfraOrphans    = "delete_infra_orphans"
+	GenerationRetentionPhasePruneFiles            = "prune_content_files"
+	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
+	GenerationRetentionPhaseCommit                = "commit"
+)
+
+// pruneCandidates records one retention event per candidate and then deletes
+// the batch's rows in dependency order, timing each statement as a phase.
+func (s GenerationRetentionStore) pruneCandidates(
 	ctx context.Context,
 	tx db.Transaction,
-	candidate generationRetentionCandidate,
-	policy GenerationRetentionPolicy,
+	candidates []generationRetentionCandidate,
 	rowCounts map[string]int64,
+	eventRowCounts map[string]map[string]int64,
+	policy GenerationRetentionPolicy,
 	now time.Time,
+	result *GenerationRetentionResult,
 ) error {
-	if rowCounts == nil {
-		rowCounts = map[string]int64{}
+	result.OldestEligibleAge = oldestEligibleAge(now, candidates)
+	generationIDs := retentionGenerationIDs(candidates)
+	for tableName, count := range rowCounts {
+		result.RowsPruned[tableName] = count
 	}
-	rowCountsJSON, err := json.Marshal(rowCounts)
-	if err != nil {
-		return fmt.Errorf("generation retention: marshal row counts: %w", err)
+
+	phaseStart := time.Now()
+	for _, candidate := range candidates {
+		if err := s.recordRetentionEvent(ctx, tx, candidate, policy, eventRowCounts[candidate.generationID], now); err != nil {
+			return err
+		}
 	}
-	scopeHash := retentionHashID("scope", candidate.scopeID)
-	generationHash := retentionHashID("generation", candidate.generationID)
-	eventID := retentionHashID("event", scopeHash+"\x00"+generationHash+"\x00"+policy.PolicyRevision)
-	if _, err := tx.ExecContext(
-		ctx,
-		insertGenerationRetentionEventQuery,
-		eventID,
-		scopeHash,
-		generationHash,
-		candidate.scopeKind,
-		policy.PolicyScope,
-		policy.PolicyRevision,
-		candidate.observedAt,
-		candidate.supersededAt,
-		"superseded_window_expired",
-		rowCountsJSON,
-		now,
-	); err != nil {
-		return fmt.Errorf("generation retention: record event: %w", err)
+	result.PhaseDurations[GenerationRetentionPhaseRecordEvents] = time.Since(phaseStart)
+
+	deleteWith := func(query string) func() (int64, error) {
+		return func() (int64, error) { return execRowsAffected(ctx, tx, query, generationIDs) }
 	}
+	// Each step: the phase it is timed under, the RowsPruned key (empty for
+	// none), and the call.
+	steps := []struct {
+		phase, table string
+		run          func() (int64, error)
+	}{
+		{GenerationRetentionPhaseDeleteIntents, "shared_projection_intents", deleteWith(deleteSharedProjectionIntentsForGenerationsQuery)},
+		{GenerationRetentionPhaseDeleteIntents, "shared_projection_unroutable_intents", deleteWith(deleteSharedProjectionUnroutableIntentsForGenerationsQuery)},
+		{GenerationRetentionPhasePruneFileReferences, "content_file_references", deleteWith(pruneContentFileReferencesForGenerationsQuery)},
+		// The infra read model mirrors content_entities (#6793): lock its
+		// repositories before the content prune, drop its orphans after it.
+		{GenerationRetentionPhaseLockInfraRepositories, "", func() (int64, error) {
+			return 0, inventory.LockRepositoriesForGenerations(ctx, tx, generationIDs)
+		}},
+		{GenerationRetentionPhasePruneEntities, "content_entities", deleteWith(pruneContentEntitiesForGenerationsQuery)},
+		{GenerationRetentionPhaseDeleteInfraOrphans, "infra_resource_entities", func() (int64, error) {
+			return inventory.DeleteOrphanedRows(ctx, tx, generationIDs)
+		}},
+		{GenerationRetentionPhasePruneFiles, "content_files", deleteWith(pruneContentFilesForGenerationsQuery)},
+		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
+	}
+	for _, step := range steps {
+		phaseStart := time.Now()
+		affected, err := step.run()
+		result.PhaseDurations[step.phase] += time.Since(phaseStart)
+		if err != nil {
+			return fmt.Errorf("generation retention: %s: %w", step.phase, err)
+		}
+		if step.table != "" {
+			result.RowsPruned[step.table] = affected
+		}
+	}
+	result.GenerationsPruned = int(result.RowsPruned["scope_generations"])
 	return nil
 }
 
@@ -478,21 +491,4 @@ func generationRetentionSkipSearchLimit(batchLimit int) int {
 		return 16
 	}
 	return limit
-}
-
-func execRowsAffected(ctx context.Context, exec db.Executor, query string, args ...any) (int64, error) {
-	result, err := exec.ExecContext(ctx, query, args...)
-	if err != nil {
-		return 0, err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return affected, nil
-}
-
-func retentionHashID(kind string, value string) string {
-	sum := sha256.Sum256([]byte(kind + "\x00" + value))
-	return hex.EncodeToString(sum[:])
 }
