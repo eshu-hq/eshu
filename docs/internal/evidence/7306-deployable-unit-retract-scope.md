@@ -19,8 +19,8 @@ which builds its rows from the intent's entity keys, has either failure:
   sends a foreign key to this domain.
 - **(b): no retract-shape defect.** The only reachable gap is a collector
   key-contract mismatch in dependency mode. There the handler neither writes
-  nor retracts for the repository. That is tracked as #7316, not as a
-  defect in this retract.
+  nor retracts for the repository. That was tracked as #7316 and is closed there,
+  not a defect in this retract.
 
 No production code changed. This change adds pinning tests and a doc comment
 on `deployableUnitRetractRowsFromFacts`.
@@ -78,7 +78,7 @@ Paths are relative to `go/` at base `origin/main` `7e844df0be`; citations name t
   `KindRepositoryRef` (`Runtime.Project` and `buildProjection` in
   `internal/projector/runtime/projection.go`).
 
-### The remaining (b) gap: dependency-mode name mismatch
+### The remaining (b) gap: dependency-mode name mismatch (closed by #7316)
 
 - The repository fact's `name` is `SelectedRepository.DisplayName` when set,
   else the path basename (`repositoryName` in `source_processing.go`).
@@ -86,14 +86,15 @@ Paths are relative to `go/` at base `origin/main` `7e844df0be`; citations name t
   (`DependencyName` in `selection_config.go`, copied into
   `SelectedRepository.DisplayName` in `selection_native.go`), and it
   applies to every repository in that run.
-- When it differs from the basename, the collector key matches nothing. The
-  handler then never writes and never retracts for that repository.
-- A stale edge can exist only if an earlier generation of the same path ran
-  with a name that matched.
-- The same basename-versus-`DisplayName` mismatch affects the other
-  `repo:`/`workload:` + basename follow-ups. The #7285 arbiter ruling listed it
-  as NOT_CHECKED. It is a collector key-contract defect, not a retract-shape
-  defect, and is tracked as #7316.
+- Before #7316 the collector built every follow-up key from the path basename.
+  When the name differed, the key matched nothing, so the handler never wrote
+  and never retracted for that repository.
+- #7316 closes it: every git-collector follow-up key is now
+  `<prefix>:<repository fact name>` through one helper (`followupEntityKey` in
+  `internal/collector/repo/git/followup_facts.go`). See
+  `docs/internal/evidence/7316-followup-key-repository-name.md` for the proof,
+  the full-generation heal rule for existing dependency-mode repositories, and
+  the one open gap (a name ending in a colon).
 
 ### Delta generations (existing policy, not key-related)
 

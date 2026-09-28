@@ -248,11 +248,14 @@ func TestDeployableUnitRetractMatcherAgreesWithCandidateFilter(t *testing.T) {
 		{id: duScopeRepoID, name: duScopeRepoName},
 		{id: "repository:r_Mixed_Case", name: "Mixed-Case"},
 		{id: "repo-plain", name: "plain"},
+		{id: "repository:r_dep1", name: "group:artifact"},
+		{id: "repository:r_dep2", name: "pkg:"},
 	}
 	keys := []string{
 		duCollectorKey, "repo:" + duScopeRepoID, "repo:repository:r_billing", "repo:" + duScopeID,
 		"workload:orders", "ORDERS", "repo:mixed-case", "repository:r_mixed_case", "repo:repo-plain",
 		"repo:plain", "platform:orders", "repo:", " repo:orders ",
+		"repo:group:artifact", "repo:pkg:",
 	}
 	for _, key := range keys {
 		entityKeys, err := deployableUnitCorrelationEntityKeys(Intent{IntentID: "i", EntityKeys: []string{key}})
@@ -269,5 +272,49 @@ func TestDeployableUnitRetractMatcherAgreesWithCandidateFilter(t *testing.T) {
 					key, repo.id, repo.name, retracts, filtered)
 			}
 		}
+	}
+}
+
+// TestDeployableUnitCollectorKeySelectsDisplayNames pins how the collector's
+// key for a repository name selects that repository (#7316). The git collector
+// builds repo:<repository fact name>, and in dependency mode the name is the
+// ESHU_BOOTSTRAP_PACKAGE_NAME value, so it can differ from the checkout
+// directory and carry a colon. An interior colon still selects (both sides
+// collapse to the segment after the last colon). A trailing colon does not:
+// payloadcore.NormalizedEntityKey returns the whole key when the colon is last,
+// so "repo:pkg:" never equals the bare name "pkg:". That non-match is an open
+// gap, tracked as FOLLOWUP-7316B; it predates #7316 and exists for a checkout
+// directory ending in a colon as well. When it is fixed this row flips to true
+// and the docs/internal/evidence/7316 note must change with it.
+func TestDeployableUnitCollectorKeySelectsDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		repoName string
+		matches  bool
+	}{
+		{name: "plain display name", repoName: "pkg-display", matches: true},
+		{name: "mixed case display name", repoName: "Pkg-Display", matches: true},
+		{name: "interior colon (maven style)", repoName: "group:artifact", matches: true},
+		{name: "scoped npm style", repoName: "@scope/pkg", matches: true},
+		{name: "trailing colon is an open gap (FOLLOWUP-7316B)", repoName: "pkg:", matches: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entityKeys, err := deployableUnitCorrelationEntityKeys(Intent{
+				IntentID: "i", EntityKeys: []string{"repo:" + tc.repoName},
+			})
+			if err != nil {
+				t.Fatalf("entity keys: %v", err)
+			}
+			repo := WorkloadCandidate{RepoID: "repository:r_display", RepoName: tc.repoName}
+			filtered := len(filterDeployableUnitCandidates([]WorkloadCandidate{repo}, entityKeys)) > 0
+			retracts := deployableUnitIntentMatchesRepository(entityKeys, repo.RepoID, repo.RepoName)
+			if filtered != tc.matches || retracts != tc.matches {
+				t.Fatalf("key repo:%s: candidate filter = %v, retract match = %v, want both %v",
+					tc.repoName, filtered, retracts, tc.matches)
+			}
+		})
 	}
 }

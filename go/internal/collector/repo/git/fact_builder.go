@@ -406,11 +406,11 @@ func streamFacts(
 	// re-projects (and sweeps stale edges). The data facts they consume are emitted
 	// above (emitSubmoduleFactsForCandidates/emitCodeownersFactsForCandidates, which
 	// re-read current disk state on both delta and full generations).
-	w.Send(rationaleMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(submodulePinFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.Send(rationaleMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(codeownersOwnershipFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(submodulePinFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
 	if snapshot.Delta {
-		w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+		w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
 		return
 	}
 
@@ -426,16 +426,16 @@ func streamFacts(
 		w.Send(dataflowScannedFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	}
 
-	w.Send(workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(platformInfraMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	w.Send(codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.Send(workloadIdentityFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(deployableUnitCorrelationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(workloadMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(codeCallMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(platformInfraMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(deploymentMappingFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(sqlRelationshipMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(shellExecMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(inheritanceMaterializationFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
+	w.Send(codeImportRepoEdgeFactEnvelope(repoPath, repo.Name, repo.ID, scopeID, generationID, observedAt))
 }
 
 // streamContentBodyReadFile is the seam streamFacts uses to read each content

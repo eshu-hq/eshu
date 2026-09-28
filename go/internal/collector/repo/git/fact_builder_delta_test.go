@@ -260,7 +260,7 @@ func TestBuildStreamingGenerationEmitsCodeownersOwnershipFollowup(t *testing.T) 
 	if !found {
 		t.Fatal("full generation missing shared_followup marker for reducer_domain codeowners_ownership")
 	}
-	if got, want := marker.Payload["entity_key"], "codeowners:"+filepath.Base(repoPath); got != want {
+	if got, want := marker.Payload["entity_key"], "codeowners:"+repo.Name; got != want {
 		t.Fatalf("codeowners_ownership followup entity_key = %#v, want %#v", got, want)
 	}
 	if got, want := marker.StableFactKey, "shared_followup:"+repo.ID+":codeowners_ownership"; got != want {
@@ -299,7 +299,7 @@ func TestBuildStreamingGenerationEmitsSubmodulePinFollowup(t *testing.T) {
 	if !found {
 		t.Fatal("full generation missing shared_followup marker for reducer_domain submodule_pin")
 	}
-	if got, want := marker.Payload["entity_key"], "submodule:"+filepath.Base(repoPath); got != want {
+	if got, want := marker.Payload["entity_key"], "submodule:"+repo.Name; got != want {
 		t.Fatalf("submodule_pin followup entity_key = %#v, want %#v", got, want)
 	}
 	if got, want := marker.StableFactKey, "shared_followup:"+repo.ID+":submodule_pin"; got != want {

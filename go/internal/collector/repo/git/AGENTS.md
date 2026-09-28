@@ -41,6 +41,20 @@ bug, not a new baseline.
 The generation estimate is assembled from per-family pre-count functions. If you
 change what an emitter sends, change its pre-count in the same edit.
 
+## Follow-up entity keys come from the repository name
+
+Every `shared_followup` envelope in `followup_facts.go` builds its `entity_key`
+through `followupEntityKey(prefix, repoName)`, and `streamFacts` feeds it
+`repo.Name`: the same value the repository fact publishes as `name`. Never
+derive a key from the checkout path (`filepath.Base(repoPath)`) and never build
+the string inline. In dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets the
+name, so the path basename differs, and the reducer selects candidates by
+comparing the key against the repository fact name (#7316). A new follow-up
+envelope takes `repoName` and calls the helper; add its domain to
+`followupKeyPrefixes` in `followup_key_test.go` so the count assertion covers it.
+The residual gap (a name ending in `:`) is documented in
+`docs/internal/evidence/7316-followup-key-repository-name.md`.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a
