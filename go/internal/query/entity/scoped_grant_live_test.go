@@ -157,7 +157,7 @@ func scopedRequestContext(ctx context.Context, allowedRepositoryIDs ...string) c
 
 func TestLiveScopedEntityContextGrant(t *testing.T) {
 	reader, baseCtx := scopedGrantLiveFixture(t)
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 
 	getEntityContext := func(ctx context.Context, entityID string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/"+entityID+"/context", nil)
@@ -256,7 +256,7 @@ func TestLiveScopedEntityContextGrant(t *testing.T) {
 
 func TestLiveScopedWorkloadContextGrant(t *testing.T) {
 	reader, baseCtx := scopedGrantLiveFixture(t)
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 
 	getWorkloadContext := func(ctx context.Context, workloadID string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/"+workloadID+"/context", nil)
@@ -314,7 +314,7 @@ func TestLiveScopedWorkloadContextGrant(t *testing.T) {
 // same workload every time for a caller granted both.
 func TestLiveScopedServiceContextNameCollision(t *testing.T) {
 	reader, baseCtx := scopedGrantLiveFixture(t)
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	const serviceName = "scoped-grant-6786-api"
 
 	getServiceContext := func(ctx context.Context) *httptest.ResponseRecorder {

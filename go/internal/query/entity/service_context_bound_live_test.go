@@ -36,7 +36,7 @@ func TestLiveScopedServiceContextBoundCountsGrantedRowsOnly(t *testing.T) {
 	reader.write(baseCtx, t, `CREATE (:Workload {id: 'scoped-grant-6786:crowded-zz', name: '`+serviceName+`', repo_id: 'scoped-grant-6786:repo-a'})`)
 	reader.write(baseCtx, t, scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "DEFINES", "Workload", "scoped-grant-6786:crowded-zz"))
 
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	get := func(t *testing.T, allowed ...string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/services/"+serviceName+"/context", nil)

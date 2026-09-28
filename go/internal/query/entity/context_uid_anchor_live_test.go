@@ -117,7 +117,7 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 	defer cleanup()
 
 	reader := &countingLiveReader{entityLiveReader: base}
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	get := func(id string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/"+id+"/context", nil)
 		req.SetPathValue("entity_id", id)
@@ -125,7 +125,22 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 		handler.GetEntityContext(rec, req)
 		return rec
 	}
+	// The handler under test takes the production path for the live backend:
+	// on Neo4j the single indexed anchor plus the unlabeled fallback (#7380),
+	// on NornicDB the per-label loop plus the fallback. allReads is what a
+	// full miss sends, and uidAnchorRead is the statement that resolves the
+	// canonical Function on the first read.
 	allReads := len(EntityContextAnchorLabels) + 1
+	uidAnchorRead := func(line string) bool {
+		return line == "MATCH (e:Function) WHERE e.uid = $entity_id AND e.id = $entity_id"
+	}
+	if handler.GraphBackend == querycontract.GraphBackendNeo4j {
+		allReads = 2
+		uidAnchorRead = func(line string) bool {
+			return strings.HasPrefix(line, "MATCH (e:Function|") &&
+				strings.HasSuffix(line, " {uid: $entity_id}) WHERE e.id = $entity_id")
+		}
+	}
 
 	// (1) A canonical id == uid Function resolves on the first read, through
 	// the uid-anchored Function statement, with its file and repository.
@@ -146,9 +161,9 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 		t.Fatalf("canonical entity = (%q, %q, %q), want (%q, b.go, %q)",
 			body.ID, body.FilePath, body.RepoID, uidAnchorCanonicalID, uidAnchorRepoID)
 	}
-	if want := "MATCH (e:Function) WHERE e.uid = $entity_id AND e.id = $entity_id"; len(anchors) != 1 || anchors[0] != want {
+	if len(anchors) != 1 || !uidAnchorRead(anchors[0]) {
 		// Errorf, not Fatalf: the behavioral checks below must still run.
-		t.Errorf("canonical entity anchor reads = %q, want exactly [%q]", anchors, want)
+		t.Errorf("canonical entity anchor reads = %q, want exactly one uid-anchored read", anchors)
 	}
 
 	// (2) The File matches the uid equality alone but carries no id. The old
@@ -160,7 +175,7 @@ func TestLiveEntityContextUIDAnchor(t *testing.T) {
 		t.Fatalf("uid-only File: status = %d, want 404; body = %s", rec.Code, rec.Body.String())
 	}
 	if len(anchors) != allReads {
-		t.Fatalf("uid-only File: anchor reads = %d, want %d (every label, then the fallback)", len(anchors), allReads)
+		t.Fatalf("uid-only File: anchor reads = %d, want %d (every anchor read, then the fallback)", len(anchors), allReads)
 	}
 
 	// (3) An id-only Function misses the uid-anchored fast path and resolves

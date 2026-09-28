@@ -95,7 +95,7 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	}
 	defer reader.write(context.Background(), t, entityAnswerTruthCleanup)
 
-	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{GraphBackend: liveQueryGraphBackend(), Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/answer-truth-entity:fn-Main/context", nil)
 	req.SetPathValue("entity_id", "answer-truth-entity:fn-Main")
 	rec := httptest.NewRecorder()

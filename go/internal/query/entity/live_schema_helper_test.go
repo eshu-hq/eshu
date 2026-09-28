@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -41,6 +42,19 @@ func liveGraphBackend() (graph.SchemaBackend, string) {
 		database = "nornic"
 	}
 	return graph.SchemaBackendNornicDB, database
+}
+
+// liveQueryGraphBackend returns the querycontract.GraphBackend a Handler under
+// test must carry so it takes the same entity-context read path production
+// wires for the live backend: querycontract.GraphBackendNeo4j selects the
+// single indexed anchor (#7380) on the Neo4j leg, and the NornicDB leg keeps
+// the per-label loop. A zero-value Handler always runs the loop, which would
+// leave the Neo4j leg exercising a path production no longer uses.
+func liveQueryGraphBackend() querycontract.GraphBackend {
+	if backend, _ := liveGraphBackend(); backend == graph.SchemaBackendNeo4j {
+		return querycontract.GraphBackendNeo4j
+	}
+	return querycontract.GraphBackendNornicDB
 }
 
 // liveWriteMaxAttempts bounds retries for a transient write conflict (e.g.
