@@ -3709,6 +3709,7 @@ gates:
       - "go/internal/ifa/familyodu/workload_cloud_relationship_family_odu.go"
       - "go/internal/ifa/familyodu/iam_escalation_family_odu.go"
       - "go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go"
+      - "go/internal/ifa/familyodu/s3_logs_to_family_odu.go"
       - "go/internal/ifa/direct_family_cassette.go"
       - "go/internal/reducer/kubernetes_namespace_materialization.go"
       - "go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go"
@@ -3722,6 +3723,7 @@ gates:
       - "testdata/cassettes/workloadcloudrelationship/**"
       - "testdata/cassettes/iamescalation/**"
       - "testdata/cassettes/ec2usesprofile/**"
+      - "testdata/cassettes/s3logsto/**"
       - "go/internal/ifa/testdata/kubernetesnamespaceenvironment/**"
       - "go/internal/ifa/testdata/iaminstanceprofilerole/**"
       - "go/internal/ifa/testdata/iamcanassume/**"
@@ -3729,6 +3731,7 @@ gates:
       - "go/internal/ifa/testdata/workloadcloudrelationship/**"
       - "go/internal/ifa/testdata/iamescalation/**"
       - "go/internal/ifa/testdata/ec2usesprofile/**"
+      - "go/internal/ifa/testdata/s3logsto/**"
       - "scripts/lib/ifa_direct_family_live.sh"
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered

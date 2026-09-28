@@ -37,9 +37,10 @@ const (
 	// iamInstanceProfileRoleFamilyCassettePath, iamCanAssumeFamilyCassettePath,
 	// iamCanPerformFamilyCassettePath,
 	// workloadCloudRelationshipFamilyCassettePath,
-	// iamEscalationFamilyCassettePath, and ec2UsesProfileFamilyCassettePath
-	// are repo-root-relative so the constants stay machine-independent;
-	// callers join a repo root onto them through the exported helpers below.
+	// iamEscalationFamilyCassettePath, ec2UsesProfileFamilyCassettePath,
+	// and s3LogsToFamilyCassettePath are repo-root-relative so the
+	// constants stay machine-independent; callers join a repo root onto
+	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
 	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
@@ -47,6 +48,7 @@ const (
 	workloadCloudRelationshipFamilyCassettePath      = "testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
 	iamEscalationFamilyCassettePath                  = "testdata/cassettes/iamescalation/ifa-iam-escalation-family.json"
 	ec2UsesProfileFamilyCassettePath                 = "testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
+	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -179,7 +181,20 @@ func LoadEC2UsesProfileFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, EC2UsesProfileFamilyOduName)
 }
 
-// loadDirectFamilyOdu is the shared strict projection behind all seven loaders.
+// S3LogsToFamilyCassetteFullPath joins repoRoot onto the committed
+// s3_logs_to family cassette path.
+func S3LogsToFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, s3LogsToFamilyCassettePath)
+}
+
+// LoadS3LogsToFamilyOdu reads the committed cassette and projects it onto
+// the fact envelopes the reducer's extractor consumes, the s3_logs_to
+// counterpart to LoadEC2UsesProfileFamilyOdu.
+func LoadS3LogsToFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, S3LogsToFamilyOduName)
+}
+
+// loadDirectFamilyOdu is the shared strict projection behind all eight loaders.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // makes every downstream assertion vacuous, which is the failure mode the whole

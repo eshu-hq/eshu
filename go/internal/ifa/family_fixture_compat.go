@@ -41,6 +41,7 @@ const (
 	RationaleFamilyOduName                      = familyodu.RationaleFamilyOduName
 	RepoDependencyFamilyOduName                 = familyodu.RepoDependencyFamilyOduName
 	RepositoryFactKind                          = familyodu.RepositoryFactKind
+	S3LogsToFamilyOduName                       = familyodu.S3LogsToFamilyOduName
 	SharedFollowupFactKind                      = familyodu.SharedFollowupFactKind
 	ShellExecFamilyOduName                      = familyodu.ShellExecFamilyOduName
 	SubmodulePinFamilyOduName                   = familyodu.SubmodulePinFamilyOduName
@@ -155,6 +156,9 @@ func IAMEscalationFamilyOdu() CatalogOdu { return familyodu.IAMEscalationFamilyO
 
 // EC2UsesProfileFamilyOdu returns the cataloged EC2 uses-profile family Odù.
 func EC2UsesProfileFamilyOdu() CatalogOdu { return familyodu.EC2UsesProfileFamilyOdu() }
+
+// S3LogsToFamilyOdu returns the cataloged S3 logs-to family Odù.
+func S3LogsToFamilyOdu() CatalogOdu { return familyodu.S3LogsToFamilyOdu() }
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {

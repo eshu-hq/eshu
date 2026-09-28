@@ -133,6 +133,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.EC2UsesProfileFamilyCassetteFullPath,
 			load:         ifa.LoadEC2UsesProfileFamilyOdu,
 		},
+		{
+			name:         ifa.S3LogsToFamilyOduName,
+			compiled:     ifa.S3LogsToFamilyOdu,
+			cassettePath: ifa.S3LogsToFamilyCassetteFullPath,
+			load:         ifa.LoadS3LogsToFamilyOdu,
+		},
 	}
 }
 

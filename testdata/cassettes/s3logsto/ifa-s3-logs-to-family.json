@@ -1,0 +1,225 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-s3-logs-to-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-s3-logs-to-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "s3"
+      },
+      "generation_id": "gen-ifa-s3-logs-to-family-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::orders-bucket",
+            "name": "orders-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::orders-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:logs-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::logs-bucket",
+            "name": "logs-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::logs-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:audit-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::audit-bucket",
+            "name": "audit-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::audit-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:plain-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::plain-bucket",
+            "name": "plain-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::plain-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:app-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::app-bucket",
+            "name": "app-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::app-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arnonly-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::arnonly-bucket",
+            "name": "arnonly-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::arnonly-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:idle-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:s3:::idle-bucket",
+            "name": "idle-bucket",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:s3:::idle-bucket",
+            "resource_type": "aws_s3_bucket"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:orders-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::orders-bucket",
+            "bucket_name": "orders-bucket",
+            "logging_target_bucket": "logs-bucket",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:audit-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::audit-bucket",
+            "bucket_name": "audit-bucket",
+            "logging_target_bucket": "audit-bucket",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:arn:aws:s3:::arnonly-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::arnonly-bucket",
+            "bucket_name": "",
+            "logging_target_bucket": "logs-bucket",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:plain-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::plain-bucket",
+            "bucket_name": "plain-bucket",
+            "logging_target_bucket": "",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:app-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::app-bucket",
+            "bucket_name": "app-bucket",
+            "logging_target_bucket": "ghost-log-bucket",
+            "region": "us-east-1"
+          }
+        },
+        {
+          "fact_kind": "s3_bucket_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:s3_bucket_posture:orphan-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "bucket_arn": "arn:aws:s3:::orphan-bucket",
+            "bucket_name": "orphan-bucket",
+            "logging_target_bucket": "logs-bucket",
+            "region": "us-east-1"
+          }
+        }
+      ]
+    }
+  ]
+}

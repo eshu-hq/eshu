@@ -89,6 +89,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.EC2UsesProfileFamilyOduName,
 		EdgeTypes: []string{"USES_PROFILE"},
 	},
+	{
+		Family:    s3LogsToFamily,
+		OduName:   ifa.S3LogsToFamilyOduName,
+		EdgeTypes: []string{"LOGS_TO"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

@@ -27,7 +27,7 @@ var s3LogsToRelationshipVocabulary = map[string]struct{}{
 	"LOGS_TO": {},
 }
 
-// canonicalS3LogsToEdgeUpsertCypherFormat batches LOGS_TO edge upserts between
+// CanonicalS3LogsToEdgeUpsertCypherFormat batches LOGS_TO edge upserts between
 // two already-materialized S3 bucket CloudResource nodes: the source bucket that
 // emits server-access logs and the target log bucket those logs are delivered
 // to. The relationship type is a validated static token from the closed
@@ -37,7 +37,7 @@ var s3LogsToRelationshipVocabulary = map[string]struct{}{
 // preserving one edge per (source uid, LOGS_TO, target uid). Two MATCHes precede
 // the MERGE so a row whose source or target node is absent produces no edge and
 // no fabricated node.
-const canonicalS3LogsToEdgeUpsertCypherFormat = `UNWIND $rows AS row
+const CanonicalS3LogsToEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (source:CloudResource {uid: row.source_uid})
 MATCH (target:CloudResource {uid: row.target_uid})
 MERGE (source)-[rel:%s]->(target)
@@ -46,14 +46,14 @@ SET rel.resolution_mode = row.resolution_mode,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractS3LogsToEdgesCypher removes this reducer's LOGS_TO edges for a set of
+// RetractS3LogsToEdgesCypher removes this reducer's LOGS_TO edges for a set of
 // scopes before a fresh generation reprojects them. LOGS_TO is a fixed
 // relationship type between two CloudResource nodes, so the retract matches it
 // directly and scopes by the edge's own scope_id and evidence_source.
 // CloudResource nodes are cross-generation canonical and carry no reducer
 // scope_id, so a node-scoped predicate would leak stale edges across
 // generations.
-const retractS3LogsToEdgesCypher = `MATCH (:CloudResource)-[rel:LOGS_TO]->(:CloudResource)
+const RetractS3LogsToEdgesCypher = `MATCH (:CloudResource)-[rel:LOGS_TO]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -120,7 +120,7 @@ func (w *S3LogsToEdgeWriter) WriteS3LogsToEdges(
 	}
 
 	// The vocabulary has a single member, so all validated rows share one token.
-	cypher := fmt.Sprintf(canonicalS3LogsToEdgeUpsertCypherFormat, s3LogsToRelationshipType())
+	cypher := fmt.Sprintf(CanonicalS3LogsToEdgeUpsertCypherFormat, s3LogsToRelationshipType())
 	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
@@ -155,7 +155,7 @@ func (w *S3LogsToEdgeWriter) RetractS3LogsToEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractS3LogsToEdgesCypher,
+		Cypher:    RetractS3LogsToEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

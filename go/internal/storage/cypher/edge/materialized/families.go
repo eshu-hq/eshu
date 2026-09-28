@@ -128,7 +128,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The seven DIRECT-materialization families registered here (#6228).
+	// The eight DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -150,12 +150,12 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 two of the seven carry coverage rows. Registering a family
+	// Since #6309 two of the eight carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
 	// drives it. workload_cloud_relationship, iam_can_assume,
-	// iam_can_perform, iam_escalation, and ec2_uses_profile still carry
-	// their waiver rows in
+	// iam_can_perform, iam_escalation, ec2_uses_profile, and s3_logs_to
+	// still carry their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
@@ -263,6 +263,23 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"USES_PROFILE": "EC2-instance to IAM instance-profile attachment (CanonicalEC2UsesProfileEdgeUpsertCypherFormat)"},
 		RetractCypher:  sourcecypher.RetractEC2UsesProfileEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalEC2UsesProfileEdgeUpsertCypherFormat,
+	},
+	// s3_logs_to follows the same single-vocabulary shape as
+	// iam_instance_profile_role: IdentityCypher holds the %s FORMAT const
+	// unformatted, and the token substituted into it comes from
+	// s3LogsToRelationshipVocabulary, a closed single-member set screened
+	// per row by validateS3LogsToRelationshipType, so LOGS_TO is the only
+	// type this writer can emit. The template MERGEs on its two endpoint
+	// nodes alone (both are MATCHed, never merged), so the identity scan
+	// yields nothing whether or not the %s has been substituted.
+	// s3LogsToEdgeLabel ("S3_LOGS_TO") is statement metadata carried beside
+	// the query, not a graph relationship type -- the same #6181-shaped
+	// trap iam_instance_profile_role documents one level below the port
+	// name.
+	"s3_logs_to": {
+		EdgeTypes:      map[string]string{"LOGS_TO": "S3-bucket to log-bucket delivery attachment (CanonicalS3LogsToEdgeUpsertCypherFormat)"},
+		RetractCypher:  sourcecypher.RetractS3LogsToEdgesCypher,
+		IdentityCypher: sourcecypher.CanonicalS3LogsToEdgeUpsertCypherFormat,
 	},
 }
 
