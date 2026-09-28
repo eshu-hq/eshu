@@ -49,6 +49,13 @@ func (mcpNoopContentStore) SearchEntityContentAnyRepo(context.Context, string, i
 	return nil, nil
 }
 
+// SearchCodeCandidates returns no candidates for this no-op dispatch store.
+func (mcpNoopContentStore) SearchCodeCandidates(
+	context.Context, string, string, string, int, bool,
+) ([]query.EntityContent, []query.EntityContent, error) {
+	return nil, nil, nil
+}
+
 func (mcpNoopContentStore) SearchEntitiesByName(context.Context, string, string, string, int) ([]query.EntityContent, error) {
 	return nil, nil
 }

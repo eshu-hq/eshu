@@ -28,6 +28,9 @@ surface. Exactly 40 non-test `.go` files (dirgate cap).
   (`httptest` + `handleSearch`-style direct handler calls), never
   over internal helpers: `handleSearch` probes with limit+1, so a
   body limit of 9 drives the graph builder with 10.
+- Repository-scoped code-search fallback asks `ContentStore.SearchCodeCandidates`
+  for language and exact-name predicates before each bounded content page.
+  The unfiltered fallback keeps its existing name-then-source reads.
 
 ## Contracts (must hold)
 

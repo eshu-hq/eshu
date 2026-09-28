@@ -5,6 +5,10 @@
 `querycontract` holds the stable types and small helpers that query families
 need without depending on the root `query` package.
 
+`ContentStore.SearchCodeCandidates` is the repository-scoped code-search read:
+its name and source pages apply language and exact-name predicates before the
+limit. The root `ContentReader` implements it through this port.
+
 ## Ownership boundary
 
 This package owns query profiles, truth and error envelopes, freshness causes,
