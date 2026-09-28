@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 440,
-    "covered": 429,
+    "total": 441,
+    "covered": 430,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 140,
-      "covered": 140,
+      "total": 141,
+      "covered": 141,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 225,
-      "covered": 220,
+      "total": 226,
+      "covered": 221,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1056,6 +1056,16 @@
       "ref": "operations.status",
       "proof_gate": "capability-inventory",
       "detail": "capability \"operations.status\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:operator.changed_since_poisoned_links.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "operator.changed_since_poisoned_links.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"operator.changed_since_poisoned_links.list\" matrix profile proofs present (supported=4 refusal=0)"
     },
     {
       "registry": "capability_matrix",
