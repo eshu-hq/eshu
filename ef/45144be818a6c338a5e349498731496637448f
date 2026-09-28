@@ -1,0 +1,27 @@
+scripts/test-codex-spawn-guard.py
+  s_bc720f29f5e0fd::t_5be7e18344fc8d 86-93
+  s_bc720f29f5e0fd::t_b76da13621baf4 1-60,62-64,82-85,94-105
+  s_bc720f29f5e0fd::t_8e17c3f4e21110 61,65-81
+.codex/hooks.json
+  s_bc720f29f5e0fd::t_8958d0535ffdbd 3-4,6-8,10-14
+  s_bc720f29f5e0fd::t_a8c9a9909f1e68 9
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 5
+scripts/guard-codex-spawn.py
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef45144be818a6c338a5e349498731496637448f",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
