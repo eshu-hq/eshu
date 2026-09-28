@@ -83,8 +83,78 @@ The `changed_since_link` domain (#7127) keeps a changed-since ledger (migration
 the scope's last linked generation. A later release answers `get_changed_since`
 from these links. Until then nothing reads the ledger. The domain is off by
 default. With `ESHU_CHANGED_SINCE_LINK_ENABLED` unset or `false` it builds no
-runner and issues no SQL. Do not enable it before generation retention cleans
-the ledger tables.
+runner and the link domain issues no SQL.
+
+Generation retention prunes the ledger in the same transaction that prunes a
+generation, with one statement. It deletes the links whose generation or prior
+generation is pruned, with their link deltas and bucket counts, and the
+activation rows of the pruned generations. It does this whatever the link
+switch says, so rows written while it was on are still pruned after it is
+off. The key-state table and the cursor describe the active generation and
+are never pruned.
+
+Ledger rows count toward `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`. The
+limit caps a batch of two or more generations. A generation over it only
+because of its ledger rows is pruned in a batch of its own, which may exceed
+the limit by that generation's ledger rows and nothing else; while another
+batch is being filled it is deferred with reason `row_limit_ledger` and leads
+a later batch. Each such batch adds one to
+`eshu_dp_generation_retention_over_limit_batches_total`, and the cycle log
+reports `rows_over_batch_row_limit`. A generation whose rows outside the
+ledger exceed the limit is still skipped with reason `row_limit` (ADR #2248).
+A batch of one over the limit holds one scope row and one generation row
+while it deletes: it gives back the other rows its selection locked before the
+delete (a savepoint rollback) and re-locks only its own. The cycle log's
+`locked_scope_rows` counts the scope rows held by the pruned batch, not the
+selection's full lock set: in a general batch the selection can also hold
+other scope rows it locked while choosing, up to `BatchGenerationLimit`.
+
+The measured size of such a batch, with the `shared_buffers` it was measured
+under: PostgreSQL 18.6 in a container on an 18-CPU host with at least half its
+CPUs idle throughout every run (at its start, its end and its in-run peak), each
+run paired with a control run of the previous code, in the same round, that
+finished within 2 s; six valid rounds per size; the retention transaction's
+`work_mem` of 64MB and `BatchRowLimit` 100,000. Cells give the median and worst
+hold. The Docker Compose default inherits the second row.
+
+| `shared_buffers` | 771,201-row link | 1,542,402-row link |
+| --- | --- | --- |
+| 2GB (the link-delta table fits) | 1.11 s median, 1.31 s worst | 2.90 s median, 3.53 s worst |
+| 128MB (Postgres default, which the Docker Compose stack runs) | 1.67 s median, 1.88 s worst | 4.76 s median, 5.78 s worst |
+
+The delete's buffer work is exactly linear: 4.06 buffer touches per deleted
+row at both sizes. It also writes WAL, mostly full-page images of the heap
+pages it touches: up to about 300 bytes per deleted row (286-301 measured, about
+0.45 GB, at 1.54M rows), so on any deployment the hold lasts at least as long
+as writing that WAL takes; how much of the measured time that is has not been
+isolated. On the measurement host the hold grew 2.62 times at 2GB and 2.85
+times at 128MB for twice the rows, close on both (the
+standard deviation of their same-round ratios is 0.34-0.41), so the excess
+over linear is not mainly the buffer cache. The smaller runs wrote fewer
+full-page images per row (68-216 bytes of WAL per row); the cause of the
+excess was not isolated. On a CPU-saturated host (load at or above the CPU
+count), runs that the rule above excludes took several times the quiet-host
+figures with identical buffer work (measured before #7279 changed the
+retention transaction).
+
+The envelope has an edge. At 1,542,402 rows the delete's in-memory list of
+row ids uses 61,308 kB of the transaction's 65,536 kB (64MB) `work_mem`. A
+link of about 1.65 million rows or more spills that list to temporary files,
+which has not been measured. A scope with more than about 770k keys can write
+a link of that size.
+
+While a batch of one holds its scope row, the projector's Ack for that scope
+waits in 2 s slices and retries (about 300 s of tolerance), which shows as a
+rise in `eshu_dp_projector_ack_deferrals_total` and
+`eshu_dp_projector_ack_wait_seconds` during a retention cycle; the ingester's
+commit for that scope waits, and so does the projector's failure path, which
+has no lock timeout. The wait ends when the retention transaction commits.
+Watch `eshu_dp_generation_retention_rows_pruned_total{table="changed_since_link_deltas"}`
+and the `eshu_dp_changed_since_deltas_bytes` gauge: a delta table that grows
+while retention prunes nothing from it means retention is not keeping up.
+Retention leaves at most one link per scope whose prior generation it had
+already pruned (the link writer does not lock the prior); that link goes with
+its own generation.
 
 A cycle does four things:
 - It journals active generations that have no activation row.

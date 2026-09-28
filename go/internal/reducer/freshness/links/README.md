@@ -63,6 +63,9 @@ known gap).
 - `eshu_dp_changed_since_link_lag_seconds`
 - `eshu_dp_changed_since_state_bytes`
 - `eshu_dp_changed_since_state_rows`
+- `eshu_dp_changed_since_deltas_bytes`, `eshu_dp_changed_since_deltas_rows`
+  (the link-delta table. Generation retention bounds it, apart from at most
+  one link per scope whose prior was pruned; see the ledger store's README)
 - `eshu_dp_changed_since_link_retrying_scopes`, `eshu_dp_changed_since_link_poisoned_scopes` (computed in SQL, fleet-wide)
 - One ERROR `changed-since link poisoned` log per poisoning, with scope,
   generation, sequence, failure class and attempts.

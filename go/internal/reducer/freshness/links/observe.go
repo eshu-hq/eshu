@@ -230,6 +230,8 @@ func (r *Runner) recordGauges(ctx context.Context) {
 	r.Instruments.ChangedSinceLinkLag.Record(ctx, stats.LagSeconds)
 	r.Instruments.ChangedSinceStateBytes.Record(ctx, stats.StateBytes)
 	r.Instruments.ChangedSinceStateRows.Record(ctx, stats.StateRows)
+	r.Instruments.ChangedSinceDeltasBytes.Record(ctx, stats.DeltaBytes)
+	r.Instruments.ChangedSinceDeltasRows.Record(ctx, stats.DeltaRows)
 	r.Instruments.ChangedSinceLinkRetryingScopes.Record(ctx, stats.RetryingScopes)
 	r.Instruments.ChangedSinceLinkPoisonedScopes.Record(ctx, stats.PoisonedScopes)
 }

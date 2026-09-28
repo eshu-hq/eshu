@@ -184,7 +184,7 @@ func assertGenerationRetentionColdBatch(t *testing.T, ctx context.Context, datab
 		t.Fatalf("begin row count: %v", err)
 	}
 	start := time.Now()
-	counted, perGeneration, _, err := store.countRows(batchCtx, tx, candidates)
+	counted, perGeneration, _, err := store.countRows(batchCtx, tx, retentionTestScopes("scope-cold", len(candidates)), candidates)
 	_ = tx.Rollback()
 	if err != nil {
 		t.Fatalf("cold row counts did not finish inside 20s without planner statistics: %v", err)

@@ -76,7 +76,9 @@
 // GenerationRetentionStore prunes superseded source-generation history in
 // bounded transactions after recording safe hashed retention events; changed
 // since queries use those events to report retention_expired instead of a false
-// empty delta when a prior generation has aged out.
+// empty delta when a prior generation has aged out. The same transaction
+// prunes the changed-since link ledger rows of the pruned generations through
+// linksfreshnessstore, whose row counts join BatchRowLimit.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Fact writes remove
 // JSONB-incompatible U+0000 characters without changing literal source text

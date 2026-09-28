@@ -92,7 +92,7 @@ decisions_test.go -> decisions/decisions_test.go
 generation_liveness.go -> generation/liveness.go
 generation_liveness_sql.go -> generation/liveness_sql.go
 generation_retention.go -> generation/retention.go
-generation_retention_schema.go -> generation/retention_schema.go
+generation_retention_events.go -> generation/retention_events.go
 generation_retention_sql.go -> generation/retention_sql.go
 graph_projection_phase_repair_queue.go -> generation/graph_projection_phase_repair_queue.go
 graph_projection_phase_state.go -> generation/graph_projection_phase_state.go

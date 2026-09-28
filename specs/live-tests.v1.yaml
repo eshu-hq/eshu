@@ -876,6 +876,10 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link runner two-process race proof (#7127 PR-3a gates G9/G16d), spawns two copies of the compiled test binary against one cloned database; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/reducer/freshness/links/retention_process_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention against the link runner in two OS processes of the test binary (#7127 PR-3d, arbiter ruling arb-7127-3d P7), untagged and gated by env Skip; about 20s; scheduled, never blocking
   - file: go/internal/reducer/freshness/links/runner_live_test.go
     tag: ~
     class: scheduled
@@ -1702,6 +1706,30 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link re-key timing under absent statistics (#7127 PR-3a, arbiter ruling arb-7127-g8 P2), about 80s including a 60s RED timeout; scheduled, never blocking
+  - file: go/internal/storage/postgres/freshness/links/retention_bound_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention bound, activation above the cursor and row-limit starvation (#7127 PR-3d, arbiter ruling arb-7127-3d P3/P4), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/retention_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention equality, row-limit and idempotency proof (#7127 PR-3d, ruling 2.8), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/retention_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention plan-shape proof (#7127 PR-3d, ruling 8.4 sweep) that builds 2M link-delta rows, about 1-2 minutes locally; scheduled, never blocking
+  - file: go/internal/storage/postgres/freshness/links/retention_race_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention concurrency proof against the link writer and the orphan-scope purge (#7127 PR-3d), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go
+    tag: ~
+    class: scheduled
+    reason: retention timing harness regression, a timing clone is dropped when the test that made it ends (#7127 PR-3d, arbiter ruling arb-7127-3d-e PE1), skipped unless ESHU_RETENTION_TIMING_DSN is set; clones an empty template of its own
+  - file: go/internal/storage/postgres/freshness/links/retention_timing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since ledger retention lock-hold timing, drain and lock-set probe (#7127 PR-3d, arbiter rulings arb-7127-3d P8, arb-7127-3d-b PB4/PB7, arb-7127-3d-c PC1/PC2), skipped unless ESHU_RETENTION_TIMING_DSN is set; driven by docs/internal/evidence/7127-ledger-retention-timing.sh
   - file: go/internal/storage/postgres/freshness/links/scale_live_test.go
     tag: ~
     class: scheduled
@@ -1727,6 +1755,10 @@ tests:
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/generation_retention_migrated_schema_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_narrow_live_test.go
     tag: ~
     class: scheduled
     reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)

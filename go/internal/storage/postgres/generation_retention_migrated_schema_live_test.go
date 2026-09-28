@@ -214,13 +214,19 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"content_entities":                    1,
 		"infra_resource_entities":             1,
 		"content_files":                       1,
+		// The changed-since link ledger (#7127 ruling 2.8); this fixture
+		// writes none of it.
+		"changed_since_activations":        0,
+		"changed_since_links":              0,
+		"changed_since_link_deltas":        0,
+		"changed_since_link_bucket_counts": 0,
 	}
 
 	tx, err := SQLDB{DB: database}.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	totals, _, _, err := GenerationRetentionStore{}.countRows(ctx, tx, []string{"gen-old"})
+	totals, _, _, err := GenerationRetentionStore{}.countRows(ctx, tx, []string{"scope-1"}, []string{"gen-old"})
 	_ = tx.Rollback()
 	if err != nil {
 		t.Fatalf("countRows() error = %v", err)

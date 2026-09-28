@@ -77,6 +77,59 @@ WHERE generation.status = 'superseded'
 FOR UPDATE OF generation, scope SKIP LOCKED
 `
 
+// Savepoint around candidate selection (arbiter ruling arb-7127-3d-c). Row
+// locks are released by a rollback to a savepoint, so a batch of one
+// generation admitted over BatchRowLimit can give back every scope and
+// generation row the selection locked and keep only its own. SET LOCAL
+// work_mem is issued before the savepoint, so the rollback keeps it.
+const (
+	generationRetentionSavepointStatement         = "SAVEPOINT retention_selection"
+	generationRetentionReleaseSavepointStatement  = "RELEASE SAVEPOINT retention_selection"
+	generationRetentionRollbackSavepointStatement = "ROLLBACK TO SAVEPOINT retention_selection"
+)
+
+// generationRetentionTargetedCandidateQuery re-locks one candidate after the
+// selection's savepoint rollback: the candidate query's predicates for one
+// (scope, generation) pair, FOR UPDATE OF generation, scope SKIP LOCKED, so
+// the delete of an over-limit batch holds one scope row and one generation
+// row. Rank > $2 is written as "at least $2 newer superseded generations",
+// which is what ROW_NUMBER over (superseded_at, generation_id) DESC means. It
+// is its own statement so the general candidate query's plan is untouched.
+// No row means another session took, re-activated or started work on the
+// candidate after the rollback; the pass then prunes nothing.
+//
+// $1 superseded cutoff, $2 minimum newer superseded generations, $3 excluded
+// generation ids, $4 scope id, $5 generation id.
+const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
+SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at
+FROM scope_generations AS generation
+JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
+WHERE scope.scope_id = $4
+  AND generation.scope_id = $4
+  AND generation.generation_id = $5
+  AND generation.status = 'superseded'
+  AND generation.generation_id <> ALL($3::text[])
+  AND generation.superseded_at IS NOT NULL
+  AND generation.superseded_at < $1
+  AND generation.generation_id IS DISTINCT FROM scope.active_generation_id
+  AND (
+      SELECT count(*)
+      FROM scope_generations AS newer
+      WHERE newer.scope_id = generation.scope_id
+        AND newer.status = 'superseded'
+        AND newer.generation_id <> ALL($3::text[])
+        AND newer.superseded_at IS NOT NULL
+        AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)
+  ) >= $2
+  AND NOT EXISTS (
+      SELECT 1
+      FROM fact_work_items AS work
+      WHERE work.generation_id = generation.generation_id
+        AND work.status IN ('claimed', 'running', 'retrying')
+  )
+FOR UPDATE OF generation, scope SKIP LOCKED
+`
+
 // generationRetentionRowCountsQuery reports, per candidate generation and
 // table, the rows a retention batch over $1 deletes. Generation-owned tables
 // count the generation's own rows. A content row (content_entities,
@@ -252,25 +305,6 @@ LEFT JOIN content_files AS content_file
   ON content_file.repo_id = file.repo_id
  AND content_file.relative_path = file.relative_path
 GROUP BY candidate.generation_id
-`
-
-const insertGenerationRetentionEventQuery = `
-INSERT INTO generation_retention_events (
-    event_id,
-    scope_id_hash,
-    generation_id_hash,
-    scope_class,
-    policy_scope,
-    policy_revision,
-    generation_observed_at,
-    generation_superseded_at,
-    reason,
-    row_counts,
-    pruned_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11
-)
-ON CONFLICT (event_id) DO NOTHING
 `
 
 const deleteSharedProjectionIntentsForGenerationsQuery = `

@@ -74,7 +74,7 @@ VALUES ($1, 'repo-1', $1, 'TerraformResource', 'n', now())`, key)
 		if err != nil {
 			t.Fatalf("%s: begin: %v", tc.name, err)
 		}
-		totals, perGeneration, _, err := GenerationRetentionStore{}.countRows(ctx, tx, tc.order)
+		totals, perGeneration, _, err := GenerationRetentionStore{}.countRows(ctx, tx, retentionTestScopes("scope-attr", len(tc.order)), tc.order)
 		if err != nil {
 			_ = tx.Rollback()
 			t.Fatalf("%s: countRows() error = %v", tc.name, err)

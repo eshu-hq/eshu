@@ -16,8 +16,10 @@
   which poisons at `MaxAttempts` (#7127 ruling 8.10, gates G16a and G16b).
   Never make a lock miss count, and never drop the attempt limit.
 - With `ESHU_CHANGED_SINCE_LINK_ENABLED` unset or false, `cmd/reducer` builds
-  no runner and the domain issues no SQL (gate G14, pinned by
-  `cmd/reducer/changed_since_link_wiring_test.go`).
+  no runner and the link domain issues no SQL (gate G14, pinned by
+  `cmd/reducer/changed_since_link_wiring_test.go`). Generation retention still
+  prunes the ledger tables with the switch off: G14 covers the link domain,
+  not the tables.
 - No metric label may carry a scope or generation identifier. Identifiers
   belong on the span and in the log line.
 - Do not lower `Workers` or the slot count to hide a concurrency defect. The

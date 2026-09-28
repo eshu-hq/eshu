@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -54,7 +55,8 @@ func TestGenerationRetentionRefusesCycleWithoutKeyIndexes(t *testing.T) {
 
 // TestGenerationRetentionChecksKeyIndexesBeforeLocking pins the order: the
 // catalog check runs after the transaction-local work_mem setting and before the
-// candidate statement takes any scope lock.
+// candidate statement takes any scope lock. Only the selection savepoint
+// (#7127 PR-3d), which takes no lock, may sit between the two.
 func TestGenerationRetentionChecksKeyIndexesBeforeLocking(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +73,15 @@ func TestGenerationRetentionChecksKeyIndexesBeforeLocking(t *testing.T) {
 	if !strings.Contains(database.statements[1], "generation_retention_key_indexes") {
 		t.Errorf("second statement = %q, want the key-index check", strings.Fields(database.statements[1])[0])
 	}
-	if !strings.Contains(database.statements[2], "ranked_superseded_generations") {
-		t.Errorf("third statement is not the candidate lock")
+	candidateAt := slices.IndexFunc(database.statements, func(statement string) bool {
+		return strings.Contains(statement, "ranked_superseded_generations")
+	})
+	if candidateAt < 2 {
+		t.Fatalf("candidate lock at statement %d, want it after the key-index check", candidateAt)
+	}
+	for _, statement := range database.statements[2:candidateAt] {
+		if !strings.HasPrefix(statement, "SAVEPOINT ") {
+			t.Errorf("statement %q runs between the key-index check and the candidate lock, want only the savepoint", strings.Fields(statement)[0])
+		}
 	}
 }

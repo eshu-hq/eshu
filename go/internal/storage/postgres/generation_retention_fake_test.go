@@ -22,9 +22,25 @@ type generationRetentionFakeDB struct {
 	// the recount the store issues after a row-limit skip.
 	recountRows [][]any
 	countCalls  int
-	execResults []sql.Result
-	queries     []fakeQueryCall
-	execs       []fakeExecCall
+	// ledgerCountRows answers the changed-since ledger row-count statement
+	// (generation_id, table, count); ledgerDeleted is the ledger prune's
+	// result row (links, deltas, buckets, activations). Both default to none.
+	ledgerCountRows [][]any
+	ledgerDeleted   []any
+	// ledgerRecountRows, when set, answers every ledger count after the
+	// first, as recountRows does for the main count.
+	ledgerRecountRows [][]any
+	ledgerCountCalls  int
+	// ledgerCountScripts, when set, answers ledger count call i with entry i
+	// (the last entry repeats), for fixtures whose recounts differ per round.
+	ledgerCountScripts [][][]any
+	// targetedLockMiss makes the targeted candidate lock query return no row,
+	// as when another session holds the candidate after the selection's
+	// savepoint rollback.
+	targetedLockMiss bool
+	execResults      []sql.Result
+	queries          []fakeQueryCall
+	execs            []fakeExecCall
 	// statements records every statement in the order the transaction issued
 	// it, reads and writes together, including the transaction-local setting
 	// statement that execs and execResults deliberately skip so the positional
@@ -67,6 +83,40 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 			rows = tx.database.recountRows
 		}
 		return &queueFakeRows{rows: generationRetentionCountFakeRows(rows, args)}, nil
+	case strings.Contains(query, "retention: targeted candidate lock"):
+		if tx.database.targetedLockMiss || len(args) < 5 {
+			return &queueFakeRows{}, nil
+		}
+		generationID, _ := args[4].(string)
+		for _, row := range tx.database.candidateRows {
+			if id, _ := row[1].(string); id == generationID {
+				return &queueFakeRows{rows: [][]any{row}}, nil
+			}
+		}
+		return &queueFakeRows{}, nil
+	case strings.Contains(query, "del_activations"):
+		deleted := tx.database.ledgerDeleted
+		if deleted == nil {
+			deleted = []any{int64(0), int64(0), int64(0), int64(0)}
+		}
+		// The expected counts equal the deleted ones: no concurrent writer.
+		row := append(append([]any{}, deleted...), deleted[0], deleted[1], deleted[2])
+		return &queueFakeRows{rows: [][]any{row}}, nil
+	case strings.Contains(query, "doomed AS MATERIALIZED"):
+		// The ledger count takes (scope ids, generation ids); filter on the
+		// generation ids.
+		if len(args) < 2 {
+			return nil, sql.ErrNoRows
+		}
+		tx.database.ledgerCountCalls++
+		rows := tx.database.ledgerCountRows
+		if tx.database.ledgerCountCalls > 1 && tx.database.ledgerRecountRows != nil {
+			rows = tx.database.ledgerRecountRows
+		}
+		if scripts := tx.database.ledgerCountScripts; len(scripts) > 0 {
+			rows = scripts[min(tx.database.ledgerCountCalls, len(scripts))-1]
+		}
+		return &queueFakeRows{rows: generationRetentionCountFakeRows(rows, args[1:])}, nil
 	default:
 		return nil, sql.ErrNoRows
 	}
@@ -125,8 +175,12 @@ func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
 
 func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	tx.database.statements = append(tx.database.statements, query)
-	if strings.HasPrefix(query, "SET LOCAL ") {
-		return fakeResult{}, nil
+	// Transaction-local settings and savepoints are recorded in statements
+	// but skip the positional exec scripts, which follow the deletes.
+	for _, prefix := range []string{"SET LOCAL ", "SAVEPOINT ", "RELEASE SAVEPOINT ", "ROLLBACK TO SAVEPOINT "} {
+		if strings.HasPrefix(query, prefix) {
+			return fakeResult{}, nil
+		}
 	}
 	tx.database.execs = append(tx.database.execs, fakeExecCall{query: query, args: args})
 	if len(tx.database.execResults) == 0 {

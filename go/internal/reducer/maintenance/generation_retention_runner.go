@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -46,6 +47,23 @@ type GenerationRetentionResult struct {
 	Duration          time.Duration
 	PhaseDurations    map[string]time.Duration
 	ScopeLockHold     time.Duration
+	// LedgerRowsPruned is the changed-since ledger's share of RowsPruned, by
+	// ledger table, as the one ledger delete statement returned it (#7127).
+	LedgerRowsPruned map[string]int64
+	// LedgerRowsCounted is the batch's pre-count of the same tables. It
+	// differs from LedgerRowsPruned only when a link committed between the
+	// count and the delete; the runner logs a WARN with both.
+	LedgerRowsCounted map[string]int64
+	// RowsOverLimit is how far a batch of one generation exceeded
+	// BatchRowLimit because of its changed-since ledger rows (#7127), else 0.
+	RowsOverLimit int64
+	// LockedScopeRows is the scope rows held by the pruned batch, not the
+	// selection's full lock set: the batch's distinct scopes, 1 for a
+	// narrowed batch of one (#7127). In the general path the selection can
+	// also hold other scope rows it locked while choosing, up to
+	// BatchGenerationLimit; the locked_scope_rows log field does not count
+	// them.
+	LockedScopeRows int
 }
 
 // ErrGenerationRetentionKeyIndexUnavailable marks a cycle the pruner refused
@@ -155,6 +173,9 @@ func (r *GenerationRetentionRunner) wait(ctx context.Context, d time.Duration) e
 
 func (r *GenerationRetentionRunner) recordResult(ctx context.Context, result GenerationRetentionResult) {
 	if r.Instruments != nil {
+		if result.RowsOverLimit > 0 {
+			r.Instruments.GenerationRetentionOverLimitBatches.Add(ctx, 1)
+		}
 		if result.GenerationsPruned > 0 {
 			r.Instruments.GenerationRetentionPruned.Add(ctx, int64(result.GenerationsPruned))
 			r.Instruments.GenerationRetentionBatchSize.Record(ctx, int64(result.GenerationsPruned))
@@ -205,8 +226,23 @@ func (r *GenerationRetentionRunner) recordResult(ctx context.Context, result Gen
 		slog.Float64("oldest_eligible_age_seconds", result.OldestEligibleAge.Seconds()),
 		slog.Float64("scope_lock_hold_seconds", result.ScopeLockHold.Seconds()),
 		slog.Any("phase_seconds", generationRetentionPhaseSeconds(result.PhaseDurations)),
+		slog.Any("changed_since_ledger_rows_pruned", result.LedgerRowsPruned),
+		slog.Int64("rows_over_batch_row_limit", result.RowsOverLimit),
+		// Scope rows held by the pruned batch, not the selection's full lock set.
+		slog.Int("locked_scope_rows", result.LockedScopeRows),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
+	if !maps.Equal(result.LedgerRowsPruned, result.LedgerRowsCounted) {
+		// A link committed between the pre-count and the one ledger delete
+		// statement; it survives whole and goes with its own generation.
+		r.Logger.WarnContext(
+			ctx,
+			"generation retention ledger delete differs from its pre-count",
+			slog.Any("changed_since_ledger_rows_pruned", result.LedgerRowsPruned),
+			slog.Any("changed_since_ledger_rows_counted", result.LedgerRowsCounted),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
 }
 
 func (r *GenerationRetentionRunner) recordFailure(ctx context.Context, err error) {

@@ -310,7 +310,7 @@ Pool Split By Class (#4448)" for the full design note and evidence.
 | `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS` | `24` | Minimum superseded generations retained per scope after the active one |
 | `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` | `168h` | Superseded generations newer than this remain retained |
 | `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT` | `100` | Maximum candidate generations selected per cleanup transaction |
-| `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT` | `100000` | Maximum estimated dependent rows, including content cleanup rows, pruned per cleanup transaction |
+| `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT` | `100000` | Maximum estimated dependent rows, including content cleanup rows and changed-since ledger rows, pruned per cleanup transaction of two or more generations; a transaction of one generation may exceed it by that generation's ledger rows only (#7127) |
 | `ESHU_GENERATION_RETENTION_POLICY_SCOPE` | `global` | Safe policy source recorded in retention events |
 | `ESHU_GENERATION_RETENTION_POLICY_REVISION` | `global-default-v1` | Policy revision recorded with hashed scope/generation retention events |
 | `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` / `_INTERVAL` / `_REPO_BUDGET` | `true` / `5m` / `500` | Infra read model reconcile loop (`infra_inventory_reconcile_wiring.go`): per cycle, claim up to the budget of repositories from the shared walk and re-derive drifted ones, after repairing rolling-upgrade fence marks first. Disabling it leaves fence marks unrepaired, so one write from an older binary or manual SQL keeps unscoped infra aggregate reads on the graph (`eshu_dp_infra_inventory_dirty_repos`, admin status `infra_inventory`) |

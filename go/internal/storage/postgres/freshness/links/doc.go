@@ -26,6 +26,14 @@
 // rows, reads the backlog and ledger size for the gauges, and removes the
 // rows of deleted scopes.
 //
+// PrunedGenerationRowCounts and DeletePrunedGenerationRows run inside
+// generation retention's prune transaction (#7127 ruling 2.8): they count and
+// delete the links whose generation or prior generation is pruned, with their
+// deltas and bucket counts, and the activation rows of the pruned
+// generations. The state table and the cursor are never pruned. The counts
+// feed BatchRowLimit, so a batch's ledger deletes are bounded with its other
+// deletes.
+//
 // Every digest is computed in SQL from PayloadDigestInput; Go never hashes a
 // payload. The parent postgres package aliases PayloadDigestInput and
 // ExcludeReducerDerivedKinds for the changed-since read statement. This
