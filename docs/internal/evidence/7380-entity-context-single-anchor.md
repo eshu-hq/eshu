@@ -48,19 +48,45 @@ is what makes Neo4j seek (a plain label disjunction plans as
   before.
 
 Performance Evidence: shape `GetEntityContext` anchor, Neo4j 2026.08.1
-community (`neo4j:2026-community@sha256:eabfbb04...`, native arm64), schema
-applied, 295-node fixture plus 300k filler nodes for db hits. Before/after,
-measured by the #7380 shim on a shared host at load1 16-97 (every timing below
-is NON-PD, i.e. not a quiet-host figure): restart-cold miss, 16 statements
-3922/4403/9907 ms (min/median/max, n=5) against 2 statements 1485/1981/2257 ms
-(n=5); found on label 15, 5285/7385/10064 ms against 2549/3236/3853 ms (n=3);
-scoped miss 5790/6679 ms against 2736/2217/1967 ms; warm 63-750 ms against
-23-110 ms. Explain-only planning was about 85% of the loop's cold cost. The
-anchor plan is `NodeUniqueIndexSeek` per label (1 db hit each), 14 db hits on a
-miss at 300k nodes, no scan; the unlabeled fallback is unchanged and still costs
-about 600k db hits at 300k nodes on a miss or an id-only hit. The 2.2x cold
-ratio is not a quiet-host claim; the quiet-host figure and native amd64 are
-NOT_CHECKED.
+community (`neo4j:2026-community@sha256:eabfbb04...`, native arm64), real schema
+applied (261 statements), 295-node fixture, unscoped and scoped shapes. Before
+is the unchanged 16-statement loop (byte-identical to the base commit's text,
+checked by dumping both), after is the shipped statement text (the `CALL () {
+UNION }` anchor with the `WITH ... anchor_rank ORDER BY ... LIMIT 1` wrapper,
+then the unlabeled fallback), both taken from the production
+`(*Handler).entityContextStatements`, not hand-copied. Every request is a
+restart-cold round (fresh JVM, empty plan cache), n=5 per candidate per scenario,
+loop and anchor interleaved with alternating first-mover. ALL FIGURES ARE NON-PD:
+the shared host ran at load1 14-91 (median 41, 18 CPUs; rule PD needs load1 < 9
+at start, end and in-run), 0 of 52 rounds met PD, and a back-to-back A/A control
+pair differed by 39% (8582 ms vs 11891 ms), so run-to-run spread is large and the
+absolute seconds are not a quiet-host claim; only the paired ratios are used.
+Cold wall ms (min/median/max), loop against anchor: unscoped miss (16 against 2
+statements) 5259/5865/10356 vs 1747/1953/2299, paired ratio median 2.98x (range
+2.69-5.93x); scoped miss 5252/9391/13119 vs 2107/2806/8439, ratio median 2.78x
+(range 1.11-4.16x, one anchor round hit load1 90); a hit on the 15th label
+(WorkloadInstance, 15 against 1 statement) 5851/6269/9246 vs 1742/1879/6302, ratio
+median 3.25x (range 0.93-5.07x). A hit on the FIRST label (Function, 1 against 1
+statement) is slower with the anchor: 1412/1505/1823 vs 1829/1999/2949, anchor
+slower in 5 of 5 paired rounds (ratio median 0.75x, range 0.48-0.98x), because the
+anchor must plan its whole union cold while the loop plans only its first
+statement. Cold EXPLAIN-only planning of every statement one request
+sends: 3842/7779/9315 ms (loop) vs 2023/4527/6741 ms (anchor); planning is about
+90% of each candidate's cold cost (median EXPLAIN against the run that follows it).
+Warm (plans cached, 3 reruns per round): miss 113/215/419 vs 22/33/52 ms, 15th
+label 120/167/468 vs 22/26/42 ms, first label 21/25/38 vs 15/28/79 ms (equal).
+The shipped plan (PROFILE) is one `NodeUniqueIndexSeek` per label under a `Top`
+for the rank wrapper: 14 db hits on a miss; the unlabeled fallback is unchanged
+and still an `AllNodesScan` (591 db hits at 295 nodes, about 600k at 300k nodes
+from the earlier theory shim). The earlier theory-shim timings (candidate D3, the
+same union without the rank wrapper and `LIMIT 1`, host load1 16-97) are not the
+shipped statement and are not reported here. NOT_CHECKED: a quiet-host (PD)
+rerun, native amd64, a 300k-node cold rerun of the shipped text (the disk of the
+measuring host filled and its Docker VM crashed after the main rounds), a truly
+cold page cache, and the concurrent cold first-request stampede. Net effect
+measured: fewer distinct texts to plan cold (16 to 2 per shape) is about 3x on a
+miss or a late-label hit and a cold-request cost on a first-label hit; warm cost
+is lower everywhere or equal.
 
 Observability Evidence: the read keeps the `entity.context` graph query name,
 the shared `WithBoundedGraphReadDeadline`, the `neo4j.query` spans,

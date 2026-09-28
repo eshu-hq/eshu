@@ -24,8 +24,8 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // neo4jEntityContextAnchor returns the single Neo4j anchor clause that replaces
 // the per-label loop (issue #7380). A cold Neo4j plans every distinct Cypher
 // text a request sends, and the loop sent up to 16 (32 across the unscoped and
-// scoped shapes) under one 10 s budget; measured cold on native arm64 the
-// planning was ~85% of the loop's cost. This is one `CALL () { ... UNION ... }`
+// scoped shapes) under one 10 s budget; measured cold on native arm64
+// (NON-PD host) planning was ~90% of each candidate's cold cost. This is one `CALL () { ... UNION ... }`
 // (the form codemodel.Neo4jEntityIDAnchor uses, #7057; the empty scope clause
 // needs the documented Neo4j 5.23 floor) that plans as one
 // NodeUniqueIndexSeek per label:
