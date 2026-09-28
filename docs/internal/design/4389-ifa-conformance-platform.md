@@ -22,13 +22,13 @@ what those cover only narrowly. The target capability is an **end-to-end
 offline tester, replayer, and load tester** that needs no provider
 infrastructure or credentials — a contributor with no Azure, AWS, or GCP access
 can prove conformance, determinism, throughput, and failure behavior locally.
-The name follows the repository's Yoruba naming convention (Eshu, Odù); an
-*Odù* in Ifá is a validated conformance case a contributor drops in. The
-containment is lore-correct — the Odù are the units of the Ifá system — which
-is why the platform is named for the system, not the diviner. *Orunmila* (the
-orisha who reads the Odù) is deliberately reserved: if the verdict-rendering
-component (the judge/comparator or the `prove` report) ever becomes its own
-named artifact, that name is Orunmila. It is not used for anything today.
+The name follows the repository's Yoruba naming convention (Eshu, Odù). In Ifá,
+the *Odù* are the 256 parts of the literary corpus; each holds many verses
+(*ẹsẹ*) that an Ifá priest, the *babaláwo*, reads
+([UNESCO](https://ich.unesco.org/en/RL/ifa-divination-system-00146)). Here an
+Odù names one conformance case, which likewise bundles many derived expectations.
+(Corrected 2026-09-27, #7355: an Odù is not a verse. The Ifá name refers to the
+system, not to Ọ̀rúnmìlà, and the "Orunmila" report-name reservation is gone.)
 
 Ifá **is**:
 
