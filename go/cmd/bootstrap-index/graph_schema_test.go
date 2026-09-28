@@ -75,9 +75,10 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 						{Scope: scope.IngestionScope{ScopeID: "s1"}},
 					},
 				},
-				factStore: &fakeFactStore{},
-				runner:    &fakeProjectionRunner{},
-				workSink:  &fakeWorkSink{},
+				factStore:     &fakeFactStore{},
+				runner:        &fakeProjectionRunner{},
+				workSink:      &fakeWorkSink{},
+				baselineFence: passBootstrapBaselineFence{},
 			}, nil
 		},
 	)

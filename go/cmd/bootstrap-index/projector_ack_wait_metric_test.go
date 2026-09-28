@@ -44,7 +44,7 @@ func TestDrainProjectorWorkItemRecordsAckWaitMetrics(t *testing.T) {
 	err = drainProjectorWorkItem(ctx,
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{}, &fakeProjectionRunner{},
-		&claimLostSink{ackErr: fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}, nil,
+		&claimLostSink{ackErr: fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}, passBootstrapBaselineFence{}, nil,
 		time.Millisecond, 0, &completed, sdktrace.NewTracerProvider().Tracer("test"), instruments,
 		slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {

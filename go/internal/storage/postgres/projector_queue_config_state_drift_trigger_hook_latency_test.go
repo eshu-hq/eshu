@@ -25,7 +25,10 @@ func (ackLatencyFakeDB) ExecContext(context.Context, string, ...any) (sql.Result
 	return projectorRowsAffectedResult{rowsAffected: 1}, nil
 }
 
-func (ackLatencyFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (f ackLatencyFakeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if query == deltaBaselineFenceQuery { // #7319 Ack fence read: no row keeps the existing path.
+		return &recordingRows{}, nil
+	}
 	return nil, errors.New("query not expected in this benchmark-style test")
 }
 

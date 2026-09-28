@@ -271,6 +271,7 @@ func updateRepository(
 			logGitSyncFailed(ctx, logger, event, err)
 			return false, GitSyncDelta{}, "", err
 		}
+		delta.BaselineCommitSHA, event.DeltaBaselineCommitSHA = baseline, baseline
 		logGitSyncCompleted(ctx, logger, event, true)
 		return true, delta, remoteSHA, nil
 	}

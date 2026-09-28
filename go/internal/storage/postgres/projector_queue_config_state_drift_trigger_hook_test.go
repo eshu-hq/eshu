@@ -34,7 +34,10 @@ func (f configStateDriftTriggerHookFake) ExecContext(context.Context, string, ..
 	return projectorRowsAffectedResult{rowsAffected: 1}, nil
 }
 
-func (f configStateDriftTriggerHookFake) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (f configStateDriftTriggerHookFake) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if query == deltaBaselineFenceQuery { // #7319 Ack fence read: no row keeps the existing path.
+		return &recordingRows{}, nil
+	}
 	return nil, errors.New("query not expected in this test")
 }
 

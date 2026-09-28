@@ -81,6 +81,9 @@ type projectorDeps struct {
 	workSink          projector.ProjectorWorkSink
 	heartbeater       projector.ProjectorWorkHeartbeater
 	heartbeatInterval time.Duration
+	// baselineFence is the #7319 delta-baseline fence; drainProjector refuses
+	// to run without it.
+	baselineFence projector.DeltaBaselineFence
 }
 
 type (

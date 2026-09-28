@@ -38,6 +38,11 @@ same change, and the golden-corpus gate re-run. Load `eshu-golden-corpus-rigor`
 and `eshu-contract-rigor` first. A restructure that changes projected truth is a
 bug, not a new baseline.
 
+A delta generation must carry the commit it was diffed from
+(`GitSyncDelta.BaselineCommitSHA` through `ScopeGeneration.DeltaBaselineCommitSHA`,
+#7319); the projector refuses a delta whose baseline is not the active commit,
+and `validateGenerationInput` rejects a delta without one.
+
 The generation estimate is assembled from per-family pre-count functions. If you
 change what an emitter sends, change its pre-count in the same edit.
 

@@ -104,10 +104,11 @@ func TestRunBeginsSecretLinesDeferralBeforeWritesAndFinalizesAfterThePipeline(t 
 		},
 		func(context.Context, bootstrapDB, runtime.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error) {
 			return projectorDeps{
-				workSource: &fakeWorkSource{items: []projector.ScopeGenerationWork{{Scope: scope.IngestionScope{ScopeID: "s1"}}}},
-				factStore:  &fakeFactStore{},
-				runner:     &fakeProjectionRunner{},
-				workSink:   &fakeWorkSink{},
+				workSource:    &fakeWorkSource{items: []projector.ScopeGenerationWork{{Scope: scope.IngestionScope{ScopeID: "s1"}}}},
+				factStore:     &fakeFactStore{},
+				runner:        &fakeProjectionRunner{},
+				workSink:      &fakeWorkSink{},
+				baselineFence: passBootstrapBaselineFence{},
 			}, nil
 		},
 	)

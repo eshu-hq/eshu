@@ -42,12 +42,13 @@ func TestServiceRunDoesNotCountFailedOutcomeForLostClaim(t *testing.T) {
 			Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
 			AttemptCount: 1,
 		}}},
-		FactStore:   &stubFactStore{},
-		Runner:      &stubProjectionRunner{runErr: errors.New("projection failed")},
-		WorkSink:    &stubProjectorWorkSink{failErr: fmt.Errorf("stale attempt: %w", failure.ErrWorkClaimLost)},
-		Instruments: instruments,
-		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
-		Wait:        func(context.Context, time.Duration) error { return context.Canceled },
+		FactStore:          &stubFactStore{},
+		Runner:             &stubProjectionRunner{runErr: errors.New("projection failed")},
+		WorkSink:           &stubProjectorWorkSink{failErr: fmt.Errorf("stale attempt: %w", failure.ErrWorkClaimLost)},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Instruments:        instruments,
+		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -102,9 +103,10 @@ INSERT INTO scope_generations (
     status,
     activated_at,
     superseded_at,
-    payload
+    payload,
+    delta_baseline_commit_sha
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, '{}'::jsonb
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, '{}'::jsonb, $11
 )
 ON CONFLICT (generation_id) DO UPDATE SET
     scope_id = EXCLUDED.scope_id,
@@ -112,6 +114,7 @@ ON CONFLICT (generation_id) DO UPDATE SET
     freshness_hint = EXCLUDED.freshness_hint,
     source_commit_sha = EXCLUDED.source_commit_sha,
     is_delta = EXCLUDED.is_delta,
+    delta_baseline_commit_sha = EXCLUDED.delta_baseline_commit_sha,
     -- A generation ID fixes its original chronology. A retry may refresh a
     -- pending generation's metadata and facts, but must not make it newer
     -- than a successor or reopen a published/terminal generation.
@@ -270,6 +273,7 @@ func upsertScopeGeneration(
 		generation.IngestedAt.UTC(),
 		string(generation.Status),
 		activeTimestamp(generation),
+		payloadstore.EmptyToNil(strings.TrimSpace(generation.DeltaBaselineCommitSHA)),
 	)
 	if err != nil {
 		return err

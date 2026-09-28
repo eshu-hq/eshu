@@ -45,14 +45,15 @@ import (
 // and readiness indexes in migrations 139-144; #7242 adds
 // 145_fact_records_workload_names_scope_idx.sql; #7279 adds the retention key
 // indexes as 146_fact_records_content_entity_key_idx.sql and
-// 147_fact_records_file_key_idx.sql.
-const goldenBootstrapDefinitionsDigest = "216d570c54225b80dfa063059dc7cf66ac6dbd6a9370d7a2076bc0c378240520"
+// 147_fact_records_file_key_idx.sql; #7319 adds
+// 148_scope_generations_delta_baseline_commit_sha.sql.
+const goldenBootstrapDefinitionsDigest = "14b1098c8e8bcc3fab79695b4e761a2afbc7e9e0550c3308d6b0c4735b85c28c"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 168
+const goldenBootstrapDefinitionsCount = 169
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

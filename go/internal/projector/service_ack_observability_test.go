@@ -70,10 +70,11 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 				GenerationID: "generation-ack",
 			},
 		},
-		WorkSink:    &stubProjectorWorkSink{ackErr: errors.New("ack store unavailable")},
-		Wait:        func(context.Context, time.Duration) error { return context.Canceled },
-		Logger:      logger,
-		Instruments: instruments,
+		WorkSink:           &stubProjectorWorkSink{ackErr: errors.New("ack store unavailable")},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Logger:             logger,
+		Instruments:        instruments,
 	}
 
 	err = service.Run(context.Background())

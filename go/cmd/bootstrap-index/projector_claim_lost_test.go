@@ -86,7 +86,7 @@ func TestDrainProjectorWorkItemDropsLostClaim(t *testing.T) {
 				&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 				&fakeFactStore{},
 				tt.runner,
-				tt.sink,
+				tt.sink, passBootstrapBaselineFence{},
 				tt.heartbeater,
 				time.Millisecond,
 				0,
@@ -145,7 +145,7 @@ func TestDrainProjectorWorkItemRetriesDeferredAck(t *testing.T) {
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{},
 		&fakeProjectionRunner{},
-		sink,
+		sink, passBootstrapBaselineFence{},
 		projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
 			heartbeats.Add(1)
 			return nil

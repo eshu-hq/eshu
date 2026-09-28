@@ -31,7 +31,7 @@ func TestDrainProjectorConcurrentMultipleItems(t *testing.T) {
 	err := drainProjector(
 		context.Background(),
 		ws, &fakeFactStore{}, &fakeProjectionRunner{}, sink,
-		nil, 0,
+		passBootstrapBaselineFence{}, nil, 0,
 		4, nil, nil, nil,
 	)
 	if err != nil {
@@ -56,7 +56,7 @@ func TestDrainProjectorSequentialFallback(t *testing.T) {
 	err := drainProjector(
 		context.Background(),
 		ws, &fakeFactStore{}, &fakeProjectionRunner{}, sink,
-		nil, 0,
+		passBootstrapBaselineFence{}, nil, 0,
 		1, nil, nil, nil,
 	)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestDrainProjectorIsolatesItemFailures(t *testing.T) {
 	err := drainProjector(
 		context.Background(),
 		ws, &fakeFactStore{}, runner, sink,
-		nil, 0,
+		passBootstrapBaselineFence{}, nil, 0,
 		4, nil, nil, nil,
 	)
 	// Isolation: siblings are NOT canceled — all 20 items are handled (2 acked,

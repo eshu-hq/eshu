@@ -58,6 +58,9 @@ const (
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
+	// MetricDimensionPhase labels the delta-baseline fence counter (#7319)
+	// with the closed phase that decided: preflight or ack.
+	MetricDimensionPhase = "phase"
 	// MetricDimensionGuardrail labels counters for bounded guardrail classes
 	// that are not admission or correlation outcomes.
 	MetricDimensionGuardrail = "guardrail"

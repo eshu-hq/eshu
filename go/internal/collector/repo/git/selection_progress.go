@@ -33,6 +33,9 @@ type gitSyncLogEvent struct {
 	RepositoryCount int
 	Branch          string
 	StartedAt       time.Time
+	// DeltaBaselineCommitSHA is the commit a delta sync diffed from (#7319),
+	// logged so a projector refusal can be traced to the diff behind it.
+	DeltaBaselineCommitSHA string
 }
 
 // gitProgressWriter tees git stderr into the error buffer while logging
@@ -222,6 +225,9 @@ func (e gitSyncLogEvent) eventAttrs(now time.Time) []any {
 	}
 	if e.Branch != "" {
 		attrs = append(attrs, slog.String("branch", e.Branch))
+	}
+	if e.DeltaBaselineCommitSHA != "" {
+		attrs = append(attrs, slog.String("delta_baseline_commit_sha", e.DeltaBaselineCommitSHA))
 	}
 	return attrs
 }

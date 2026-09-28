@@ -285,6 +285,11 @@ type ScopeGeneration struct {
 	// decide when a scope is overdue for a full re-observation that retracts any
 	// drift the delta path missed (epic #2340).
 	IsDelta bool
+	// DeltaBaselineCommitSHA is the commit a delta generation's diff was taken
+	// from (#7319): the active generation's commit when the collector read its
+	// baseline. The projector refuses the delta unless that is still the active
+	// commit. Set only when IsDelta is true; empty for full generations.
+	DeltaBaselineCommitSHA string
 }
 
 // Validate checks the generation fields and lifecycle status.

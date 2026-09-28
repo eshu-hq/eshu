@@ -343,4 +343,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// 146-147 after #7352.
 	"fact_records_content_entity_key_idx",
 	"fact_records_file_key_idx",
+	// Migration 148 (#7319) records the commit a delta generation diffed from.
+	"scope_generations_delta_baseline_commit_sha",
 }

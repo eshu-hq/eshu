@@ -93,6 +93,61 @@ sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.
 
+## Delta baseline fence
+
+A delta generation is the diff from the scope's active commit, read when the
+collector starts its cycle, to the new remote head. Another generation can
+activate while that delta is parsed, committed, or projected (#7319). The
+collector therefore records the commit it diffed from on
+`scope_generations.delta_baseline_commit_sha`, and the projector enforces one
+invariant:
+
+> A delta generation activates only while
+> `active(scope).source_commit_sha == delta.delta_baseline_commit_sha`.
+
+The projector checks it twice with the same decision table. The preflight check
+runs before the work item loads facts or writes the graph. The Ack check runs
+inside the Ack transaction as its own statement, after Ack has taken the scope
+row, so it sees every Ack that committed while it waited. Only commits are
+compared, never generation ids.
+
+| Read | Outcome |
+| --- | --- |
+| full generation (no baseline) | proceeds, not counted |
+| delta written before migration 148 (no baseline) | proceeds as `unfenced` |
+| the delta's own generation is already active | proceeds as `already_active` |
+| active commit equals the baseline | proceeds as `matched` |
+| active commit differs, or is empty | refused as `refused_active_differs` |
+| no active generation | refused as `refused_no_active` |
+
+A refused delta's work row and generation become `superseded`, never `failed`,
+so replay and dead-letter drains leave it alone. The work row carries
+`failure_class = projector_delta_baseline_mismatch` when preflight refused it
+(the graph was not touched) or `projector_delta_baseline_mismatch_after_projection`
+when Ack refused it, and `failure_details` names the scope, generation, baseline
+commit, active commit (or `none`), active generation, and phase. The next
+collector cycle diffs from the new active commit, so recovery needs no trigger.
+
+What the fence does not enforce: that the graph content equals the baseline
+commit. A generation can write the graph and never activate, and a later delta
+then passes the fence on a graph that is not at its baseline. That hole is
+tracked as #7389 and is not fixed here. An Ack-phase refusal also leaves the
+refused delta's overlay in the graph; the next delta repairs it only when the
+remote head has not moved again, and otherwise the reconciliation sweep above
+does.
+
+`eshu_dp_projector_delta_baseline_fence_total` counts decisions by `phase`
+(`preflight`, `ack`) and `outcome`. Passes are counted once, at Ack. A rising
+refusal share means the projector lags the collector. Any `phase=ack` refusal
+means two claims were valid in one scope and logs at ERROR; a preflight refusal
+logs at WARN. `unfenced` should fall to zero once every collector writes the
+baseline. Commit SHAs appear in logs and `failure_details`, never as labels. The
+collector's `git repository sync completed` log carries
+`delta_baseline_commit_sha` for a delta sync.
+
+Rollout order is migration 148, then binaries. Deltas written by an older
+collector, or in flight during the rollout, have no baseline and are not fenced.
+
 ## Related references
 
 - [Incremental Freshness Model](incremental-freshness-model.md)

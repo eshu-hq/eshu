@@ -89,6 +89,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"gauge",
 		"property",
 		"link_kind",
+		"phase",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",

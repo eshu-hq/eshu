@@ -258,13 +258,14 @@ func TestServiceRunRecordsAckWaitWithServiceInstruments(t *testing.T) {
 			Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
 			AttemptCount: 1,
 		}}},
-		FactStore:         &stubFactStore{},
-		Runner:            &stubProjectionRunner{},
-		WorkSink:          &alwaysDeferSink{},
-		Heartbeater:       &stubProjectorWorkHeartbeater{},
-		HeartbeatInterval: time.Hour,
-		Instruments:       instruments,
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		FactStore:          &stubFactStore{},
+		Runner:             &stubProjectionRunner{},
+		WorkSink:           &alwaysDeferSink{},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        &stubProjectorWorkHeartbeater{},
+		HeartbeatInterval:  time.Hour,
+		Instruments:        instruments,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {

@@ -62,6 +62,9 @@ type RefWorktreeEntry struct {
 type GitSyncDelta struct {
 	ChangedFileTargets   []string
 	DeletedRelativePaths []string
+	// BaselineCommitSHA is the commit the diff was taken from (#7319). The
+	// projector refuses the delta unless it is still the active commit.
+	BaselineCommitSHA string
 }
 
 func selectGitHubRepositoryIDs(

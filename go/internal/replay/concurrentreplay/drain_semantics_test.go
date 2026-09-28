@@ -282,6 +282,8 @@ func TestDriverCommitsFeedProjectorClaimDrainAck(t *testing.T) {
 		FactStore:    queue,
 		Runner:       runner,
 		WorkSink:     queue,
+		// These commits are full generations; the #7319 fence passes them.
+		DeltaBaselineFence: fullGenerationFence{},
 		// Every commit already landed in queue before Service.Run starts (the
 		// assertions above prove that half of the pipeline). Once the queue
 		// reports empty, stop immediately rather than polling forever — the
@@ -329,4 +331,16 @@ func TestDriverCommitsFeedProjectorClaimDrainAck(t *testing.T) {
 	if got, want := len(runnerCalls), generationCount; got != want {
 		t.Fatalf("runner.Project called %d times, want %d", got, want)
 	}
+}
+
+// fullGenerationFence is a delta-baseline fence (#7319) that reads every
+// generation as a full one, which is what the replay driver commits.
+type fullGenerationFence struct{}
+
+func (fullGenerationFence) ReadDeltaBaseline(context.Context, projector.ScopeGenerationWork) (projector.DeltaBaselineState, error) {
+	return projector.DeltaBaselineState{TargetFound: true}, nil
+}
+
+func (fullGenerationFence) RefuseDeltaBaseline(context.Context, projector.ScopeGenerationWork, projector.DeltaBaselineRefusal) error {
+	return nil
 }
