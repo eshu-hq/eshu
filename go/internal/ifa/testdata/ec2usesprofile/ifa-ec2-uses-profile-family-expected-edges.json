@@ -1,0 +1,30 @@
+{
+  "odu": "odu:ifa-ec2-uses-profile-family",
+  "note": "Hand-derived from CanonicalEC2UsesProfileEdgeUpsertCypherFormat (go/internal/storage/cypher/ec2_uses_profile_edge_writer.go) with the single closed-vocabulary member USES_PROFILE substituted into its one %s, NOT from the port or family name. The template is `UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:USES_PROFILE]->(target) SET ...`, and USES_PROFILE is the only type this writer can emit (per-row validateEC2UsesProfileRelationshipType against the single-member vocabulary). \"EC2_USES_PROFILE\" appears nowhere in code, so the type is read off the template, never derived from the port or family name. Each endpoint is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012 everywhere; region us-east-1 for the three EC2 instance sources with (resource_type, resource_id) pairs (aws_ec2_instance, i-0aaa1111), (aws_ec2_instance, i-0bbb2222), (aws_ec2_instance, arn:aws:ec2:us-east-1:123456789012:instance/i-0fff6666); region aws-global for the two IAM profile targets with pairs (aws_iam_instance_profile, arn:aws:iam::123456789012:instance-profile/app-profile), (aws_iam_instance_profile, arn:aws:iam::123456789012:instance-profile/batch-profile). Exactly three edges: i-0aaa1111 resolves by instance id to the app profile, i-0bbb2222 resolves by instance id to the batch profile, and the blank-id posture keys its source on the full ARN to the batch profile (arn resolution mode). The other three postures contribute nothing on purpose -- one bare instance with a blank profile ARN, one terminated instance, and one instance naming the unscanned ghost profile (target_unresolved, the conservative skip). The idle profile scans as a node but carries no posture.",
+  "edges": [
+    {
+      "relationship_type": "USES_PROFILE",
+      "source_entity_id": "b3745e8ec81bdc57084b632598d0f3852fca8ed0fba6787d72415deb1fec6c82",
+      "target_entity_id": "2a954e3943750a59fdbc76feae8f88622f35801ac823a80e7597efe7212a489d",
+      "properties": {
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "USES_PROFILE",
+      "source_entity_id": "46a4aca0cdc6b89a46f42c469e54f4481206346cf76747fc229f040ee9daf86f",
+      "target_entity_id": "2638cc0fae188c78001fb9ea560ff4307edb616367c40a1fda91127b2179225f",
+      "properties": {
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "USES_PROFILE",
+      "source_entity_id": "b9f6784928887492903c084148450c8137a08811d934d9925110c4cf5079c065",
+      "target_entity_id": "2638cc0fae188c78001fb9ea560ff4307edb616367c40a1fda91127b2179225f",
+      "properties": {
+        "resolution_mode": "arn"
+      }
+    }
+  ]
+}

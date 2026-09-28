@@ -30,6 +30,7 @@ const (
 	DeployableUnitFamilyOduName                 = familyodu.DeployableUnitFamilyOduName
 	DocumentationFamilyCassettePath             = familyodu.DocumentationFamilyCassettePath
 	DocumentationFamilyOduName                  = familyodu.DocumentationFamilyOduName
+	EC2UsesProfileFamilyOduName                 = familyodu.EC2UsesProfileFamilyOduName
 	FileFactKind                                = familyodu.FileFactKind
 	IAMCanAssumeFamilyOduName                   = familyodu.IAMCanAssumeFamilyOduName
 	IAMCanPerformFamilyOduName                  = familyodu.IAMCanPerformFamilyOduName
@@ -151,6 +152,9 @@ func IAMCanPerformFamilyOdu() CatalogOdu { return familyodu.IAMCanPerformFamilyO
 
 // IAMEscalationFamilyOdu returns the cataloged IAM escalation family Odù.
 func IAMEscalationFamilyOdu() CatalogOdu { return familyodu.IAMEscalationFamilyOdu() }
+
+// EC2UsesProfileFamilyOdu returns the cataloged EC2 uses-profile family Odù.
+func EC2UsesProfileFamilyOdu() CatalogOdu { return familyodu.EC2UsesProfileFamilyOdu() }
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {

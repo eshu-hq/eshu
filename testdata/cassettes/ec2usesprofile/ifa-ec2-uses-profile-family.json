@@ -1,0 +1,171 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-ec2-uses-profile-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-ec2-uses-profile-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "ec2"
+      },
+      "generation_id": "gen-ifa-ec2-uses-profile-family-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:instance-profile/app-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/app-profile",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:instance-profile/app-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:instance-profile/batch-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/batch-profile",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:instance-profile/batch-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:instance-profile/idle-profile",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:instance-profile/idle-profile",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:instance-profile/idle-profile",
+            "resource_type": "aws_iam_instance_profile"
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:i-0aaa1111",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-0aaa1111",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0aaa1111",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": "arn:aws:iam::123456789012:instance-profile/app-profile"
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:i-0bbb2222",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-0bbb2222",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0bbb2222",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": "arn:aws:iam::123456789012:instance-profile/batch-profile"
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:i-0ccc3333",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-0ccc3333",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0ccc3333",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": ""
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:i-0ddd4444",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-0ddd4444",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0ddd4444",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": "arn:aws:iam::123456789012:instance-profile/app-profile"
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:i-0eee5555",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-0eee5555",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0eee5555",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": "arn:aws:iam::555555555555:instance-profile/ghost-profile"
+          }
+        },
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2_instance_posture:arn:aws:ec2:us-east-1:123456789012:instance/i-0fff6666",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0fff6666",
+            "resource_type": "aws_ec2_instance",
+            "state": "running",
+            "instance_profile_arn": "arn:aws:iam::123456789012:instance-profile/batch-profile"
+          }
+        }
+      ]
+    }
+  ]
+}

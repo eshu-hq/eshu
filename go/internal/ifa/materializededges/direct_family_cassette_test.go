@@ -57,7 +57,7 @@ func canonicalOduJSON(t *testing.T, odu ifa.Odu) string {
 	return string(blob)
 }
 
-// Compiled-catalog/cassette lockstep for the five direct-materialization
+// Compiled-catalog/cassette lockstep for the seven direct-materialization
 // families (#6228).
 //
 // Each family keeps the same fixture twice: the Go-compiled Odù that
@@ -126,6 +126,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			compiled:     ifa.IAMEscalationFamilyOdu,
 			cassettePath: ifa.IAMEscalationFamilyCassetteFullPath,
 			load:         ifa.LoadIAMEscalationFamilyOdu,
+		},
+		{
+			name:         ifa.EC2UsesProfileFamilyOduName,
+			compiled:     ifa.EC2UsesProfileFamilyOdu,
+			cassettePath: ifa.EC2UsesProfileFamilyCassetteFullPath,
+			load:         ifa.LoadEC2UsesProfileFamilyOdu,
 		},
 	}
 }

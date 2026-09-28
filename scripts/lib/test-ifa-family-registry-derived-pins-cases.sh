@@ -88,6 +88,7 @@ IFA_FAMILY_PINS_NAMES=(
 	iam_can_perform
 	workload_cloud_relationship
 	iam_escalation
+	ec2_uses_profile
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

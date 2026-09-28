@@ -56,6 +56,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.IAMCanAssumeFamilyOdu(),
 	familyodu.IAMCanPerformFamilyOdu(),
 	familyodu.IAMEscalationFamilyOdu(),
+	familyodu.EC2UsesProfileFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds
