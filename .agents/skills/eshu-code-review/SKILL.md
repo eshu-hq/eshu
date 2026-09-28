@@ -50,12 +50,13 @@ or the user explicitly requests self-review, name that mode and limitation. An
 external-review replacement has additional independence requirements in
 `eshu-issue-driver`; author-side review does not satisfy that second review.
 
-This skill runs at **Workhorse tier**; see
+This skill runs at **Workhorse tier** through `review-eshu`, and at **Deep
+tier** through `review-eshu-deep` for the final review of a difficult diff
+(concurrency, locking, queues, schema, or hot-path Cypher and SQL); see
 [default model bindings by tier](../../../docs/internal/agent-orchestration.md#default-model-bindings-by-tier).
-A Deep-tier orchestrator dispatches it to the reviewer role rather than
-reviewing inline. Every harness has a `review-eshu` role and the role carries
-the model binding, so this skill never names a model and a subagent never
-changes its own.
+An orchestrator dispatches it to a reviewer role rather than reviewing inline.
+Every harness has both roles and each role carries its model binding, so this
+skill never names a model and a subagent never changes its own.
 
 ## Promotion And Evidence Reuse
 

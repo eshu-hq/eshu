@@ -68,6 +68,35 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertIn("- arbiter-eshu:", codex)
         self.assertIn("gpt-6-astra effort=high", codex)
 
+    def test_arbitration_and_design_fork_wording_routes_arbiter(self):
+        for prompt in ("/goal Drive issue with eshu-issue-driver; send the design fork for arbitration",
+                       "/goal Drive issue with eshu-issue-driver; get a ruling before merge"):
+            with self.subTest(prompt=prompt):
+                self.assertIn("- arbiter-eshu:", context(prompt, "claude"))
+
+    def test_claude_dispatch_restores_new_role_bindings(self):
+        """A wrong model override on a new role is removed so its frontmatter model applies."""
+        with tempfile.TemporaryDirectory() as tmp:
+            goal = Path(tmp) / ".claude" / "active-goal.session-2"
+            goal.parent.mkdir()
+            goal.write_text("SESSION: session-2\nDrive the issue with eshu-issue-driver\n")
+            for role, override, expected in (("arbiter-eshu", "opus", "fable"),
+                                             ("review-eshu-deep", "sonnet", "opus"),
+                                             ("develop-eshu-deep", "sonnet", "opus")):
+                with self.subTest(role=role):
+                    payload = {
+                        "tool_name": "Agent",
+                        "tool_input": {"subagent_type": role, "model": override, "prompt": "x", "description": "x"},
+                        "cwd": tmp, "session_id": "session-2", "hook_event_name": "PreToolUse",
+                    }
+                    result = subprocess.run(
+                        [sys.executable, str(ROUTER), "claude-dispatch"],
+                        input=json.dumps(payload), capture_output=True, text=True, check=True, cwd=ROOT,
+                    )
+                    output = json.loads(result.stdout)["hookSpecificOutput"]
+                    self.assertNotIn("model", output["updatedInput"])
+                    self.assertIn("selects " + expected, output["additionalContext"])
+
     def test_difficult_implementation_and_review_use_deep_roles(self):
         output = context("/goal Implement a difficult lease fix using golang-engineering, then review it using eshu-code-review", "codex")
         self.assertIn("- develop-eshu-deep:", output)

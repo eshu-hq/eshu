@@ -276,7 +276,7 @@ full-package build caught it.
 Establish ownership, design intent, performance contract, and verification
 requirements from the task and available evidence. What evidence cannot settle,
 including a product or business trade-off, goes to an arbiter model (the
-deepest research tier per [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools)),
+`arbiter-eshu` role per [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools)),
 not to the owner. Act on its verdict and record it in the goal file or PR.
 
 Remaining technical uncertainty is a research task. Investigate directly or use
