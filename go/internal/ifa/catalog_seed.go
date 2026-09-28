@@ -46,7 +46,8 @@ var catalogSeed = []familyodu.CatalogOdu{
 	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of them
 	// carry coverage rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
 	// because both live matrices drive them; workload_cloud_relationship,
-	// iam_can_assume, and iam_can_perform still carry their waiver rows.
+	// iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile,
+	// and s3_logs_to still carry their waiver rows.
 	// Being cataloged is one of the four conditions a coverage row asserts,
 	// not the whole of it, so none gets a coverage row on the strength of
 	// appearing here.
@@ -57,6 +58,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.IAMCanPerformFamilyOdu(),
 	familyodu.IAMEscalationFamilyOdu(),
 	familyodu.EC2UsesProfileFamilyOdu(),
+	familyodu.S3LogsToFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

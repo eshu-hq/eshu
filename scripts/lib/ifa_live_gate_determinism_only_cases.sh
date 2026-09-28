@@ -46,10 +46,10 @@ ifa_live_gate_determinism_only_seams=(
 	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
 	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
 	# iam_can_assume, iam_can_perform, workload_cloud_relationship,
-	# iam_escalation, and ec2_uses_profile (#6228) keep their three each
-	# here: none has fault cells by design (cell_kind=custom, generic
-	# dispatchers reject them), so the Odus, cassettes, and expected-edge
-	# sets must select ifa-determinism and must NEVER select
+	# iam_escalation, ec2_uses_profile, and s3_logs_to (#6228) keep their
+	# three each here: none has fault cells by design (cell_kind=custom,
+	# generic dispatchers reject them), so the Odus, cassettes, and
+	# expected-edge sets must select ifa-determinism and must NEVER select
 	# ifa-fault-injection. They move to the common table with the siblings
 	# when fault cells land.
 	'go/internal/ifa/familyodu/iam_can_assume_family_odu.go|go/internal/ifa/familyodu/iam_can_assume_family_odu.go'
@@ -67,4 +67,7 @@ ifa_live_gate_determinism_only_seams=(
 	'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go|go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
 	'testdata/cassettes/ec2usesprofile/**|testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json'
 	'go/internal/ifa/testdata/ec2usesprofile/**|go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json'
+	'go/internal/ifa/familyodu/s3_logs_to_family_odu.go|go/internal/ifa/familyodu/s3_logs_to_family_odu.go'
+	'testdata/cassettes/s3logsto/**|testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json'
+	'go/internal/ifa/testdata/s3logsto/**|go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json'
 )

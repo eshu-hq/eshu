@@ -347,6 +347,13 @@ ifa_ec2_uses_profile_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
+# ifa_s3_logs_to_drive replays the s3-logs-to cassette.
+ifa_s3_logs_to_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive s3-logs-to \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
 # ifa_ec2_uses_profile_assert pins the three-edge exact set. Called twice per
 # cell for the reason recorded on the namespace assert above: post-delta is
 # the only place an identical-across-N generation-2 mutation shows up.
@@ -374,5 +381,34 @@ ifa_ec2_uses_profile_assert() {
 	printf '\n=== %s: assert ec2_uses_profile materialized edges (three-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain ec2_uses_profile \
+		-expected "${expected_edges}"
+}
+
+# ifa_s3_logs_to_assert pins the three-edge exact set. Called twice per
+# cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
+#
+# The three edges come from two name-resolved postures (orders-bucket to
+# logs-bucket, audit-bucket to itself -- a legal S3 self-target that DOES
+# emit an edge) plus one ARN-only posture whose source name derives from
+# the ARN tail to logs-bucket. A regression that emitted one edge per
+# posture instead of one per resolved (bucket, log-bucket) pair would still
+# produce "some edges" and fail only against an exact set. The fixture's
+# other three postures -- a bucket with logging disabled (blank target),
+# a bucket naming the unscanned ghost-log-bucket, and an orphan posture
+# with no scanned node -- must contribute nothing, and the scanned idle
+# bucket with no posture must gain no edge; the extractor drops an
+# unresolvable endpoint rather than inventing a node, and this set is what
+# holds it to that.
+#
+# The relationship type is LOGS_TO, read off the writer's MERGE template
+# filled per row from the closed single-member s3LogsToRelationshipVocabulary.
+# It is NOT S3_LOGS_TO, which is the s3LogsToEdgeLabel const: statement
+# metadata carried beside the query that never reaches the graph.
+ifa_s3_logs_to_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert s3_logs_to materialized edges (three-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain s3_logs_to \
 		-expected "${expected_edges}"
 }

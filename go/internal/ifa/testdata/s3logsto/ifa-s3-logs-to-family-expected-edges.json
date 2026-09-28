@@ -1,0 +1,30 @@
+{
+  "odu": "odu:ifa-s3-logs-to-family",
+  "note": "Hand-derived from CanonicalS3LogsToEdgeUpsertCypherFormat (go/internal/storage/cypher/s3_logs_to_edge_writer.go) with the single closed-vocabulary member LOGS_TO substituted into its one %s, NOT from the port or family name. The template is `UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:LOGS_TO]->(target) SET ...`, and LOGS_TO is the only type this writer can emit (per-row validateS3LogsToRelationshipType against the single-member vocabulary). \"S3_LOGS_TO\" is statement metadata, not a graph relationship type, so the type is read off the template, never derived from the port or family name. Each endpoint is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012 and region us-east-1 everywhere, with (resource_type, resource_id) pairs (aws_s3_bucket, arn:aws:s3:::orders-bucket), (aws_s3_bucket, arn:aws:s3:::logs-bucket), (aws_s3_bucket, arn:aws:s3:::audit-bucket), (aws_s3_bucket, arn:aws:s3:::arnonly-bucket). Exactly three edges: orders-bucket resolves by name to logs-bucket, audit-bucket resolves by name to itself (a legal S3 self-target that DOES emit an edge), and the ARN-only posture derives its source name from the ARN tail to logs-bucket (name resolution mode). The other three postures contribute nothing on purpose -- one bucket with logging disabled (blank target, not a skip), one naming the unscanned ghost-log-bucket (target_unresolved, the conservative skip), and one orphan posture with no scanned node (source_unresolved). The idle bucket scans as a node but carries no posture.",
+  "edges": [
+    {
+      "relationship_type": "LOGS_TO",
+      "source_entity_id": "69f314086012f30f30600ad4f6e57b842b412e374ec950a3b92ebe52309338b9",
+      "target_entity_id": "4b915567e874e9a2eee02c50fe34b9e0ca5002287a1f52ed2e0215c5a637b69e",
+      "properties": {
+        "resolution_mode": "name"
+      }
+    },
+    {
+      "relationship_type": "LOGS_TO",
+      "source_entity_id": "16d4ce585e3c39773e61380c2744e64da690eaa3e45be99d1327cae80c68401e",
+      "target_entity_id": "16d4ce585e3c39773e61380c2744e64da690eaa3e45be99d1327cae80c68401e",
+      "properties": {
+        "resolution_mode": "name"
+      }
+    },
+    {
+      "relationship_type": "LOGS_TO",
+      "source_entity_id": "a7f47f167805f1e8ee9ba69919af7b065971bafc7231aa5af999124e42420634",
+      "target_entity_id": "4b915567e874e9a2eee02c50fe34b9e0ca5002287a1f52ed2e0215c5a637b69e",
+      "properties": {
+        "resolution_mode": "name"
+      }
+    }
+  ]
+}

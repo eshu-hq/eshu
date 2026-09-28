@@ -167,6 +167,8 @@ iam_escalation_cassette="${repo_root}/testdata/cassettes/iamescalation/ifa-iam-e
 iam_escalation_expected_edges="${repo_root}/go/internal/ifa/testdata/iamescalation/ifa-iam-escalation-family-expected-edges.json"
 ec2_uses_profile_cassette="${repo_root}/testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
 ec2_uses_profile_expected_edges="${repo_root}/go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json"
+s3_logs_to_cassette="${repo_root}/testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
+s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -219,4 +221,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${iam_escalation_expected_edges}" ]] || { echo "${gate}: iam-escalation expected-edge set not found: ${iam_escalation_expected_edges}" >&2; exit 1; }
 	[[ -f "${ec2_uses_profile_cassette}" ]] || { echo "${gate}: ec2-uses-profile cassette not found: ${ec2_uses_profile_cassette}" >&2; exit 1; }
 	[[ -f "${ec2_uses_profile_expected_edges}" ]] || { echo "${gate}: ec2-uses-profile expected-edge set not found: ${ec2_uses_profile_expected_edges}" >&2; exit 1; }
+	[[ -f "${s3_logs_to_cassette}" ]] || { echo "${gate}: s3-logs-to cassette not found: ${s3_logs_to_cassette}" >&2; exit 1; }
+	[[ -f "${s3_logs_to_expected_edges}" ]] || { echo "${gate}: s3-logs-to expected-edge set not found: ${s3_logs_to_expected_edges}" >&2; exit 1; }
 }
