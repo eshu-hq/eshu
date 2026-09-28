@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package infrainventorytools
 
-// infraResourceAggregateTools returns the cheap-summary aggregate tools
-// shipped alongside the existing find_infra_resources search tool. They
-// give callers an O(1) answer to ecosystem-level questions like "how many
-// resources per provider?" without paging through the search endpoint.
+import (
+	toolcontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the cheap-summary aggregate tools owned by this package.
+// They give callers an O(1) answer to ecosystem-level questions like "how many
+// resources per provider?" without paging through individual resources.
+// The parent mcp package splices the whole family slice at its long-standing
+// position, so a future arity change registers automatically instead of
+// panicking on an index.
 //
 // Hot-path performance requires the caller to narrow scope with at least a
 // `category` filter (k8s / terraform / argocd / crossplane / helm / cloud) and one
 // indexed-property predicate. Without scope the aggregate falls back to a
 // multi-label scan across all documented infrastructure labels — correct,
 // but slower; operators should treat that mode as a one-off check.
-func infraResourceAggregateTools() []ToolDefinition {
-	return []ToolDefinition{
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "count_infra_resources",
 			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow the label set. Unscoped reads after the infra read model backfill report truth basis hybrid (content-derived nodes counted from the Postgres infra read model; CloudResource, TerraformStateResource, and Terraform-state TerraformModule / TerraformOutput nodes from the graph); scoped reads stay on the graph.",

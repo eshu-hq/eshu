@@ -10,10 +10,11 @@
    `infraInventoryRoute` adapter, consulted as a delegation ahead of the
    switch that held the two inline arms (`investigate_resource`,
    `analyze_infra_relationships`) before the extraction.
-5. `../../tools_infra_resource_aggregates.go` (for `count_infra_resources` and
-   `get_infra_resource_inventory`) and `../../ecosystem/tools.go` (for
-   `investigate_resource` and `analyze_infra_relationships`) for the four
-   advertised schemas. They stay at the parent's root and must keep naming
+5. `tools.go` and `tools_test.go` for the child registration definitions
+   (`count_infra_resources` and `get_infra_resource_inventory`), and
+   `../../ecosystem/tools.go` (for `investigate_resource` and
+   `analyze_infra_relationships`) for the four advertised schemas. The
+   ecosystem pair stays in `ecosystem/tools.go` and must keep naming
    the same fields this builder selects.
 6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The `go/internal/query` handler behind each path, for the limit/offset
@@ -68,6 +69,7 @@
 ## Failure modes
 
 - Importing the MCP root creates a parent-child cycle. Use `routecontract`
+  and `toolcontract`
   only.
 - A dropped required field is not caught here; the handler decides whether an
   empty string 400s or widens the result. The per-key assertions in

@@ -173,7 +173,7 @@ is not broken out here).
 | `codeFlowTools` | 4 | `types.go` (wraps `code/flow/tools.go`) |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
-| `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
+| `infraResourceAggregateTools` | 2 | `types.go` (wraps `infra/inventory/tools.go`) |
 | `cloudInventoryTools` | 1 | `cloud/inventory_tools.go` |
 | `cloudRuntimeDriftTools` | 1 | `cloud/runtime_drift_tools.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
