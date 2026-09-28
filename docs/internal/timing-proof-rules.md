@@ -89,8 +89,8 @@ discarded, the teardown silently does nothing.
 In #7127 the retention timing harness dropped its clone databases from a
 `t.Cleanup` using `t.Context()`. Ruling E counted 17 leaked clones, about
 13.9 GB (4.5 GB on one rig, 9.4 GB on the other). A second harness bug of the
-same family, the closed connection above, followed it. Issue #7372 counts 22
-leaked clones, about 14 GB, across the two bugs.
+same family, the closed connection above, followed it; its leak was not
+counted.
 
 ## Sources
 
