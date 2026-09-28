@@ -44,7 +44,11 @@ role to work whose intent it cannot infer. The guard uses the role manifest for
 its allowlist. A selected role file supplies its model binding unless a
 per-spawn model override is supplied. The guard cannot determine whether the
 owner requested that override; the coordinator must honor the goal's explicit
-model choices. Because
+model choices. A separate 0.158.0 TUI probe ran the committed guard through an
+isolated trusted hook source: a `default` spawn was blocked by `PreToolUse`
+with the allowed Eshu roles in the reason. The PR worktree's project hook
+source still resolved to the sibling checkout, so this probe proved the guard
+code and canonical matcher, not project-hook activation before merge. Because
 non-managed hooks require trust, review the new definition with `/hooks` in an
 interactive session. A future Codex version can change the canonical tool name;
 repeat the live probe before claiming the guard works on that version.
