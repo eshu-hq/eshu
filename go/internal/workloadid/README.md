@@ -60,7 +60,7 @@ reducer boundary.
 ## What this package is not
 
 It is unrelated to the reducer's `reducer_workload_identity` fact and its
-`DomainWorkloadIdentity` intent. That is a **different** key, built as
-`"workload:" + filepath.Base(repoPath)` in
-`go/internal/collector/repo/git/followup_facts.go`, and reconciling the two is an open
-question on #5385 rather than something this package settles.
+`DomainWorkloadIdentity` intent. That is a **different** key, `workload:<repository
+fact name>`, built by `followupEntityKey` in
+`go/internal/collector/repo/git/followup_facts.go` (#7316), and reconciling the two
+is an open question on #5385 rather than something this package settles.
