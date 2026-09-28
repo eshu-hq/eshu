@@ -113,10 +113,14 @@ cross-family workhorse or as an independent verifier in adversarial-verification
 passes (a different model lineage catches what a single family rationalizes
 away).
 
-The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus, Codex
-Luna/Terra/Sol, and Muse Spark at low/high/xhigh effort. A caller's explicit
-model override can still win per task or session. The coordinator selects the
-tier when it dispatches; a leaf agent does not downgrade its own model.
+The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus,
+Codex Luna at high effort and Sol at medium or high effort, and Muse Spark
+at low/high/xhigh effort.
+When a Codex spawn tool selects a custom role, that role file takes
+precedence over a spawn model override. If custom-role selection is absent,
+the coordinator passes the manifest model and effort explicitly or uses
+`codex-exec`. The main session model is independent. The coordinator selects
+the tier when it dispatches; a leaf agent does not downgrade its own model.
 Muse currently uses one model across the tiers, so its savings come from
 reasoning effort and bounded scopes rather than selecting a cheaper model.
 
@@ -231,8 +235,10 @@ uses its native child tool with that configuration or invokes `muse-exec`
 itself; the user does not run the launcher.
 
 Codex custom role files bind models only when the active spawn tool can select
-the named role. The tested Codex 0.156.1 CLI/app schema exposes a task
-name and optional model override, but no custom-role selector. A child merely
+the named role. When the active spawn tool offers a custom-role selector, use
+it to select the role file directly. The older Codex 0.156.1 CLI/app schema
+tested here exposed a task name and optional model override, but no custom-role
+selector. A child merely
 named `debug_eshu_deep` inherits its parent's model; that name does not load
 `debug-eshu-deep.toml`. The coordinator must pass the manifest's model, effort,
 access, and instructions explicitly to a native child, or invoke

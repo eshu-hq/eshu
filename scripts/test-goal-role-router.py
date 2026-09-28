@@ -45,9 +45,12 @@ class GoalRoleRouterTests(unittest.TestCase):
         self.assertNotIn("develop-eshu", output)
 
     def test_codex_debug_model_is_manifest_binding(self):
+        """The router reports the Codex workhorse binding from the manifest."""
+        manifest = json.loads((ROOT / ".agents/roles.json").read_text())
+        workhorse = manifest["models"]["codex"]["workhorse"]
         output = context("GOAL: Diagnose the queue with eshu-diagnostic-rigor", "codex")
         self.assertIn("debug-eshu", output)
-        self.assertIn("gpt-5.6-terra effort=high", output)
+        self.assertIn(f"{workhorse['model']} effort={workhorse['effort']}", output)
         self.assertIn("codex-exec", output)
 
     def test_deep_diagnosis_uses_deep_tier(self):
