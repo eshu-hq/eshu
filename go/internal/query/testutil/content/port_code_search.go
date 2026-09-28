@@ -20,6 +20,9 @@ func (f FakePortContentStore) SearchCodeCandidates(
 	limit int,
 	exact bool,
 ) (nameMatches, sourceMatches []querycontract.EntityContent, err error) {
+	if limit <= 0 {
+		limit = 50
+	}
 	allowedLanguages := make(map[string]bool)
 	if strings.TrimSpace(language) != "" {
 		for _, variant := range taxonomy.NormalizedLanguageVariants(language) {
