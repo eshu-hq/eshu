@@ -94,12 +94,28 @@ PostgreSQL 18.6 with 800 scopes by 64 generations (51,200 rows, migrations 001,
 `plan_cache_mode = force_generic_plan` is a nested loop of an index scan on
 `scope_generations_pkey` (target) and an index scan on
 `scope_generations_active_scope_idx` (active row), 6 shared buffer hits, no
-sequential scan. 400 executions interleaved with the existing baseline read on
-the same session (host load average 48 to 56): fence p50 0.024 ms, p90
-0.047 ms, p95 0.065 ms, p99 0.122 ms; the existing single-index baseline read
-p50 0.009 ms, p95 0.036 ms. The arbiter's bound was 0.1 ms. No worker count,
-batch size, lease, or lock order changed; the fence takes no lock, and the
-refusal mark never takes the scope row.
+sequential scan.
+
+The first measurement (400 executions interleaved with the existing baseline
+read on the same session, host load average 48 to 56) gave fence p50 0.024 ms,
+p90 0.047 ms, p95 0.065 ms, p99 0.122 ms, above the arbiter's 0.1 ms bound.
+That host was NON-PD (rule PD: load1 under half the CPU count), so the number
+was not trusted. A quiet-host rerun on a 16-CPU host (load1 0.00 at start,
+0.15 maximum during the run, 0.15 at end; migrations, seed and
+`plan_cache_mode = force_generic_plan` unchanged), 2,000 executions: fence p50
+0.042 ms, p95 0.056 ms, p99 0.072 ms, max 0.111 ms; the same-shape control
+canary (the #7363 single-index read) p50 0.020 ms, p99 0.042 ms, inside its
+known-good 0.011 to 0.057 ms range. The p99 clears the 0.1 ms bound without
+excluding anything. The five executions above 0.1 ms were each a fresh
+session's first `EXECUTE`, where the generic plan is built; excluding those,
+p99 is 0.070 ms and max is 0.100 ms. Production connections are pooled
+(`database/sql` plus pgx stdlib, `MaxOpenConns=30`, `ConnMaxLifetime=30m`), so
+this cold-plan cost recurs per physical connection roughly every 30 minutes
+and is amortized over many Acks on that connection; production's default
+adaptive `plan_cache_mode` (not forced generic) means the real cost is at or
+below this deliberately pessimistic measurement. No worker count, batch size,
+lease, or lock order changed; the fence takes no lock, and the refusal mark
+never takes the scope row.
 
 Observability Evidence: `eshu_dp_projector_delta_baseline_fence_total` by
 `phase` (`preflight`, `ack`) and `outcome` (`matched`, `unfenced`,
