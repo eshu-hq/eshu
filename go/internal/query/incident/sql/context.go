@@ -17,8 +17,7 @@ SELECT
     fact.payload
 `
 
-// ListIncidentsQuery lists candidate incident anchors for one read.
-const ListIncidentsQuery = FactSelect + `
+const incidentAnchorFrom = `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -27,18 +26,27 @@ JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
 WHERE fact.source_system = $1
-  AND (
-      fact.payload->>'provider_incident_id' = $2
-      OR (
-          NULLIF(fact.payload->>'provider_incident_id', '') IS NULL
-          AND fact.source_record_id = $2
-      )
-  )
+`
+
+const incidentAnchorActiveFilter = `
   AND ($3 = '' OR fact.scope_id = $3)
   AND fact.fact_kind = 'incident.record'
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
-ORDER BY fact.scope_id ASC, fact.observed_at DESC, fact.fact_id ASC
+`
+
+// ListIncidentsQuery lists candidate incident anchors for one read. Separate
+// identity branches let PostgreSQL use each existing incident lookup index.
+const ListIncidentsQuery = `SELECT * FROM (` +
+	FactSelect + incidentAnchorFrom + `  AND fact.payload->>'provider_incident_id' = $2
+` + incidentAnchorActiveFilter + `
+UNION ALL
+` + FactSelect + incidentAnchorFrom + `  AND NULLIF(fact.payload->>'provider_incident_id', '') IS NULL
+  AND fact.source_record_id = $2
+  AND fact.source_record_id IS NOT NULL
+` + incidentAnchorActiveFilter + `
+) AS matched
+ORDER BY scope_id ASC, observed_at DESC, fact_id ASC
 LIMIT $4
 `
 

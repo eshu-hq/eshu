@@ -101,6 +101,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		return model.IncidentContextSnapshot{}, fmt.Errorf("until must be RFC3339: %w", err)
 	}
 
+	stageStarted := time.Now()
 	incidentRows, err := s.queryIncidentContextRows(
 		ctx,
 		incidentsql.ListIncidentsQuery,
@@ -109,6 +110,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		filter.ScopeID,
 		incidentContextAnchorProbeLimit,
 	)
+	recordIncidentContextStage(ctx, "anchor", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, fmt.Errorf("list incident context anchors: %w", err)
 	}
@@ -135,23 +137,33 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	}
 	anchorRow, incident := selection.Row, selection.Incident
 
+	stageStarted = time.Now()
 	timeline, timelineTruncated, err := s.readIncidentTimeline(ctx, filter, anchorRow)
+	recordIncidentContextStage(ctx, "timeline", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, err
 	}
+	stageStarted = time.Now()
 	changes, changesTruncated, err := s.readIncidentChangeCandidates(ctx, filter, incident, anchorRow)
+	recordIncidentContextStage(ctx, "changes", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, err
 	}
+	stageStarted = time.Now()
 	routingEvidence, err := s.readIncidentRoutingEvidence(ctx, incident)
+	recordIncidentContextStage(ctx, "routing", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, err
 	}
+	stageStarted = time.Now()
 	runtimeEvidence, err := s.readIncidentRuntimeEvidence(ctx, incident)
+	recordIncidentContextStage(ctx, "runtime", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, err
 	}
+	stageStarted = time.Now()
 	reviewEvidence, err := s.readIncidentReviewWorkItemEvidence(ctx, runtimeEvidence)
+	recordIncidentContextStage(ctx, "review", stageStarted, err)
 	if err != nil {
 		return model.IncidentContextSnapshot{}, err
 	}
