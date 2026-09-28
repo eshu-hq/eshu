@@ -4,6 +4,7 @@
 package repository
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,52 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
+
+type combinedLanguageStore struct {
+	content.FakePortContentStore
+	combinedCalls int
+	legacyCalls   int
+}
+
+func (s *combinedLanguageStore) CountRepositoriesByLanguage(context.Context, []string, bool, []string, []string) (querycontract.RepositoryLanguageAggregate, error) {
+	s.legacyCalls++
+	return querycontract.RepositoryLanguageAggregate{}, nil
+}
+
+func (s *combinedLanguageStore) ListRepositoriesByLanguage(context.Context, []string, int, int, bool, []string, []string) ([]querycontract.RepositoryLanguageRepository, error) {
+	s.legacyCalls++
+	return nil, nil
+}
+
+func (s *combinedLanguageStore) ReadRepositoriesByLanguage(context.Context, []string, int, int, bool, []string, []string) (querycontract.RepositoryLanguageAggregate, []querycontract.RepositoryLanguageRepository, error) {
+	s.combinedCalls++
+	return querycontract.RepositoryLanguageAggregate{RepositoryCount: 1, FileCount: 3}, []querycontract.RepositoryLanguageRepository{{
+		Repository: querycontract.RepositoryCatalogEntry{ID: "repository:web", Name: "web"},
+		Languages:  []querycontract.RepositoryLanguageCount{{Language: "go", FileCount: 3}},
+		FileCount:  3,
+	}}, nil
+}
+
+func TestListRepositoriesByLanguageUsesOneCombinedRead(t *testing.T) {
+	t.Parallel()
+
+	store := &combinedLanguageStore{}
+	handler := &Handler{Content: store}
+	req := languageInventoryAdminRequest(t, "/api/v0/repositories/by-language?language=go&limit=1")
+	w := httptest.NewRecorder()
+	handler.ListRepositoriesByLanguage(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.combinedCalls != 1 || store.legacyCalls != 0 {
+		t.Fatalf("combined calls = %d, legacy calls = %d; want 1, 0", store.combinedCalls, store.legacyCalls)
+	}
+	resp := testutil.DecodeResponseBody(t, w)
+	if got, want := resp["repository_count"], float64(1); got != want {
+		t.Fatalf("repository_count = %#v, want %#v", got, want)
+	}
+}
 
 // These route pins live in package repository (not the root
 // repository_language_inventory_test.go) because the route-coverage gate
@@ -106,5 +153,24 @@ func TestGetRepositoryLanguageInventoryRendersAdminRows(t *testing.T) {
 	rows, ok := resp["languages"].([]any)
 	if !ok || len(rows) != 1 {
 		t.Fatalf("languages = %#v, want 1 row", resp["languages"])
+	}
+}
+
+func TestListRepositoriesByLanguageCountOnlyKeepsCountRead(t *testing.T) {
+	t.Parallel()
+	store := &combinedLanguageStore{}
+	handler := &Handler{Content: store}
+	req := languageInventoryAdminRequest(t, "/api/v0/repositories/by-language?language=go&limit=0")
+	w := httptest.NewRecorder()
+	handler.ListRepositoriesByLanguage(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.combinedCalls != 0 || store.legacyCalls != 1 {
+		t.Fatalf("combined calls = %d, legacy calls = %d; want 0, 1", store.combinedCalls, store.legacyCalls)
+	}
+	resp := testutil.DecodeResponseBody(t, w)
+	if got, want := resp["repositories"].([]any); !want || len(got) != 0 {
+		t.Fatalf("repositories = %#v, want empty array", resp["repositories"])
 	}
 }

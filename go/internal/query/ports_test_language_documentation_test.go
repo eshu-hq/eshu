@@ -161,3 +161,15 @@ func (f fakePortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 ) (documentationEvidencePacketFreshnessReadModel, error) {
 	return f.promoted().DocumentationEvidencePacketFreshnessWithFilter(ctx, filter)
 }
+
+func (f fakePortContentStore) ReadRepositoriesByLanguage(
+	ctx context.Context,
+	languages []string,
+	limit int,
+	offset int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (RepositoryLanguageAggregate, []RepositoryLanguageRepository, error) {
+	return f.promoted().ReadRepositoriesByLanguage(ctx, languages, limit, offset, allScopes, allowedRepositoryIDs, allowedScopeIDs)
+}

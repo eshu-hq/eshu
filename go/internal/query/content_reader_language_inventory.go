@@ -277,3 +277,153 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	}
 	return inventory, nil
 }
+
+// ReadRepositoriesByLanguage reads the aggregate and bounded repository page
+// in one PostgreSQL statement, so both reflect the same content-index snapshot.
+// Repository grants constrain content_files before either result is computed.
+func (cr *ContentReader) ReadRepositoriesByLanguage(
+	ctx context.Context,
+	languages []string,
+	limit int,
+	offset int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (RepositoryLanguageAggregate, []RepositoryLanguageRepository, error) {
+	if cr == nil || cr.db == nil || len(languages) == 0 {
+		return RepositoryLanguageAggregate{}, nil, nil
+	}
+	if limit <= 0 {
+		aggregate, err := cr.CountRepositoriesByLanguage(ctx, languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
+		return aggregate, nil, err
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query", trace.WithAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "read_repositories_by_language"),
+		attribute.String("db.sql.table", "content_files"),
+	))
+	defer span.End()
+
+	where := "WHERE language = ANY($1)"
+	args := []any{array.Of(languages), limit, offset}
+	if !allScopes {
+		where += " AND (repo_id = ANY($4) OR repo_id = ANY($5))"
+		args = append(args, array.Of(allowedRepositoryIDs), array.Of(allowedScopeIDs))
+	}
+
+	rows, err := cr.db.QueryContext(ctx, `
+        WITH catalog AS (
+            SELECT `+repositoryCatalogIDExpr+` AS id,
+                   coalesce(payload->>'name', payload->>'repo_name', payload->>'repo_slug', scope_id) AS name,
+                   coalesce(payload->>'path', '') AS path,
+                   coalesce(payload->>'local_path', payload->>'path', '') AS local_path,
+                   coalesce(payload->>'remote_url', '') AS remote_url,
+                   coalesce(payload->>'repo_slug', '') AS repo_slug,
+                   CASE WHEN coalesce(payload->>'remote_url', '') <> '' THEN true ELSE false END AS has_remote
+            FROM ingestion_scopes
+            WHERE scope_kind = 'repository'
+        ),
+        language_rows AS MATERIALIZED (
+            SELECT repo_id,
+                   coalesce(NULLIF(language, ''), 'unknown') AS language,
+                   COUNT(*) AS file_count,
+                   MAX(indexed_at) AS last_indexed_at
+            FROM content_files
+            `+where+`
+            GROUP BY repo_id, language
+        ),
+        repo_totals AS MATERIALIZED (
+            SELECT repo_id,
+                   SUM(file_count) AS total_file_count,
+                   MAX(last_indexed_at) AS last_indexed_at
+            FROM language_rows
+            GROUP BY repo_id
+        ),
+        aggregate AS (
+            SELECT COUNT(*) AS repository_count,
+                   coalesce(SUM(total_file_count), 0) AS file_count,
+                   MAX(last_indexed_at) AS last_indexed_at
+            FROM repo_totals
+        ),
+        page AS (
+            SELECT rt.repo_id,
+                   coalesce(c.name, rt.repo_id) AS repo_name,
+                   coalesce(c.path, '') AS path,
+                   coalesce(c.local_path, '') AS local_path,
+                   coalesce(c.remote_url, '') AS remote_url,
+                   coalesce(c.repo_slug, '') AS repo_slug,
+                   coalesce(c.has_remote, false) AS has_remote,
+                   rt.total_file_count,
+                   rt.last_indexed_at
+            FROM repo_totals rt
+            LEFT JOIN catalog c ON c.id = rt.repo_id
+            ORDER BY total_file_count DESC, repo_name, repo_id
+            LIMIT $2 OFFSET $3
+        )
+        SELECT aggregate.repository_count, aggregate.file_count, aggregate.last_indexed_at,
+               page.repo_id, page.repo_name, page.path, page.local_path,
+               page.remote_url, page.repo_slug, page.has_remote,
+               language_rows.language, language_rows.file_count, page.last_indexed_at
+        FROM aggregate LEFT JOIN page ON true
+        LEFT JOIN language_rows ON language_rows.repo_id = page.repo_id
+        ORDER BY page.total_file_count DESC, page.repo_name, page.repo_id, language_rows.language
+    `, args...)
+	if err != nil {
+		span.RecordError(err)
+		return RepositoryLanguageAggregate{}, nil, fmt.Errorf("read repositories by language: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var aggregate RepositoryLanguageAggregate
+	repos := make([]RepositoryLanguageRepository, 0)
+	byRepo := make(map[string]int)
+	for rows.Next() {
+		var repositoryCount, totalFileCount int64
+		var aggregateIndexedAt sql.NullTime
+		var repoID, repoName, path, localPath, remoteURL, repoSlug sql.NullString
+		var hasRemote sql.NullBool
+		var language sql.NullString
+		var languageFileCount sql.NullInt64
+		var pageIndexedAt sql.NullTime
+		if err := rows.Scan(
+			&repositoryCount, &totalFileCount, &aggregateIndexedAt,
+			&repoID, &repoName, &path, &localPath, &remoteURL, &repoSlug, &hasRemote,
+			&language, &languageFileCount, &pageIndexedAt,
+		); err != nil {
+			span.RecordError(err)
+			return RepositoryLanguageAggregate{}, nil, fmt.Errorf("scan repository language row: %w", err)
+		}
+		aggregate.RepositoryCount = int(repositoryCount)
+		aggregate.FileCount = int(totalFileCount)
+		if aggregateIndexedAt.Valid {
+			aggregate.LastIndexedAt = aggregateIndexedAt.Time
+		}
+		if !repoID.Valid {
+			continue
+		}
+		idx, ok := byRepo[repoID.String]
+		if !ok {
+			repos = append(repos, RepositoryLanguageRepository{Repository: RepositoryCatalogEntry{
+				ID: repoID.String, Name: repoName.String, Path: path.String,
+				LocalPath: localPath.String, RemoteURL: remoteURL.String,
+				RepoSlug: repoSlug.String, HasRemote: hasRemote.Bool,
+			}})
+			idx = len(repos) - 1
+			byRepo[repoID.String] = idx
+		}
+		fileCount := int(languageFileCount.Int64)
+		repos[idx].Languages = append(repos[idx].Languages, RepositoryLanguageCount{Language: language.String, FileCount: fileCount})
+		repos[idx].FileCount += fileCount
+		if pageIndexedAt.Valid {
+			repos[idx].IndexedAt = maxTime(repos[idx].IndexedAt, pageIndexedAt.Time)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return RepositoryLanguageAggregate{}, nil, fmt.Errorf("iterate repository language rows: %w", err)
+	}
+	return aggregate, repos, nil
+}

@@ -149,6 +149,18 @@ func (mcpNoopContentStore) ListRepositoriesByLanguage(
 	return nil, nil
 }
 
+func (mcpNoopContentStore) ReadRepositoriesByLanguage(
+	context.Context,
+	[]string,
+	int,
+	int,
+	bool,
+	[]string,
+	[]string,
+) (query.RepositoryLanguageAggregate, []query.RepositoryLanguageRepository, error) {
+	return query.RepositoryLanguageAggregate{}, nil, nil
+}
+
 func (mcpNoopContentStore) RepositoryLanguageInventory(
 	context.Context,
 	int,
