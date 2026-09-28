@@ -34,6 +34,11 @@ Use this file when planning or executing a Go change. TDD is the default, not th
 - Use `t.Helper()` in test helpers that would otherwise hide the real failure location.
 - Use `t.TempDir()` and `t.Setenv()` instead of hand-managed cleanup where possible.
 - Add `t.Parallel()` only when the test is actually safe to parallelize.
+- Do not use `t.Context()` for teardown I/O in `t.Cleanup`: it is cancelled
+  before Cleanup runs, so the call fails at once. Use a background context with
+  its own timeout and report the error with `t.Errorf`. Teardown that needs a
+  connection must own it, because a `defer db.Close()` in the test body runs
+  first. See [Timing Proof Rules](../../../../docs/internal/timing-proof-rules.md).
 
 ## When the Repo Is Silent
 

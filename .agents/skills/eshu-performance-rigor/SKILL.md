@@ -38,6 +38,8 @@ identity. Compare identical metric boundaries, data, backend, runtime knobs,
 storage state, and resource profiles; label incompatible totals non-comparable.
 Preserve graph/content/API truth and terminal counts. Serialize live gates and
 benchmarks across the shared machine; do not overlap or terminate a peer's run.
+A wall-time gate needs a quiet host, a measured bound, and a live teardown
+context: [proof-plan.md](references/proof-plan.md#timing-proof-rules).
 Stop and profile a healthy regression greater than 10% or 60 seconds. Declare a
 run time box that accommodates the measured cold-start floor.
 

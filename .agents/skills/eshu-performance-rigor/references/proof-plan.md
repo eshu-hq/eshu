@@ -36,6 +36,24 @@ If a rung disproves the hypothesis, record it in the hypothesis ledger and do
 not implement or retain an optimization justified by that hypothesis. A rejected
 hypothesis is a valid result.
 
+## Timing Proof Rules
+
+A wall-time or ratio gate follows three rules from #7127 PR-3d. The reasoning
+and evidence are in
+[Timing Proof Rules](../../../../docs/internal/timing-proof-rules.md).
+
+- **Own the host.** Pause every other gate, build, and live suite while it runs.
+  Declare a quiet host, and require load1 below half the CPU count at the start,
+  at the end, and as the in-run maximum. Run the unchanged base binary as a
+  control canary each round; a control over its bound voids the round.
+- **Derive the bound.** Set it outside the estimator's measured spread on
+  unchanged code, from at least two prior sets. Report same-round ratios with
+  mean and SD beside any ratio of medians. Prefer plan and buffer checks the
+  host cannot move.
+- **Tear down with a live context.** `t.Cleanup` must not use `t.Context()` for
+  teardown I/O; it is cancelled before Cleanup runs. Use a background context
+  with a timeout and report the error.
+
 ## Caller And Route Inventory
 
 Before changing an index, readiness gate, cache, fallback, queue fence, or

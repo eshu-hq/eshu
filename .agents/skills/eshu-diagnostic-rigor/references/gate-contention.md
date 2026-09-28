@@ -16,7 +16,9 @@ A failure under contention remains an observed failure; it does not by itself
 establish a product defect. Preserve its run identity and artifacts, then rerun
 under controlled conditions. Repeating without changing those conditions adds
 no useful evidence. Passing correctness checks under load can remain useful;
-timing claims require a comparable, quiet environment.
+timing claims require a comparable, quiet environment: a timing proof owns the
+host, with a load bound and a control canary (see
+[Timing Proof Rules](../../../../docs/internal/timing-proof-rules.md)).
 
 A drain timeout or dead-lettered item can result from contention. Compare the
 failing and passing runs' code, topology, inputs, and machine load before
