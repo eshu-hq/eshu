@@ -1,0 +1,19 @@
+docs/internal/agent-orchestration.md
+  s_bc720f29f5e0fd::t_76f5edb3384946 250-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d8abff07dc2ab77699877ab83554a9543b89dde",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
