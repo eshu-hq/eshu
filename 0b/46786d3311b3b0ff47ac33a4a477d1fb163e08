@@ -1,0 +1,33 @@
+go/internal/cigates/README.md
+  s_bc720f29f5e0fd::t_9ffc344f030063 85-92
+  s_bc720f29f5e0fd::t_78341d0b2de6f8 22
+go/internal/cigates/required_workflow_postmerge_test.go
+  s_bc720f29f5e0fd::t_2b48ca808aeabc 1-64,66-76,80-103,128,130-131,146-174,209-226,230-270
+  s_bc720f29f5e0fd::t_494ca079ca8e07 140-142
+  s_bc720f29f5e0fd::t_2715a0e568f62c 132-139,143-145
+  s_bc720f29f5e0fd::t_7df06dc4a9648d 65,77-79,104-127,129,175-178,200-204,206-208,227-229
+  s_bc720f29f5e0fd::t_bfe3e6544798bb 179-187,205
+  s_bc720f29f5e0fd::t_45e47cf1735ae6 188-199
+.github/workflows/required-gates.yml
+  s_bc720f29f5e0fd::t_bfe3e6544798bb 87-88,242
+  s_bc720f29f5e0fd::t_78341d0b2de6f8 250
+  s_bc720f29f5e0fd::t_f17f6bd04d80c5 82,85-86,89-109,117,123,134,157,162,226-228,232-241,243-249,251-262
+go/internal/cigates/requiredworkflow_publishrun.go
+  s_bc720f29f5e0fd::t_55213af58a9a04 270-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0b46786d3311b3b0ff47ac33a4a477d1fb163e08",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
