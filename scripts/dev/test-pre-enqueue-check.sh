@@ -77,14 +77,25 @@ g "${seed}" checkout -q -B main-moved main
 printf 'main2\n' >"${seed}/a.txt"
 g "${seed}" commit -qam moved
 g "${seed}" push -q "${work}/origin-conflict.git" main-moved:main
-# origin-drift.git: main moved on one commit that touches only b.txt, so the PR
-# head (a.txt) still merges cleanly and shares no file with the drift.
+# origin-drift.git: main moved on TWO commits (b.txt, then a new c.txt), so the
+# PR head (a.txt, one commit) still merges cleanly, shares no file with the
+# drift, and the drift count differs from the PR's own commit count.
 new_origin "${work}/origin-drift.git"
 g "${seed}" checkout -q -B main-drift main
 printf 'b2\n' >"${seed}/b.txt"
 g "${seed}" commit -qam drift
+printf 'c1\n' >"${seed}/c.txt"
+g "${seed}" add c.txt && g "${seed}" commit -qm drift2
 g "${seed}" push -q "${work}/origin-drift.git" main-drift:main
-g "${seed}" checkout -q main
+# origin-unrelated.git: holds the PR head, but its main shares no history with
+# it, so there is no merge base at all.
+new_origin "${work}/origin-unrelated.git"
+g "${seed}" checkout -q --orphan unrelated
+g "${seed}" rm -rfq .
+printf 'z1\n' >"${seed}/z.txt"
+g "${seed}" add z.txt && g "${seed}" commit -qm unrelated
+g "${seed}" push -q -f "${work}/origin-unrelated.git" unrelated:main
+g "${seed}" checkout -q -f main
 
 # --- fake gh and case fixtures ----------------------------------------------
 export FAKE_PR=100 PRE_ENQUEUE_REPO=eshu-hq/eshu
@@ -231,9 +242,21 @@ new_case main-drift "${work}/origin-drift.git"
 run
 ok=0
 [[ "${RC}" -eq 0 ]] || ok=1
-rg -q 'merge-main  base drift: 1 commit\(s\) on origin/main since the merge base; files changed on both sides: none$' <<<"${OUT}" || ok=1
+rg -q 'merge-main  base drift: 2 commit\(s\) on origin/main since the merge base; files changed on both sides: none$' <<<"${OUT}" || ok=1
 check "GREEN drift with no shared file is reported, not failed" "${ok}"
 [[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+new_case no-merge-base "${work}/origin-unrelated.git"
+expect_red "main shares no history with the head" merge-main
+ok=0
+rg -q '^FAIL merge-main +no merge base' <<<"${OUT}" || ok=1
+check "no-merge-base FAIL names the missing merge base" "${ok}"
+# A drift computation that errors must fail the arm, never print "none".
+new_case drift-diff-error "${work}/origin-drift.git"
+mkdir -p "${work}/badgit"
+real_git="$(command -v git)"
+printf '#!/usr/bin/env bash\n[[ "$1" == diff && "$2" == --name-only ]] && exit 128\nexec "%s" "$@"\n' "${real_git}" >"${work}/badgit/git"
+chmod +x "${work}/badgit/git"
+GIT="${work}/badgit/git" expect_red "drift diff that errors" merge-main
 new_case queue-conflict
 edit queue.json '.data.repository.mergeQueue.entries.nodes[1].headCommit.oid = $t' --arg t "${TIP_BAD}"
 expect_red "merge-tree conflict vs queue tip" merge-queue

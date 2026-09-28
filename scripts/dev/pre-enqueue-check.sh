@@ -147,24 +147,30 @@ elif [[ "${head_ok}" -eq 0 ]]; then
 	fail merge-main "head ${want} not fetchable from ${REMOTE}"
 else
 	base="$("${GIT}" rev-parse "${REMOTE}/main" 2>/dev/null)"
-	if out="$("${GIT}" merge-tree --write-tree --name-only "${base}" "${want}" 2>&1)"; then
-		pass merge-main "clean against ${REMOTE}/main ${base}"
-	else
-		fail merge-main "conflict against ${REMOTE}/main ${base}: $(sed -n '2,6p' <<<"${out}" | tr '\n' ' ')"
-	fi
-	# Base drift: how far main has moved past the branch's merge base, and
-	# which files both sides changed. A clean merge-tree can still hide a
-	# regenerated artifact (ci-gates.md) that must be rebuilt, so the arbiter
-	# needs this even when the merge is clean. Informational unless there is
-	# no merge base at all.
+	# The merge base comes first: with none there is nothing to merge-tree or
+	# measure drift against, and the arm reports that one cause, not two.
 	mb="$("${GIT}" merge-base "${base}" "${want}" 2>/dev/null)"
 	if [[ -z "${mb}" ]]; then
 		fail merge-main "no merge base between ${REMOTE}/main and ${want}"
 	else
-		ahead="$("${GIT}" rev-list --count "${mb}..${base}")"
-		both="$(comm -12 <("${GIT}" diff --name-only "${mb}" "${base}" | sort -u) \
-			<("${GIT}" diff --name-only "${mb}" "${want}" | sort -u) | paste -sd, -)"
-		note merge-main "base drift: ${ahead} commit(s) on ${REMOTE}/main since the merge base; files changed on both sides: ${both:-none}"
+		if out="$("${GIT}" merge-tree --write-tree --name-only "${base}" "${want}" 2>&1)"; then
+			pass merge-main "clean against ${REMOTE}/main ${base}"
+		else
+			fail merge-main "conflict against ${REMOTE}/main ${base}: $(sed -n '2,6p' <<<"${out}" | tr '\n' ' ')"
+		fi
+		# Base drift: how far main has moved past the merge base, and which
+		# files both sides changed. A clean merge-tree can still hide a
+		# regenerated artifact (ci-gates.md) that must be rebuilt, so the
+		# arbiter needs this even when the merge is clean. Each git call is
+		# checked: a failed diff must not print "none".
+		if ahead="$("${GIT}" rev-list --count "${mb}..${base}" 2>/dev/null)" &&
+			main_files="$("${GIT}" diff --name-only "${mb}" "${base}" 2>/dev/null)" &&
+			head_files="$("${GIT}" diff --name-only "${mb}" "${want}" 2>/dev/null)"; then
+			both="$(comm -12 <(sort -u <<<"${main_files}") <(sort -u <<<"${head_files}") | sed '/^$/d' | paste -sd, -)"
+			note merge-main "base drift: ${ahead} commit(s) on ${REMOTE}/main since the merge base; files changed on both sides: ${both:-none}"
+		else
+			fail merge-main "base drift could not be computed from merge base ${mb}"
+		fi
 	fi
 fi
 

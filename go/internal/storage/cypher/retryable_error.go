@@ -129,7 +129,8 @@ const (
 	// property key dictionary at commit (property_key_dictionary.go:288, db nil
 	// only after Close; wrapped at badger_transaction.go:1753) before any
 	// durable write, and rolls back. Exact match, as for the validation body.
-	nornicDBStoreClosedCommitPropertyKeysMsg = "commit failed: persisting property key dictionary: property key dictionary persistence requires an open database"
+	nornicDBStoreClosedCommitPropertyKeysMsg = "commit failed: persisting property key dictionary: " +
+		"property key dictionary persistence requires an open database"
 )
 
 // isNornicDBStoreClosedCommitReadBody matches the Badger Get wrap of a closed
@@ -251,8 +252,9 @@ func (e *schemaFenceError) Retryable() bool { return true }
 // messages), the commit failure raised once the store has blocked writes for
 // shutdown or is closed outright (including the closed property key
 // dictionary, matched exactly), and the statement failure raised once the
-// store is closed outright. Every one requires its error code as well. Malformed connectivity errors remain terminal, and all
-// other errors are returned unchanged.
+// store is closed outright. Every one requires its error code as well.
+// Malformed connectivity errors remain terminal, and all other errors are
+// returned unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
 		return nil
