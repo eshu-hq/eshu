@@ -544,8 +544,8 @@ Primary groups:
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.
 - Generation retention store for bounded superseded-generation cleanup,
-  hashed retention events, changed-since expiry proof, and identity-safe
-  content pruning.
+  hashed retention events, changed-since expiry proof, identity-safe content
+  pruning, and the pruned generations' changed-since ledger rows (#7127).
 - Service-scoped incident evidence loader for the incidents service-evidence
   family. It resolves PagerDuty provider service ids to catalog service ids
   through active exact/derived reducer correlation facts and fails closed for

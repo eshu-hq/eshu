@@ -249,6 +249,10 @@ type Instruments struct {
 	GenerationRetentionRowsPruned    metric.Int64Counter
 	GenerationRetentionFailures      metric.Int64Counter
 	GenerationRetentionSkipped       metric.Int64Counter
+	// GenerationRetentionOverLimitBatches counts retention batches of one
+	// generation admitted over BatchRowLimit by its changed-since ledger rows
+	// (#7127); registered with the changed-since instruments.
+	GenerationRetentionOverLimitBatches metric.Int64Counter
 	// Changed-since link writer (#7127 PR-3a, reducer/freshness/links). No
 	// scope or generation identifier is ever a label; the per-link log line
 	// carries them.
@@ -279,8 +283,13 @@ type Instruments struct {
 	ChangedSinceLinkLag metric.Float64Gauge
 	// ChangedSinceStateBytes and ChangedSinceStateRows size the
 	// changed_since_key_state table (rows are the planner estimate).
-	ChangedSinceStateBytes       metric.Int64Gauge
-	ChangedSinceStateRows        metric.Int64Gauge
+	ChangedSinceStateBytes metric.Int64Gauge
+	ChangedSinceStateRows  metric.Int64Gauge
+	// ChangedSinceDeltasBytes and ChangedSinceDeltasRows size the
+	// changed_since_link_deltas table (rows are the planner estimate), which
+	// generation retention bounds (#7127 ruling 7.5).
+	ChangedSinceDeltasBytes      metric.Int64Gauge
+	ChangedSinceDeltasRows       metric.Int64Gauge
 	GenerationLivenessRecovered  metric.Int64Counter
 	GenerationLivenessSuperseded metric.Int64Counter
 	GenerationLivenessFailures   metric.Int64Counter

@@ -68,6 +68,10 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		Duration:          result.Duration,
 		PhaseDurations:    result.PhaseDurations,
 		ScopeLockHold:     result.ScopeLockHold,
+		LedgerRowsPruned:  result.LedgerRowsPruned,
+		LedgerRowsCounted: result.LedgerRowsCounted,
+		RowsOverLimit:     result.RowsOverLimit,
+		LockedScopeRows:   result.LockedScopeRows,
 	}, nil
 }
 

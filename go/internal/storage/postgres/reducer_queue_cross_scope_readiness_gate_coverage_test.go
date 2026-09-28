@@ -153,6 +153,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestGenerationRetentionProbePlansStayOnKeyIndexesLive",
 		"TestGenerationRetentionRefusesWithoutValidKeyIndexLive",
 		"TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive",
+		// #7127 PR-3d (arbiter ruling arb-7127-3d-c): an over-limit batch of
+		// one that another session takes after its savepoint rollback prunes
+		// nothing and writes no event; only real row locks reproduce it.
+		"TestGenerationRetentionNarrowedCandidateTakenElsewhereLive",
 		// #6475 part B: the changed-since resolve binds the caller's grant on
 		// the lineage row's scope_id; only real Postgres runs that predicate.
 		"TestServiceChangedSinceBindsGrantToLineageScopeLive",

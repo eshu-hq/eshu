@@ -23,6 +23,12 @@ var (
 // writer's counters, gauges and histograms on inst.
 func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
+	if inst.GenerationRetentionOverLimitBatches, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_over_limit_batches_total",
+		metric.WithDescription("Generation retention batches of one generation admitted over BatchRowLimit by its changed-since ledger rows"),
+	); err != nil {
+		return fmt.Errorf("register GenerationRetentionOverLimitBatches counter: %w", err)
+	}
 	if inst.ChangedSinceLinks, err = meter.Int64Counter(
 		"eshu_dp_changed_since_links_total",
 		metric.WithDescription("Changed-since link attempts by link_kind and outcome"),
@@ -84,6 +90,19 @@ func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) 
 		metric.WithDescription("Planner row estimate of the changed-since key-state table"),
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceStateRows gauge: %w", err)
+	}
+	if inst.ChangedSinceDeltasBytes, err = meter.Int64Gauge(
+		"eshu_dp_changed_since_deltas_bytes",
+		metric.WithDescription("Total size of the changed-since link-delta table"),
+		metric.WithUnit("By"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceDeltasBytes gauge: %w", err)
+	}
+	if inst.ChangedSinceDeltasRows, err = meter.Int64Gauge(
+		"eshu_dp_changed_since_deltas_rows",
+		metric.WithDescription("Planner row estimate of the changed-since link-delta table"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceDeltasRows gauge: %w", err)
 	}
 	if inst.ChangedSinceLinkDuration, err = meter.Float64Histogram(
 		"eshu_dp_changed_since_link_duration_seconds",

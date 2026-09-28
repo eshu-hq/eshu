@@ -7,11 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
@@ -107,6 +109,24 @@ type GenerationRetentionResult struct {
 	Duration          time.Duration
 	PhaseDurations    map[string]time.Duration
 	ScopeLockHold     time.Duration
+	// LedgerRowsPruned and LedgerRowsCounted are the changed-since ledger's
+	// deleted rows and the batch's pre-count of them, by ledger table
+	// (#7127). They differ only when a link committed between the two.
+	LedgerRowsPruned  map[string]int64
+	LedgerRowsCounted map[string]int64
+	// RowsOverLimit is the batch's counted rows minus BatchRowLimit when the
+	// batch is one generation over the limit (admitted alone because only its
+	// changed-since ledger rows push it over), else 0. It comes from the
+	// pre-count, so a link that commits after the count and names the
+	// generation on its prior side is deleted uncounted: it can understate.
+	RowsOverLimit int64
+	// LockedScopeRows is the scope rows held by the pruned batch, not the
+	// selection's full lock set: the batch's distinct scopes, 1 for a batch
+	// of one narrowed after its selection (arbiter ruling arb-7127-3d-c). In
+	// the general path the candidate query can also hold further scope rows
+	// it locked while choosing, up to BatchGenerationLimit, which this
+	// figure does not count.
+	LockedScopeRows int
 }
 
 // GenerationRetentionStore prunes superseded source-local generation history in
@@ -114,6 +134,10 @@ type GenerationRetentionResult struct {
 type GenerationRetentionStore struct {
 	database db.ExecQueryer
 	Now      func() time.Time
+	// beforeTargetedLock, when set by a test, runs between the selection's
+	// savepoint rollback and the targeted re-lock of an over-limit batch of
+	// one, where another session can take the candidate.
+	beforeTargetedLock func()
 }
 
 // NewGenerationRetentionStore constructs a Postgres-backed retention cleanup
@@ -170,10 +194,19 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 	result.PhaseDurations[GenerationRetentionPhaseKeyIndexCheck] = time.Since(phaseStart)
 
+	// The selection runs inside a savepoint so an over-limit batch of one can
+	// give its other locks back (arbiter ruling arb-7127-3d-c).
+	if _, err := tx.ExecContext(ctx, generationRetentionSavepointStatement); err != nil {
+		return GenerationRetentionResult{}, fmt.Errorf("generation retention: savepoint: %w", err)
+	}
 	// The candidate statement takes the scope and generation row locks; they
 	// are held until the commit below, and ScopeLockHold measures that window.
 	lockStart := time.Now()
 	candidates, rowCounts, eventRowCounts, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
+	if err != nil {
+		return GenerationRetentionResult{}, err
+	}
+	candidates, rowCounts, eventRowCounts, err = s.narrowOverLimitBatch(ctx, tx, now, policy, candidates, rowCounts, eventRowCounts, &result)
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
@@ -214,30 +247,46 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 			return nil, nil, nil, nil
 		}
 
-		generationIDs := retentionGenerationIDs(candidates)
 		phaseStart = time.Now()
-		_, eventRowCounts, _, err := s.countRows(ctx, tx, generationIDs)
+		_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(candidates), retentionGenerationIDs(candidates))
 		result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		selected, rowCounts, selectedEventRowCounts, skipped := selectCandidatesWithinRowLimit(
-			candidates,
-			eventRowCounts,
-			policy.BatchRowLimit,
-		)
-		if len(skipped) > 0 {
-			result.Skipped["row_limit"] += len(skipped)
+			candidates, eventRowCounts, policy.BatchRowLimit)
+		for rechecks := 0; len(skipped) > 0; rechecks++ {
+			for _, generationID := range skipped {
+				result.Skipped[rowLimitSkipReason(eventRowCounts[generationID], policy.BatchRowLimit)]++
+			}
 			excludedGenerationIDs = append(excludedGenerationIDs, skipped...)
-		}
-		if len(selected) > 0 && len(skipped) > 0 {
-			// Skipped generations stay on disk and protect keys the first count
-			// charged to a selected one; recount (totals only shrink) (#6809).
+			if len(selected) == 0 {
+				break
+			}
+			if rechecks == generationRetentionRecheckLimit {
+				// Keep the first member only; its rows outside the ledger only
+				// shrink on a recount, so one recount settles it.
+				for _, dropped := range selected[1:] {
+					result.Skipped[rowLimitSkipReason(eventRowCounts[dropped.generationID], policy.BatchRowLimit)]++
+					excludedGenerationIDs = append(excludedGenerationIDs, dropped.generationID)
+				}
+				selected = selected[:1]
+			}
+			// Skipped generations stay on disk. Their facts protect keys the
+			// count charged to a selected one (#6809), and a changed-since link
+			// shared with one is still deleted with the selected generation, so
+			// its charge moves there (#7127). The recount can shrink or grow;
+			// re-check the limit, at most generationRetentionRecheckLimit times.
 			phaseStart = time.Now()
-			rowCounts, selectedEventRowCounts, _, err = s.countRows(ctx, tx, retentionGenerationIDs(selected))
+			_, eventRowCounts, _, err = s.countRows(ctx, tx, retentionScopeIDs(selected), retentionGenerationIDs(selected))
 			result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 			if err != nil {
 				return nil, nil, nil, err
+			}
+			selected, rowCounts, selectedEventRowCounts, skipped = selectCandidatesWithinRowLimit(
+				selected, eventRowCounts, policy.BatchRowLimit)
+			if rechecks == generationRetentionRecheckLimit {
+				break
 			}
 		}
 		if len(selected) > 0 {
@@ -305,68 +354,6 @@ func (s GenerationRetentionStore) selectCandidates(
 	return candidates, nil
 }
 
-func selectCandidatesWithinRowLimit(
-	candidates []generationRetentionCandidate,
-	eventRowCounts map[string]map[string]int64,
-	limit int,
-) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, []string) {
-	var selected []generationRetentionCandidate
-	selectedRows := make(map[string]int64)
-	selectedEventRows := make(map[string]map[string]int64)
-	var skipped []string
-	var total int64
-	rowLimit := int64(limit)
-	for _, candidate := range candidates {
-		rows := eventRowCounts[candidate.generationID]
-		candidateRows := generationRetentionRowsTotal(rows)
-		if candidateRows > rowLimit || total+candidateRows > rowLimit {
-			skipped = append(skipped, candidate.generationID)
-			continue
-		}
-		selected = append(selected, candidate)
-		selectedEventRows[candidate.generationID] = rows
-		for tableName, count := range rows {
-			selectedRows[tableName] += count
-		}
-		total += candidateRows
-	}
-	return selected, selectedRows, selectedEventRows, skipped
-}
-
-func (s GenerationRetentionStore) countRows(
-	ctx context.Context,
-	tx db.Transaction,
-	generationIDs []string,
-) (map[string]int64, map[string]map[string]int64, int64, error) {
-	rows, err := tx.QueryContext(ctx, generationRetentionRowCountsQuery, generationIDs)
-	if err != nil {
-		return nil, nil, 0, fmt.Errorf("generation retention: count rows: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	totals := make(map[string]int64)
-	perGeneration := make(map[string]map[string]int64, len(generationIDs))
-	var total int64
-	for rows.Next() {
-		var generationID string
-		var tableName string
-		var rowCount int64
-		if err := rows.Scan(&generationID, &tableName, &rowCount); err != nil {
-			return nil, nil, 0, fmt.Errorf("generation retention: scan row count: %w", err)
-		}
-		if _, ok := perGeneration[generationID]; !ok {
-			perGeneration[generationID] = make(map[string]int64)
-		}
-		perGeneration[generationID][tableName] = rowCount
-		totals[tableName] += rowCount
-		total += rowCount
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, 0, fmt.Errorf("generation retention: count rows: %w", err)
-	}
-	return totals, perGeneration, total, nil
-}
-
 // Retention cycle phases reported in GenerationRetentionResult.PhaseDurations.
 // The set is closed so it can label a metric: every phase after
 // GenerationRetentionPhaseKeyIndexCheck runs while the batch holds its
@@ -382,6 +369,7 @@ const (
 	GenerationRetentionPhasePruneEntities         = "prune_content_entities"
 	GenerationRetentionPhaseDeleteInfraOrphans    = "delete_infra_orphans"
 	GenerationRetentionPhasePruneFiles            = "prune_content_files"
+	GenerationRetentionPhaseDeleteLedger          = "delete_changed_since_ledger"
 	GenerationRetentionPhaseDeleteGenerations     = "delete_scope_generations"
 	GenerationRetentionPhaseCommit                = "commit"
 )
@@ -403,6 +391,10 @@ func (s GenerationRetentionStore) pruneCandidates(
 	for tableName, count := range rowCounts {
 		result.RowsPruned[tableName] = count
 	}
+	if total := generationRetentionRowsTotal(rowCounts); len(candidates) == 1 && total > int64(policy.BatchRowLimit) {
+		result.RowsOverLimit = total - int64(policy.BatchRowLimit) // a batch of one, admitted alone
+	}
+	result.LockedScopeRows = len(slices.Compact(slices.Sorted(slices.Values(retentionScopeIDs(candidates)))))
 
 	phaseStart := time.Now()
 	for _, candidate := range candidates {
@@ -434,6 +426,22 @@ func (s GenerationRetentionStore) pruneCandidates(
 			return inventory.DeleteOrphanedRows(ctx, tx, generationIDs)
 		}},
 		{GenerationRetentionPhasePruneFiles, "content_files", deleteWith(pruneContentFilesForGenerationsQuery)},
+		// The changed-since ledger statement finds the scopes through
+		// scope_generations, so it runs before the generation rows go (#7127
+		// ruling 2.8). It fills RowsPruned for the four ledger tables itself.
+		{GenerationRetentionPhaseDeleteLedger, "", func() (int64, error) {
+			ledgerRows, err := linksfreshnessstore.DeletePrunedGenerationRows(ctx, tx, retentionScopeIDs(candidates), generationIDs)
+			if err != nil {
+				return 0, err
+			}
+			result.LedgerRowsCounted = make(map[string]int64, len(ledgerRows))
+			for tableName := range ledgerRows {
+				result.LedgerRowsCounted[tableName] = rowCounts[tableName]
+			}
+			result.LedgerRowsPruned = ledgerRows
+			maps.Copy(result.RowsPruned, ledgerRows)
+			return 0, nil
+		}},
 		{GenerationRetentionPhaseDeleteGenerations, "scope_generations", deleteWith(deleteScopeGenerationsForRetentionQuery)},
 	}
 	for _, step := range steps {
@@ -464,31 +472,4 @@ func retentionGenerationIDs(candidates []generationRetentionCandidate) []string 
 		ids = append(ids, candidate.generationID)
 	}
 	return ids
-}
-
-func oldestEligibleAge(now time.Time, candidates []generationRetentionCandidate) time.Duration {
-	var oldest time.Duration
-	for _, candidate := range candidates {
-		age := now.Sub(candidate.supersededAt)
-		if age > oldest {
-			oldest = age
-		}
-	}
-	return oldest
-}
-
-func generationRetentionRowsTotal(rows map[string]int64) int64 {
-	var total int64
-	for _, count := range rows {
-		total += count
-	}
-	return total
-}
-
-func generationRetentionSkipSearchLimit(batchLimit int) int {
-	limit := batchLimit * 4
-	if limit < 16 {
-		return 16
-	}
-	return limit
 }

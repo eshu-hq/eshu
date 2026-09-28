@@ -83,7 +83,7 @@ INSERT INTO infra_resource_entities (entity_id, repo_id) VALUES ('e1', 'r1'), ('
 		t.Fatalf("begin: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	totals, perGeneration, _, err := NewGenerationRetentionStore(adapter).countRows(ctx, tx, []string{"gen-old"})
+	totals, perGeneration, _, err := NewGenerationRetentionStore(adapter).countRows(ctx, tx, []string{"scope-infra"}, []string{"gen-old"})
 	if err != nil {
 		t.Fatalf("countRows() error = %v", err)
 	}
