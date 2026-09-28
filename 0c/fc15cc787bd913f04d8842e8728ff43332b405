@@ -1,0 +1,28 @@
+docs/internal/agent-orchestration.md
+  s_bc720f29f5e0fd::t_a3c014e9deee97 255-259
+  s_bc720f29f5e0fd::t_d610996e884270 237-247
+  s_bc720f29f5e0fd::t_747816392a2af3 252
+  s_bc720f29f5e0fd::t_dfec59b813d929 253-254
+docs/internal/agent-hooks-codex-goal.md
+  s_bc720f29f5e0fd::t_d610996e884270 37-39
+  s_bc720f29f5e0fd::t_a3c014e9deee97 27-29,31-36,40-43,48-50
+  s_bc720f29f5e0fd::t_dfec59b813d929 44-47
+docs/internal/agent-hooks.md
+  s_bc720f29f5e0fd::t_a3c014e9deee97 91-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0cfc15cc787bd913f04d8842e8728ff43332b405",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
