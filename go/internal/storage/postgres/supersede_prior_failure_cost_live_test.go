@@ -18,13 +18,14 @@ import (
 
 // Cost proof for #7320 (P5). The fold makes every supersede sweep read and
 // re-write the old failure_details, so the claim statements' sweep rows get
-// wider. This measures that on the production claim paths, not on a copy:
-// ProjectorQueue.Claim, ReducerQueue.Claim and ReducerQueue.ClaimBatch each run
-// the shipped statement ("after") against the same statement with the fold
-// removed ("before", derived from the shipped text by cutting the fragment, so
-// it cannot drift). Runs interleave before/after and alternate which goes
+// wider. This measures that on the shipped claim statements (the projector
+// claim, the reducer claim and the reducer batch claim), executed with the
+// arguments their queue methods pass: the shipped text ("after") against the
+// same text with the fold cut out ("before", derived from the shipped constant,
+// so it cannot drift). Runs interleave before/after and alternate which goes
 // first, over a freshly seeded worst case each time: many dead-lettered rows
-// carrying large details, all superseded by one claim.
+// carrying large details, all superseded by one claim. Both variants run the
+// same way, so the comparison does not depend on the queue method's own work.
 //
 // Opt in with ESHU_7320_COST_PROOF=1 and the claim-proof DSN. Knobs:
 // ESHU_7320_COST_PAIRS (default 9 pairs), ESHU_7320_COST_ROWS (3500) and
@@ -106,15 +107,58 @@ func costExec(t *testing.T, database *sql.DB, stmts ...string) {
 	}
 }
 
-// costVariant runs one claim under a statement text. The claim vars are swapped
-// for the run, so the measured path is the production queue method.
+// costStatement is one claim statement under measurement: its shipped text,
+// how to seed the worst case for it and the arguments its queue method passes.
 type costStatement struct {
-	name  string
-	text  *string
-	alias string
-	seed  func(*testing.T, *sql.DB, int, int)
-	run   func(context.Context, *sql.DB) error
-	args  func(now time.Time) []any
+	name string
+	text string
+	seed func(*testing.T, *sql.DB, int, int)
+	args func(now time.Time) []any
+}
+
+// costStatements are the three claim statements the fold touches. The text is
+// the shipped constant; the measured "before" text is derived from it.
+func costStatements() []costStatement {
+	return []costStatement{
+		{
+			name: "projector_claim", text: claimProjectorWorkQuery, seed: costSeedProjector,
+			args: func(now time.Time) []any { return []any{now, "cost", now.Add(time.Minute), ""} },
+		},
+		{
+			name: "reducer_claim", text: claimReducerWorkQuery, seed: costSeedReducer,
+			args: func(now time.Time) []any { return costReducerArgs(now, 0) },
+		},
+		{
+			name: "reducer_claim_batch", text: claimReducerWorkBatchQuery, seed: costSeedReducer,
+			args: func(now time.Time) []any { return costReducerArgs(now, 4) },
+		},
+	}
+}
+
+// costBeforeText cuts the fold out of a shipped claim statement, so the
+// "before" variant is derived from production text and cannot drift.
+func costBeforeText(t *testing.T, name, shipped string) string {
+	t.Helper()
+	fragment := " || " + priorFailureStaleSQL
+	if !strings.Contains(shipped, fragment) {
+		t.Fatalf("%s: shipped statement does not contain the fold, so there is no before variant to derive", name)
+	}
+	return strings.Replace(shipped, fragment, "", 1)
+}
+
+// costRun executes one claim statement text and drains its rows, the work the
+// queue method does around the same statement.
+func costRun(ctx context.Context, database *sql.DB, statement string, args []any) (int, error) {
+	rows, err := database.QueryContext(ctx, statement, args...)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	n := 0
+	for rows.Next() {
+		n++
+	}
+	return n, rows.Err()
 }
 
 func TestSupersedePriorFailureClaimCost(t *testing.T) {
@@ -123,35 +167,7 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 	database := openClaimDeadlockProofDB(t, dsn, 2)
 	ctx := context.Background()
 	pairs := costEnvInt("ESHU_7320_COST_PAIRS", 9)
-	statements := []costStatement{
-		{
-			name: "projector_claim", text: &claimProjectorWorkQuery, alias: "stale", seed: costSeedProjector,
-			run: func(ctx context.Context, d *sql.DB) error {
-				_, ok, err := NewProjectorQueue(SQLDB{DB: d}, "cost", time.Minute).Claim(ctx)
-				if err == nil && !ok {
-					err = fmt.Errorf("projector claim claimed nothing")
-				}
-				return err
-			},
-			args: func(now time.Time) []any { return []any{now, "cost", now.Add(time.Minute), ""} },
-		},
-		{
-			name: "reducer_claim", text: &claimReducerWorkQuery, alias: "stale", seed: costSeedReducer,
-			run: func(ctx context.Context, d *sql.DB) error {
-				_, _, err := NewReducerQueue(SQLDB{DB: d}, "cost", time.Minute).Claim(ctx)
-				return err
-			},
-			args: func(now time.Time) []any { return costReducerArgs(now, 0) },
-		},
-		{
-			name: "reducer_claim_batch", text: &claimReducerWorkBatchQuery, alias: "stale", seed: costSeedReducer,
-			run: func(ctx context.Context, d *sql.DB) error {
-				_, err := NewReducerQueue(SQLDB{DB: d}, "cost", time.Minute).ClaimBatch(ctx, 4)
-				return err
-			},
-			args: func(now time.Time) []any { return costReducerArgs(now, 4) },
-		},
-	}
+	statements := costStatements()
 	scenarios := []struct {
 		name        string
 		rows, bytes int
@@ -161,12 +177,8 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 	}
 	t.Logf("host load: %s", hostLoad())
 	for _, st := range statements {
-		after := *st.text
-		fragment := " || " + priorFailureDetailsSQL(st.alias)
-		if !strings.Contains(after, fragment) {
-			t.Fatalf("%s: shipped statement does not contain the fold, so there is no before variant to derive", st.name)
-		}
-		before := strings.Replace(after, fragment, "", 1)
+		after := st.text
+		before := costBeforeText(t, st.name, after)
 		for _, sc := range scenarios {
 			for _, variant := range []string{"before", "after"} {
 				st.seed(t, database, sc.rows, sc.bytes)
@@ -184,17 +196,18 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 				}
 				for _, variant := range order {
 					st.seed(t, database, sc.rows, sc.bytes)
+					text := after
 					if variant == "before" {
-						*st.text = before
-					} else {
-						*st.text = after
+						text = before
 					}
 					start := time.Now()
-					err := st.run(ctx, database)
+					n, err := costRun(ctx, database, text, st.args(time.Now().UTC()))
 					elapsed := time.Since(start).Seconds()
-					*st.text = after
 					if err != nil {
 						t.Fatalf("%s %s %s: %v", st.name, sc.name, variant, err)
+					}
+					if st.name == "projector_claim" && n != 1 {
+						t.Fatalf("%s %s %s claimed %d rows, want the one newer-generation row", st.name, sc.name, variant, n)
 					}
 					if variant == "before" {
 						beforeSecs = append(beforeSecs, elapsed)

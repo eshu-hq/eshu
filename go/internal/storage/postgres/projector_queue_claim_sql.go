@@ -35,7 +35,7 @@ package postgres
 // the table must carry a NOT EXISTS guard, because INSERT ... ON CONFLICT waits
 // on an in-flight bump of the conflicting row. The claim itself must never
 // insert fence rows.
-var claimProjectorWorkQuery = `
+const claimProjectorWorkQuery = `
 WITH source_scoped_projector_work AS (
     SELECT work.work_item_id,
            candidate_scope.source_system
@@ -221,7 +221,7 @@ superseded_stale_projector_generations AS (
             'work_item_id', stale.work_item_id,
             'generation_id', stale.generation_id,
             'generation_status', locked.generation_status
-        ) || ` + priorFailureDetailsSQL("stale") + `
+        ) || ` + priorFailureStaleSQL + `
     FROM locked_stale_projector_generations AS locked
     WHERE stale.work_item_id = locked.work_item_id
       AND stale.stage = 'projector'

@@ -41,8 +41,8 @@ WHERE scope_id = $2
 // supersedeProjectorObsoleteGenerationsQuery is Ack's obsolete-generation
 // supersede. It folds the failure a failed, dead-lettered or retried row carried
 // into failure_details.prior_failure (#7320); failure_class and failure_message
-// stay the supersede marker. See priorFailureDetailsTemplate.
-var supersedeProjectorObsoleteGenerationsQuery = `
+// stay the supersede marker. See priorFailureStaleSQL.
+const supersedeProjectorObsoleteGenerationsQuery = `
 WITH superseded_work AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
@@ -58,7 +58,7 @@ WITH superseded_work AS (
             'work_item_id', stale.work_item_id,
             'generation_id', stale.generation_id,
             'current_generation_id', $3
-        ) || ` + priorFailureDetailsSQL("stale") + `
+        ) || ` + priorFailureStaleSQL + `
     FROM scope_generations AS stale_generation,
          scope_generations AS current_generation
     WHERE stale.stage = 'projector'
@@ -160,7 +160,7 @@ WHERE stage = 'projector'
 // superseded the work; Heartbeat reads its verdict and failure class from it.
 // The lock set is unchanged: scope row (SKIP LOCKED), own work row, own
 // generation row.
-var supersedeRunningProjectorWorkQuery = `
+const supersedeRunningProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
     FROM ingestion_scopes
@@ -188,7 +188,7 @@ SET status = 'superseded',
         'work_item_id', work.work_item_id,
         'generation_id', work.generation_id,
         'generation_status', current_generation.status
-    ) || ` + priorFailureDetailsSQL("work") + `
+    ) || ` + priorFailureWorkSQL + `
 FROM locked_scope AS scope,
      scope_generations AS current_generation
 WHERE work.stage = 'projector'
@@ -324,7 +324,7 @@ const projectorHeartbeatGenerationSupersededClass = "projector_heartbeat_generat
 // back, as one statement that locks only the work row, so it cannot join a
 // lock cycle. It re-checks ownership and the superseded status (terminal, so
 // the read cannot go stale), which keeps a lost claim a claim rejection.
-var markProjectorAckSupersededQuery = `
+const markProjectorAckSupersededQuery = `
 UPDATE fact_work_items AS work
 SET status = 'superseded',
     lease_owner = NULL,
@@ -338,7 +338,7 @@ SET status = 'superseded',
         'scope_id', work.scope_id,
         'work_item_id', work.work_item_id,
         'generation_id', work.generation_id
-    ) || ` + priorFailureDetailsSQL("work") + `
+    ) || ` + priorFailureWorkSQL + `
 FROM scope_generations AS generation
 WHERE work.stage = 'projector'
   AND work.scope_id = $2

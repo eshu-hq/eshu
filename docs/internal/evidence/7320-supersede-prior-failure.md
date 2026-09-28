@@ -47,8 +47,10 @@ own detail keys all matched; only `prior_failure` was absent):
 30 failing (sub)tests over the five writers; the 12 controls (rows that never
 failed) passed before and after. After the change: 42 passing, 0 failing.
 
-Every writer now appends `priorFailureDetailsSQL(<alias>)` to its
-`failure_details`. It adds one key, `prior_failure`, read from the OLD row:
+Every writer now appends one shared fragment to its `failure_details`, the
+constant for its own alias (`priorFailureStaleSQL` or `priorFailureWorkSQL`,
+the same text with `stale.` or `work.`; constants, so the statements stay
+constant SQL). It adds one key, `prior_failure`, read from the OLD row:
 
 ```json
 {"prior_failure": {"status": "dead_letter", "failure_class": "graph_write_timeout",
@@ -141,18 +143,26 @@ identical node types and order; the total cost estimate moves 181814.66 to
 failure columns the target list now carries. `EXPLAIN (ANALYZE, BUFFERS)` shows
 no spill for any statement in either case.
 
-Then the production claim paths, before (the shipped text with the fold cut out,
-derived by the test) against after, interleaved with alternating first mover,
-nine pairs, freshly seeded each run, medians:
+Then the shipped claim statements, executed with the arguments their queue
+methods pass, before (the shipped text with the fold cut out, derived by the
+test from the constant) against after, interleaved with alternating first mover,
+nine pairs, freshly seeded each run, medians. Two full runs on a loaded host:
+the first drove the queue methods with the statement text swapped in a package
+variable (an earlier harness, dropped so production SQL stays constant), the
+second is the committed harness and runs both variants as plain statements.
 
-| Statement | Case | Before | After |
-| --- | --- | --- | --- |
-| `ProjectorQueue.Claim` | 3,500 x 800 B | 2.379108 s | 2.409801 s (x1.013) |
-| `ProjectorQueue.Claim` | 500 x 64 KB | 0.077556 s | 0.188283 s |
-| `ReducerQueue.Claim` | 3,500 x 800 B | 0.115193 s | 0.142068 s (x1.233) |
-| `ReducerQueue.Claim` | 500 x 64 KB | 0.019334 s | 0.135649 s |
-| `ReducerQueue.ClaimBatch` | 3,500 x 800 B | 0.117266 s | 0.142628 s (x1.216) |
-| `ReducerQueue.ClaimBatch` | 500 x 64 KB | 0.021145 s | 0.137591 s |
+| Statement | Case | Before | After | First run |
+| --- | --- | --- | --- | --- |
+| projector claim | 3,500 x 800 B | 3.478298 s | 3.963535 s (x1.140) | x1.013 |
+| projector claim | 500 x 64 KB | 0.076079 s | 0.165747 s | 0.078 to 0.188 s |
+| reducer claim | 3,500 x 800 B | 0.142681 s | 0.145012 s (x1.016) | x1.233 |
+| reducer claim | 500 x 64 KB | 0.017419 s | 0.144022 s | 0.019 to 0.136 s |
+| reducer batch claim | 3,500 x 800 B | 0.107870 s | 0.113706 s (x1.054) | x1.216 |
+| reducer batch claim | 500 x 64 KB | 0.017235 s | 0.112008 s | 0.021 to 0.138 s |
+
+The ratio at the ops-qa scale moves between runs (projector x1.01 to x1.14,
+reducer x1.02 to x1.23) because of host load; read it as "at most about 15% of a
+sweep that runs once per superseded row", not as a precise figure.
 
 Memory and temp files (`TestSupersedePriorFailureClaimMemory`,
 `EXPLAIN (ANALYZE, BUFFERS, VERBOSE)` in a rolled-back transaction, per-node
@@ -181,16 +191,16 @@ batches, and the temp block count at 3,500 rows goes from 4,773,360 to 6,819,621
 columns in any node. Not measured: backend RSS, and a `work_mem` between 64 kB
 and 4 MB.
 
-This run is NON-PD: the host was shared and loaded (load average 30 to 55 during
-the runs), so wall times are indicative only and a quiet-host re-run of
+These runs are NON-PD: the host was shared and loaded (load average 24 to 55
+during the runs), so wall times are indicative only and a quiet-host re-run of
 `TestSupersedePriorFailureClaimCost` is the timing evidence. The cost is paid
 once per superseded row, because supersede is terminal. At the ops-qa scale it is
-+0.03 s for 3,500 reducer rows (about 8 microseconds a row) and indistinguishable
-for the projector claim, whose sweep dominates. The 64 KB case is far above any
-observed details size and costs about 0.22 ms a row (jsonb build and text
-output of the old value); it is the reason the bound is measured and not
-enforced by truncation. Not measured: a projector sweep of more than 3,500 rows,
-and a host with the production autovacuum and TOAST history.
+0.002 to 0.03 s for 3,500 reducer rows (up to about 8 microseconds a row) and
+up to about 0.5 s on a 3.5 to 4 s projector sweep of the same rows, whose own
+per-row work dominates. The 64 KB case is far above any observed details size
+and costs about 0.22 ms a row (jsonb build and text output of the old value); it
+is the reason the bound is measured and not enforced by truncation. Not
+measured: a host with the production autovacuum and TOAST history.
 
 ## Observability
 

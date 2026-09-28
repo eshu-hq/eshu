@@ -110,25 +110,7 @@ func TestSupersedePriorFailureClaimMemory(t *testing.T) {
 		t.Fatalf("show work_mem: %v", err)
 	}
 	t.Logf("host load: %s; server default work_mem = %s", hostLoad(), serverWorkMem)
-	statements := []struct {
-		name string
-		text *string
-		seed func(*testing.T, *sql.DB, int, int)
-		args func(time.Time) []any
-	}{
-		{
-			"projector_claim", &claimProjectorWorkQuery, costSeedProjector,
-			func(now time.Time) []any { return []any{now, "mem", now.Add(time.Minute), ""} },
-		},
-		{
-			"reducer_claim", &claimReducerWorkQuery, costSeedReducer,
-			func(now time.Time) []any { return costReducerArgs(now, 0) },
-		},
-		{
-			"reducer_claim_batch", &claimReducerWorkBatchQuery, costSeedReducer,
-			func(now time.Time) []any { return costReducerArgs(now, 4) },
-		},
-	}
+	statements := costStatements()
 	scenarios := []struct {
 		name        string
 		rows, bytes int
@@ -137,12 +119,8 @@ func TestSupersedePriorFailureClaimMemory(t *testing.T) {
 		{"stress_wide_details", costEnvInt("ESHU_7320_COST_STRESS_ROWS", 500), costEnvInt("ESHU_7320_COST_STRESS_BYTES", 65536)},
 	}
 	for _, st := range statements {
-		after := *st.text
-		fragment := " || " + priorFailureDetailsSQL("stale")
-		if !strings.Contains(after, fragment) {
-			t.Fatalf("%s: shipped statement does not contain the fold", st.name)
-		}
-		before := strings.Replace(after, fragment, "", 1)
+		after := st.text
+		before := costBeforeText(t, st.name, after)
 		for _, sc := range scenarios {
 			for _, workMem := range []string{serverWorkMem, "64kB"} {
 				for _, variant := range []string{"before", "after"} {

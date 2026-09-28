@@ -3,8 +3,6 @@
 
 package postgres
 
-import "strings"
-
 // activeFactWorkItemsScopeStateCTE resolves each scope's active generation once
 // (#6794): one row per scope, with the active generation's id and ingested_at
 // when that generation exists and belongs to the scope. It is hash-joined to
@@ -161,7 +159,7 @@ superseded_stale_reducer_generations AS (
             'generation_id', stale.generation_id,
             'active_generation_id', scope.active_generation_id,
             'domain', stale.domain
-        ) || ` + priorFailureDetailsSQL("stale") + `)::text
+        ) || ` + priorFailureStaleSQL + `)::text
     FROM ingestion_scopes AS scope,
          scope_generations AS stale_generation,
          scope_generations AS active_generation
@@ -186,13 +184,9 @@ superseded_stale_reducer_generations AS (
 )
 `
 
-// priorFailureRowToken is the placeholder priorFailureDetailsTemplate uses for
-// the aliased fact_work_items row a supersede statement updates.
-const priorFailureRowToken = "{row}"
-
-// priorFailureDetailsTemplate is the jsonb expression that folds a work row's
-// failure evidence into the failure_details a supersede statement writes
-// (#7320). A supersede overwrites failure_class, failure_message and
+// priorFailureStaleSQL and priorFailureWorkSQL are the jsonb expression that
+// folds a work row's failure evidence into the failure_details a supersede
+// statement writes (#7320). A supersede overwrites failure_class, failure_message and
 // failure_details with its own marker; without this fold a failed or
 // dead-lettered row loses the reason it failed, and so does a claimed or
 // running row that carries its last retry's cause.
@@ -218,25 +212,40 @@ const priorFailureRowToken = "{row}"
 // superseded is terminal and in no supersede source set, so a row that already
 // holds prior_failure is never folded again; the revive paths null the three
 // fields first.
-const priorFailureDetailsTemplate = `(CASE
-        WHEN {row}.status IN ('failed', 'dead_letter')
-          OR NULLIF(BTRIM(COALESCE({row}.failure_class, '')), '') IS NOT NULL
-          OR NULLIF(BTRIM(COALESCE({row}.failure_message, '')), '') IS NOT NULL
-          OR NULLIF(BTRIM(COALESCE({row}.failure_details, '')), '') IS NOT NULL
+//
+// The two constants are the same text for the two aliases the supersede
+// statements give the row they update: stale (claim sweep, Ack obsolete
+// supersede, reducer sweep) and work (Heartbeat supersede, Ack refusal). They
+// are constants, not a function of the alias, so the statements that embed them
+// stay constant SQL; TestPriorFailureFragmentsAgree derives one from the other
+// and TestSupersedeStatementsFoldPriorFailure requires each writer to embed the
+// constant that matches its own alias.
+const priorFailureStaleSQL = `(CASE
+        WHEN stale.status IN ('failed', 'dead_letter')
+          OR NULLIF(BTRIM(COALESCE(stale.failure_class, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(stale.failure_message, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(stale.failure_details, '')), '') IS NOT NULL
         THEN jsonb_build_object('prior_failure', jsonb_build_object(
-            'status', {row}.status,
-            'failure_class', {row}.failure_class,
-            'failure_message', {row}.failure_message,
-            'failure_details', {row}.failure_details,
-            'updated_at', {row}.updated_at
+            'status', stale.status,
+            'failure_class', stale.failure_class,
+            'failure_message', stale.failure_message,
+            'failure_details', stale.failure_details,
+            'updated_at', stale.updated_at
         ))
         ELSE '{}'::jsonb
     END)`
 
-// priorFailureDetailsSQL renders priorFailureDetailsTemplate for the alias of
-// the fact_work_items row a supersede statement updates. Every statement that
-// sets a fact_work_items row to superseded must append it to its failure_details
-// with ||; TestSupersedeStatementsFoldPriorFailure enumerates them from source.
-func priorFailureDetailsSQL(row string) string {
-	return strings.ReplaceAll(priorFailureDetailsTemplate, priorFailureRowToken, row)
-}
+const priorFailureWorkSQL = `(CASE
+        WHEN work.status IN ('failed', 'dead_letter')
+          OR NULLIF(BTRIM(COALESCE(work.failure_class, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(work.failure_message, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(work.failure_details, '')), '') IS NOT NULL
+        THEN jsonb_build_object('prior_failure', jsonb_build_object(
+            'status', work.status,
+            'failure_class', work.failure_class,
+            'failure_message', work.failure_message,
+            'failure_details', work.failure_details,
+            'updated_at', work.updated_at
+        ))
+        ELSE '{}'::jsonb
+    END)`

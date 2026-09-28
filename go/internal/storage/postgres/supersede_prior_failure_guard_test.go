@@ -17,13 +17,14 @@ import (
 
 // Guard for #7320: every statement that sets a fact_work_items row to
 // superseded must fold the row's prior failure into failure_details through
-// priorFailureDetailsSQL. The writers are enumerated from the Go source of the
+// the fragment constants. The writers are enumerated from the Go source of the
 // whole module, not from a list kept here, so a sixth writer added tomorrow is
 // held to the same rule without anyone editing this test.
 
 var (
-	// updateWorkItemsPattern starts one fact_work_items UPDATE statement.
-	updateWorkItemsPattern = regexp.MustCompile(`(?i)UPDATE\s+fact_work_items\b`)
+	// updateWorkItemsPattern starts one fact_work_items UPDATE statement and
+	// captures the alias it gives the row.
+	updateWorkItemsPattern = regexp.MustCompile(`(?i)UPDATE\s+fact_work_items\b(?:\s+AS\s+(\w+))?`)
 	// wherePattern ends the SET list of a statement.
 	wherePattern = regexp.MustCompile(`(?i)\bWHERE\b`)
 	// setSupersededPattern is a work row assigned the superseded status. The
@@ -31,10 +32,24 @@ var (
 	setSupersededPattern = regexp.MustCompile(`(?i)\bstatus\s*=\s*'superseded'`)
 )
 
+// priorFailureConstFor names the fragment constant that matches the alias a
+// supersede statement gives its row, or "" for an alias with none.
+func priorFailureConstFor(alias string) string {
+	switch alias {
+	case "stale":
+		return "priorFailureStaleSQL"
+	case "work":
+		return "priorFailureWorkSQL"
+	}
+	return ""
+}
+
+func strconvQuote(s string) string { return "\"" + s + "\"" }
+
 // supersedeWriterViolations parses one Go source file and returns a message for
 // every top-level declaration holding a fact_work_items UPDATE that assigns
-// status = 'superseded' in its SET list without calling priorFailureDetailsSQL
-// in that same SET list, plus how many writers it saw.
+// status = 'superseded' in its SET list without embedding the fragment constant
+// for its alias in that same SET list, plus how many writers it saw.
 func supersedeWriterViolations(t *testing.T, filename, src string) (violations []string, writers int) {
 	t.Helper()
 	if !strings.Contains(src, "fact_work_items") || !strings.Contains(src, "'superseded'") {
@@ -50,7 +65,7 @@ func supersedeWriterViolations(t *testing.T, filename, src string) (violations [
 		if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.IMPORT {
 			continue
 		}
-		for _, loc := range updateWorkItemsPattern.FindAllStringIndex(text, -1) {
+		for _, loc := range updateWorkItemsPattern.FindAllStringSubmatchIndex(text, -1) {
 			setList := text[loc[0]:]
 			if end := wherePattern.FindStringIndex(setList); end != nil {
 				setList = setList[:end[0]]
@@ -59,9 +74,14 @@ func supersedeWriterViolations(t *testing.T, filename, src string) (violations [
 				continue
 			}
 			writers++
-			if !strings.Contains(setList, "priorFailureDetailsSQL(") {
-				violations = append(violations, filename+": a fact_work_items UPDATE sets status = 'superseded' "+
-					"without priorFailureDetailsSQL in its SET list (#7320)")
+			alias := ""
+			if loc[2] >= 0 {
+				alias = text[loc[2]:loc[3]]
+			}
+			want := priorFailureConstFor(alias)
+			if want == "" || !strings.Contains(setList, want) {
+				violations = append(violations, filename+": a fact_work_items UPDATE aliased "+strconvQuote(alias)+
+					" sets status = 'superseded' without "+want+" in its SET list (#7320)")
 			}
 		}
 	}
@@ -109,16 +129,21 @@ func TestSupersedeStatementsFoldPriorFailure(t *testing.T) {
 }
 
 // TestSupersedeWriterGuardSeededViolation is the guard's RED/GREEN pair: a
-// planted writer without the fold is reported, the same writer with it is not,
-// and stripping the fold from a real writer's source is reported.
+// planted writer without the fold is reported, the same writer with the
+// constant for its alias is not, the wrong alias's constant is reported, and
+// stripping or swapping the fold in a real writer's source is reported.
 func TestSupersedeWriterGuardSeededViolation(t *testing.T) {
-	planted := "package p\n\nconst q = `\nUPDATE fact_work_items AS w\nSET status = 'superseded',\n    failure_details = jsonb_build_object('k', 1)\nWHERE w.status = 'pending'\n`\n"
+	planted := "package p\n\nconst q = `\nUPDATE fact_work_items AS work\nSET status = 'superseded',\n    failure_details = jsonb_build_object('k', 1)\nWHERE work.status = 'pending'\n`\n"
 	if v, n := supersedeWriterViolations(t, "planted.go", planted); n != 1 || len(v) != 1 {
 		t.Fatalf("planted writer: violations=%v writers=%d, want 1 violation over 1 writer", v, n)
 	}
-	folded := strings.Replace(planted, "jsonb_build_object('k', 1)\n", "jsonb_build_object('k', 1) || ` + priorFailureDetailsSQL(\"w\") + `\n", 1)
+	folded := strings.Replace(planted, "jsonb_build_object('k', 1)\n", "jsonb_build_object('k', 1) || ` + priorFailureWorkSQL + `\n", 1)
 	if v, n := supersedeWriterViolations(t, "folded.go", folded); n != 1 || len(v) != 0 {
 		t.Fatalf("folded writer: violations=%v writers=%d, want none over 1 writer", v, n)
+	}
+	wrongAlias := strings.Replace(folded, "priorFailureWorkSQL", "priorFailureStaleSQL", 1)
+	if v, n := supersedeWriterViolations(t, "wrong.go", wrongAlias); n != 1 || len(v) != 1 {
+		t.Fatalf("writer embedding the other alias's fragment: violations=%v writers=%d, want 1 violation", v, n)
 	}
 	other := "package p\n\nconst q = `\nUPDATE fact_work_items AS w\nSET status = 'retrying'\nWHERE w.status = 'superseded'\n`\n"
 	if v, n := supersedeWriterViolations(t, "other.go", other); n != 0 || len(v) != 0 {
@@ -132,20 +157,28 @@ func TestSupersedeWriterGuardSeededViolation(t *testing.T) {
 	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", string(real)); n != 3 || len(v) != 0 {
 		t.Fatalf("real projector_queue_sql.go: violations=%v writers=%d, want 3 folded writers", v, n)
 	}
-	stripped := strings.ReplaceAll(string(real), "priorFailureDetailsSQL(", "somethingElse(")
+	stripped := strings.NewReplacer("priorFailureStaleSQL", "somethingElse", "priorFailureWorkSQL", "somethingElse").Replace(string(real))
 	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", stripped); n != 3 || len(v) != 3 {
 		t.Fatalf("stripped projector_queue_sql.go: violations=%v writers=%d, want all 3 reported", v, n)
 	}
+	swapped := strings.NewReplacer("priorFailureStaleSQL", "priorFailureWorkSQL", "priorFailureWorkSQL", "priorFailureStaleSQL").Replace(string(real))
+	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", swapped); n != 3 || len(v) != 3 {
+		t.Fatalf("alias-swapped projector_queue_sql.go: violations=%v writers=%d, want all 3 reported", v, n)
+	}
 }
 
-// TestPriorFailureFragmentShape pins the fragment's contract: the alias fills
-// every column reference, the five fields are the only ones folded, and the old
-// failure_details is passed through as text, never cast to jsonb (a non-JSON
-// value would abort the claim statement for every worker).
-func TestPriorFailureFragmentShape(t *testing.T) {
-	got := priorFailureDetailsSQL("stale")
-	if strings.Contains(got, priorFailureRowToken) {
-		t.Fatalf("fragment leaves the alias token unfilled:\n%s", got)
+// TestPriorFailureFragmentsAgree pins the fragment's contract: the work-alias
+// constant is the stale-alias constant with the alias changed and nothing else
+// (derived from the shipped text, not copied), the five fields are the only ones
+// folded, and the old failure_details is passed through as text, never cast to
+// jsonb (a non-JSON value would abort the claim statement for every worker).
+func TestPriorFailureFragmentsAgree(t *testing.T) {
+	got := priorFailureStaleSQL
+	if want := strings.ReplaceAll(got, "stale.", "work."); priorFailureWorkSQL != want {
+		t.Fatalf("priorFailureWorkSQL differs from priorFailureStaleSQL beyond the alias:\nstale: %s\nwork:  %s", got, priorFailureWorkSQL)
+	}
+	if strings.Contains(got, "work.") || strings.Contains(priorFailureWorkSQL, "stale.") {
+		t.Fatal("a fragment mixes aliases")
 	}
 	for _, want := range []string{
 		"stale.status IN ('failed', 'dead_letter')",
@@ -170,8 +203,5 @@ func TestPriorFailureFragmentShape(t *testing.T) {
 	}
 	if regexp.MustCompile(`(?i)failure_details\s*(::|\))?\s*::\s*jsonb|CAST\(`).MatchString(got) {
 		t.Fatalf("fragment casts the old failure_details to jsonb:\n%s", got)
-	}
-	if priorFailureDetailsSQL("work") == got || !strings.Contains(priorFailureDetailsSQL("work"), "work.failure_details") {
-		t.Fatal("fragment does not follow the alias")
 	}
 }
