@@ -27,6 +27,8 @@ not an endpoint speedup or a cold-cache paired measurement. The candidate was
 also run for a richer incident (22.013 to 0.264 ms), missing incident (24.130
 to 0.220 ms), and unscoped incident (0.353 to 0.373 ms). The unscoped case
 was slightly slower at this scale.
+The timings are observations on a shared host, not a quiet-host wall-time gate;
+the changed plan shape and shared-block counts are the primary cost evidence.
 
 The final Go query matched the measured candidate SQL ignoring whitespace. A
 disposable PostgreSQL 18 fixture compared all projected rows and their order
