@@ -35,15 +35,19 @@ No-Regression Evidence: `NORNICDB_IMAGE=ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-5
 bash scripts/verify-ifa-determinism.sh --keep` (tag form; the digest form
 fails with "cannot overwrite digest", same workaround as the iam_can_assume
 slice) drove all three cells to their graph dumps with 0 failed asserts on
-2026-09-28. The gate's terminal PASS line scrolled out of the captured
-`tail -30` window, so this note states what the retained artifacts prove
-instead of quoting it:
+2026-09-28:
 
 - All three canonical dumps are byte-identical:
   `graph-n{1,2,4}.dump` sha256
-  `8724c612f391b7027c8dbf76cceec3bf92cf8702baf22b58d3f49a981066ce3a`
+  `ef3bffcd407eaf79f944825b89afe90035575643a9513ba76a2c41aba7db0a5e`
   (1,600,721 bytes each) — the determinism comparison itself, measured
-  directly rather than via the gate's digest line.
+  directly rather than via the gate's digest line. This digest
+  supersedes the first drive's `8724c61...`: CI's cassette-author gate
+  rejects the ghost-profile account `999988887777` (not a documentation
+  form), so the ghost ARN moved to the repdigit documentation account
+  `555555555555` in the Odù and the cassette. The ghost posture yields no
+  edge, so the expected three-edge set is unchanged; the dump digest
+  changes only because the ghost fact payload changed.
 - Every post-delta exact-set assert exited 0 at every N, including the new
   `ifa_ec2_uses_profile_assert` three-edge assert: any nonzero assert
   aborts the gate through `die` before that cell's dump, and all three
@@ -55,14 +59,15 @@ instead of quoting it:
   across worker counts nor perturbed sibling cells.
 - Terminal counts: 9 committed cassette facts under the new scope (3
   `aws_resource` profile nodes + 6 `ec2_instance_posture` facts) with
-  `generations_committed=1` at workers=1 (22:35), workers=2 (22:39), and
-  workers=4 (22:41); exact three-edge `USES_PROFILE` set per run;
-  0 failed asserts. The within-run control is the sibling set: the same
-  script on the same stack without this wiring drives everything but ec2,
-  and the after measurement adds the driven family while every sibling
-  assert stays green. Kept workdir:
-  `$TMPDIR/ifa-determinism.XXXXXX.3jmqAko2wf` (dumps, rationale deltas,
-  per-cell drive logs).
+  `generations_committed=1` at workers=1, workers=2, and workers=4;
+  exact three-edge `USES_PROFILE` set per run; 0 failed asserts
+  (49 `[PASS]` lines, `grep -c FAIL` = 0 on the gate log). The
+  within-run control is the sibling set: the same script on the same
+  stack without this wiring drives everything but ec2, and the after
+  measurement adds the driven family while every sibling assert stays
+  green. Kept workdir:
+  `$TMPDIR/ifa-determinism.XXXXXX.Edyhxi1Imz` (dumps, rationale deltas,
+  per-cell drive logs; N=1 wall 206s, N=2 204s, N=4 204s).
 
 Static mirrors agree: `bash scripts/test-verify-ifa-determinism.sh` pass
 (21 families, pins proved both directions),

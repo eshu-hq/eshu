@@ -103,7 +103,7 @@ const (
 	ec2UsesProfileFamilyAppProfileARN   = "arn:aws:iam::123456789012:instance-profile/app-profile"
 	ec2UsesProfileFamilyBatchProfileARN = "arn:aws:iam::123456789012:instance-profile/batch-profile"
 	ec2UsesProfileFamilyIdleProfileARN  = "arn:aws:iam::123456789012:instance-profile/idle-profile"
-	ec2UsesProfileFamilyGhostProfileARN = "arn:aws:iam::999988887777:instance-profile/ghost-profile"
+	ec2UsesProfileFamilyGhostProfileARN = "arn:aws:iam::555555555555:instance-profile/ghost-profile"
 )
 
 // ec2UsesProfileFamilyProfileFixture describes one aws_resource fact in the
