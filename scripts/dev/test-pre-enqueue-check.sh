@@ -150,6 +150,7 @@ rg -q "clean against queue tip ${TIP_OK} \(#202\)" <<<"${OUT}" || ok=1
 rg -q 'queued #201 \(position 1\) file overlap: docs/x.md$' <<<"${OUT}" || ok=1
 rg -q 'queued #202 \(position 2\) file overlap: none$' <<<"${OUT}" || ok=1
 rg -q 'closing keywords: Closes #7332' <<<"${OUT}" || ok=1
+if rg -q 'non-closing references:' <<<"${OUT}"; then ok=1; fi
 check "GREEN all six arms pass, exit 0" "${ok}"
 printf '%s\n' "${OUT}" | sed 's/^/    | /'
 ok=0
@@ -173,6 +174,34 @@ ok=0
 rg -q 'PR #100 is already queued' <<<"${OUT}" || ok=1
 rg -q '^PASS merge-queue +queue empty$' <<<"${OUT}" || ok=1
 check "GREEN a queue holding only this PR counts as empty" "${ok}"
+
+new_case issue-marker
+edit pr.json '.body = "Tightens the gate.\n\nIssue: #7088\n"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q 'non-closing references: #7088 \(do not close on merge\)' <<<"${OUT}" || ok=1
+check "GREEN Issue marker keeps #7088 open" "${ok}"
+
+new_case bare-reference
+edit pr.json '.body = "Tightens the gate.\n\n#7088\n"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q 'non-closing references: #7088 \(do not close on merge\)' <<<"${OUT}" || ok=1
+check "GREEN bare issue reference keeps #7088 open" "${ok}"
+
+new_case mixed-references
+edit pr.json '.body = "Tightens the gate.\n\nCloses #7360\nIssue: #7088\n"'
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+[[ "$(fail_lines)" == 0 ]] || ok=1
+rg -q 'closing keywords: Closes #7360 \(confirm each is meant to close\)' <<<"${OUT}" || ok=1
+rg -q 'non-closing references: #7088 \(do not close on merge\)' <<<"${OUT}" || ok=1
+check "GREEN mixed references label closure independently" "${ok}"
 
 # --- seeded REDs, one per arm ------------------------------------------------
 new_case head-mismatch
@@ -226,9 +255,9 @@ expect_red "more queue entries than one page" merge-queue
 new_case unknown-bucket
 edit checks.json '. + [{name:"future-check",state:"STALE",bucket:"stale"}]'
 expect_red "check row with an unrecognized bucket" checks
-new_case no-closing
-edit pr.json '.body = "Tightens the gate. Refs #7332\n"'
-expect_red "missing closing keyword" body
+new_case no-reference
+edit pr.json '.body = "Tightens the gate.\n"'
+expect_red "missing issue reference" body
 # The body arm shares scripts/lib/ai-attribution-pattern.sh with the
 # no-ai-attribution gate. Tool names and the robot emoji are assembled at run
 # time so this file never matches that gate's own content scan.
