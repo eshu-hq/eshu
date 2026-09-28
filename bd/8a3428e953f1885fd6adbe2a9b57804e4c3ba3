@@ -1,0 +1,20 @@
+go/internal/query/code_topic_exact_plan_probe_test.go
+  s_b0d7e3abc26c5a::t_7ea89659540ad9 72-73
+  s_b0d7e3abc26c5a::t_f58427b16884bc 17,297-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bd8a3428e953f1885fd6adbe2a9b57804e4c3ba3",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
