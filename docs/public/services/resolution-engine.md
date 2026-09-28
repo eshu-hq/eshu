@@ -119,20 +119,22 @@ hold. The Docker Compose default inherits the second row.
 
 | `shared_buffers` | 771,201-row link | 1,542,402-row link |
 | --- | --- | --- |
-| 2GB (the link-delta table fits) | 1.26 s median, 1.65 s worst | 2.92 s median, 3.04 s worst |
-| 128MB (Postgres default, which the Docker Compose stack runs) | 1.82 s median, 2.22 s worst | 4.43 s median, 6.27 s worst |
+| 2GB (the link-delta table fits) | 1.11 s median, 1.31 s worst | 2.90 s median, 3.53 s worst |
+| 128MB (Postgres default, which the Docker Compose stack runs) | 1.67 s median, 1.88 s worst | 4.76 s median, 5.78 s worst |
 
 The delete's buffer work is exactly linear: 4.06 buffer touches per deleted
 row at both sizes. It also writes WAL, mostly full-page images of the heap
-pages it touches: up to about 300 bytes per deleted row (286-302 measured, about
+pages it touches: up to about 300 bytes per deleted row (286-301 measured, about
 0.45 GB, at 1.54M rows), so on any deployment the hold is bounded below by WAL
-write bandwidth as well as by CPU. On the measurement host the hold grew 2.32
-times at 2GB and 2.43 times at 128MB for twice the rows, about the same on
-both, so the excess over linear is not the buffer cache. The smaller runs wrote
-fewer full-page images per row (70-183 bytes of WAL per row); the cause of the
+write bandwidth as well as by CPU. On the measurement host the hold grew 2.62
+times at 2GB and 2.85 times at 128MB for twice the rows, close on both (the
+standard deviation of their same-round ratios is 0.34-0.41), so the excess
+over linear is not mainly the buffer cache. The smaller runs wrote fewer
+full-page images per row (68-216 bytes of WAL per row); the cause of the
 excess was not isolated. On a CPU-saturated host (load at or above the CPU
-count), runs that the rule above excludes took up to 20.7 s at 2GB and 20.2 s
-at 128MB with identical buffer work.
+count), runs that the rule above excludes took several times the quiet-host
+figures with identical buffer work (measured before #7279 changed the
+retention transaction).
 
 The envelope has an edge. At 1,542,402 rows the delete's in-memory list of
 row ids uses 61,308 kB of the transaction's 65,536 kB (64MB) `work_mem`. A

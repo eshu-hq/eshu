@@ -183,7 +183,9 @@ above).
 The PC2 runs moved to
 [7127-ledger-retention-lock-hold.md](7127-ledger-retention-lock-hold.md): PC2
 under ruling C's load rule (failed), PC2-D under rule PD (gate (ii) failed as
-written; ruling E withdrew it), and PC2-E, the gated result.
+written; ruling E withdrew it), PC2-E (the gated result at `494d1439d4`,
+before the rebase onto #7329), and PC2-G, the gated result on the shipped
+code (arbiter ruling arb-7127-3d-g).
 
 ### PB7: the P8 fixture drained
 
@@ -301,9 +303,10 @@ instead of about 0.32 s.
 
 Performance Evidence: P8 above: ledger empty, paired ratio 1.06; with a
 250,000-row link, +629.5 ms of lock hold, over 24 valid interleaved runs.
-PC2-E (lock-hold page, run on `494d1439d4`): a batch of one deleting a
+PC2-G (lock-hold page, run on `6c5cfec8cb`): a batch of one deleting a
 1,542,402-row link holds one scope row and one generation row (PC1 (b)) for
-2.92 s median, 3.04 s worst, at `shared_buffers` 2GB (4.43 s and 6.27 s at 128MB). P6
+2.90 s median, 3.53 s worst, at `shared_buffers` 2GB (4.76 s and 5.78 s at
+128MB). P6
 covers plan shape at 2M delta rows in four statistics states and three
 plan-cache modes.
 

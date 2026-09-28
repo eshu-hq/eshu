@@ -6,7 +6,9 @@ its links (arbiter rulings arb-7127-3d-b and arb-7127-3d-c; PC1 (b) in
 [7127-changed-since-ledger-retention.md](7127-changed-since-ledger-retention.md)).
 This page records how long that hold lasts: PC2 under ruling C's load rule
 (failed), PC2-D under rule PD (gate (ii) failed as written), ruling E's
-replacement of gate (ii), and PC2-E, the gated result. The driver is
+replacement of gate (ii), PC2-E (the gated result at `494d1439d4`, before the
+rebase onto #7329), the composition with #7279, and PC2-G, the gated result on
+the shipped code (arbiter ruling arb-7127-3d-g). The driver is
 [7127-ledger-retention-timing.sh](7127-ledger-retention-timing.sh). All figures
 are PostgreSQL 18.6 in containers on one 18-CPU host; no graph backend is
 involved.
@@ -202,7 +204,7 @@ FROM pg_database WHERE datname LIKE 'eshu_rt_run_%'` returning 0 on both rigs:
 2026-09-28 01:18Z, R1 6 leaked clones (4.5 GB) and R2 11; 02:29Z, R1 3 and R2
 2 from the first PC2-E run. The `eshu_rt_template_*` databases were kept.
 
-## PC2-E: the gated result
+## PC2-E: the gated result at `494d1439d4`, before the rebase onto #7329 (#7279)
 
 Run on `494d1439d4` (after binary; the worktree's only other edits were these
 docs) against base `4a3e229582` (before binary). `gate.txt` was written at
@@ -212,45 +214,10 @@ docs) against base `4a3e229582` (before binary). `gate.txt` was written at
 `1395f76dad`, whose schema is the same; they served only as clone sources
 afterwards. Server settings were those of PC2-D.
 
-**PC2-E still covers the shipped code (arbiter ruling arb-7127-3d-f).** Two
-later commits touch the retention path: `4a498766cf` (the fail-closed
-mismatch error names the batch's size and generation ids, plus its hermetic
-test) and `345db44c91` (comments and docs: `locked_scope_rows` counts only the
-pruned batch). The error branch runs only on a count mismatch, after which the
-batch rolls back and no timing line is printed, so no PC2-E round executed it.
-At `345db44c91`, run with bash arrays (every pathspec resolves: 42 files for
-the first command, 5 of 5 for the second):
-
-```text
-$ git diff -w --ignore-blank-lines 494d1439d4 345db44c91 -- \
-    go/internal/storage/postgres/freshness/links \
-    go/internal/storage/postgres/generation_retention.go \
-    go/internal/storage/postgres/generation_retention_events.go \
-    go/internal/storage/postgres/generation_retention_sql.go \
-    go/internal/reducer/maintenance/generation_retention_runner.go \
-    ':!*_test.go' | rg '^[-+]' | rg -v '^(\+\+\+|---)' | rg -v '^[-+]\s*//'
--		return nil, fmt.Errorf("changed-since ledger retention: prune: deleted %d of %d links, %d of %d deltas, %d of %d bucket counts",
--			links, wantLinks, deltas, wantDeltas, buckets, wantBuckets)
-+		return nil, fmt.Errorf("changed-since ledger retention: prune %d generations %v: deleted %d of %d links, %d of %d deltas, %d of %d bucket counts",
-+			len(generationIDs), generationIDs, links, wantLinks, deltas, wantDeltas, buckets, wantBuckets)
-(git diff rc 0; the only test file changed under those paths is the added
-retention_test.go)
-
-$ git diff --stat 494d1439d4 345db44c91 -- \
-    go/internal/storage/postgres/freshness/links/retention_sql.go \
-    go/internal/storage/postgres/generation_retention_sql.go \
-    go/internal/storage/postgres/freshness/links/retention_timing_live_test.go \
-    go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go \
-    docs/internal/evidence/7127-ledger-retention-timing.sh
-(empty, rc 0; the same pathspec against the PR base 8c498bd2a7 shows 5 files,
-996 insertions, so it is not vacuous)
-```
-
-The retention SQL, the harness and the driver are the bytes PC2-E ran. The
-rebase onto `8c498bd2a7` also brought migration 145, a partial index on
-`fact_records` for `reducer_workload_identity` facts; the fixture's facts are
-`content_entity`, and a DELETE leaves index entries to VACUUM, so the timed
-path is untouched (ruling F rationale 2).
+History: between `4a498766cf` and `c5dbd9745d` arbiter ruling arb-7127-3d-f
+held that PC2-E covered the code then under review, by an empty diff of the
+timed statements. The rebase onto #7329 ended that: see "Composition with
+#7279" below.
 
 Phases: R1 run 02:30:20Z-02:40:02Z, R1 explain 02:40:09Z, R2 run
 02:40:30Z-02:42:12Z, R2 explain 02:42:19Z, R1 `lockprobe` 02:42:32Z; done
@@ -292,9 +259,10 @@ Explain phase:
   four items.
 - (iii) PASS: 1.38 % reads, no temp. (R2, not gated: 18.11 %.)
 
-The plans are kept in
-[7127-ledger-retention-plans/](7127-ledger-retention-plans/) (`r1-big771.json`,
-`r1-big1542.json`, as the harness wrote them).
+The harness wrote the plans to
+`docs/internal/evidence/7127-ledger-retention-plans/` (`r1-big771.json`,
+`r1-big1542.json`); PC2-G's plans have replaced them there, and PC2-E's are in
+git at `c5dbd9745d`.
 
 WAL and checkpointer deltas around each valid after-run's prune (cluster-wide;
 `lsn_bytes`, the WAL insert position, agrees with `wal_bytes` within 5 MB):
@@ -314,25 +282,6 @@ clone made before each run (the `WAL_LOG` strategy writes the whole template to
 WAL) moves the checkpoint redo point differently for the two template sizes,
 which would produce this pattern and is untested.
 
-**After the rebase onto #7329 (`d1edf588ff`, #7279) the identity above no
-longer holds.** #7279 replaced the retention row count and the three content
-prunes with per-candidate key probes and added a key-index check before any
-lock; PR-3d was composed with it (ledger counts merged into the probe count,
-the ledger delete as its own phase before `delete_scope_generations`, the
-savepoint and narrowing after the key-index check). The statements one prune
-issues on the PB4/PC2 `big771` fixture were recorded from the server log
-(`log_statement = all`, one run-mode prune per binary on its own clone, both
-pruning 1 generation and 771,604 rows): 27 at `494d1439d4`, 28 after the
-rebase. Added: the key-index check, between `SET LOCAL work_mem` and the
-savepoint. Changed text, same positions: the four row-count executions and
-the `content_file_references`, `content_entities` and `content_files` prunes
-(#7279's probes). Identical hash and position: the other 20, among them the
-candidate query, the four ledger counts, the savepoint rollback, the targeted
-lock, the retention event, the intent and infra statements, the ledger delete
-and the `scope_generations` delete. Whether PC2-E must be re-run is for the
-arbiter; until then the PC2-E figures describe `494d1439d4`, not the rebased
-code.
-
 PC1 (b), the `lockprobe` on R1 (rc 0, `ESHU_RETENTION_TIMING_EXPECT_NARROW`
 set): `{"delete_still_running":true,"fixture":"big1542",
 "held_generations":["tscope-00-g0"],"held_scopes":["tscope-00"],
@@ -349,3 +298,159 @@ before the second clone fix (a harness-only change). R1: 771k median 1.33 s,
 identical buffer counts, plan set and CTE storage; lockprobe held only
 tscope-00 and tscope-00-g0. R2: 1.90 s and 4.98 s medians, worst 5.79 s,
 ratio 2.61.
+
+## Composition with #7279
+
+#7329 (`d1edf588ff`, #7279) rewrote the retention row count and the three
+content prunes as per-candidate key probes and added a key-index check before
+any lock. PR-3d was composed with it (commit `6c5cfec8cb`): `SET LOCAL
+work_mem`, the key-index check, the selection `SAVEPOINT`, the candidate query,
+the counts (the #7279 probe count plus the ledger counts), the narrowing, then
+#7279's prune steps with the ledger delete as its own timed phase
+(`delete_changed_since_ledger`) before the `scope_generations` delete, then
+the commit.
+
+The statements one prune issues on the PB4/PC2 `big771` fixture were captured
+from the server log of a fresh `postgres:18-alpine` 18.6 started with
+`log_statement = all` and `log_line_prefix = '%d|%p|'`: one `run` prune per
+binary (the timing test built at `494d1439d4` and at the composed tree), each
+on its own clone of the same `big771` template, built through migration 168.
+Both pruned one generation and 771,604 rows. Each statement's text was
+whitespace-normalised and hashed (first 12 hex digits of its SHA-256); the
+harness's own bracketing reads were dropped.
+
+| # | Statement | Hash at `494d1439d4` | Hash at the composed SHA | Status |
+| --- | --- | --- | --- | --- |
+| 0 | harness ping | `f5a4191f31d2` | `f5a4191f31d2` | identical |
+| 1 | begin | `e6f07d43b5c2` | `e6f07d43b5c2` | identical |
+| 2 | work_mem | `584adc7c4ae8` | `584adc7c4ae8` | identical |
+| 3 | key_index_check | (absent) | `a1fce9994896` | added |
+| 4 | savepoint | `90473b99fada` | `90473b99fada` | identical |
+| 5 | candidates | `ac5291774be0` | `ac5291774be0` | identical |
+| 6 | count | `b3838bb6d615` | `68c61d6add6c` | changed (#7279 text) |
+| 7 | ledger_count | `bc141c04e844` | `bc141c04e844` | identical |
+| 8 | count | `b3838bb6d615` | `68c61d6add6c` | changed (#7279 text) |
+| 9 | ledger_count | `bc141c04e844` | `bc141c04e844` | identical |
+| 10 | count | `b3838bb6d615` | `68c61d6add6c` | changed (#7279 text) |
+| 11 | ledger_count | `bc141c04e844` | `bc141c04e844` | identical |
+| 12 | rollback_to_savepoint | `89a51b300d40` | `89a51b300d40` | identical |
+| 13 | targeted_lock | `291a0458cbc1` | `291a0458cbc1` | identical |
+| 14 | count | `b3838bb6d615` | `68c61d6add6c` | changed (#7279 text) |
+| 15 | ledger_count | `bc141c04e844` | `bc141c04e844` | identical |
+| 16 | event | `934e1b690666` | `934e1b690666` | identical |
+| 17 | delete_intents | `a2cf4f58256c` | `a2cf4f58256c` | identical |
+| 18 | delete_unroutable | `f45404cc78c9` | `f45404cc78c9` | identical |
+| 19 | prune_file_references | `0193d8c3377f` | `a5769dfdec89` | changed (#7279 text) |
+| 20 | infra | `6f2f7556a07b` | `6f2f7556a07b` | identical |
+| 21 | prune_entities | `3b5841bd107d` | `aca3069793d6` | changed (#7279 text) |
+| 22 | infra | `60df6e040f91` | `60df6e040f91` | identical |
+| 23 | prune_files | `74f6d7463290` | `ea9f052406df` | changed (#7279 text) |
+| 24 | ledger_delete | `020f156e5103` | `020f156e5103` | identical |
+| 25 | delete_generations | `ff23e52820e9` | `ff23e52820e9` | identical |
+| 26 | commit | `9505cacb7c71` | `9505cacb7c71` | identical |
+| 27 | harness ping | `f5a4191f31d2` | `f5a4191f31d2` | identical |
+
+Twenty statements are identical, among them every statement the ledger path
+adds: the four ledger counts, the savepoint pair, the targeted lock and the
+ledger delete. One is added (the key-index check) and seven carry #7279's text
+(the four row counts and the three content prunes). The two runs' wall times,
+1,928 ms and 1,613 ms, came from a host that was not quiet and are not
+evidence.
+
+The ledger delete, the harness and the driver are the bytes PC2-E ran; the
+transaction around them is not, so PC2-E's figures describe `494d1439d4` and
+PC2-G is the gated result (arbiter ruling arb-7127-3d-g). At the final SHA:
+
+```text
+$ git diff --stat 494d1439d4 6c5cfec8cb -- \
+    go/internal/storage/postgres/freshness/links/retention_sql.go \
+    go/internal/storage/postgres/freshness/links/retention_timing_live_test.go \
+    go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go \
+    docs/internal/evidence/7127-ledger-retention-timing.sh; echo $?
+0
+(empty diff; all four paths are tracked at 6c5cfec8cb)
+```
+
+## PC2-G: the gated result
+
+Run on `6c5cfec8cb` (after binary, clean worktree) against base `4a3e229582`
+(before binary), with the harness and the driver of PC2-E. `gate.txt` was
+written at 2026-09-28 07:33:27Z, before the first run, with both SHAs, rule PD
+in full, the gates (i), (ii') and (iii), each rig's `shared_buffers`,
+`data_checksums` and `version()`, the identity command above (rc 0, empty),
+`docker ps` and `uptime`. The rigs were recreated for this run:
+`postgres:18-alpine` 18.6, R1 with `-c shared_buffers=2GB` and otherwise
+default, R2 at the defaults (128MB), `data_checksums` on in both, no other
+setting. The templates were built by a binary of `6c5cfec8cb` at 07:05:09Z-
+07:05:48Z (R1) and 07:05:48Z-07:06:31Z (R2), with 168 of 168 migrations
+recorded on each.
+
+Phases: R1 run 07:33:40Z-07:35:02Z, R1 explain 07:35:08Z, R2 run
+07:35:29Z-07:37:07Z, R2 explain 07:37:13Z, R1 `lockprobe` 07:37:28Z; done
+07:37:32Z. Every fixture on both rigs: 6 valid rounds in 6 attempts. In-run
+load1 never reached 6.1 on R1 or 7.0 on R2.
+
+| Rig | Link rows | After-runs, ms | Median | Mean | SD | Worst | Controls, ms | µs/row (median) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| R1 2GB | 771,201 | 1310, 1181, 1080, 1100, 1109, 1112 | 1110.5 | 1148.7 | 86.1 | 1310 | 510-613 | 1.440 |
+| R1 2GB | 1,542,402 | 2770, 3153, 2851, 2884, 3534, 2925 | 2904.5 | 3019.5 | 283.0 | 3534 | 603-642 | 1.883 |
+| R2 128MB | 771,201 | 1560, 1761, 1651, 1882, 1641, 1691 | 1671.0 | 1697.7 | 111.7 | 1882 | 528-642 | 2.167 |
+| R2 128MB | 1,542,402 | 4410, 5202, 5074, 4445, 5780, 4307 | 4759.5 | 4869.7 | 581.2 | 5780 | 601-620 | 3.086 |
+
+Reported, not gated: ratio of medians 2.615 on R1 and 2.848 on R2; ratio of
+means 2.629 and 2.868. Same-round ratios: R1 2.115, 2.670, 2.640, 2.622,
+3.187, 2.630 (mean 2.644, SD 0.339); R2 2.827, 2.954, 3.073, 2.362, 3.522,
+2.547 (mean 2.881, SD 0.409).
+
+Explain phase:
+
+| Rig | Link rows | hit | read | hit+read per row | read % | temp | Execution Time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R1 | 771,201 | 3,085,288 | 43,079 | 4.0565 | 1.38 | 0 | 1,142.8 ms |
+| R1 | 1,542,402 | 6,170,085 | 86,638 | 4.0565 | 1.38 | 0 | 2,839.2 ms |
+| R2 | 771,201 | 2,810,228 | 318,139 | 4.0565 | 10.17 | 0 | 1,619.4 ms |
+| R2 | 1,542,402 | 5,123,839 | 1,132,884 | 4.0565 | 18.11 | 0 | 7,252.2 ms |
+
+**Gates on R1: all pass.**
+
+- (i) PASS: every valid after-run at 1,542,402 rows took at most 3,534 ms
+  (limit 15 s).
+- (ii') PASS: (1) hit+read ratio 6,256,723 / 3,128,367 = 1.9999965; (2) the
+  same 36-node plan set at both sizes; (3) temp 0 at both sizes; (4) the
+  largest CTE `Maximum Storage` at 1,542,402 rows is 61,308 kB of 65,536 kB
+  (6.5 % headroom; 32,293 kB at 771,201 rows). R2 meets the same four items.
+- (iii) PASS: 1.38 % reads, no temp. (R2, not gated: 18.11 %.)
+
+The plans are in
+[7127-ledger-retention-plans/](7127-ledger-retention-plans/) (`r1-big771.json`,
+`r1-big1542.json`, as the harness wrote them in this run).
+
+WAL and checkpointer deltas around each valid after-run's prune (cluster-wide;
+`lsn_bytes` agrees with `wal_bytes` within 5 MB):
+
+| Rig | Link rows | WAL bytes per deleted row | Full-page images | WAL records | Checkpoints requested / done | `wal_buffers_full` (median) |
+| --- | --- | --- | --- | --- | --- | --- |
+| R1 | 771,201 | 68-119 (median 99) | 1,333-6,160 | 771,746-771,749 | 1 per run / 0 | 6,514 |
+| R1 | 1,542,402 | 293-301 (median 295) | 45,471-47,087 | 1,542,950-1,542,951 | 0 / 0 | 45,626 |
+| R2 | 771,201 | 158-216 (median 206) | 9,909-15,412 | 771,747 | 1 per run / 0 | 17,548 |
+| R2 | 1,542,402 | 286-295 (median 293) | 44,259-45,968 | 1,542,952-1,542,953 | 0 / 0 | 51,626 |
+
+No checkpoint completed inside any timed prune. As in PC2-E, the 1.54M runs
+wrote 3-6 times the WAL of the 771k runs for twice the rows; the cause of the
+wall-time excess over linear is not isolated.
+
+PC1 (b), the `lockprobe` on R1 (rc 0, `ESHU_RETENTION_TIMING_EXPECT_NARROW`
+set): `{"delete_still_running":true,"fixture":"big1542",
+"held_generations":["tscope-00-g0"],"held_scopes":["tscope-00"],
+"probed_generations":100,"probed_scopes":26}`.
+
+PE1 on this run: `SELECT count(*) FROM pg_database WHERE datname LIKE
+'eshu_rt_run_%'` returned 0 on both rigs before the first run, after R1's
+`explain` (07:35:18Z), after R2's `explain` (07:37:28Z) and after the
+`lockprobe` (07:37:32Z).
+
+Raw files (executor scratchpad, `pc2g/`): `gate.txt`, `r1/` and `r2/`
+`run-results.jsonl`, `explain-results.jsonl`, `rounds.txt`, `plan-*.json`,
+`lockprobe.out`, `build.out`, `build-r1.log`, `build-r2.log`. Run SHA
+`6c5cfec8cb`; the figures were published in the docs-only commit that follows
+it.
