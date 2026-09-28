@@ -44,13 +44,15 @@ func TestGenerationRetentionCandidateQueryProtectsWindowAndLocks(t *testing.T) {
 	for _, want := range []string{
 		"ROW_NUMBER() OVER (PARTITION BY generation.scope_id",
 		"generation.status = 'superseded'",
-		"generation.superseded_at < $1",
+		"ranked.superseded_at < $1",
 		"superseded_rank > $2",
 		"scope.active_generation_id",
 		"status IN ('claimed', 'running', 'retrying')",
 		"FOR UPDATE",
 		"SKIP LOCKED",
 		"LIMIT $3",
+		"live_work AS MATERIALIZED",
+		"eligible_scopes",
 	} {
 		if !strings.Contains(generationRetentionCandidateQuery, want) {
 			t.Fatalf("candidate query missing %q:\n%s", want, generationRetentionCandidateQuery)
