@@ -56,6 +56,21 @@ func TestQueryplanProfileFlagsUnboundedVarLength(t *testing.T) {
 		{"unbounded star", "MATCH (a:Function {uid: $uid})-[:CALLS*]->(b) RETURN b.uid", true},
 		{"lower bound only", "MATCH (a:Function {uid: $uid})-[:CALLS*1..]->(b) RETURN b.uid", true},
 		{"upper bound", "MATCH (a:Function {uid: $uid})-[:CALLS*1..4]->(b) RETURN b.uid", false},
+		// DISTINCT turns an unbounded pattern into a pruning BFS that prints
+		// "*..2147483647"; it is still unbounded.
+		{"distinct over unbounded", "MATCH (a:Function {uid: $uid})-[:CALLS*]->(b) RETURN DISTINCT b.uid", true},
+		{
+			"shortest quantified unbounded",
+			"MATCH (a:Function {uid: $uid}) MATCH (t:Function {uid: 'qp-7335-b'}) " +
+				"MATCH p = SHORTEST 2 (a) ((x)-[r:CALLS]->(y) WHERE y.uid <> 'none')+ (t) RETURN length(p)",
+			true,
+		},
+		{
+			"shortest quantified bounded",
+			"MATCH (a:Function {uid: $uid}) MATCH (t:Function {uid: 'qp-7335-b'}) " +
+				"MATCH p = SHORTEST 2 (a) ((x)-[r:CALLS]->(y) WHERE y.uid <> 'none'){1,3} (t) RETURN length(p)",
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

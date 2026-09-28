@@ -153,14 +153,16 @@ func TestValidateManifestRejectsUnboundedExpandPseudoOperator(t *testing.T) {
 		ORDER BY path
 		LIMIT $limit
 	`)
-	manifest.Entries[0].Plan = PlanExpectation{
-		Operators:          []string{"NodeIndexSeek"},
-		ForbiddenOperators: []string{"AllNodesScan", "UnboundedExpand"},
-	}
+	for _, spelling := range []string{"UnboundedExpand", "unboundedexpand", " UNBOUNDEDEXPAND "} {
+		manifest.Entries[0].Plan = PlanExpectation{
+			Operators:          []string{"NodeIndexSeek"},
+			ForbiddenOperators: []string{"AllNodesScan", spelling},
+		}
 
-	err := ValidateManifest(manifest, schemaStatements())
-	if err == nil || !strings.Contains(err.Error(), "UnboundedExpand is not a Neo4j operator") {
-		t.Fatalf("ValidateManifest() error = %v, want the UnboundedExpand pseudo-operator rejected", err)
+		err := ValidateManifest(manifest, schemaStatements())
+		if err == nil || !strings.Contains(err.Error(), "UnboundedExpand is not a Neo4j operator") {
+			t.Fatalf("ValidateManifest(%q) error = %v, want the UnboundedExpand pseudo-operator rejected", spelling, err)
+		}
 	}
 }
 
