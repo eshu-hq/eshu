@@ -22,6 +22,12 @@
   not the tables.
 - No metric label may carry a scope or generation identifier. Identifiers
   belong on the span and in the log line.
+- A rebase (`Break` `prior_pruned` with `Kind` root) is `outcome=linked` and
+  also one `prior_pruned` chain break; only a break with `Kind` none is
+  `outcome=break`.
+- The orphan probe scans three ledger tables; keep it sampled at most once per
+  `orphanProbeInterval`, never once per cycle (busy cycles run back to
+  back).
 - Do not lower `Workers` or the slot count to hide a concurrency defect. The
   per-scope cursor row is the fence. Slots are a measured memory and CPU
   budget (#7127 ruling 8.3), not a correctness device.

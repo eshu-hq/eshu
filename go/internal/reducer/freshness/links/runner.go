@@ -25,6 +25,11 @@ const (
 	DefaultBackfillScopesPerCycle = 10
 	DefaultMaxLinksPerScope       = 16
 	orphanScopesPerCycle          = 100
+	// orphanProbeInterval bounds how often the orphan probe runs. The probe
+	// scans the link, activation and bucket-count tables (about 100 ms at
+	// 25,000 links) and busy cycles follow each other at once, so it is
+	// sampled at most once a minute; the gauge keeps the last value.
+	orphanProbeInterval = time.Minute
 )
 
 // Linker links one activation of one scope per call and records counting
@@ -42,6 +47,8 @@ type Journal interface {
 	Stats(ctx context.Context) (store.LedgerStats, error)
 	OrphanScopes(ctx context.Context, limit int) ([]string, error)
 	DeleteOrphanScope(ctx context.Context, scopeID string) (bool, error)
+	// Orphans runs the orphan probe (arbiter ruling arb-7127-3d, C5).
+	Orphans(ctx context.Context) (store.LedgerOrphans, error)
 }
 
 // Config bounds one runner. Zero values take the package defaults.
@@ -123,6 +130,10 @@ type Runner struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+
+	// lastOrphanProbe is when recordGauges last ran the orphan probe. Only
+	// the goroutine running cycles touches it.
+	lastOrphanProbe time.Time
 }
 
 // Run runs cycles until ctx is cancelled. A cycle that linked or broke a
@@ -160,6 +171,13 @@ func (r *Runner) RunOnce(ctx context.Context) (CycleResult, error) {
 	var result CycleResult
 	journal, err := r.Journal.Journal(ctx, r.Config.backfillScopes())
 	if err != nil {
+		if r.journalRetry(ctx, err) {
+			// A non-counting miss of the pass (generation_lock_timeout): it
+			// rolled back and the next cycle retries. The cycle stops here,
+			// as after any failed pass.
+			result.Retries = 1
+			return result, nil
+		}
 		return result, fmt.Errorf("journal activations: %w", err)
 	}
 	result.Journal = journal

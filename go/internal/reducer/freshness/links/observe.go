@@ -5,7 +5,9 @@ package links
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -52,8 +54,11 @@ func (r *Runner) linkOne(ctx context.Context, scopeID string) linkOutcome {
 	if result.Idle {
 		return outcomeIdle
 	}
+	// A break without a link is outcome=break. A rebase (prior_pruned)
+	// wrote a root link and moved the state, so it is outcome=linked; its
+	// break is still counted on chain_breaks_total by recordLink.
 	outcome := outcomeLinked
-	if result.Break != "" {
+	if result.Break != "" && result.Kind == store.LinkKindNone {
 		outcome = outcomeBreak
 	}
 	r.recordLink(ctx, span, result, outcome)
@@ -94,6 +99,26 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 	}
 	r.logError(ctx, "changed-since link failed before its statement ran; not counted", err, slog.String("scope_id", scopeID))
 	return outcomeFailed
+}
+
+// journalRetry reports a journal pass that gave way on a lock
+// (generation_lock_timeout) on the retries counter and in a WARN log line
+// with the SQLSTATE, and returns true. Any other error returns false.
+func (r *Runner) journalRetry(ctx context.Context, err error) bool {
+	var retry *store.RetryError
+	if ctx.Err() != nil || !errors.As(err, &retry) {
+		return false
+	}
+	if r.Instruments != nil {
+		r.Instruments.ChangedSinceLinkRetries.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionReason, string(retry.Reason))))
+	}
+	if r.Logger != nil {
+		r.Logger.WarnContext(ctx, "changed-since journal pass gave way on a generation lock; nothing journaled, retried next cycle",
+			slog.String("reason", string(retry.Reason)), slog.String("sqlstate", retry.SQLState),
+			log.Err(err), telemetry.PhaseAttr(telemetry.PhaseReduction))
+	}
+	return true
 }
 
 // recordCanceled reports a link the runner's shutdown cut short, during the
@@ -184,6 +209,7 @@ func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.L
 			attribute.Int64("changed_since.activation_seq", result.ActivationSeq),
 			attribute.String("changed_since.link_kind", string(result.Kind)),
 			attribute.String("changed_since.break_reason", string(result.Break)),
+			attribute.String("changed_since.rebased_from_generation_id", result.RebasedFrom),
 			attribute.Int64("changed_since.delta_rows", result.DeltaRows),
 		)
 	}
@@ -195,6 +221,7 @@ func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.L
 			slog.Int64("activation_seq", result.ActivationSeq),
 			slog.String("link_kind", string(result.Kind)),
 			slog.String("break_reason", string(result.Break)),
+			slog.String("rebased_from_generation_id", result.RebasedFrom),
 			slog.Int64("delta_rows", result.DeltaRows),
 			slog.Int64("keys", result.Keys),
 			slog.Float64("duration_seconds", result.Duration.Seconds()),
@@ -234,6 +261,30 @@ func (r *Runner) recordGauges(ctx context.Context) {
 	r.Instruments.ChangedSinceDeltasRows.Record(ctx, stats.DeltaRows)
 	r.Instruments.ChangedSinceLinkRetryingScopes.Record(ctx, stats.RetryingScopes)
 	r.Instruments.ChangedSinceLinkPoisonedScopes.Record(ctx, stats.PoisonedScopes)
+	r.recordOrphans(ctx)
+}
+
+// recordOrphans samples the orphan probe at most once per
+// orphanProbeInterval (arbiter ruling arb-7127-3d, C5). Every ledger writer
+// fences the generations it names, so a non-zero link or activation figure
+// that persists across samples means a writer broke that rule; a deleted
+// scope shows briefly until the orphan-scope purge.
+func (r *Runner) recordOrphans(ctx context.Context) {
+	if !r.lastOrphanProbe.IsZero() && time.Since(r.lastOrphanProbe) < orphanProbeInterval {
+		return
+	}
+	r.lastOrphanProbe = time.Now()
+	orphans, err := r.Journal.Orphans(ctx)
+	if err != nil {
+		r.logReadError(ctx, "changed-since ledger orphan probe failed", err)
+		return
+	}
+	for kind, n := range map[string]int64{
+		"link": orphans.Links, "activation": orphans.Activations, "bucket_group": orphans.HeadlessBucketGroups,
+	} {
+		r.Instruments.ChangedSinceLedgerOrphans.Record(ctx, n,
+			metric.WithAttributes(attribute.String(telemetry.MetricDimensionKind, kind)))
+	}
 }
 
 func (r *Runner) logCycle(ctx context.Context, result CycleResult) {

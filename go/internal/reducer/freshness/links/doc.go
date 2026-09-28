@@ -15,7 +15,8 @@
 //
 // The storage package (storage/postgres/freshness/links) owns every
 // statement, the per-scope cursor fence and the database-wide full-link
-// slots. A non-counting miss (cursor_locked, generation_locked, slot_busy)
+// slots. A non-counting miss (cursor_locked, generation_locked,
+// generation_lock_timeout, slot_busy)
 // stops that scope for the cycle and writes nothing. A counting failure
 // (statement_timeout, connection_lost, sql_error, internal) is recorded on
 // the cursor with backoff, and at Config.MaxAttempts the activation becomes a

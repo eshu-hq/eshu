@@ -261,15 +261,18 @@ type Instruments struct {
 	// incremental, none) and outcome (linked, break, failed, poisoned, canceled).
 	ChangedSinceLinks metric.Int64Counter
 	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
-	// (cursor_locked, generation_locked, slot_busy).
+	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy);
+	// a journal pass that gives way on a generation lock counts here too.
 	ChangedSinceLinkRetries metric.Int64Counter
 	// ChangedSinceLinkFailures counts counting link failures by
 	// failure_class (statement_timeout, connection_lost, sql_error,
 	// internal).
 	ChangedSinceLinkFailures metric.Int64Counter
-	// ChangedSinceChainBreaks counts activations advanced without a link by
-	// reason (pruned_before_link, delta_without_root, prior_mismatch,
-	// overlay_unproven, link_poisoned).
+	// ChangedSinceChainBreaks counts chain breaks by reason
+	// (pruned_before_link, delta_without_root, prior_mismatch,
+	// overlay_unproven, link_poisoned, prior_pruned). Every reason but
+	// prior_pruned advances the activation without a link; prior_pruned is
+	// a rebase, which also writes a root link (#7127 PR-3e).
 	ChangedSinceChainBreaks metric.Int64Counter
 	// ChangedSinceLinkRetryingScopes and ChangedSinceLinkPoisonedScopes are
 	// the fleet's scopes with a counted failure pending and with the
@@ -288,8 +291,14 @@ type Instruments struct {
 	// ChangedSinceDeltasBytes and ChangedSinceDeltasRows size the
 	// changed_since_link_deltas table (rows are the planner estimate), which
 	// generation retention bounds (#7127 ruling 7.5).
-	ChangedSinceDeltasBytes      metric.Int64Gauge
-	ChangedSinceDeltasRows       metric.Int64Gauge
+	ChangedSinceDeltasBytes metric.Int64Gauge
+	ChangedSinceDeltasRows  metric.Int64Gauge
+	// ChangedSinceLedgerOrphans is the orphan probe (#7127 PR-3e, arbiter
+	// ruling arb-7127-3d C5) by kind: link (a link naming a pruned
+	// generation or prior), activation (an activation of a pruned
+	// generation) and bucket_group (bucket counts with no link). Sampled at
+	// most once a minute; zero except briefly for a deleted scope.
+	ChangedSinceLedgerOrphans    metric.Int64Gauge
 	GenerationLivenessRecovered  metric.Int64Counter
 	GenerationLivenessSuperseded metric.Int64Counter
 	GenerationLivenessFailures   metric.Int64Counter

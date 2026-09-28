@@ -10,10 +10,45 @@
 
 ## Invariants
 
-- The lock order in `LinkWriter.linkInTx` is: cursor row, then generation row,
-  then slot. Every step is non-blocking (`SKIP LOCKED` or
-  `pg_try_advisory_xact_lock`). A miss returns `*RetryError` and never
-  success, because returning success would drop the activation.
+- The lock order in `LinkWriter.linkInTx` is: cursor row, then the activating
+  generation, then the prior generation, then slot. The cursor lock
+  (`FOR UPDATE SKIP LOCKED`) and the slot (`pg_try_advisory_xact_lock`) never
+  wait. A miss returns `*RetryError` and never success, because returning
+  success would drop the activation.
+- A generation lock (`FOR KEY SHARE SKIP LOCKED`: the activating generation,
+  the prior, and the backfill's insert) can wait. PostgreSQL walks the row's
+  update chain before it applies the wait policy, and the walk waits without
+  condition on a later version that another transaction holds `FOR UPDATE` or
+  is deleting (`heap_lock_updated_tuple_rec`; `NOWAIT` waits there too). So
+  every generation lock runs under a transaction-local `lock_timeout` of
+  `generationLockTimeout` (250 ms), and SQLSTATE 55P03 from it is the
+  non-counting `generation_lock_timeout`. Keep the timeout below the server's
+  `deadlock_timeout`. Reset it to 0 before the link statement, which runs
+  under `statement_timeout` alone. Map 55P03 only at the generation locks,
+  never in `ClassifyFailure`. Do not change the lock to `FOR SHARE`: it does
+  not wait, but it blocks Ack and heartbeat for the length of a link. The
+  gates are `TestActivatingGenerationChainWaitTimesOut`,
+  `TestPriorChainWaitTimesOut` and `TestGenerationLockChainWaitRaceShape`;
+  keep their planted RED (arbiter ruling arb-7127-3e-wait).
+- Every ledger writer holds `FOR KEY SHARE` on every generation a row it
+  writes names, until it commits (arbiter ruling arb-7127-3d, C4). Only then
+  is retention's ledger delete complete. A new writer (PR-3c's `pairwise`
+  link first) locks both generations it names, `SKIP LOCKED` under the
+  generation lock timeout, after the cursor and before the slot, and never names a generation it did not lock.
+  An absent prior means a rebase (`RebaseLinkSQL`: root link, no deltas, no
+  buckets, `prior_pruned`), never a link naming the pruned generation, and
+  never a re-root of the whole scope.
+- `RebaseLinkSQL` and `IncrementalLinkSQL` share `stateDiffCTE` and
+  `stateMoveCTEs`. Change them together, and keep the rebase's row-count
+  invariant.
+- The sweeper insert (`journalActiveGenerationsQuery`) is the one ledger
+  writer exempt from the lock rule: it names only a generation that is
+  active at its snapshot, and retention prunes only generations superseded
+  longer than its age cutoff, so a named generation cannot be pruned within
+  that one statement.
+- The backfill inserts each activation through its generation row
+  (`insertActivationQuery`, `FOR KEY SHARE OF generation SKIP LOCKED`); a row
+  not inserted ends the scope's chain for the pass.
 - Compute every digest in SQL from `PayloadDigestInput`. Never hash a payload
   in Go, because Go cannot reproduce `jsonb::text`. Changing the digest input
   or the state construction bumps `DigestVersion`, which re-roots every scope.
@@ -60,11 +95,11 @@
   of one over the limit is narrowed to its own scope and generation row
   (savepoint rollback, targeted re-lock, recount); `SET LOCAL work_mem` stays
   before the savepoint, and a batch within the limit is never narrowed.
-- The bound: at most one link per scope whose prior was pruned (plus its
-  deltas and bucket counts), removed with its own generation, and at most one
-  backfill chain of activation rows per racing backfill episode, removed with
-  the scope. See `README.md`, "Retention". An activation ends as one link, one
-  break, or deleted by retention before it is linked.
+- With the writer rule, no link or activation names a pruned generation;
+  `eshu_dp_changed_since_ledger_orphans` (the orphan probe) watches it. See
+  `README.md`, "Retention". An activation ends as one link (a rebase is a
+  link with the `prior_pruned` break), one break, or deleted by retention
+  before it is linked.
 - Do not import the parent `postgres` package from non-test code. The parent
   imports this package for `PayloadDigestInput`.
 

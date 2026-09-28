@@ -114,7 +114,7 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G8 cap proof | PASS | Fixed statement, fresh container, load-gated (P8 a): 10 valid windows for each of n = 1 / 2 / 4; median slowest link wall 6.85 / 7.18 / 7.90 s; median summed RssAnon 468 / 733 / 1,375 MiB (max 507 / 848 / 1,763 MiB); read-probe p95 median 1.5 / 2.2 / 1.7 ms; 0 temp files; no timeout. The earlier stall (round 26) was the statistics-sensitive delete plan, fixed under ruling arb-7127-g8 and proven by P1-P8; see the companion note. |
 | G9 fence | PASS | Store: `TestLinkFenceOneWinnerPerActivation` (24 rounds of 4 concurrent writers: one link and one cursor advance per round, losers `cursor_locked` in under 1 s) and `TestCursorHeldReturnsRetryWithoutWaiting`. Runner, two OS processes of the compiled test binary (`TestTwoProcessRunnersLinkEachActivationOnce`, the production `Runner` in each): 40 scopes, 121 activations; 131 `cursor_locked` races, none taking 1 s; `attempt_count` 0 on every cursor; every cursor at its last activation. Built binary: two `cmd/reducer` processes, see "G9 on the built binary". |
 | G10 kill and rerun | PASS | `TestLinkKilledMidStatementRerunsToIdenticalRows`: the incremental statement is held on a row lock and its backend terminated. No partial rows, no cursor move, one counted `connection_lost` (attempt 1, backoff 30 s); a retry inside the backoff is deferred; after it, the rerun links and every ledger row equals an uninterrupted reference. |
-| G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. |
+| G11 lock outcomes | PASS | `TestGenerationLockedIsRetryable`: generation held `FOR UPDATE` gives `generation_locked` in under 1 s, `attempt_count` 0, cursor unmoved, link after release. `TestDeltaWithoutRootAndPrunedBeforeLink`: an absent generation is a `pruned_before_link` break with the state kept. Note, 2026-09-28 (PR-3e, arbiter ruling arb-7127-3e-wait): "under 1 s" held for a plain holder only. With a committed non-key update and a later version held `FOR UPDATE` (the update-chain shape) the lock waited for the holder until PR-3e bounded it at 250 ms (`generation_lock_timeout`). |
 | G12 slot outcomes | PASS | Store `TestSlotBusyBlocksFullLinksOnly`; runner `TestRunnerMovesOnPastABusySlot`: with every slot held the full link is a non-counting `slot_busy` (`attempt_count` 0) and the runner moves on; a delta activation of another scope completes in the same cycle. |
 | G13 schema | PASS | `TestLedgerSchemaHasNoForeignKeys`: no foreign key on or referencing the six tables, and `fact_category` and `stable_fact_key` are NOT NULL. RED: a planted FK and a dropped NOT NULL inside a rolled-back transaction are reported. Also asserted: `changed_since_key_state` is an ordinary table (`relkind = 'r'`), because the delete identifies rows by `ctid`. |
 | G14 switch off (the link domain issues no SQL; generation retention still prunes the ledger tables, #7127 PR-3d) | PASS | `TestChangedSinceLinkRunnerIsOffByDefault` (`cmd/reducer`): with no environment and with `false`, `changedSinceLinkRunnerFor` returns nil (the runner is not constructed) and a database double that fails on any query, exec or begin sees none. |
@@ -125,6 +125,17 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G16d one outcome per activation | PASS | `TestTwoProcessRunnersLinkEachActivationOnce`: 81 links + 40 breaks = 121 activations across the two processes; link rows equal the reported links; no failure, no poisoning. Like G9, this ran on two OS processes of the compiled test binary with the production `Runner`; the same count held on two built `cmd/reducer` processes (see "G9 on the built binary"). |
 | G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 502 rows on `origin/main` `944c526081`, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
 | G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
+
+## PR-3e: the prior fence
+
+PR-3e changes the link transaction's lock set (cursor, activating
+generation, prior, slot), adds the rebase outcome (`root` link with the
+`prior_pruned` break) and fences the backfill insert. G3, G11 and G15 are
+extended to the rebase statement and the prior, and the P3 bound of ruling
+arb-7127-3d no longer holds: no link names a pruned prior. Proof, races,
+mutations and the 250 ms bound on the generation locks (arbiter ruling
+arb-7127-3e-wait) are in
+[7127-changed-since-prior-fence.md](7127-changed-since-prior-fence.md).
 
 ## G9 on the built binary
 
