@@ -119,7 +119,9 @@ require "ci registry watches cassettes" "testdata/cassettes/**" "${ci_gates}"
 require "ci registry watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${ci_gates}"
 require "ci registry watches cypher retract labels" "go/internal/storage/cypher/**" "${ci_gates}"
 require "workflow watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${workflow}"
-if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
+# The descriptive layer and purpose fields (#7337) sit between category and
+# tier; they are allowed there and nothing else is.
+if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate\n    category: exactness\n(?:    (?:layer|purpose): [^\n]*\n)*    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
 	fail "replay-coverage-gate registry entry must be blocking"
 fi
 

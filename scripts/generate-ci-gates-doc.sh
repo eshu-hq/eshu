@@ -58,6 +58,11 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf 'missing because that run was cancelled before the job was created. A\n'
 	printf 'gate skipped for its own reasons is still a gate failure.\n'
 	printf 'Advisory rows remain visible but do not block merge.\n\n'
+
+	# The by-layer index comes from internal/cigates, where the layer
+	# questions are defined (#7337), so the generator never copies them.
+	(cd "${repo_root}/go" && go run ./cmd/ci-gates layers --registry "${registry}")
+	printf '\n## All gates\n\n'
 	printf '| Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |\n'
 	printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
 

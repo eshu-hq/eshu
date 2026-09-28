@@ -66,6 +66,16 @@ else
 	record_fail "table has ${row_count} rows but the registry defines ${gate_count} gates"
 fi
 
+# Case 4b (#7337): the by-layer index is present, and no gate renders under
+# "Unlabeled" (every real gate declares a layer).
+if rg -q '^## Gates by layer$' "${expected_path}" \
+	&& rg -q '^### Truth: ' "${expected_path}" \
+	&& ! rg -q '^### Unlabeled' "${expected_path}"; then
+	record_pass "generated reference carries the by-layer index with every gate labelled"
+else
+	record_fail "generated reference is missing the by-layer index or has unlabelled gates"
+fi
+
 # Case 5: every one of the five Ifá gates named in the testing-story docs
 # appears in the table, by exact id.
 missing_ifa=0

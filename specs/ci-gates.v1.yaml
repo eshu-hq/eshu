@@ -35,6 +35,8 @@ gates:
   - id: go-fmt
     name: Go gofumpt formatting
     category: hygiene
+    layer: hygiene
+    purpose: "Checks Go source is formatted with gofumpt so diffs stay consistent."
     tier: pre-commit
     blocking: true
     triggers:
@@ -55,6 +57,8 @@ gates:
   - id: go-lint
     name: Go lint (golangci-lint)
     category: hygiene
+    layer: hygiene
+    purpose: "Runs golangci-lint across the Go module to catch style and correctness issues."
     tier: pre-commit
     blocking: true
     triggers:
@@ -75,6 +79,8 @@ gates:
   - id: go-build
     name: Go build (all binaries)
     category: build
+    layer: hygiene
+    purpose: "Builds every Go binary in the module to confirm the code still compiles."
     tier: pre-push
     blocking: true
     triggers:
@@ -92,6 +98,8 @@ gates:
   - id: go-vet
     name: Go vet
     category: hygiene
+    layer: hygiene
+    purpose: "Runs go vet across the Go module to catch suspicious constructs the compiler allows through."
     tier: pre-push
     blocking: true
     triggers:
@@ -110,6 +118,8 @@ gates:
   - id: go-file-cap
     name: Go 500-line file cap
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when a Go file exceeds the 500-line cap, keeping files split and readable."
     tier: pre-commit
     blocking: true
     triggers:
@@ -164,6 +174,8 @@ gates:
   - id: go-dir-gate
     name: Go directory-size and naming gate
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when a Go directory holds too many files or a package name breaks the naming rules."
     tier: pre-commit
     blocking: true
     triggers:
@@ -206,6 +218,8 @@ gates:
   - id: markdown-file-cap
     name: Markdown 500-line file cap (go/ and docs/)
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when a Markdown file under go/ or docs/ exceeds the 500-line cap."
     tier: pre-commit
     blocking: true
     triggers:
@@ -247,6 +261,8 @@ gates:
   - id: package-docs
     name: Go package docs coverage
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when a Go package is missing its doc.go, README.md or AGENTS.md."
     tier: pre-pr
     blocking: true
     triggers:
@@ -271,6 +287,8 @@ gates:
   - id: migration-immutability
     name: Shipped Postgres migration immutability
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when an already-shipped Postgres migration file is edited instead of added as a new one."
     tier: pre-push
     blocking: true
     triggers:
@@ -296,6 +314,8 @@ gates:
   - id: agent-canon
     name: Agent canon check
     category: hygiene
+    layer: hygiene
+    purpose: "Checks every agent/Claude/Codex skill and hook is wired and reachable, and that Claude/Codex/Muse stay in parity."
     tier: pre-pr
     blocking: true
     triggers:
@@ -413,6 +433,8 @@ gates:
   - id: no-diff-fragments
     name: No diff fragments or conflict markers in source
     category: hygiene
+    layer: hygiene
+    purpose: "Scans every tracked file for leftover diff fragments or unresolved merge-conflict markers."
     tier: pre-commit
     blocking: true
     triggers:
@@ -437,6 +459,8 @@ gates:
   - id: filename-stutter
     name: No filename or directory stutter in added/renamed paths
     category: hygiene
+    layer: hygiene
+    purpose: "Fails when a newly added or renamed path repeats its own directory name (filename stutter)."
     tier: pre-commit
     blocking: true
     triggers:
@@ -467,6 +491,8 @@ gates:
   - id: no-ai-attribution
     name: No AI attribution in commits/docs
     category: hygiene
+    layer: hygiene
+    purpose: "Scans commit messages and added diff lines for AI-attribution text and blocks it."
     tier: pre-commit
     blocking: true
     triggers:
@@ -492,6 +518,8 @@ gates:
   - id: license-header
     name: Go license header verification
     category: hygiene
+    layer: hygiene
+    purpose: "Checks every .go file in the repo carries the required license header."
     tier: pre-commit
     blocking: true
     triggers:
@@ -525,6 +553,8 @@ gates:
   - id: ci-install-apt-packages
     name: CI apt/ripgrep installer test mirror
     category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker."
     tier: pre-pr
     blocking: true
     triggers:
@@ -578,6 +608,8 @@ gates:
   - id: ci-go-mod-download-retry
     name: CI Go module pre-warm retry-script test mirror
     category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt."
     tier: pre-pr
     blocking: true
     triggers:
@@ -610,6 +642,8 @@ gates:
   - id: main-health-watcher
     name: Post-merge main-health watcher test mirror
     category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue."
     tier: pre-pr
     blocking: true
     triggers:
@@ -652,6 +686,8 @@ gates:
   - id: pre-enqueue-check
     name: Pre-enqueue merge-queue check test mirror
     category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a PR joins the queue."
     tier: pre-pr
     blocking: true
     triggers:
@@ -680,6 +716,8 @@ gates:
   - id: openapi-surface
     name: Verify OpenAPI Surface
     category: exactness
+    layer: contract
+    purpose: "Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa."
     tier: pre-pr
     blocking: true
     triggers:
@@ -716,6 +754,8 @@ gates:
   - id: route-coverage
     name: Verify Route Coverage
     category: exactness
+    layer: contract
+    purpose: "Fails when a registered HTTP route has no test that actually references it."
     tier: pre-pr
     blocking: true
     triggers:
@@ -742,6 +782,8 @@ gates:
   - id: edge-source-tool-coverage
     name: Verify Edge Source-Tool Coverage
     category: exactness
+    layer: contract
+    purpose: "Fails when a relationship-edge evidence kind has no covering collector or source tool."
     tier: pre-pr
     blocking: true
     triggers:
@@ -771,6 +813,8 @@ gates:
   - id: evidence-continuity
     name: Verify Evidence Continuity
     category: exactness
+    layer: contract
+    purpose: "Fails when the evidence-continuity spec references a Go package or test the code no longer has."
     tier: pre-pr
     blocking: true
     # The triggers cover every package the spec's `go test` proof refs name,
@@ -819,6 +863,8 @@ gates:
   - id: skill-roundtrip
     name: Verify Skill Roundtrip
     category: exactness
+    layer: contract
+    purpose: "Fails when generated skill fragments no longer match their committed baseline output."
     tier: pre-pr
     blocking: true
     triggers:
@@ -847,6 +893,8 @@ gates:
   - id: skill-workflow-refs
     name: Verify Skill Workflow References
     category: exactness
+    layer: contract
+    purpose: "Fails when a skill references a GitHub workflow that doesn't exist, or vice versa."
     tier: pre-pr
     blocking: true
     triggers:
@@ -867,6 +915,8 @@ gates:
   - id: fact-kind-registry
     name: Verify Fact-Kind Registry
     category: exactness
+    layer: contract
+    purpose: "Fails when the fact-kind registry spec drifts from the fact kinds actually defined in Go code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -888,6 +938,8 @@ gates:
   - id: contract-source-of-truth
     name: Contract Source of Truth (generate + drift)
     category: exactness
+    layer: contract
+    purpose: "Regenerates and diffs the collector fact contract to catch drift between the spec and generated code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -911,6 +963,8 @@ gates:
   - id: factschema-diff
     name: Fact Schema Diff (breaking-change gate)
     category: exactness
+    layer: contract
+    purpose: "Diffs generated JSON Schemas against a baseline and fails on a breaking field change without a version bump."
     tier: pre-pr
     blocking: true
     triggers:
@@ -943,6 +997,8 @@ gates:
   - id: payload-usage-manifest
     name: Payload Usage Manifest (reverse contract gate)
     category: exactness
+    layer: contract
+    purpose: "Fails when code reads a payload field that no checked-in JSON Schema declares."
     tier: pre-pr
     blocking: true
     triggers:
@@ -983,6 +1039,8 @@ gates:
   - id: scorecard-example-conformance
     name: Scorecard example go test
     category: exactness
+    layer: contract
+    purpose: "Runs the external scorecard example's own test suite to prove it still conforms to the pinned SDK fixture pack."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1011,6 +1069,8 @@ gates:
   - id: sdk-go-collector
     name: "SDK Go: collector build/test/vet/fmt/boundary"
     category: exactness
+    layer: contract
+    purpose: "Builds, tests, vets, and formats the standalone collector SDK module, and blocks it from importing internal-only code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1036,6 +1096,8 @@ gates:
   - id: sdk-go-factschema
     name: "SDK Go: factschema build/test/vet/fmt/boundary/generate"
     category: exactness
+    layer: contract
+    purpose: "Builds, tests, and regenerates the factschema SDK module, failing if generated artifacts don't match committed source."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1059,6 +1121,8 @@ gates:
   - id: mcp-schema-drift
     name: MCP Schema Drift
     category: exactness
+    layer: contract
+    purpose: "Fails when MCP tool or capability schemas drift from the capability catalog and surface-inventory specs."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1085,6 +1149,8 @@ gates:
   - id: capability-inventory
     name: Capability Inventory Verify
     category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool in verify mode to check the capability catalog matches the code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1110,6 +1176,8 @@ gates:
   - id: capability-inventory-docs
     name: Capability Inventory Docs/Product Claims Verify
     category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool in docs mode to check public docs and README match the capability catalog."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1134,6 +1202,8 @@ gates:
   - id: parser-relationship-kit
     name: Verify Parser Relationship Kit
     category: exactness
+    layer: contract
+    purpose: "Checks parser-documented test commands, language-parity ledgers, and dead-code maturity data still match the parser code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1194,6 +1264,8 @@ gates:
   - id: accuracy-golden-gate
     name: Verify Accuracy Golden Gate
     category: exactness
+    layer: truth
+    purpose: "Fails when parser/reducer accuracy metrics (complexity, call resolution, correlation precision) drop below the published baseline floor."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1215,6 +1287,8 @@ gates:
   - id: heredoc-budget
     name: Heredoc Budget (bash 5.1+ pipe-buffer deadlock guard)
     category: exactness
+    layer: hygiene
+    purpose: "Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1234,6 +1308,8 @@ gates:
   - id: query-plan-regression
     name: Verify Query Plan Regression
     category: exactness
+    layer: performance
+    purpose: "Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1258,6 +1334,8 @@ gates:
   - id: scale-corpus-suite
     name: Verify Scale Corpus Suite
     category: exactness
+    layer: contract
+    purpose: "Validates the public scale-lab corpus spec has the required structure and contains no private data before use."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1285,6 +1363,8 @@ gates:
   - id: scale-benchmark-artifact
     name: Verify Scale Benchmark Artifact
     category: exactness
+    layer: contract
+    purpose: "Validates the scale-benchmark artifact contract spec and, if given a result file, that it has the required metric fields."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1306,6 +1386,8 @@ gates:
   - id: capability-budget-proof
     name: Verify Capability Budget Proof
     category: exactness
+    layer: contract
+    purpose: "Validates the capability performance-budget proof contract matches the capability catalog spec."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1327,6 +1409,8 @@ gates:
   - id: collector-entrypoints-generated
     name: Verify Generated Collector Entrypoints
     category: exactness
+    layer: contract
+    purpose: "Fails when the generated collector entrypoints file is out of sync with the collector fact contract spec."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1348,6 +1432,8 @@ gates:
   - id: capability-surface-inventory
     name: Capability Surface Inventory drift
     category: exactness
+    layer: contract
+    purpose: "Fails when the generated MCP capability surface-inventory JSON drifts from the actual command/tool surface."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1374,6 +1460,8 @@ gates:
   - id: telemetry-coverage
     name: Verify Telemetry Coverage
     category: telemetry
+    layer: contract
+    purpose: "Fails when OTEL instrumentation in code doesn't match what the telemetry-coverage doc claims is instrumented."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1409,6 +1497,8 @@ gates:
   - id: operator-dashboard
     name: Generate Operator Dashboard
     category: telemetry
+    layer: contract
+    purpose: "Fails when the committed operator Grafana dashboard JSON no longer matches what the generator template would produce."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1443,6 +1533,8 @@ gates:
   - id: env-registry-doc
     name: Generate Environment Variable Registry Reference
     category: exactness
+    layer: contract
+    purpose: "Fails when the environment-variable reference doc is out of date with the actual env registry in code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1467,6 +1559,8 @@ gates:
   - id: race-graph-writes
     name: Race detector — graph writes
     category: race
+    layer: unit
+    purpose: "Runs the graph-write code paths (ingester, projector, reducer, storage) under Go's race detector."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1494,6 +1588,8 @@ gates:
   - id: reducer-contention
     name: Reducer Contention Gate (real Postgres)
     category: race
+    layer: performance
+    purpose: "Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1515,6 +1611,8 @@ gates:
   - id: claude-rules-scope
     name: Claude path-scoped rules
     category: exactness
+    layer: hygiene
+    purpose: "Lints .claude/rules files for correct path-scoping so agent rules apply only where intended."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1534,6 +1632,8 @@ gates:
   - id: docs-catalog-metadata
     name: Docs catalog metadata
     category: exactness
+    layer: hygiene
+    purpose: "Checks that public docs pages carry the required catalog metadata (nav/front-matter fields)."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1555,6 +1655,8 @@ gates:
   - id: storage-doc-bundled-nornicdb-example
     name: Storage doc bundled-NornicDB Helm example renders
     category: exactness
+    layer: contract
+    purpose: "Fails when the bundled-NornicDB Helm example shown in the storage doc no longer renders against the real Helm chart."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1577,6 +1679,8 @@ gates:
   - id: docs-prose-quality
     name: Docs prose quality advisory
     category: docs
+    layer: secondary
+    purpose: "Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate."
     tier: pre-pr
     blocking: false
     triggers:
@@ -1598,6 +1702,8 @@ gates:
   - id: docs-contradiction
     name: Docs self-contradiction advisory
     category: exactness
+    layer: secondary
+    purpose: "Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline."
     tier: pre-pr
     blocking: false
     triggers:
@@ -1621,6 +1727,8 @@ gates:
   - id: docs-refs
     name: Docs script reference existence
     category: exactness
+    layer: hygiene
+    purpose: "Fails when a docs page cites a scripts/*.sh, .py, or .awk path that doesn't actually exist."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1644,6 +1752,8 @@ gates:
   - id: docs-cli-env-refs
     name: Docs CLI and environment reference truth
     category: exactness
+    layer: contract
+    purpose: "Rebuilds the real CLI and env registry to check docs' CLI commands and environment variables match what exists."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1679,6 +1789,8 @@ gates:
   - id: query-doc-commit-refs
     name: Query doc commit reference guard
     category: exactness
+    layer: hygiene
+    purpose: "Blocks query-package docs from citing abbreviated git commit hashes, which squash-merges make unstable."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1700,6 +1812,8 @@ gates:
   - id: doc-citations
     name: Doc test/fixture existence and raw-line recurrence guard
     category: exactness
+    layer: contract
+    purpose: "Fails when a doc cites a test, fixture, or source line that no longer exists or no longer matches."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1752,6 +1866,8 @@ gates:
   - id: moved-file-refs
     name: Moved-file reference guard
     category: exactness
+    layer: contract
+    purpose: "Fails when code or docs still reference a file path after it has been moved or renamed elsewhere in the repo."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1781,6 +1897,8 @@ gates:
   - id: measurement-citations
     name: Measurement ledger citation gate
     category: exactness
+    layer: contract
+    purpose: "Fails when a measurement figure quoted in docs or evidence write-ups is uncited or inconsistent with its source."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1825,6 +1943,8 @@ gates:
   - id: remote-validation-artifacts
     name: Remote-validation deployed-evidence gate
     category: exactness
+    layer: contract
+    purpose: "Checks every remote_validation claim in the capability matrix links to a real, committed deployed-evidence artifact."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1882,6 +2002,8 @@ gates:
   - id: maturity-drift-guard
     name: Support-maturity matrix live-gate drift guard
     category: exactness
+    layer: contract
+    purpose: "Blocks drift between the support-maturity doc's language columns and the actual golden-corpus fixture/snapshot data."
     tier: pre-pr
     blocking: true
     triggers:
@@ -1920,6 +2042,8 @@ gates:
   - id: mcp-client-auth-doc
     name: MCP client-auth doc lockstep guard
     category: exactness
+    layer: contract
+    purpose: "Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; advisory, not yet wired into CI."
     tier: pre-pr
     blocking: false
     triggers:
@@ -1943,6 +2067,8 @@ gates:
   - id: docs-build-changed
     name: Verify Docs Build (changed)
     category: docs
+    layer: hygiene
+    purpose: "Builds the docs for changed files to catch broken doc builds and doc-generation script regressions before push."
     tier: pre-push
     blocking: true
     triggers:
@@ -1978,6 +2104,8 @@ gates:
   - id: docs-only-ci-skip
     name: Docs-only CI skip wiring (#5818 regression guard)
     category: hygiene
+    layer: hygiene
+    purpose: "Guards that CI workflows correctly skip on docs-only changes, preventing a prior skip-logic regression from recurring."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2015,6 +2143,8 @@ gates:
   - id: frontend-format-changed
     name: Verify Frontend Format (changed)
     category: frontend
+    layer: hygiene
+    purpose: "Runs Prettier to check changed frontend files are correctly formatted; advisory, does not block merge."
     tier: pre-push
     blocking: false
     triggers:
@@ -2045,6 +2175,8 @@ gates:
   - id: console-e2e
     name: Console e2e (mocked)
     category: frontend
+    layer: unit
+    purpose: "Runs the admin console's mocked end-to-end test suite to verify UI flows without hitting real backends."
     tier: pre-push
     blocking: true
     triggers:
@@ -2066,6 +2198,8 @@ gates:
   - id: frontend-site
     name: Marketing site typecheck/test/build (root Vite)
     category: frontend
+    layer: unit
+    purpose: "Typechecks, unit-tests, and builds the marketing site to catch build-breaking regressions."
     tier: pre-push
     blocking: true
     triggers:
@@ -2106,6 +2240,8 @@ gates:
   - id: frontend-console-checks
     name: Console typecheck/test/build (apps/console)
     category: frontend
+    layer: unit
+    purpose: "Typechecks, unit-tests, and builds the admin console, including its JS bundle-size budget checks."
     tier: pre-push
     blocking: true
     triggers:
@@ -2145,6 +2281,8 @@ gates:
   - id: console-a11y
     name: Console a11y audit (axe-core, critical+serious block)
     category: frontend
+    layer: hygiene
+    purpose: "Runs an axe-core accessibility audit on the console and blocks merge on any critical or serious violation."
     tier: pre-push
     blocking: true
     triggers:
@@ -2162,6 +2300,8 @@ gates:
   - id: frontend-eslint
     name: ESLint flat config (src + apps/console/src)
     category: frontend
+    layer: hygiene
+    purpose: "Lints the marketing site and console TypeScript/JS source against the shared ESLint config."
     tier: pre-push
     blocking: true
     triggers:
@@ -2194,6 +2334,8 @@ gates:
   - id: npm-audit
     name: npm audit (fail on high/critical)
     category: frontend
+    layer: hygiene
+    purpose: "Fails the build if npm audit finds any high- or critical-severity dependency vulnerability."
     tier: pre-push
     blocking: true
     triggers:
@@ -2215,6 +2357,8 @@ gates:
   - id: gosec-changed
     name: gosec static analysis (whole module)
     category: security
+    layer: hygiene
+    purpose: "Runs gosec static analysis across the Go module to catch common security anti-patterns in source code."
     tier: pre-push
     blocking: true
     triggers:
@@ -2238,6 +2382,8 @@ gates:
   - id: govulncheck
     name: govulncheck (Go vulnerability database)
     category: security
+    layer: hygiene
+    purpose: "Checks Go dependencies against the public vulnerability database for known CVEs actually reachable by the code."
     tier: pre-push
     blocking: true
     triggers:
@@ -2266,6 +2412,8 @@ gates:
   - id: nancy
     name: nancy (Sonatype dep CVE + license scan)
     category: security
+    layer: hygiene
+    purpose: "Runs Sonatype nancy for Go dependency CVE/license issues; non-blocking since missing credentials mean it scans nothing today."
     tier: pre-push
     # Advisory, not blocking (#5791, #5804): Sonatype's OSS Index rejects ALL
     # anonymous requests with 401 Unauthorized, and neither this repo's CI nor
@@ -2298,6 +2446,8 @@ gates:
   - id: trivy-fs
     name: Trivy filesystem scan (vuln + secret + config)
     category: security
+    layer: hygiene
+    purpose: "Scans the filesystem with Trivy for vulnerabilities, secrets, and misconfiguration when installed locally; CI stays authoritative."
     tier: pre-push
     blocking: false
     triggers:
@@ -2342,6 +2492,8 @@ gates:
   - id: golden-corpus-mirror
     name: Golden corpus gate mirror (static)
     category: hygiene
+    layer: hygiene
+    purpose: "Runs the golden-corpus gate's own hermetic test suite locally, with no Docker, as a static mirror of the real gate."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2364,6 +2516,8 @@ gates:
   - id: golden-corpus-gate
     name: Golden Corpus Gate (Docker)
     category: exactness
+    layer: truth
+    purpose: "Runs the full pipeline over the fixed golden corpus in Docker and fails if queues don't drain or the graph and answers differ from the snapshot."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -2515,6 +2669,8 @@ gates:
   - id: read-api-latency-gate
     name: Read API Latency Gate (Docker)
     category: exactness
+    layer: performance
+    purpose: "Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -2557,6 +2713,8 @@ gates:
   - id: read-api-work-budget-mirror
     name: Read API work budget refresh mirror (static)
     category: hygiene
+    layer: performance
+    purpose: "Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2577,6 +2735,8 @@ gates:
   - id: backend-latency-compare-mirror
     name: Cross-backend latency comparator mirror (static)
     category: hygiene
+    layer: performance
+    purpose: "Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2600,6 +2760,8 @@ gates:
   - id: golden-corpus-gate-neo4j
     name: Golden Corpus Gate on Neo4j (Docker)
     category: exactness
+    layer: truth
+    purpose: "Runs the same golden-corpus pipeline on Neo4j, the supported backend; advisory until main is green on it, then it becomes blocking."
     tier: ci-heavy
     blocking: false
     triggers:
@@ -2719,6 +2881,8 @@ gates:
   - id: live-backend-tests
     name: Live Backend Tests on NornicDB and Neo4j (Docker)
     category: exactness
+    layer: truth
+    purpose: "Runs the CI-class tests from the live-test ledger against NornicDB and Neo4j in Docker and fails on a wrong answer."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -2755,6 +2919,8 @@ gates:
   - id: golden-corpus-differential
     name: Differential NornicDB vs Neo4j oracle (Docker)
     category: exactness
+    layer: truth
+    purpose: "Runs the golden corpus on NornicDB and Neo4j with statement capture; failed runs, empty captures or missing statement coverage block, row diffs are advisory."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -2844,6 +3010,8 @@ gates:
   - id: golden-corpus-filter-exhaustive
     name: Golden corpus PR path filter exhaustiveness
     category: hygiene
+    layer: contract
+    purpose: "Checks that the golden-corpus-gate CI path filter lists every Go package the gate actually compiles."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2873,6 +3041,8 @@ gates:
   - id: replay-coverage-gate
     name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate
     category: exactness
+    layer: contract
+    purpose: "Checks that every surface Eshu claims to support has a recorded, non-stale replay scenario in the coverage manifest."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2927,6 +3097,8 @@ gates:
   - id: ifa-contract-layer
     name: Ifa contract-layer Odù skeleton
     category: exactness
+    layer: contract
+    purpose: "Runs the Ifá contract-layer test suite, verifying the Odù catalog, coverage manifest, and reducer code stay in lockstep."
     tier: pre-pr
     blocking: true
     triggers:
@@ -2953,6 +3125,8 @@ gates:
   - id: content-entity-bucket-sync
     name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
     category: exactness
+    layer: contract
+    purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
     tier: pre-pr
     blocking: true
     # Triggers name all three source files the gate reads, not just the package
@@ -2994,6 +3168,8 @@ gates:
   - id: index-key-guard-sweep
     name: Production indexed-write Cypher literals are guarded (#7058)
     category: exactness
+    layer: contract
+    purpose: "Scans production Cypher literals across storage, reducer, projector, collector, and cmd code to keep indexed writes schema-guarded."
     tier: pre-pr
     blocking: true
     # TestProductionCypherLiteralsAreGuarded scans the non-test Go literals
@@ -3023,6 +3199,8 @@ gates:
   - id: hot-cypher-source-coverage
     name: Hot Cypher manifest covers every production query call
     category: exactness
+    layer: contract
+    purpose: "Checks that the hot-Cypher manifest lists every production query call site so no query runs outside the tracked manifest."
     tier: pre-pr
     blocking: true
     # TestHotCypherManifestCoversEveryProductionQueryCall
@@ -3047,6 +3225,8 @@ gates:
   - id: ask-overlay-inventory-coverage
     name: Ask catalog overlay covers the surface inventory
     category: exactness
+    layer: contract
+    purpose: "Checks that the Ask catalog's overlay covers every surface listed in the generated surface-inventory registry."
     tier: pre-pr
     blocking: true
     # TestOverlayCoversInventory (go/internal/ask/catalog/coverage_test.go)
@@ -3071,6 +3251,8 @@ gates:
   - id: ifa-materialized-edge-coverage
     name: Ifa materialized-edge exhaustiveness gate (#5351)
     category: exactness
+    layer: contract
+    purpose: "Checks that the Ifá materialized-edge coverage manifest stays exhaustive against the reducer, Cypher writers, and cassette fixtures."
     tier: pre-pr
     blocking: true
     triggers:
@@ -3179,6 +3361,8 @@ gates:
   - id: ifa-determinism
     name: Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate)
     category: exactness
+    layer: replay
+    purpose: "Runs each Ifá scenario (Odù) at 1, 2 and 4 workers on real Postgres and NornicDB and fails if the resulting graph differs."
     tier: pre-pr
     blocking: true
     triggers:
@@ -3696,6 +3880,8 @@ gates:
   - id: ifa-dead-letter-matrix
     name: Ifa P3 failure-path (dead-letter set) determinism matrix
     category: exactness
+    layer: replay
+    purpose: "Drives a deliberately malformed Odù cassette at 1, 2, and 4 workers and fails if the dead-letter row set ever differs."
     tier: pre-pr
     blocking: true
     triggers:
@@ -3761,6 +3947,8 @@ gates:
   - id: ifa-fault-injection
     name: Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery)
     category: exactness
+    layer: replay
+    purpose: "Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across every graph-write family."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4276,6 +4464,8 @@ gates:
   - id: ifa-load-saturation
     name: Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression)
     category: exactness
+    layer: performance
+    purpose: "Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4305,6 +4495,8 @@ gates:
   - id: cassette-author
     name: Cassette author gate (private-data scan + v1 format contract)
     category: security
+    layer: contract
+    purpose: "Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4335,6 +4527,8 @@ gates:
   - id: ifa-replay-drive
     name: Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract)
     category: exactness
+    layer: hygiene
+    purpose: "Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4373,6 +4567,8 @@ gates:
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness
+    layer: replay
+    purpose: "Replays recorded parser fixtures against the real parser to prove its output stays deterministic."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4391,6 +4587,8 @@ gates:
   - id: authz-scoped-route-tests
     name: Authorization Scoped Route Replay Tests
     category: exactness
+    layer: contract
+    purpose: "Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4425,6 +4623,8 @@ gates:
   - id: code-coverage-report
     name: Go Code Coverage Report
     category: exactness
+    layer: unit
+    purpose: "Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only."
     tier: pre-pr
     blocking: false
     triggers:
@@ -4461,6 +4661,8 @@ gates:
   - id: e2e-tests
     name: End-to-end tests (Docker stack)
     category: exactness
+    layer: truth
+    purpose: "Boots the full Docker service stack and checks the whole system produces the right end-to-end results."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4485,6 +4687,8 @@ gates:
   - id: auth-mcp-e2e
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     category: exactness
+    layer: truth
+    purpose: "Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4526,6 +4730,8 @@ gates:
   - id: trivy-image
     name: Trivy image scan (GHCR)
     category: security
+    layer: hygiene
+    purpose: "Scans the published GHCR container image for known vulnerabilities after publish."
     tier: ci-heavy
     # Post-publish evidence: the image does not exist until docker-publish has
     # completed on main, so this cannot honestly be a pre-merge blocker.
@@ -4544,6 +4750,8 @@ gates:
   - id: docker-image-build
     name: Docker image build smoke
     category: build
+    layer: hygiene
+    purpose: "Smoke-tests that the Docker image still builds successfully in CI."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4560,6 +4768,8 @@ gates:
   - id: docker-image-reproducibility
     name: Docker image reproducibility
     category: build
+    layer: contract
+    purpose: "Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4576,6 +4786,8 @@ gates:
   - id: helm-package
     name: Helm chart lint and package
     category: release
+    layer: hygiene
+    purpose: "Lints and packages the Helm chart to make sure it builds cleanly before publishing."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4591,6 +4803,8 @@ gates:
   - id: docker-publish
     name: Docker image and Helm publication
     category: release
+    layer: secondary
+    purpose: "Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request."
     tier: manual
     blocking: false
     triggers:
@@ -4614,6 +4828,8 @@ gates:
   - id: macos-build
     name: macOS build verification (nightly)
     category: build
+    layer: secondary
+    purpose: "Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges."
     tier: ci-heavy
     blocking: false
     triggers:
@@ -4631,6 +4847,8 @@ gates:
   - id: root-cause-evidence
     name: Root-cause claims carry observed evidence
     category: exactness
+    layer: hygiene
+    purpose: "Checks that any documented root-cause claim also records the observation that established it."
     tier: pre-pr
     blocking: false
     triggers:
@@ -4651,6 +4869,8 @@ gates:
   - id: tagged-builds
     name: Build-tag compile sweep
     category: exactness
+    layer: hygiene
+    purpose: "Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4688,6 +4908,8 @@ gates:
   - id: perf-evidence
     name: Hot-path performance evidence
     category: telemetry
+    layer: performance
+    purpose: "Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds."
     tier: pre-push
     blocking: true
     triggers:
@@ -4721,6 +4943,8 @@ gates:
   - id: product-claim-ledger
     name: Product Claim Ledger (deterministic verify)
     category: exactness
+    layer: contract
+    purpose: "Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4751,6 +4975,8 @@ gates:
   - id: replay-tier
     name: Replay tier (offline cassette replay)
     category: exactness
+    layer: replay
+    purpose: "Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend."
     tier: ci-heavy
     blocking: true
     triggers:
@@ -4790,6 +5016,8 @@ gates:
   - id: go-test-race
     name: Go tests with race detector
     category: race
+    layer: unit
+    purpose: "Runs the replay and scheduling test packages under Go's race detector to catch data races."
     tier: pre-pr
     blocking: true
     triggers:
@@ -4812,6 +5040,8 @@ gates:
   - id: ci-gate-registry
     name: CI gate registry + drift
     category: hygiene
+    layer: contract
+    purpose: "Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes."
     tier: pre-pr
     blocking: true
     triggers:

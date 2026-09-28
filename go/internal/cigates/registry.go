@@ -152,6 +152,11 @@ type Gate struct {
 	Name string
 	// Category classifies the gate's concern.
 	Category Category
+	// Layer is the testing layer the gate belongs to (see registry_layer.go).
+	// Descriptive only; empty when the registry row does not declare one.
+	Layer Layer
+	// Purpose is one plain sentence saying what the gate checks.
+	Purpose string
 	// Tier is the ordered stage at which this gate runs.
 	Tier Tier
 	// Blocking controls whether a gate failure is required (true) or advisory (false).
@@ -293,6 +298,11 @@ func Load(path string) (*Registry, error) {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has invalid category %q", path, id, gf.Category)
 		}
 
+		layer, err := parseLayer(path, id, gf.Layer)
+		if err != nil {
+			return nil, err
+		}
+
 		tier := Tier(strings.TrimSpace(gf.Tier))
 		if _, ok := tierOrder[tier]; !ok {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has invalid tier %q", path, id, gf.Tier)
@@ -354,6 +364,8 @@ func Load(path string) (*Registry, error) {
 			ID:               id,
 			Name:             strings.TrimSpace(gf.Name),
 			Category:         cat,
+			Layer:            layer,
+			Purpose:          strings.TrimSpace(gf.Purpose),
 			Tier:             tier,
 			Blocking:         gf.Blocking,
 			Triggers:         gf.Triggers,

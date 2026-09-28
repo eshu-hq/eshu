@@ -17,6 +17,8 @@ type gateFile struct {
 	ID               string     `yaml:"id"`
 	Name             string     `yaml:"name"`
 	Category         string     `yaml:"category"`
+	Layer            string     `yaml:"layer"`
+	Purpose          string     `yaml:"purpose"`
 	Tier             string     `yaml:"tier"`
 	Blocking         bool       `yaml:"blocking"`
 	Triggers         []string   `yaml:"triggers"`
