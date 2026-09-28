@@ -24,8 +24,7 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // neo4jEntityContextAnchor returns the single Neo4j anchor clause that replaces
 // the per-label loop (issue #7380). A cold Neo4j plans every distinct Cypher
 // text a request sends, and the loop sent up to 16 (32 across the unscoped and
-// scoped shapes) under one 10 s budget; measured cold on native arm64
-// (NON-PD host) planning was ~90% of each candidate's cold cost. This is one `CALL () { ... UNION ... }`
+// scoped shapes) under one 10 s budget. This is one `CALL () { ... UNION ... }`
 // (the form codemodel.Neo4jEntityIDAnchor uses, #7057; the empty scope clause
 // needs the documented Neo4j 5.23 floor) that plans as one
 // NodeUniqueIndexSeek per label:
@@ -57,6 +56,22 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // LIMIT 1). An id shared by two labels therefore still resolves to the label
 // the loop tried first, deterministically. It also bounds the tail
 // (the OPTIONAL MATCHes and the aggregation) to one anchor node.
+//
+// Measured cost (quiet 16-CPU amd64 host, load1 below 8 for every reported
+// round; docs/internal/evidence/7380-entity-context-single-anchor.md): a miss
+// or a late-label hit is about 6x to 10x faster with a warm JVM and a cleared
+// plan cache (1209 to 190 ms and 1136 to 118 ms median) and about 2.2x after a
+// restart (3169 to 1415 ms). A hit on the first label (Function) is slower
+// while the anchor's plan is not cached: +41 ms paired mean (SD 9, n=10) with
+// a warm JVM and a cleared plan cache, about +296 ms (SD 18, n=10) as the
+// first query after a restart. With the plan cached the two are equal (12.1
+// against 13.6 ms median). Neo4j keeps a plan until its statistics diverge
+// (dbms.cypher.statistics_divergence_threshold, checked at most every
+// dbms.cypher.min_replan_interval), so at most one request per caller shape
+// pays that per plan epoch, and only label position 1 loses: a hit on the
+// second label is already faster. With a warm JVM the extra cost vanishes once
+// plans are cached, which points at planning the larger union; the
+// planning-versus-first-execution split after a restart is not proven.
 func neo4jEntityContextAnchor() string { return neo4jContextAnchor }
 
 func buildNeo4jEntityContextAnchor() string {

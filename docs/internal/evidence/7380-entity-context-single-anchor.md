@@ -48,45 +48,110 @@ is what makes Neo4j seek (a plain label disjunction plans as
   before.
 
 Performance Evidence: shape `GetEntityContext` anchor, Neo4j 2026.08.1
-community (`neo4j:2026-community@sha256:eabfbb04...`, native arm64), real schema
-applied (261 statements), 295-node fixture, unscoped and scoped shapes. Before
-is the unchanged 16-statement loop (byte-identical to the base commit's text,
-checked by dumping both), after is the shipped statement text (the `CALL () {
-UNION }` anchor with the `WITH ... anchor_rank ORDER BY ... LIMIT 1` wrapper,
-then the unlabeled fallback), both taken from the production
-`(*Handler).entityContextStatements`, not hand-copied. Every request is a
-restart-cold round (fresh JVM, empty plan cache), n=5 per candidate per scenario,
-loop and anchor interleaved with alternating first-mover. ALL FIGURES ARE NON-PD:
-the shared host ran at load1 14-91 (median 41, 18 CPUs; rule PD needs load1 < 9
-at start, end and in-run), 0 of 52 rounds met PD, and a back-to-back A/A control
-pair differed by 39% (8582 ms vs 11891 ms), so run-to-run spread is large and the
-absolute seconds are not a quiet-host claim; only the paired ratios are used.
-Cold wall ms (min/median/max), loop against anchor: unscoped miss (16 against 2
-statements) 5259/5865/10356 vs 1747/1953/2299, paired ratio median 2.98x (range
-2.69-5.93x); scoped miss 5252/9391/13119 vs 2107/2806/8439, ratio median 2.78x
-(range 1.11-4.16x, one anchor round hit load1 90); a hit on the 15th label
-(WorkloadInstance, 15 against 1 statement) 5851/6269/9246 vs 1742/1879/6302, ratio
-median 3.25x (range 0.93-5.07x). A hit on the FIRST label (Function, 1 against 1
-statement) is slower with the anchor: 1412/1505/1823 vs 1829/1999/2949, anchor
-slower in 5 of 5 paired rounds (ratio median 0.75x, range 0.48-0.98x), because the
-anchor must plan its whole union cold while the loop plans only its first
-statement. Cold EXPLAIN-only planning of every statement one request
-sends: 3842/7779/9315 ms (loop) vs 2023/4527/6741 ms (anchor); planning is about
-90% of each candidate's cold cost (median EXPLAIN against the run that follows it).
-Warm (plans cached, 3 reruns per round): miss 113/215/419 vs 22/33/52 ms, 15th
-label 120/167/468 vs 22/26/42 ms, first label 21/25/38 vs 15/28/79 ms (equal).
-The shipped plan (PROFILE) is one `NodeUniqueIndexSeek` per label under a `Top`
-for the rank wrapper: 14 db hits on a miss; the unlabeled fallback is unchanged
-and still an `AllNodesScan` (591 db hits at 295 nodes, about 600k at 300k nodes
-from the earlier theory shim). The earlier theory-shim timings (candidate D3, the
-same union without the rank wrapper and `LIMIT 1`, host load1 16-97) are not the
-shipped statement and are not reported here. NOT_CHECKED: a quiet-host (PD)
-rerun, native amd64, a 300k-node cold rerun of the shipped text (the disk of the
-measuring host filled and its Docker VM crashed after the main rounds), a truly
-cold page cache, and the concurrent cold first-request stampede. Net effect
-measured: fewer distinct texts to plan cold (16 to 2 per shape) is about 3x on a
-miss or a late-label hit and a cold-request cost on a first-label hit; warm cost
-is lower everywhere or equal.
+community (`neo4j:2026-community@sha256:eabfbb04...`, `linux/amd64`), real schema
+applied, 295-node fixture, unscoped shape. Before is the unchanged 16-statement
+loop (the zero-value `Handler`), after is the shipped statement text (the
+`CALL () { UNION }` anchor with the `WITH ... anchor_rank ORDER BY ... LIMIT 1`
+wrapper, then the unlabeled fallback). Both were taken from the production
+`(*Handler).entityContextStatements`, not hand-copied; a dump of the loop and
+anchor texts, unscoped and scoped, is byte-identical (`cmp` rc=0) to the dump
+taken from the base commit.
+
+Machine: a quiet 16-CPU x86_64 host (AMD EPYC 9R14, 1 thread per core, 132 GB
+RAM, Ubuntu 24.04, Linux 6.17, Docker 29.3.1, Go 1.26.6) with no other gate or
+build in the window (one idle Postgres container was up). The PD limit is load1 below 8.0 (`nproc`/2). load1 was sampled
+every 1 s; a round counts only if load1 at start, at end and in-run were all
+below 8.0. Across the 141 main-run rounds (70 calibration, 71 paired) the in-run
+maximum was 2.70 and no round reached 8.0. For the 70 valid pairs load1 ran
+0.85-2.28 at start, 0.85-2.28 at end and 1.19-2.70 in-run. At the start of the
+run the host load average was 2.75 (0.03 before the build) and at the end 0.59.
+Every pair also runs the loop, the unchanged base, as a control canary. Each
+regime and scenario cell was calibrated with 2 sets of 5 loop-only rounds (10 of
+10 valid, none over the load limit), and a pair whose loop run exceeded that
+cell's mean + 3 SD (101.2 ms for W hit-first up to 3627.6 ms for R miss) is
+invalid on both sides and re-run. One pair was invalid: W hit-late attempt 8,
+load1 fine, loop request 1195.5 ms against a bound of 1190.2 ms; it was
+discarded and re-run (attempt 11 valid). 70 valid pairs of 71 attempted, none
+invalid on load. Wall times are reported, not gated: the gates are the
+deterministic ones below.
+
+Regimes, each request timed from the client: W is a warm JVM with
+`db.clearQueryCaches()` before each request, so the plan cache is empty and
+nothing else is cold. P restarts the container, runs a neutral 21-text prewarm
+(none contains the entity id parameter, an id or uid anchor, or the anchor
+union, so neither candidate's statements are warmed), then sends the request.
+R restarts the container and the request is the first query ever. Warm is three
+reruns after each R round, plans cached. Loop and anchor alternate the first
+mover, and the cells within a regime are interleaved. Scenarios are a hit on
+the first label (Function), the second label (Class), the 15th label
+(WorkloadInstance) and a miss (an unknown id, all 16 loop statements). Cold
+request wall ms, min/median/max over 10 valid pairs per cell (5 for the last
+row), loop against anchor; S-A is the paired anchor minus loop, mean (SD):
+
+| regime, scenario | loop | anchor | S-A ms | anchor slower |
+|---|---|---|---|---|
+| W, hit first (1 vs 1 stmt) | 79.2/80.5/85.2 | 117.1/118.7/151.0 | +41.20 (8.67) | 10 of 10 |
+| W, hit second (2 vs 1) | 153.8/156.1/160.7 | 116.4/119.4/122.9 | -37.01 (1.01) | 0 of 10 |
+| W, hit 15th (15 vs 1) | 1125.3/1135.8/1168.0 | 115.6/118.2/122.8 | -1022.04 (11.41) | 0 of 10 |
+| W, miss (16 vs 2) | 1203.1/1209.1/1239.9 | 189.2/190.1/198.9 | -1021.51 (8.79) | 0 of 10 |
+| P, hit first | 355.1/360.7/391.2 | 626.8/642.9/665.2 | +276.72 (20.87) | 10 of 10 |
+| R, hit first | 906.4/909.1/952.1 | 1200.1/1208.4/1229.8 | +296.24 (17.88) | 10 of 10 |
+| R, miss (16 vs 2) | 3134.8/3169.3/3330.1 | 1405.8/1415.4/1439.6 | -1768.59 (61.37) | 0 of 10 |
+| warm, hit first (30 reruns) | 10.4/12.1/22.0 | 11.2/13.6/18.7 | +1.46 (1.10) | 9 of 10 rounds |
+| warm, miss (30 reruns) | 46.2/50.0/63.4 | 14.2/17.7/25.3 | -34.12 (0.76) | 0 of 10 |
+| R, miss at 300295 nodes (5 pairs) | 3269.1/3329.1/3456.8 | 1536.2/1550.1/1575.2 | -1785.82 (81.95) | 0 of 5 |
+
+The 300k row used the same driver, host and image with 100000 extra Function,
+Class and Variable nodes each, its own calibration (bound 3616.2 ms) and a
+warm rerun of 99.0/109.8/134.1 against 63.1/81.4/91.0 ms (S-A -35.40, SD 5.95).
+The loop over anchor ratio median is 6.35 (W miss), 9.62 (W hit 15th), 2.24
+(R miss) and 2.15 (R miss at 300k), so the saving is far outside the run-to-run
+spread; it has a deterministic cause, 16 statement texts and round trips
+becoming 2. The slowest valid anchor request was 1439.6 ms (1575.2 ms at 300k),
+inside the 10 s shared bounded read.
+`result_first_row` was equal in every pair (70 valid and the 1 invalid), in the
+5 pairs at 300k and in every warm rerun; hit scenarios returned a row and miss
+scenarios none.
+
+First-label cost, measured. A request whose id resolves on the first label
+(Function) used to plan one statement and now plans the whole anchor. When the
+anchor's plan is not cached that request is slower: +41.2 ms with a warm JVM
+and a cleared plan cache (W, n=10, SD 8.7, anchor over loop 1.51x, SD 0.09),
++276.7 ms after a restart and a neutral prewarm (P, n=10, SD 20.9, 1.76x) and
++296.2 ms as the first query after a restart (R, n=10, SD 17.9, 1.32x). With
+the plan cached the two are equal within a millisecond and a half (12.1 against
+13.6 ms median, +1.46 ms paired mean, SD 1.10). Neo4j keeps a plan until its
+statistics diverge (`dbms.cypher.statistics_divergence_threshold`, checked at
+most every `dbms.cypher.min_replan_interval`), so the cost is per plan epoch,
+not per request: at most one request per caller shape (unscoped, scoped) pays
+it after a Neo4j restart or a replan. Only label position 1 loses. The loop
+adds about 75 ms per further label in W (156.1 ms at position 2, 1135.8 ms at
+position 15, against 80.5 ms at position 1), the anchor is flat at about 118
+ms, so a hit on the second label is already 37 ms faster and one non-Function
+request or one miss in the epoch repays the first-label penalty. No first-label
+fast path was added: it would add a third statement text and a round trip to
+every other request.
+
+Where the cause was observed. In W, with the JVM warm and only the plan cache
+cleared, the extra cost is present (+41 ms) and disappears once plans are
+cached (+1.5 ms), which points at planning the larger union. The P and R
+penalties are about 7 times larger and were observed after a container restart;
+the split between planning and first execution of the larger plan there is
+unproven. NOT_CHECKED: that split, whether `EXPLAIN` fills the executable-plan
+cache, the production share of Function ids among entity-context requests,
+timing of the scoped shape (only its statement text was verified byte-identical),
+a P-regime miss cell, a hit-first cell at 300k nodes, a truly cold page cache
+(the host held 112 GB of page cache) and the concurrent cold first-request
+stampede.
+
+Deterministic gates, unchanged: at most 2 statements on a full miss, one
+`NodeUniqueIndexSeek` per label and no scan in the shipped plan. The shipped
+plan (PROFILE) is one `NodeUniqueIndexSeek` per label under a `Top` for the
+rank wrapper: 14 db hits on a miss; the unlabeled fallback is unchanged and
+still an `AllNodesScan` (591 db hits at 295 nodes, about 600k at 300k nodes
+from the earlier theory shim). An earlier run of this branch on a loaded shared
+host (load1 14-91) is not reported: no round met PD and its spread was too
+large to read.
 
 Observability Evidence: the read keeps the `entity.context` graph query name,
 the shared `WithBoundedGraphReadDeadline`, the `neo4j.query` spans,
@@ -119,5 +184,5 @@ changes.
 
 Not covered: production-distribution ids (shared ids across labels should not
 occur, canonical uids are sha-derived), the cold first-request stampede, a
-truly cold page cache, native amd64, and the fallback scan itself (a candidate
+truly cold page cache, and the fallback scan itself (a candidate
 follow-up is an id index on the id-only labels or a bounded fallback).
