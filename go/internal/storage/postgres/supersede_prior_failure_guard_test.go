@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -30,7 +31,46 @@ var (
 	// setSupersededPattern is a work row assigned the superseded status. The
 	// leading word boundary keeps *_authorized_status assignments out.
 	setSupersededPattern = regexp.MustCompile(`(?i)\bstatus\s*=\s*'superseded'`)
+	// commentPattern matches the comments a SET list can carry: a SQL line or
+	// block comment inside the raw string, and a Go line comment between the
+	// concatenated pieces. The constant's name in a comment is not a fold.
+	commentPattern = regexp.MustCompile(`(?s)--[^\n]*|/\*.*?\*/|//[^\n]*`)
+	// failureDetailsAssignPattern is the failure_details assignment in a SET
+	// list, the one the fold must be part of.
+	failureDetailsAssignPattern = regexp.MustCompile(`(?i)\bfailure_details\s*=`)
 )
+
+// foldOnFailureDetails reports whether the fragment constant sits inside the
+// failure_details assignment of a SET list: after the failure_details = and
+// before the next assignment starts. A constant appended to another column, or
+// left in a separate assignment, is not a fold of the details. Assignments end
+// at a comma outside every parenthesis and single-quoted string.
+func foldOnFailureDetails(setList, constant string) bool {
+	loc := failureDetailsAssignPattern.FindStringIndex(setList)
+	if loc == nil {
+		return false
+	}
+	rest := setList[loc[1]:]
+	at := strings.Index(rest, constant)
+	if at < 0 {
+		return false
+	}
+	depth, quoted := 0, false
+	for _, r := range rest[:at] {
+		switch {
+		case r == '\'':
+			quoted = !quoted
+		case quoted:
+		case r == '(':
+			depth++
+		case r == ')':
+			depth--
+		case r == ',' && depth <= 0:
+			return false
+		}
+	}
+	return true
+}
 
 // priorFailureConstFor names the fragment constant that matches the alias a
 // supersede statement gives its row, or "" for an alias with none.
@@ -43,8 +83,6 @@ func priorFailureConstFor(alias string) string {
 	}
 	return ""
 }
-
-func strconvQuote(s string) string { return "\"" + s + "\"" }
 
 // supersedeWriterViolations parses one Go source file and returns a message for
 // every top-level declaration holding a fact_work_items UPDATE that assigns
@@ -70,6 +108,7 @@ func supersedeWriterViolations(t *testing.T, filename, src string) (violations [
 			if end := wherePattern.FindStringIndex(setList); end != nil {
 				setList = setList[:end[0]]
 			}
+			setList = commentPattern.ReplaceAllString(setList, " ")
 			if !setSupersededPattern.MatchString(setList) {
 				continue
 			}
@@ -79,9 +118,9 @@ func supersedeWriterViolations(t *testing.T, filename, src string) (violations [
 				alias = text[loc[2]:loc[3]]
 			}
 			want := priorFailureConstFor(alias)
-			if want == "" || !strings.Contains(setList, want) {
-				violations = append(violations, filename+": a fact_work_items UPDATE aliased "+strconvQuote(alias)+
-					" sets status = 'superseded' without "+want+" in its SET list (#7320)")
+			if want == "" || !foldOnFailureDetails(setList, want) {
+				violations = append(violations, fmt.Sprintf("%s: a fact_work_items UPDATE aliased %q", filename, alias)+
+					" sets status = 'superseded' without "+want+" in its failure_details assignment (#7320)")
 			}
 		}
 	}
@@ -144,6 +183,30 @@ func TestSupersedeWriterGuardSeededViolation(t *testing.T) {
 	wrongAlias := strings.Replace(folded, "priorFailureWorkSQL", "priorFailureStaleSQL", 1)
 	if v, n := supersedeWriterViolations(t, "wrong.go", wrongAlias); n != 1 || len(v) != 1 {
 		t.Fatalf("writer embedding the other alias's fragment: violations=%v writers=%d, want 1 violation", v, n)
+	}
+	// The constant's name in a comment is not a fold: SQL line comment, SQL
+	// block comment and Go line comment must each still be reported.
+	for name, comment := range map[string]string{
+		"sql line comment":  "jsonb_build_object('k', 1) -- priorFailureWorkSQL\n",
+		"sql block comment": "jsonb_build_object('k', 1) /* priorFailureWorkSQL */\n",
+		"go line comment":   "jsonb_build_object('k', 1)` +\n// priorFailureWorkSQL\n`\n",
+	} {
+		commented := strings.Replace(planted, "jsonb_build_object('k', 1)\n", comment, 1)
+		if v, n := supersedeWriterViolations(t, "commented.go", commented); n != 1 || len(v) != 1 {
+			t.Fatalf("%s naming the constant: violations=%v writers=%d, want 1 violation over 1 writer", name, v, n)
+		}
+	}
+	// The constant must be part of the failure_details assignment: on another
+	// column, or in an assignment of its own after it, it folds nothing.
+	for name, body := range map[string]string{
+		"other column":        "SET status = 'superseded',\n    failure_details = jsonb_build_object('k', 1),\n    updated_at = now() || ` + priorFailureWorkSQL + `\n",
+		"separate assignment": "SET status = 'superseded',\n    failure_details = jsonb_build_object('k', 1),\n    failure_message = ` + priorFailureWorkSQL + `\n",
+		"before the details":  "SET status = 'superseded', failure_message = ` + priorFailureWorkSQL + `,\n    failure_details = jsonb_build_object('k', 1)\n",
+	} {
+		misplaced := "package p\n\nconst q = `\nUPDATE fact_work_items AS work\n" + body + "WHERE work.status = 'pending'\n`\n"
+		if v, n := supersedeWriterViolations(t, "misplaced.go", misplaced); n != 1 || len(v) != 1 {
+			t.Fatalf("constant on %s: violations=%v writers=%d, want 1 violation over 1 writer", name, v, n)
+		}
 	}
 	other := "package p\n\nconst q = `\nUPDATE fact_work_items AS w\nSET status = 'retrying'\nWHERE w.status = 'superseded'\n`\n"
 	if v, n := supersedeWriterViolations(t, "other.go", other); n != 0 || len(v) != 0 {
