@@ -116,9 +116,20 @@ compared, never generation ids.
 | full generation (no baseline) | proceeds, not counted |
 | delta written before migration 148 (no baseline) | proceeds as `unfenced` |
 | the delta's own generation is already active | proceeds as `already_active` |
+| the delta's own generation is already superseded | proceeds, not counted, as `target_superseded` |
 | active commit equals the baseline | proceeds as `matched` |
 | active commit differs, or is empty | refused as `refused_active_differs` |
 | no active generation | refused as `refused_no_active` |
+
+A target already superseded by a newer generation's activation is not a fence
+refusal: it is the normal, expected outcome of projector lag, already owned by
+the pre-existing superseded-generation path (Ack's own activation predicate
+refuses it there exactly as it would a raced full generation, logging at INFO
+with `failure_class = projector_ack_generation_superseded`; a preflight read
+proceeds and lets Ack or a heartbeat catch it, the same way an unfenced full
+generation already does). The fence checks target-superseded before comparing
+commits, so a delta that can never activate again is never scored against a
+baseline it has no further claim on.
 
 A refused delta's work row and generation become `superseded`, never `failed`,
 so replay and dead-letter drains leave it alone. The work row carries
@@ -139,11 +150,14 @@ does.
 `eshu_dp_projector_delta_baseline_fence_total` counts decisions by `phase`
 (`preflight`, `ack`) and `outcome`. Passes are counted once, at Ack. A rising
 refusal share means the projector lags the collector. Any `phase=ack` refusal
-means two claims were valid in one scope and logs at ERROR; a preflight refusal
-logs at WARN. `unfenced` should fall to zero once every collector writes the
-baseline. Commit SHAs appear in logs and `failure_details`, never as labels. The
-collector's `git repository sync completed` log carries
-`delta_baseline_commit_sha` for a delta sync.
+(`refused_active_differs` or `refused_no_active`) means two claims were valid
+in one scope and logs at ERROR; a preflight refusal logs at WARN. This holds
+because a target already superseded by a newer activation never reaches a
+refused outcome here -- it is `target_superseded` (see above), so it cannot be
+mistaken for the two-valid-claims signal. `unfenced` should fall to zero once
+every collector writes the baseline. Commit SHAs appear in logs and
+`failure_details`, never as labels. The collector's `git repository sync
+completed` log carries `delta_baseline_commit_sha` for a delta sync.
 
 Rollout order is migration 148, then binaries. Deltas written by an older
 collector, or in flight during the rollout, have no baseline and are not fenced.

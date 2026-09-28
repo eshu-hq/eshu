@@ -59,6 +59,18 @@ const (
 	// DeltaBaselineTargetMissing means the claimed generation row was not
 	// found. The caller fails closed on its own path.
 	DeltaBaselineTargetMissing DeltaBaselineOutcome = "target_missing"
+	// DeltaBaselineTargetSuperseded means the claimed generation is already
+	// superseded by a newer generation's activation. This is not an invariant
+	// breach: a newer generation activating and superseding this one is the
+	// normal, expected outcome of projector lag, and the caller's own
+	// superseded-generation path already owns it with its own classification
+	// (Ack's activation predicate refuses a superseded target the same way it
+	// would for a full generation raced this way; preflight proceeds and lets
+	// Ack or a heartbeat catch it, exactly as an unfenced full generation
+	// already does). Comparing baseline commits against a target that can
+	// never activate again would misreport routine supersession as the #7130
+	// two-valid-claims signal this fence exists to catch.
+	DeltaBaselineTargetSuperseded DeltaBaselineOutcome = "target_superseded"
 )
 
 // Refused reports whether the outcome refuses the delta.
@@ -102,12 +114,18 @@ type DeltaBaselineState struct {
 //   - no baseline, not a delta: full
 //   - no baseline, delta: unfenced (legacy row, proceeds)
 //   - target already active: already_active (proceeds)
+//   - target already superseded: target_superseded (not a breach; the
+//     caller's own superseded-generation path proceeds to own it)
 //   - no active generation: refused_no_active
 //   - active commit equals baseline: matched (proceeds)
 //   - otherwise: refused_active_differs
 //
-// Only commits are compared, trimmed, never generation ids: a full generation
-// at the same commit that activated in between holds the same tree.
+// The target-superseded case is checked before comparing commits: a delta
+// that can never activate again was already retired by a newer generation,
+// so a baseline mismatch there reflects the newer generation's commit having
+// moved on, not a second claim racing this one to activate. Only commits are
+// compared, trimmed, never generation ids: a full generation at the same
+// commit that activated in between holds the same tree.
 func DecideDeltaBaseline(state DeltaBaselineState) DeltaBaselineOutcome {
 	baseline := strings.TrimSpace(state.BaselineCommitSHA)
 	switch {
@@ -119,6 +137,8 @@ func DecideDeltaBaseline(state DeltaBaselineState) DeltaBaselineOutcome {
 		return DeltaBaselineUnfenced
 	case state.TargetStatus == scope.GenerationStatusActive:
 		return DeltaBaselineAlreadyActive
+	case state.TargetStatus == scope.GenerationStatusSuperseded:
+		return DeltaBaselineTargetSuperseded
 	case strings.TrimSpace(state.ActiveGenerationID) == "":
 		return DeltaBaselineRefusedNoActive
 	case strings.TrimSpace(state.ActiveCommitSHA) == baseline:

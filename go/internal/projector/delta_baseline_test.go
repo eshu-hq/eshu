@@ -64,6 +64,14 @@ func TestDecideDeltaBaseline(t *testing.T) {
 			TargetFound:  true,
 			TargetStatus: scope.GenerationStatusFailed, IsDelta: true, BaselineCommitSHA: "A",
 		}, DeltaBaselineRefusedNoActive},
+		{"target already superseded by a newer activation, active differs", DeltaBaselineState{
+			TargetFound: true, TargetStatus: scope.GenerationStatusSuperseded, IsDelta: true,
+			BaselineCommitSHA: "A", ActiveGenerationID: "g-c", ActiveCommitSHA: "C",
+		}, DeltaBaselineTargetSuperseded},
+		{"target already superseded by a newer activation, no active", DeltaBaselineState{
+			TargetFound:  true,
+			TargetStatus: scope.GenerationStatusSuperseded, IsDelta: true, BaselineCommitSHA: "A",
+		}, DeltaBaselineTargetSuperseded},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -175,6 +183,31 @@ func TestPreflightDeltaBaseline(t *testing.T) {
 		}
 		if strings.Contains(line, "superseded by newer generation") {
 			t.Fatalf("log reuses the newer-generation message: %s", line)
+		}
+	})
+
+	t.Run("target already superseded proceeds without marking or logging", func(t *testing.T) {
+		t.Parallel()
+		// #7319 P1: a target already superseded by a newer generation's
+		// activation is routine projector lag, not an invariant breach. The
+		// delta-baseline fence must not refuse it; the caller's own
+		// superseded-generation path (Ack's activation predicate, or a
+		// heartbeat mid-projection) already owns this exactly as it does for
+		// a raced full generation.
+		fence := &fakeDeltaBaselineFence{state: DeltaBaselineState{
+			TargetFound: true, TargetStatus: scope.GenerationStatusSuperseded, IsDelta: true,
+			BaselineCommitSHA: "A", ActiveGenerationID: "g-c", ActiveCommitSHA: "C",
+		}}
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewJSONHandler(&logs, nil))
+		if err := PreflightDeltaBaseline(context.Background(), fence, work, nil, logger); err != nil {
+			t.Fatalf("PreflightDeltaBaseline() = %v, want nil", err)
+		}
+		if fence.reads != 1 || len(fence.refusals) != 0 {
+			t.Fatalf("reads=%d refusals=%d, want 1 and 0", fence.reads, len(fence.refusals))
+		}
+		if logs.Len() != 0 {
+			t.Fatalf("log = %s, want no log for an already-superseded target", logs.String())
 		}
 	})
 

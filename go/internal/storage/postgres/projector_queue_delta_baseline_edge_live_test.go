@@ -70,6 +70,61 @@ func TestProjectorDeltaBaselinePreflightLive(t *testing.T) {
 		}
 		assertFenceCounter(t, reader, projector.DeltaBaselinePhasePreflight, "")
 	})
+	// #7319 P1: a target already superseded by a newer generation's
+	// activation is routine projector lag, not an invariant breach (see
+	// TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough for
+	// the Ack-side counterpart). Preflight must proceed exactly as it would
+	// for a full generation raced this way, and mark nothing.
+	t.Run("target already superseded", func(t *testing.T) {
+		superseded := fenceGen{id: "gen-d", commit: "D", status: "superseded", isDelta: true, baseline: "A", minutesAgo: 5}
+		database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, superseded}, "gen-d")
+		queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+		instruments, reader := newEnqueueInstruments(t)
+		if err := projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), instruments, nil); err != nil {
+			t.Fatalf("PreflightDeltaBaseline() = %v, want nil", err)
+		}
+		if got := readFenceState(t, database, "gen-d"); got.work != "running" || got.target != "superseded" || got.pointer != "gen-b" || got.class != "" {
+			t.Fatalf("state after pass = %+v, want untouched (no delta-baseline mark)", got)
+		}
+		assertFenceCounter(t, reader, projector.DeltaBaselinePhasePreflight, "")
+	})
+}
+
+// TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough is the
+// #7319 P1 fix: worker B claims delta gen-d (baseline A), G2 (gen-b, commit B)
+// activates normally and gen-d's own scope_generations row is already
+// superseded by the time B reaches Ack -- projector lag, not an invariant
+// breach. DecideDeltaBaseline must not refuse it as
+// projector_delta_baseline_mismatch_after_projection (ERROR, "two claims were
+// valid in one scope"); Ack's own activation predicate (status <> 'superseded')
+// already refuses an already-superseded target through the pre-existing,
+// correctly-classified superseded-generation path (refuseSupersededAck, INFO,
+// projector_ack_generation_superseded), exactly as it would for a raced full
+// generation.
+func TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough(t *testing.T) {
+	dsn := proofDSN(t)
+	superseded := fenceGen{id: "gen-d", commit: "D", status: "superseded", isDelta: true, baseline: "A", minutesAgo: 5}
+	database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, superseded}, "gen-d")
+	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	instruments, reader := newEnqueueInstruments(t)
+	queue.Instruments = instruments
+
+	err := queue.Ack(context.Background(), fenceWork("gen-d"), runtime.Result{})
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("Ack() = %v, want ErrWorkSuperseded", err)
+	}
+	if projector.IsDeltaBaselineRefusal(err) {
+		t.Fatalf("Ack() = %v, must not be classified as a delta-baseline refusal", err)
+	}
+	got := readFenceState(t, database, "gen-d")
+	if got.work != "superseded" || got.target != "superseded" || got.pointer != "gen-b" || got.active != "gen-b" ||
+		got.class != projectorAckGenerationSupersededClass {
+		t.Fatalf("state = %+v, want work+target superseded, class %s, pointer/active gen-b",
+			got, projectorAckGenerationSupersededClass)
+	}
+	// The delta-baseline fence never decided this case: it is not counted on
+	// eshu_dp_projector_delta_baseline_fence_total at either phase.
+	assertFenceCounter(t, reader, projector.DeltaBaselinePhaseAck, "")
 }
 
 // TestProjectorDeltaBaselineAckLeaseLostBeforeMark reclaims the work row
