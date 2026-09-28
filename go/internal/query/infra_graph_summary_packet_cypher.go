@@ -51,3 +51,27 @@ const graphSummaryRepoLanguagesCypher = `MATCH (r:Repository {id: $repo_id})-[:R
 WHERE f.language IS NOT NULL
 RETURN f.language AS language, count(DISTINCT f) AS file_count
 ORDER BY file_count DESC`
+
+// The 50,001st raw edge is counted before pair deduplication or ranking. A
+// missing UID triggers the unchanged Go path, whose key fallback uses id.
+const graphSummaryNeo4jDegreeCypher = `MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})
+WITH source, target LIMIT $edge_scan_limit
+WITH count(*) AS raw_edges,
+     sum(CASE WHEN source.uid IS NULL OR source.uid = '' OR target.uid IS NULL OR target.uid = '' THEN 1 ELSE 0 END) AS invalid_uid_edges,
+     collect(DISTINCT [source,target]) AS pairs
+UNWIND CASE WHEN size(pairs) = 0 THEN [[null,null]] ELSE pairs END AS pair
+WITH raw_edges, invalid_uid_edges, pair[0] AS source, pair[1] AS target
+UNWIND CASE WHEN source IS NULL THEN [{n:null,incoming:0,outgoing:0}]
+            ELSE [{n:source,incoming:0,outgoing:1},{n:target,incoming:1,outgoing:0}] END AS e
+WITH raw_edges, invalid_uid_edges, e.n AS n,
+     sum(e.incoming) AS incoming, sum(e.outgoing) AS outgoing
+WITH raw_edges, invalid_uid_edges, n, incoming, outgoing,
+     incoming+outgoing AS total_degree
+RETURN raw_edges, invalid_uid_edges,
+       coalesce(n.id,n.uid) AS function_id,
+       coalesce(n.name,'') AS function_name,
+       coalesce(n.relative_path,'') AS file_path,
+       n.uid AS function_key, incoming, outgoing, total_degree
+ORDER BY total_degree DESC, incoming DESC, outgoing DESC,
+         file_path, coalesce(n.start_line,0), function_name, function_id, function_key
+LIMIT $rank_limit`

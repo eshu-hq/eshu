@@ -17,6 +17,7 @@ required_ids:
   - QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME
   - QP-CALL-GRAPH-HUBS
   - QP-CALL-GRAPH-RECURSIVE
+  - QP-INFRA-GRAPH-SUMMARY-HOT-ENTITIES
   - QP-GRAPH-ENTITY-COUNT
   - QP-GRAPH-ENTITY-LIST
   - QP-WORKLOAD-RESOLVE-PROPERTY
@@ -261,6 +262,20 @@ entries:
     required_schema: [function_repo_id]
     required_limits: [$edge_scan_limit]
     caveats: [One indexed repository edge pass requests a 50001-edge sentinel; Go computes exact metrics through 50000 physical CALLS edges and fails closed without partial rows above that bound.]
+    plan: *indexed_plan
+
+  - id: QP-INFRA-GRAPH-SUMMARY-HOT-ENTITIES
+    domain: infra
+    backend: neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/infra_graph_summary_packet_cypher.go, symbol: graphSummaryNeo4jDegreeCypher, source_sha256: ef22fa0355d0da00e03aafdc941236b7b7b4957e02a0d99b8c7a82f44be03bb2}
+    query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
+    cypher_sha256: b0bf6baba570d88f188b22281515f709e0c1e188399cafe86c1d3c247bd47712
+    required_anchors: [{label: Function, property: repo_id}]
+    required_schema: [function_repo_id]
+    required_limits: [$edge_scan_limit, $rank_limit]
+    requires_order: true
+    caveats: [Neo4j counts a 50001st raw CALLS edge before pair deduplication and fails closed above 50000; missing Function UID rows use the unchanged Go edge pass.]
     plan: *indexed_plan
 
   - id: QP-GRAPH-ENTITY-COUNT

@@ -225,6 +225,7 @@ func queryplanProfileParams() map[string]any {
 		"artifact_ids":                 []string{"proof-artifact"},
 		"cycle_language":               "python",
 		"edge_scan_limit":              codequery.CallGraphMetricsEdgeScanLimit + 1,
+		"rank_limit":                   graphSummaryMaxHotLimit + 1,
 		"ecosystem":                    "proof-ecosystem",
 		"entity_id":                    "proof-entity",
 		"environment":                  "",

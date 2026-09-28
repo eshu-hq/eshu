@@ -460,13 +460,14 @@ source_coverage:
           max_results: 1
   - file: infra_graph_summary_packet.go
     calls:
-      - symbol: "(*InfraHandler).graphSummaryHotEntities"
+      - symbol: "(*InfraHandler).graphSummaryHotEntitiesNeo4j"
         count: 1
-        non_hot:
-          class: keyed_support
-          source_sha256: a8d1a33bb7b4894075e92a59be97133165a836fd3a6d5cb62aa7786e0c6943f9
-          key_bound: single_key
-          max_results: 50001
+        source_sha256: 421fc047e124434f82b843d148caeb65d1789aea0faf727bc95afc941647358b
+        entry_ids: [QP-INFRA-GRAPH-SUMMARY-HOT-ENTITIES]
+      - symbol: "(*InfraHandler).graphSummaryHotEntitiesRaw"
+        count: 1
+        source_sha256: 52a4c7abff26f5e9f124b728429b3a533a426e250493c66b015f5b82916f27c6
+        entry_ids: [QP-CALL-GRAPH-HUBS]
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoEcosystemMap", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
