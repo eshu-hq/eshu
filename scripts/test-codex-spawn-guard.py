@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -15,6 +16,14 @@ GUARD = ROOT / "scripts/guard-codex-spawn.py"
 CANONICAL_TOOL = "collaborationspawn_agent"
 
 
+def hook_environment(project_dir: str) -> dict[str, str]:
+    """Build a hook environment without Git's parent-hook repository bindings."""
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith("GIT_")}
+    environment["CODEX_PROJECT_DIR"] = project_dir
+    return environment
+
+
 class CodexSpawnGuardTests(unittest.TestCase):
     """Exercise the hook wiring and the payload observed on Codex 0.158."""
 
@@ -22,7 +31,8 @@ class CodexSpawnGuardTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.workspace = Path(self.temporary.name)
-        subprocess.run(["git", "init", "-q", str(self.workspace)], check=True)
+        subprocess.run(["git", "init", "-q", str(self.workspace)],
+                       env=hook_environment(str(self.workspace)), check=True)
         (self.workspace / "scripts").mkdir()
         (self.workspace / ".agents").mkdir()
         shutil.copyfile(GUARD, self.workspace / "scripts/guard-codex-spawn.py")
@@ -43,7 +53,7 @@ class CodexSpawnGuardTests(unittest.TestCase):
         result = subprocess.run(
             ["/bin/sh", "-c", self.command], input=json.dumps(payload),
             capture_output=True, text=True, cwd=self.workspace,
-            env={**os.environ, "CODEX_PROJECT_DIR": str(self.workspace)}, check=True,
+            env=hook_environment(str(self.workspace)), check=True,
         )
         return json.loads(result.stdout)["hookSpecificOutput"] if result.stdout else None
 
@@ -76,7 +86,7 @@ class CodexSpawnGuardTests(unittest.TestCase):
             result = subprocess.run(
                 ["/bin/sh", "-c", self.command], input=json.dumps(payload),
                 capture_output=True, text=True, cwd=ROOT,
-                env={**os.environ, "CODEX_PROJECT_DIR": sibling}, check=True,
+                env=hook_environment(sibling), check=True,
             )
             decision = json.loads(result.stdout)["hookSpecificOutput"]
             self.assertEqual("deny", decision["permissionDecision"])
@@ -89,7 +99,7 @@ class CodexSpawnGuardTests(unittest.TestCase):
                     "tool_input": {"agent_type": "default"}, "cwd": elsewhere,
                 }),
                 capture_output=True, text=True, cwd=elsewhere,
-                env={**os.environ, "CODEX_PROJECT_DIR": str(ROOT)},
+                env=hook_environment(str(ROOT)),
             )
             self.assertEqual(2, result.returncode)
             self.assertIn("worktree", result.stderr)
@@ -100,7 +110,7 @@ class CodexSpawnGuardTests(unittest.TestCase):
         malformed = subprocess.run(
             ["/bin/sh", "-c", self.command], input="{not-json",
             capture_output=True, text=True, cwd=self.workspace,
-            env={**os.environ, "CODEX_PROJECT_DIR": str(self.workspace)}, check=True,
+            env=hook_environment(str(self.workspace)), check=True,
         )
         self.assertEqual(
             "deny", json.loads(malformed.stdout)["hookSpecificOutput"]["permissionDecision"]
@@ -113,6 +123,27 @@ class CodexSpawnGuardTests(unittest.TestCase):
         self.assertIsNone(self.invoke({"command": "true"}, tool_name="Bash"))
         with tempfile.TemporaryDirectory() as elsewhere:
             self.assertIsNone(self.invoke({"agent_type": "default"}, cwd=elsewhere))
+
+
+class CodexSpawnGateWiringTests(unittest.TestCase):
+    """Keep local and hosted verification connected to the guard."""
+
+    def test_gate_wiring_covers_guard_and_its_test(self) -> None:
+        registry = (ROOT / "specs/ci-gates.v1.yaml").read_text()
+        agent_gate = registry.split("  - id: agent-canon\n", 1)[1].split(
+            "  - id: no-diff-fragments\n", 1)[0]
+        for path in ("scripts/guard-codex-spawn.py", "scripts/test-codex-spawn-guard.py"):
+            self.assertGreaterEqual(agent_gate.count(f'      - "{path}"'), 2)
+        self.assertIn("python3 scripts/test-codex-spawn-guard.py", agent_gate)
+
+        workflow = (ROOT / ".github/workflows/verify-agent-hygiene.yml").read_text()
+        self.assertIn("run: python3 scripts/test-codex-spawn-guard.py", workflow)
+
+        precommit = (ROOT / ".pre-commit-config.yaml").read_text()
+        self.assertRegex(precommit, r"(?s)- id: codex-spawn-guard\n.*?"
+                                      r"entry: python3 scripts/test-codex-spawn-guard.py")
+        self.assertRegex(precommit, re.compile(r"(?s)- id: codex-spawn-guard\n.*?"
+                                               r"files: .*guard-codex-spawn"))
 
 
 if __name__ == "__main__":

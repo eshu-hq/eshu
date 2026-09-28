@@ -43,6 +43,9 @@ jobs:
       - name: Run agent role binding test
         run: python3 scripts/test-agent-roles.py
 
+      - name: Run Codex spawn guard test
+        run: python3 scripts/test-codex-spawn-guard.py
+
       - name: Run goal role routing test
         run: python3 scripts/test-goal-role-router.py
 
