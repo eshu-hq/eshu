@@ -7,8 +7,10 @@ of writing a link that names a pruned generation. The backfill inserts each
 activation through its locked generation row. The orphan probe is exported as
 a gauge.
 
-Source binding: branch `perf/7127-pr3e-prior-fence` on `origin/main`
-`c8b5145212`. PostgreSQL `postgres:18-alpine` 18.6 (aarch64), disposable
+Source binding: branch `perf/7127-pr3e-prior-fence`, measured on `origin/main`
+`c8b5145212`; the branch was later rebased onto `62ba4d4df9` with an
+identical patch (same `git patch-id`), and the base-only changes touch none
+of these paths. PostgreSQL `postgres:18-alpine` 18.6 (aarch64), disposable
 container `7127e-pg`, removed afterwards. No NornicDB and no Neo4j.
 
 ## Root cause (arbiter ruling arb-7127-3d, section 5)

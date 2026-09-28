@@ -133,7 +133,8 @@ generation, prior, slot), adds the rebase outcome (`root` link with the
 `prior_pruned` break) and fences the backfill insert. G3, G11 and G15 are
 extended to the rebase statement and the prior, and the P3 bound of ruling
 arb-7127-3d no longer holds: no link names a pruned prior. Proof, races,
-mutations and the one known lock wait are in
+mutations and the 250 ms bound on the generation locks (arbiter ruling
+arb-7127-3e-wait) are in
 [7127-changed-since-prior-fence.md](7127-changed-since-prior-fence.md).
 
 ## G9 on the built binary

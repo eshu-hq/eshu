@@ -41,6 +41,11 @@
 - `RebaseLinkSQL` and `IncrementalLinkSQL` share `stateDiffCTE` and
   `stateMoveCTEs`. Change them together, and keep the rebase's row-count
   invariant.
+- The sweeper insert (`journalActiveGenerationsQuery`) is the one ledger
+  writer exempt from the lock rule: it names only a generation that is
+  active at its snapshot, and retention prunes only generations superseded
+  longer than its age cutoff, so a named generation cannot be pruned within
+  that one statement.
 - The backfill inserts each activation through its generation row
   (`insertActivationQuery`, `FOR KEY SHARE OF generation SKIP LOCKED`); a row
   not inserted ends the scope's chain for the pass.

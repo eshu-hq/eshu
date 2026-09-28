@@ -86,6 +86,12 @@ the since generation**. Beyond that:
 
 ## The bound (arb-7127-3d, rationale 2)
 
+Note, 2026-09-28: PR-3e removed this bound at its source. The link writer now
+locks the prior and rebases when it is gone, and the backfill inserts through
+the locked generation row, so no link or activation names a pruned
+generation (see [7127-changed-since-prior-fence.md](7127-changed-since-prior-fence.md)).
+The text below is the PR-3d record.
+
 Per scope, at any time:
 
 - **At most one link whose prior is gone.** Its deltas are at most the keys of

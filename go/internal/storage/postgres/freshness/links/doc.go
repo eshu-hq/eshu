@@ -11,14 +11,15 @@
 // writer fence; it never waits), the activating generation (FOR KEY SHARE
 // SKIP LOCKED after a plain existence read, which keeps generation retention
 // off it), for a full link the state generation it links from (the same
-// fence), and one of Slots advisory slots. The generation locks are bounded,
-// not non-blocking: SKIP LOCKED does not cover PostgreSQL's update-chain
-// walk, so they run under a 250 ms transaction-local lock_timeout and a
-// timeout is the non-counting generation_lock_timeout
-// (pg_try_advisory_xact_lock(SlotLockClass, slot)). A ledger row is written
-// only while every generation it names is locked, so retention's delete of a
-// pruned generation's rows is complete. A miss on any of them
-// rolls back and returns a non-counting *RetryError; the cursor does not move.
+// fence), and one of Slots advisory slots
+// (pg_try_advisory_xact_lock(SlotLockClass, slot); it never waits). A miss on
+// any of them rolls back and returns a non-counting *RetryError; the cursor
+// does not move. The generation locks are bounded, not non-blocking: SKIP
+// LOCKED does not cover PostgreSQL's update-chain walk, so they run under a
+// 250 ms transaction-local lock_timeout, and a timeout is the non-counting
+// generation_lock_timeout. A ledger row is written only while every
+// generation it names is locked, so retention's delete of a pruned
+// generation's rows is complete.
 // A failure once the link statement ran returns a counting *FailureError;
 // RecordFailure counts it on the cursor row with backoff and, at the limit,
 // turns the activation into a link_poisoned chain break. A full generation links as root (no state yet), incremental

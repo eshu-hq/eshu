@@ -101,9 +101,6 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 	return outcomeFailed
 }
 
-// recordCanceled reports a link the runner's shutdown cut short, during the
-// link or during the record of its failure: an INFO log and
-// outcome=canceled, with no cursor record and no ERROR.
 // journalRetry reports a journal pass that gave way on a lock
 // (generation_lock_timeout) on the retries counter and in a WARN log line
 // with the SQLSTATE, and returns true. Any other error returns false.
@@ -124,6 +121,9 @@ func (r *Runner) journalRetry(ctx context.Context, err error) bool {
 	return true
 }
 
+// recordCanceled reports a link the runner's shutdown cut short, during the
+// link or during the record of its failure: an INFO log and
+// outcome=canceled, with no cursor record and no ERROR.
 func (r *Runner) recordCanceled(ctx context.Context, span trace.Span, scopeID string, err error, attrs ...any) linkOutcome {
 	r.count(ctx, store.LinkKindNone, outcomeCanceled)
 	if span != nil {

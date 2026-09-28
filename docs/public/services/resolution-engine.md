@@ -152,9 +152,12 @@ has no lock timeout. The wait ends when the retention transaction commits.
 Watch `eshu_dp_generation_retention_rows_pruned_total{table="changed_since_link_deltas"}`
 and the `eshu_dp_changed_since_deltas_bytes` gauge: a delta table that grows
 while retention prunes nothing from it means retention is not keeping up.
-Retention leaves at most one link per scope whose prior generation it had
-already pruned (the link writer does not lock the prior); that link goes with
-its own generation.
+No ledger row outlives a generation it names: the link writer locks both
+generations a link names, so retention skips them until the link commits.
+When a link's prior was already pruned, the writer rebases instead: it moves
+the state by the same diff, records a root link, and reports the
+`prior_pruned` chain break. `eshu_dp_changed_since_ledger_orphans` watches
+this and stays at zero, apart from a deleted scope until its purge.
 
 A cycle does four things:
 - It journals active generations that have no activation row.
@@ -164,8 +167,13 @@ A cycle does four things:
 - It deletes the ledger rows of deleted scopes.
 
 A link transaction takes its scope's cursor row, then its generation row, then
-for a full link one of `ESHU_CHANGED_SINCE_LINK_SLOTS` database-wide advisory
-slots. It never waits: a miss rolls back and is retried on the next cycle. A
+for a full link the generation it links from (the prior), then one of
+`ESHU_CHANGED_SINCE_LINK_SLOTS` database-wide advisory slots. The cursor lock
+and the slot never wait. Each generation lock waits at most 250 ms: PostgreSQL
+can wait on a row's update chain despite `SKIP LOCKED`, so the link sets a
+transaction-local `lock_timeout` and a timeout is the non-counting
+`generation_lock_timeout`. A miss rolls back and is retried on the next cycle.
+The journal pass's backfill runs under the same bound. A
 full link reads the activating generation once at `work_mem` 256MB (backend
 memory up to about 1 GiB) under `ESHU_CHANGED_SINCE_LINK_STATEMENT_TIMEOUT`.
 
@@ -386,7 +394,10 @@ Start with:
   `eshu_dp_changed_since_chain_breaks_total{reason}`,
   `eshu_dp_changed_since_link_retrying_scopes`, `eshu_dp_changed_since_link_poisoned_scopes`,
   `eshu_dp_changed_since_link_backlog`, `eshu_dp_changed_since_link_lag_seconds`,
-  span `reducer.changed_since_link`
+  `eshu_dp_changed_since_ledger_orphans{kind}`, span `reducer.changed_since_link`
+  (retry reasons: `cursor_locked`, `generation_locked`,
+  `generation_lock_timeout`, `slot_busy`; chain-break reason `prior_pruned` is
+  a rebase that also counts as a linked root)
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - graph-backed gauge snapshot health: `eshu_dp_gauge_snapshot_refreshes_total`,
   `eshu_dp_gauge_snapshot_refresh_duration_seconds`,
