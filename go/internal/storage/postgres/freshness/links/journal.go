@@ -144,16 +144,29 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 	if err != nil {
 		return fmt.Errorf("changed-since journal: backfill chains: %w", err)
 	}
-	lastScope := ""
+	// A row that inserts nothing (its generation is held by retention or
+	// already pruned, or the row exists) ends its scope's chain for this pass
+	// (arbiter ruling arb-7127-3d, C3): a later row would name it as its
+	// prior. The sweeper still journals the active generation.
+	lastScope, ended := "", ""
 	for _, row := range chain {
+		if row.scopeID == ended {
+			continue
+		}
 		res, err := tx.ExecContext(ctx, insertActivationQuery,
 			row.scopeID, row.generationID, row.priorID, SourceBackfill, row.activatedAt)
 		if err != nil {
 			return fmt.Errorf("changed-since journal: insert backfill activation: %w", err)
 		}
-		if n, err := res.RowsAffected(); err == nil {
-			result.BackfillRows += n
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("changed-since journal: insert backfill activation: %w", err)
 		}
+		if n == 0 {
+			ended = row.scopeID
+			continue
+		}
+		result.BackfillRows += n
 		if row.scopeID != lastScope {
 			result.BackfillScopes++
 			lastScope = row.scopeID
@@ -220,6 +233,37 @@ func (s *JournalStore) Stats(ctx context.Context) (LedgerStats, error) {
 		return LedgerStats{}, fmt.Errorf("changed-since journal: ledger size: %w", err)
 	}
 	return stats, nil
+}
+
+// LedgerOrphans is one reading of the orphan probe (arbiter ruling
+// arb-7127-3d): ledger rows that name a generation with no scope_generations
+// row, and bucket-count groups with no link row. With every ledger writer
+// fencing the generations it names (PR-3e), all three stay zero outside the
+// short window between a scope's deletion and the orphan-scope purge.
+type LedgerOrphans struct {
+	// Links are links whose generation or non-empty prior generation has no
+	// scope_generations row.
+	Links int64
+	// Activations are activation rows whose generation has no
+	// scope_generations row.
+	Activations int64
+	// HeadlessBucketGroups are (scope, generation, prior) groups of bucket
+	// counts with no link row.
+	HeadlessBucketGroups int64
+}
+
+// Orphans runs the orphan probe. It scans the link, activation and
+// bucket-count tables, so callers sample it sparingly.
+func (s *JournalStore) Orphans(ctx context.Context) (LedgerOrphans, error) {
+	if s == nil || s.database == nil {
+		return LedgerOrphans{}, errors.New("changed-since journal database is required")
+	}
+	var orphans LedgerOrphans
+	if err := queryOne(ctx, s.database, ledgerOrphansQuery, nil,
+		&orphans.Links, &orphans.Activations, &orphans.HeadlessBucketGroups); err != nil {
+		return LedgerOrphans{}, fmt.Errorf("changed-since journal: orphan probe: %w", err)
+	}
+	return orphans, nil
 }
 
 // OrphanScopes returns up to limit scopes with ledger rows and no

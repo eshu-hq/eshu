@@ -104,6 +104,12 @@ func registerChangedSinceLinkInstruments(meter metric.Meter, inst *Instruments) 
 	); err != nil {
 		return fmt.Errorf("register ChangedSinceDeltasRows gauge: %w", err)
 	}
+	if inst.ChangedSinceLedgerOrphans, err = meter.Int64Gauge(
+		"eshu_dp_changed_since_ledger_orphans",
+		metric.WithDescription("Changed-since ledger rows naming a pruned generation, or bucket counts with no link, by kind"),
+	); err != nil {
+		return fmt.Errorf("register ChangedSinceLedgerOrphans gauge: %w", err)
+	}
 	if inst.ChangedSinceLinkDuration, err = meter.Float64Histogram(
 		"eshu_dp_changed_since_link_duration_seconds",
 		metric.WithDescription("Committed changed-since link transaction duration by link_kind"),

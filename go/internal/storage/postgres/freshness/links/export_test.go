@@ -14,3 +14,8 @@ const (
 	RetentionRowCountsQueryForTest = retentionRowCountsQuery
 	RetentionDoomedLinksCTEForTest = retentionDoomedLinksCTE
 )
+
+// InsertBackfillActivationQueryForTest exposes the backfill's activation
+// insert, so a test can run it against a pruned or a held generation (#7127
+// PR-3e, arbiter ruling arb-7127-3d C3).
+const InsertBackfillActivationQueryForTest = insertActivationQuery

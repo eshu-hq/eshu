@@ -43,16 +43,16 @@ func changeEvery(scope int) int {
 }
 
 type retentionRaceTotals struct {
-	Linked, Breaks, PrunedBeforeLink, GenerationLocked, Batches, GenerationsPruned, OverLimitBatches int
-	MaxBatchMillis                                                                                   int64
+	Linked, Breaks, PrunedBeforeLink, GenerationLocked, Rebases, Batches, GenerationsPruned, OverLimitBatches int
+	MaxBatchMillis                                                                                            int64
 }
 
 // outcomeCounter wraps the production writer and counts the outcomes
 // retention can cause.
 type outcomeCounter struct {
 	*store.LinkWriter
-	mu                          sync.Mutex
-	prunedBeforeLink, genLocked int
+	mu                                   sync.Mutex
+	prunedBeforeLink, genLocked, rebases int
 }
 
 func (c *outcomeCounter) LinkNext(ctx context.Context, scopeID string) (store.LinkResult, error) {
@@ -64,6 +64,9 @@ func (c *outcomeCounter) LinkNext(ctx context.Context, scopeID string) (store.Li
 	}
 	if result.Break == store.BreakPrunedBeforeLink {
 		c.prunedBeforeLink++
+	}
+	if result.Break == store.BreakPriorPruned {
+		c.rebases++
 	}
 	return result, err
 }
@@ -100,7 +103,7 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 				idle = 0
 			}
 		}
-		totals.PrunedBeforeLink, totals.GenerationLocked = counter.prunedBeforeLink, counter.genLocked
+		totals.PrunedBeforeLink, totals.GenerationLocked, totals.Rebases = counter.prunedBeforeLink, counter.genLocked, counter.rebases
 	case "retention":
 		retention := postgres.NewGenerationRetentionStore(db)
 		// 2,000 facts per generation fit the limit alone; a link over the
@@ -147,8 +150,10 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 //   - (b) every retention batch returned within 1 s while links ran;
 //   - (c) the writer's generation_locked retries and pruned_before_link
 //     breaks are reported (the ways retention shows through to the writer);
-//   - (d) no link-delta or bucket-count row is without its link row, and
-//     each scope holds at most one link whose prior was pruned (the bound);
+//   - (d) no link-delta or bucket-count row is without its link row, and no
+//     link names a pruned prior: the writer fences the prior too (PR-3e,
+//     C1), so a race on a prior ends in a skip, a generation_locked or a
+//     rebase, and the orphan probe is zero;
 //   - no generation is pruned twice: one retention event per generation.
 func TestLinkAndRetentionProcessesRace(t *testing.T) {
 	if role := os.Getenv(retentionChildEnv); role != "" {
@@ -255,16 +260,14 @@ WHERE NOT EXISTS (SELECT 1 FROM changed_since_links AS l WHERE l.scope_id = b.sc
                     AND l.generation_id = b.generation_id AND l.prior_generation_id = b.prior_generation_id)`); n != 0 {
 		t.Fatalf("(d) %d bucket groups have no link row", n)
 	}
-	if n := l.queryInt(t, `SELECT COALESCE(max(n), 0) FROM (
-    SELECT l.scope_id, count(*) AS n FROM changed_since_links AS l
-    WHERE l.prior_generation_id <> ''
-      AND NOT EXISTS (SELECT 1 FROM scope_generations AS g WHERE g.generation_id = l.prior_generation_id)
-    GROUP BY l.scope_id) AS per_scope`); n > 1 {
-		t.Fatalf("(d) a scope holds %d links with a pruned prior, want at most 1", n)
+	orphans, err := store.NewJournalStore(l.store).Orphans(l.ctx)
+	if err != nil {
+		t.Fatalf("orphan probe: %v", err)
 	}
-	orphans := l.queryInt(t, `SELECT count(*) FROM changed_since_links AS l WHERE l.prior_generation_id <> ''
-  AND NOT EXISTS (SELECT 1 FROM scope_generations AS g WHERE g.generation_id = l.prior_generation_id)`)
+	if orphans != (store.LedgerOrphans{}) {
+		t.Fatalf("(d) orphan probe = %+v after the race, want zeros (no ledger row names a pruned generation)", orphans)
+	}
 	// (c)
-	t.Logf("P7: %d scopes, %d retention batches (max %d ms), %d links, %d breaks (%d pruned_before_link), %d generation_locked retries, %d orphan links, %d over-limit batches",
-		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, orphans, retention.OverLimitBatches)
+	t.Logf("P7: %d scopes, %d retention batches (max %d ms), %d links (%d rebases), %d breaks (%d pruned_before_link), %d generation_locked retries, orphan probe %+v, %d over-limit batches",
+		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Rebases, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, orphans, retention.OverLimitBatches)
 }

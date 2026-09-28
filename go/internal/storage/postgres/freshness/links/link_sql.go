@@ -136,28 +136,12 @@ lnk AS (
 SELECT delta_rows, files_keys, content_entities_keys, facts_keys FROM lnk
 `
 
-// IncrementalLinkSQL links the scope's state at $3 to the full generation
-// $2 in one statement (#7127 ruling 8.3, shape L1b): aggregate $2, full-join
-// it with the scope's state rows, record every differing or tombstoned key as
-// a link delta with its classification, count the buckets, and move the state
-// to $2. A full generation can drop any key, so every state row of the scope
-// is visited; the state side is read by the primary key's scope_id prefix.
-// The result row ends with the deleted, upserted and bucket counts, the
-// expected deletes and upserts, and the deleted rows of another scope; the
-// writer fails the link unless they agree (the row-count invariant).
-//
-// Classification per key, matching changedSinceDeltaQuery for two full
-// generations: no prior and no current active row is dropped (a tombstone of
-// a key that was not live); no prior is added; no current and tombstoned is
-// retired; no current is superseded; differing digests are updated; an equal
-// digest with a changed kind is unchanged (the row exists to move the state's
-// kind).
-//
-// $1 scope_id, $2 activating generation, $3 state generation (prior),
-// $4 digest_version, $5 computed_at.
-const IncrementalLinkSQL = `
-WITH ` + keyAggregateCTE + `,
-diff AS MATERIALIZED (
+// stateDiffCTE is the diff of the scope's state rows against the activating
+// generation's aggregate (cur): one row per key whose state digest or kind
+// differs, or which the generation tombstones. The incremental and the rebase
+// statements share it byte for byte, so a rebase moves the state exactly as
+// an incremental link of the same pair would. $1 scope_id.
+const stateDiffCTE = `diff AS MATERIALIZED (
     SELECT COALESCE(s.fact_category, c.cat) AS cat,
            COALESCE(s.stable_fact_key, c.stable_fact_key) AS k,
            s.fact_kind AS prior_kind, COALESCE(c.kind, c.any_kind) AS current_kind,
@@ -169,23 +153,13 @@ diff AS MATERIALIZED (
     WHERE s.state IS DISTINCT FROM c.state
        OR (c.state IS NOT NULL AND s.fact_kind IS DISTINCT FROM c.kind)
        OR COALESCE(c.tombstoned, FALSE)
-),
-ins AS (
-    INSERT INTO changed_since_link_deltas
-        (scope_id, generation_id, prior_generation_id, fact_category, classification, stable_fact_key,
-         prior_fact_kind, current_fact_kind, prior_state, current_state, current_tombstoned)
-    SELECT $1, $2, $3, d.cat,
-           CASE WHEN d.prior_state IS NULL AND d.current_state IS NULL THEN 'dropped'
-                WHEN d.prior_state IS NULL THEN 'added'
-                WHEN d.current_state IS NULL AND d.tombstoned THEN 'retired'
-                WHEN d.current_state IS NULL THEN 'superseded'
-                WHEN d.prior_state <> d.current_state THEN 'updated'
-                ELSE 'unchanged' END,
-           d.k, d.prior_kind, d.current_kind, d.prior_state, d.current_state, d.tombstoned
-    FROM diff AS d
-    RETURNING fact_category, classification
-),
-del AS (
+)`
+
+// stateMoveCTEs move the state rows to the activating generation from the
+// diff: del deletes the rows whose key has no current state, ups writes the
+// changed ones. Only changed keys are written. Shared by the incremental and
+// the rebase statements. $1 scope_id.
+const stateMoveCTEs = `del AS (
     -- Delete by the ctid the diff read, with NO indexable predicate on the
     -- target (#7127 arbiter ruling arb-7127-g8). A key join, or a scope_id
     -- predicate here, gives the planner an index path on the state table,
@@ -207,7 +181,46 @@ ups AS (
     ON CONFLICT (scope_id, fact_category, stable_fact_key)
     DO UPDATE SET fact_kind = EXCLUDED.fact_kind, state = EXCLUDED.state, owner_uri = EXCLUDED.owner_uri
     RETURNING 1
+)`
+
+// IncrementalLinkSQL links the scope's state at $3 to the full generation
+// $2 in one statement (#7127 ruling 8.3, shape L1b): aggregate $2, full-join
+// it with the scope's state rows, record every differing or tombstoned key as
+// a link delta with its classification, count the buckets, and move the state
+// to $2. A full generation can drop any key, so every state row of the scope
+// is visited; the state side is read by the primary key's scope_id prefix.
+// The result row ends with the deleted, upserted and bucket counts, the
+// expected deletes and upserts, and the deleted rows of another scope; the
+// writer fails the link unless they agree (the row-count invariant).
+//
+// Classification per key, matching changedSinceDeltaQuery for two full
+// generations: no prior and no current active row is dropped (a tombstone of
+// a key that was not live); no prior is added; no current and tombstoned is
+// retired; no current is superseded; differing digests are updated; an equal
+// digest with a changed kind is unchanged (the row exists to move the state's
+// kind).
+//
+// $1 scope_id, $2 activating generation, $3 state generation (prior),
+// $4 digest_version, $5 computed_at.
+const IncrementalLinkSQL = `
+WITH ` + keyAggregateCTE + `,
+` + stateDiffCTE + `,
+ins AS (
+    INSERT INTO changed_since_link_deltas
+        (scope_id, generation_id, prior_generation_id, fact_category, classification, stable_fact_key,
+         prior_fact_kind, current_fact_kind, prior_state, current_state, current_tombstoned)
+    SELECT $1, $2, $3, d.cat,
+           CASE WHEN d.prior_state IS NULL AND d.current_state IS NULL THEN 'dropped'
+                WHEN d.prior_state IS NULL THEN 'added'
+                WHEN d.current_state IS NULL AND d.tombstoned THEN 'retired'
+                WHEN d.current_state IS NULL THEN 'superseded'
+                WHEN d.prior_state <> d.current_state THEN 'updated'
+                ELSE 'unchanged' END,
+           d.k, d.prior_kind, d.current_kind, d.prior_state, d.current_state, d.tombstoned
+    FROM diff AS d
+    RETURNING fact_category, classification
 ),
+` + stateMoveCTEs + `,
 bk AS (
     INSERT INTO changed_since_link_bucket_counts
         (scope_id, generation_id, prior_generation_id, fact_category, classification, key_count)
@@ -232,6 +245,40 @@ SELECT delta_rows, files_keys, content_entities_keys, facts_keys,
        (SELECT count(*) FROM del),
        (SELECT count(*) FROM ups),
        (SELECT count(*) FROM bk),
+       (SELECT count(*) FROM diff WHERE current_state IS NULL AND state_ctid IS NOT NULL),
+       (SELECT count(*) FROM diff WHERE current_state IS NOT NULL),
+       (SELECT count(*) FROM del WHERE scope_id IS DISTINCT FROM $1)
+FROM lnk
+`
+
+// RebaseLinkSQL moves the scope's state to the full generation $2 when the
+// state generation was pruned (arbiter ruling arb-7127-3d, C2). It runs the
+// incremental statement's diff and state move, so only changed keys are
+// written, and records a root link with an empty prior: no link delta or
+// bucket row names the pruned generation. The result row carries the key
+// counts and the same deleted, upserted, expected and foreign-delete counts
+// as IncrementalLinkSQL, for the same row-count invariant.
+//
+// $1 scope_id, $2 activating generation, $3 digest_version, $4 computed_at.
+const RebaseLinkSQL = `
+WITH ` + keyAggregateCTE + `,
+` + stateDiffCTE + `,
+` + stateMoveCTEs + `,
+lnk AS (
+    INSERT INTO changed_since_links
+        (scope_id, generation_id, prior_generation_id, link_kind, digest_version, delta_rows,
+         files_keys, content_entities_keys, facts_keys, computed_at)
+    SELECT $1, $2, '', 'root', $3, 0,
+           count(*) FILTER (WHERE state IS NOT NULL AND cat = 'files'),
+           count(*) FILTER (WHERE state IS NOT NULL AND cat = 'content_entities'),
+           count(*) FILTER (WHERE state IS NOT NULL AND cat = 'facts'),
+           $4
+    FROM cur
+    RETURNING delta_rows, files_keys, content_entities_keys, facts_keys
+)
+SELECT delta_rows, files_keys, content_entities_keys, facts_keys,
+       (SELECT count(*) FROM del),
+       (SELECT count(*) FROM ups),
        (SELECT count(*) FROM diff WHERE current_state IS NULL AND state_ctid IS NOT NULL),
        (SELECT count(*) FROM diff WHERE current_state IS NOT NULL),
        (SELECT count(*) FROM del WHERE scope_id IS DISTINCT FROM $1)

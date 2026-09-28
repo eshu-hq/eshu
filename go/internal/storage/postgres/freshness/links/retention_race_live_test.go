@@ -67,9 +67,12 @@ func (l *ledgerDB) seedRootedScope(t *testing.T, w *linksfreshnessstore.LinkWrit
 }
 
 // TestRetentionDoesNotWaitOnALinkInFlight is the insert-then-delete half of
-// the race. A link transaction holds the activating generation FOR KEY SHARE
-// and has inserted (x1 -> x0) rows, uncommitted, when retention prunes x0 (the
-// link's prior, which the writer does not lock). Retention does not wait: it
+// the race, with a hand-written link transaction that locks only the
+// activating generation, as the writer did before PR-3e: it proves the ledger
+// delete statement itself keeps a late link whole, whatever a writer locks.
+// The link has inserted (x1 -> x0) rows, uncommitted, when retention prunes x0
+// (the link's prior, which this transaction does not lock; the real writer
+// now does, see TestRetentionRacesLinkWriter). Retention does not wait: it
 // cannot see the uncommitted rows and deletes only the committed ones. The
 // link then commits with a pruned prior. That row is deleted by the batch that
 // prunes x1, so the ledger converges.
@@ -131,9 +134,10 @@ func TestRetentionDoesNotWaitOnALinkInFlight(t *testing.T) {
 // TestLinkWriterDoesNotWaitOnRetentionInFlight is the delete-then-insert half.
 // A retention transaction holds the scope and x0 FOR UPDATE and has deleted
 // x0's ledger rows and generation row, uncommitted, when the real link writer
-// links x1 from the state at x0. The writer does not wait (it locks the cursor
-// and x1 only) and commits (x1 -> x0); retention then commits. The link is
-// deleted by the batch that prunes x1.
+// links x1 from the state at x0. The writer fences the prior (PR-3e, C1): x0's
+// row is still visible but locked, so the writer returns generation_locked
+// without waiting and writes nothing. Once retention commits, the next link
+// finds x0 gone and rebases (C2); no link ever names the pruned x0.
 func TestLinkWriterDoesNotWaitOnRetentionInFlight(t *testing.T) {
 	l := openLedgerDB(t)
 	w := linksfreshnessstore.NewLinkWriter(l.store)
@@ -163,20 +167,19 @@ func TestLinkWriterDoesNotWaitOnRetentionInFlight(t *testing.T) {
 		t.Fatalf("delete w0: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(l.ctx, noWait)
-	defer cancel()
-	result, err := w.LinkNext(ctx, "scope-w")
-	if err != nil {
-		t.Fatalf("LinkNext with retention in flight: %v", err)
-	}
-	if result.Kind != linksfreshnessstore.LinkKindIncremental || result.PriorGenerationID != "w0" {
-		t.Fatalf("link = %+v, want incremental w0 -> w1", result)
-	}
+	l.requireGenerationLocked(t, w, "scope-w")
 	if err := retention.Commit(); err != nil {
 		t.Fatalf("commit retention: %v", err)
 	}
-	if n := l.queryInt(t, `SELECT count(*) FROM changed_since_links WHERE prior_generation_id = 'w0'`); n != 1 {
-		t.Fatalf("%d links with prior w0 after the race, want 1", n)
+	result := mustLink(t, w, l, "scope-w")
+	if result.Kind != linksfreshnessstore.LinkKindRoot || result.Break != linksfreshnessstore.BreakPriorPruned || result.RebasedFrom != "w0" {
+		t.Fatalf("link after retention committed = %+v, want a root rebase w0 -> w1", result)
+	}
+	if n := l.queryInt(t, `SELECT count(*) FROM changed_since_links WHERE prior_generation_id = 'w0'`); n != 0 {
+		t.Fatalf("%d links with prior w0 after the race, want 0", n)
+	}
+	if links, activations, headless := l.probe(t); links+activations+headless != 0 {
+		t.Fatalf("probe = %d/%d/%d, want zeros", links, activations, headless)
 	}
 
 	l.supersede(t, "scope-w", "w1", "w2")
@@ -222,14 +225,20 @@ func TestRetentionSkipsTheGenerationALinkHolds(t *testing.T) {
 }
 
 // TestRetentionRacesLinkWriter runs the real link writer and a real retention
-// batch at once, 20 times on fresh scopes. Neither may fail or wait out the
-// bound; either order is correct; and once each x1 is pruned no ledger row
-// names x0 or x1.
+// batch at once on the link's prior x0, 24 times on fresh scopes, each from
+// its own pooled session. Neither may fail or wait out the bound. Each race
+// ends one of the ways PR-3e allows (arbiter ruling arb-7127-3d, "FOR THE
+// COORDINATOR TO FILE" item 1): retention skipped x0 because the link held it
+// (skip), the link committed first and retention then pruned x0 with its link
+// (link_then_prune), retention held x0 and the link got generation_locked
+// (then the retry rebases), or retention pruned x0 first and the link rebased.
+// Never an orphan: the probe is zero after every race, and no delta or bucket
+// row is without its link.
 func TestRetentionRacesLinkWriter(t *testing.T) {
 	l := openLedgerDB(t)
 	w := linksfreshnessstore.NewLinkWriter(l.store)
-	const races = 20
-	orders := map[string]int{}
+	const races = 24
+	outcomes := map[string]int{}
 	for i := range races {
 		scope, x0, x1 := fmt.Sprintf("race-%02d", i), fmt.Sprintf("x%02d-0", i), fmt.Sprintf("x%02d-1", i)
 		l.seedRootedScope(t, w, scope, x0, x1)
@@ -237,40 +246,69 @@ func TestRetentionRacesLinkWriter(t *testing.T) {
 		var wg sync.WaitGroup
 		var linkErr, pruneErr error
 		var linked linksfreshnessstore.LinkResult
+		// Stagger the starts so both orders happen: even races delay the link,
+		// odd races delay the prune, by 0 to 14 ms.
+		linkDelay, pruneDelay := raceOffset(i), time.Duration(0)
+		if i%2 == 1 {
+			linkDelay, pruneDelay = 0, raceOffset(i)
+		}
+		start := make(chan struct{})
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
+			<-start
+			time.Sleep(linkDelay)
 			linked, linkErr = w.LinkNext(ctx, scope)
 		}()
 		go func() {
 			defer wg.Done()
+			<-start
+			time.Sleep(pruneDelay)
 			_, pruneErr = postgres.NewGenerationRetentionStore(l.store).PruneSupersededGenerations(ctx, prunePolicy(1_000_000))
 		}()
+		close(start)
 		wg.Wait()
 		cancel()
-		if linkErr != nil || pruneErr != nil {
-			t.Fatalf("race %d: link error %v, prune error %v", i, linkErr, pruneErr)
+		if pruneErr != nil {
+			t.Fatalf("race %d: prune error %v", i, pruneErr)
 		}
-		if linked.Kind != linksfreshnessstore.LinkKindIncremental {
-			t.Fatalf("race %d: link = %+v, want incremental", i, linked)
+		x0Present := l.queryInt(t, `SELECT count(*) FROM scope_generations WHERE generation_id = $1`, x0) == 1
+		outcome := ""
+		switch reason, retry := linksfreshnessstore.RetryReasonOf(linkErr); {
+		case retry && reason == linksfreshnessstore.RetryGenerationLocked:
+			outcome = "generation_locked"
+			if x0Present {
+				// Retention held x0 for another reason and did not prune it.
+				l.prune(t, l.ctx)
+			}
+			if again := mustLink(t, w, l, scope); again.Break != linksfreshnessstore.BreakPriorPruned || again.RebasedFrom != x0 {
+				t.Fatalf("race %d: retry after generation_locked = %+v, want a rebase from %s", i, again, x0)
+			}
+		case linkErr != nil:
+			t.Fatalf("race %d: link error %v", i, linkErr)
+		case linked.Break == linksfreshnessstore.BreakPriorPruned:
+			outcome = "rebase"
+			if linked.Kind != linksfreshnessstore.LinkKindRoot || linked.RebasedFrom != x0 || x0Present {
+				t.Fatalf("race %d: rebase %+v with x0 present %v", i, linked, x0Present)
+			}
+		case linked.Kind == linksfreshnessstore.LinkKindIncremental && linked.PriorGenerationID == x0:
+			outcome = "link_then_prune"
+			if x0Present {
+				outcome = "skip"
+			}
+		default:
+			t.Fatalf("race %d: link = %+v, not an allowed ending", i, linked)
+		}
+		outcomes[outcome]++
+		if links, activations, headless := l.probe(t); links+activations+headless != 0 {
+			t.Fatalf("race %d (%s): probe = %d/%d/%d, want zeros", i, outcome, links, activations, headless)
 		}
 		if n := l.headlessDeltas(t); n != 0 {
 			t.Fatalf("race %d: %d delta rows have no link row", i, n)
 		}
-		if _, _, headless := l.probe(t); headless != 0 {
-			t.Fatalf("race %d: %d bucket groups have no link row", i, headless)
-		}
-		switch n := l.queryInt(t, `SELECT count(*) FROM changed_since_links WHERE prior_generation_id = $1`, x0); n {
-		case 0:
-			orders["link_then_prune"]++
-		case 1:
-			orders["prune_then_link"]++
-		default:
-			t.Fatalf("race %d: %d links with prior %s", i, n, x0)
-		}
 		l.supersede(t, scope, x1, fmt.Sprintf("x%02d-2", i))
 	}
-	t.Logf("orders over %d races: %v", races, orders)
+	t.Logf("endings over %d races: %v", races, outcomes)
 	for l.prune(t, l.ctx).GenerationsPruned > 0 {
 	}
 	for i := range races {
@@ -278,7 +316,13 @@ func TestRetentionRacesLinkWriter(t *testing.T) {
 			t.Fatalf("race %d: %d ledger rows name a pruned generation", i, n)
 		}
 	}
+	if links, activations, headless := l.probe(t); links+activations+headless != 0 {
+		t.Fatalf("probe after the final prunes = %d/%d/%d, want zeros", links, activations, headless)
+	}
 }
+
+// raceOffset is the start delay of race i's later side.
+func raceOffset(i int) time.Duration { return time.Duration((i/2)%8) * 2 * time.Millisecond }
 
 // seedOrphanScope links a chain on scopeID and then deletes its
 // ingestion_scopes row (cascading its generations), leaving ledger rows the

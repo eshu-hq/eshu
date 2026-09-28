@@ -213,6 +213,12 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 	if cursor.stateGenerationID == act.generationID {
 		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
 	}
+	priorPresent := false
+	if cursor.stateGenerationID != "" {
+		if priorPresent, err = fencePrior(ctx, tx, scopeID, cursor.stateGenerationID); err != nil {
+			return LinkResult{}, withActivation(err, scopeID, act.seq)
+		}
+	}
 	if err := w.takeSlot(ctx, tx); err != nil {
 		return LinkResult{}, withActivation(err, scopeID, act.seq)
 	}
@@ -220,9 +226,12 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 		return LinkResult{}, err
 	}
 	*failed = &FailureError{ScopeID: scopeID, GenerationID: act.generationID, ActivationSeq: act.seq}
-	if cursor.stateGenerationID == "" {
+	switch {
+	case cursor.stateGenerationID == "":
 		err = w.root(ctx, tx, scopeID, act.generationID, &result)
-	} else {
+	case !priorPresent:
+		err = w.rebase(ctx, tx, scopeID, act.generationID, cursor.stateGenerationID, &result)
+	default:
 		err = w.incremental(ctx, tx, scopeID, act.generationID, cursor.stateGenerationID, &result)
 	}
 	if err == nil {

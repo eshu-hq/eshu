@@ -13,7 +13,9 @@ import (
 type LinkKind string
 
 const (
-	// LinkKindRoot builds a scope's state from its first full generation.
+	// LinkKindRoot builds a scope's state from its first full generation. A
+	// rebase (Break BreakPriorPruned) is also written as a root link: its
+	// prior was pruned, so no delta or bucket rows name it.
 	LinkKindRoot LinkKind = "root"
 	// LinkKindIncremental links the state generation to a later full
 	// generation in one aggregate of the later generation.
@@ -46,6 +48,13 @@ const (
 	// kept the state, and set the scope's poison marker, which the next full
 	// link clears (#7127 ruling 8.10).
 	BreakLinkPoisoned BreakReason = "link_poisoned"
+	// BreakPriorPruned means the state generation (the link's prior) was
+	// pruned before a full generation linked from it. The writer rebased: the
+	// same diff moved the state to the activating generation, writing only
+	// the changed keys, and recorded a root link with no delta or bucket rows
+	// (arbiter ruling arb-7127-3d, C2). Unlike the other breaks, it comes with
+	// a link (Kind root) and the state moves.
+	BreakPriorPruned BreakReason = "prior_pruned"
 )
 
 // RetryReason names a non-counting outcome: a non-blocking lock miss. The
@@ -116,6 +125,10 @@ type LinkResult struct {
 	ActivationSeq     int64
 	Kind              LinkKind
 	Break             BreakReason
+	// RebasedFrom is the pruned state generation a rebase moved the state
+	// from (Break BreakPriorPruned); empty otherwise. The link row itself
+	// records an empty prior.
+	RebasedFrom string
 
 	// DeltaRows is the number of link delta rows written.
 	DeltaRows int64

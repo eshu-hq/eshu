@@ -40,17 +40,35 @@ is the multixact shape that deadlocked the projector claim in #7115.
 4. For a delta generation, record a chain break (`delta_without_root`,
    `prior_mismatch`, or `overlay_unproven`), advance the cursor, and keep the
    state.
-5. For a full generation, take one of `Slots` advisory slots
-   (`slot_busy` when none is free). Then `SET LOCAL work_mem = '256MB'`,
-   `plan_cache_mode = force_custom_plan` and `statement_timeout`, and run one
-   statement: `RootLinkSQL` when there is no state yet, otherwise
+5. For a full generation with a state at another generation X (the link's
+   prior), fence X (arbiter ruling arb-7127-3d, C1): a plain existence read
+   of X, then, if X exists, `FOR KEY SHARE SKIP LOCKED` on it. No row back
+   means retention holds X: `generation_locked`. If X no longer exists,
+   retention pruned it and the link is a rebase (step 6).
+6. Take one of `Slots` advisory slots (`slot_busy` when none is free). Then
+   `SET LOCAL work_mem = '256MB'`, `plan_cache_mode = force_custom_plan` and
+   `statement_timeout`, and run one statement: `RootLinkSQL` when there is no
+   state yet, `RebaseLinkSQL` when X was pruned, otherwise
    `IncrementalLinkSQL`.
-6. Advance the cursor. Commit.
+7. Advance the cursor. Commit.
+
+The lock order is cursor, activating generation, prior, slot. Every step is
+non-blocking, and generation retention never waits on anything a link
+holds, so no lock order with retention can deadlock.
+
+**Rebase** (C2). `RebaseLinkSQL` shares the incremental statement's diff and
+state move (`stateDiffCTE`, `stateMoveCTEs`), so it writes exactly the keys
+an incremental link of the same pair would write, never the whole scope. It
+records the link as `root` with an empty prior and writes no link delta or
+bucket row, because the only prior it could name is gone. The result is
+`Kind` root with `Break` `prior_pruned` and `RebasedFrom` X. A read from X
+answers `retention_expired` anyway: X is resolved from `scope_generations`.
 
 Outcomes (#7127 ruling 8.10):
 
-- **Non-counting, no write:** `cursor_locked`, `generation_locked`, `slot_busy`
-  (`*RetryError`, which satisfies the reducer's `contract.RetryableError`).
+- **Non-counting, no write:** `cursor_locked`, `generation_locked` (the
+  activating generation or the prior), `slot_busy` (`*RetryError`, which
+  satisfies the reducer's `contract.RetryableError`).
 - **Counting:** a failure once the link statement ran (`*FailureError`):
   `statement_timeout` (57014 or the transaction deadline), `connection_lost`
   (57P01-57P03, class 08, a broken connection), `sql_error`, `internal`. A
@@ -72,8 +90,14 @@ Outcomes (#7127 ruling 8.10):
 `SlotLockClass`), so passes on different replicas cannot interleave. It first
 backfills retained chains for scopes with no journal rows, following
 `prior.superseded_at = next.activated_at` from the newest activated full
-generation to the active one. Then it journals every active generation that
-has no row, with a `NULL` prior. `BacklogScopes`, `Stats` and
+generation to the active one. Each backfilled row is inserted through its
+generation row, `INSERT ... SELECT ... FROM scope_generations ... FOR KEY
+SHARE OF generation SKIP LOCKED` (arbiter ruling arb-7127-3d, C3), so it
+exists only while the generation does and the pass holds the generation
+until it commits. A row that inserts nothing (the generation is held by
+retention or already pruned) ends that scope's chain for the pass; the rows
+after it would name it as their prior. Then it journals every active
+generation that has no row, with a `NULL` prior. `BacklogScopes`, `Stats` and
 `OrphanScopes`/`DeleteOrphanScope` serve the runner.
 
 ## Retention
@@ -133,35 +157,45 @@ probes of the full (scope, generation, prior) key prefix, then delete by
 ctid. `TestRetentionStatementPlanShape` pins this at 2M delta rows in four
 statistics states and three plan-cache modes.
 
-**The bound** (arbiter ruling arb-7127-3d, rationale 2). The link writer locks
-the activating generation, not the link's prior, so a link can be written
-after its prior was pruned: in a race, or when the writer lags past the
-retention window. Per scope, at any time:
+**The writer rule** (arbiter ruling arb-7127-3d, C4). The ruling-2.8 delete
+is complete only if every ledger writer holds `FOR KEY SHARE` on every
+generation it names until it commits. Then a row naming a generation commits
+before retention can lock that generation, and retention's delete statement
+sees it. The link writer locks the activating generation and the prior
+(`fencePrior`); the backfill inserts through the generation row. **Any later
+writer of a ledger row, `pairwise` (PR-3c) first, must lock both generations
+it names the same way**, non-blocking, after the cursor and before the slot.
+A writer that names a generation it did not lock can leave a row that
+names a pruned generation, which no retention rule finds again.
 
-- At most one link whose prior is gone, with its deltas (at most the keys of
-  X and G together) and its bucket counts (at most 18 rows). It is removed
-  when its `generation_id` is pruned. Exactly one incremental link in a
-  scope's history has prior X, and the next link has prior G, which can be an
-  orphan only if G was pruned first, and that batch deleted `(X -> G)` by the
-  generation side. This holds for the incremental chain only; a `pairwise`
-  writer that does not lock both ends breaks it.
-- Activation rows from a backfill that raced a prune: at most one chain (64
-  rows) per backfill episode, removed only when the scope is purged.
+With the rule in place no link or activation row names a pruned generation.
+Before PR-3e the writer did not lock the prior, and the bound was at most one
+such link per scope plus at most one backfill chain per racing episode; any
+such rows written then are removed when their other generation is pruned, or
+with the scope. The orphan probe (`JournalStore.Orphans`, sampled by the
+runner as `eshu_dp_changed_since_ledger_orphans`) watches the rule. It is
+non-zero only briefly for a deleted scope, until the orphan-scope purge.
 
-Such a row is accurate, not wrong: the state still is the effective state at
-X, so `(X -> G)` is the true diff of the pair. It is unreachable from a live
-read, because the since generation is resolved from `scope_generations`, so a
-pruned generation can never be the since generation, and every link whose
-`generation_id` is X was deleted with X. The fix at the source (the writer
-fencing the prior) is PR-3e.
+**One known wait.** `FOR KEY SHARE SKIP LOCKED` can still wait in one narrow
+race, on the activating generation and on the prior alike. A non-key update
+of the generation commits between the lock statement's snapshot and its
+row lock, while retention holds the new row version. Locking the old
+version then follows the update chain, and PostgreSQL's chain walk
+(`heap_lock_updated_tuple`) ignores `SKIP LOCKED`. The link waits for
+retention's transaction and then gets `generation_locked` (see the #7127
+PR-3e evidence). It is not a deadlock, because retention never waits on the
+link. The #7115 multixact shape itself (a running `KEY SHARE` member plus a
+committed updater) does not wait: the member's lock carries to the new
+version, so retention skips it (`TestPriorLockWithACommittedUpdaterDoesNotWait`).
 
 **Endings of an activation.** An activation ends as exactly one link, as
 exactly one break, or deleted by retention before the writer reaches it (its
-generation was pruned). The last ends without a link or a break.
+generation was pruned). The last ends without a link or a break. A rebase is
+a link that also reports the `prior_pruned` break.
 
-Lock interaction: a link transaction holds its activating generation
-`FOR KEY SHARE`, so retention's `FOR UPDATE SKIP LOCKED` candidate lock skips
-it until the link ends. The orphan-scope purge only takes scopes with no
+Lock interaction: a link transaction holds its activating generation and
+its prior `FOR KEY SHARE`, so retention's `FOR UPDATE SKIP LOCKED` candidate
+lock skips both until the link ends. The orphan-scope purge only takes scopes with no
 `ingestion_scopes` row, and retention holds its scopes' rows `FOR UPDATE`, so
 the two never touch the same scope.
 

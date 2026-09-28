@@ -6,6 +6,7 @@ package links
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -52,8 +53,11 @@ func (r *Runner) linkOne(ctx context.Context, scopeID string) linkOutcome {
 	if result.Idle {
 		return outcomeIdle
 	}
+	// A break without a link is outcome=break. A rebase (prior_pruned)
+	// wrote a root link and moved the state, so it is outcome=linked; its
+	// break is still counted on chain_breaks_total by recordLink.
 	outcome := outcomeLinked
-	if result.Break != "" {
+	if result.Break != "" && result.Kind == store.LinkKindNone {
 		outcome = outcomeBreak
 	}
 	r.recordLink(ctx, span, result, outcome)
@@ -184,6 +188,7 @@ func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.L
 			attribute.Int64("changed_since.activation_seq", result.ActivationSeq),
 			attribute.String("changed_since.link_kind", string(result.Kind)),
 			attribute.String("changed_since.break_reason", string(result.Break)),
+			attribute.String("changed_since.rebased_from_generation_id", result.RebasedFrom),
 			attribute.Int64("changed_since.delta_rows", result.DeltaRows),
 		)
 	}
@@ -195,6 +200,7 @@ func (r *Runner) recordLink(ctx context.Context, span trace.Span, result store.L
 			slog.Int64("activation_seq", result.ActivationSeq),
 			slog.String("link_kind", string(result.Kind)),
 			slog.String("break_reason", string(result.Break)),
+			slog.String("rebased_from_generation_id", result.RebasedFrom),
 			slog.Int64("delta_rows", result.DeltaRows),
 			slog.Int64("keys", result.Keys),
 			slog.Float64("duration_seconds", result.Duration.Seconds()),
@@ -234,6 +240,30 @@ func (r *Runner) recordGauges(ctx context.Context) {
 	r.Instruments.ChangedSinceDeltasRows.Record(ctx, stats.DeltaRows)
 	r.Instruments.ChangedSinceLinkRetryingScopes.Record(ctx, stats.RetryingScopes)
 	r.Instruments.ChangedSinceLinkPoisonedScopes.Record(ctx, stats.PoisonedScopes)
+	r.recordOrphans(ctx)
+}
+
+// recordOrphans samples the orphan probe at most once per
+// orphanProbeInterval (arbiter ruling arb-7127-3d, C5). Every ledger writer
+// fences the generations it names, so a non-zero link or activation figure
+// that persists across samples means a writer broke that rule; a deleted
+// scope shows briefly until the orphan-scope purge.
+func (r *Runner) recordOrphans(ctx context.Context) {
+	if !r.lastOrphanProbe.IsZero() && time.Since(r.lastOrphanProbe) < orphanProbeInterval {
+		return
+	}
+	r.lastOrphanProbe = time.Now()
+	orphans, err := r.Journal.Orphans(ctx)
+	if err != nil {
+		r.logReadError(ctx, "changed-since ledger orphan probe failed", err)
+		return
+	}
+	for kind, n := range map[string]int64{
+		"link": orphans.Links, "activation": orphans.Activations, "bucket_group": orphans.HeadlessBucketGroups,
+	} {
+		r.Instruments.ChangedSinceLedgerOrphans.Record(ctx, n,
+			metric.WithAttributes(attribute.String(telemetry.MetricDimensionKind, kind)))
+	}
 }
 
 func (r *Runner) logCycle(ctx context.Context, result CycleResult) {

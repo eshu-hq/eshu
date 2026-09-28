@@ -13,12 +13,12 @@ import (
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 )
 
-// TestRetentionBoundP3 is P3 of arbiter ruling arb-7127-3d: the bound of the
-// literal rule. X is pruned, then the real link writer links (X -> G), so the
-// link names a pruned prior. The orphan probe sees exactly that one link.
-// get_changed_since from X answers retention_expired with the orphan present:
-// X is resolved from scope_generations, so a pruned generation can never be
-// the since generation. Once G is superseded and pruned, the probe is zero
+// TestRetentionBoundP3 is P3 of arbiter ruling arb-7127-3d, inverted by
+// PR-3e (C1, C2): X is pruned, then the real link writer links G. The writer
+// finds X gone and rebases instead of writing (X -> G), so the orphan probe
+// stays at zero. get_changed_since from X answers retention_expired: X is
+// resolved from scope_generations, so a pruned generation can never be the
+// since generation. Once G is superseded and pruned, the probe is still zero
 // and no row names X or G.
 func TestRetentionBoundP3(t *testing.T) {
 	l := openLedgerDB(t)
@@ -29,11 +29,12 @@ func TestRetentionBoundP3(t *testing.T) {
 		t.Fatalf("pruned %d, want 1 (x0)", result.GenerationsPruned)
 	}
 	link, err := w.LinkNext(l.ctx, "scope-p3")
-	if err != nil || link.Kind != linksfreshnessstore.LinkKindIncremental || link.PriorGenerationID != "x0" {
-		t.Fatalf("link after the prune = %+v, %v; want incremental x0 -> x1", link, err)
+	if err != nil || link.Kind != linksfreshnessstore.LinkKindRoot || link.Break != linksfreshnessstore.BreakPriorPruned ||
+		link.RebasedFrom != "x0" || link.PriorGenerationID != "" {
+		t.Fatalf("link after the prune = %+v, %v; want a root rebase x0 -> x1 (prior_pruned)", link, err)
 	}
-	if links, activations, headless := l.probe(t); links != 1 || activations != 0 || headless != 0 {
-		t.Fatalf("probe = %d/%d/%d, want 1 orphan link, 0 orphan activations, 0 headless bucket groups",
+	if links, activations, headless := l.probe(t); links+activations+headless != 0 {
+		t.Fatalf("probe = %d/%d/%d after the link, want zeros (no link names the pruned x0)",
 			links, activations, headless)
 	}
 

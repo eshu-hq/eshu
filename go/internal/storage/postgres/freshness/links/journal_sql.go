@@ -69,14 +69,23 @@ JOIN valid ON valid.scope_id = chain.scope_id
 ORDER BY chain.scope_id, chain.depth
 `
 
-// insertActivationQuery journals one activation. ON CONFLICT makes a replayed
-// sweep a no-op; activation_seq is assigned in insert order.
+// insertActivationQuery journals one backfilled activation through its
+// generation row (arbiter ruling arb-7127-3d, C3): the row is inserted only
+// while the generation exists, and the pass then holds that generation FOR
+// KEY SHARE until it commits, so generation retention (FOR UPDATE SKIP
+// LOCKED) skips it and its ledger delete sees the activation. A generation
+// that retention holds or has pruned returns no row and inserts nothing,
+// without waiting. ON CONFLICT makes a replayed row a no-op. activation_seq
+// is assigned in insert order.
 //
 // $1 scope_id, $2 generation_id, $3 prior (an empty string stores NULL), $4 source,
 // $5 activated_at.
 const insertActivationQuery = `
 INSERT INTO changed_since_activations (scope_id, generation_id, prior_generation_id, source, activated_at)
-VALUES ($1, $2, NULLIF($3, ''), $4, $5)
+SELECT generation.scope_id, generation.generation_id, NULLIF($3, ''), $4, $5
+FROM scope_generations AS generation
+WHERE generation.generation_id = $2 AND generation.scope_id = $1
+FOR KEY SHARE OF generation SKIP LOCKED
 ON CONFLICT (scope_id, generation_id) DO NOTHING
 `
 
@@ -159,6 +168,27 @@ SELECT pg_total_relation_size('changed_since_key_state'::regclass),
 FROM pg_class AS c_state, pg_class AS c_delta
 WHERE c_state.oid = 'changed_since_key_state'::regclass
   AND c_delta.oid = 'changed_since_link_deltas'::regclass
+`
+
+// ledgerOrphansQuery is the orphan probe of arbiter ruling arb-7127-3d: links
+// naming a generation (or a non-empty prior) with no scope_generations row,
+// activation rows of such a generation, and bucket-count groups with no link
+// row. It scans the links, the activations and the bucket counts, never the
+// link deltas, and anti-joins scope_generations by its primary key. It costs
+// about 100 ms at 25,000 links and 192,000 bucket rows, so the runner samples
+// it at most once a minute (#7127 PR-3e evidence).
+const ledgerOrphansQuery = `
+SELECT
+  (SELECT count(*) FROM changed_since_links AS l
+    WHERE NOT EXISTS (SELECT 1 FROM scope_generations AS g WHERE g.generation_id = l.generation_id)
+       OR (l.prior_generation_id <> ''
+           AND NOT EXISTS (SELECT 1 FROM scope_generations AS g WHERE g.generation_id = l.prior_generation_id))),
+  (SELECT count(*) FROM changed_since_activations AS a
+    WHERE NOT EXISTS (SELECT 1 FROM scope_generations AS g WHERE g.generation_id = a.generation_id)),
+  (SELECT count(*) FROM (SELECT DISTINCT scope_id, generation_id, prior_generation_id
+                         FROM changed_since_link_bucket_counts) AS b
+    WHERE NOT EXISTS (SELECT 1 FROM changed_since_links AS l WHERE l.scope_id = b.scope_id
+                        AND l.generation_id = b.generation_id AND l.prior_generation_id = b.prior_generation_id))
 `
 
 // orphanScopesQuery lists up to $1 scopes that have ledger rows (a cursor or

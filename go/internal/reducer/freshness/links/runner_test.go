@@ -65,6 +65,10 @@ func (f *fakeJournal) Stats(context.Context) (store.LedgerStats, error) {
 	return store.LedgerStats{}, nil
 }
 func (f *fakeJournal) OrphanScopes(context.Context, int) ([]string, error) { return f.orphans, nil }
+func (f *fakeJournal) Orphans(context.Context) (store.LedgerOrphans, error) {
+	return store.LedgerOrphans{}, nil
+}
+
 func (f *fakeJournal) DeleteOrphanScope(_ context.Context, scopeID string) (bool, error) {
 	f.deleted = append(f.deleted, scopeID)
 	return true, nil

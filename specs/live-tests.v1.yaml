@@ -1706,6 +1706,14 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since link poison-bound proof (#7127 PR-3a gates G16a/G16c), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/freshness/links/prior_fence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since link writer prior fence (#7127 PR-3e, arbiter ruling arb-7127-3d C1-C3, C5) -- rebase accuracy, generation_locked on a held prior with the committed-updater shapes, backfill fence, orphan probe; untagged and gated by env Skip; clones a bootstrapped template database per test; about 5s; scheduled, never blocking
+  - file: go/internal/storage/postgres/freshness/links/prior_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since rebase statement plan shape (#7127 PR-3e, gate G3 and the arb-7127-g8 P1 class) under four planted statistics states with planted REDs, 7-35s locally depending on host load; untagged and gated by env Skip; scheduled, never blocking
   - file: go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go
     tag: ~
     class: scheduled
@@ -1713,7 +1721,7 @@ tests:
   - file: go/internal/storage/postgres/freshness/links/retention_bound_live_test.go
     tag: ~
     class: scheduled
-    reason: changed-since ledger retention bound, activation above the cursor and row-limit starvation (#7127 PR-3d, arbiter ruling arb-7127-3d P3/P4), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
+    reason: changed-since ledger retention bound (P3, inverted by PR-3e -- no orphan link), activation above the cursor and row-limit starvation (#7127 PR-3d, arbiter ruling arb-7127-3d P3/P4), untagged and gated by env Skip; clones a bootstrapped template database per test; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/storage/postgres/freshness/links/retention_live_test.go
     tag: ~
     class: scheduled

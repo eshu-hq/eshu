@@ -126,6 +126,16 @@ amended by 8.5, 2.8, 7 and 8.6):
 | G16e repo rows | PASS | Every new live test is classified in `specs/live-tests.v1.yaml` (`verify-live-tests-ledger.sh`: 502 rows on `origin/main` `944c526081`, all classified); the seven variables are in `go/internal/envregistry` and the generated reference; the telemetry-coverage row lists every new signal. |
 | G16f Ifá | N/A | No `fact_work_items` row is created and no graph edge is written, so no Ifá family row and no dead-letter row applies (ruling 8.10). `ifa-determinism` and `ifa-fault-injection` still run in CI because migrations change, and must stay green with the switch off. |
 
+## PR-3e: the prior fence
+
+PR-3e changes the link transaction's lock set (cursor, activating
+generation, prior, slot), adds the rebase outcome (`root` link with the
+`prior_pruned` break) and fences the backfill insert. G3, G11 and G15 are
+extended to the rebase statement and the prior, and the P3 bound of ruling
+arb-7127-3d no longer holds: no link names a pruned prior. Proof, races,
+mutations and the one known lock wait are in
+[7127-changed-since-prior-fence.md](7127-changed-since-prior-fence.md).
+
 ## G9 on the built binary
 
 Ruling 8.10 asks for G9 on two reducer processes from the built binary. This
