@@ -203,8 +203,10 @@ every repository and then calling repository coverage one by one.
 Performance Evidence: platform-qa baseline before this read model required 797
 `get_repository_coverage` fan-out calls for a full language count. A direct
 aggregate over 99,552 `content_files` rows took 94.472 ms before the
-`content_files(language, repo_id)` index, so the new API path keeps language
-inventory server-side and indexed instead of pushing the loop into MCP clients.
+`content_files(language, repo_id)` index, so the API path keeps language inventory server-side instead of pushing the
+loop into MCP clients. The index supports language-filtered reads; PostgreSQL
+can still choose a sequential scan for unfiltered inventory, as the #7247
+ops-qa plan did on 145,050 files.
 
 Observability Evidence: `ContentReader` wraps the new count, list, and
 inventory queries in existing `postgres.query` spans with `db.operation` set to
