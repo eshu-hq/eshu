@@ -62,9 +62,12 @@ already see (`arb-7334.md` section 3); it and
 now-unused exclusion parameter. The row-limit re-check loop over a
 shrinking/growing recount (`arb-7127-3d-b`) is untouched.
 
-## No-Regression Evidence (this PR, local proof)
+## No-Regression Evidence
 
-All proofs below ran locally against a throwaway `postgres:18-alpine`
+No-Regression Evidence: this PR is a correctness fix (the shipped query
+returned the wrong candidate set), not a claimed speedup; the checks below
+are exactness, lock-set, and plan-shape (Actual Loops / node presence), never
+wall-clock. All proofs ran locally against a throwaway `postgres:18-alpine`
 container (`docker run --name eshu7334pg -p 25931:5432 ...`, `POSTGRES_DB=eshu`,
 removed after), reachable at `ESHU_POSTGRES_TEST_DSN`, using the migrated
 bootstrap schema (`openGenerationRetentionMigratedSchema`, one isolated
@@ -137,8 +140,8 @@ passed) all ran clean on the final SHA.
 
 ## No-Observability-Change
 
-This PR adds no metric, span, log field, or status row, and changes no
-existing one. `GenerationRetentionResult.Skipped["row_limit"]` and the
+No-Observability-Change: this PR adds no metric, span, log field, or status
+row, and changes no existing one. `GenerationRetentionResult.Skipped["row_limit"]` and the
 `eshu_dp_generation_retention_skipped_total{reason="row_limit"}` counter it
 feeds are produced by `selectCandidatesWithinRowLimit` and
 `rowLimitSkipReason`, both untouched by this PR. Section 2's `cause` label and
