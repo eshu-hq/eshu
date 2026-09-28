@@ -99,6 +99,12 @@ func callGraphMetricFunctionFromRow(row map[string]any, prefix string) callGraph
 	}
 }
 
+type hubCallGraphMetricRank struct {
+	function      callGraphMetricFunction
+	incomingCalls int
+	outgoingCalls int
+}
+
 func hubCallGraphMetricRows(
 	req CallGraphMetricsRequest,
 	edges map[callGraphMetricEdgeKey]struct{},
@@ -111,30 +117,58 @@ func hubCallGraphMetricRows(
 		incoming[edge.targetKey]++
 	}
 
-	rows := make([]map[string]any, 0, len(functions))
+	ranks := make([]hubCallGraphMetricRank, 0, len(functions))
 	for functionID, function := range functions {
 		if !callGraphMetricLanguageMatches(req, function) {
 			continue
 		}
-		incomingCalls := incoming[functionID]
-		outgoingCalls := outgoing[functionID]
-		rows = append(rows, callGraphMetricFunctionRow(req.RepoID, function, map[string]any{
-			"incoming_calls": incomingCalls,
-			"outgoing_calls": outgoingCalls,
-			"total_degree":   incomingCalls + outgoingCalls,
+		ranks = append(ranks, hubCallGraphMetricRank{
+			function:      function,
+			incomingCalls: incoming[functionID],
+			outgoingCalls: outgoing[functionID],
+		})
+	}
+	sort.Slice(ranks, func(i, j int) bool { return hubCallGraphMetricRankLess(ranks[i], ranks[j]) })
+	if req.Offset >= len(ranks) {
+		return []map[string]any{}
+	}
+	end := min(req.Offset+req.queryLimit(), len(ranks))
+	rows := make([]map[string]any, 0, end-req.Offset)
+	for _, rank := range ranks[req.Offset:end] {
+		rows = append(rows, callGraphMetricFunctionRow(req.RepoID, rank.function, map[string]any{
+			"incoming_calls": rank.incomingCalls,
+			"outgoing_calls": rank.outgoingCalls,
+			"total_degree":   rank.incomingCalls + rank.outgoingCalls,
 		}))
 	}
-	sort.Slice(rows, func(i, j int) bool { return hubCallGraphMetricRowLess(rows[i], rows[j]) })
-	return callGraphMetricPage(req, rows)
+	return rows
 }
 
-func hubCallGraphMetricRowLess(left map[string]any, right map[string]any) bool {
-	for _, key := range []string{"total_degree", "incoming_calls", "outgoing_calls"} {
-		if querycontract.IntVal(left, key) != querycontract.IntVal(right, key) {
-			return querycontract.IntVal(left, key) > querycontract.IntVal(right, key)
-		}
+func hubCallGraphMetricRankLess(left hubCallGraphMetricRank, right hubCallGraphMetricRank) bool {
+	leftTotal := left.incomingCalls + left.outgoingCalls
+	rightTotal := right.incomingCalls + right.outgoingCalls
+	if leftTotal != rightTotal {
+		return leftTotal > rightTotal
 	}
-	return callGraphMetricFunctionRowLess(left, right, "", "")
+	if left.incomingCalls != right.incomingCalls {
+		return left.incomingCalls > right.incomingCalls
+	}
+	if left.outgoingCalls != right.outgoingCalls {
+		return left.outgoingCalls > right.outgoingCalls
+	}
+	if left.function.path != right.function.path {
+		return left.function.path < right.function.path
+	}
+	if left.function.startLine != right.function.startLine {
+		return left.function.startLine < right.function.startLine
+	}
+	if left.function.name != right.function.name {
+		return left.function.name < right.function.name
+	}
+	if left.function.id != right.function.id {
+		return left.function.id < right.function.id
+	}
+	return left.function.key < right.function.key
 }
 
 func recursiveCallGraphMetricRows(
