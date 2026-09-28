@@ -21,9 +21,10 @@ architecture tour.
 
 Resolve uncertainty from source, docs, or a bounded experiment. When those
 cannot settle it -- including unclear ownership, design intent, acceptance
-criteria, or authorization -- escalate to an arbiter model (the deepest research
-tier available, such as Fable) with the raw observations, act on its verdict,
-and record the decision in the goal file or PR. Do not stop to ask the owner.
+criteria, or authorization -- escalate to an arbiter model (the `arbiter-eshu`
+role: Fable on Claude, Astra on Codex, Muse Spark on Muse) with the raw
+observations, act on its verdict, and record the decision in the goal file or
+PR. Do not stop to ask the owner.
 
 Complete the authorized work through relevant validation and fixes. A first
 implementation is not completion when the task includes a working result or a

@@ -64,9 +64,13 @@ files. Under that test, the opencode roster is:
 | **Performance engineer** (`perf-eshu`) | user's selected performance model | **read, no write** | Analyze measurements through `eshu-performance-rigor`; route proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
 | **Reviewer** (`review-eshu`) | user's selected review model | **read, no write** | Run `eshu-code-review` against final diffs and PR evidence. Keeps judgment separate from authorship. |
 
-`debug-eshu-deep` and `perf-eshu-deep` inherit their base role's method and
-access but use the deep tier. The manifest is the only place to change their
-model choices or shared role instructions.
+`debug-eshu-deep`, `perf-eshu-deep`, `develop-eshu-deep` and
+`review-eshu-deep` inherit their base role's method and access but use the deep
+tier. `arbiter-eshu` is read-only and runs on its own arbiter tier: it decides a
+design fork, a disputed finding, a waiver, or an irreversible act, and returns
+a ruling that starts with `RULING:` as its final message; the coordinator
+records it. The manifest is the only place to change
+their model choices or shared role instructions.
 
 Concurrency is a conditional method, not a separate job: the debugger,
 performance agent, developer, or reviewer loads `concurrency-deadlock-rigor`
@@ -103,7 +107,8 @@ role for the harness in play:
 
 | Tier | Reach for it when | Role examples |
 | --- | --- | --- |
-| **Deep** | difficult cross-system root cause, architecture, intermittent performance | `debug-eshu-deep`, `perf-eshu-deep` |
+| **Arbiter** | a design fork, disputed finding, waiver, or irreversible act that evidence alone cannot settle | `arbiter-eshu` |
+| **Deep** | difficult cross-system root cause, architecture, intermittent performance, concurrency or schema implementation, final review of a difficult diff | `debug-eshu-deep`, `perf-eshu-deep`, `develop-eshu-deep`, `review-eshu-deep` |
 | **Workhorse** | default implementation, diagnosis, performance, review | `develop-eshu`, `debug-eshu`, `perf-eshu`, `review-eshu` |
 | **Fast** | bounded evidence scans and lookups | `scan-eshu` |
 
@@ -115,7 +120,9 @@ away).
 
 The manifest currently maps these tiers to Claude Haiku/Sonnet/Opus,
 Codex Luna at high effort and Sol at medium or high effort, and Muse Spark
-at low/high/xhigh effort.
+at low/high/xhigh effort. The arbiter tier is Claude Fable and Codex Astra, both
+at high effort rather than xhigh to limit token cost on those models, and Muse
+Spark at xhigh.
 When a Codex spawn tool selects a custom role, that role file takes
 precedence over a spawn model override. If custom-role selection is absent,
 the coordinator passes the manifest model and effort explicitly or uses
@@ -340,7 +347,9 @@ sequencing stay with the user or primary agent.
 Routing: bounded lookup → `scan-eshu`; implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
 (returns a root cause, then `develop-eshu` implements the fix); bottleneck /
 regression / tuning → `perf-eshu` (returns measurements, then any code change
-routes to `develop-eshu`); final diff / PR readiness → `review-eshu`. One
+routes to `develop-eshu`); final diff / PR readiness → `review-eshu`. The
+`-deep` variants take the difficult cases of the same phases, and a decision
+the evidence cannot settle → `arbiter-eshu`. One
 surface per dispatch, always with the full handoff contract, sequenced
 accuracy-before-performance per the Life Motto.
 
