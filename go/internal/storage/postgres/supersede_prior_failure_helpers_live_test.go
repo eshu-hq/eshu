@@ -4,9 +4,12 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -255,4 +258,139 @@ func pfWork(scopeID, generationID string, attempts int) projector.ScopeGeneratio
 		Generation:   scope.ScopeGeneration{GenerationID: generationID, ScopeID: scopeID},
 		AttemptCount: attempts,
 	}
+}
+
+// ncStatement is one claim statement under the no-candidate proof: the
+// cost harness statement plus the supersede CTEs whose UPDATE it must not run
+// on a row when nothing is stale.
+type ncStatement struct {
+	costStatement
+	cteNames []string
+}
+
+// ncStatements are the three claim statements the fold touches, with the
+// supersede UPDATE CTEs each one carries.
+func ncStatements() []ncStatement {
+	var out []ncStatement
+	for _, st := range costStatements() {
+		names := []string{"superseded_stale_reducer_generations"}
+		if st.name == "projector_claim" {
+			names = []string{"superseded_stale_projector_generations", "superseded_stale_scope_generations"}
+		}
+		out = append(out, ncStatement{costStatement: st, cteNames: names})
+	}
+	return out
+}
+
+// ncSeed seeds n scopes whose only work row is a pending one on the current
+// generation, so a claim sweep has no supersede candidate. staleRows of the
+// scopes also get an older failed generation with a dead-lettered row carrying
+// details: the seed the proof must reject.
+func ncSeed(t *testing.T, database *sql.DB, projector bool, n, staleRows int) {
+	t.Helper()
+	costReset(t, database)
+	scopeStatus, genStatus, stage, domain, oldGen := "active", "active", "reducer", "zz_probe_domain", "superseded"
+	if projector {
+		scopeStatus, genStatus, stage, domain, oldGen = "pending", "pending", "projector", "source_local", "failed"
+	}
+	stmts := []string{
+		fmt.Sprintf(`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status)
+SELECT 'scope-'||i,'repository','git','scope-'||i,'git','scope-'||i, now(), now(), '%s' FROM generate_series(1,%d) i`, scopeStatus, n),
+		fmt.Sprintf(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+SELECT 'scope-'||i||'-g2','scope-'||i,'push', now()-interval '1 hour', now()-interval '1 hour','%s' FROM generate_series(1,%d) i`, genStatus, n),
+		fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, visible_at, payload, created_at, updated_at)
+SELECT '%s_scope-'||i||'_g2','scope-'||i,'scope-'||i||'-g2','%s','%s','pending',0, now()-interval '1 hour','{}'::jsonb, now()-interval '1 hour', now()-interval '1 hour' FROM generate_series(1,%d) i`, stage, stage, domain, n),
+	}
+	if !projector {
+		stmts = append(stmts, `UPDATE ingestion_scopes SET active_generation_id = scope_id || '-g2'`)
+	}
+	if staleRows > 0 {
+		stmts = append(stmts,
+			fmt.Sprintf(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+SELECT 'scope-'||i||'-g1','scope-'||i,'push', now()-interval '2 hours', now()-interval '2 hours','%s' FROM generate_series(1,%d) i`, oldGen, staleRows),
+			fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, last_attempt_at, failure_class, failure_message, failure_details, payload, created_at, updated_at)
+SELECT '%s_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','%s','%s','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', %s,'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, stage, stage, domain, costDetailExpr(800), staleRows))
+	}
+	costExec(t, database, append(stmts, `VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)...)
+}
+
+// ncPlanNode is the part of an EXPLAIN (FORMAT JSON) node the proof reads.
+type ncPlanNode struct {
+	NodeType      string       `json:"Node Type"`
+	Operation     string       `json:"Operation"`
+	Relation      string       `json:"Relation Name"`
+	Index         string       `json:"Index Name"`
+	Subplan       string       `json:"Subplan Name"`
+	ActualRows    float64      `json:"Actual Rows"`
+	ActualLoops   float64      `json:"Actual Loops"`
+	SharedHit     int64        `json:"Shared Hit Blocks"`
+	SharedRead    int64        `json:"Shared Read Blocks"`
+	SharedDirtied int64        `json:"Shared Dirtied Blocks"`
+	SharedWritten int64        `json:"Shared Written Blocks"`
+	Children      []ncPlanNode `json:"Plans"`
+}
+
+// ncPlan is one EXPLAIN (ANALYZE, BUFFERS, VERBOSE) result.
+type ncPlan struct {
+	root     ncPlanNode
+	planning float64
+}
+
+// ncExplain runs EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) of a claim
+// statement in a transaction it rolls back.
+func ncExplain(t *testing.T, database *sql.DB, statement string, args []any) ncPlan {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin explain: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var raw string
+	if err := tx.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) "+statement, args...).Scan(&raw); err != nil {
+		t.Fatalf("explain analyze: %v", err)
+	}
+	var doc []struct {
+		Plan     ncPlanNode `json:"Plan"`
+		Planning float64    `json:"Planning Time"`
+	}
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil || len(doc) != 1 {
+		t.Fatalf("decode explain (err=%v, %d documents): %s", err, len(doc), raw)
+	}
+	return ncPlan{root: doc[0].Plan, planning: doc[0].Planning}
+}
+
+// shape lists the node type, operation, relation, index and subplan of every
+// node in pre-order: two texts with the same shape ran the same plan.
+func (p ncPlan) shape() []string {
+	var out []string
+	var walk func(ncPlanNode)
+	walk = func(n ncPlanNode) {
+		out = append(out, strings.Join([]string{n.NodeType, n.Operation, n.Relation, n.Index, n.Subplan}, "|"))
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(p.root)
+	return out
+}
+
+// rowsWritten returns the rows the UPDATE in the named CTE wrote and whether
+// the CTE was found. An UPDATE without RETURNING reports no rows itself, so the
+// rows it wrote are the rows its input node produced.
+func (p ncPlan) rowsWritten(cte string) (float64, bool) {
+	var rows float64
+	var found bool
+	var walk func(ncPlanNode)
+	walk = func(n ncPlanNode) {
+		if n.NodeType == "ModifyTable" && n.Operation == "Update" && n.Subplan == "CTE "+cte && len(n.Children) > 0 {
+			found = true
+			rows = n.Children[0].ActualRows * n.Children[0].ActualLoops
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(p.root)
+	return rows, found
 }
