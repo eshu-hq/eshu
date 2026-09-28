@@ -1,0 +1,25 @@
+scripts/guard-codex-spawn.py
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 1-73
+scripts/test-codex-spawn-guard.py
+  s_bc720f29f5e0fd::t_5be7e18344fc8d 73-80
+  s_bc720f29f5e0fd::t_b76da13621baf4 1-72,81-92
+.codex/hooks.json
+  s_bc720f29f5e0fd::t_8958d0535ffdbd 3-4,6-8,10-14
+  s_bc720f29f5e0fd::t_fcc2e6b5e1f484 5,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "11e4babf3d048045151d59ff86a27eced5cfd733",
+  "prompts": {},
+  "sessions": {
+    "s_bc720f29f5e0fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd7f-2234-76e3-bd23-a5838acc2825",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
