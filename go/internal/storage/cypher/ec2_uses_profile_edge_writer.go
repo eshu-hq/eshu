@@ -29,7 +29,7 @@ var ec2UsesProfileRelationshipVocabulary = map[string]struct{}{
 	"USES_PROFILE": {},
 }
 
-// canonicalEC2UsesProfileEdgeUpsertCypherFormat batches USES_PROFILE edge upserts
+// CanonicalEC2UsesProfileEdgeUpsertCypherFormat batches USES_PROFILE edge upserts
 // between an EC2 instance CloudResource node and the IAM instance-profile
 // CloudResource node it uses. The relationship type is a validated static token
 // from the closed vocabulary (the single %s); keeping it out of a
@@ -39,7 +39,7 @@ var ec2UsesProfileRelationshipVocabulary = map[string]struct{}{
 // uid). Two anchored MATCHes precede the MERGE so a row whose source or target
 // node is absent produces no edge and no fabricated node, and so the two
 // independent MATCHes never form a cartesian product.
-const canonicalEC2UsesProfileEdgeUpsertCypherFormat = `UNWIND $rows AS row
+const CanonicalEC2UsesProfileEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (source:CloudResource {uid: row.source_uid})
 MATCH (target:CloudResource {uid: row.target_uid})
 MERGE (source)-[rel:%s]->(target)
@@ -48,13 +48,13 @@ SET rel.resolution_mode = row.resolution_mode,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractEC2UsesProfileEdgesCypher removes this reducer's USES_PROFILE edges for a
+// RetractEC2UsesProfileEdgesCypher removes this reducer's USES_PROFILE edges for a
 // set of scopes before a fresh generation reprojects them. USES_PROFILE is a fixed
 // relationship type between two CloudResource nodes, so the retract matches it
 // directly and scopes by the edge's own scope_id and evidence_source.
 // CloudResource nodes are cross-generation canonical and carry no reducer
 // scope_id, so a node-scoped predicate would leak stale edges across generations.
-const retractEC2UsesProfileEdgesCypher = `MATCH (:CloudResource)-[rel:USES_PROFILE]->(:CloudResource)
+const RetractEC2UsesProfileEdgesCypher = `MATCH (:CloudResource)-[rel:USES_PROFILE]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -121,7 +121,7 @@ func (w *EC2UsesProfileEdgeWriter) WriteEC2UsesProfileEdges(
 	}
 
 	// The vocabulary has a single member, so all validated rows share one token.
-	cypher := fmt.Sprintf(canonicalEC2UsesProfileEdgeUpsertCypherFormat, ec2UsesProfileRelationshipType())
+	cypher := fmt.Sprintf(CanonicalEC2UsesProfileEdgeUpsertCypherFormat, ec2UsesProfileRelationshipType())
 	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
@@ -156,7 +156,7 @@ func (w *EC2UsesProfileEdgeWriter) RetractEC2UsesProfileEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractEC2UsesProfileEdgesCypher,
+		Cypher:    RetractEC2UsesProfileEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

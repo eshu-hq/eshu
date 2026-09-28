@@ -165,6 +165,8 @@ workload_cloud_relationship_cassette="${repo_root}/testdata/cassettes/workloadcl
 workload_cloud_relationship_expected_edges="${repo_root}/go/internal/ifa/testdata/workloadcloudrelationship/ifa-workload-cloud-relationship-family-expected-edges.json"
 iam_escalation_cassette="${repo_root}/testdata/cassettes/iamescalation/ifa-iam-escalation-family.json"
 iam_escalation_expected_edges="${repo_root}/go/internal/ifa/testdata/iamescalation/ifa-iam-escalation-family-expected-edges.json"
+ec2_uses_profile_cassette="${repo_root}/testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
+ec2_uses_profile_expected_edges="${repo_root}/go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -215,4 +217,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${workload_cloud_relationship_expected_edges}" ]] || { echo "${gate}: workload-cloud-relationship expected-edge set not found: ${workload_cloud_relationship_expected_edges}" >&2; exit 1; }
 	[[ -f "${iam_escalation_cassette}" ]] || { echo "${gate}: iam-escalation cassette not found: ${iam_escalation_cassette}" >&2; exit 1; }
 	[[ -f "${iam_escalation_expected_edges}" ]] || { echo "${gate}: iam-escalation expected-edge set not found: ${iam_escalation_expected_edges}" >&2; exit 1; }
+	[[ -f "${ec2_uses_profile_cassette}" ]] || { echo "${gate}: ec2-uses-profile cassette not found: ${ec2_uses_profile_cassette}" >&2; exit 1; }
+	[[ -f "${ec2_uses_profile_expected_edges}" ]] || { echo "${gate}: ec2-uses-profile expected-edge set not found: ${ec2_uses_profile_expected_edges}" >&2; exit 1; }
 }

@@ -274,8 +274,8 @@ require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected
 # names its OWN domain, so the shared file cannot let one family's wiring pass
 # for another's.
 #
-# The exact-set assert carries more weight for these six than for most. All
-# six fixtures are built around edges that must NOT exist -- two namespaces
+# The exact-set assert carries more weight for these seven than for most. All
+# seven fixtures are built around edges that must NOT exist -- two namespaces
 # whose labels bind no Environment, two instance profiles (one naming an
 # unscanned role, one with no attachment) that must produce nothing, seven
 # trust statements (deny, wildcard, service principal, foreign, ghost-source,
@@ -284,11 +284,13 @@ require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected
 # uncatalogued, wildcards, unscanned target, non-identity source, unscanned
 # principal, wrong target) that must grant nothing, three cloud resources
 # (service-only anchor, ambiguous anchor, missing environment) that must
-# attach to nothing, and nine privilege statements (self-loop, deny,
+# attach to nothing, nine privilege statements (self-loop, deny,
 # conditioned, NotAction, wildcard, unscanned target, unscanned principal,
-# deferred AssumeRole, wrong target) that must escalate nothing -- and a
-# count-only or digest check cannot tell "correct" from "invented an
-# endpoint".
+# deferred AssumeRole, wrong target) that must escalate nothing, and three
+# instance postures (a bare instance with no profile, a terminated instance,
+# an instance naming an unscanned profile) plus one scanned profile with no
+# posture that must attach to nothing -- and a count-only or digest check
+# cannot tell "correct" from "invented an endpoint".
 require_direct_family_lib "kubernetes-namespace-environment assert-edges domain" "-domain kubernetes_namespace_environment"
 require_direct_family_lib "kubernetes-namespace-environment drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "direct-family assert is exact-set, not a digest" '-expected "${expected_edges}"'
@@ -300,6 +302,8 @@ require_direct_family_lib "workload-cloud-relationship assert-edges domain" "-do
 require_direct_family_lib "workload-cloud-relationship drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "iam-escalation assert-edges domain" "-domain iam_escalation"
 require_direct_family_lib "iam-escalation drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "ec2-uses-profile assert-edges domain" "-domain ec2_uses_profile"
+require_direct_family_lib "ec2-uses-profile drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "workload-cloud-relationship drive seeds the positive anchor endpoints" 'materialize-workload-endpoints'
 require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:orders-api -environment prod'
 # The seed's ids must come from the committed cassette's own positive anchor,
@@ -346,6 +350,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[iam_can_perform]="-domain iam_can_perform"
 	[workload_cloud_relationship]="-domain workload_cloud_relationship"
 	[iam_escalation]="-domain iam_escalation"
+	[ec2_uses_profile]="-domain ec2_uses_profile"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -417,14 +422,14 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The five DIRECT families (#6228) join the drive half of this list only. All
-# five are dispatched into every N cell through the registry loop, so no
+# The seven DIRECT families (#6228) join the drive half of this list only. All
+# seven are dispatched into every N cell through the registry loop, so no
 # drive function has a legitimate bare-name call in the gate -- but each
 # ASSERT function does have exactly one (the post-delta re-assertion pinned
 # below), so the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -448,15 +453,15 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The five DIRECT families (#6228/#6309) take the same single-post-delta-call
-# shape as the three above. All five were asserted pre-delta ONLY when they
+# The seven DIRECT families (#6228/#6309) take the same single-post-delta-call
+# shape as the three above. All seven were asserted pre-delta ONLY when they
 # landed, and the matrix cannot see that gap: it compares one canonicalized
 # digest per N, so a generation-2 regression that retracts or mutates these
 # edges identically at N=1, 2 and 4 keeps every digest equal and the gate
 # green while the graph no longer matches the expected set. A count pin alone
 # would be satisfied by the pre-delta call moving out of the loop, so the
 # ordering check below is what says WHERE the surviving call has to be.
-for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert ifa_iam_can_assume_assert ifa_iam_can_perform_assert ifa_workload_cloud_relationship_assert ifa_iam_escalation_assert; do
+for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert ifa_iam_can_assume_assert ifa_iam_can_perform_assert ifa_workload_cloud_relationship_assert ifa_iam_escalation_assert ifa_ec2_uses_profile_assert; do
 	# `|| true`, and the shape check that follows it, are load-bearing under
 	# `set -e`: rg exits 1 on ZERO matches, so a bare command substitution
 	# would abort this whole mirror with status 1 and print nothing at all --
@@ -473,7 +478,8 @@ post_delta_can_line="$(rg -n --fixed-strings -- 'ifa_iam_can_assume_assert "post
 post_delta_perform_line="$(rg -n --fixed-strings -- 'ifa_iam_can_perform_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 post_delta_workload_line="$(rg -n --fixed-strings -- 'ifa_workload_cloud_relationship_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 post_delta_escalation_line="$(rg -n --fixed-strings -- 'ifa_iam_escalation_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ && "${post_delta_can_line}" =~ ^[0-9]+$ && "${post_delta_perform_line}" =~ ^[0-9]+$ && "${post_delta_workload_line}" =~ ^[0-9]+$ && "${post_delta_escalation_line}" =~ ^[0-9]+$ \
+post_delta_ec2_line="$(rg -n --fixed-strings -- 'ifa_ec2_uses_profile_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ && "${post_delta_can_line}" =~ ^[0-9]+$ && "${post_delta_perform_line}" =~ ^[0-9]+$ && "${post_delta_workload_line}" =~ ^[0-9]+$ && "${post_delta_escalation_line}" =~ ^[0-9]+$ && "${post_delta_ec2_line}" =~ ^[0-9]+$ \
 	&& "${delta_call_line}" -lt "${post_delta_ns_line}" \
 	&& "${post_delta_ns_line}" -lt "${post_delta_dump_line}" \
 	&& "${delta_call_line}" -lt "${post_delta_iam_line}" \
@@ -485,6 +491,8 @@ post_delta_escalation_line="$(rg -n --fixed-strings -- 'ifa_iam_escalation_asser
 	&& "${delta_call_line}" -lt "${post_delta_workload_line}" \
 	&& "${post_delta_workload_line}" -lt "${post_delta_dump_line}" \
 	&& "${delta_call_line}" -lt "${post_delta_escalation_line}" \
-	&& "${post_delta_escalation_line}" -lt "${post_delta_dump_line}" ]] \
-	|| fail "every N cell must exact-assert all six DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume, iam_can_perform, workload_cloud_relationship, iam_escalation) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
+	&& "${post_delta_escalation_line}" -lt "${post_delta_dump_line}" \
+	&& "${delta_call_line}" -lt "${post_delta_ec2_line}" \
+	&& "${post_delta_ec2_line}" -lt "${post_delta_dump_line}" ]] \
+	|| fail "every N cell must exact-assert all seven DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume, iam_can_perform, workload_cloud_relationship, iam_escalation, ec2_uses_profile) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
 }

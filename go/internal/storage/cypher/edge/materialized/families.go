@@ -128,7 +128,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The first six DIRECT-materialization families registered here (#6228).
+	// The seven DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -150,11 +150,12 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 two of the six carry coverage rows. Registering a family
+	// Since #6309 two of the seven carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
 	// drives it. workload_cloud_relationship, iam_can_assume,
-	// iam_can_perform, and iam_escalation still carry their waiver rows in
+	// iam_can_perform, iam_escalation, and ec2_uses_profile still carry
+	// their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
@@ -244,6 +245,24 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"CAN_ESCALATE_TO": "principal to target privilege-escalation attachment (CanonicalIAMEscalationEdgeUpsertCypher)"},
 		RetractCypher:  sourcecypher.RetractIAMEscalationEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalIAMEscalationEdgeUpsertCypher,
+	},
+	// ec2_uses_profile follows the same single-vocabulary shape as
+	// iam_instance_profile_role: IdentityCypher holds the %s FORMAT const
+	// unformatted, and the token substituted into it comes from
+	// ec2UsesProfileRelationshipVocabulary, a closed single-member set
+	// screened per row by validateEC2UsesProfileRelationshipType, so
+	// USES_PROFILE is the only type this writer can emit. The template
+	// MERGEs on its two endpoint nodes alone (both are MATCHed, never
+	// merged), so the identity scan yields nothing whether or not the %s
+	// has been substituted.
+	// ec2UsesProfileEdgeLabel ("EC2_USES_PROFILE") is statement metadata
+	// carried beside the query, not a graph relationship type -- the same
+	// #6181-shaped trap iam_instance_profile_role documents one level
+	// below the port name.
+	"ec2_uses_profile": {
+		EdgeTypes:      map[string]string{"USES_PROFILE": "EC2-instance to IAM instance-profile attachment (CanonicalEC2UsesProfileEdgeUpsertCypherFormat)"},
+		RetractCypher:  sourcecypher.RetractEC2UsesProfileEdgesCypher,
+		IdentityCypher: sourcecypher.CanonicalEC2UsesProfileEdgeUpsertCypherFormat,
 	},
 }
 

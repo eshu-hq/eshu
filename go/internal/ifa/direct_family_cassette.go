@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
-// Committed-cassette loaders for the five direct-materialization family Odùs
+// Committed-cassette loaders for the seven direct-materialization family Odùs
 // (#6228, under the #6181 umbrella).
 //
 // A cassette is a recorded collector output the live gates replay instead of
@@ -26,25 +26,27 @@ import (
 // tests project the cassette back through loadDirectFamilyOdu and require it to
 // equal the compiled Odù exactly.
 //
-// All five families share one loader rather than carrying a copy each. The
+// All seven families share one loader rather than carrying a copy each. The
 // shared-projection families each grew their own decoder because each reads a
-// different fact shape; these five read the SAME envelope fields and differ
+// different fact shape; these seven read the SAME envelope fields and differ
 // only in which Odù name the projection carries, so a copy per family would be
 // one place per family for one contract to rot.
 
 const (
 	// kubernetesNamespaceEnvironmentFamilyCassettePath,
 	// iamInstanceProfileRoleFamilyCassettePath, iamCanAssumeFamilyCassettePath,
-	// iamCanPerformFamilyCassettePath, and
-	// workloadCloudRelationshipFamilyCassettePath are repo-root-relative so the
-	// constants stay machine-independent; callers join a repo root onto them
-	// through the exported helpers below.
+	// iamCanPerformFamilyCassettePath,
+	// workloadCloudRelationshipFamilyCassettePath,
+	// iamEscalationFamilyCassettePath, and ec2UsesProfileFamilyCassettePath
+	// are repo-root-relative so the constants stay machine-independent;
+	// callers join a repo root onto them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
 	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
 	iamCanPerformFamilyCassettePath                  = "testdata/cassettes/iamcanperform/ifa-iam-can-perform-family.json"
 	workloadCloudRelationshipFamilyCassettePath      = "testdata/cassettes/workloadcloudrelationship/ifa-workload-cloud-relationship-family.json"
 	iamEscalationFamilyCassettePath                  = "testdata/cassettes/iamescalation/ifa-iam-escalation-family.json"
+	ec2UsesProfileFamilyCassettePath                 = "testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -164,7 +166,20 @@ func LoadIAMEscalationFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, IAMEscalationFamilyOduName)
 }
 
-// loadDirectFamilyOdu is the shared strict projection behind all five loaders.
+// EC2UsesProfileFamilyCassetteFullPath joins repoRoot onto the committed
+// ec2_uses_profile family cassette path.
+func EC2UsesProfileFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, ec2UsesProfileFamilyCassettePath)
+}
+
+// LoadEC2UsesProfileFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the reducer's extractor consumes, the
+// ec2_uses_profile counterpart to LoadIAMEscalationFamilyOdu.
+func LoadEC2UsesProfileFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, EC2UsesProfileFamilyOduName)
+}
+
+// loadDirectFamilyOdu is the shared strict projection behind all seven loaders.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // makes every downstream assertion vacuous, which is the failure mode the whole

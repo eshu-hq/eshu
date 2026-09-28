@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Live-gate drive/assert callbacks for the five DIRECT-materialization families
+# Live-gate drive/assert callbacks for the seven DIRECT-materialization families
 # (#6228): kubernetes_namespace_environment, iam_instance_profile_role,
-# iam_can_assume, iam_can_perform, and workload_cloud_relationship.
+# iam_can_assume, iam_can_perform, workload_cloud_relationship,
+# iam_escalation, and ec2_uses_profile.
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
 # (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
 # and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
 # call the drive/assert callbacks below; the families' registry rows carry
-# cell_kind=custom. iam_can_assume, iam_can_perform, and
-# workload_cloud_relationship have no fault cells
-# yet: their rows carry cell_kind=custom prospectively and the fault gate
-# never dispatches them, so the fault-injection area stays untouched by this
-# change. Callers own strict mode and cleanup.
+# cell_kind=custom. iam_can_assume, iam_can_perform,
+# workload_cloud_relationship, iam_escalation, and ec2_uses_profile have no
+# fault cells yet: their rows carry cell_kind=custom prospectively and the
+# fault gate never dispatches them, so the fault-injection area stays
+# untouched by this change. Callers own strict mode and cleanup.
 #
-# ONE FILE FOR FIVE FAMILIES, unlike the shared-projection families' one file
+# ONE FILE FOR SEVEN FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
-# name and a log filename, and each is four lines of real work; five files
-# would be one contract in five places. The per-family REGISTRY ROWS stay
+# name and a log filename, and each is four lines of real work; seven files
+# would be one contract in seven places. The per-family REGISTRY ROWS stay
 # separate, which is where the split that matters already is.
 #
 # WHY THESE ARE DIRECT, and why that changes nothing here: the reducer writes
@@ -28,7 +29,8 @@
 # handler is scheduled by an ordinary fact_work_items domain
 # (kubernetes_namespace_materialization / iam_instance_profile_role_materialization
 # / iam_can_assume_materialization / iam_can_perform_materialization /
-# workload_cloud_relationship_materialization)
+# workload_cloud_relationship_materialization / iam_escalation_materialization
+# / ec2_uses_profile_materialization)
 # rather than by a shared_followup fact the cassette has to carry.
 
 # ifa_direct_family_drive replays one committed family cassette into a matrix
@@ -335,5 +337,42 @@ ifa_iam_escalation_assert() {
 	printf '\n=== %s: assert iam_escalation materialized edges (five-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain iam_escalation \
+		-expected "${expected_edges}"
+}
+
+# ifa_ec2_uses_profile_drive replays the ec2-uses-profile cassette.
+ifa_ec2_uses_profile_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive ec2-uses-profile \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_ec2_uses_profile_assert pins the three-edge exact set. Called twice per
+# cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
+#
+# The three edges come from two instance-id-resolved postures (i-0aaa1111 to
+# the app profile, i-0bbb2222 to the batch profile) plus one blank-id
+# posture whose source keys on the full instance ARN to the batch profile
+# (the legacy-inventory fallback). A regression that emitted one edge per
+# posture instead of one per resolved (instance, profile) pair would still
+# produce "some edges" and fail only against an exact set. The fixture's
+# other three postures -- a bare instance with a blank profile ARN, a
+# terminated (tombstoned) instance, and an instance naming an unscanned
+# ghost profile -- must contribute nothing, and the scanned idle profile
+# with no posture must gain no edge; the extractor drops an unresolvable
+# target rather than inventing an endpoint, and this set is what holds it
+# to that.
+#
+# The relationship type is USES_PROFILE, read off the writer's MERGE
+# template filled per row from the closed single-member
+# ec2UsesProfileRelationshipVocabulary. It is NOT EC2_USES_PROFILE, which
+# is the ec2UsesProfileEdgeLabel const: statement metadata carried beside
+# the query that never reaches the graph.
+ifa_ec2_uses_profile_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert ec2_uses_profile materialized edges (three-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain ec2_uses_profile \
 		-expected "${expected_edges}"
 }
