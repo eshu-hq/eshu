@@ -5,6 +5,7 @@ package metrics_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -251,6 +252,29 @@ func TestCallGraphMetricsRowsPagesDeterministicExactTies(t *testing.T) {
 	}
 }
 
+func TestCallGraphMetricsRowsMaterializesOnlyHubPage(t *testing.T) {
+	edges := make([]map[string]any, 256)
+	for index := range edges {
+		id := fmt.Sprintf("fn-%03d", index)
+		edges[index] = callGraphMetricEdgeRow(id, "same.go", "go", id, index, id, "same.go", "go", id, index)
+	}
+	allocations := func(limit int) float64 {
+		return testing.AllocsPerRun(10, func() {
+			rows := codemodel.CallGraphMetricsRows(codemodel.CallGraphMetricsRequest{
+				RepoID: "repo-1",
+				Limit:  intPtr(limit),
+			}, edges)
+			if len(rows) != limit+1 {
+				panic("hub page length changed")
+			}
+		})
+	}
+	smallPage, largePage := allocations(1), allocations(128)
+	if largePage-smallPage < 100 {
+		t.Fatalf("allocations small page=%.0f large page=%.0f; want page-sized materialization", smallPage, largePage)
+	}
+}
+
 func TestCallGraphMetricsRowsPagesRecursivePartnerIDTies(t *testing.T) {
 	t.Parallel()
 
@@ -416,5 +440,29 @@ func callGraphMetricEdgeRow(
 		"target_name":       targetName,
 		"target_start_line": targetLine,
 		"target_end_line":   targetLine + 1,
+	}
+}
+
+func BenchmarkCallGraphMetricsRowsHubRanking(b *testing.B) {
+	const functionCount = 12403
+	const edgeCount = 39649
+	functions := make([]string, functionCount)
+	for index := range functions {
+		functions[index] = fmt.Sprintf("fn-%05d", index)
+	}
+	edges := make([]map[string]any, edgeCount)
+	for index := range edges {
+		source := functions[index%functionCount]
+		target := functions[(index*7+13)%functionCount]
+		edges[index] = callGraphMetricEdgeRow(source, "same.go", "go", source, index%functionCount, target, "same.go", "go", target, (index*7+13)%functionCount)
+	}
+	req := codemodel.CallGraphMetricsRequest{RepoID: "repo-1", Limit: intPtr(25)}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		rows := codemodel.CallGraphMetricsRows(req, edges)
+		if len(rows) != 26 {
+			b.Fatalf("len(rows) = %d, want 26", len(rows))
+		}
 	}
 }

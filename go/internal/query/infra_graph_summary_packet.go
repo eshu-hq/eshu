@@ -201,10 +201,17 @@ func (h *InfraHandler) graphSummaryRepoPacket(ctx context.Context, req graphSumm
 	}, nil
 }
 
-// graphSummaryHotEntities ranks a bounded, repository-scoped CALLS edge pass in
-// Go. The shared edge shape avoids NornicDB's chained OPTIONAL MATCH aggregate
-// corruption while retaining exact incoming, outgoing, and total degree.
+// graphSummaryHotEntities selects the proven backend-specific degree read.
 func (h *InfraHandler) graphSummaryHotEntities(ctx context.Context, repoID string, limit int) ([]map[string]any, bool, error) {
+	if h.GraphBackend == GraphBackendNeo4j {
+		return h.graphSummaryHotEntitiesNeo4j(ctx, repoID, limit)
+	}
+	return h.graphSummaryHotEntitiesRaw(ctx, repoID, limit)
+}
+
+// graphSummaryHotEntitiesRaw ranks a bounded, repository-scoped CALLS edge pass
+// in Go. The unchanged query avoids NornicDB's aggregate corruption.
+func (h *InfraHandler) graphSummaryHotEntitiesRaw(ctx context.Context, repoID string, limit int) ([]map[string]any, bool, error) {
 	// The repo-scoped branch already answers not-found for a scoped caller whose
 	// repo_id is outside its grant (getGraphSummaryPacket above), so this route's
 	// binding is that check, not a predicate in the shared edge pass; the pass
@@ -333,4 +340,62 @@ type callGraphMetricsRequest = codemodel.CallGraphMetricsRequest
 // function aliases).
 func callGraphMetricsRows(req callGraphMetricsRequest, edgeRows []map[string]any) []map[string]any {
 	return codemodel.CallGraphMetricsRows(req, edgeRows)
+}
+
+// graphSummaryHotEntitiesNeo4j asks Neo4j for the bounded degree page while
+// preserving the raw-edge overflow marker and the Go fallback for missing UID.
+func (h *InfraHandler) graphSummaryHotEntitiesNeo4j(
+	ctx context.Context, repoID string, limit int,
+) ([]map[string]any, bool, error) {
+	rows, err := h.Neo4j.Run(ctx, graphSummaryNeo4jDegreeCypher, map[string]any{
+		"repo_id":         strings.TrimSpace(repoID),
+		"edge_scan_limit": codequery.CallGraphMetricsEdgeScanLimit + 1,
+		"rank_limit":      limit + 1,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rows) == 0 {
+		return nil, false, fmt.Errorf("graph summary Neo4j degree read omitted its count row")
+	}
+
+	rawEdges := IntVal(rows[0], "raw_edges")
+	invalidUIDEdges := IntVal(rows[0], "invalid_uid_edges")
+	overflow := rawEdges > codequery.CallGraphMetricsEdgeScanLimit
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("eshu.query.graph_summary.expanded_edge_count", rawEdges),
+		attribute.Int("eshu.query.graph_summary.edge_scan_limit", codequery.CallGraphMetricsEdgeScanLimit),
+		attribute.Bool("eshu.query.graph_summary.scan_overflow", overflow),
+		attribute.Bool("eshu.query.graph_summary.neo4j_degree_aggregate", true),
+		attribute.Bool("eshu.query.graph_summary.missing_uid_fallback", invalidUIDEdges > 0),
+	)
+	if overflow {
+		return nil, false, fmt.Errorf(
+			"%w: reached the %d-edge sentinel; maximum exact scope is %d",
+			errGraphSummaryScopeTooBroad, rawEdges, codequery.CallGraphMetricsEdgeScanLimit,
+		)
+	}
+	if invalidUIDEdges > 0 {
+		return h.graphSummaryHotEntitiesRaw(ctx, repoID, limit)
+	}
+	if rawEdges == 0 {
+		return []map[string]any{}, false, nil
+	}
+
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
+	}
+	hot := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		hot = append(hot, map[string]any{
+			"function_id":    StringVal(row, "function_id"),
+			"function_name":  StringVal(row, "function_name"),
+			"file_path":      StringVal(row, "file_path"),
+			"incoming_calls": IntVal(row, "incoming"),
+			"outgoing_calls": IntVal(row, "outgoing"),
+			"total_degree":   IntVal(row, "total_degree"),
+		})
+	}
+	return hot, truncated, nil
 }
