@@ -125,6 +125,11 @@ const (
 	// "already exists" whatever its inlined identity carries.
 	nornicDBStoreClosedCommitReadOpener = `DB::Get key: "`
 	nornicDBStoreClosedCommitReadTail   = `" err: DB Closed`
+	// nornicDBStoreClosedCommitPropertyKeysMsg: NornicDB e022384c persists the
+	// property key dictionary at commit (property_key_dictionary.go:288, db nil
+	// only after Close; wrapped at badger_transaction.go:1753) before any
+	// durable write, and rolls back. Exact match, as for the validation body.
+	nornicDBStoreClosedCommitPropertyKeysMsg = "commit failed: persisting property key dictionary: property key dictionary persistence requires an open database"
 )
 
 // isNornicDBStoreClosedCommitReadBody matches the Badger Get wrap of a closed
@@ -244,10 +249,9 @@ func (e *schemaFenceError) Retryable() bool { return true }
 // NornicDB failures a backend restart emits: the transaction-start failure
 // raised once the WAL is closed or the engine is closed (matched on exact
 // messages), the commit failure raised once the store has blocked writes for
-// shutdown or is closed outright, and the statement failure raised once the
-// store is closed outright (the latter two matched on a distinguishing
-// substring, since their bodies carry variable context). Every one requires its
-// error code as well. Malformed connectivity errors remain terminal, and all
+// shutdown or is closed outright (including the closed property key
+// dictionary, matched exactly), and the statement failure raised once the
+// store is closed outright. Every one requires its error code as well. Malformed connectivity errors remain terminal, and all
 // other errors are returned unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
@@ -376,7 +380,7 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 //
 // Like the start-side guard, this accepts more than one body for the one
 // condition, because the store reports commit-side teardown differently
-// depending on how far into shutdown it is. There are FOUR:
+// depending on how far into shutdown it is:
 //
 //	nornicDBStoreClosingCommitMsg      Badger refusing a commit while the
 //	                                   store is still CLOSING
@@ -388,19 +392,17 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 //	                                         validation on v1.3.3
 //	nornicDBStoreClosedCommitRead{Opener,Tail}  the same read, reported through
 //	                                         Badger's own Get wrap (run 35819550601)
+//	nornicDBStoreClosedCommitPropertyKeysMsg  the property key dictionary
+//	                                          persisted on a closed store
 //
 // so the full second shape reads:
 //
 //	Neo.ClientError.Transaction.TransactionCommitFailed
 //	commit failed: materializing mvcc commit state: DB Closed
 //
-// That shape dead-lettered gcp_resource_materialization as
-// failure_class=projection_bug in eshu-hq/eshu run 32665272053 and blew the
-// restart cell's 4-minute drain budget. It is the cross-product of the two
-// guards this file added for #6142 -- the commit code from this one, the
-// "DB Closed" body from isNornicDBStoreClosedStatementFailure -- and because
-// each guard requires its OWN pairing, the cross matched neither and fell
-// through to terminal. Refs #6162.
+// That shape dead-lettered gcp_resource_materialization as projection_bug in
+// run 32665272053: the cross-product of the #6142 guards (this commit code,
+// the statement guard's "DB Closed" body) matched neither. Refs #6162.
 //
 // This guard does NOT match the bare "DB Closed" tail. The two closed-store
 // bodies carry their operation prefix, and that is what keeps the widening
@@ -414,6 +416,7 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
 		(neo4jErr.Msg == nornicDBStoreClosedCommitValidationMsg ||
+			neo4jErr.Msg == nornicDBStoreClosedCommitPropertyKeysMsg ||
 			isNornicDBStoreClosedCommitReadBody(neo4jErr.Msg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg) ||
