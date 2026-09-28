@@ -338,11 +338,11 @@ run `make pre-push`, `make pre-pr`, or `make pre-pr-full`.
 Before calling an intermittent gate failure a flake, MUST rule out contention:
 check load and what else runs (`pgrep -f 'make pre-pr|verify-golden'`). Load
 causes false FAILURES, not false passes: a gate that failed under load proved
-nothing; one that passed usually holds. Re-running unchanged is not evidence.
-A wall-time gate is the exception: it owns the host. Pause every other gate, hold
-load1 under half the CPU count (start, end, in-run max), run a control canary,
-derive bounds from measured spread, and never use `t.Context()` for `t.Cleanup`
-teardown I/O. See [Timing Proof Rules](timing-proof-rules.md).
+nothing; one that passed usually holds (except an assertion whose own timing
+budget the load inflated). Re-running unchanged is not evidence. A wall-time
+gate MUST own the host: pause other gates, hold load1 under half the CPU count
+(start, end, in-run max), run a control canary, derive bounds from measured
+spread, and keep `t.Context()` out of `t.Cleanup` teardown I/O ([rules](timing-proof-rules.md)).
 
 CI's `required-gates-complete` aggregate is the blocking, non-bypassable
 authority for every Ifá/Odù, contract, performance, and end-to-end gate the
