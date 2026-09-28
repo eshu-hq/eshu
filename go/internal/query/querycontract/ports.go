@@ -97,7 +97,8 @@ type ContentStore interface {
 	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
 	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
-	// CountRepositoriesByLanguage, ListRepositoriesByLanguage, and
+	// CountRepositoriesByLanguage, ListRepositoriesByLanguage,
+	// ReadRepositoriesByLanguage, and
 	// RepositoryLanguageInventory all aggregate over content_files, which is
 	// keyed by repo_id but carries no scope grant of its own (#5167 Group B).
 	// allScopes selects the admin/all-scopes path (no row filtering, byte-
@@ -123,6 +124,19 @@ type ContentStore interface {
 		allowedRepositoryIDs []string,
 		allowedScopeIDs []string,
 	) ([]RepositoryLanguageRepository, error)
+	// ReadRepositoriesByLanguage returns the whole-family aggregate and one
+	// bounded repository page from the same content-index snapshot. It applies
+	// repository grants before aggregation and preserves the aggregate when the
+	// requested offset has no page rows.
+	ReadRepositoriesByLanguage(
+		ctx context.Context,
+		languages []string,
+		limit int,
+		offset int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) (RepositoryLanguageAggregate, []RepositoryLanguageRepository, error)
 	RepositoryLanguageInventory(
 		ctx context.Context,
 		limit int,

@@ -58,25 +58,27 @@ func (h *Handler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Requ
 	allowedRepositoryIDs := access.GrantedRepositoryIDs()
 	allowedScopeIDs := access.GrantedScopeIDs()
 
-	aggregate, err := h.Content.CountRepositoriesByLanguage(r.Context(), languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
-	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("count repositories by language: %v", err))
-		return
-	}
-
+	var aggregate querycontract.RepositoryLanguageAggregate
 	rows := []querycontract.RepositoryLanguageRepository{}
+	var err error
 	truncated := false
 	if page.Limit > 0 {
-		rows, err = h.Content.ListRepositoriesByLanguage(
+		aggregate, rows, err = h.Content.ReadRepositoriesByLanguage(
 			r.Context(), languages, page.Limit+1, page.Offset, allScopes, allowedRepositoryIDs, allowedScopeIDs,
 		)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repositories by language: %v", err))
+			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read repositories by language: %v", err))
 			return
 		}
 		truncated = len(rows) > page.Limit
 		if truncated {
 			rows = rows[:page.Limit]
+		}
+	} else {
+		aggregate, err = h.Content.CountRepositoriesByLanguage(r.Context(), languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("count repositories by language: %v", err))
+			return
 		}
 	}
 

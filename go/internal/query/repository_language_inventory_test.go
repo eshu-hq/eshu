@@ -131,7 +131,7 @@ func TestListRepositoriesByLanguageScopedEmptyGrantReturnsEmptyWithoutQuery(t *t
 // TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData
 // proves the #5167 fix against the ACTUAL production backend (ContentReader
 // over a real *sql.DB): a scoped caller with a matching grant reaches
-// Postgres, both dispatched queries (count, then list) carry the
+// Postgres, the combined query carries the
 // access-scoping predicate with the caller's granted repo id bound as an arg,
 // and the response surfaces the real row data the fake driver returned.
 func TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
@@ -140,16 +140,13 @@ func TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData(t *
 	indexedAt := time.Date(2026, 5, 23, 14, 0, 0, 0, time.UTC)
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{
-			columns: []string{"repository_count", "file_count", "last_indexed_at"},
-			rows:    [][]driver.Value{{int64(1), int64(7), indexedAt}},
-		},
-		{
 			columns: []string{
-				"repo_id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote",
-				"language", "file_count", "last_indexed_at",
+				"repository_count", "total_file_count", "aggregate_indexed_at",
+				"repo_id", "repo_name", "path", "local_path", "remote_url", "repo_slug", "has_remote",
+				"language", "file_count", "page_indexed_at",
 			},
 			rows: [][]driver.Value{
-				{"repository:tenant-a-web", "web", "/src/web", "/src/web", "https://example.test/web", "tenant-a/web", true, "typescript", int64(7), indexedAt},
+				{int64(1), int64(7), indexedAt, "repository:tenant-a-web", "web", "/src/web", "/src/web", "https://example.test/web", "tenant-a/web", true, "typescript", int64(7), indexedAt},
 			},
 		},
 	})
@@ -168,7 +165,7 @@ func TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData(t *
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if got, want := len(recorder.queries), 2; got != want {
+	if got, want := len(recorder.queries), 1; got != want {
 		t.Fatalf("Postgres received %d queries, want exactly %d", got, want)
 	}
 	for i, dispatched := range recorder.queries {
@@ -211,16 +208,13 @@ func TestListRepositoriesByLanguageUnscopedQueriesStayUnfiltered(t *testing.T) {
 	indexedAt := time.Date(2026, 5, 23, 14, 0, 0, 0, time.UTC)
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{
-			columns: []string{"repository_count", "file_count", "last_indexed_at"},
-			rows:    [][]driver.Value{{int64(1), int64(7), indexedAt}},
-		},
-		{
 			columns: []string{
-				"repo_id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote",
-				"language", "file_count", "last_indexed_at",
+				"repository_count", "total_file_count", "aggregate_indexed_at",
+				"repo_id", "repo_name", "path", "local_path", "remote_url", "repo_slug", "has_remote",
+				"language", "file_count", "page_indexed_at",
 			},
 			rows: [][]driver.Value{
-				{"repository:web", "web", "/src/web", "/src/web", "https://example.test/web", "acme/web", true, "typescript", int64(7), indexedAt},
+				{int64(1), int64(7), indexedAt, "repository:web", "web", "/src/web", "/src/web", "https://example.test/web", "acme/web", true, "typescript", int64(7), indexedAt},
 			},
 		},
 	})
@@ -233,6 +227,9 @@ func TestListRepositoriesByLanguageUnscopedQueriesStayUnfiltered(t *testing.T) {
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("Postgres received %d queries, want %d", got, want)
 	}
 	for i, dispatched := range recorder.queries {
 		if strings.Contains(dispatched, "repo_id = ANY(") {

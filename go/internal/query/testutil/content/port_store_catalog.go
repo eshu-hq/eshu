@@ -172,3 +172,23 @@ func FilterLanguageRepos(
 	}
 	return filtered
 }
+
+// ReadRepositoriesByLanguage returns aggregate and page values for the same
+// fixture scope. The fake delegates to its legacy methods so grant filtering
+// and paging retain their established behavior.
+func (f FakePortContentStore) ReadRepositoriesByLanguage(
+	ctx context.Context,
+	languages []string,
+	limit int,
+	offset int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (querycontract.RepositoryLanguageAggregate, []querycontract.RepositoryLanguageRepository, error) {
+	aggregate, err := f.CountRepositoriesByLanguage(ctx, languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
+	if err != nil {
+		return querycontract.RepositoryLanguageAggregate{}, nil, err
+	}
+	repos, err := f.ListRepositoriesByLanguage(ctx, languages, limit, offset, allScopes, allowedRepositoryIDs, allowedScopeIDs)
+	return aggregate, repos, err
+}
