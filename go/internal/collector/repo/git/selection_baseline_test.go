@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // writeFakeGitForBaseline installs a fake `git` on PATH whose behavior is
@@ -60,9 +60,8 @@ type stubBaselineResolver struct {
 	sha          string
 	err          error
 	scopeIDs     []string
-	lastFull     time.Time
-	lastFullOK   bool
-	lastFullErr  error
+	state        scope.FullReconcileState
+	stateErr     error
 	fullScopeIDs []string
 }
 
@@ -71,9 +70,9 @@ func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID
 	return s.sha, s.err
 }
 
-func (s *stubBaselineResolver) LastFullProjectionAt(_ context.Context, scopeID string) (time.Time, bool, error) {
+func (s *stubBaselineResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {
 	s.fullScopeIDs = append(s.fullScopeIDs, scopeID)
-	return s.lastFull, s.lastFullOK, s.lastFullErr
+	return s.state, s.stateErr
 }
 
 // TestGitScopeIDForManagedRepoMatchesSnapshotScope pins the correctness link of

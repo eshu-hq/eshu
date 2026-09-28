@@ -8,10 +8,12 @@
 // (docs/public/reference/env-registry.md).
 //
 // Scope: the registry covers the core platform subsystems (postgres, graph,
-// runtime, api, mcp, reducer, projector, coordinator, semantic, component) and
-// the hosted-collector production configuration. Container-registry credential
-// variables (ESHU_*_OCI_*, ESHU_*_PACKAGE_*) are integration-test gating read
-// only from _test.go and are out of scope.
+// runtime, api, mcp, collector, reducer, projector, coordinator, semantic,
+// component) and the hosted-collector production configuration. The
+// "collector" subsystem is the ingester's repo-selection/git collector, not
+// the hosted-collector framework (see entries_collectors.go). Container-registry
+// credential variables (ESHU_*_OCI_*, ESHU_*_PACKAGE_*) are integration-test
+// gating read only from _test.go and are out of scope.
 //
 // One exception, and it is a rule rather than a special case: a contributor
 // test knob that is cited on a docs/public page IS carried here, because the

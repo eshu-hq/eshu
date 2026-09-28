@@ -60,19 +60,21 @@ func TestLastProjectedCommitSHAReturnsLatestProjectedSHA(t *testing.T) {
 	for _, want := range []string{
 		"source_commit_sha",
 		"scope_id = $1",
-		"'active', 'completed', 'superseded'",
-		"source_commit_sha IS NOT NULL",
+		"status = 'active'",
+		"activated_at IS NOT NULL",
 		"LIMIT 1",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("lastProjectedCommitSHAQuery missing %q:\n%s", want, q)
 		}
 	}
-	// The baseline must only derive from generations that reached a projected
-	// state. A pending or failed generation never projected, so including it
-	// would silently advance the baseline past unprojected changes.
-	if strings.Contains(q, "'pending'") || strings.Contains(q, "'failed'") {
-		t.Fatalf("lastProjectedCommitSHAQuery must exclude pending/failed:\n%s", q)
+	// The baseline is the active generation only (#7317). A superseded
+	// generation may never have activated, and a pending or failed one never
+	// projected, so none of them may become the delta baseline.
+	for _, forbidden := range []string{"'superseded'", "'pending'", "'failed'", "'completed'"} {
+		if strings.Contains(q, forbidden) {
+			t.Fatalf("lastProjectedCommitSHAQuery must read only the active generation, found %s:\n%s", forbidden, q)
+		}
 	}
 }
 

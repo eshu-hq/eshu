@@ -21,6 +21,9 @@
 // The state-snapshot scope hash MUST agree with terraformstate.ScopeLocatorHash
 // byte-for-byte; the drift resolver join breaks if the two diverge (issue
 // #203).
+// FullReconcileState is the value the git reconciliation sweep decides on: the
+// newest activated full generation and the newest full generation of any
+// status for one scope, filled by the Postgres ingestion store.
 // AllCollectorKinds enumerates every collector kind in a stable order and is the
 // single source of truth for tooling that must cover the full collector fleet
 // (readiness reports, promotion proofs, fleet hygiene); adding a collector means

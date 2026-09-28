@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func reconcileTestConfig(reposDir string) RepoSyncConfig {
@@ -27,15 +29,19 @@ func TestReconcileDueWhenNoFullProjectionExists(t *testing.T) {
 
 	reposDir := t.TempDir()
 	repoPath := filepath.Join(reposDir, "github", "org", "repo")
-	resolver := &stubBaselineResolver{lastFullOK: false}
+	resolver := &stubBaselineResolver{}
 	baseline := gitDeltaBaseline{
 		Resolver:  resolver,
 		Reconcile: reconcilePolicy{Interval: 24 * time.Hour},
 		Now:       func() time.Time { return time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC) },
 	}
 
-	if !baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath) {
-		t.Fatal("reconcileDue = false, want true when no full projection exists")
+	decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath)
+	if !decision.Due || decision.Reason != reconcileReasonNeverReconciled {
+		t.Fatalf("reconcileDue = %+v, want due with reason %q when no full generation exists", decision, reconcileReasonNeverReconciled)
+	}
+	if decision.ScopeID == "" {
+		t.Fatal("reconcileDue must carry the scope id for the forced-reconcile log")
 	}
 }
 
@@ -57,16 +63,29 @@ func TestReconcileDueRespectsInterval(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resolver := &stubBaselineResolver{lastFull: tc.lastFull, lastFullOK: true}
+			resolver := &stubBaselineResolver{state: projectedFullState(tc.lastFull)}
 			baseline := gitDeltaBaseline{
 				Resolver:  resolver,
 				Reconcile: reconcilePolicy{Interval: 24 * time.Hour},
 				Now:       func() time.Time { return now },
 			}
-			if got := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath); got != tc.want {
-				t.Fatalf("reconcileDue = %v, want %v", got, tc.want)
+			if got := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath); got.Due != tc.want {
+				t.Fatalf("reconcileDue = %+v, want due=%v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestReconcileDueLookupErrorIsNotDue(t *testing.T) {
+	t.Parallel()
+
+	reposDir := t.TempDir()
+	repoPath := filepath.Join(reposDir, "github", "org", "repo")
+	resolver := &stubBaselineResolver{stateErr: errStubResolver}
+	baseline := gitDeltaBaseline{Resolver: resolver, Reconcile: reconcilePolicy{Interval: 24 * time.Hour}}
+
+	if decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath); decision.Due {
+		t.Fatalf("reconcileDue = %+v, want not due on a resolver error", decision)
 	}
 }
 
@@ -75,14 +94,24 @@ func TestReconcileDisabledWhenIntervalZero(t *testing.T) {
 
 	reposDir := t.TempDir()
 	repoPath := filepath.Join(reposDir, "github", "org", "repo")
-	resolver := &stubBaselineResolver{lastFullOK: false}
+	resolver := &stubBaselineResolver{}
 	baseline := gitDeltaBaseline{Resolver: resolver, Reconcile: reconcilePolicy{Interval: 0}}
 
-	if baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath) {
+	if baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath).Due {
 		t.Fatal("reconcileDue = true, want false when reconciliation disabled")
 	}
 	if len(resolver.fullScopeIDs) != 0 {
 		t.Fatalf("disabled reconciliation must not query, got %d lookups", len(resolver.fullScopeIDs))
+	}
+}
+
+// projectedFullState is the reconcile state of a scope whose newest full
+// generation was activated at ingestedAt.
+func projectedFullState(ingestedAt time.Time) scope.FullReconcileState {
+	return scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: ingestedAt,
+		HasLatestFull: true, LatestFullAt: ingestedAt,
+		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
 	}
 }
 
@@ -116,7 +145,7 @@ func TestSyncForcesBoundedReconciliationFullSnapshot(t *testing.T) {
 
 	config := reconcileTestConfig(reposDir)
 	config.ReconcileMaxPerCycle = 1
-	resolver := &stubBaselineResolver{sha: "basesha", lastFullOK: false}
+	resolver := &stubBaselineResolver{sha: "basesha"}
 	synced, err := syncGitRepositoriesWithLogger(
 		context.Background(),
 		config,

@@ -78,8 +78,11 @@ func syncGitRepositoriesWithLogger(
 				}
 			}
 		} else {
-			forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
-				baseline.reconcileDue(ctx, config, repoPath)
+			var reconcile reconcileDecision
+			if reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) {
+				reconcile = baseline.reconcileDue(ctx, config, repoPath)
+			}
+			forceReconcile := reconcile.Due
 			// updated==false with a nil updateErr is the legitimate no-new-changes
 			// no-op, not a failure — only updateErr != nil is metered below.
 			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
@@ -100,7 +103,7 @@ func syncGitRepositoriesWithLogger(
 					if forceReconcile {
 						reconcileByRepoPath[repoPath] = true
 						reconciledThisCycle++
-						baseline.recordReconciliation(ctx)
+						baseline.recordReconciliation(ctx, logger, reconcile)
 					}
 				}
 			}
