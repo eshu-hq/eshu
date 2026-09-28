@@ -160,7 +160,7 @@ table) stands in place of a before/after comparison.
 
 ## Observability Evidence
 
-`query.changed_since_poisoned_links` span (`db.system`, `db.sql.table`,
+Observability Evidence: the `query.changed_since_poisoned_links` span (`db.system`, `db.sql.table`,
 `changed_since.poisoned_links.status_filter`,
 `changed_since.poisoned_links.count`) plus
 `eshu_dp_query_changed_since_poisoned_links_duration_seconds` and
