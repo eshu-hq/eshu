@@ -17,9 +17,9 @@ estimated at 48.8M rows feeding a 64-partition `HashAggregate`.
 ## The change
 
 - **Two partial key indexes**, one `CREATE INDEX CONCURRENTLY` per migration
-  file: `145_fact_records_content_entity_key_idx.sql` on
+  file: `146_fact_records_content_entity_key_idx.sql` on
   `((payload->>'repo_id'), (payload->>'entity_id'))` and
-  `146_fact_records_file_key_idx.sql` on
+  `147_fact_records_file_key_idx.sql` on
   `((payload->>'repo_id'), (payload->>'relative_path'))`, each
   `WHERE fact_kind = '<kind>' AND is_tombstone = FALSE`. `generation_id` is
   left out: `generation_id <> ALL($1)` is not btree-indexable, and without it
@@ -43,11 +43,12 @@ estimated at 48.8M rows feeding a 64-partition `HashAggregate`.
   `fact_records` index later, retention would refuse until one existed, and a
   btree over two kinds has no measurable insert cost on the fixture (below).
 
-Migration numbers 145 and 146 are the next free after `origin/main` merged
-#7301 (migrations 139-144). This branch originally claimed 138 and 139, moved
-to 139 and 140 after #7206 took 138, and moved again to 145 and 146 after
-#7301 took 139-144. Any other open PR still adding migrations from 145 upward
-must renumber past these two and re-pin the manifest and golden digest.
+Migration numbers 146 and 147 are the next free after `origin/main` merged
+#7352 (migration 145). This branch originally claimed 138 and 139, moved to
+139 and 140 after #7206 took 138, moved to 145 and 146 after #7301 took
+139-144, and moved again to 146 and 147 after #7352 took 145. Any other open
+PR still adding migrations from 146 upward must renumber past these two and
+re-pin the manifest and golden digest.
 
 ## Hypothesis ledger
 
@@ -225,7 +226,7 @@ issues no lock, count, or delete.
   the concurrent build time on a 115 GB heap (it reads the heap about twice and
   waits out old snapshots), and the real index sizes. Take a quiet-window
   `EXPLAIN (ANALYZE, BUFFERS)` of the four statements after the indexes exist.
-- Until migrations 145 and 146 finish, retention refuses every cycle. The
+- Until migrations 146 and 147 finish, retention refuses every cycle. The
   migration coordinator builds them at startup; a failed build fails bootstrap
   and is retried after dropping the invalid index.
 - The scale and contention test is too heavy for the reducer contention gate's
