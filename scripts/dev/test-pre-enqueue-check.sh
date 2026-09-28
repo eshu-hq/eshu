@@ -150,6 +150,7 @@ rg -q "clean against queue tip ${TIP_OK} \(#202\)" <<<"${OUT}" || ok=1
 rg -q 'queued #201 \(position 1\) file overlap: docs/x.md$' <<<"${OUT}" || ok=1
 rg -q 'queued #202 \(position 2\) file overlap: none$' <<<"${OUT}" || ok=1
 rg -q 'closing keywords: Closes #7332' <<<"${OUT}" || ok=1
+if rg -q 'non-closing references:' <<<"${OUT}"; then ok=1; fi
 check "GREEN all six arms pass, exit 0" "${ok}"
 printf '%s\n' "${OUT}" | sed 's/^/    | /'
 ok=0
