@@ -88,9 +88,9 @@ pre-tool and session-start behavior to Codex still needs the `apply_patch`
 payload shape and event equivalents pinned. Do not write those adapters
 against guessed payloads.
 
-The separate Codex `UserPromptSubmit` goal router has a live wire-contract
-probe on `codex-cli 0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md)
-for its payload, output, trust steps, and proof limits.
+The Codex `UserPromptSubmit` goal router has a live wire-contract probe on
+`codex-cli 0.156.1`. See [Codex Goal Hook](agent-hooks-codex-goal.md) for its
+payload, trust steps, and the tested `spawn_agent` hook limitation.
 
 ## The nudge table rots, so a gate watches it
 

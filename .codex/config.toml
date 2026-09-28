@@ -1,7 +1,14 @@
-# Codex project-level config. Enable the prompt router and PostToolUse
-# doc-keeper hook in .codex/hooks.json for trusted project sessions.
+# Codex project defaults for trusted Eshu sessions. A selected custom Eshu role
+# uses its role file model; CLI flags can override this main-session default.
 #
-# See https://developers.openai.com/codex/hooks for the full spec.
+# See https://learn.chatgpt.com/docs/config-file/config-basic for precedence.
+
+model = "gpt-6-luna"
+model_reasoning_effort = "high"
+
+[agents]
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "high"
 
 [features]
 hooks = true

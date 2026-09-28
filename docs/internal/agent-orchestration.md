@@ -249,6 +249,16 @@ with the model, effort, role instructions, and sandbox read from
 CLI startup banner for the resolved model and effort. Do not report task-name
 dispatch as role routing.
 
+For new trusted Eshu sessions, `.codex/config.toml` defaults the coordinator
+and generic child agents to GPT-6 Luna at high effort. A CLI model selection
+overrides the coordinator default. When a spawn selects a custom Eshu role,
+its role file overrides the generic child default with its manifest tier.
+Routine workhorse roles currently use
+GPT-6 Sol at medium effort, and deep roles use Sol at high effort. Check the
+resolved model when spawning and audit actual usage after long goals. The
+tested Codex 0.158.0 `spawn_agent` path bypassed `PreToolUse`, so a project
+hook cannot be treated as a model enforcement point for that path.
+
 The reviewer uses the same skill in all four:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
 [`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md), and
