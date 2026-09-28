@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 )
 
 // assertFenceCounter checks eshu_dp_projector_delta_baseline_fence_total has
@@ -120,8 +122,40 @@ func TestProjectorDeltaBaselineMarkFailureConverges(t *testing.T) {
 
 // TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow holds the scope row
 // the way an ingestion commit does. The preflight read and the refusal mark
-// must finish without waiting for it.
+// must finish without waiting for it. The proof is the lock itself, not wall
+// time: the preflight session runs with a 50 ms lock_timeout, so any lock wait
+// raises 55P03 and turns the refusal into a retryable error.
 func TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow(t *testing.T) {
+	if err := preflightUnderHeldScopeRow(t, func(queue ProjectorQueue, _ *sql.DB) projector.DeltaBaselineFence {
+		return queue
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestPreflightUnderHeldScopeRowCatchesALockWait is the planted RED for the
+// check above: a fence that takes the held scope row (FOR SHARE conflicts
+// with the holder's FOR NO KEY UPDATE) must fail the check with 55P03.
+func TestPreflightUnderHeldScopeRowCatchesALockWait(t *testing.T) {
+	err := preflightUnderHeldScopeRow(t, func(queue ProjectorQueue, database *sql.DB) projector.DeltaBaselineFence {
+		return scopeLockingFence{ProjectorQueue: queue, database: database}
+	})
+	if err == nil {
+		t.Fatal("a fence that waits on the scope row passed the no-wait check")
+	}
+	if !coordination.IsLockNotAvailable(err) {
+		t.Fatalf("check failed for %v, want the 55P03 lock timeout", err)
+	}
+}
+
+// preflightUnderHeldScopeRow holds the scope row in another session and runs
+// the preflight of the fence build returns on a session with a 50 ms
+// lock_timeout. It returns nil only when the preflight refused the delta.
+func preflightUnderHeldScopeRow(
+	t *testing.T,
+	build func(ProjectorQueue, *sql.DB) projector.DeltaBaselineFence,
+) error {
+	t.Helper()
 	dsn := proofDSN(t)
 	database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
 	holder := searchPathPeer(t, dsn, database)
@@ -134,18 +168,30 @@ func TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow(t *testing.T) {
 		"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE", fenceProofScope); err != nil {
 		t.Fatalf("hold scope row: %v", err)
 	}
-	if _, err := database.ExecContext(context.Background(), "SET lock_timeout = '500ms'"); err != nil {
+	if _, err := database.ExecContext(context.Background(), "SET lock_timeout = '50ms'"); err != nil {
 		t.Fatalf("set lock_timeout: %v", err)
 	}
 	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
-	start := time.Now()
-	err = projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), nil, nil)
+	err = projector.PreflightDeltaBaseline(context.Background(), build(queue, database), fenceWork("gen-d"), nil, nil)
 	if !projector.IsDeltaBaselineRefusal(err) {
-		t.Fatalf("preflight under a held scope row = %v, want a refusal (lock_timeout means it waited)", err)
+		return fmt.Errorf("preflight under a held scope row = %w, want a refusal", err)
 	}
-	if elapsed := time.Since(start); elapsed > 400*time.Millisecond {
-		t.Fatalf("preflight took %s under a held scope row, want no wait", elapsed)
+	return nil
+}
+
+// scopeLockingFence is the planted violation: its read first locks the scope
+// row, which the holder has, so it waits.
+type scopeLockingFence struct {
+	ProjectorQueue
+	database *sql.DB
+}
+
+func (f scopeLockingFence) ReadDeltaBaseline(ctx context.Context, work projector.ScopeGenerationWork) (projector.DeltaBaselineState, error) {
+	if _, err := f.database.ExecContext(ctx,
+		"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR SHARE", work.Scope.ScopeID); err != nil {
+		return projector.DeltaBaselineState{}, err
 	}
+	return f.ProjectorQueue.ReadDeltaBaseline(ctx, work)
 }
 
 // searchPathPeer opens a second connection on the proof schema of database.
