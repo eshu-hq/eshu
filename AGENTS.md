@@ -72,12 +72,9 @@ change. Local fixture tests that have no production access may run within the
 authorized task without a separate approval at each step. This does not grant
 access to production data or authorize external mutations.
 
-The order is focused local proof, clean preliminary review, one late
-`make pre-push`, attestation verification (or a new full review if
-invalidated), then push and PR creation/update. CI must not be the first test
-of an unproven change. If local proof is blocked, report the command and cause
-before publishing; do not open a speculative PR to discover whether the change
-works.
+Follow the promotion order above. CI must not be the first test of an unproven
+change. If local proof is blocked, report the command and cause before
+publishing; do not open a speculative PR to discover whether the change works.
 
 ## Mandatory Prove-The-Theory-First
 
@@ -256,8 +253,7 @@ evidence-backed house style without loading a writing playbook each time.
   duplicates, retries, ordering, idempotency, concurrency, and rollback.
 - MUST preserve package ownership boundaries. The ownership table lives in
   [Agent Engineering Guide](docs/internal/agent-guide.md#ownership-boundaries).
-- MUST include telemetry an operator can use at 3 AM for runtime-affecting
-  changes.
+- MUST include telemetry an operator can use at 3 AM for runtime-affecting changes.
 - MUST research official documentation before deciding on external SDK,
   database, queue, transaction, and concurrency behavior.
 
@@ -468,7 +464,8 @@ over the bare command when you only need the day-to-day check, not a
   before the intended push (and `make pre-pr`/`make pre-pr-full` when the
   change warrants that deeper, optional preflight). Subagents MUST NOT each
   run these — running the floor N times per branch is wasted CPU. They run
-  focused verification only and paste it in the handoff. The live gate binds
+  focused verification, and executors also the registry-selected static gates
+  (`develop-eshu` role), then paste results in the handoff. The live gate binds
   fixed host ports and holds a cross-worktree mutex:
   [serialization and contention](docs/internal/agent-guide.md#live-gate-serialization-and-contention).
 - MUST check open PRs and recent commits for the same root cause before starting

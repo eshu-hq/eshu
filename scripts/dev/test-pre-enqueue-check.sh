@@ -77,6 +77,25 @@ g "${seed}" checkout -q -B main-moved main
 printf 'main2\n' >"${seed}/a.txt"
 g "${seed}" commit -qam moved
 g "${seed}" push -q "${work}/origin-conflict.git" main-moved:main
+# origin-drift.git: main moved on TWO commits (b.txt, then a new c.txt), so the
+# PR head (a.txt, one commit) still merges cleanly, shares no file with the
+# drift, and the drift count differs from the PR's own commit count.
+new_origin "${work}/origin-drift.git"
+g "${seed}" checkout -q -B main-drift main
+printf 'b2\n' >"${seed}/b.txt"
+g "${seed}" commit -qam drift
+printf 'c1\n' >"${seed}/c.txt"
+g "${seed}" add c.txt && g "${seed}" commit -qm drift2
+g "${seed}" push -q "${work}/origin-drift.git" main-drift:main
+# origin-unrelated.git: holds the PR head, but its main shares no history with
+# it, so there is no merge base at all.
+new_origin "${work}/origin-unrelated.git"
+g "${seed}" checkout -q --orphan unrelated
+g "${seed}" rm -rfq .
+printf 'z1\n' >"${seed}/z.txt"
+g "${seed}" add z.txt && g "${seed}" commit -qm unrelated
+g "${seed}" push -q -f "${work}/origin-unrelated.git" unrelated:main
+g "${seed}" checkout -q -f main
 
 # --- fake gh and case fixtures ----------------------------------------------
 export FAKE_PR=100 PRE_ENQUEUE_REPO=eshu-hq/eshu
@@ -150,6 +169,7 @@ rg -q "clean against queue tip ${TIP_OK} \(#202\)" <<<"${OUT}" || ok=1
 rg -q 'queued #201 \(position 1\) file overlap: docs/x.md$' <<<"${OUT}" || ok=1
 rg -q 'queued #202 \(position 2\) file overlap: none$' <<<"${OUT}" || ok=1
 rg -q 'closing keywords: Closes #7332' <<<"${OUT}" || ok=1
+rg -q 'merge-main  base drift: 0 commit\(s\) on origin/main since the merge base; files changed on both sides: none$' <<<"${OUT}" || ok=1
 if rg -q 'non-closing references:' <<<"${OUT}"; then ok=1; fi
 check "GREEN all six arms pass, exit 0" "${ok}"
 printf '%s\n' "${OUT}" | sed 's/^/    | /'
@@ -214,6 +234,39 @@ edit pr.json '.state = "MERGED"'
 expect_red "PR not open" pr-state
 new_case main-conflict "${work}/origin-conflict.git"
 expect_red "merge-tree conflict vs origin/main" merge-main
+ok=0
+rg -q 'merge-main  base drift: 1 commit\(s\) on origin/main since the merge base; files changed on both sides: a\.txt$' <<<"${OUT}" || ok=1
+check "drift note names the file main and the PR both changed" "${ok}"
+# Drift that shares no file with the PR is reported but does not fail.
+new_case main-drift "${work}/origin-drift.git"
+run
+ok=0
+[[ "${RC}" -eq 0 ]] || ok=1
+rg -q 'merge-main  base drift: 2 commit\(s\) on origin/main since the merge base; files changed on both sides: none$' <<<"${OUT}" || ok=1
+check "GREEN drift with no shared file is reported, not failed" "${ok}"
+[[ "${ok}" -eq 0 ]] || printf '%s\n' "${OUT}" | sed 's/^/    | /'
+new_case no-merge-base "${work}/origin-unrelated.git"
+expect_red "main shares no history with the head" merge-main
+ok=0
+rg -q '^FAIL merge-main +no merge base' <<<"${OUT}" || ok=1
+check "no-merge-base FAIL names the missing merge base" "${ok}"
+# A drift computation that errors must fail the arm, never print "none". The
+# wrapper fails exactly ONE drift call per mode, so each check is proven on
+# its own: the main-side diff ends at origin/main, the head-side diff does not.
+mkdir -p "${work}/badgit"
+real_git="$(command -v git)"
+printf '%s\n' '#!/usr/bin/env bash' "real='${real_git}'" \
+	'[[ "${BADGIT_MODE}" == rev-list && "$1" == rev-list ]] && exit 128' \
+	'if [[ "$1" == diff && "$2" == --name-only ]]; then' \
+	'	main="$("${real}" rev-parse origin/main)"' \
+	'	[[ "${BADGIT_MODE}" == diff-main && "$4" == "${main}" ]] && exit 128' \
+	'	[[ "${BADGIT_MODE}" == diff-head && "$4" != "${main}" ]] && exit 128' \
+	'fi' 'exec "${real}" "$@"' >"${work}/badgit/git"
+chmod +x "${work}/badgit/git"
+for mode in rev-list diff-main diff-head; do
+	new_case "drift-${mode}-error" "${work}/origin-drift.git"
+	BADGIT_MODE="${mode}" GIT="${work}/badgit/git" expect_red "drift ${mode} call that errors" merge-main
+done
 new_case queue-conflict
 edit queue.json '.data.repository.mergeQueue.entries.nodes[1].headCommit.oid = $t' --arg t "${TIP_BAD}"
 expect_red "merge-tree conflict vs queue tip" merge-queue
