@@ -47,8 +47,10 @@ store query consts is empty (same text, new homes); the route-serves-data
 registry entry for the incident route points at the new files with
 unchanged evidence markers, and its gate passes.
 
-No-Observability-Change: this package emits no metric or span of its own;
-the only log writes are the pre-existing decode-drop debug logs, unchanged.
-The incident route keeps `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total` via the unchanged query-surface
-middleware, and the handler span name is unchanged.
+Observability Evidence: the store records `query.incident_context.stage`
+events on the existing handler span for each completed sequential read:
+`anchor`, `timeline`, `changes`, `routing`, `runtime`, and `review`. Each event
+has a duration and error flag; request data and SQL are omitted. The route
+keeps `eshu_dp_api_request_duration_seconds` and
+`eshu_dp_api_request_errors_total` via the unchanged query-surface middleware.
+The handler span name is unchanged.
