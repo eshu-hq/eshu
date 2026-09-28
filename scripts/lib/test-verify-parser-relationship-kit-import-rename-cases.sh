@@ -16,6 +16,19 @@
 # that already existed, or to one that did not replace the old, is a real
 # change. These cases run end to end through the real gate.
 
+# sed_in_place script file...
+#   Edits each file in place under both BSD (macOS) and GNU sed. A bare
+#   `sed -i` takes the script as a backup suffix on BSD sed. The backup is
+#   removed so the cases' `git add -A` never commits it.
+sed_in_place() {
+  local script="$1" file
+  shift
+  for file in "$@"; do
+    sed -i.bak "$script" "$file"
+    rm -f "${file}.bak"
+  done
+}
+
 # rename_case name importer base-src head-src base-pkgs head-pkgs expect
 #   importer   repo-relative path of the file under test.
 #   base-pkgs  space-separated repo-relative package dirs present at the base.
@@ -216,29 +229,29 @@ content_move_case() {
   case "$mode" in
     second-lead)
       git -C "${r}" mv "${old_pkg}/notes.go" "${new_pkg}/notes.go"
-      sed -i 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan/\/\/ Package tracing/' "${r}/${new_pkg}/notes.go" ;;
+      sed_in_place 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan/\/\/ Package tracing/' "${r}/${new_pkg}/notes.go" ;;
     glued-lead)
       git -C "${r}" mv "${old_pkg}/glued.go" "${new_pkg}/glued.go"
-      sed -i 's/^package queryspan/package tracing/; s/^\/\/ Package queryspanx/\/\/ Package tracingx/' "${r}/${new_pkg}/glued.go" ;;
+      sed_in_place 's/^package queryspan/package tracing/; s/^\/\/ Package queryspanx/\/\/ Package tracingx/' "${r}/${new_pkg}/glued.go" ;;
   esac
-  sed -i 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan /\/\/ Package tracing /' \
+  sed_in_place 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan /\/\/ Package tracing /' \
     "${r}/${new_pkg}/doc.go" "${r}/${new_pkg}/handler.go" "${r}/${new_pkg}/handler_test.go"
   if [ "$mode" = raw-clause ]; then
     git -C "${r}" mv "${old_pkg}/tmpl.go" "${new_pkg}/tmpl.go"
-    sed -i 's/^package queryspan/package tracing/' "${r}/${new_pkg}/tmpl.go"
+    sed_in_place 's/^package queryspan/package tracing/' "${r}/${new_pkg}/tmpl.go"
   fi
   case "$mode" in
     pure-rename) ;;
-    changed-body) sed -i 's/return 1/return 2/' "${r}/${new_pkg}/handler.go" ;;
+    changed-body) sed_in_place 's/return 1/return 2/' "${r}/${new_pkg}/handler.go" ;;
     added-file) printf 'package tracing\n\n// B returns two.\nfunc B() int { return 2 }\n' >"${r}/${new_pkg}/extra.go" ;;
     missing-file) git -C "${r}" rm -q -f "${new_pkg}/handler_test.go" ;;
-    changed-doc) sed -i 's/A returns one/A returns 1/' "${r}/${new_pkg}/handler.go" ;;
+    changed-doc) sed_in_place 's/A returns one/A returns 1/' "${r}/${new_pkg}/handler.go" ;;
     changed-asset) printf 'MATCH (n) DETACH DELETE n\n' >"${r}/${new_pkg}/query.cypher" ;;
     raw-clause) ;;
     readme-edit) printf '# tracing\n\nWas queryspan until #6818.\n' >"${r}/${new_pkg}/README.md" ;;
     nested-asset) printf 'MATCH (m) DETACH DELETE m\n' >"${r}/${new_pkg}/tmpl/t.cypher" ;;
     second-lead | glued-lead) ;;
-    nested-go) sed -i 's/return 1/return 2/' "${r}/${new_pkg}/sub/sub.go" ;;
+    nested-go) sed_in_place 's/return 1/return 2/' "${r}/${new_pkg}/sub/sub.go" ;;
   esac
   printf '%s\n' "$new_src" >"${r}/${lang}"
   git -C "${r}" add -A .
