@@ -154,7 +154,7 @@ When adding a signal, update the code contract first, then update the focused
 public telemetry page that operators use for that signal.
 The incident context route uses `query.incident_context` with stable `http.route` and `eshu.capability` span attributes.
 Its `query.incident_context.stage` events name completed `anchor`, `timeline`, `changes`, `routing`, `runtime`, and `review` reads with `eshu.incident_context.duration_ms` and Boolean `eshu.incident_context.error` attributes.
-Early exits emit only reached stages; no incident ID, URL, payload, or SQL is recorded. Use the events to attribute a slow request.
+On recording spans, early exits emit only reached stages; no incident ID, URL, payload, or SQL is recorded. Compare store-read events with route duration; time outside them needs separate diagnosis.
 
 Supply-chain finding list and explain reads open
 `supply_chain.cloud_runtime_probe` and

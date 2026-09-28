@@ -12,8 +12,8 @@ The anchor SQL used an `OR` between `provider_incident_id` and its legacy
 `EXPLAIN (ANALYZE, BUFFERS)` showed an index scan constrained by source system
 and scope, followed by 16,236 rows removed by the identity filter. Its first
 measured execution took 353.401 ms and read 16,522 shared blocks. That SQL
-cost is a measured contributor to the cold response; the remaining endpoint
-wall time has not been attributed to this one query.
+plan shows a costly cold-cache path, but does not prove how much of the
+observed first endpoint call this statement consumed.
 
 A read-only, same-snapshot candidate split the mutually exclusive identities
 into `UNION ALL` branches and retained active-generation, scope, kind,
@@ -44,12 +44,15 @@ request. The source route has a single handler span and route-duration metric;
 its raw `*sql.DB` reads had no per-statement timings. The store now records a
 bounded stage event on that handler span for each completed anchor, timeline,
 changes, routing, runtime, and review read. Each event carries duration and an
-error flag, without incident IDs, URLs, payloads, or SQL. It lets the next
-cold request identify the remaining slow stage.
+error flag, without incident IDs, URLs, payloads, or SQL. On a recording
+span, these events attribute time within the six store reads; compare their
+sum with route duration to see whether the remainder lies elsewhere.
 
 Verification: `go test ./internal/query/incident/sql ./internal/query/incident/store
 ./internal/query/incident -count=1` passed after the edit. Both regressions
 first failed on the old behavior and then passed: one checks the indexable
 identity branches; the other exercises the production read flow and its stage
-events. This change does not yet prove a deployed cold response under one
-second; that requires a fresh owner deployment and endpoint sweep.
+events. An added error-path test observes the anchor and failing timeline only;
+a planted false error flag made it fail before the restored code passed. This
+change does not yet prove a deployed cold response under one second; that
+requires a fresh owner deployment and endpoint sweep.

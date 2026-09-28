@@ -48,7 +48,7 @@ registry entry for the incident route points at the new files with
 unchanged evidence markers, and its gate passes.
 
 Observability Evidence: the store records `query.incident_context.stage`
-events on the existing handler span for each completed sequential read:
+events on a recording handler span for each completed sequential read:
 `anchor`, `timeline`, `changes`, `routing`, `runtime`, and `review`. Each event
 has a duration and error flag; request data and SQL are omitted. The route
 keeps `eshu_dp_api_request_duration_seconds` and
