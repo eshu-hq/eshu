@@ -32,6 +32,14 @@ import (
 // ESHU_7320_COST_STRESS_BYTES (65536). Wall time on a shared host is not
 // evidence; the test logs the host load so a reader can label the run.
 
+// requireCostProof skips a #7320 measurement unless it is opted in.
+func requireCostProof(t *testing.T) {
+	t.Helper()
+	if os.Getenv("ESHU_7320_COST_PROOF") != "1" {
+		t.Skip("set ESHU_7320_COST_PROOF=1 to run the #7320 claim cost and memory proofs")
+	}
+}
+
 func costEnvInt(name string, def int) int {
 	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name))); err == nil && v > 0 {
 		return v
@@ -110,9 +118,7 @@ type costStatement struct {
 }
 
 func TestSupersedePriorFailureClaimCost(t *testing.T) {
-	if os.Getenv("ESHU_7320_COST_PROOF") != "1" {
-		t.Skip("set ESHU_7320_COST_PROOF=1 to run the #7320 claim cost proof")
-	}
+	requireCostProof(t)
 	dsn := claimMaintenanceProofDSN(t)
 	database := openClaimDeadlockProofDB(t, dsn, 2)
 	ctx := context.Background()

@@ -154,6 +154,33 @@ nine pairs, freshly seeded each run, medians:
 | `ReducerQueue.ClaimBatch` | 3,500 x 800 B | 0.117266 s | 0.142628 s (x1.216) |
 | `ReducerQueue.ClaimBatch` | 500 x 64 KB | 0.021145 s | 0.137591 s |
 
+Memory and temp files (`TestSupersedePriorFailureClaimMemory`,
+`EXPLAIN (ANALYZE, BUFFERS, VERBOSE)` in a rolled-back transaction, per-node
+`Memory Usage`, `Batches`, `Disk` and temp blocks summed over the plan). The
+claim statements set no `work_mem` of their own (no `SET LOCAL`), so the server
+default of 4 MB applies, with the default `hash_mem_multiplier` of 2 for hash
+nodes; a second run at the PostgreSQL minimum of 64 kB shows how close each
+variant sits to spilling.
+
+| Statement | Case | work_mem | Widest node before | Widest node after | Disk / batches |
+| --- | --- | --- | --- | --- | --- |
+| projector claim | 3,500 x 800 B | 4 MB | 705 kB (Hash, 8192 buckets) | 3,680 kB (same Hash) | none / 1 batch |
+| projector claim | 5,000 x 800 B | 4 MB | 1,050 kB | 1,050 kB | none |
+| projector claim | 8,000 x 800 B | 4 MB | 1,613 kB | 1,613 kB | none |
+| projector claim | 500 x 64 KB | 4 MB | 94 kB | 502 kB | none |
+| reducer claim and batch | 3,500 x 800 B and 500 x 64 KB | 4 MB | 25 kB | 25 kB | none |
+| projector claim | 3,500 x 800 B | 64 kB | 121 kB | 121 kB | 1,120 kB, 8 batches, both variants |
+
+The one place the fold widens a node is the projector sweep's hash at 3,500
+rows: 705 kB to 3,680 kB, about 5.2 times, still inside the 8 MB a hash node may
+use at the default (2.2 times of headroom); at 5,000 and 8,000 rows the planner
+chooses a shape where the fold adds no node memory, and no case spills at the
+default. Under a 64 kB `work_mem` both variants spill the same 1,120 kB and 8
+batches, and the temp block count at 3,500 rows goes from 4,773,360 to 6,819,621
+(+43%) with the wider rows. The reducer statements do not hold the failure
+columns in any node. Not measured: backend RSS, and a `work_mem` between 64 kB
+and 4 MB.
+
 This run is NON-PD: the host was shared and loaded (load average 30 to 55 during
 the runs), so wall times are indicative only and a quiet-host re-run of
 `TestSupersedePriorFailureClaimCost` is the timing evidence. The cost is paid
@@ -174,7 +201,7 @@ row, read with the recipe above. A supersede-over-a-failure counter was
 rejected: 95.0% of ops-qa projector supersedes happen in the claim sweep, whose
 result carries only the claimed row, so counting there means changing the claim
 statement's result shape, and counting only the other writers would cover 5% and
-mislead. The operator gap is at Fail time, not here (FU-2).
+mislead. The operator gap is at Fail time, not here (#7386).
 
 ## Ops-qa attribution of the 3,436 rows (issue item 2)
 
@@ -193,13 +220,13 @@ for 3,317 rows. Logs and Prometheus history for 09-18 to 09-24 are NOT_CHECKED.
 
 ## Follow-ups
 
-- FU-1: expose `prior_failure` in `get_generation_lifecycle`, the freshness CLI
+- #7385: expose `prior_failure` in `get_generation_lifecycle`, the freshness CLI
   and the admin work-item listing (wire contract, OpenAPI lockstep).
-- FU-2: a dead-letter counter by `failure_class` at the projector Fail path;
+- #7386: a dead-letter counter by `failure_class` at the projector Fail path;
   check reducer parity.
-- FU-3: `fact_replay_events.failure_class` is always NULL (the replay reads the
+- #7387: `fact_replay_events.failure_class` is always NULL (the replay reads the
   row after clearing it).
-- FU-4: other overwrites of live-row failure fields:
+- #7388: other overwrites of live-row failure fields:
   `projector_stale_scope_reclaim` and the operator note replacing
   `failure_details`.
 
