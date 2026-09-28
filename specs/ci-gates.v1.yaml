@@ -665,8 +665,9 @@ gates:
       # on PATH serves per-case JSON and a local bare repository stands in for
       # origin, so each fail-closed arm (head, merge-tree vs main and vs the
       # queue tip, checks, required-gates-complete, merge state, threads,
-      # closing keyword, attribution) has a seeded RED beside one all-green
-      # case (docs/public/reference/local-testing/pre-enqueue-check.md).
+      # issue reference or closing keyword, attribution) has a seeded RED
+      # beside one all-green case
+      # (docs/public/reference/local-testing/pre-enqueue-check.md).
       command: "bash scripts/dev/test-pre-enqueue-check.sh"
       test_command: ""
     ci:
