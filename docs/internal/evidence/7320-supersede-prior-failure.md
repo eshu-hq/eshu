@@ -84,11 +84,12 @@ FROM fact_work_items WHERE status = 'superseded';
 
 Rows superseded before this change lost the evidence and are not backfilled.
 
-Classification: correctness win. The fold adds bytes to every superseded row
-(next section, Performance); its wall-time cost is not yet measured on a quiet
-host. The projector claim sweep is a separate long pole of its own, about 2 to
-3.5 s for 3,500 superseded rows on the loaded host, most of it work this change
-does not touch.
+Classification: correctness win with a measured cost. The fold adds about 7 to 8
+microseconds, 986 bytes of WAL and 0.14 heap pages per superseded row that
+carries 800 bytes of details, paid once per row. It is not a no-regression
+result: the reducer claim statements are 22 to 26% slower on a sweep of 3,500
+such rows. The projector claim sweep is the larger cost on this path, 2.93 s for
+3,500 rows (0.84 ms a row) with or without the fold (#7408).
 
 ## Proof
 
@@ -116,6 +117,15 @@ does not touch.
   tree passes. Cutting the
   fragment from the Ack-refusal statement in place made the tree scan fail, and
   restoring it made it pass.
+- No-candidate claim (`TestSupersedeNoCandidateClaimRunsSamePlanAndWritesNothing`):
+  with nothing stale, the three claim statements run the same plan with and
+  without the fold, each supersede UPDATE writes 0 rows and nothing is superseded.
+  Its seeded RED (`TestSupersedeNoCandidateProofRejectsAStaleRow`) plants one
+  stale scope and must fail on "writes 0 rows". Numbers under Wall time.
+- Harness PD label (`TestCostPDLoadLimitIsHalfTheCPUCount`, `TestCostPDLabel`,
+  hermetic): the limit is half the CPU count (8 on 16, 9 on 18); a load equal to
+  the limit or unreadable is NON-PD. RED against the old fixed 9: a start of 8.5
+  on 16 CPUs was labelled PD.
 
 ## Concurrency
 
@@ -142,13 +152,19 @@ harnesses are opt-in). Later commits on the branch change documentation only.
 
 ## Performance
 
-Performance Evidence: what is proven is the plan, the bytes and pages the fold
-writes, and the memory it holds, all counts that do not depend on host load.
-What is NOT yet proven is wall time: the timing proof on a quiet host has NOT
-BEEN DONE, and this note makes no no-regression claim for wall time. Every wall
-time taken so far ran on a loaded shared host (load average 13 to 55) and is
-NON-PD (the owner's timing-proof rule: load1 below 9 at start, end and maximum,
-with a control canary), so none of it is quoted as a measurement below.
+Performance Evidence: the plan, the bytes and pages the fold writes, and the
+memory it holds are proven by counts that do not depend on host load. Wall time
+was measured on a quiet host (rule PD met: load1 below half the CPU count at
+start, end and maximum; a control canary in every pair; two sets of nine pairs;
+block below). At the ops-qa worst case of 3,500 superseded rows with 800-byte
+details the fold adds about 7 to 8 microseconds per superseded row in every claim
+statement: +0.8% on the projector claim (2.925 to 2.948 s) and +22 to +26% on
+the reducer claims (0.106 to 0.134 s). This is a measured cost of keeping the
+evidence. It is paid once per superseded row and grows with the kept bytes, and
+costs about three times more per byte once the row is TOASTed (8 to 10
+nanoseconds a byte at 800 bytes, 29 at 64 KB). Measured on stock PostgreSQL
+defaults (shared_buffers 128 MB, wal_buffers 4 MB). The shipped Compose profile
+is larger and was not measured.
 
 Setup: PostgreSQL 18.6, worst case of 3,500 dead-lettered rows with 800-byte
 details, each on its own scope, all superseded by one claim (ops-qa has one dead
@@ -202,41 +218,19 @@ expected shape for the same expression over the same input.
 At 64 KB details (500 rows, projector claim, steady): WAL 3,574 to 73,730 bytes
 a row (+70,156), WAL records 47 to 113, TOAST rows written 0 to 33 a row,
 buffers dirtied +8.33 a row. The same fold, the same expression; the details
-text is simply 80 times larger. This is far above any details size seen (the one
-ops-qa dead letter has 793-byte details) and is the reason the bound is measured and not enforced by
-truncation.
+text is simply 80 times larger. 64 KB is not an observed size: the one ops-qa
+dead letter has 793-byte details. It is not excluded either, because the Fail
+path sets no limit on the details it stores (#7407). The fold does not truncate,
+so the cost is measured, not capped.
 
 ### Why the projector fold cost differed from the reducer's in the first run
 
-An earlier loaded-host run showed the fold adding about 0.14 ms a row to the
-projector claim (0.485 s over 3,500 rows) and about 8 microseconds a row to the
-reducer claim, a 17-fold gap that nothing in the plans explained. The theory
-"the projector statement does 17 times more work per superseded row" was tested
-before this prose was written, and it does not hold:
-
-- The deterministic table above shows the same +986 bytes and +0.14 to +0.15
-  dirtied pages a row for both statements, and +0.28 against +0.14 shared hits a
-  row. There is no 17-fold difference in work.
-- A throwaway shim (not committed) ran the two claim statements at 3,500 x
-  800 B, nine before/after pairs with alternating first mover, and read the
-  backend's on-CPU time from `/proc/PID/schedstat` in the container, which is
-  far less sensitive to host load than wall time (host load about 15). Medians:
-  projector claim 2.1759 s before, 2.2161 s after (+0.040 s, 11.5 microseconds a
-  row); reducer claim 0.1164 s before, 0.1282 s after (+0.012 s, 3.4 microseconds
-  a row). That is a factor of 3.4, not 17, and the projector's own per-run
-  spread (2.09 to 2.35 s before) is larger than its delta, so the delta is not
-  resolved either.
-- A partial loaded-host run of the shipped harness (12 pairs, load 13 to 50; it
-  ended on a dropped connection after the projector and reducer cases) gave a
-  projector median ratio of 0.991 with a control pair-ratio spread of
-  0.69 to 1.05: the earlier +0.485 s was not reproduced.
-
-The reading: the 0.14 ms a row was host-load noise, not the fold. The remaining
-3.4-fold difference between the two statements is consistent with the projector
-sweep holding the wider rows in a hash node (705 kB to 3,680 kB, next section)
-where the reducer sweep holds none, but that mechanism is a hypothesis, not
-something this run isolates. The quiet-host run below settles the absolute
-figure.
+Two earlier readings did not survive: a 17-fold gap between the projector and the
+reducer claim on the loaded host, and a 3.4-fold gap in an on-CPU shim on the
+same host. The quiet-host run settles it: the fold costs about 6.6 microseconds a
+row in the projector claim and 7.9 in the reducer claim. Neither the 17-fold gap
+nor the 3.4-fold gap from the shim holds. The statements differ only in base
+cost.
 
 ### Memory and temp files
 
@@ -265,21 +259,45 @@ batches, and the temp block count at 3,500 rows goes from 4,773,360 to 4,790,693
 (+0.4%). The reducer statements do not hold the failure columns in any node. Not
 measured: backend RSS, and a `work_mem` between 64 kB and 4 MB.
 
-### Wall time: NOT YET DONE
+### Wall time (quiet host)
 
-The cost is paid once per superseded row, because supersede is terminal, and
-the work per row is the bytes above. Whether that is a wall-time regression on
-the claim sweep is not established: the loaded-host samples spread over more
-than the effect (projector claim medians of pairs at 3,500 x 800 B ranged from
-x0.99 to x1.14 between runs, with a control pair-ratio spread of 0.69 to 1.05),
-so they support neither "no regression" nor a bound. The 64 KB stress case is
-expected to be visibly slower (about 8 more pages and 70 KB more WAL a row) and
-is accepted as a cost of not truncating; it is not a supported size.
+The cost is paid once per superseded row, because supersede is terminal. At 800
+bytes it is about 7 to 8 microseconds a row in every claim statement. That is
++0.8% of the projector claim, whose sweep already costs about 0.84 ms per
+superseded row, and +22 to +26% of the reducer claims, whose sweep costs about 30
+microseconds a row. pg_stat_statements executor time moves by the same amount
+(26.4 to 34.4 microseconds a row for the reducer claim), so the cost is inside
+the statement. The WAL record count is unchanged; each record is about 986 bytes
+larger, and one 3,500-row sweep fills the default 4 MB of WAL buffers 451 times in
+the reducer claim and 386 times in the projector claim, against none without the
+fold. At 64 KB details it is about 1.9 ms a row (500 rows: +0.95 s), which is 70
+KB more WAL and 33 to 34 TOAST rows per row.
+
+64 KB is not an observed size: the one ops-qa dead letter has 793-byte details. It
+is not excluded either, because the Fail path sets no limit on the details it
+stores (#7407). The fold does not truncate. If a bound is ever set it belongs at
+the Fail-time writer, so that the stored evidence and its copy stay equal.
+
+A claim with no supersede candidates is the common case, and the deterministic
+proof for it is `TestSupersedeNoCandidateClaimRunsSamePlanAndWritesNothing`. It
+seeds 3,500 scopes whose only work row is pending on the current generation, runs
+`VACUUM ANALYZE`, and runs `EXPLAIN (ANALYZE, BUFFERS, VERBOSE)` of each of the
+three claim statements with the fold cut out and as shipped, in a rolled-back
+transaction, each on a freshly seeded table (repeated rolled-back runs on one seed
+change the reducer batch claim's join order, whichever text runs). Asserted: the
+node sequence (type, operation, relation, index and CTE name) is identical, 108,
+32 and 55 nodes; each supersede UPDATE writes 0 rows; a real run of either text
+supersedes no work row. Logged, not asserted, on PostgreSQL 18.6 in a throwaway
+container, before and after: top-node shared hits 28,520 and 28,517 (projector
+claim), 17,750 and 17,750 (reducer claim), 45,824 and 45,824 (reducer batch
+claim); planning time 1.28 to 1.83 ms for both texts of each. Seeded RED: with one
+stale scope among the 3,500 the supersede UPDATE writes 1 row and the same checks
+fail on "writes 0 rows" for both texts of all three statements.
 
 The quiet-host run is one command per case, 9 or more before/after pairs,
 interleaved with alternating first mover, each statement with a same-text
-control, the run labelled PD only if load1 stayed below 9 at start, end and
-maximum:
+control, the run labelled PD only if load1 stayed below half the CPU count at
+start, end and maximum:
 
 ```text
 cd go && ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN=<disposable postgres> \
@@ -292,20 +310,85 @@ cd go && ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN=<disposable postgres> \
 
 ```text
 QUIET_HOST_TIMING_PLACEHOLDER (begin)
-status: PENDING. The quiet-host run has not been done; nothing below is measured.
-host / load1 start, end, max / control canary:  <to fill>
-commit measured:                                <to fill>
-projector claim 3,500 x 800 B: before median <s>, after median <s>, ratio <x>, exact seconds per pair <list>
-projector claim 500 x 64 KB:   before median <s>, after median <s>, ratio <x>, exact seconds per pair <list>
-reducer claim, batch claim:    same two cases <to fill>
-verdict against the 10% / 60 s stop threshold:  <to fill>
+status: DONE. Quiet-host run, rule PD met in every run.
+commit measured: c3febda3f2ea3760183392e4c22491b8f7067890 (base 8996bcc1e7,
+  cumulative patch-id f556820f028925b1f19674644652e15163555aff), test binary
+  precompiled before timing, TestSupersedePriorFailureClaimCost, 9 pairs, run twice
+host: AWS EC2 r7a.4xlarge (AMD EPYC 9R14, 16 vCPU, 123 GiB), PostgreSQL 18.6
+  postgres:18-alpine sha256:b07129cc272f, disposable container, autovacuum off,
+  pg_stat_statements preloaded, other settings default (work_mem 4 MB)
+load1 (1 s samples; PD limit 8 = half of 16 CPUs):
+  set 1: start 1.35, end 1.07, max 1.35   set 2: start 0.77, end 1.41, max 1.56
+PD limit: 8, applied from the raw one-second samples. The harness label at the
+  measured commit used a fixed 9.0; the later harness fix changes the label only.
+control canary: before text against itself, same alternation, every pair.
+  Bound per case = Q3 + 3 x IQR of the 54 before-text runs of both sets; a
+  pair is invalid if any of its before-text runs exceeds it. Valid pairs of
+  18: 18, 15, 17, 14, 16, 11 (table order). No median moves more than ~1%
+  with the invalid pairs included.
+canary bound: derived from the two sets it judges, because no earlier quiet-host
+  sets of this harness exist. Nothing is gated on it; with all 18 pairs the
+  ratios are 1.008, 8.654, 1.255, 25.139, 1.224, 23.117.
+seed: every swept row is a dead letter with details, the worst case. A row that
+  never failed writes an empty object.
+
+case (combined valid pairs)     before med  after med   ratio   delta     per row
+projector claim 3,500 x 800 B   2.925313 s  2.948298 s  1.008   +23.0 ms  +6.6 us
+projector claim 500 x 64 KB     0.123188 s  1.069122 s  8.679   +945.9 ms +1,892 us
+reducer claim 3,500 x 800 B     0.106019 s  0.133611 s  1.260   +27.6 ms  +7.9 us
+reducer claim 500 x 64 KB       0.039611 s  0.994843 s  25.115  +955.2 ms +1,910 us
+reducer batch 3,500 x 800 B     0.110598 s  0.135354 s  1.224   +24.8 ms  +7.1 us
+reducer batch 500 x 64 KB       0.042884 s  0.992119 s  23.135  +949.2 ms +1,898 us
+same-pair ratio mean +- SD: 1.011 +- 0.017, 8.847 +- 0.526, 1.252 +- 0.025,
+  25.529 +- 1.467, 1.231 +- 0.041, 23.020 +- 0.635
+control pair ratio min..max (pooled): 0.986..1.015, 0.988..1.054,
+  0.963..1.281, 0.763..1.167, 0.945..1.473, 0.897..1.745
+
+exact seconds, before / after, pair order, set 1 then set 2:
+projector 800 B before 2.915461 2.924018 2.971962 2.933188 2.935673 2.914932 2.937487 2.927399 2.935938
+                        2.892016 2.910207 2.925068 2.925558 2.904318 2.928802 2.942172 2.906788 2.920893
+                after  2.935876 2.980341 2.974783 2.949687 2.923755 2.948161 2.945892 3.151070 2.948927
+                        2.926890 2.937745 2.918886 2.953161 2.925847 2.948435 2.971123 2.957558 2.939517
+projector 64 KB before 0.132560 0.123159 0.125699 0.122518 0.122441 0.128265 0.123188 0.122750 0.122449
+                        0.123895 0.123871 0.123628 0.125239 0.123064 0.123375 0.123541 0.122748 0.124080
+                after  1.059185 1.065917 1.063672 1.064293 1.078494 1.066675 1.071471 1.079581 1.248490
+                        1.074467 1.059709 1.063302 1.070810 1.069755 1.067572 1.241188 1.069122 1.067139
+reducer 800 B   before 0.108714 0.108781 0.107520 0.108734 0.105487 0.108801 0.106486 0.104517 0.105507
+                        0.106208 0.108939 0.105648 0.105758 0.105661 0.104467 0.105716 0.106019 0.106584
+                after  0.134396 0.131631 0.134328 0.131321 0.132266 0.134341 0.134609 0.134004 0.129420
+                        0.134009 0.132584 0.132056 0.132652 0.133611 0.130510 0.137345 0.137379 0.131292
+reducer 64 KB   before 0.038823 0.040281 0.047337 0.039591 0.039594 0.039890 0.039228 0.039107 0.039074
+                        0.039795 0.039631 0.039681 0.039723 0.039248 0.039003 0.039299 0.043107 0.040145
+                after  1.003339 0.990674 1.018861 0.996709 0.997324 1.026637 0.990702 0.993072 1.000130
+                        1.063569 0.994944 0.994742 1.178976 0.991862 0.997346 0.989140 0.982487 0.987957
+batch 800 B     before 0.108374 0.112158 0.141610 0.111684 0.107545 0.106697 0.107404 0.108496 0.111576
+                        0.112534 0.107818 0.112232 0.110745 0.110451 0.111263 0.107485 0.112046 0.107847
+                after  0.137498 0.132749 0.134579 0.138060 0.131924 0.137372 0.134728 0.140438 0.132065
+                        0.133433 0.137953 0.130239 0.135806 0.136297 0.136110 0.134902 0.133902 0.139653
+batch 64 KB     before 0.043027 0.047496 0.045547 0.044682 0.047888 0.042358 0.043068 0.042511 0.041891
+                        0.044396 0.042557 0.041888 0.043148 0.042884 0.042535 0.041957 0.041552 0.049131
+                after  0.992119 0.989336 0.993903 1.001582 1.031465 0.985817 1.001401 0.987491 0.990174
+                        0.987775 0.998872 0.996083 0.990710 0.987176 1.004668 0.998148 0.992075 1.031379
+
+verdict against the 10% / 60 s stop threshold:
+  projector claim 3,500 x 800 B: +0.8%, below 10%.
+  reducer claim and batch claim 3,500 x 800 B: +26% and +22% of the statement
+    (+27.6 and +24.8 ms for a 3,500-row sweep), above 10%, far below 60 s.
+    Profiled: identical plan, no spill, same WAL record count, +986 B WAL
+    and +0.14 dirtied pages per row; pg_stat_statements executor time per row
+    26.4 to 34.4 us (claim) and 26.4 to 33.4 us (batch), matching the wall delta.
+  64 KB, all three: x8.7 to x25, about +1.9 ms per superseded row, below 60 s.
+  This is a measured cost: about 7 to 8 us per superseded row at 800 B, paid
+  once per row, growing with the kept bytes.
 QUIET_HOST_TIMING_PLACEHOLDER (end)
 ```
 
-Not measured: a host with the production autovacuum and TOAST history, and the
-built binary (the harness runs the shipped statement text with the queue
-methods' arguments through `database/sql`; the text is identical, but this is
-not the binary).
+Not measured: concurrent claim traffic, table bloat and production autovacuum,
+the Compose Postgres profile, 3,500 rows at 64 KB (about 6.7 s by extrapolation),
+a work_mem between 64 kB and 4 MB, heap growth on a real table, and the built
+binary (waived, below).
+
+> Arbiter waiver, F1b (2026-09-28). The P5 requirement "on the built binary" is waived for #7320. The timing was taken with the package's claim harness at c3febda3f2, not with the reducer or ingester binary. Reasons: the only non-test code change is SQL text in three files; the harness runs the shipped statement constants, compiled into the test binary, with the arguments the queue methods pass; production and harness use the same pgx v5.9.2 database/sql driver and the same default exec mode, and production runs the claim through the same QueryContext call with no surrounding transaction; the harness schema is the bootstrap schema, triggers included; and pg_stat_statements executor time moves by the same amount as wall time (reducer claim 26.4 to 34.4 microseconds a row against +7.9 on the wall), so the cost is inside the statement, where a binary cannot change it. Not covered by this waiver and not measured: concurrent claim traffic, table bloat, production autovacuum, and the Compose Postgres profile. The waiver is void if any non-test file under go/internal/storage/postgres differs from c3febda3f2 at push.
 
 ## Observability
 
@@ -344,6 +427,10 @@ for 3,317 rows. Logs and Prometheus history for 09-18 to 09-24 are NOT_CHECKED.
 - #7388: other overwrites of live-row failure fields:
   `projector_stale_scope_reclaim` and the operator note replacing
   `failure_details`.
+- #7407: queue: `failure_details` has no size bound at the Fail-time writer;
+  measure the real widths on ops-qa first, and put any bound at the writer.
+- #7408: projector: the claim sweep costs 0.84 ms per superseded row, 28 times the
+  reducer sweep; rank it by measurement before any work.
 
 ## Not done, on purpose
 
