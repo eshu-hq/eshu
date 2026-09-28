@@ -2016,7 +2016,7 @@ body, Badger's `Writes are blocked, possibly due to DropAll or Close`, which the
 store reports while it is still *closing* and refusing new writes. Once the
 store is already *closed* under the open transaction, NornicDB reports the same
 commit-side teardown differently, and those spellings fell through to terminal.
-#6162 took the predicate from one body to three; #7382 later added a closed property key dictionary body:
+#6162 took it from one body to three (below); `retryable_error.go` lists all later bodies:
 
 | Body | Store state | Where NornicDB v1.1.11 wraps it |
 |---|---|---|

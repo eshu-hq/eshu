@@ -250,13 +250,23 @@ expect_red "main shares no history with the head" merge-main
 ok=0
 rg -q '^FAIL merge-main +no merge base' <<<"${OUT}" || ok=1
 check "no-merge-base FAIL names the missing merge base" "${ok}"
-# A drift computation that errors must fail the arm, never print "none".
-new_case drift-diff-error "${work}/origin-drift.git"
+# A drift computation that errors must fail the arm, never print "none". The
+# wrapper fails exactly ONE drift call per mode, so each check is proven on
+# its own: the main-side diff ends at origin/main, the head-side diff does not.
 mkdir -p "${work}/badgit"
 real_git="$(command -v git)"
-printf '#!/usr/bin/env bash\n[[ "$1" == diff && "$2" == --name-only ]] && exit 128\nexec "%s" "$@"\n' "${real_git}" >"${work}/badgit/git"
+printf '%s\n' '#!/usr/bin/env bash' "real='${real_git}'" \
+	'[[ "${BADGIT_MODE}" == rev-list && "$1" == rev-list ]] && exit 128' \
+	'if [[ "$1" == diff && "$2" == --name-only ]]; then' \
+	'	main="$("${real}" rev-parse origin/main)"' \
+	'	[[ "${BADGIT_MODE}" == diff-main && "$4" == "${main}" ]] && exit 128' \
+	'	[[ "${BADGIT_MODE}" == diff-head && "$4" != "${main}" ]] && exit 128' \
+	'fi' 'exec "${real}" "$@"' >"${work}/badgit/git"
 chmod +x "${work}/badgit/git"
-GIT="${work}/badgit/git" expect_red "drift diff that errors" merge-main
+for mode in rev-list diff-main diff-head; do
+	new_case "drift-${mode}-error" "${work}/origin-drift.git"
+	BADGIT_MODE="${mode}" GIT="${work}/badgit/git" expect_red "drift ${mode} call that errors" merge-main
+done
 new_case queue-conflict
 edit queue.json '.data.repository.mergeQueue.entries.nodes[1].headCommit.oid = $t' --arg t "${TIP_BAD}"
 expect_red "merge-tree conflict vs queue tip" merge-queue
