@@ -1832,6 +1832,30 @@ tests:
     tag: ~
     class: scheduled
     reason: helpers only (the #7279 probe corpus seed); holds no test, the tests that call it are classified in their own rows
+  - file: go/internal/storage/postgres/generation_retention_selection_fixture_live_test.go
+    tag: ~
+    class: scheduled
+    reason: helpers only (#7334 section-1 selection fixtures); holds no test, the tests that call it are classified in their own rows
+  - file: go/internal/storage/postgres/generation_retention_selects_eligible_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_lock_set_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_evalplanqual_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_candidate_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
   - file: go/internal/storage/postgres/graph/owner/backfill_live_test.go
     tag: ~
     class: scheduled
