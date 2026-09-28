@@ -89,8 +89,9 @@ discarded, the teardown silently does nothing.
   first.
 
 In #7127 the retention timing harness dropped its clone databases from a
-`t.Cleanup` using `t.Context()`. That leaked 17 clones, about 13.9 GB (4.5 GB
-on one rig, 9.4 GB on the other). A second cause followed it: the test body
+`t.Cleanup` using `t.Context()`. That leaked 17 clones, about 14 GB in all
+(#7372); the committed evidence records 4.5 GB for the 6 on one rig and no size
+for the other 11. A second cause followed it: the test body
 closed its admin pool with a `defer`, which runs before `t.Cleanup`. It leaked
 5 more clones (3 on one rig, 2 on the other), 22 in all. Their sizes were not
 recorded.
