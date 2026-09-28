@@ -78,63 +78,64 @@ type APIRouter struct {
 	// internal/query/codequery for #6060 (lane A), and that subpackage
 	// cannot import package query back to construct a LanguageQueryHandler
 	// without an import cycle. APIRouter.Mount mounts it directly instead.
-	Language                     *LanguageQueryHandler
-	Content                      *ContentHandler
-	Infra                        *InfraHandler
-	GraphEntityInventory         *GraphEntityInventoryHandler
-	CloudInventory               *CloudInventoryHandler
-	CloudRuntimeDrift            *CloudRuntimeDriftHandler
-	TerraformConfigStateDrift    *TerraformConfigStateDriftHandler
-	IaC                          *IaCHandler
-	Impact                       *ImpactHandler
-	Evidence                     *EvidenceHandler
-	Documentation                *DocumentationHandler
-	SemanticEvidence             *SemanticEvidenceHandler
-	SemanticSearch               *SemanticSearchHandler
-	PackageRegistry              *PackageRegistryHandler
-	Dependencies                 *DependenciesHandler
-	CodeownersOwnership          *CodeownersOwnershipHandler
-	CICD                         *CICDHandler
-	ServiceCatalog               *ServiceCatalogHandler
-	Kubernetes                   *KubernetesHandler
-	SecretsIAM                   *SecretsIAMHandler
-	ObservabilityCoverage        *ObservabilityCoverageHandler
-	Images                       *ImageHandler
-	TagHistory                   *TagHistoryHandler
-	SupplyChain                  *SupplyChainHandler
-	Incident                     *IncidentHandler
-	WorkItems                    *WorkItemHandler
-	Visualization                *VisualizationHandler
-	Freshness                    *FreshnessHandler
-	Status                       *StatusHandler
-	ComponentExtensions          *ComponentExtensionsHandler
-	ExtractionReadiness          *CollectorExtractionReadinessHandler
-	FactSchemaVersions           *FactSchemaVersionHandler
-	Playbooks                    *QueryPlaybookHandler
-	InvestigationWorkflows       *InvestigationWorkflowHandler
-	Metrics                      *MetricsHandler
-	Capabilities                 *capability.Handler
-	SurfaceInventory             *SurfaceInventoryHandler
-	Compare                      *CompareHandler
-	AdminDeadLetters             *AdminDeadLetterListHandler
-	AdminInputInvalidFacts       *AdminInputInvalidFactListHandler
-	Admin                        *AdminHandler
-	Ask                          *AskHandler
-	Setup                        *SetupHandler
-	LocalIdentity                *LocalIdentityHandler
-	BrowserSessions              *BrowserSessionHandler
-	SessionList                  *BrowserSessionListHandler
-	AdminIdentityReads           *AdminIdentityReadHandler
-	AdminIdentityMutations       *AdminIdentityMutationHandler
-	Profile                      *ProfileHandler
-	OIDCLogin                    *OIDCLoginHandler
-	SAML                         *SAMLHandler
-	GitHubLogin                  *GitHubLoginHandler
-	AuthProviders                *AuthProviderListHandler
-	AdminProviderConfigReads     *AdminProviderConfigReadHandler
-	AdminProviderConfigMutations *AdminProviderConfigMutationHandler
-	SignInPolicyReads            *SignInPolicyReadHandler
-	SignInPolicyMutations        *SignInPolicyMutationHandler
+	Language                       *LanguageQueryHandler
+	Content                        *ContentHandler
+	Infra                          *InfraHandler
+	GraphEntityInventory           *GraphEntityInventoryHandler
+	CloudInventory                 *CloudInventoryHandler
+	CloudRuntimeDrift              *CloudRuntimeDriftHandler
+	TerraformConfigStateDrift      *TerraformConfigStateDriftHandler
+	IaC                            *IaCHandler
+	Impact                         *ImpactHandler
+	Evidence                       *EvidenceHandler
+	Documentation                  *DocumentationHandler
+	SemanticEvidence               *SemanticEvidenceHandler
+	SemanticSearch                 *SemanticSearchHandler
+	PackageRegistry                *PackageRegistryHandler
+	Dependencies                   *DependenciesHandler
+	CodeownersOwnership            *CodeownersOwnershipHandler
+	CICD                           *CICDHandler
+	ServiceCatalog                 *ServiceCatalogHandler
+	Kubernetes                     *KubernetesHandler
+	SecretsIAM                     *SecretsIAMHandler
+	ObservabilityCoverage          *ObservabilityCoverageHandler
+	Images                         *ImageHandler
+	TagHistory                     *TagHistoryHandler
+	SupplyChain                    *SupplyChainHandler
+	Incident                       *IncidentHandler
+	WorkItems                      *WorkItemHandler
+	Visualization                  *VisualizationHandler
+	Freshness                      *FreshnessHandler
+	Status                         *StatusHandler
+	ComponentExtensions            *ComponentExtensionsHandler
+	ExtractionReadiness            *CollectorExtractionReadinessHandler
+	FactSchemaVersions             *FactSchemaVersionHandler
+	Playbooks                      *QueryPlaybookHandler
+	InvestigationWorkflows         *InvestigationWorkflowHandler
+	Metrics                        *MetricsHandler
+	Capabilities                   *capability.Handler
+	SurfaceInventory               *SurfaceInventoryHandler
+	Compare                        *CompareHandler
+	AdminDeadLetters               *AdminDeadLetterListHandler
+	AdminInputInvalidFacts         *AdminInputInvalidFactListHandler
+	AdminChangedSincePoisonedLinks *AdminChangedSincePoisonedLinksHandler
+	Admin                          *AdminHandler
+	Ask                            *AskHandler
+	Setup                          *SetupHandler
+	LocalIdentity                  *LocalIdentityHandler
+	BrowserSessions                *BrowserSessionHandler
+	SessionList                    *BrowserSessionListHandler
+	AdminIdentityReads             *AdminIdentityReadHandler
+	AdminIdentityMutations         *AdminIdentityMutationHandler
+	Profile                        *ProfileHandler
+	OIDCLogin                      *OIDCLoginHandler
+	SAML                           *SAMLHandler
+	GitHubLogin                    *GitHubLoginHandler
+	AuthProviders                  *AuthProviderListHandler
+	AdminProviderConfigReads       *AdminProviderConfigReadHandler
+	AdminProviderConfigMutations   *AdminProviderConfigMutationHandler
+	SignInPolicyReads              *SignInPolicyReadHandler
+	SignInPolicyMutations          *SignInPolicyMutationHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -403,6 +404,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.AdminInputInvalidFacts != nil {
 		a.AdminInputInvalidFacts.Mount(mux)
+	}
+	if a.AdminChangedSincePoisonedLinks != nil {
+		a.AdminChangedSincePoisonedLinks.Mount(mux)
 	}
 
 	// Admin

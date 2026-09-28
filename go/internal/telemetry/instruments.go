@@ -811,6 +811,17 @@ type Instruments struct {
 	// reads (issue #4630). Labels: reason (a bounded enum: "timeout" or
 	// "store_error").
 	QueryInputInvalidFactsErrors metric.Int64Counter
+	// QueryChangedSincePoisonedLinksDuration records the wall-clock duration
+	// of the bounded changed_since_scope_cursor poisoned/retrying read
+	// (#7290, POST /api/v0/admin/changed-since/poisoned-links/query),
+	// regardless of outcome. No labels: the route is a bounded fleet-wide
+	// page, so a per-status breakdown would not add diagnostic value over the
+	// existing structured request log.
+	QueryChangedSincePoisonedLinksDuration metric.Float64Histogram
+	// QueryChangedSincePoisonedLinksErrors counts failed changed-since
+	// poisoned/retrying-link reads (#7290). Labels: reason (a bounded enum:
+	// "timeout" or "store_error").
+	QueryChangedSincePoisonedLinksErrors metric.Int64Counter
 	// RecoveryScopesSkipped counts scopes an operator refinalize
 	// (POST /api/v0/admin/recover-generations, POST /api/v0/admin/refinalize)
 	// considered but did not re-enqueue, so a partial graph rebuild is visible
@@ -3633,6 +3644,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryInputInvalidFactsErrors counter: %w", err)
+	}
+
+	inst.QueryChangedSincePoisonedLinksDuration, err = meter.Float64Histogram(
+		"eshu_dp_query_changed_since_poisoned_links_duration_seconds",
+		metric.WithDescription("Duration of the bounded changed_since_scope_cursor poisoned/retrying read (POST /api/v0/admin/changed-since/poisoned-links/query), regardless of outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(queryDurationBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryChangedSincePoisonedLinksDuration histogram: %w", err)
+	}
+
+	inst.QueryChangedSincePoisonedLinksErrors, err = meter.Int64Counter(
+		"eshu_dp_query_changed_since_poisoned_links_errors_total",
+		metric.WithDescription("Total failed changed-since poisoned/retrying-link reads, by reason (timeout/store_error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryChangedSincePoisonedLinksErrors counter: %w", err)
 	}
 
 	inst.RecoveryScopesSkipped, err = meter.Int64Counter(

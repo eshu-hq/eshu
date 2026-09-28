@@ -684,10 +684,11 @@
       },
       {
         "family": "operator_dead_letters",
-        "description": "Bounded dead-letter and input-invalid-quarantine operator triage reads over fact work items and reducer_input_invalid_facts, scoped to granted repositories or source scopes.",
+        "description": "Bounded dead-letter, input-invalid-quarantine, and changed-since poisoned/retrying-link operator triage reads over fact work items, reducer_input_invalid_facts, and changed_since_scope_cursor, scoped to granted repositories or source scopes.",
         "capability_prefixes": [
           "operator.dead_letters.",
-          "operator.reducer_input_invalid_facts."
+          "operator.reducer_input_invalid_facts.",
+          "operator.changed_since_poisoned_links."
         ],
         "action": "service.runtime.read",
         "data_classes": [
@@ -5560,6 +5561,77 @@
           "tenant_admin",
           "operator",
           "auditor",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.changed_since_poisoned_links.list",
+      "display_name": "Operator Changed Since Poisoned Links List",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [
+        {
+          "tool": "list_changed_since_poisoned_links",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_id_or_fleet_window"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_id_or_fleet_window"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "status_scope_id_or_fleet_window"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "status_scope_id_or_fleet_window"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
           "owner"
         ],
         "sensitive_data": false

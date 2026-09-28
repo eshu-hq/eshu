@@ -113,6 +113,7 @@ var canonicalCapabilityOrder = []string{
 	"work_item.evidence.list",
 	"operator.dead_letters.list",
 	"operator.reducer_input_invalid_facts.list",
+	"operator.changed_since_poisoned_links.list",
 	"freshness.generation_lifecycle",
 	"freshness.changed_since",
 	"freshness.service_changed_since",

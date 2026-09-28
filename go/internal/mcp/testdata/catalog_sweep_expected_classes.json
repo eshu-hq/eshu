@@ -116,6 +116,7 @@
     "list_ci_cd_run_correlations/default": "allowlisted",
     "list_cloud_resource_inventory/default": "allowlisted",
     "list_cloud_runtime_drift_findings/default": "allowlisted",
+    "list_changed_since_poisoned_links/default": "allowlisted",
     "list_codeowners_ownership/default": "allowlisted",
     "list_collector_extraction_readiness/default": "allowlisted",
     "list_collectors/default": "allowlisted",

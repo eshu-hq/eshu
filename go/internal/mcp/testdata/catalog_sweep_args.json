@@ -1487,6 +1487,15 @@
         }
       }
     ],
+    "list_changed_since_poisoned_links": [
+      {
+        "label": "default",
+        "arguments": {
+          "limit": 5,
+          "timeout_ms": 5000
+        }
+      }
+    ],
     "list_reducer_input_invalid_facts": [
       {
         "label": "default",

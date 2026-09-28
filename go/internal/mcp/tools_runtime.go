@@ -153,6 +153,36 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_changed_since_poisoned_links",
+			Description: "Return a bounded, deterministic page of durable changed_since_scope_cursor rows that are poisoned (a changed-since link hit its counting-failure limit) or retrying (a counted failure is pending on the scope's head activation, backing off toward its next attempt). The changed-since link writer is a runner over its own ledger, not a fact_work_items queue domain, so this state never appears in list_dead_letter_work_items or list_reducer_input_invalid_facts (#7290, #7127 ruling 8.10). Requires limit and timeout_ms; supports optional status (poisoned or retrying), scope_id, and cursor (the last scope_id of a prior page, for forward pagination) filters. Scoped tokens only see granted component scopes.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"status": map[string]any{
+						"type":        "string",
+						"description": "Optional status filter: poisoned or retrying. Omit to return both.",
+					},
+					"scope_id": map[string]any{
+						"type":        "string",
+						"description": "Optional ingestion scope id filter.",
+					},
+					"cursor": map[string]any{
+						"type":        "string",
+						"description": "Optional forward-pagination cursor: the last scope_id of a prior page's items.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Required maximum rows to return (1-500).",
+					},
+					"timeout_ms": map[string]any{
+						"type":        "integer",
+						"description": "Required query timeout in milliseconds (1-30000).",
+					},
+				},
+				"required": []string{"limit", "timeout_ms"},
+			},
+		},
+		{
 			Name:        "get_freshness_causality",
 			Description: "Return the freshness causality read model: why answers are stale by closed cause (pending generation, reducer backlog, dead-lettered domain, missing collector completion, plus per-answer content-coverage, unsupported-profile, and retention-expired classes), the generation lifecycle including retired generations, and pending projection work. Scoped tokens receive the same aggregate counts with raw scope/generation identifiers withheld.",
 			InputSchema: map[string]any{

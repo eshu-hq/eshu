@@ -70,6 +70,10 @@ func (s *specAdminStore) ListDeadLetterWorkItems(_ context.Context, _ admin.Dead
 	return nil, nil
 }
 
+func (s *specAdminStore) ListChangedSincePoisonedLinks(_ context.Context, _ admin.ChangedSincePoisonedLinkFilter) ([]admin.ChangedSincePoisonedLink, error) {
+	return nil, nil
+}
+
 func (s *specAdminStore) ListReducerInputInvalidFacts(_ context.Context, _ admin.InputInvalidFactListFilter) ([]admin.InputInvalidFact, error) {
 	return nil, nil
 }

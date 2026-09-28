@@ -47,6 +47,12 @@ type AdminDeadLetterListHandler = admin.DeadLetterListHandler
 // query.AdminInputInvalidFactListHandler unchanged. See #6060.
 type AdminInputInvalidFactListHandler = admin.InputInvalidFactListHandler
 
+// AdminChangedSincePoisonedLinksHandler mounts only the bounded
+// changed_since_scope_cursor poisoned/retrying link read surface (#7290).
+// Its home is admin/; this alias keeps the cmd/mcp-server wiring spelling
+// query.AdminChangedSincePoisonedLinksHandler unchanged. See #6060.
+type AdminChangedSincePoisonedLinksHandler = admin.ChangedSincePoisonedLinksHandler
+
 // AdminWorkItem is an admin-friendly view of a fact_work_items row. Its home
 // is admin/; this alias keeps staying callers spelling query.AdminWorkItem
 // unchanged. See #6060.
@@ -59,6 +65,11 @@ type AdminDeadLetterWorkItem = admin.DeadLetterWorkItem
 // AdminReducerInputInvalidFact is a bounded operator-facing view of one
 // durable reducer_input_invalid_facts row. Its home is admin/. See #6060.
 type AdminReducerInputInvalidFact = admin.InputInvalidFact
+
+// AdminChangedSincePoisonedLink is a bounded operator-facing view of one
+// durable changed_since_scope_cursor poisoned or retrying row (#7290). Its
+// home is admin/. See #6060.
+type AdminChangedSincePoisonedLink = admin.ChangedSincePoisonedLink
 
 // AdminReplayEvent is an admin-friendly view of a fact_replay_events row.
 // Its home is admin/. See #6060.
@@ -112,6 +123,10 @@ type DecisionQueryFilter = admin.DecisionQueryFilter
 // InputInvalidFactListFilter constrains bounded reducer_input_invalid_facts
 // read queries. Its home is admin/. See #6060.
 type InputInvalidFactListFilter = admin.InputInvalidFactListFilter
+
+// ChangedSincePoisonedLinkFilter constrains bounded changed-since poisoned/
+// retrying link read queries (#7290). Its home is admin/. See #6060.
+type ChangedSincePoisonedLinkFilter = admin.ChangedSincePoisonedLinkFilter
 
 // RecoveryService is the subset of recovery.Handler used by admin endpoints.
 // Its home is admin/. See #6060.
