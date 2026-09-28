@@ -144,10 +144,10 @@ session B runs the statement and is observed waiting on the lock in
 saw. PostgreSQL documents that the updater "proceeds with its operation using
 the updated version of the row" (Read Committed, section 13.2.1).
 
-The existing #7108, #7115 and #7130 live suites pass at dbe784a0bd (rebased onto
-origin/main c96a8ffc28): the `TestSupersede`, `TestPriorFailure`, `TestProjector`
-and `TestReducerQueue` suites with both live DSNs set on a throwaway PostgreSQL
-18.6: 348 passed, 0 failed, 13 skipped (other DSNs; the cost and memory
+The existing #7108, #7115 and #7130 live suites pass at 191a1dbffd (base
+8996bcc1e7): the `TestSupersede`, `TestPriorFailure`, `TestProjector` and
+`TestReducerQueue` suites with both live DSNs set on a throwaway PostgreSQL
+18.6: 356 passed, 0 failed, 13 skipped (other DSNs; the cost and memory
 harnesses are opt-in). Later commits on the branch change documentation only.
 
 ## Performance
