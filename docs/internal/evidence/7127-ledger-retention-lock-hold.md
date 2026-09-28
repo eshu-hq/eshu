@@ -13,7 +13,7 @@ the shipped code (arbiter ruling arb-7127-3d-g). The driver is
 are PostgreSQL 18.6 in containers on one 18-CPU host; no graph backend is
 involved.
 
-## PC2 on the final SHA: failed under ruling C's load rule
+## PC2 on `83902235c1`: failed under ruling C's load rule
 
 PC2 re-run on `83902235c1`, R1 (`shared_buffers=2GB`) and R2 (128MB). The
 harness was the ruling C harness, and a run counted as valid when load1 was
@@ -69,15 +69,15 @@ Ruling D diagnoses the failure as the measurement environment and replaces
 the load rule with rule PD. PC2-D below is the gated re-run. Rows 13-24 (the
 quiet window) are evidence for the diagnosis, not a gate result.
 
-## PC2-D: PB4 on the final SHA, rule PD
+## PC2-D: PB4 on `83902235c1`, rule PD
 
 Gates, declared in the run's `gate.txt` before it: on R1, (i) every valid
 after-run at 1.54M lasts at most 15 s; (ii) median(1.54M) / median(771k) is
 at most 2.5; (iii) `shared read` is at most 10 % of hit + read, with no temp.
 R2 is reported beside R1 with no gate.
 
-- Before = base `4a3e229582`, after = the final SHA. Both binaries are built on
-  the final SHA's harness.
+- Before = base `4a3e229582`, after = `83902235c1`. Both binaries are built
+  from the timing test file at `83902235c1`.
 - Fixtures `big771` and `big1542`: 25 scopes, 100 candidates,
   `BatchRowLimit` 100,000.
 - Rule PD (arbiter ruling arb-7127-3d-d):
@@ -359,7 +359,7 @@ evidence.
 
 The ledger delete, the harness and the driver are the bytes PC2-E ran; the
 transaction around them is not, so PC2-E's figures describe `494d1439d4` and
-PC2-G is the gated result (arbiter ruling arb-7127-3d-g). At the final SHA:
+PC2-G is the gated result (arbiter ruling arb-7127-3d-g). At `6c5cfec8cb`:
 
 ```text
 $ git diff --stat 494d1439d4 6c5cfec8cb -- \

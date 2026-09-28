@@ -125,9 +125,10 @@ hold. The Docker Compose default inherits the second row.
 The delete's buffer work is exactly linear: 4.06 buffer touches per deleted
 row at both sizes. It also writes WAL, mostly full-page images of the heap
 pages it touches: up to about 300 bytes per deleted row (286-301 measured, about
-0.45 GB, at 1.54M rows), so on any deployment the hold is bounded below by WAL
-write bandwidth as well as by CPU. On the measurement host the hold grew 2.62
-times at 2GB and 2.85 times at 128MB for twice the rows, close on both (the
+0.45 GB, at 1.54M rows), so on any deployment the hold lasts at least as long
+as writing that WAL takes; how much of the measured time that is has not been
+isolated. On the measurement host the hold grew 2.62 times at 2GB and 2.85
+times at 128MB for twice the rows, close on both (the
 standard deviation of their same-round ratios is 0.34-0.41), so the excess
 over linear is not mainly the buffer cache. The smaller runs wrote fewer
 full-page images per row (68-216 bytes of WAL per row); the cause of the

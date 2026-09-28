@@ -178,7 +178,7 @@ above).
   The pass commits, prunes nothing, writes no event and returns no error. The
   next pass prunes it alone with `locked_scope_rows` 1.
 
-### PC2: the lock hold of a batch of one, on the final SHA
+### PC2: the lock hold of a batch of one
 
 The PC2 runs moved to
 [7127-ledger-retention-lock-hold.md](7127-ledger-retention-lock-hold.md): PC2
