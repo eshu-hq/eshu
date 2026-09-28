@@ -39,11 +39,14 @@ the retry. The match is exact equality of the whole body. That keeps a
 constraint diagnostic terminal even when its inlined, evidence-derived identity
 contains this text.
 
-Neo4j equivalence: Neo4j already requeues the matching restart. A database
-that is shutting down reports `DatabaseUnavailable`, which the driver retries
-until `TransactionExecutionLimit`. A process that exits mid-commit surfaces as
-a `ConnectivityError`. Both are classified as retryable. The gap is
-NornicDB-only, so the proof is a hermetic classifier test, not a Neo4j RED.
+Neo4j equivalence: Neo4j already requeues the matching restart. This is
+derived from neo4j-go-driver v5.28.4 source and Neo4j docs, not measured on a
+live Neo4j. A database that is shutting down reports `DatabaseUnavailable`,
+which the driver's `IsRetriable` retries until `TransactionExecutionLimit`. A
+process that exits mid-commit surfaces as a `ConnectivityError`. Both are
+classified as retryable. The gap is NornicDB-only, so under the owner's rule
+for NornicDB-only defects (a hermetic Eshu guard, not a Neo4j RED) the proof is
+a hermetic classifier test.
 
 No-Regression Evidence: the classifier adds one string equality compare on
 the error path, which runs once per failed write. No Cypher shape, index,
