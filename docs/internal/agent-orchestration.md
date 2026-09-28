@@ -67,8 +67,9 @@ files. Under that test, the opencode roster is:
 `debug-eshu-deep`, `perf-eshu-deep`, `develop-eshu-deep` and
 `review-eshu-deep` inherit their base role's method and access but use the deep
 tier. `arbiter-eshu` is read-only and runs on its own arbiter tier: it decides a
-design fork, a disputed finding, a waiver, or an irreversible act, and writes a
-ruling that starts with `RULING:`. The manifest is the only place to change
+design fork, a disputed finding, a waiver, or an irreversible act, and returns
+a ruling that starts with `RULING:` as its final message; the coordinator
+records it. The manifest is the only place to change
 their model choices or shared role instructions.
 
 Concurrency is a conditional method, not a separate job: the debugger,
