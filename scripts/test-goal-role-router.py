@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -27,6 +28,14 @@ def context(prompt, harness, cwd=None):
 
 
 class GoalRoleRouterTests(unittest.TestCase):
+    def test_codex_project_defaults_keep_coordinator_and_generic_children_on_luna(self) -> None:
+        """New Eshu sessions and generic children should start on Luna high."""
+        config = tomllib.loads((ROOT / ".codex/config.toml").read_text())
+        self.assertEqual("gpt-6-luna", config["model"])
+        self.assertEqual("high", config["model_reasoning_effort"])
+        self.assertEqual("gpt-6-luna", config["agents"]["default_subagent_model"])
+        self.assertEqual("high", config["agents"]["default_subagent_reasoning_effort"])
+
     def test_claude_goal_file_routes_phases_and_keeps_issue_driver(self):
         with tempfile.TemporaryDirectory() as tmp:
             goal = Path(tmp) / "goal.txt"
