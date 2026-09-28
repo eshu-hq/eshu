@@ -32,6 +32,23 @@ remote `cypher-shell` client wall time includes several seconds of Kubernetes
 exec and process startup and is not an API latency comparison. Ops-qa received
 no graph write, DDL, settings change, deploy, or `ANALYZE`.
 
+## Local Go hub-ranking benchmark
+
+Performance Evidence: The retained Go hub-ranking path was measured with the
+same benchmark fixture on `origin/main` `62176d64f6` and this branch. The
+fixture has 12,403 distinct Function keys, 39,649 edge rows, and a 25-item
+page; this is synthetic and is not an ops-qa endpoint measurement. On an
+Apple M5 Max with `GOMAXPROCS=2` and `GOFLAGS=-p=2`, six warmed samples per
+revision in base/current/current/base order (`-benchtime=3x -count=3`) gave
+49.58 ms/op median for the old row-before-sort path (44.74-57.38 ms) and
+24.25 ms/op median for typed rank-before-row materialization (22.20-26.66
+ms), a 51.1% lower median. Allocated bytes went from 25,188,464 to
+13,309,272 B/op, and allocations from 161,058 to 617 allocs/op. The
+benchmark test file was copied unchanged into a disposable baseline worktree;
+only the benchmark ran there, with the baseline production source unchanged.
+This measures the Go ranking function, not graph read, network transfer, or
+API/MCP cold and warm p95.
+
 ## Correctness and local proof
 
 The query counts the 50,001st raw edge before pair deduplication. The handler
