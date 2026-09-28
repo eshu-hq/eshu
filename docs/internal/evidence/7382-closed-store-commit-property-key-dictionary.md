@@ -45,9 +45,10 @@ live Neo4j. A database that is shutting down reports `DatabaseUnavailable`,
 which the driver's `IsRetriable` retries until `TransactionExecutionLimit`. A
 process that exits mid-commit surfaces as a `ConnectivityError`. Both are
 classified as retryable. The gap is NornicDB-only, and a failing Neo4j test
-cannot exist: #7382's acceptance asks for graph-backend proof on Neo4j, but
-Neo4j already retries this case. So the proof is a hermetic classifier test
-that feeds the exact NornicDB error through the production writer.
+is not expected, because Neo4j already retries this case. That is derived from
+driver source, not measured. #7382's acceptance asks for graph-backend proof on
+Neo4j, so the proof is a hermetic classifier test that feeds the exact NornicDB
+error through the production writer.
 
 No-Regression Evidence: the classifier adds one string equality compare on
 the error path, which runs once per failed write. No Cypher shape, index,
