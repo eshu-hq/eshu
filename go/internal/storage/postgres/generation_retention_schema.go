@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS generation_retention_events_reason_idx
 
 // ErrGenerationRetentionKeyIndexUnavailable reports that a retention cycle was
 // refused because fact_records_content_entity_key_idx or
-// fact_records_file_key_idx (migrations 139 and 140) is missing, invalid, or
+// fact_records_file_key_idx (migrations 145 and 146) is missing, invalid, or
 // not the expected shape. The retention statements probe those indexes once per
 // candidate key; without them each probe scans fact_records while the batch
 // holds its scope locks (the #6809 cliff), so the store refuses rather than run
