@@ -263,12 +263,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-escalation live-cell change, and the live determinism matrix drives the family since that change (registry row 17, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
   - surface: "materialized_edges:iam_escalation"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-escalation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the iam-escalation live-cell change)"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
