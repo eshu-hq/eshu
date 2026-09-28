@@ -111,7 +111,7 @@ High-signal invariants for this package:
   atomically ack by superseding stale active generation, superseding older
   terminal same-scope generations, activating the target generation, updating
   the scope pointer, and marking work succeeded. A superseded generation is terminal (#7130): Claim sweeps,
-  Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`. Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320); see `docs/internal/evidence/7320-supersede-prior-failure.md`.
+  Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`. Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320; its `updated_at` is the old row's own, the claim or heartbeat time for a claimed or running row); see `docs/internal/evidence/7320-supersede-prior-failure.md`.
 - Generation liveness reopens `source_local` only for blockage that replay can
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age
