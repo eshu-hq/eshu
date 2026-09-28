@@ -157,6 +157,12 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   every backend applies. Readers use it to pick the by-id reads that can anchor
   on the uid index. `GetEntityContext` anchors those labels on
   `e.uid = $entity_id AND e.id = $entity_id` (#7089).
+- `HasIDUniquenessConstraint(label string) bool` — reports whether
+  `schemaConstraints` gives a label a `REQUIRE x.id IS UNIQUE` constraint
+  (Repository, Workload, WorkloadInstance, ...). The set is parsed from the DDL,
+  not hand-listed. With `HasUIDUniquenessConstraint` it lets the Neo4j
+  entity-context anchor (`entity.neo4jEntityContextAnchor`, #7380) seek every
+  anchor label in one `CALL () { ... UNION ... }` statement.
 - NornicDB receives `nornicdb_function_legacy_id_lookup` on `Function.id` so
   relationship stories can resolve a legacy-ID-only Function without scanning
   the full Function label.

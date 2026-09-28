@@ -23,6 +23,9 @@
 // explicit compatibility list that graph-writing runtimes check before startup.
 // HasUIDUniquenessConstraint exposes the uid-constrained label set to readers,
 // so a by-id read can anchor on the uid index only where the schema creates it.
+// HasIDUniquenessConstraint does the same for id-keyed labels (Repository,
+// Workload, WorkloadInstance), derived from the constraint DDL, so a single
+// Neo4j anchor can seek both kinds of key (#7380).
 // Schema setup emits bounded progress logs for every DDL statement and treats context
 // deadline or cancellation as a fail-fast signal. Generic DDL warnings remain
 // non-fatal for permissive callers, while the strict schema helper returns an
