@@ -139,6 +139,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.S3LogsToFamilyCassetteFullPath,
 			load:         ifa.LoadS3LogsToFamilyOdu,
 		},
+		{
+			name:         ifa.KubernetesCorrelationFamilyOduName,
+			compiled:     ifa.KubernetesCorrelationFamilyOdu,
+			cassettePath: ifa.KubernetesCorrelationFamilyCassetteFullPath,
+			load:         ifa.LoadKubernetesCorrelationFamilyOdu,
+		},
 	}
 }
 

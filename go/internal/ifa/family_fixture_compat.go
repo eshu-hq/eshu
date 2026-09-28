@@ -37,6 +37,7 @@ const (
 	IAMEscalationFamilyOduName                  = familyodu.IAMEscalationFamilyOduName
 	IAMInstanceProfileRoleFamilyOduName         = familyodu.IAMInstanceProfileRoleFamilyOduName
 	InheritanceFamilyOduName                    = familyodu.InheritanceFamilyOduName
+	KubernetesCorrelationFamilyOduName          = familyodu.KubernetesCorrelationFamilyOduName
 	KubernetesNamespaceEnvironmentFamilyOduName = familyodu.KubernetesNamespaceEnvironmentFamilyOduName
 	RationaleFamilyOduName                      = familyodu.RationaleFamilyOduName
 	RepoDependencyFamilyOduName                 = familyodu.RepoDependencyFamilyOduName
@@ -159,6 +160,10 @@ func EC2UsesProfileFamilyOdu() CatalogOdu { return familyodu.EC2UsesProfileFamil
 
 // S3LogsToFamilyOdu returns the cataloged S3 logs-to family Odù.
 func S3LogsToFamilyOdu() CatalogOdu { return familyodu.S3LogsToFamilyOdu() }
+
+// KubernetesCorrelationFamilyOdu returns the cataloged Kubernetes
+// correlation family Odù.
+func KubernetesCorrelationFamilyOdu() CatalogOdu { return familyodu.KubernetesCorrelationFamilyOdu() }
 
 // IAMInstanceProfileRoleFamilyOdu returns the cataloged instance-profile-role family Odù.
 func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {

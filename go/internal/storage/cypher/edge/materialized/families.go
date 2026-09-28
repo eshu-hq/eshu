@@ -128,7 +128,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The eight DIRECT-materialization families registered here (#6228).
+	// The nine DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -150,12 +150,12 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 two of the eight carry coverage rows. Registering a family
+	// Since #6309 two of the nine carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
 	// drives it. workload_cloud_relationship, iam_can_assume,
-	// iam_can_perform, iam_escalation, ec2_uses_profile, and s3_logs_to
-	// still carry their waiver rows in
+	// iam_can_perform, iam_escalation, ec2_uses_profile, s3_logs_to, and
+	// kubernetes_correlation still carry their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
@@ -280,6 +280,28 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"LOGS_TO": "S3-bucket to log-bucket delivery attachment (CanonicalS3LogsToEdgeUpsertCypherFormat)"},
 		RetractCypher:  sourcecypher.RetractS3LogsToEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalS3LogsToEdgeUpsertCypherFormat,
+	},
+	// kubernetes_correlation follows the same single-vocabulary shape as
+	// s3_logs_to with one fewer substitution: IdentityCypher holds the %s
+	// FORMAT const unformatted, and the one hole fills per row from the
+	// closed OCI source vocabulary (screened per row by
+	// kubernetesCorrelationEdgeSourceLabel, so only OciImageManifest,
+	// OciImageIndex, and OciImageDescriptor can reach the node-label
+	// position). RUNS_IMAGE needs no vocabulary: it is a static token in
+	// the template, kept out of the MERGE property map, so no row content
+	// can change the type this writer emits. The template MERGEs on its
+	// two endpoint nodes alone (both are MATCHed, never merged), so the
+	// identity scan yields nothing whether or not the %s has been
+	// substituted.
+	// kubernetesCorrelationEdgeLabel ("RUNS_IMAGE") is statement metadata
+	// carried beside the query that happens to spell the graph
+	// relationship type — the same #6181-shaped trap
+	// iam_instance_profile_role documents one level below the port name,
+	// kept honest here by reading the type off the template instead.
+	"kubernetes_correlation": {
+		EdgeTypes:      map[string]string{"RUNS_IMAGE": "Kubernetes-workload to digest-addressed OCI source image attachment (CanonicalKubernetesCorrelationEdgeUpsertCypherFormat)"},
+		RetractCypher:  sourcecypher.RetractKubernetesCorrelationEdgesCypher,
+		IdentityCypher: sourcecypher.CanonicalKubernetesCorrelationEdgeUpsertCypherFormat,
 	},
 }
 

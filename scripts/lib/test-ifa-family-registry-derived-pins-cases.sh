@@ -90,6 +90,7 @@ IFA_FAMILY_PINS_NAMES=(
 	iam_escalation
 	ec2_uses_profile
 	s3_logs_to
+	kubernetes_correlation
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

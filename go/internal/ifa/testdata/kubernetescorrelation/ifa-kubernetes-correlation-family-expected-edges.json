@@ -1,0 +1,26 @@
+{
+  "odu": "odu:ifa-kubernetes-correlation-family",
+  "note": "Hand-derived from CanonicalKubernetesCorrelationEdgeUpsertCypherFormat (go/internal/storage/cypher/kubernetes_correlation_edge_writer.go) with the static RUNS_IMAGE relationship token and the per-row source-node label (OciImageManifest / OciImageIndex) substituted into its one %s, NOT from the port or family name. The template is `UNWIND $rows AS row MATCH (w:KubernetesWorkload {uid: row.workload_uid}) MATCH (img:%s {uid: row.source_uid}) MERGE (w)-[rel:RUNS_IMAGE]->(img) SET ...`, and RUNS_IMAGE is the only type this writer can emit (per-row validateKubernetesCorrelationRelationshipType against the single-member vocabulary). \"KUBERNETES_CORRELATION\" appears nowhere in code, so the type is read off the template, never derived from the port or family name. Each source endpoint is the collector-resolved descriptor uid (oci-descriptor://registry/repository@digest), which the canonical projector writes as the OCI node uid and the digest join index prefers when the payload carries it. Each workload endpoint is the collector-derived object_id (k8s://cluster/gvr/namespace/name), which anchors the KubernetesWorkload node. Exactly two edges: the checkout deployment declares the digest-form ref registry.example.com/team/checkout@sha256:111...1 matching the active manifest digest (exact, OciImageManifest target), and the billing deployment declares registry.example.com/team/billing@sha256:222...2 matching the active index digest (exact, OciImageIndex target). The other three workloads contribute nothing on purpose -- legacy names a tombstone-only digest (stale, the conservative skip: the classifier marks it stale AND the digest join index drops tombstone-only digests, so no edge to a node that no longer exists), canary names the stable tag two digests share (ambiguous, never promoted to exact), and phantom names a digest no source observes (unresolved). The OciImageDescriptor source label is not exercised: no collector emits descriptor-kind facts in this fixture's corpus, and inventing one would prove a path no live generation carries.",
+  "edges": [
+    {
+      "relationship_type": "RUNS_IMAGE",
+      "source_entity_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/billing",
+      "target_entity_id": "oci-descriptor://registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "properties": {
+        "resolution_mode": "digest",
+        "image_ref": "registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "source_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "relationship_type": "RUNS_IMAGE",
+      "source_entity_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/checkout",
+      "target_entity_id": "oci-descriptor://registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "properties": {
+        "resolution_mode": "digest",
+        "image_ref": "registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "source_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    }
+  ]
+}

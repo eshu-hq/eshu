@@ -59,6 +59,7 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.IAMEscalationFamilyOdu(),
 	familyodu.EC2UsesProfileFamilyOdu(),
 	familyodu.S3LogsToFamilyOdu(),
+	familyodu.KubernetesCorrelationFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds
