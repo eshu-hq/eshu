@@ -14,7 +14,7 @@ four MCP infrastructure tools: the graph-backed resource-count summary
 This package owns infrastructure-inventory family membership and the mapping
 from decoded arguments to a dependency-neutral internal request.
 `internal/mcp` keeps tool registration order (`count_infra_resources` and
-`get_infra_resource_inventory` live in `tools_infra_resource_aggregates.go`;
+`get_infra_resource_inventory` live in `tools.go` in this package;
 `investigate_resource` and `analyze_infra_relationships` live in
 `ecosystem/tools.go`), global route fanout, the private `infraInventoryRoute`
 adapter in `dispatch_infra_resource_aggregates.go`, HTTP dispatch,
@@ -35,6 +35,9 @@ namespace.
 
 - `Route` selects the internal request for an infrastructure-inventory tool
   without executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the count and inventory aggregate definitions the parent
+  splices at its long-standing position between the ecosystem and cloud
+  blocks.
 
 See `doc.go` for the godoc contract.
 
@@ -42,6 +45,8 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/contract/route` owns the dependency-neutral decoded-argument
   and internal-request shapes used by `Route`.
+- `internal/mcp/contract/tool` owns the dependency-neutral tool definition
+  shape returned by `Tools`.
 
 ## Telemetry
 
@@ -105,6 +110,7 @@ and the same query handlers execute the requests.
 
 - [MCP package](../../README.md)
 - [MCP route contract](../../contract/route/README.md)
+- [MCP tool contract](../../contract/tool/README.md)
 - [HTTP API reference](../../../../../docs/public/reference/http-api.md)
 
 ## Verification

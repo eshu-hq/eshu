@@ -11,7 +11,7 @@
    adapter over `../infra/inventory`, which owns route selection for
    `investigate_resource` and `analyze_infra_relationships` registered
    here plus `count_infra_resources` and `get_infra_resource_inventory`
-   registered in `../tools_infra_resource_aggregates.go`), and
+   registered in `../infra/inventory/tools.go`), and
    `../dispatch_impact.go` (the adapter over `../impact`) for split route
    ownership.
 5. `../contract/tool/README.md` for the dependency-neutral definition contract.

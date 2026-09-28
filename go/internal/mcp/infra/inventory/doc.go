@@ -7,11 +7,11 @@
 // Route decides whether this package owns a tool and maps decoded arguments
 // to a dependency-neutral internal request without executing it. The parent
 // mcp package owns tool registration and its order (count_infra_resources
-// and get_infra_resource_inventory stay at the root in
-// tools_infra_resource_aggregates.go; investigate_resource and
-// analyze_infra_relationships stay in ecosystem/tools.go), global route
-// fanout, the private infraInventoryRoute adapter, HTTP dispatch,
-// authorization, timeouts, response budgets, envelopes, and telemetry. The
+// and get_infra_resource_inventory live in tools.go in this package;
+// investigate_resource and analyze_infra_relationships stay in
+// ecosystem/tools.go), global route fanout, the private infraInventoryRoute
+// adapter, HTTP dispatch, authorization, timeouts, response budgets,
+// envelopes, and telemetry. The
 // query package owns the bounded reads behind each
 // /api/v0/infra/resources/..., /api/v0/impact/resource-investigation, and
 // /api/v0/infra/relationships path. This package runs no query and must keep
@@ -29,4 +29,13 @@
 // back to the default, so a stringified "100" becomes the default rather
 // than an error. None of the four tools validates its arguments before
 // building a request, so Route reports only (Request, bool), never an error.
+//
+// Tools returns the client-visible definitions for the two aggregate tools
+// this package owns outright: the resource-count summary and the
+// grouped-inventory read. (The family siblings investigate_resource and
+// analyze_infra_relationships keep their definitions in ecosystem/tools.go;
+// only their routes live here.) The parent mcp package
+// splices the aggregate slice at its long-standing registration position,
+// so the definitions and the routes above stay owned together while
+// registration order stays with the parent.
 package infrainventorytools

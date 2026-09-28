@@ -19,6 +19,7 @@ import (
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
+	infrainventorytools "github.com/eshu-hq/eshu/go/internal/mcp/infra/inventory"
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
 	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observability/coverage"
@@ -100,6 +101,13 @@ func documentationFindingAggregateTools() []ToolDefinition {
 // ecosystem package owns the registration definitions.
 func ecosystemTools() []ToolDefinition {
 	return ecosystemtools.Tools()
+}
+
+// infraResourceAggregateTools preserves the root package's constructor name
+// while the infra/inventory package owns the aggregate registration
+// definitions.
+func infraResourceAggregateTools() []ToolDefinition {
+	return infrainventorytools.Tools()
 }
 
 // cloudInventoryTools preserves the root package's constructor name while the
