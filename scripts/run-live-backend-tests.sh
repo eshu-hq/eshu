@@ -70,11 +70,40 @@ case "${backend}" in
 	*) printf 'run-live-backend-tests: --backend must be nornicdb, neo4j, or both\n' >&2; exit 2 ;;
 esac
 
+# Neo4j runs on the Docker host's native platform (#7353). The pinned
+# neo4j image is a multi-arch index (linux/amd64 and linux/arm64, same
+# release), but the compose file defaults to linux/amd64, which on an
+# arm64 host runs the JVM under emulation: cold Cypher planning was
+# several times slower (about 6x on one Apple silicon host) and the
+# first entity-context read overran its 10s budget.
+# An explicit NEO4J_PLATFORM always wins. An arch this does not map, or a
+# docker that cannot report one, leaves the compose default. CI's
+# ubuntu-latest runners are amd64, so CI still resolves linux/amd64.
+# NornicDB is untouched: its image is amd64-only.
+neo4j_native_platform() {
+	local arch
+	arch="$(docker version -f '{{.Server.Arch}}' 2>/dev/null)" || return 0
+	case "${arch}" in
+		amd64|x86_64) printf 'linux/amd64' ;;
+		arm64|aarch64) printf 'linux/arm64' ;;
+	esac
+}
+# --backend nornicdb never starts Neo4j, so it skips the docker probe.
+if [[ -z "${NEO4J_PLATFORM:-}" && "${backend}" != "nornicdb" ]]; then
+	NEO4J_PLATFORM="$(neo4j_native_platform)"
+fi
+if [[ -n "${NEO4J_PLATFORM:-}" ]]; then
+	export NEO4J_PLATFORM
+else
+	unset NEO4J_PLATFORM
+fi
+
 # Probe hook for the static self-test: parse args, print the resolved
-# config, and exit before touching Docker or the lock.
+# config, and exit before touching the lock or starting containers.
 if [[ "${ESHU_LIVE_RUNNER_SELFTEST:-0}" == "1" ]]; then
 	printf 'backend=%s tags=%s keep=%s use_compose=%s\n' "${backend}" "${tags}" "${keep}" "${use_compose}"
 	printf 'nornicdb_compose=%s\nneo4j_compose=%s\n' "${nornicdb_compose}" "${neo4j_compose}"
+	printf 'neo4j_platform=%s\n' "${NEO4J_PLATFORM:-}"
 	exit 0
 fi
 
@@ -152,6 +181,9 @@ run_one() {
 		health_path="/"
 	fi
 	printf 'run-live-backend-tests: %s %s (%s)\n' "${name}" "${file}" "${package}"
+	if [[ "${name}" == "neo4j" && "${use_compose}" == "1" ]]; then
+		printf 'run-live-backend-tests: neo4j platform %s\n' "${NEO4J_PLATFORM:-compose default (linux/amd64)}"
+	fi
 	if [[ "${use_compose}" == "1" ]]; then
 		compose_down "${compose_file}"
 		# A failed up can leave a half-started stack behind, and the EXIT

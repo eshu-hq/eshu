@@ -4,8 +4,6 @@
 package query
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -207,10 +205,10 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		// tests) and any other GraphQuery implementation that bypasses
 		// Neo4jReader can still return a raw context.DeadlineExceeded, and
 		// that must never fall through to a generic 500 or -- worse -- be
-		// treated as a silent not-found.
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = querycontract.ErrGraphReadDeadline
-		}
+		// treated as a silent not-found. #7353: classify on the bounded ctx
+		// too, since a read that outlives the budget can return a driver
+		// ConnectivityError that does not wrap context.DeadlineExceeded.
+		err = querycontract.ClassifyBoundedGraphReadError(ctx, err)
 		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 			return
 		}

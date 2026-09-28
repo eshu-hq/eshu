@@ -250,6 +250,23 @@ ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK=true \
 Normal laptop runs should leave `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES`
 unset.
 
+Live-backend tests (the `live-backend-tests` CI gate) against fresh bare
+backends:
+
+```bash
+bash scripts/run-live-backend-tests.sh --backend neo4j
+bash scripts/test-run-live-backend-tests.sh
+```
+
+The runner starts Neo4j on the Docker host's native platform, read from
+`docker version`: `linux/arm64` on Apple silicon, `linux/amd64` on CI's
+ubuntu-latest runners. The pinned Neo4j digest is a multi-arch index, so both
+platforms pull the same release. Forcing `linux/amd64` on an arm64 host runs
+the JVM under emulation. Cold Cypher planning was about six times slower on
+one Apple silicon host, and the first entity-context read on a fresh stack can
+exceed its 10 s budget (#7353). Set `NEO4J_PLATFORM` to override the choice. NornicDB keeps
+`linux/amd64`, because its image is amd64-only.
+
 Terraform provider-schema and relationship extraction:
 
 ```bash

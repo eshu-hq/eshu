@@ -8,7 +8,6 @@
 package entity
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -124,10 +123,11 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			// implementation that bypasses Neo4jReader can still return a
 			// raw context.DeadlineExceeded, and that must never fall through
 			// to a generic 500 or -- worse -- be treated as a silent
-			// not-found.
-			if errors.Is(err, context.DeadlineExceeded) {
-				err = querycontract.ErrGraphReadDeadline
-			}
+			// not-found. #7353: the classification also keys on the bounded
+			// ctx itself, because a reader whose read outlives the budget can
+			// return a driver ConnectivityError ("Timeout while reading from
+			// connection") that does not wrap context.DeadlineExceeded.
+			err = querycontract.ClassifyBoundedGraphReadError(ctx, err)
 			if h.Logger != nil {
 				failureClass := "graph_read_error"
 				if errors.Is(err, querycontract.ErrGraphReadDeadline) {

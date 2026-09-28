@@ -4,8 +4,6 @@
 package query
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -354,11 +352,10 @@ func (h *TagHistoryHandler) writeTagHistoryPage(
 
 // writeTagHistoryReadError writes the response for a failed graph read, shared
 // by the tag read and the scoped BUILT_FROM lookup. A raw DeadlineExceeded from
-// a GraphQuery that bypasses Neo4jReader maps to ErrGraphReadDeadline (#6705).
+// a GraphQuery that bypasses Neo4jReader (#6705), or any read error once the
+// request ctx has expired (#7353), maps to ErrGraphReadDeadline.
 func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
-	if errors.Is(err, context.DeadlineExceeded) {
-		err = querycontract.ErrGraphReadDeadline
-	}
+	err = querycontract.ClassifyBoundedGraphReadError(r.Context(), err)
 	if WriteGraphReadError(w, r, err, tagHistoryCapability) {
 		recordTagHistoryError(r.Context(), "backend_unavailable")
 		recordTagHistoryDuration(r.Context(), start, "backend_unavailable")

@@ -4,7 +4,9 @@
 package querycontract
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -17,6 +19,39 @@ var (
 	// ErrGraphUnavailable reports that the graph backend could not serve a read.
 	ErrGraphUnavailable = errors.New("graph temporarily unavailable; retry after graph health is restored")
 )
+
+// ClassifyBoundedGraphReadError maps a graph-read error onto
+// ErrGraphReadDeadline when the read ran out of time, so the caller answers the
+// stable 504 backend_timeout contract through WriteGraphReadError instead of a
+// generic 500.
+//
+// ctx is the bounded context the reads ran under (typically the one
+// WithBoundedGraphReadDeadline returned). The read counts as timed out when err
+// wraps context.DeadlineExceeded or when ctx's deadline has expired, whatever
+// error the reader returned. The second test is the #7353 hardening: when the
+// bounded context expires mid-read, the Neo4j driver surfaces a
+// ConnectivityError ("Timeout while reading from connection"), not ctx.Err(),
+// so an errors.Is check on err alone misses it. Neo4jReader already classifies
+// that case itself; this covers every other GraphQuery implementation.
+//
+// A canceled ctx (client disconnect) is not a deadline and err is returned
+// unchanged, as is any error while ctx is still live -- a genuine connectivity
+// failure keeps its own mapping. An error that already carries a graph-read
+// sentinel (ErrGraphReadDeadline or ErrGraphUnavailable) is the reader's own
+// verdict and is also returned unchanged, so a handler's failure_class log and
+// its 503/504 response always agree. The returned error wraps both
+// ErrGraphReadDeadline and the reader's original err, so logs keep the cause
+// while the response carries only the public sentinel message. A nil err
+// stays nil.
+func ClassifyBoundedGraphReadError(ctx context.Context, err error) error {
+	if err == nil || errors.Is(err, ErrGraphReadDeadline) || errors.Is(err, ErrGraphUnavailable) {
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %w", ErrGraphReadDeadline, err)
+	}
+	return err
+}
 
 type graphReadHTTPError struct {
 	status  int

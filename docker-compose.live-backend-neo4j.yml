@@ -10,6 +10,11 @@ services:
     # Immutable pinned Neo4j image, mirroring docker-compose.neo4j.yml.
     image: ${NEO4J_IMAGE:-neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f}
     pull_policy: ${NEO4J_PULL_POLICY:-missing}
+    # scripts/run-live-backend-tests.sh sets NEO4J_PLATFORM to the Docker
+    # host's native platform (#7353): the pinned digest is a multi-arch
+    # index, and emulated amd64 on an arm64 host overran the cold
+    # entity-context read budget. This default only applies to a bare
+    # `docker compose` run.
     platform: ${NEO4J_PLATFORM:-linux/amd64}
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
