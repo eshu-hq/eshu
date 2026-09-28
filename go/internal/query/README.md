@@ -1360,10 +1360,10 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   result limits, and response fields diagnose the path; no new telemetry or
   public field is added.
 - Repository-language inventory reads use the Postgres content index through
-  `CountRepositoriesByLanguage`, `ListRepositoriesByLanguage`, and
-  `RepositoryLanguageInventory`. The API and MCP contract is count-first and
-  paged so "how many TypeScript repos?" does not require per-repository
-  coverage fan-out.
+  `CountRepositoriesByLanguage`, `ReadRepositoriesByLanguage`, and
+  `RepositoryLanguageInventory`. The by-language route uses one statement for
+  the aggregate and bounded page when `limit > 0`; `limit=0` remains a
+  count-only read without per-repository coverage fan-out.
 - Repository source browsing reads optional `ListRepositoryRefs` support from
   the content store. `/branches` prefers those source-backed refs, while
   `/tree` and `/content` reject a selected ref that is unknown, unavailable, or
