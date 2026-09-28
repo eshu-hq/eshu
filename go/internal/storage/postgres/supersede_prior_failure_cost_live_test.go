@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,11 +30,11 @@ import (
 // same way, so the comparison does not depend on the queue method's own work.
 //
 // Opt in with ESHU_7320_COST_PROOF=1 and the claim-proof DSN. Knobs:
-// ESHU_7320_COST_PAIRS (default 9 pairs), ESHU_7320_COST_ROWS (3500) and
+// ESHU_7320_COST_PAIRS (default 12 pairs), ESHU_7320_COST_ROWS (3500) and
 // ESHU_7320_COST_DETAIL_BYTES (800), ESHU_7320_COST_STRESS_ROWS (500) and
 // ESHU_7320_COST_STRESS_BYTES (65536). Wall time on a shared host is not
 // evidence; the test samples the host load once a second and labels the run PD
-// (load1 below costPDLoadLimit at the start, the end and every sample) or
+// (load1 below half the CPU count at the start, the end and every sample) or
 // NON-PD. Each statement also gets a control: the "before" text run against
 // itself the same way, so the run's own spread is measured, not assumed. The
 // quiet-host re-run is one command, given in the #7320 evidence note.
@@ -173,9 +174,23 @@ func costRun(ctx context.Context, database *sql.DB, statement string, args []any
 	return n, rows.Err()
 }
 
-// costPDLoadLimit is the load1 at or above which a timing run is NON-PD (the
-// owner's ruling PD: load1 below 9 on the 18-CPU host, at start, end and max).
-const costPDLoadLimit = 9.0
+// costPDLoadLimit is the load1 at or above which a timing run is NON-PD: half
+// the CPU count (the owner's ruling PD: load1 below half the CPU count at the
+// start, the end and every sample). It was 9 on the 18-CPU host; on any other
+// host a fixed 9 labels a loaded run PD.
+func costPDLoadLimit(cpus int) float64 {
+	return float64(cpus) / 2
+}
+
+// costPDLabel is the pure PD decision: PD only when the start, the end and the
+// in-run maximum are all readable (not negative) and strictly below the limit.
+// A value equal to the limit, or an unreadable load (-1), is NON-PD.
+func costPDLabel(start, end, max, limit float64) string {
+	if start >= 0 && end >= 0 && max >= 0 && max < limit && start < limit && end < limit {
+		return "PD"
+	}
+	return "NON-PD"
+}
 
 var loadAveragePattern = regexp.MustCompile(`load averages?:\s*([0-9.]+)`)
 
@@ -226,7 +241,8 @@ func startLoadWatch() *loadWatch {
 }
 
 // finish stops sampling and returns a log fragment and the PD label: PD only
-// when the start, the end and the in-run maximum are all below costPDLoadLimit.
+// when the start, the end and the in-run maximum are all below the limit for
+// this host (costPDLoadLimit of runtime.NumCPU).
 func (w *loadWatch) finish() string {
 	close(w.stop)
 	<-w.done
@@ -234,11 +250,9 @@ func (w *loadWatch) finish() string {
 	if end > w.max {
 		w.max = end
 	}
-	label := "NON-PD"
-	if w.start >= 0 && end >= 0 && w.max < costPDLoadLimit && w.start < costPDLoadLimit {
-		label = "PD"
-	}
-	return fmt.Sprintf("load1_start=%.2f load1_end=%.2f load1_max=%.2f label=%s", w.start, end, w.max, label)
+	limit := costPDLoadLimit(runtime.NumCPU())
+	label := costPDLabel(w.start, end, w.max, limit)
+	return fmt.Sprintf("load1_start=%.2f load1_end=%.2f load1_max=%.2f limit=%.1f label=%s", w.start, end, w.max, limit, label)
 }
 
 // costDetailExpr is the SQL for a details value of about bytes bytes for row i:

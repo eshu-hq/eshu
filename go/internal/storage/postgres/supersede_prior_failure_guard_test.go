@@ -268,3 +268,49 @@ func TestPriorFailureFragmentsAgree(t *testing.T) {
 		t.Fatalf("fragment casts the old failure_details to jsonb:\n%s", got)
 	}
 }
+
+// TestCostPDLoadLimitIsHalfTheCPUCount pins the harness PD limit to half the
+// CPU count. A fixed 9 was right only on the 18-CPU host the rule was written
+// on: on 16 CPUs it labelled a start load of 8.5 (more than half the machine
+// busy) as quiet.
+func TestCostPDLoadLimitIsHalfTheCPUCount(t *testing.T) {
+	for _, tc := range []struct {
+		cpus int
+		want float64
+	}{
+		{cpus: 16, want: 8.0},
+		{cpus: 18, want: 9.0},
+	} {
+		if got := costPDLoadLimit(tc.cpus); got != tc.want {
+			t.Fatalf("costPDLoadLimit(%d) = %v, want %v", tc.cpus, got, tc.want)
+		}
+	}
+}
+
+// TestCostPDLabel pins the PD decision as a pure function of the three load
+// readings and the limit, so the label a timing note quotes can be checked
+// without a host, a database or an uptime call.
+func TestCostPDLabel(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		start, end, max float64
+		cpus            int
+		want            string
+	}{
+		{name: "quiet on 16 CPUs", start: 1.0, end: 1.5, max: 1.6, cpus: 16, want: "PD"},
+		{name: "start 8.5 on 16 CPUs was PD under the old fixed 9", start: 8.5, end: 1.0, max: 8.5, cpus: 16, want: "NON-PD"},
+		{name: "start 8.5 on 18 CPUs is below half", start: 8.5, end: 1.0, max: 8.5, cpus: 18, want: "PD"},
+		{name: "max equal to the limit is NON-PD", start: 1.0, end: 1.0, max: 8.0, cpus: 16, want: "NON-PD"},
+		{name: "start equal to the limit is NON-PD", start: 8.0, end: 1.0, max: 8.0, cpus: 16, want: "NON-PD"},
+		{name: "end equal to the limit is NON-PD", start: 1.0, end: 8.0, max: 1.0, cpus: 16, want: "NON-PD"},
+		{name: "unreadable start is NON-PD", start: -1, end: 1.0, max: 1.0, cpus: 16, want: "NON-PD"},
+		{name: "unreadable end is NON-PD", start: 1.0, end: -1, max: 1.0, cpus: 16, want: "NON-PD"},
+		{name: "unreadable max is NON-PD", start: 1.0, end: 1.0, max: -1, cpus: 16, want: "NON-PD"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := costPDLabel(tc.start, tc.end, tc.max, costPDLoadLimit(tc.cpus)); got != tc.want {
+				t.Fatalf("costPDLabel(start=%v end=%v max=%v cpus=%d) = %s, want %s", tc.start, tc.end, tc.max, tc.cpus, got, tc.want)
+			}
+		})
+	}
+}
