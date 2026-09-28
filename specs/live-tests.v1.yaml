@@ -1714,6 +1714,10 @@ tests:
     tag: ~
     class: scheduled
     reason: changed-since rebase statement plan shape (#7127 PR-3e, gate G3 and the arb-7127-g8 P1 class) under four planted statistics states with planted REDs, 7-35s locally depending on host load; untagged and gated by env Skip; scheduled, never blocking
+  - file: go/internal/storage/postgres/freshness/links/prior_wait_live_test.go
+    tag: ~
+    class: scheduled
+    reason: changed-since generation lock old-snapshot wait (#7127 PR-3e, S4d shape; arbiter ruling arb-7127-3e-wait pending) with its no-update control, about 8s; untagged and gated by env Skip; scheduled, never blocking
   - file: go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go
     tag: ~
     class: scheduled

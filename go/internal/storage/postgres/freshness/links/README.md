@@ -187,6 +187,7 @@ PR-3e evidence). It is not a deadlock, because retention never waits on the
 link. The #7115 multixact shape itself (a running `KEY SHARE` member plus a
 committed updater) does not wait: the member's lock carries to the new
 version, so retention skips it (`TestPriorLockWithACommittedUpdaterDoesNotWait`).
+`TestGenerationLockOldSnapshotWaitsOnRetention` pins the wait itself.
 
 **Endings of an activation.** An activation ends as exactly one link, as
 exactly one break, or deleted by retention before the writer reaches it (its

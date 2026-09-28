@@ -114,10 +114,15 @@ InitPlan in its qual, while the other sessions acted. D is the link's lock.
   deadline. The lock runs before `SET LOCAL statement_timeout`, so that
   timeout does not bound it.
 - The fresh-snapshot cases are pinned by
-  `TestPriorLockWithACommittedUpdaterDoesNotWait`. The old-snapshot case
-  cannot be staged through the production statement, so it is recorded here
-  from the shim. Whether to bound it (for example with `lock_timeout` around
-  the two generation locks) is with the arbiter.
+  `TestPriorLockWithACommittedUpdaterDoesNotWait`. The old-snapshot case is
+  pinned by `TestGenerationLockOldSnapshotWaitsOnRetention`. It derives a
+  paused variant from the shipped lock statement (a `pg_sleep` InitPlan in
+  its qual) and holds retention's `FOR UPDATE` plus `DELETE` for 3 s. Three
+  runs out of three: the lock waits until retention commits (3.003 s) and
+  returns no row. The control, without the committed update, skips at once
+  (1.002-1.005 s, the pause only). Whether to bound the wait (for example with
+  `lock_timeout` around the two generation locks) is with the arbiter
+  (arb-7127-3e-wait).
 
 ## Commands
 
