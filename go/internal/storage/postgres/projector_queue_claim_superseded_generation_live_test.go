@@ -204,9 +204,13 @@ func TestProjectorClaimSweepsSupersededGenerationRow(t *testing.T) {
 		}
 	})
 
-	// failed and dead_letter rows are never claim candidates and replay keeps
-	// them terminal, so the fence leaves them, and their triage class, alone.
-	// Sweeping them would also put a legacy dead-letter backlog into one claim.
+	// On an already superseded generation, failed and dead_letter rows are never
+	// claim candidates and replay keeps them terminal, so this branch leaves
+	// them, and their triage class, alone. Sweeping them would also put a legacy
+	// dead-letter backlog into one claim. The other branch, a failed or pending
+	// generation with a newer sibling, does supersede them, and it folds their
+	// failure into failure_details.prior_failure (#7320,
+	// supersede_prior_failure_live_test.go).
 	for _, status := range []string{"failed", "dead_letter"} {
 		t.Run(status+"_left_alone", func(t *testing.T) {
 			database := openClaimDeadlockProofDB(t, dsn, 2)

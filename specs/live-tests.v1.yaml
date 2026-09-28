@@ -2231,6 +2231,30 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_cost_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_memory_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure executor memory and temp-file proof, unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_helpers_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/supersede_prior_failure_wal_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1, plus a server preloading pg_stat_statements); #7320 supersede prior-failure per-row WAL, buffer and TOAST cost, unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: scheduled

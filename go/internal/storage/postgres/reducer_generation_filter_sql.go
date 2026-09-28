@@ -152,14 +152,14 @@ superseded_stale_reducer_generations AS (
         updated_at = $1,
         failure_class = 'reducer_superseded_by_newer_active_generation',
         failure_message = 'reducer work superseded by newer active generation',
-        failure_details = jsonb_build_object(
+        failure_details = (jsonb_build_object(
             'reason', 'inactive_generation',
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id,
             'generation_id', stale.generation_id,
             'active_generation_id', scope.active_generation_id,
             'domain', stale.domain
-        )::text
+        ) || ` + priorFailureStaleSQL + `)::text
     FROM ingestion_scopes AS scope,
          scope_generations AS stale_generation,
          scope_generations AS active_generation
@@ -183,3 +183,69 @@ superseded_stale_reducer_generations AS (
     RETURNING stale.work_item_id
 )
 `
+
+// priorFailureStaleSQL and priorFailureWorkSQL are the jsonb expression that
+// folds a work row's failure evidence into the failure_details a supersede
+// statement writes (#7320). A supersede overwrites failure_class, failure_message and
+// failure_details with its own marker; without this fold a failed or
+// dead-lettered row loses the reason it failed, and so does a claimed or
+// running row that carries its last retry's cause.
+//
+// Every column is read from the OLD row: in an UPDATE, SET expressions see the
+// row version being replaced, which under Read Committed is the version the
+// locking step re-read (EvalPlanQual), so a failure committed after the
+// statement's snapshot is folded, not the stale snapshot value. Five fields,
+// no more: supersede leaves attempt_count and last_attempt_at in place, so
+// copying them would only duplicate columns.
+//
+// The key exists only when the old row failed (status failed or dead_letter)
+// or any of its three failure fields is non-blank, using the blank test of
+// status_active_work_summary.go. A pending or retrying row that never failed
+// yields an empty object, so its details stay what the statement wrote before
+// this fold.
+//
+// The old failure_details is embedded as a JSON string, verbatim. It is free
+// text or JSON (queue/failure_metadata.go), so it is never cast to jsonb: one
+// non-JSON row would abort the claim statement for every worker. A NULL column
+// stays JSON null, distinct from an empty string.
+//
+// superseded is terminal and in no supersede source set, so a row that already
+// holds prior_failure is never folded again; the revive paths null the three
+// fields first.
+//
+// The two constants are the same text for the two aliases the supersede
+// statements give the row they update: stale (claim sweep, Ack obsolete
+// supersede, reducer sweep) and work (Heartbeat supersede, Ack refusal). They
+// are constants, not a function of the alias, so the statements that embed them
+// stay constant SQL; TestPriorFailureFragmentsAgree derives one from the other
+// and TestSupersedeStatementsFoldPriorFailure requires each writer to embed the
+// constant that matches its own alias.
+const priorFailureStaleSQL = `(CASE
+        WHEN stale.status IN ('failed', 'dead_letter')
+          OR NULLIF(BTRIM(COALESCE(stale.failure_class, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(stale.failure_message, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(stale.failure_details, '')), '') IS NOT NULL
+        THEN jsonb_build_object('prior_failure', jsonb_build_object(
+            'status', stale.status,
+            'failure_class', stale.failure_class,
+            'failure_message', stale.failure_message,
+            'failure_details', stale.failure_details,
+            'updated_at', stale.updated_at
+        ))
+        ELSE '{}'::jsonb
+    END)`
+
+const priorFailureWorkSQL = `(CASE
+        WHEN work.status IN ('failed', 'dead_letter')
+          OR NULLIF(BTRIM(COALESCE(work.failure_class, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(work.failure_message, '')), '') IS NOT NULL
+          OR NULLIF(BTRIM(COALESCE(work.failure_details, '')), '') IS NOT NULL
+        THEN jsonb_build_object('prior_failure', jsonb_build_object(
+            'status', work.status,
+            'failure_class', work.failure_class,
+            'failure_message', work.failure_message,
+            'failure_details', work.failure_details,
+            'updated_at', work.updated_at
+        ))
+        ELSE '{}'::jsonb
+    END)`
