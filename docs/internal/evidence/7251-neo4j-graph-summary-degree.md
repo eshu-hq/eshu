@@ -8,6 +8,12 @@ aggregate and ordering behavior needs separate live proof.
 
 ## Theory and measured query cost
 
+Performance Evidence: On the same archived ops-qa Neo4j repository with
+45,495 Functions and 39,649 physical `CALLS` edges, the raw edge read took
+632/680 ms and 878,988 DbHits; the guarded aggregate took 458/377 ms and
+550,060 DbHits in alternating read-only `PROFILE` samples. This is query-level
+evidence only; built API/MCP cold and warm p95 is **NOT_CHECKED**.
+
 The read-only ops-qa Neo4j proof used the largest archived argument set: a
 repository with 12,403 files, 45,495 Functions, and 39,649 physical `CALLS`
 edges. All 45,495 Function UIDs were present and distinct. The raw result had
@@ -63,6 +69,12 @@ The live test requires a disposable Neo4j and the explicit
 existing graph query span, raw-edge count, and overflow attributes, with a
 Neo4j aggregation marker and missing-UID fallback marker. The response shape,
 truth envelope, and NornicDB query text are unchanged.
+
+Observability Evidence: The production Neo4j handler adds
+`eshu.query.graph_summary.neo4j_degree_aggregate` and
+`eshu.query.graph_summary.missing_uid_fallback` to the existing graph query
+span. The bounded raw-edge count and overflow attributes remain available for
+diagnosis; no deployed span sample has been checked yet.
 
 ## Remaining acceptance proof
 
