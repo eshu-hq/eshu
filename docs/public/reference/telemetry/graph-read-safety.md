@@ -357,7 +357,9 @@ also record `eshu.infra_scope_dialect` (`unscoped`, `shape_a`, or
 probe hit, plus the unlabeled fallback), so a slow scoped read shows whether it
 paid for many probes or one heavy scoped statement.
 `GET /api/v0/entities/{entity_id}/context` logs the
-same count as `labels_tried`/`labels_total` structured fields (plus a
+same count as `labels_tried`/`labels_total` structured fields (on Neo4j the
+statements are the indexed anchor and the unlabeled fallback, so `labels_total`
+is 2; NornicDB keeps the per-label loop, #7380) (plus a
 `failure_class` of `deadline` or `graph_read_error`) on its own separate
 handler-level warning when the loop ends in an error before resolving --
 distinct from `Neo4jReader`'s `query.graph_read.warning`, since a handler-level

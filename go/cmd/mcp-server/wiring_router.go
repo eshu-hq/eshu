@@ -109,6 +109,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile:   queryProfile,
 		},
 		Entities: &query.EntityHandler{
+			GraphBackend:             graphBackend,
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,
 			CICDRunCorrelations:      query.NewPostgresCICDRunCorrelationStore(db),

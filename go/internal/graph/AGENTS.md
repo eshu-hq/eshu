@@ -116,6 +116,9 @@
   nodes written with id == uid. An id-only node, or one whose id differs from
   its uid, falls through to the unlabeled whole-graph fallback, so the writer
   must keep id == uid (or leave id unset).
+  Adding or removing an `x.id IS UNIQUE` constraint flips
+  `HasIDUniquenessConstraint`, which the Neo4j entity-context anchor uses to
+  choose its id-seek labels (#7380).
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

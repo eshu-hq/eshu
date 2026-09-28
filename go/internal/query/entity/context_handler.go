@@ -59,6 +59,13 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// infra-entity id). A many-branch `CALL{UNION}` resolver did not return
 	// within 15s for 28 branches on the same deployment.
 	//
+	// On Neo4j (Handler.GraphBackend) the fast path is one indexed CALL ()
+	// anchor over every anchor label (neo4jEntityContextAnchor, #7380), then the
+	// same unlabeled fallback only when it returns no row: two statement texts
+	// per caller shape instead of sixteen, because a cold Neo4j plans every
+	// distinct text a request sends. The rest of this comment describes the
+	// per-label loop NornicDB and the zero value keep.
+	//
 	// So the anchor is a fast path plus an exact fallback. First, one
 	// single-label `MATCH (e:<Label>)` per EntityContextAnchorLabels entry,
 	// most-common-first, stopping at the first row. Then, only if every fast-path label misses,
@@ -104,10 +111,11 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			querycontract.WithGraphQueryName(r.Context(), "entity.context"),
 		)
 		defer cancel()
+		statements := h.entityContextStatements(access)
 		labelsAttempted := 0
-		for _, anchor := range entityContextAnchors() {
+		for _, statement := range statements {
 			labelsAttempted++
-			row, err = h.Neo4j.RunSingle(ctx, entityContextCypher(anchor, access), params)
+			row, err = h.Neo4j.RunSingle(ctx, statement, params)
 			if err != nil || row != nil {
 				break
 			}
@@ -136,7 +144,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 				h.Logger.WarnContext(r.Context(),
 					"entity context anchor loop ended with an error before resolving",
 					"labels_tried", labelsAttempted,
-					"labels_total", len(EntityContextAnchorLabels)+1,
+					"labels_total", len(statements),
 					telemetry.LogKeyFailureClass, failureClass,
 				)
 			}
@@ -281,8 +289,16 @@ func entityContextAnchors() []string {
 // statement: file/repo enrichment through the Repository that REPO_CONTAINS
 // the entity's File, with the scoped grant applied to that Repository.
 func entityContextCypher(anchor string, access querycontract.RepositoryAccessFilter) string {
+	return entityContextStatement("MATCH "+anchor, access)
+}
+
+// entityContextStatement renders GetEntityContext's read for one complete
+// anchor clause: a `MATCH ...` from entityContextAnchors, or the Neo4j
+// `CALL () {...}` anchor from neo4jEntityContextAnchor. The tail after the
+// anchor is identical for both.
+func entityContextStatement(anchorClause string, access querycontract.RepositoryAccessFilter) string {
 	cypher := `
-		MATCH ` + anchor + `
+		` + anchorClause + `
 	`
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)

@@ -444,6 +444,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/entity/context_anchor_neo4j_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded answer-truth proof; the anchor is Neo4j-only (#7006), so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
   - file: go/internal/query/entity/context_uid_anchor_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

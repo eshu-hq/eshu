@@ -22,6 +22,11 @@ import (
 
 // Handler exposes HTTP routes for entity queries.
 type Handler struct {
+	// GraphBackend selects the entity-context anchor dialect (#7380). Only
+	// querycontract.GraphBackendNeo4j selects the single indexed CALL () anchor;
+	// the zero value and NornicDB keep the per-label loop, because a label
+	// disjunction or a many-branch UNION is unreliable on NornicDB (#7006).
+	GraphBackend             querycontract.GraphBackend
 	Neo4j                    querycontract.GraphQuery
 	Content                  querycontract.ContentStore
 	CICDRunCorrelations      querycontract.CICDRunCorrelationStore

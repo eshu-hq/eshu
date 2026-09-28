@@ -49,6 +49,18 @@ which is why those two methods are exported. The remaining exports
 staying root tests that pin family behavior; new callers must prefer the
 HTTP surface or `testutil` doubles.
 
+Graph dialect: `Handler.GraphBackend` selects the `GetEntityContext` anchor
+(#7380). Only `querycontract.GraphBackendNeo4j` sends the single indexed
+`CALL () { ... UNION ... }` anchor (`context_anchor_neo4j.go`) followed, only on
+a miss, by the unlabeled fallback: at most two distinct statement texts per
+caller shape, because a cold Neo4j plans every distinct text. NornicDB and the
+zero value keep the per-label loop of up to 16 statements, since a label
+disjunction or many-branch `UNION` is unreliable there (#7006). The Neo4j
+anchor's uid and id label sets come from `graph.HasUIDUniquenessConstraint` and
+`graph.HasIDUniquenessConstraint` over `EntityContextAnchorLabels`. An id shared
+by two labels resolves to the label the loop tried first. `Directory` has no id
+or uid index and resolves through the fallback.
+
 NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation` no longer
 render the multi-line scoped `WHERE` group that was unreliable on the pinned
 NornicDB v1.3.3 image (#6786); the grant is decided in Go. The one Cypher-side
