@@ -171,11 +171,11 @@ EOF
 # (guards the runs-loop field split: the tests field holds |-joined
 # names, so a left-anchored split silently dropped multi-Test files)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "52" ]] || fail "planned runs ${#plan[@]}, want 52 (28 nornicdb + 24 neo4j)"
+[[ "${#plan[@]}" == "53" ]] || fail "planned runs ${#plan[@]}, want 53 (28 nornicdb + 25 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "28" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 28"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "24" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 24"
+[[ "${#plan_neo4j[@]}" == "25" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 25"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*ownership_neo4j_live_test' ||
 	fail "directory ownership regression missing from neo4j plan"
 printf '%s\n' "${plan_nornicdb[@]}" | rg -q '^nornicdb\|[^|]*\|.*ownership_neo4j_live_test' &&
