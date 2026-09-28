@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // RepositoryReadModelSummary is the Postgres read-model fast path for a
@@ -90,20 +92,33 @@ func (cr *ContentReader) repositoryScopeID(ctx context.Context, repoID string) (
 	return scopeID, nil
 }
 
+const repositoryWorkloadNamesSQL = `
+	SELECT DISTINCT entity_key
+	FROM fact_records,
+	     jsonb_array_elements_text(coalesce(payload->'entity_keys', '[]'::jsonb)) AS entity_key
+	WHERE scope_id = $1
+	  AND fact_kind = 'reducer_workload_identity'
+	  AND NOT is_tombstone
+	ORDER BY entity_key
+`
+
 func (cr *ContentReader) repositoryWorkloadNames(ctx context.Context, scopeID string) ([]string, error) {
 	if scopeID == "" {
 		return nil, nil
 	}
-	rows, err := cr.db.QueryContext(ctx, `
-		SELECT DISTINCT entity_key
-		FROM fact_records,
-		     jsonb_array_elements_text(coalesce(payload->'entity_keys', '[]'::jsonb)) AS entity_key
-		WHERE scope_id = $1
-		  AND fact_kind = 'reducer_workload_identity'
-		  AND NOT is_tombstone
-		ORDER BY entity_key
-	`, scopeID)
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "repository_workload_names"),
+			attribute.String("db.sql.table", "fact_records"),
+		),
+	)
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, repositoryWorkloadNamesSQL, scopeID)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("query repository workload names: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -112,11 +127,13 @@ func (cr *ContentReader) repositoryWorkloadNames(ctx context.Context, scopeID st
 	for rows.Next() {
 		var entityKey string
 		if err := rows.Scan(&entityKey); err != nil {
+			span.RecordError(err)
 			return nil, fmt.Errorf("scan repository workload name: %w", err)
 		}
 		names = append(names, strings.TrimPrefix(entityKey, "workload:"))
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("iterate repository workload names: %w", err)
 	}
 	return names, nil
