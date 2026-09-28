@@ -6,7 +6,6 @@ package git
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -33,7 +32,7 @@ func TestBuildStreamingGenerationEmitsRationaleFollowupForFullAndDelta(t *testin
 			}
 
 			collected := buildStreamingGeneration(repoPath, repo, "run-rationale", time.Now().UTC(), snapshot, false, "")
-			assertSingleRationaleFollowup(t, drainFactChannel(collected.Facts), repoPath, repo.ID, collected.Scope.ScopeID, collected.Generation.GenerationID)
+			assertSingleRationaleFollowup(t, drainFactChannel(collected.Facts), repo.Name, repo.ID, collected.Scope.ScopeID, collected.Generation.GenerationID)
 		})
 	}
 }
@@ -71,7 +70,7 @@ func TestBuildStreamingGenerationReconcilesRationaleWhenNoPositiveRemains(t *tes
 			}
 
 			collected := buildStreamingGeneration(repoPath, repo, "run-no-rationale", time.Now().UTC(), snapshot, false, "")
-			assertSingleRationaleFollowup(t, drainFactChannel(collected.Facts), repoPath, repo.ID, collected.Scope.ScopeID, collected.Generation.GenerationID)
+			assertSingleRationaleFollowup(t, drainFactChannel(collected.Facts), repo.Name, repo.ID, collected.Scope.ScopeID, collected.Generation.GenerationID)
 		})
 	}
 }
@@ -133,7 +132,7 @@ func TestRationaleProductionMarkerMatchesReplayCatalog(t *testing.T) {
 		t.Fatal("rationale cassette lacks rationale_materialization followup")
 	}
 	production := rationaleMaterializationFactEnvelope(
-		"/repo-rationale", "repository:r_f781caa5", "scope-ifa-rationale-family", "gen-ifa-rationale-family-1",
+		"/repo-rationale", "repo-rationale", "repository:r_f781caa5", "scope-ifa-rationale-family", "gen-ifa-rationale-family-1",
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
 	)
 	clearDerivedEnvelopeFields := func(envelope facts.Envelope) facts.Envelope {
@@ -152,7 +151,7 @@ func TestRationaleProductionMarkerMatchesReplayCatalog(t *testing.T) {
 	}
 }
 
-func assertSingleRationaleFollowup(t *testing.T, envelopes []facts.Envelope, repoPath, repoID, scopeID, generationID string) {
+func assertSingleRationaleFollowup(t *testing.T, envelopes []facts.Envelope, repoName, repoID, scopeID, generationID string) {
 	t.Helper()
 	var matches int
 	lastContentEntityIndex := -1
@@ -172,7 +171,7 @@ func assertSingleRationaleFollowup(t *testing.T, envelopes []facts.Envelope, rep
 		if got, want := envelope.Payload["repo_id"], repoID; got != want {
 			t.Errorf("rationale followup repo_id = %#v, want %#v", got, want)
 		}
-		if got, want := envelope.Payload["entity_key"], "rationale:"+filepath.Base(repoPath); got != want {
+		if got, want := envelope.Payload["entity_key"], "rationale:"+repoName; got != want {
 			t.Errorf("rationale followup entity_key = %#v, want %#v", got, want)
 		}
 		if got, want := envelope.Payload["reason"], "repository generation requested rationale materialization reconciliation"; got != want {
@@ -214,7 +213,7 @@ func BenchmarkRationaleMaterializationFactEnvelope(b *testing.B) {
 	b.ReportAllocs()
 	for range b.N {
 		rationaleFollowupBenchmarkSink = rationaleMaterializationFactEnvelope(
-			"/repo-rationale", "repo-ifa-rationale", "scope-ifa-rationale", "gen-1", time.Unix(0, 0).UTC(),
+			"/repo-rationale", "repo-rationale", "repo-ifa-rationale", "scope-ifa-rationale", "gen-1", time.Unix(0, 0).UTC(),
 		)
 	}
 }

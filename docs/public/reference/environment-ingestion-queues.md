@@ -42,7 +42,7 @@ queue, or graph-write evidence.
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Operator ignore overlay. Entries may use `pattern=reason`. |
 | `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Preserved globs that override broader ignored ancestors. |
 | `ESHU_BOOTSTRAP_IS_DEPENDENCY` | `false` | collector | Marks bootstrap source as dependency package. |
-| `ESHU_BOOTSTRAP_PACKAGE_NAME` | unset | collector | Dependency package name. |
+| `ESHU_BOOTSTRAP_PACKAGE_NAME` | unset | collector | Dependency package name. In dependency mode it becomes the repository name and the workload name, and it keys the reducer follow-ups for every repository in the run. Do not end it with `:`. |
 | `ESHU_BOOTSTRAP_PACKAGE_LANGUAGE` | unset | collector | Dependency package language. |
 | `SCIP_INDEXER` | `false` | collector snapshotter | Enables SCIP supplement indexing only when set to `1`, `true`, `yes`, or `on` and selected language package or workspace roots have matching `scip-*` binaries available. Unset, unrecognized, `false`, `0`, `no`, and `off` values keep native-only parsing. Outcome volume is visible through `eshu_dp_scip_snapshot_attempts_total{language,result}`. |
 | `SCIP_LANGUAGES` | `python,typescript,javascript,go,rust,java,cpp,c` | collector snapshotter | Comma-separated SCIP language allowlist. Narrow this list to keep native parsing complete while limiting which language package or workspace roots can run SCIP. |

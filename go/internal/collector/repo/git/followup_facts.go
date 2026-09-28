@@ -4,7 +4,6 @@
 package git
 
 import (
-	"path/filepath"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
@@ -40,8 +39,20 @@ func dataflowScannedFactEnvelope(
 	)
 }
 
+// followupEntityKey builds the entity_key every git-collector shared_followup
+// fact carries: prefix + repoName. repoName MUST be the value the repository
+// fact publishes as its `name` (repositoryidentity.Metadata.Name), never the
+// checkout directory basename. In dependency mode ESHU_BOOTSTRAP_PACKAGE_NAME
+// sets that name, so the two differ, and the reducer selects candidates by
+// comparing the key against the repository fact name (#7316). All follow-up
+// envelopes build the key here so no domain keeps a second derivation.
+func followupEntityKey(prefix, repoName string) string {
+	return prefix + ":" + repoName
+}
+
 func workloadIdentityFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -49,7 +60,7 @@ func workloadIdentityFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "workload_identity",
-		"entity_key":     "workload:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("workload", repoName),
 		"reason":         "repository snapshot emitted shared workload identity follow-up",
 		"repo_id":        repoID,
 	}
@@ -67,6 +78,7 @@ func workloadIdentityFactEnvelope(
 
 func deployableUnitCorrelationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -74,7 +86,7 @@ func deployableUnitCorrelationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "deployable_unit_correlation",
-		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("repo", repoName),
 		"reason":         "repository snapshot emitted deployable-unit correlation follow-up",
 		"repo_id":        repoID,
 	}
@@ -92,6 +104,7 @@ func deployableUnitCorrelationFactEnvelope(
 
 func codeCallMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -99,7 +112,7 @@ func codeCallMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "code_call_materialization",
-		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("repo", repoName),
 		"reason":         "repository snapshot emitted code-call materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -121,6 +134,7 @@ func codeCallMaterializationFactEnvelope(
 // reducer can retract stale edges after comments disappear.
 func rationaleMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -128,7 +142,7 @@ func rationaleMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "rationale_materialization",
-		"entity_key":     "rationale:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("rationale", repoName),
 		"reason":         "repository generation requested rationale materialization reconciliation",
 		"repo_id":        repoID,
 	}
@@ -153,6 +167,7 @@ func rationaleMaterializationFactEnvelope(
 // no-op.
 func platformInfraMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -160,7 +175,7 @@ func platformInfraMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "platform_infra_materialization",
-		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("repo", repoName),
 		"reason":         "repository snapshot emitted platform infra materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -178,6 +193,7 @@ func platformInfraMaterializationFactEnvelope(
 
 func workloadMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -185,7 +201,7 @@ func workloadMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "workload_materialization",
-		"entity_key":     "workload:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("workload", repoName),
 		"reason":         "repository snapshot emitted workload materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -203,6 +219,7 @@ func workloadMaterializationFactEnvelope(
 
 func deploymentMappingFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -210,7 +227,7 @@ func deploymentMappingFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "deployment_mapping",
-		"entity_key":     "deployment:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("deployment", repoName),
 		"reason":         "repository snapshot emitted deployment mapping follow-up",
 		"repo_id":        repoID,
 	}
@@ -228,6 +245,7 @@ func deploymentMappingFactEnvelope(
 
 func sqlRelationshipMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -235,7 +253,7 @@ func sqlRelationshipMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "sql_relationship_materialization",
-		"entity_key":     "sql:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("sql", repoName),
 		"reason":         "repository snapshot emitted SQL relationship materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -253,6 +271,7 @@ func sqlRelationshipMaterializationFactEnvelope(
 
 func shellExecMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -260,7 +279,7 @@ func shellExecMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "shell_exec_materialization",
-		"entity_key":     "shell:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("shell", repoName),
 		"reason":         "repository snapshot emitted shell execution materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -278,6 +297,7 @@ func shellExecMaterializationFactEnvelope(
 
 func inheritanceMaterializationFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -285,7 +305,7 @@ func inheritanceMaterializationFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "inheritance_materialization",
-		"entity_key":     "inheritance:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("inheritance", repoName),
 		"reason":         "repository snapshot emitted inheritance materialization follow-up",
 		"repo_id":        repoID,
 	}
@@ -308,6 +328,7 @@ func inheritanceMaterializationFactEnvelope(
 // is repo-scoped so re-emitting the same generation is idempotent.
 func codeImportRepoEdgeFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -315,7 +336,7 @@ func codeImportRepoEdgeFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "code_import_repo_edge",
-		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("repo", repoName),
 		"reason":         "repository snapshot emitted code-import repo-edge follow-up",
 		"repo_id":        repoID,
 	}
@@ -341,6 +362,7 @@ func codeImportRepoEdgeFactEnvelope(
 // codeowners.ownership facts survive to re-cycle the retract-then-write).
 func codeownersOwnershipFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -348,7 +370,7 @@ func codeownersOwnershipFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "codeowners_ownership",
-		"entity_key":     "codeowners:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("codeowners", repoName),
 		"reason":         "repository snapshot emitted codeowners ownership follow-up",
 		"repo_id":        repoID,
 	}
@@ -374,6 +396,7 @@ func codeownersOwnershipFactEnvelope(
 // (no submodule.pin facts survive to re-cycle the retract-then-write).
 func submodulePinFactEnvelope(
 	repoPath string,
+	repoName string,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -381,7 +404,7 @@ func submodulePinFactEnvelope(
 ) facts.Envelope {
 	payload := map[string]any{
 		"reducer_domain": "submodule_pin",
-		"entity_key":     "submodule:" + filepath.Base(repoPath),
+		"entity_key":     followupEntityKey("submodule", repoName),
 		"reason":         "repository snapshot emitted submodule pin follow-up",
 		"repo_id":        repoID,
 	}

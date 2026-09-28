@@ -45,6 +45,17 @@ The hook lives under `git/` and the parser stays outside it
 `collector/servicecatalog`), so the path still reads as a sentence. Files
 that need both import the hook by its full path.
 
+## Follow-up entity keys
+
+The `shared_followup` facts that enqueue reducer domains carry an `entity_key`
+of `<prefix>:<repository fact name>`, built by one helper
+(`followupEntityKey` in `followup_facts.go`) from the same `repo.Name` the
+repository fact publishes. It is never derived from the checkout path: in
+dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets the name, the two differ, and
+the reducer's candidate filter would select nothing. Without a display name the
+name is the checkout basename, so the keys are unchanged.
+A name ending in `:` still does not match; that gap is tracked in #7384.
+
 ## Directory size
 
 This directory is over the 40-file cap and carries a row in
