@@ -10,16 +10,31 @@
 
 ## Invariants
 
-- The lock order in `LinkWriter.linkInTx` is: cursor row, then the
-  activating generation's row, then the prior's row (`fencePrior`, for a full
-  link with a state), then slot. Every step is non-blocking (`SKIP LOCKED` or
-  `pg_try_advisory_xact_lock`). A miss returns `*RetryError` and never
-  success, because returning success would drop the activation.
+- The lock order in `LinkWriter.linkInTx` is: cursor row, then the activating
+  generation, then the prior generation, then slot. The cursor lock
+  (`FOR UPDATE SKIP LOCKED`) and the slot (`pg_try_advisory_xact_lock`) never
+  wait. A miss returns `*RetryError` and never success, because returning
+  success would drop the activation.
+- A generation lock (`FOR KEY SHARE SKIP LOCKED`: the activating generation,
+  the prior, and the backfill's insert) can wait. PostgreSQL walks the row's
+  update chain before it applies the wait policy, and the walk waits without
+  condition on a later version that another transaction holds `FOR UPDATE` or
+  is deleting (`heap_lock_updated_tuple_rec`; `NOWAIT` waits there too). So
+  every generation lock runs under a transaction-local `lock_timeout` of
+  `generationLockTimeout` (250 ms), and SQLSTATE 55P03 from it is the
+  non-counting `generation_lock_timeout`. Keep the timeout below the server's
+  `deadlock_timeout`. Reset it to 0 before the link statement, which runs
+  under `statement_timeout` alone. Map 55P03 only at the generation locks,
+  never in `ClassifyFailure`. Do not change the lock to `FOR SHARE`: it does
+  not wait, but it blocks Ack and heartbeat for the length of a link. The
+  gates are `TestActivatingGenerationChainWaitTimesOut`,
+  `TestPriorChainWaitTimesOut` and `TestGenerationLockChainWaitRaceShape`;
+  keep their planted RED (arbiter ruling arb-7127-3e-wait).
 - Every ledger writer holds `FOR KEY SHARE` on every generation a row it
   writes names, until it commits (arbiter ruling arb-7127-3d, C4). Only then
   is retention's ledger delete complete. A new writer (PR-3c's `pairwise`
-  link first) locks both generations it names, non-blocking, after the
-  cursor and before the slot, and never names a generation it did not lock.
+  link first) locks both generations it names, `SKIP LOCKED` under the
+  generation lock timeout, after the cursor and before the slot, and never names a generation it did not lock.
   An absent prior means a rebase (`RebaseLinkSQL`: root link, no deltas, no
   buckets, `prior_pruned`), never a link naming the pruned generation, and
   never a re-root of the whole scope.

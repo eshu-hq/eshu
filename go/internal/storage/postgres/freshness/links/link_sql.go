@@ -3,6 +3,11 @@
 
 package linksfreshnessstore
 
+import (
+	"strconv"
+	"time"
+)
+
 // SlotLockClass is the first key of the two-integer advisory lock that holds
 // one full-link slot: pg_try_advisory_xact_lock(SlotLockClass, slot).
 // TestSlotLockClassDiffersFromTreeKeys derives every other two-integer lock
@@ -51,10 +56,15 @@ FROM scope_generations
 WHERE generation_id = $1 AND scope_id = $2
 `
 
-// lockGenerationQuery keeps generation retention off the activating
-// generation for the link's lifetime. Retention locks candidates FOR UPDATE
-// SKIP LOCKED and so skips it; KEY SHARE does not conflict with Ack's status
-// updates. A row held by retention returns no row: generation_locked, retry.
+// lockGenerationQuery keeps generation retention off a generation the link
+// names (the activating generation and the prior) for the link's lifetime.
+// Retention locks candidates FOR UPDATE SKIP LOCKED and so skips it; KEY
+// SHARE does not conflict with Ack's status updates. A row held by retention
+// returns no row: generation_locked, retry. It is bounded, not non-blocking:
+// when a non-key update of the row committed after the statement's snapshot
+// and a later version is held FOR UPDATE or being deleted, PostgreSQL's
+// update-chain walk waits despite SKIP LOCKED, so the caller sets
+// generationLockTimeout first and 55P03 is generation_lock_timeout.
 const lockGenerationQuery = `
 SELECT 1
 FROM scope_generations
@@ -71,6 +81,26 @@ const trySlotQuery = `SELECT pg_try_advisory_xact_lock($1::integer, $2::integer)
 const (
 	setWorkMemStatement       = `SET LOCAL work_mem = '256MB'`
 	setPlanCacheModeStatement = `SET LOCAL plan_cache_mode = force_custom_plan`
+)
+
+// generationLockTimeout bounds each generation lock (the activating
+// generation, the prior, and the backfill's insert). FOR KEY SHARE SKIP
+// LOCKED can still wait: PostgreSQL walks the row's update chain before it
+// applies the wait policy, and the walk waits without condition on a later
+// version another transaction holds FOR UPDATE or is deleting
+// (heap_lock_updated_tuple_rec). It stays below the server's default
+// deadlock_timeout (1 s), so the writer gives way before a deadlock victim
+// would be chosen (arbiter ruling arb-7127-3e-wait).
+const generationLockTimeout = 250 * time.Millisecond
+
+// setGenerationLockTimeoutStatement sets generationLockTimeout for the rest of
+// the transaction, immediately before its first generation lock.
+// resetLockTimeoutStatement clears it before the link statement, which runs
+// under statement_timeout alone. SET does not take bind parameters.
+var (
+	setGenerationLockTimeoutStatement = `SET LOCAL lock_timeout = '` +
+		strconv.FormatInt(generationLockTimeout.Milliseconds(), 10) + `ms'`
+	resetLockTimeoutStatement = `SET LOCAL lock_timeout = 0`
 )
 
 // setStatementTimeoutStatement is built from the configured timeout in

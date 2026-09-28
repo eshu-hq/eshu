@@ -41,7 +41,7 @@ interval is `ESHU_CHANGED_SINCE_LINK_POLL_INTERVAL` (default 5s).
 | --- | --- | --- |
 | `linked` | A root or incremental link committed, or a rebase: the state's generation was pruned, so the state moved to the activating generation by the same diff and a `root` link was recorded, with one `prior_pruned` chain break counted (arbiter ruling arb-7127-3d, C2). | Advanced to the linked generation; attempt fields and the poison marker clear. |
 | `break` | A delta generation, a pruned generation, or a delta whose prior is unknown. The overlay link is not shipped, so every delta activation is a break (`delta_without_root`, `prior_mismatch`, `overlay_unproven`, `pruned_before_link`). | Advanced; the state is kept. |
-| non-counting miss | `cursor_locked`, `generation_locked` (retention holds the activating generation or the link's prior), `slot_busy`. The runner moves on to the next candidate. | Unchanged; nothing written. |
+| non-counting miss | `cursor_locked`, `generation_locked` (retention holds the activating generation or the link's prior), `generation_lock_timeout` (a generation lock waited 250 ms and gave up, SQLSTATE 55P03; arbiter ruling arb-7127-3e-wait), `slot_busy`. The runner moves on to the next candidate. A journal pass that times out the same way rolls back, counts on the same retries counter with a WARN log carrying the SQLSTATE, and the cycle stops until the next poll. | Unchanged; nothing written. |
 | `failed` | A counting failure: `statement_timeout`, `connection_lost`, `sql_error`, `internal`. Recorded with backoff min(30 min, 30 s × 2^(n-1)). | Unchanged; `attempt_count` +1, `next_attempt_at` set. |
 | `canceled` | The reducer shut down while the link ran or while its failure was being recorded (the runner's own context ended). Logged at INFO, with the failure class when one was observed; no ERROR. A failure or poisoning already recorded on the cursor keeps its ERROR. The link's own transaction deadline or statement timeout is not this: it is `failed`. | Unchanged; nothing recorded; the next cycle retries. |
 | `poisoned` | The `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS`-th counting failure (default 5): a `link_poisoned` break. | Advanced past the activation; state kept; marker set until the next full link. |
@@ -53,7 +53,9 @@ known gap).
 ## Telemetry
 
 - `eshu_dp_changed_since_links_total{link_kind, outcome}`
-- `eshu_dp_changed_since_link_retries_total{reason}` (non-counting misses)
+- `eshu_dp_changed_since_link_retries_total{reason}` (non-counting misses:
+  `cursor_locked`, `generation_locked`, `generation_lock_timeout`,
+  `slot_busy`)
 - `eshu_dp_changed_since_link_failures_total{failure_class}`
 - `eshu_dp_changed_since_chain_breaks_total{reason}` (`prior_pruned` is a
   rebase: it comes with a `root` link, not instead of one)
@@ -82,6 +84,8 @@ known gap).
   carries `break_reason=prior_pruned` and `rebased_from_generation_id`.
 - `changed-since ledger orphan probe failed` (ERROR) when the probe read
   fails.
+- `changed-since journal pass gave way on a generation lock; nothing
+  journaled, retried next cycle` (WARN, with `reason` and `sqlstate`).
 - One `changed-since link cycle completed` log line is written per non-idle
   cycle.
 
@@ -91,6 +95,12 @@ At 3 AM, read the signals this way:
 - A rising backlog and lag mean the writer is behind.
 - `retries_total{reason="slot_busy"}` means the full-link slots are
   saturated.
+- `reason="generation_lock_timeout"` means a link or a journal pass waited 250 ms for a generation row and
+  gave up. Nothing was written and no attempt was counted. A few per day need no action. A steady rate
+  means a transaction holds generation rows for a long time: look in `pg_stat_activity` for
+  `wait_event_type = 'Lock'` on the link's lock statement and at `pg_blocking_pids` of that backend. The
+  usual holder is a generation retention batch; the other is a migration holding a table lock. The backlog
+  and lag gauges show whether links are falling behind.
 - `retrying_scopes` above zero means links are failing now;
   `poisoned_scopes` above zero means those scopes skipped an activation and
   answer from the fallback until their next full generation.

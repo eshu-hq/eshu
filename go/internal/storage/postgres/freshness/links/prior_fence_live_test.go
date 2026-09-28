@@ -151,70 +151,75 @@ func TestPriorHeldByRetentionIsGenerationLocked(t *testing.T) {
 	}
 }
 
-// TestPriorLockWithACommittedUpdaterDoesNotWait is the #7115 shape on X
-// (arbiter ruling arb-7127-3d, "Why not in PR-3d"): a multixact with a
-// running KEY SHARE member and a committed updater. Each case leaves X's
-// newest version held by an open transaction; the writer's lock of X must
-// answer in under a second either way.
+// TestPriorLockWithACommittedUpdaterDoesNotWait is the #7115 shape (arbiter
+// ruling arb-7127-3d, "Why not in PR-3d"): a multixact with a running KEY
+// SHARE member and a committed updater, on the prior X and on the activating
+// generation G (W4 of arbiter ruling arb-7127-3e-wait). The update commits
+// before the lock statement's snapshot, so no chain walk happens: each case
+// leaves the row's newest version held by an open transaction, and the
+// writer's lock must answer in under a second either way.
 func TestPriorLockWithACommittedUpdaterDoesNotWait(t *testing.T) {
 	const bump = `UPDATE scope_generations SET ingested_at = ingested_at + interval '1 second' WHERE generation_id = $1`
-	for _, tc := range []struct {
-		name       string
-		keyShare   bool   // a running KEY SHARE member on X
-		newest     string // what the open transaction does to X's newest version
-		wantLocked bool   // generation_locked, otherwise an incremental link
-	}{
-		{"key share, committed update, open no-key update (Ack shape)", true, bump, false},
-		{
-			"key share, committed update, retention skips the carried lock", true,
-			`SELECT count(*) FROM (SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR UPDATE SKIP LOCKED) AS got`, false,
-		},
-		{
-			"committed update, retention holds the newest version", false,
-			`SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR UPDATE`, true,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			l := openLedgerDB(t)
-			w := linksfreshnessstore.NewLinkWriter(l.store)
-			l.seedRootedScope(t, w, "scope-mx", "mx0", "mx1")
-			var open []*sql.Tx
-			defer func() {
-				for _, tx := range open {
-					_ = tx.Rollback()
+	for _, target := range []string{"prior", "activating"} {
+		for _, tc := range []struct {
+			name       string
+			keyShare   bool   // a running KEY SHARE member on X
+			newest     string // what the open transaction does to X's newest version
+			wantLocked bool   // generation_locked, otherwise an incremental link
+		}{
+			{"key share, committed update, open no-key update (Ack shape)", true, bump, false},
+			{
+				"key share, committed update, retention skips the carried lock", true,
+				`SELECT count(*) FROM (SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR UPDATE SKIP LOCKED) AS got`, false,
+			},
+			{
+				"committed update, retention holds the newest version", false,
+				`SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR UPDATE`, true,
+			},
+		} {
+			t.Run(target+"/"+tc.name, func(t *testing.T) {
+				gen := map[string]string{"prior": "mx0", "activating": "mx1"}[target]
+				l := openLedgerDB(t)
+				w := linksfreshnessstore.NewLinkWriter(l.store)
+				l.seedRootedScope(t, w, "scope-mx", "mx0", "mx1")
+				var open []*sql.Tx
+				defer func() {
+					for _, tx := range open {
+						_ = tx.Rollback()
+					}
+				}()
+				if tc.keyShare {
+					member := l.begin(t)
+					open = append(open, member)
+					l.execTx(t, member, `SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR KEY SHARE`, gen)
 				}
-			}()
-			if tc.keyShare {
-				member := l.begin(t)
-				open = append(open, member)
-				l.execTx(t, member, `SELECT 1 FROM scope_generations WHERE generation_id = 'mx0' FOR KEY SHARE`)
-			}
-			l.exec(t, bump, "mx0")
-			newest := l.begin(t)
-			open = append(open, newest)
-			if strings.Contains(tc.newest, "SKIP LOCKED") {
-				var got int64
-				if err := newest.QueryRowContext(l.ctx, tc.newest, "mx0").Scan(&got); err != nil || got != 0 {
-					t.Fatalf("retention lock of mx0 with a key share carried = %d, %v; want no row", got, err)
+				l.exec(t, bump, gen)
+				newest := l.begin(t)
+				open = append(open, newest)
+				if strings.Contains(tc.newest, "SKIP LOCKED") {
+					var got int64
+					if err := newest.QueryRowContext(l.ctx, tc.newest, gen).Scan(&got); err != nil || got != 0 {
+						t.Fatalf("retention lock of %s with a key share carried = %d, %v; want no row", gen, got, err)
+					}
+				} else {
+					l.execTx(t, newest, tc.newest, gen)
 				}
-			} else {
-				l.execTx(t, newest, tc.newest, "mx0")
-			}
-			if tc.wantLocked {
-				l.requireGenerationLocked(t, w, "scope-mx")
-				return
-			}
-			ctx, cancel := context.WithTimeout(l.ctx, noWait)
-			defer cancel()
-			start := time.Now()
-			got, err := w.LinkNext(ctx, "scope-mx")
-			if elapsed := time.Since(start); elapsed > time.Second {
-				t.Fatalf("link waited %s on the prior's lock", elapsed)
-			}
-			if err != nil || got.Kind != linksfreshnessstore.LinkKindIncremental || got.PriorGenerationID != "mx0" {
-				t.Fatalf("link = %+v, %v; want incremental mx0 -> mx1", got, err)
-			}
-		})
+				if tc.wantLocked {
+					l.requireGenerationLocked(t, w, "scope-mx")
+					return
+				}
+				ctx, cancel := context.WithTimeout(l.ctx, noWait)
+				defer cancel()
+				start := time.Now()
+				got, err := w.LinkNext(ctx, "scope-mx")
+				if elapsed := time.Since(start); elapsed > time.Second {
+					t.Fatalf("link waited %s on the prior's lock", elapsed)
+				}
+				if err != nil || got.Kind != linksfreshnessstore.LinkKindIncremental || got.PriorGenerationID != "mx0" {
+					t.Fatalf("link = %+v, %v; want incremental mx0 -> mx1", got, err)
+				}
+			})
+		}
 	}
 }
 

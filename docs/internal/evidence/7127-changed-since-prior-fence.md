@@ -31,7 +31,9 @@ of two.
 | C4 | The rule for any later writer, `pairwise` first, is in the store's `AGENTS.md` and `README.md` ("The writer rule") | docs |
 | C5 | `JournalStore.Orphans` runs the ruling's probe. The runner records `eshu_dp_changed_since_ledger_orphans{kind}` at most once a minute | `journal.go`, `reducer/freshness/links/observe.go` |
 
-The lock order is cursor, G, X, slot. Every lock is non-blocking.
+The lock order is cursor, G, X, slot. The cursor lock and the slot never wait;
+the generation locks are bounded at 250 ms (section "Generation locks are
+bounded").
 `IncrementalLinkSQL` is byte-identical after the refactor (sha256
 `76ae2046…d8d6a231` before and after); `RootLinkSQL` is unchanged.
 
@@ -90,39 +92,92 @@ a copy):
 | rebase through `RootLinkSQL` | `TestRebaseOnPrunedPriorWritesOnlyChangedKeys` | FAIL (every key rewritten) |
 | backfill keeps going after a row not inserted | `TestBackfillEndsTheChainAtAHeldGeneration` | FAIL (b2 journaled with prior b1) |
 
-## The #7115 shape on the lock statement, and the one wait
+## Generation locks are bounded (arbiter ruling arb-7127-3e-wait)
 
-A shim on 18.6 held the lock statement's snapshot open, using a `pg_sleep`
-InitPlan in its qual, while the other sessions acted. D is the link's lock.
+A shim on 18.6 held the lock statement's snapshot open (a `pg_sleep` InitPlan
+in its qual) while other sessions acted. D is the link's lock.
 
 | Case | D |
 | --- | --- |
-| running `KEY SHARE` member, committed non-key update after D's snapshot, open no-key update | no wait (2.006 s = the sleep) |
-| same, retention `FOR UPDATE SKIP LOCKED` on the new version | retention gets no row; D no wait (2.009 s) |
-| no member, committed non-key update after D's snapshot, retention `FOR UPDATE` then `DELETE` held 6 s | **waits** for retention's transaction (6.84 s), then gets no row: `generation_locked` |
+| S3: running `KEY SHARE` member, committed non-key update after D's snapshot, open no-key update | no wait (2.006 s = the sleep) |
+| S4b: same, retention `FOR UPDATE SKIP LOCKED` on the new version | retention gets no row; D no wait (2.009 s) |
+| S4d: no member, committed non-key update after D's snapshot, retention `FOR UPDATE` then `DELETE` held 6 s | **waits** for retention's transaction (6.84 s), then gets no row |
 
-- The last case follows the update chain (`heap_lock_updated_tuple`), which
-  ignores `SKIP LOCKED`. It applies to the activating generation's lock that
-  PR-3a shipped, and now to the prior's.
-- It needs a non-key update of the generation to commit between the lock
-  statement's snapshot and its row lock, while retention holds the new
-  version. The only updater of superseded generation rows found is the
-  projector Heartbeat supersede statement (`projector_queue_sql.go`), for a
-  generation old enough to prune.
-- It is not a deadlock: retention never waits on anything a link holds. The
-  wait is bounded by retention's transaction and by the link's context
-  deadline. The lock runs before `SET LOCAL statement_timeout`, so that
-  timeout does not bound it.
-- The fresh-snapshot cases are pinned by
-  `TestPriorLockWithACommittedUpdaterDoesNotWait`. The old-snapshot case is
-  pinned by `TestGenerationLockOldSnapshotWaitsOnRetention`. It derives a
-  paused variant from the shipped lock statement (a `pg_sleep` InitPlan in
-  its qual) and holds retention's `FOR UPDATE` plus `DELETE` for 3 s. Three
-  runs out of three: the lock waits until retention commits (3.003 s) and
-  returns no row. The control, without the committed update, skips at once
-  (1.002-1.005 s, the pause only). Whether to bound the wait (for example with
-  `lock_timeout` around the two generation locks) is with the arbiter
-  (arb-7127-3e-wait).
+The arbiter confirmed the cause from source (`heap_lock_updated_tuple`, which
+takes no wait policy) and by experiment (psql, one-table schema):
+
+| Case | Lock | Shape | Result |
+| --- | --- | --- | --- |
+| E0 | `KEY SHARE SKIP LOCKED` | no chain, R `FOR UPDATE` | 0 rows, no wait |
+| E1 (S4d) | `KEY SHARE SKIP LOCKED` | chain, R `FOR UPDATE` + `DELETE` | waited to R's commit, then 0 rows |
+| E2 | the same, `lock_timeout = 1s` | the same | 55P03 after 1.00 s |
+| E3 | `FOR UPDATE SKIP LOCKED` | chain, R `FOR UPDATE` | 0 rows, no wait (the cursor lock is safe) |
+| E4 | `KEY SHARE NOWAIT` | chain, R `FOR UPDATE` | waited, then 1 row |
+| E5 | `FOR SHARE SKIP LOCKED` | chain, R `FOR UPDATE` | no wait (rejected: blocks Ack and heartbeat) |
+| D1 | production statement | one open transaction: non-key `UPDATE`, then `FOR UPDATE` | waited to the holder's rollback |
+| D2, D3 | the same, `lock_timeout` 1 s / 250 ms | the same | 55P03 at 1.00 s / 0.25 s |
+
+Ruling (b), as built: `generationLockTimeout = 250 * time.Millisecond`, a
+constant, below the server's `deadlock_timeout`. `SET LOCAL lock_timeout =
+'250ms'` runs immediately before G's lock and stays in force for X's;
+`setLocals` resets it to 0 before the link statement. 55P03 from
+`lockGeneration` (G and X) is the non-counting `generation_lock_timeout`, with
+`RetryError.SQLState` 55P03; `ClassifyFailure` is unchanged (55P03 from the link
+statement stays `sql_error`). The backfill sets the same timeout before its
+first insert; a 55P03 rolls the whole pass back as `generation_lock_timeout`,
+and the timeout is reset before the sweeper insert. The runner counts a
+journal timeout on `retries_total{reason="generation_lock_timeout"}` with a
+WARN log line carrying the SQLSTATE and stops the cycle. This also bounds the
+activating generation's lock that PR-3a shipped.
+
+| Test (ruling id) | Result |
+| --- | --- |
+| `TestActivatingGenerationChainWaitTimesOut` (W1) | PASS: D1 holder on G, `generation_lock_timeout` after 262 ms (bounds 250 ms to 1 s), SQLSTATE 55P03, cursor unmoved, `attempt_count` 0, no ledger row; link after rollback. RED without the set: context (3 s) expired |
+| `TestPriorChainWaitTimesOut` (W2) | PASS: holder on X, 261 ms; retention's `FOR UPDATE SKIP LOCKED` takes G right after. RED as W1 |
+| `TestGenerationLockChainWaitRaceShape` (W3) | PASS: the shipped lock with one asserted replacement (`FROM (SELECT pg_sleep(1)) AS stall, scope_generations`; hermetic guard `TestStalledLockDiffersFromShippedOnlyByTheStall`). Bounded: 55P03 at 1.268 s, context `locking updated version`. RED unbounded: 0 rows at 3.002 s (retention's commit). Control: 0 rows at 1.002 s |
+| `TestPriorLockWithACommittedUpdaterDoesNotWait` (W4) | PASS: the three cases on X and on G |
+| `TestLockTimeoutsNeverCount` (W5) | PASS: holder on G then on X, 5 cycles each: 10 `generation_lock_timeout` retries, `attempt_count` 0, no poison. RED: a classifier counting the timeout counts and poisons |
+| `TestLockTimeoutIsResetBeforeTheLinkStatement` (W6) | PASS for root, incremental, rebase: set before the first generation lock, reset after the last and before the statement. RED (reset removed): `root: reset at -1` |
+| `TestLockTimeoutMapsOnlyAtTheGenerationLock` | PASS: 55P03 from the lock is the retry; from the link statement a counting `sql_error` |
+| `TestLockTimeoutDoesNotLeaveTheTransaction` (W7) | PASS: `SHOW lock_timeout` is `0` on a one-connection pool after a miss, a timeout and a link. RED (session `SET`): `250ms` after a lock miss |
+| `TestBackfillChainWaitTimesOut` (W8) | PASS: holder on a chain generation, `Journal` answers `generation_lock_timeout` under 1 s with nothing journaled (sweeper included); the next pass journals the chain and the sweeper row. RED without the set: 3 s context expired. The C3 tests still pass |
+| `TestGenerationLockTimeoutIsARetryOfItsScopeOnly`, `TestJournalLockTimeoutIsARetryNotACycleFailure` (W9) | PASS: counter and span reason, scope stopped, other scope linked; journal timeout on the counter, WARN with `sqlstate` 55P03, no cycle error |
+
+**W10** (`TestLinkAndRetentionProcessesRace` with a fourth process that commits
+non-key updates of every race generation, X and G alike; OS processes of the
+compiled test binary, not the built `cmd/reducer`), three runs:
+
+| run | links | rebases | generation_locked | generation_lock_timeout | slowest retry | non-key updates | 40P01 | orphan probe |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 58 | 2 | 47 | 0 | 68 ms | 408 | 0 | 0/0/0 |
+| 2 | 56 | 4 | 47 | 0 | 143 ms | 480 | 0 | 0/0/0 |
+| 3 | 60 | 4 | 49 | 0 | 85 ms | 552 | 0 | 0/0/0 |
+
+No run hit the chain-walk window (it needs the update's commit and
+retention's lock inside one statement's snapshot-to-lock gap); W1-W3 and W8
+exercise that path deterministically.
+
+**W11** (no regression), with the gate stated before the run: the median
+paired added wall time must be at most 0.5 ms on the delta-break path (one
+added round trip) and at most 1.0 ms on a full incremental link (two). This
+is `TestLinkCostW11`, 30 scopes per path, built at `c4c666e5be` (before) and
+on this change (after), 10 rounds interleaved with the first mover
+alternating. Result: delta +0.289 ms, full +0.538 ms (medians of per-round
+paired differences). Round medians, before against after: delta 1.925 ms
+against 2.323 ms, full 5.130 ms against 5.982 ms. **Load caveat:** load1 was
+19.5-26.1 throughout, above the 8.2 rule (load1 < 9), and per-round
+differences ranged from -9.4 ms to +1.7 ms. The figures pass the stated gate
+but are not a clean timing proof. The two statements themselves cost 0.05
+ms together in pgbench (No-Regression Evidence below).
+
+Operator text:
+
+> `reason="generation_lock_timeout"` means a link or a journal pass waited 250 ms for a generation row and
+> gave up. Nothing was written and no attempt was counted. A few per day need no action. A steady rate
+> means a transaction holds generation rows for a long time: look in `pg_stat_activity` for
+> `wait_event_type = 'Lock'` on the link's lock statement and at `pg_blocking_pids` of that backend. The
+> usual holder is a generation retention batch; the other is a migration holding a table lock. The backlog
+> and lag gauges show whether links are falling behind.
 
 ## Commands
 
@@ -134,6 +189,19 @@ InitPlan in its qual, while the other sessions acted. D is the link's lock.
 | `go test ./cmd/reducer -run TestChangedSinceLinkRunnerIsOffByDefault -count=1 -v` | 0 |
 | `go test ./internal/reducer/freshness/links -run TestLinkAndRetentionProcessesRace -count=1 -v`, three times (live) | 0, 0, 0 |
 | `bash scripts/verify-live-tests-ledger.sh` (repo root) | 0 (553 rows) |
+
+After the lock-timeout ruling (arb-7127-3e-wait), container `7127e-pg3`:
+
+| Command (from `go/` unless noted) | rc |
+| --- | --- |
+| `go test ./internal/storage/postgres/freshness/links -count=1 -timeout 40m` (live) | 0 (446.6 s) |
+| `go test ./internal/reducer/freshness/links -count=1` (live) | 0 (36.8 s) |
+| `go test -race ./internal/reducer/freshness/links -count=1` (live) | 0 (38.2 s) |
+| `go test ./cmd/reducer -run TestChangedSinceLinkRunnerIsOffByDefault -count=1 -v` | 0 |
+| `go test ./internal/reducer/freshness/links -run TestLinkAndRetentionProcessesRace -count=1 -v` (W10), three times | 0, 0, 0 |
+| W11: `w11-run.sh`, 10 interleaved rounds of `TestLinkCostW11` on two builds | 0 |
+| mutations: reset removed (W6), session `SET` (W7), no set on the link (W1, W2), no set on the backfill (W8) | each test FAIL as required |
+| `bash scripts/verify-live-tests-ledger.sh` (repo root) | 0 (557 rows) |
 
 No-Regression Evidence: a full link now runs two primary-key statements on
 `scope_generations` for its prior: the existence read and the `FOR KEY SHARE
@@ -153,6 +221,8 @@ the orphan probe, sampled at most once a minute),
 `eshu_dp_changed_since_chain_breaks_total{reason="prior_pruned"}`,
 `eshu_dp_changed_since_links_total{link_kind="root",outcome="linked"}` for a
 rebase, `eshu_dp_changed_since_link_retries_total{reason="generation_locked"}`
-for a held prior, the span attribute `changed_since.rebased_from_generation_id`,
+for a held prior, `...{reason="generation_lock_timeout"}` for a bounded
+chain-walk or table-lock wait (links and journal passes, with a WARN log
+carrying `sqlstate` for the journal), the span attribute `changed_since.rebased_from_generation_id`,
 the log field `rebased_from_generation_id`, and the ERROR log `changed-since
 ledger orphan probe failed`.

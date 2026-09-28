@@ -148,6 +148,15 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 	// already pruned, or the row exists) ends its scope's chain for this pass
 	// (arbiter ruling arb-7127-3d, C3): a later row would name it as its
 	// prior. The sweeper still journals the active generation.
+	if len(chain) == 0 {
+		return nil
+	}
+	// The insert's generation lock is bounded like the link's (arbiter ruling
+	// arb-7127-3e-wait): a 55P03 rolls the whole pass back as the
+	// non-counting generation_lock_timeout, and the next cycle retries.
+	if _, err := tx.ExecContext(ctx, setGenerationLockTimeoutStatement); err != nil {
+		return fmt.Errorf("changed-since journal: set generation lock timeout: %w", err)
+	}
 	lastScope, ended := "", ""
 	for _, row := range chain {
 		if row.scopeID == ended {
@@ -155,6 +164,9 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 		}
 		res, err := tx.ExecContext(ctx, insertActivationQuery,
 			row.scopeID, row.generationID, row.priorID, SourceBackfill, row.activatedAt)
+		if timeout := asLockTimeout(err); timeout != nil {
+			return timeout
+		}
 		if err != nil {
 			return fmt.Errorf("changed-since journal: insert backfill activation: %w", err)
 		}
@@ -171,6 +183,10 @@ func (s *JournalStore) backfill(ctx context.Context, tx db.Transaction, limit in
 			result.BackfillScopes++
 			lastScope = row.scopeID
 		}
+	}
+	// The sweeper and cursor statements that follow run unbounded, as before.
+	if _, err := tx.ExecContext(ctx, resetLockTimeoutStatement); err != nil {
+		return fmt.Errorf("changed-since journal: reset lock timeout: %w", err)
 	}
 	return nil
 }

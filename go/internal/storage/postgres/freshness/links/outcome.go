@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // LinkKind names how one activation was linked.
@@ -71,6 +73,14 @@ const (
 	RetryGenerationLocked RetryReason = "generation_locked"
 	// RetrySlotBusy means every full-link slot is held.
 	RetrySlotBusy RetryReason = "slot_busy"
+	// RetryGenerationLockTimeout means a generation lock (the activating
+	// generation, the prior, or a backfill insert) waited
+	// generationLockTimeout and gave up with SQLSTATE 55P03. PostgreSQL's
+	// update-chain walk waits despite SKIP LOCKED when a later version of the
+	// row is held FOR UPDATE or being deleted; a migration's table lock can
+	// also cause it. Nothing was written and no attempt is counted (arbiter
+	// ruling arb-7127-3e-wait).
+	RetryGenerationLockTimeout RetryReason = "generation_lock_timeout"
 )
 
 // RetryError reports a retryable link outcome. It satisfies the reducer's
@@ -83,7 +93,10 @@ type RetryError struct {
 	// cursor_locked.
 	ScopeID       string
 	ActivationSeq int64
-	Err           error
+	// SQLState is the server's SQLSTATE when the miss came from an error
+	// (55P03 for generation_lock_timeout); empty for a skip.
+	SQLState string
+	Err      error
 }
 
 // Error describes the retry reason and the underlying cause, if any.
@@ -100,6 +113,21 @@ func (e *RetryError) Unwrap() error { return e.Err }
 // Retryable reports true: every RetryError is safe to retry and counts no
 // attempt.
 func (e *RetryError) Retryable() bool { return true }
+
+// lockTimeoutSQLState is lock_not_available, which lock_timeout raises.
+const lockTimeoutSQLState = "55P03"
+
+// asLockTimeout returns the non-counting generation_lock_timeout
+// *RetryError when err is SQLSTATE 55P03, and nil otherwise. Only the
+// generation locks call it (arbiter ruling arb-7127-3e-wait); ClassifyFailure
+// never maps 55P03, so a lock timeout anywhere else stays what it is.
+func asLockTimeout(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != lockTimeoutSQLState {
+		return nil
+	}
+	return &RetryError{Reason: RetryGenerationLockTimeout, SQLState: pgErr.Code, Err: err}
+}
 
 // RetryReasonOf returns the reason of a RetryError in err's chain, and false
 // when err carries none.

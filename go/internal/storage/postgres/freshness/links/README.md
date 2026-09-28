@@ -35,26 +35,32 @@ is the multixact shape that deadlocked the projector claim in #7115.
    holds the scope: `RetryError{cursor_locked}`.
 2. Read the scope's oldest activation above the cursor. None: idle.
 3. Read the generation. If it is absent, the break is `pruned_before_link`.
-   Otherwise lock it `FOR KEY SHARE SKIP LOCKED`; no row means retention holds
-   it: `generation_locked`.
+   Otherwise set the transaction-local `lock_timeout` to
+   `generationLockTimeout` (250 ms) and lock the generation `FOR KEY SHARE
+   SKIP LOCKED`; no row means retention holds it: `generation_locked`.
+   SQLSTATE 55P03 means the lock waited 250 ms in PostgreSQL's update-chain
+   walk (see "Generation locks are bounded") or on a table lock:
+   `generation_lock_timeout`.
 4. For a delta generation, record a chain break (`delta_without_root`,
    `prior_mismatch`, or `overlay_unproven`), advance the cursor, and keep the
    state.
 5. For a full generation with a state at another generation X (the link's
    prior), fence X (arbiter ruling arb-7127-3d, C1): a plain existence read
-   of X, then, if X exists, `FOR KEY SHARE SKIP LOCKED` on it. No row back
-   means retention holds X: `generation_locked`. If X no longer exists,
-   retention pruned it and the link is a rebase (step 6).
+   of X, then, if X exists, `FOR KEY SHARE SKIP LOCKED` on it under the same
+   timeout. No row back means retention holds X: `generation_locked`; 55P03
+   is `generation_lock_timeout`. If X no longer exists, retention pruned it
+   and the link is a rebase (step 6).
 6. Take one of `Slots` advisory slots (`slot_busy` when none is free). Then
-   `SET LOCAL work_mem = '256MB'`, `plan_cache_mode = force_custom_plan` and
+   `SET LOCAL lock_timeout = 0`, `work_mem = '256MB'`, `plan_cache_mode = force_custom_plan` and
    `statement_timeout`, and run one statement: `RootLinkSQL` when there is no
    state yet, `RebaseLinkSQL` when X was pruned, otherwise
    `IncrementalLinkSQL`.
 7. Advance the cursor. Commit.
 
-The lock order is cursor, activating generation, prior, slot. Every step is
-non-blocking, and generation retention never waits on anything a link
-holds, so no lock order with retention can deadlock.
+The lock order is cursor, activating generation, prior, slot. The cursor
+lock and the slot never wait; each generation lock waits at most 250 ms.
+Generation retention never waits on anything a link holds, so no lock order
+with retention can deadlock.
 
 **Rebase** (C2). `RebaseLinkSQL` shares the incremental statement's diff and
 state move (`stateDiffCTE`, `stateMoveCTEs`), so it writes exactly the keys
@@ -67,8 +73,10 @@ answers `retention_expired` anyway: X is resolved from `scope_generations`.
 Outcomes (#7127 ruling 8.10):
 
 - **Non-counting, no write:** `cursor_locked`, `generation_locked` (the
-  activating generation or the prior), `slot_busy` (`*RetryError`, which
-  satisfies the reducer's `contract.RetryableError`).
+  activating generation or the prior), `generation_lock_timeout` (a
+  generation lock waited 250 ms and gave up with 55P03; the journal pass
+  reports it too), `slot_busy` (`*RetryError`, which satisfies the reducer's
+  `contract.RetryableError`; `RetryError.SQLState` carries 55P03).
 - **Counting:** a failure once the link statement ran (`*FailureError`):
   `statement_timeout` (57014 or the transaction deadline), `connection_lost`
   (57P01-57P03, class 08, a broken connection), `sql_error`, `internal`. A
@@ -96,7 +104,9 @@ SHARE OF generation SKIP LOCKED` (arbiter ruling arb-7127-3d, C3), so it
 exists only while the generation does and the pass holds the generation
 until it commits. A row that inserts nothing (the generation is held by
 retention or already pruned) ends that scope's chain for the pass; the rows
-after it would name it as their prior. Then it journals every active
+after it would name it as their prior. The inserts run under the generation
+lock timeout: a 55P03 rolls the whole pass back as `generation_lock_timeout`,
+and the next cycle retries. The timeout is reset before the sweeper insert. Then it journals every active
 generation that has no row, with a `NULL` prior. `BacklogScopes`, `Stats` and
 `OrphanScopes`/`DeleteOrphanScope` serve the runner.
 
@@ -164,7 +174,8 @@ before retention can lock that generation, and retention's delete statement
 sees it. The link writer locks the activating generation and the prior
 (`fencePrior`); the backfill inserts through the generation row. **Any later
 writer of a ledger row, `pairwise` (PR-3c) first, must lock both generations
-it names the same way**, non-blocking, after the cursor and before the slot.
+it names the same way**, `SKIP LOCKED` under the generation lock timeout,
+after the cursor and before the slot.
 A writer that names a generation it did not lock can leave a row that
 names a pruned generation, which no retention rule finds again.
 
@@ -176,18 +187,18 @@ with the scope. The orphan probe (`JournalStore.Orphans`, sampled by the
 runner as `eshu_dp_changed_since_ledger_orphans`) watches the rule. It is
 non-zero only briefly for a deleted scope, until the orphan-scope purge.
 
-**One known wait.** `FOR KEY SHARE SKIP LOCKED` can still wait in one narrow
-race, on the activating generation and on the prior alike. A non-key update
-of the generation commits between the lock statement's snapshot and its
-row lock, while retention holds the new row version. Locking the old
-version then follows the update chain, and PostgreSQL's chain walk
-(`heap_lock_updated_tuple`) ignores `SKIP LOCKED`. The link waits for
-retention's transaction and then gets `generation_locked` (see the #7127
-PR-3e evidence). It is not a deadlock, because retention never waits on the
-link. The #7115 multixact shape itself (a running `KEY SHARE` member plus a
-committed updater) does not wait: the member's lock carries to the new
-version, so retention skips it (`TestPriorLockWithACommittedUpdaterDoesNotWait`).
-`TestGenerationLockOldSnapshotWaitsOnRetention` pins the wait itself.
+**Generation locks are bounded** (arbiter ruling arb-7127-3e-wait). `FOR KEY
+SHARE SKIP LOCKED` can still wait. If a non-key update of the row commits
+between the lock statement's snapshot and its row lock, and another
+transaction holds the new version `FOR UPDATE` or is deleting it, PostgreSQL
+follows the update chain (`heap_lock_updated_tuple`) and waits there without
+honouring `SKIP LOCKED`; `NOWAIT` waits in the same place. Every generation
+lock therefore runs under a transaction-local `lock_timeout` of 250 ms, below
+the server's `deadlock_timeout`, and 55P03 becomes the non-counting
+`generation_lock_timeout`. The #7115 multixact shape (a running `KEY SHARE`
+member plus a committed updater) does not wait at all: the member's lock
+carries to the new version, so retention skips it
+(`TestPriorLockWithACommittedUpdaterDoesNotWait`).
 
 **Endings of an activation.** An activation ends as exactly one link, as
 exactly one break, or deleted by retention before the writer reaches it (its

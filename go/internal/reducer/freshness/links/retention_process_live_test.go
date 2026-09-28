@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +17,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -43,24 +46,37 @@ func changeEvery(scope int) int {
 }
 
 type retentionRaceTotals struct {
-	Linked, Breaks, PrunedBeforeLink, GenerationLocked, Rebases, Batches, GenerationsPruned, OverLimitBatches int
-	MaxBatchMillis                                                                                            int64
+	Linked, Breaks, PrunedBeforeLink, GenerationLocked, LockTimeouts, Rebases, Batches, GenerationsPruned, OverLimitBatches int
+	Deadlocks, Updates                                                                                                      int
+	MaxBatchMillis, MaxRetryMillis                                                                                          int64
 }
 
 // outcomeCounter wraps the production writer and counts the outcomes
 // retention can cause.
 type outcomeCounter struct {
 	*store.LinkWriter
-	mu                                   sync.Mutex
-	prunedBeforeLink, genLocked, rebases int
+	mu                                                            sync.Mutex
+	prunedBeforeLink, genLocked, lockTimeouts, rebases, deadlocks int
+	maxRetry                                                      time.Duration
 }
 
 func (c *outcomeCounter) LinkNext(ctx context.Context, scopeID string) (store.LinkResult, error) {
+	start := time.Now()
 	result, err := c.LinkWriter.LinkNext(ctx, scopeID)
+	elapsed := time.Since(start)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if reason, ok := store.RetryReasonOf(err); ok && reason == store.RetryGenerationLocked {
+	reason, retry := store.RetryReasonOf(err)
+	if retry {
+		c.maxRetry = max(c.maxRetry, elapsed)
+	}
+	switch {
+	case retry && reason == store.RetryGenerationLocked:
 		c.genLocked++
+	case retry && reason == store.RetryGenerationLockTimeout:
+		c.lockTimeouts++
+	case isDeadlock(err):
+		c.deadlocks++
 	}
 	if result.Break == store.BreakPrunedBeforeLink {
 		c.prunedBeforeLink++
@@ -104,6 +120,7 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 			}
 		}
 		totals.PrunedBeforeLink, totals.GenerationLocked, totals.Rebases = counter.prunedBeforeLink, counter.genLocked, counter.rebases
+		totals.LockTimeouts, totals.Deadlocks, totals.MaxRetryMillis = counter.lockTimeouts, counter.deadlocks, counter.maxRetry.Milliseconds()
 	case "retention":
 		retention := postgres.NewGenerationRetentionStore(db)
 		// 2,000 facts per generation fit the limit alone; a link over the
@@ -114,6 +131,10 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 		}
 		for idle := 0; idle < 5 && ctx.Err() == nil; {
 			result, err := retention.PruneSupersededGenerations(ctx, policy)
+			if isDeadlock(err) {
+				totals.Deadlocks++
+				continue
+			}
 			if err != nil {
 				t.Fatalf("retention batch: %v", err)
 			}
@@ -129,6 +150,38 @@ func runRetentionRaceChild(t *testing.T, role, dsn string) {
 			} else {
 				idle = 0
 			}
+		}
+	case "updater":
+		// The third actor of W10 (arbiter ruling arb-7127-3e-wait): non-key
+		// updates of every race generation, the prior X and the activating G
+		// alike, committed one at a time for as long as there is work, so a
+		// generation lock can find an update chain.
+		deadline := time.Now().Add(20 * time.Second)
+		for i := 0; time.Now().Before(deadline) && ctx.Err() == nil; i++ {
+			gen := fmt.Sprintf("prace-%02d-g%d", i%24, (i/24)%3)
+			_, err := raw.ExecContext(ctx, `UPDATE scope_generations SET ingested_at = ingested_at + interval '1 microsecond'
+WHERE generation_id = $1`, gen)
+			switch {
+			case isDeadlock(err):
+				totals.Deadlocks++
+			case err != nil:
+				t.Fatalf("updater: %v", err)
+			default:
+				totals.Updates++
+			}
+			if i%24 == 23 {
+				var pending int
+				if err := raw.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM changed_since_activations AS a
+    LEFT JOIN changed_since_scope_cursor AS c ON c.scope_id = a.scope_id
+    WHERE a.scope_id LIKE 'prace-%' AND a.activation_seq > COALESCE(c.state_activation_seq, 0))
+  + (SELECT count(*) FROM scope_generations WHERE scope_id LIKE 'prace-%' AND status = 'superseded')`).Scan(&pending); err != nil {
+					t.Fatalf("updater pending: %v", err)
+				}
+				if pending == 0 {
+					break
+				}
+			}
+			time.Sleep(2 * time.Millisecond)
 		}
 	default:
 		t.Fatalf("unknown child role %q", role)
@@ -188,7 +241,7 @@ FROM generate_series(1, 2000) AS i`, scopeID, gen, fixtureEpoch, g, changeEvery(
 
 	// Two retention processes race each other and the link runner (PC3 of
 	// arbiter ruling arb-7127-3d-c).
-	roles := []string{"link", "retention", "retention"}
+	roles := []string{"link", "retention", "retention", "updater"}
 	outputs := make([]bytes.Buffer, len(roles))
 	errs := make([]error, len(roles))
 	var wg sync.WaitGroup
@@ -226,6 +279,15 @@ FROM generate_series(1, 2000) AS i`, scopeID, gen, fixtureEpoch, g, changeEvery(
 	retention.GenerationsPruned += totals[2].GenerationsPruned
 	retention.OverLimitBatches += totals[2].OverLimitBatches
 	retention.MaxBatchMillis = max(retention.MaxBatchMillis, totals[2].MaxBatchMillis)
+	updater := totals[3]
+	// W10 (arbiter ruling arb-7127-3e-wait): no session saw a deadlock, and
+	// every link that ended in a retry answered in under a second.
+	if n := link.Deadlocks + retention.Deadlocks + totals[2].Deadlocks + updater.Deadlocks; n != 0 {
+		t.Fatalf("W10: %d deadlock errors (40P01) across the sessions, want 0", n)
+	}
+	if link.MaxRetryMillis >= 1000 {
+		t.Fatalf("W10: a link that ended in a retry took %d ms, want under 1 s", link.MaxRetryMillis)
+	}
 	if retention.GenerationsPruned != 2*scopes {
 		t.Fatalf("retention pruned %d generations, want %d (g0 and g1 of every scope; none starved)", retention.GenerationsPruned, 2*scopes)
 	}
@@ -268,6 +330,12 @@ WHERE NOT EXISTS (SELECT 1 FROM changed_since_links AS l WHERE l.scope_id = b.sc
 		t.Fatalf("(d) orphan probe = %+v after the race, want zeros (no ledger row names a pruned generation)", orphans)
 	}
 	// (c)
-	t.Logf("P7: %d scopes, %d retention batches (max %d ms), %d links (%d rebases), %d breaks (%d pruned_before_link), %d generation_locked retries, orphan probe %+v, %d over-limit batches",
-		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Rebases, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, orphans, retention.OverLimitBatches)
+	t.Logf("P7/W10: %d scopes, %d retention batches (max %d ms), %d links (%d rebases), %d breaks (%d pruned_before_link), %d generation_locked, %d generation_lock_timeout (slowest retry %d ms), %d non-key updates, 0 deadlocks, orphan probe %+v, %d over-limit batches",
+		scopes, retention.Batches, retention.MaxBatchMillis, link.Linked, link.Rebases, link.Breaks, link.PrunedBeforeLink, link.GenerationLocked, link.LockTimeouts, link.MaxRetryMillis, updater.Updates, orphans, retention.OverLimitBatches)
+}
+
+// isDeadlock reports SQLSTATE 40P01 in err's chain.
+func isDeadlock(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "40P01"
 }

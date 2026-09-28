@@ -203,6 +203,12 @@ func (w *LinkWriter) linkInTx(ctx context.Context, tx db.Transaction, scopeID st
 		result.Break = BreakPrunedBeforeLink
 		return result, w.advance(ctx, tx, scopeID, cursor.stateGenerationID, act.seq, false)
 	}
+	// Bound every generation lock (G here, X in fencePrior): SKIP LOCKED
+	// does not cover PostgreSQL's update-chain walk (arbiter ruling
+	// arb-7127-3e-wait). setLocals resets it before the link statement.
+	if _, err := tx.ExecContext(ctx, setGenerationLockTimeoutStatement); err != nil {
+		return LinkResult{}, fmt.Errorf("changed-since link: set generation lock timeout: %w", err)
+	}
 	if err := lockGeneration(ctx, tx, scopeID, act.generationID); err != nil {
 		return LinkResult{}, withActivation(err, scopeID, act.seq)
 	}
@@ -327,16 +333,29 @@ func generationIsDelta(ctx context.Context, tx db.Transaction, scopeID, generati
 func lockGeneration(ctx context.Context, tx db.Transaction, scopeID, generationID string) error {
 	rows, err := tx.QueryContext(ctx, lockGenerationQuery, generationID, scopeID)
 	if err != nil {
-		return fmt.Errorf("changed-since link: lock generation: %w", err)
+		return lockGenerationError(err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return fmt.Errorf("changed-since link: lock generation: %w", err)
+			return lockGenerationError(err)
 		}
 		return &RetryError{Reason: RetryGenerationLocked}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return lockGenerationError(err)
+	}
+	return nil
+}
+
+// lockGenerationError turns a lock timeout (55P03, under
+// generationLockTimeout) into the non-counting generation_lock_timeout and
+// wraps any other error.
+func lockGenerationError(err error) error {
+	if timeout := asLockTimeout(err); timeout != nil {
+		return timeout
+	}
+	return fmt.Errorf("changed-since link: lock generation: %w", err)
 }
 
 // takeSlot tries each full-link slot once. None free is slot_busy.
@@ -368,6 +387,7 @@ func (w *LinkWriter) takeSlot(ctx context.Context, tx db.Transaction) error {
 func (w *LinkWriter) setLocals(ctx context.Context, tx db.Transaction) error {
 	timeoutMS := w.statementTimeout().Milliseconds()
 	for _, statement := range []string{
+		resetLockTimeoutStatement,
 		setWorkMemStatement,
 		setPlanCacheModeStatement,
 		setStatementTimeoutStatementPrefix + strconv.FormatInt(timeoutMS, 10),

@@ -7,11 +7,14 @@
 // be answered from O(changes) rows instead of a two-generation diff.
 //
 // LinkWriter links one activation per transaction. The transaction takes,
-// in order and without waiting, the scope's cursor row (FOR UPDATE SKIP
-// LOCKED, the per-scope writer fence), the activating generation (FOR KEY
-// SHARE SKIP LOCKED after a plain existence read, which keeps generation
-// retention off it), for a full link the state generation it links from
-// (the same fence), and one of Slots advisory slots
+// in order, the scope's cursor row (FOR UPDATE SKIP LOCKED, the per-scope
+// writer fence; it never waits), the activating generation (FOR KEY SHARE
+// SKIP LOCKED after a plain existence read, which keeps generation retention
+// off it), for a full link the state generation it links from (the same
+// fence), and one of Slots advisory slots. The generation locks are bounded,
+// not non-blocking: SKIP LOCKED does not cover PostgreSQL's update-chain
+// walk, so they run under a 250 ms transaction-local lock_timeout and a
+// timeout is the non-counting generation_lock_timeout
 // (pg_try_advisory_xact_lock(SlotLockClass, slot)). A ledger row is written
 // only while every generation it names is locked, so retention's delete of a
 // pruned generation's rows is complete. A miss on any of them

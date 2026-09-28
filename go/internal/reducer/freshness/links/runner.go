@@ -171,6 +171,13 @@ func (r *Runner) RunOnce(ctx context.Context) (CycleResult, error) {
 	var result CycleResult
 	journal, err := r.Journal.Journal(ctx, r.Config.backfillScopes())
 	if err != nil {
+		if r.journalRetry(ctx, err) {
+			// A non-counting miss of the pass (generation_lock_timeout): it
+			// rolled back and the next cycle retries. The cycle stops here,
+			// as after any failed pass.
+			result.Retries = 1
+			return result, nil
+		}
 		return result, fmt.Errorf("journal activations: %w", err)
 	}
 	result.Journal = journal

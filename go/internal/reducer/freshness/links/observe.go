@@ -5,6 +5,7 @@ package links
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -103,6 +104,26 @@ func (r *Runner) recordFailure(ctx context.Context, span trace.Span, scopeID str
 // recordCanceled reports a link the runner's shutdown cut short, during the
 // link or during the record of its failure: an INFO log and
 // outcome=canceled, with no cursor record and no ERROR.
+// journalRetry reports a journal pass that gave way on a lock
+// (generation_lock_timeout) on the retries counter and in a WARN log line
+// with the SQLSTATE, and returns true. Any other error returns false.
+func (r *Runner) journalRetry(ctx context.Context, err error) bool {
+	var retry *store.RetryError
+	if ctx.Err() != nil || !errors.As(err, &retry) {
+		return false
+	}
+	if r.Instruments != nil {
+		r.Instruments.ChangedSinceLinkRetries.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionReason, string(retry.Reason))))
+	}
+	if r.Logger != nil {
+		r.Logger.WarnContext(ctx, "changed-since journal pass gave way on a generation lock; nothing journaled, retried next cycle",
+			slog.String("reason", string(retry.Reason)), slog.String("sqlstate", retry.SQLState),
+			log.Err(err), telemetry.PhaseAttr(telemetry.PhaseReduction))
+	}
+	return true
+}
+
 func (r *Runner) recordCanceled(ctx context.Context, span trace.Span, scopeID string, err error, attrs ...any) linkOutcome {
 	r.count(ctx, store.LinkKindNone, outcomeCanceled)
 	if span != nil {

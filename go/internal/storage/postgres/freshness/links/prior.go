@@ -18,8 +18,10 @@ import (
 // link written after X was pruned names a generation that no longer exists.
 //
 // It runs after the activating generation's lock and before the slot, so
-// the lock order is cursor, activating generation, prior, slot, and every
-// step is non-blocking. A plain existence read comes first:
+// the lock order is cursor, activating generation, prior, slot. It runs under
+// the generation lock timeout the caller set before the first generation
+// lock: 55P03 is the non-counting generation_lock_timeout. A plain existence
+// read comes first:
 //   - X present: lock it FOR KEY SHARE SKIP LOCKED. No row back means
 //     retention holds it: a non-counting generation_locked *RetryError.
 //   - X absent: retention pruned it. present is false and the caller rebases.

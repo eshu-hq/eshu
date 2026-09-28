@@ -261,7 +261,8 @@ type Instruments struct {
 	// incremental, none) and outcome (linked, break, failed, poisoned, canceled).
 	ChangedSinceLinks metric.Int64Counter
 	// ChangedSinceLinkRetries counts non-counting link outcomes by reason
-	// (cursor_locked, generation_locked, slot_busy).
+	// (cursor_locked, generation_locked, generation_lock_timeout, slot_busy);
+	// a journal pass that gives way on a generation lock counts here too.
 	ChangedSinceLinkRetries metric.Int64Counter
 	// ChangedSinceLinkFailures counts counting link failures by
 	// failure_class (statement_timeout, connection_lost, sql_error,
