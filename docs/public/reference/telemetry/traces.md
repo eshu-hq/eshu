@@ -55,6 +55,11 @@ queries filtering by scope `eshu-api` should update the filter to
 | Jira collector | `jira.observe` and `jira.fetch`; fetch spans carry bounded page, emitted-fact, rejected-link, unsupported-provider, and Retry-After counters. |
 | Scanner worker | `scanner_worker.claim.process`, `scanner_worker.analyze`, and `scanner_worker.fact.emit_batch`. |
 
+For a slow repository-context read, inspect the child `postgres.query` span with
+`db.operation=repository_workload_names` and `db.sql.table=fact_records`. It
+separates the workload-name SQL from the other read-model statements without
+putting repository or scope identifiers in span attributes.
+
 Keep high-cardinality or sensitive values out of span attributes. Raw bucket
 names, object keys, local paths, delivery IDs, commit SHAs, full state
 locators, package versions, and cloud resource identifiers belong in controlled

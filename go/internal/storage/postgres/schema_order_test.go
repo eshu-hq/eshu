@@ -335,4 +335,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"supply_chain_readiness_package_registry_index",
 	"package_registry_identity_keys",
 	"supply_chain_readiness_sbom_warning_document_index",
+	// Migration 145 (#7242) seeks workload-name facts by repository scope.
+	"fact_records_workload_names_scope_idx",
 }
