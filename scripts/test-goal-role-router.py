@@ -70,7 +70,8 @@ class GoalRoleRouterTests(unittest.TestCase):
 
     def test_arbitration_and_design_fork_wording_routes_arbiter(self):
         for prompt in ("/goal Drive issue with eshu-issue-driver; send the design fork for arbitration",
-                       "/goal Drive issue with eshu-issue-driver; get a ruling before merge"):
+                       "/goal Drive issue with eshu-issue-driver; get a ruling before merge",
+                       "/goal Drive issue with eshu-issue-driver; escalate each design-call"):
             with self.subTest(prompt=prompt):
                 self.assertIn("- arbiter-eshu:", context(prompt, "claude"))
 
