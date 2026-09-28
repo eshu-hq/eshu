@@ -10,7 +10,7 @@ const Routes = `
     "/api/v0/code/search": {
       "post": {
         "tags": ["code"], "summary": "Search code entities",
-        "description": "Searches code entities by case-sensitive name. Repository-selected requests use the indexed graph path. Global requests use the current content entity name index; global substring requests require at least 3 Unicode characters.",
+        "description": "Searches code entities by case-sensitive name. Repository-selected requests use the indexed graph path; when that search returns no rows, fuzzy content fallback ignores case. Global requests use the case-sensitive content entity name index; global substring requests require at least 3 Unicode characters.",
         "operationId": "searchCode",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -21,7 +21,7 @@ const Routes = `
                 "type": "object",
                 "required": ["query"],
                 "properties": {
-                  "query": {"type": "string", "description": "Case-sensitive entity name or substring. Global substring searches require at least 3 Unicode characters."},
+                  "query": {"type": "string", "description": "Entity name or substring. Exact matching, graph substring matching, and global content substring matching are case-sensitive; repository content fallback fuzzy matching ignores case. Global substring searches require at least 3 Unicode characters."},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
                   "language": {"type": "string", "description": "Optional language filter"},
                   "limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200},
