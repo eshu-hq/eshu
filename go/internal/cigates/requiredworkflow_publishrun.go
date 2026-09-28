@@ -267,6 +267,11 @@ func (h *publisherHarness) evaluate(pendingOutcome, aggregateCode string) (Publi
 		"GITHUB_REPOSITORY=" + publisherProbeRepository,
 		"HEAD_SHA=" + publisherProbeHeadSHA,
 		"TARGET_URL=" + publisherProbeTargetURL,
+		// The outcome contract exercises the merge-group path, which has no
+		// pull request to re-check before publishing its verdict.
+		"RUN_EVENT=merge_group",
+		"PR_DISPOSITION=active",
+		"PR_NUMBER=",
 		"GH_TOKEN=",
 		"GITHUB_TOKEN=",
 	}
