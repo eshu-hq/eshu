@@ -39,6 +39,8 @@ what remains here are the store doubles.
 production SQL's predicate order. A double that limited first would hand a test
 rows the real query would not return, which is the failure mode a double exists
 to avoid.
+Its `SearchCodeCandidates` read applies repository, language, name, and source
+filters before bounding the two candidate lists.
 
 ### The content-reader driver's two-tier answer
 

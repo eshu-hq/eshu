@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -223,6 +225,125 @@ func (cr *ContentReader) SearchEntityContent(ctx context.Context, repoID, patter
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return results, err
+	}
+	return results, nil
+}
+
+// SearchCodeCandidates reads bounded repository-scoped name and source pages
+// for code search. Language and exact-name predicates are applied before each
+// LIMIT, so earlier nonmatching rows cannot hide a valid later entity.
+func (cr *ContentReader) SearchCodeCandidates(
+	ctx context.Context,
+	repoID, pattern, language string,
+	limit int,
+	exact bool,
+) (nameMatches, sourceMatches []EntityContent, err error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var variants []string
+	if strings.TrimSpace(language) != "" {
+		variants = normalizedLanguageVariants(language)
+	}
+	nameQuery, nameArgs := buildCodeCandidateQuery(repoID, pattern, variants, limit, exact, false)
+	nameMatches, err = cr.readCodeCandidates(ctx, nameQuery, nameArgs, "search_code_entity_names")
+	if err != nil {
+		return nil, nil, err
+	}
+	if exact {
+		return nameMatches, nil, nil
+	}
+	// Every exact-name source match is already eligible for the name page.
+	// Fuzzy source search is separate because source_cache can match a query
+	// whose entity_name does not contain it.
+	sourceQuery, sourceArgs := buildCodeCandidateQuery(repoID, pattern, variants, limit, false, true)
+	sourceMatches, err = cr.readCodeCandidates(ctx, sourceQuery, sourceArgs, "search_code_entity_content")
+	if err != nil {
+		return nil, nil, err
+	}
+	return nameMatches, sourceMatches, nil
+}
+
+func buildCodeCandidateQuery(
+	repoID, pattern string,
+	variants []string,
+	limit int,
+	exact, source bool,
+) (string, []any) {
+	match := "entity_name ILIKE '%' || $2 || '%'"
+	if source {
+		match = "source_cache ILIKE '%' || $2 || '%'"
+	} else if exact {
+		match = "entity_name = $2"
+	}
+	args := []any{repoID, pattern}
+	filter := ""
+	if len(variants) > 0 {
+		filter = " AND language = ANY($3::text[])"
+		args = append(args, array.Of(variants))
+	}
+	args = append(args, limit)
+	// #nosec G201 -- match and filter are selected from constants above; the
+	// only interpolated number is the parameter index for the bounded LIMIT.
+	query := fmt.Sprintf(`
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE repo_id = $1 AND %s%s
+		ORDER BY relative_path, start_line, entity_id
+		LIMIT $%d
+	`, match, filter, len(args))
+	return query, args
+}
+
+func (cr *ContentReader) readCodeCandidates(
+	ctx context.Context,
+	query string,
+	args []any,
+	operation string,
+) ([]EntityContent, error) {
+	ctx, span := cr.tracer.Start(ctx, "postgres.query", trace.WithAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", operation),
+		attribute.String("db.sql.table", "content_entities"),
+	))
+	defer span.End()
+
+	// Repository and pattern selectivity vary sharply across requests. Keep the
+	// same custom-plan behavior as the scoped content page reader: the recorded
+	// one-character query timed out under generic planning, while the custom
+	// name and source reads finished under one second (#7237).
+	args = append([]any{pgx.QueryExecModeExec}, args...)
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("%s: %w", operation, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []EntityContent
+	for rows.Next() {
+		var entity EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(
+			&entity.EntityID, &entity.RepoID, &entity.RelativePath,
+			&entity.EntityType, &entity.EntityName, &entity.StartLine,
+			&entity.EndLine, &entity.Language, &entity.SourceCache, &rawMetadata,
+		); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan %s: %w", operation, err)
+		}
+		entity.Metadata, err = decodeEntityMetadata(rawMetadata)
+		if err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("decode %s metadata: %w", operation, err)
+		}
+		results = append(results, entity)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("iterate %s: %w", operation, err)
 	}
 	return results, nil
 }

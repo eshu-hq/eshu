@@ -285,13 +285,20 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		return []map[string]any{}, nil
 	}
 	if repoID != "" {
-		nameMatches, err = h.Content.SearchEntitiesByName(ctx, repoID, "", pattern, limit)
-		if err != nil {
-			return nil, err
-		}
-		sourceMatches, err = h.Content.SearchEntityContent(ctx, repoID, pattern, limit)
-		if err != nil {
-			return nil, err
+		if strings.TrimSpace(language) != "" || exact {
+			nameMatches, sourceMatches, err = h.Content.SearchCodeCandidates(ctx, repoID, pattern, language, limit, exact)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			nameMatches, err = h.Content.SearchEntitiesByName(ctx, repoID, "", pattern, limit)
+			if err != nil {
+				return nil, err
+			}
+			sourceMatches, err = h.Content.SearchEntityContent(ctx, repoID, pattern, limit)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else if access.Scoped() {
 		for _, allowedRepoID := range access.RepositorySearchIDs() {

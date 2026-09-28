@@ -40,8 +40,8 @@ Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or i
 ## Search And Discovery
 
 `POST /api/v0/code/search` requires `query`. Optional filters include
-`repo_id`, `language`, `limit`, `exact`, and `search_type`. Matching is
-case-sensitive. Repository-selected requests use the indexed graph path.
+`repo_id`, `language`, `limit`, `exact`, and `search_type`. Exact-name matching
+is case-sensitive. Repository-selected requests use the indexed graph path.
 Requests without `repo_id` use one authorization-aware query over the current
 Postgres content-entity name index; authorization, language, and entity-name
 filters are applied before `LIMIT`. Global substring searches require at least
@@ -51,6 +51,7 @@ limit defaults to 50 and is capped at 200. Every response includes `count`,
 `limit`, and `truncated`; the handler reads one extra row internally so
 `truncated=true` means at least one additional ordered match exists beyond the
 returned page. `matches` removed; read `results`. Content rows clip `source_cache` ([read clip](source-cache-clip.md)).
+On graph-empty repository search, content fallback filters language and exact names before `LIMIT`; fuzzy matching ignores case.
 
 `POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
 `match_mode`, repository/language/entity filters, `limit`, and `offset`.

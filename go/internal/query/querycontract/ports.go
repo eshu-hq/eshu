@@ -24,6 +24,11 @@ type ContentStore interface {
 	SearchFileContentAnyRepoExactCase(ctx context.Context, pattern string, limit int) ([]FileContent, error)
 	SearchEntityContent(ctx context.Context, repoID, pattern string, limit int) ([]EntityContent, error)
 	SearchEntityContentAnyRepo(ctx context.Context, pattern string, limit int) ([]EntityContent, error)
+	// SearchCodeCandidates applies repository, language, and exact-name filters
+	// before limiting each name and source candidate page. An exact-name read
+	// returns no source candidates: every qualifying source row also has the
+	// requested name and is already eligible for the name page.
+	SearchCodeCandidates(ctx context.Context, repoID, pattern, language string, limit int, exact bool) (nameMatches, sourceMatches []EntityContent, err error)
 	SearchEntitiesByName(ctx context.Context, repoID, entityType, name string, limit int) ([]EntityContent, error)
 	SearchEntitiesByNameAnyRepo(ctx context.Context, entityType, name string, limit int) ([]EntityContent, error)
 	// SearchEntitiesByExactName and SearchEntitiesByExactNameAnyRepo are the
