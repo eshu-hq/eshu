@@ -354,6 +354,36 @@ ifa_s3_logs_to_drive() {
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
 }
 
+# ifa_kubernetes_correlation_drive replays the kubernetes-correlation cassette.
+#
+# ONE drive, not two: an earlier shape of this slice drove a second OCI
+# sources seed cassette (the Odù's five OCI facts in per-repo oci_registry
+# scopes) because the handler joins across scopes by design and the
+# container-image-identity loader it reads (ListActiveContainerImageIdentityFacts,
+# go/internal/storage/postgres/facts_active_container_image_identity.go)
+# only accepts oci_registry.image_manifest / image_index /
+# image_tag_observation rows with source_system='oci_registry'. That seed
+# fixed the zero-edge cell (diagnosed live 2026-09-28: handler ran with
+# fact_count=6 edge_count=0) but broke determinism instead: the same
+# logical OCI facts then existed in TWO scopes, and the OCI node
+# projection raced last-writer-wins on the scope-stamped provenance
+# columns (scope_id, source_system, generation_id, source_fact_id), so
+# N=1 vs N=4 dumps diverged on nodes no edge logic touches. Duplicate
+# substrate across scopes is inherently nondeterministic here; the family
+# cassette therefore carries both substrates in its ONE scope, stamped
+# source_system='oci_registry' so the identity loader accepts the OCI
+# facts. The kind-scoped loads the handler and the node projectors use
+# (ListFactsByKind: scope+generation+kind, no source_system predicate)
+# are unaffected by the stamp, and the per-fact collector_kind values
+# stay honest (kubernetes_live for pod templates, oci_registry for the
+# sources). Scope descriptors are replay-transport concerns, not fixture
+# truth -- the same reason loadDirectFamilyOdu declines to project them.
+ifa_kubernetes_correlation_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive kubernetes-correlation \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
 # ifa_ec2_uses_profile_assert pins the three-edge exact set. Called twice per
 # cell for the reason recorded on the namespace assert above: post-delta is
 # the only place an identical-across-N generation-2 mutation shows up.
@@ -410,5 +440,34 @@ ifa_s3_logs_to_assert() {
 	printf '\n=== %s: assert s3_logs_to materialized edges (three-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain s3_logs_to \
+		-expected "${expected_edges}"
+}
+
+# ifa_kubernetes_correlation_assert pins the two-edge exact set. Called twice
+# per cell for the reason recorded on the namespace assert above: post-delta
+# is the only place an identical-across-N generation-2 mutation shows up.
+#
+# The two edges are the exact-digest resolutions: the checkout deployment's
+# digest-form ref matches the active manifest digest (OciImageManifest
+# target) and the billing deployment's matches the active index digest
+# (OciImageIndex target) -- the two digest-addressed source labels the
+# template MATCHes. A regression that promoted every decision to an edge
+# regardless of outcome would still produce "some edges" and fail only
+# against an exact set. The fixture's other three workloads -- legacy
+# naming a tombstone-only digest (stale), canary naming a tag two digests
+# share (ambiguous), and phantom naming an unobserved digest
+# (unresolved) -- must contribute nothing; the extractor drops a
+# non-exact decision rather than inventing an edge, and this set is what
+# holds it to that.
+#
+# The relationship type is RUNS_IMAGE, a static token in the writer's
+# template filled per row only with the source-node label. It is NOT
+# KUBERNETES_CORRELATION, which is statement metadata carried beside the
+# query that never reaches the graph.
+ifa_kubernetes_correlation_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert kubernetes_correlation materialized edges (two-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain kubernetes_correlation \
 		-expected "${expected_edges}"
 }

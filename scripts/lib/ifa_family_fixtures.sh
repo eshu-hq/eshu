@@ -169,6 +169,8 @@ ec2_uses_profile_cassette="${repo_root}/testdata/cassettes/ec2usesprofile/ifa-ec
 ec2_uses_profile_expected_edges="${repo_root}/go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json"
 s3_logs_to_cassette="${repo_root}/testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json"
+kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
+kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -223,4 +225,15 @@ ifa_family_fixtures_require() {
 	[[ -f "${ec2_uses_profile_expected_edges}" ]] || { echo "${gate}: ec2-uses-profile expected-edge set not found: ${ec2_uses_profile_expected_edges}" >&2; exit 1; }
 	[[ -f "${s3_logs_to_cassette}" ]] || { echo "${gate}: s3-logs-to cassette not found: ${s3_logs_to_cassette}" >&2; exit 1; }
 	[[ -f "${s3_logs_to_expected_edges}" ]] || { echo "${gate}: s3-logs-to expected-edge set not found: ${s3_logs_to_expected_edges}" >&2; exit 1; }
+	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }
+	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
+	# The family scope MUST be stamped source_system='oci_registry': replay
+	# stamps fact.source_system from the scope, and the
+	# container-image-identity loader the handler reads only accepts OCI
+	# facts with source_system='oci_registry'. A lost stamp drives ten
+	# facts the identity loader cannot see and the cell materializes zero
+	# edges (diagnosed live 2026-09-28). Fail fast here with the cause
+	# named instead of late at the exact-set assert.
+	kubernetes_correlation_scope_system="$(jq -r '.scopes[0].source_system' "${kubernetes_correlation_cassette}")"
+	[[ "${kubernetes_correlation_scope_system}" == "oci_registry" ]] || { echo "${gate}: kubernetes-correlation cassette scope source_system is ${kubernetes_correlation_scope_system:-missing}, want oci_registry" >&2; exit 1; }
 }

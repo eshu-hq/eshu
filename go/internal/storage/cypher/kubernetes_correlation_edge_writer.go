@@ -40,7 +40,7 @@ var kubernetesEdgeSourceLabelVocabulary = map[string]struct{}{
 	"OciImageDescriptor": {},
 }
 
-// canonicalKubernetesCorrelationEdgeUpsertCypherFormat batches RUNS_IMAGE edge
+// CanonicalKubernetesCorrelationEdgeUpsertCypherFormat batches RUNS_IMAGE edge
 // upserts between an already-materialized KubernetesWorkload node and the
 // digest-addressed OCI source node it was observed running. The relationship type
 // is the static RUNS_IMAGE token (kept out of the MERGE property map so NornicDB
@@ -48,7 +48,7 @@ var kubernetesEdgeSourceLabelVocabulary = map[string]struct{}{
 // validated static token from the closed source vocabulary. Two MATCHes precede
 // the MERGE so a row whose workload or source node is absent produces no edge and
 // no fabricated node. The single %s is the source-node label.
-const canonicalKubernetesCorrelationEdgeUpsertCypherFormat = `UNWIND $rows AS row
+const CanonicalKubernetesCorrelationEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (w:KubernetesWorkload {uid: row.workload_uid})
 MATCH (img:%s {uid: row.source_uid})
 MERGE (w)-[rel:RUNS_IMAGE]->(img)
@@ -59,7 +59,7 @@ SET rel.resolution_mode = row.resolution_mode,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractKubernetesCorrelationEdgesCypher removes the reducer-owned RUNS_IMAGE
+// RetractKubernetesCorrelationEdgesCypher removes the reducer-owned RUNS_IMAGE
 // edges for a set of scopes before a fresh generation reprojects them. The
 // relationship type is fixed (RUNS_IMAGE), so the retract matches that type from
 // any KubernetesWorkload and then scopes by the edge properties this reducer owns.
@@ -67,7 +67,7 @@ SET rel.resolution_mode = row.resolution_mode,
 // KubernetesWorkload and OCI source nodes are cross-generation canonical and carry
 // no reducer scope_id, so a node-scoped predicate would make the retract a silent
 // no-op that leaks stale edges across generations.
-const retractKubernetesCorrelationEdgesCypher = `MATCH (w:KubernetesWorkload)-[rel:RUNS_IMAGE]->()
+const RetractKubernetesCorrelationEdgesCypher = `MATCH (w:KubernetesWorkload)-[rel:RUNS_IMAGE]->()
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -143,7 +143,7 @@ func (w *KubernetesCorrelationEdgeWriter) WriteKubernetesCorrelationEdges(
 
 	var stmts []Statement
 	for _, label := range labels {
-		cypher := fmt.Sprintf(canonicalKubernetesCorrelationEdgeUpsertCypherFormat, label)
+		cypher := fmt.Sprintf(CanonicalKubernetesCorrelationEdgeUpsertCypherFormat, label)
 		batches := BuildBatchedStatements(cypher, grouped[label], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
@@ -207,7 +207,7 @@ func (w *KubernetesCorrelationEdgeWriter) RetractKubernetesCorrelationEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractKubernetesCorrelationEdgesCypher,
+		Cypher:    RetractKubernetesCorrelationEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

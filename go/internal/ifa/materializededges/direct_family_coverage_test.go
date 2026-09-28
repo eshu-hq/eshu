@@ -94,6 +94,11 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:   ifa.S3LogsToFamilyOduName,
 		EdgeTypes: []string{"LOGS_TO"},
 	},
+	{
+		Family:    kubernetesCorrelationFamily,
+		OduName:   ifa.KubernetesCorrelationFamilyOduName,
+		EdgeTypes: []string{"RUNS_IMAGE"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

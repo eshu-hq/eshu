@@ -246,6 +246,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveEC2UsesProfileMaterializedEdges(odu, ec2UsesProfileExpectedEdgesPath(r.RepoRoot))
 	case s3LogsToFamily:
 		return resolveS3LogsToMaterializedEdges(odu, s3LogsToExpectedEdgesPath(r.RepoRoot))
+	case kubernetesCorrelationFamily:
+		return resolveKubernetesCorrelationMaterializedEdges(odu, kubernetesCorrelationExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

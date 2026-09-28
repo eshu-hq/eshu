@@ -1,0 +1,273 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "k8s:eshu-fixture-kubernetes-correlation",
+      "source_system": "oci_registry",
+      "scope_kind": "cluster",
+      "collector_kind": "kubernetes_live",
+      "partition_key": "k8s:eshu-fixture-kubernetes-correlation",
+      "metadata": {
+        "cluster_id": "prod-us-east-1",
+        "namespace": "checkout"
+      },
+      "generation_id": "gen-ifa-kubernetes-correlation-family-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-descriptor://registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "descriptor_id": "oci-descriptor://registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "repository_id": "oci-registry://registry.example.com/team/checkout"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_index",
+          "stable_fact_key": "oci-descriptor://registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "descriptor_id": "oci-descriptor://registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "repository_id": "oci-registry://registry.example.com/team/billing"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-descriptor://registry.example.com/team/legacy@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "is_tombstone": true,
+          "payload": {
+            "descriptor_id": "oci-descriptor://registry.example.com/team/legacy@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "repository_id": "oci-registry://registry.example.com/team/legacy"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "oci-registry:tag-observation:oci-registry://registry.example.com/team/canary:stable:sha256:5555555555555555555555555555555555555555555555555555555555555555",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "repository_id": "oci-registry://registry.example.com/team/canary",
+            "resolved_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "tag": "stable"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "oci-registry:tag-observation:oci-registry://registry.example.com/team/canary:stable:sha256:6666666666666666666666666666666666666666666666666666666666666666",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "repository_id": "oci-registry://registry.example.com/team/canary",
+            "resolved_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+            "tag": "stable"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "k8s://prod-us-east-1/apps/v1/deployments/checkout/checkout",
+          "schema_version": "1.3.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "prod-us-east-1",
+            "containers": [
+              {
+                "image": "registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "init": false,
+                "name": "checkout-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "k8s://prod-us-east-1/apps/v1/deployments/checkout/checkout",
+              "registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "registry.example.com/team/checkout@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "labels": {
+              "app": "checkout"
+            },
+            "name": "checkout",
+            "namespace": "checkout",
+            "object_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/checkout",
+            "selector": {
+              "app": "checkout"
+            },
+            "service_account": "default",
+            "uid": "uid-checkout"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "k8s://prod-us-east-1/apps/v1/deployments/checkout/billing",
+          "schema_version": "1.3.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "prod-us-east-1",
+            "containers": [
+              {
+                "image": "registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+                "init": false,
+                "name": "billing-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "k8s://prod-us-east-1/apps/v1/deployments/checkout/billing",
+              "registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "registry.example.com/team/billing@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            ],
+            "labels": {
+              "app": "billing"
+            },
+            "name": "billing",
+            "namespace": "checkout",
+            "object_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/billing",
+            "selector": {
+              "app": "billing"
+            },
+            "service_account": "default",
+            "uid": "uid-billing"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "k8s://prod-us-east-1/apps/v1/deployments/checkout/legacy",
+          "schema_version": "1.3.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "prod-us-east-1",
+            "containers": [
+              {
+                "image": "registry.example.com/team/legacy@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+                "init": false,
+                "name": "legacy-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "k8s://prod-us-east-1/apps/v1/deployments/checkout/legacy",
+              "registry.example.com/team/legacy@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "registry.example.com/team/legacy@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            ],
+            "labels": {
+              "app": "legacy"
+            },
+            "name": "legacy",
+            "namespace": "checkout",
+            "object_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/legacy",
+            "selector": {
+              "app": "legacy"
+            },
+            "service_account": "default",
+            "uid": "uid-legacy"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "k8s://prod-us-east-1/apps/v1/deployments/checkout/canary",
+          "schema_version": "1.3.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "prod-us-east-1",
+            "containers": [
+              {
+                "image": "registry.example.com/team/canary:stable",
+                "init": false,
+                "name": "canary-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "k8s://prod-us-east-1/apps/v1/deployments/checkout/canary",
+              "registry.example.com/team/canary:stable"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "registry.example.com/team/canary:stable"
+            ],
+            "labels": {
+              "app": "canary"
+            },
+            "name": "canary",
+            "namespace": "checkout",
+            "object_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/canary",
+            "selector": {
+              "app": "canary"
+            },
+            "service_account": "default",
+            "uid": "uid-canary"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "k8s://prod-us-east-1/apps/v1/deployments/checkout/phantom",
+          "schema_version": "1.3.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 0,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "prod-us-east-1",
+            "containers": [
+              {
+                "image": "registry.example.com/team/phantom@sha256:4444444444444444444444444444444444444444444444444444444444444444",
+                "init": false,
+                "name": "phantom-c0"
+              }
+            ],
+            "correlation_anchors": [
+              "k8s://prod-us-east-1/apps/v1/deployments/checkout/phantom",
+              "registry.example.com/team/phantom@sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "group_version_resource": "apps/v1/deployments",
+            "image_refs": [
+              "registry.example.com/team/phantom@sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "labels": {
+              "app": "phantom"
+            },
+            "name": "phantom",
+            "namespace": "checkout",
+            "object_id": "k8s://prod-us-east-1/apps/v1/deployments/checkout/phantom",
+            "selector": {
+              "app": "phantom"
+            },
+            "service_account": "default",
+            "uid": "uid-phantom"
+          }
+        }
+      ]
+    }
+  ]
+}
