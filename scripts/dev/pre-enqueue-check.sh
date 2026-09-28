@@ -29,7 +29,9 @@ usage() {
 		'' \
 		'Read-only, fail-closed pre-enqueue check. Arms (each prints PASS or FAIL):' \
 		'  pr-state        PR is OPEN, not draft, headRefOid == <expected-head-sha>' \
-		'  merge-main      git merge-tree --write-tree origin/main <head> is clean' \
+		'  merge-main      git merge-tree --write-tree origin/main <head> is clean;' \
+		'                  notes base drift (commits past the merge base, files' \
+		'                  both sides changed)' \
 		'  merge-queue     clean against the main merge-queue tip (the last queued' \
 		'                  entry that is not this PR); prints file overlap per queued' \
 		'                  PR; an empty queue passes with "queue empty"' \
@@ -149,6 +151,20 @@ else
 		pass merge-main "clean against ${REMOTE}/main ${base}"
 	else
 		fail merge-main "conflict against ${REMOTE}/main ${base}: $(sed -n '2,6p' <<<"${out}" | tr '\n' ' ')"
+	fi
+	# Base drift: how far main has moved past the branch's merge base, and
+	# which files both sides changed. A clean merge-tree can still hide a
+	# regenerated artifact (ci-gates.md) that must be rebuilt, so the arbiter
+	# needs this even when the merge is clean. Informational unless there is
+	# no merge base at all.
+	mb="$("${GIT}" merge-base "${base}" "${want}" 2>/dev/null)"
+	if [[ -z "${mb}" ]]; then
+		fail merge-main "no merge base between ${REMOTE}/main and ${want}"
+	else
+		ahead="$("${GIT}" rev-list --count "${mb}..${base}")"
+		both="$(comm -12 <("${GIT}" diff --name-only "${mb}" "${base}" | sort -u) \
+			<("${GIT}" diff --name-only "${mb}" "${want}" | sort -u) | paste -sd, -)"
+		note merge-main "base drift: ${ahead} commit(s) on ${REMOTE}/main since the merge base; files changed on both sides: ${both:-none}"
 	fi
 fi
 

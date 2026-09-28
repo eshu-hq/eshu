@@ -24,7 +24,7 @@ error exits `2`.
 | Arm | Passes when |
 | --- | --- |
 | `pr-state` | The PR is `OPEN`, not a draft, and `headRefOid` equals the expected SHA. |
-| `merge-main` | `git merge-tree --write-tree origin/main <head>` is clean after fetching `main` and the head. |
+| `merge-main` | `git merge-tree --write-tree origin/main <head>` is clean after fetching `main` and the head. The arm also prints a base-drift note: how many commits `main` is past the branch's merge base, and which files both `main` and the PR changed since that base. A clean merge can still need a regenerated artifact, such as `ci-gates.md`, rebuilt, so the arbiter reads this note. It fails only when there is no merge base. |
 | `merge-queue` | The head merges cleanly with the merge-queue tip: the `headCommit` of the last queued entry that is not this PR. A queue entry's `headCommit` is the GitHub-built merge-group commit, not the PR's own head, and it contains `main` plus every PR up to that entry. For example, #7311's entry `26a514a55` has parent `main` `98394122f`, while that PR's head was `f9992c17f`. Checking against the tip therefore covers the whole queue, so a collision that a check against `origin/main` alone misses still fails here. The arm prints the file overlap with each queued PR. An empty queue passes with `queue empty`. |
 | `checks` | `gh pr checks` reports no pending, failing, or cancelled rows. Rows are counted by gh's state bucket, never by line text; skipped rows are allowed. The head's `required-gates-complete` commit status must be `success`, and `mergeStateStatus` must be `CLEAN`. |
 | `threads` | GraphQL `reviewThreads` has zero unresolved threads. A truncated page fails closed. |
