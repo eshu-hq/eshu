@@ -80,7 +80,9 @@ liveness misjudgement.
    risk class, not required otherwise. Keep the shared machine quiet for
    either live lane: coordinate ownership across worktrees/clones and inspect
    the live-gate lock and running gate process; absence of a `make pre-pr`
-   process alone does not prove the machine is free. Never kill another
+   process alone does not prove the machine is free. A wall-time proof owns the
+   host: pause every other gate until its results are closed ([Timing Proof
+   Rules](../../../docs/internal/timing-proof-rules.md)). Never kill another
    session's gate.
 5. Verify the receipt with `ci-gates review-attest verify` after preflight.
    Matching inputs reuse the preliminary semantic review. A changed base,

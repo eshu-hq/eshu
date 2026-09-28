@@ -335,13 +335,14 @@ fleet, serialize the live gates and hand the machine over explicitly rather
 than letting agents self-schedule — this is why subagents/teams MUST NOT each
 run `make pre-push`, `make pre-pr`, or `make pre-pr-full`.
 
-Before declaring an intermittent gate failure a flake, MUST rule out resource
-contention first: check the load average and what else is running
-(`pgrep -f 'make pre-pr|verify-golden'`). Contention shows up as false
-FAILURES, not as false passes — so a gate that failed under load has proven
-nothing, while one that passed under load is usually trustworthy (the
-exception being an assertion whose own timing budget the load inflated).
-Re-running without changing the conditions is not evidence.
+Before calling an intermittent gate failure a flake, MUST rule out contention:
+check load and what else runs (`pgrep -f 'make pre-pr|verify-golden'`). Load
+causes false FAILURES, not false passes: a gate that failed under load proved
+nothing; one that passed usually holds. Re-running unchanged is not evidence.
+A wall-time gate is the exception: it owns the host. Pause every other gate, hold
+load1 under half the CPU count (start, end, in-run max), run a control canary,
+derive bounds from measured spread, and never use `t.Context()` for `t.Cleanup`
+teardown I/O. See [Timing Proof Rules](timing-proof-rules.md).
 
 CI's `required-gates-complete` aggregate is the blocking, non-bypassable
 authority for every Ifá/Odù, contract, performance, and end-to-end gate the
