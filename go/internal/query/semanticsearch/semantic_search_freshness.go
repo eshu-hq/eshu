@@ -5,9 +5,15 @@ package semanticsearch
 
 import (
 	"context"
+	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/searchbench"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // searchVectorReadyFreshnessWindow bounds how long after the last
@@ -44,6 +50,49 @@ type SearchVectorReadyFreshness struct {
 // test double) that does not implement it simply keeps the fresh envelope.
 type SemanticSearchVectorReadyReader interface {
 	SearchVectorReadyWatermark(context.Context) (SearchVectorReadyFreshness, error)
+}
+
+// truthWithSearchVectorFreshness builds the response truth envelope and, when
+// a search-vector-ready reader is configured AND the resolved mode is
+// vector-backed (semantic or hybrid — the same gate semanticSearchBackend
+// uses to decide whether LocalHybrid's vector path is even wired in),
+// downgrades it from the search-vector build sweep's search_vector_ready
+// watermark so an outstanding build is attributable (pending_search_vector)
+// instead of served as silently fresh. mode:"keyword" is served entirely by
+// the deterministic lexical index and is never degraded by vector/index
+// readiness (see semanticSearchDegradation), so it must never be downgraded
+// by a pending search-vector build. Mirrors applyWinnersFreshness's call-site
+// shape in findings_handler.go: a probe failure reports
+// the envelope unavailable rather than dropping the already-served results.
+func (h *SemanticSearchHandler) truthWithSearchVectorFreshness(r *http.Request, mode searchbench.Mode) *querycontract.TruthEnvelope {
+	truth := h.truth()
+	if h.SearchVectorReady == nil || !searchVectorBackedMode(mode) {
+		return truth
+	}
+	ctx, span := semanticSearchTracer.Start(r.Context(), telemetry.SpanQuerySemanticSearchVectorReady)
+	watermark, err := h.SearchVectorReady.SearchVectorReadyWatermark(ctx)
+	outcome := "missing"
+	if err != nil {
+		outcome = "error"
+		span.SetStatus(codes.Error, "watermark probe failed")
+	} else if !watermark.Signaled {
+		outcome = "not_signaled"
+	} else if watermark.Present {
+		outcome = "present"
+	}
+	span.SetAttributes(attribute.String("search.vector_ready.outcome", outcome))
+	span.End()
+	applySearchVectorFreshness(truth, watermark, err, time.Now())
+	return truth
+}
+
+// searchVectorBackedMode reports whether mode retrieves through the
+// search-vector index (semantic or hybrid), matching the gate
+// semanticSearchBackend uses to decide whether LocalHybrid's vector path is
+// engaged. mode:"keyword" is served entirely by the deterministic lexical
+// index and never touches search-vector state.
+func searchVectorBackedMode(mode searchbench.Mode) bool {
+	return mode == searchbench.ModeSemantic || mode == searchbench.ModeHybrid
 }
 
 // applySearchVectorFreshness downgrades the truth envelope when the

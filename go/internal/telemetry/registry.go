@@ -134,6 +134,8 @@ var spanNames = []string{
 	SpanQueryDocumentationPacketFreshness,
 	SpanQuerySemanticEvidence,
 	SpanQuerySemanticSearch,
+	SpanQuerySemanticSearchPersistedIndex,
+	SpanQuerySemanticSearchVectorReady,
 	SpanQueryDocumentationAggregate,
 	SpanQueryDeadIaC,
 	SpanQueryIaCUnmanagedResources,

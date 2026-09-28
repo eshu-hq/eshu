@@ -12,6 +12,9 @@
 // eshu_search_index_terms postings and returns them ordered best-first
 // alongside the corpus's indexed-document count. A search with no scope,
 // repo, query, or anchor fails validation before any query runs.
+// The query.semantic_search.persisted_index child span distinguishes the stats
+// lookup, BM25 query, first row, and fully decoded page with bounded events.
+// Its failure event names the stage without carrying request identifiers.
 //
 // SortedSearchIndexTerms and BuildEshuSearchIndexQuery are exported only for
 // storage/postgres's own live partition-pruning proof

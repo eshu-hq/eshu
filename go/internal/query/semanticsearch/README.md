@@ -89,6 +89,11 @@ and `WithPackageMetricReader`.
   existing dashboards and alerts keep resolving.
 - Scope resolution and the index cache add span attributes rather than their own
   metrics.
+- Persisted BM25 lookup has a `query.semantic_search.persisted_index` child
+  span with bounded stats, query, first-row, and row-drain milestones. The
+  optional vector-ready probe has a `query.semantic_search.vector_ready` child
+  span with `missing`, `present`, `not_signaled`, or `error` outcome. Neither records query
+  text, repository identity, or vector identity.
 
 ## Move evidence (#6060)
 

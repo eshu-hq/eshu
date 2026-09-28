@@ -44,7 +44,7 @@ queries filtering by scope `eshu-api` should update the filter to
 | Collector | `collector.observe`, `collector.stream`, `scope.assign`, and `fact.emit` with child Postgres spans. |
 | Projector | `projector.run`, `reducer_intent.enqueue`, `canonical.projection`, and `canonical.write`. |
 | Reducer | `reducer.run`, domain-specific reducer spans, `reducer.eshu_search_index_write` for persisted search-index maintenance, shared acceptance spans, and nested `canonical.write`. |
-| Read path | Query-specific spans with child `postgres.query`, `neo4j.query`, or `neo4j.query.single`. |
+| Read path | Query-specific spans with child `postgres.query`, `neo4j.query`, or `neo4j.query.single`; semantic search also has persisted-index and vector-ready child spans. |
 | Webhook | `webhook.handle`, `webhook.store`, and child `postgres.exec` spans. |
 | AWS collector | `aws.collector.claim.process`, `aws.credentials.assume_role`, `aws.service.scan`, and `aws.service.pagination.page`. |
 | Terraform-state collector | `tfstate.collector.claim.process`, `tfstate.discovery.resolve`, `tfstate.source.open`, `tfstate.parser.stream`, and `tfstate.fact.emit_batch`. |
@@ -64,6 +64,50 @@ Keep high-cardinality or sensitive values out of span attributes. Raw bucket
 names, object keys, local paths, delivery IDs, commit SHAs, full state
 locators, package versions, and cloud resource identifiers belong in controlled
 evidence or safe hashed identifiers, not dashboard labels.
+
+## Semantic Search
+
+`query.semantic_search` is the request span. Persisted BM25 retrieval emits
+`query.semantic_search.persisted_index` beneath it; event timestamps mark
+`stats_complete`, `query_returned`, `first_row`, and `rows_complete` (with
+bounded `candidate_count`). A failure emits `stage_error` with a fixed stage:
+`stats`, `query`, `scan`, `decode`, or `iterate`. This span includes cursor drain
+and document decoding. The raw SQL adapter does not emit a per-statement
+`postgres.query` child for BM25, so inspect PostgreSQL separately for its plan.
+
+When a vector-ready reader is configured, semantic and hybrid modes emit
+`query.semantic_search.vector_ready` around the freshness probe, with
+`search.vector_ready.outcome` set to `missing`, `present`, `not_signaled`, or `error`.
+A configured reader returning no signal uses `not_signaled`, matching the fresh
+no-op truth envelope. Keyword mode skips that probe. These child spans do not record query text,
+repository or scope IDs, document IDs, user IDs, or vector identity.
+
+### Search-stage instrumentation cost (#7243)
+
+Benchmark Evidence: a pre-implementation local synthetic shim compared
+the existing sampled `query.semantic_search` parent span with that parent
+plus two sampled child spans and bounded stage events. On Go 1.27.1,
+darwin/arm64, Apple M5 Max, five runs measured 320-592 ns/op and 528 B/op (2 allocations) for the parent,
+versus 2,477-2,793 ns/op and 2,352 B/op (13 allocations) with the children.
+The disabled-tracing shape measured 293-390 ns/op and 272 B/op (5 allocations).
+The shim started one parent, two stage-shaped children, and three placeholder
+events; its candidate-count attribute was 31. It used an in-process
+OpenTelemetry SDK, no PostgreSQL or graph backend, zero database
+rows, and no queue items. It used placeholder child-span, event, and attribute
+names rather than the final code constants. This estimates overhead for the
+span/event shape; it does not prove final-code no-regression, deployed request
+p95, or a search speedup. The SQL, returned rows, and paging contract are
+unchanged by this diagnostic change.
+The local command was `go -C go test ./playground/7243-stage-overhead -run
+'^$' -bench '^Benchmark(ParentOnly|SpanEvents|NoopTraceShape)$' -benchmem
+-count=5` with an ignored, task-local benchmark shim.
+
+Observability Evidence: `query.semantic_search.persisted_index` records fixed
+stage events through cursor close and decode; `query.semantic_search.vector_ready`
+records only the bounded freshness outcome. Parentage, event order, error
+stages, and omission of query text and identifiers are asserted in the focused
+semantic-search and search-index tests. The deployed trace shape remains to be
+checked after this commit reaches ops QA.
 
 ## Useful Attributes
 
@@ -125,6 +169,7 @@ or URLs.
 | Reducer relationship work is slow | `eshu_dp_reducer_run_duration_seconds` and reducer queue age | `reducer.run`, relationship materialization spans, `canonical.write` |
 | Graph writes are slow | `eshu_dp_canonical_write_duration_seconds` | `canonical.write` and nested `neo4j.execute` |
 | Read path is slow | API/MCP request latency or query handler span | `postgres.query`, `neo4j.query`, `neo4j.query.single`, caller shaping code |
+| Semantic search is slow | API/MCP request latency and `query.semantic_search` | `query.semantic_search.persisted_index` stage events; `query.semantic_search.vector_ready` outcome for vector-backed modes; separate PostgreSQL plan inspection for BM25 |
 | Webhook intake is rejected or slow | `eshu_dp_webhook_requests_total` and webhook duration metrics | `webhook.handle`, provider verification, normalization, `webhook.store` |
 
 ## Non-Claims
