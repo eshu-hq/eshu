@@ -34,10 +34,19 @@ type poolExhaustionProbeDB struct {
 
 	// cond signals waiters when open < capacity or context expires.
 	cond *sync.Cond
+
+	// blocked is closed the first time a Begin caller parks on the full pool,
+	// so a test can wait for that fact instead of sleeping and hoping the
+	// callers overlapped.
+	blocked     chan struct{}
+	blockedOnce sync.Once
 }
 
 func newPoolExhaustionProbeDB(capacity int) *poolExhaustionProbeDB {
-	database := &poolExhaustionProbeDB{capacity: capacity}
+	database := &poolExhaustionProbeDB{
+		capacity: capacity,
+		blocked:  make(chan struct{}),
+	}
 	database.cond = sync.NewCond(&database.mu)
 	return database
 }
@@ -73,6 +82,10 @@ func (database *poolExhaustionProbeDB) Begin(ctx context.Context) (db.Transactio
 	// Wait while pool is full and context is still alive.
 	for database.open >= database.capacity {
 		wasBlocked = true
+		// Signal before parking. Close happens under mu, and Wait releases mu
+		// atomically, so an observer that sees the signal knows the caller is
+		// (or is about to be) parked and will be woken by the next release.
+		database.blockedOnce.Do(func() { close(database.blocked) })
 		database.cond.Wait()
 		if ctx.Err() != nil {
 			database.mu.Unlock()
@@ -123,15 +136,30 @@ func (tx *poolExhaustionProbeTx) release() error {
 // against a bounded-capacity fake pool, the N+1th goroutine blocks when the
 // pool is full, then proceeds when a slot is released. This does not exercise
 // a real *sql.DB; it validates the pool-blocking contract in isolation.
+//
+// The overlap is deterministic by construction rather than timed: every
+// caller that acquires a slot stays in its transaction until the test has
+// observed a caller parked on the full pool. With capacity+1 callers and no
+// release before that observation, at most capacity callers can hold slots,
+// so at least one caller must block regardless of goroutine scheduling.
 func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 	t.Parallel()
 
-	const capacity = 5
+	const (
+		capacity = 5
+		// waitLimit only bounds a hang; it is never the synchronization.
+		waitLimit = 30 * time.Second
+	)
 	database := newPoolExhaustionProbeDB(capacity)
 
 	var wg sync.WaitGroup
 	errs := make([]error, capacity+1)
 	startGate := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHolders := func() { releaseOnce.Do(func() { close(release) }) }
+	// Never leave holders parked if the test bails out early.
+	t.Cleanup(releaseHolders)
 
 	// Launch capacity+1 goroutines, each acquiring a transaction.
 	for i := 0; i < capacity+1; i++ {
@@ -140,7 +168,7 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 			defer wg.Done()
 			<-startGate // rendezvous
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), waitLimit)
 			defer cancel()
 
 			tx, err := database.Begin(ctx)
@@ -148,8 +176,8 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 				errs[id] = fmt.Errorf("goroutine %d Begin: %w", id, err)
 				return
 			}
-			// Hold the transaction briefly so the pool stays full.
-			time.Sleep(20 * time.Millisecond)
+			// Hold the slot until the test has seen the pool-full block.
+			<-release
 			if rerr := tx.Rollback(); rerr != nil {
 				errs[id] = fmt.Errorf("goroutine %d Rollback: %w", id, rerr)
 				return
@@ -158,6 +186,16 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 	}
 
 	close(startGate) // release all goroutines at once
+
+	// Wait for the N+1th caller to park on the full pool, then let holders go.
+	select {
+	case <-database.blocked:
+	case <-time.After(waitLimit):
+		releaseHolders()
+		wg.Wait()
+		t.Fatal("no caller blocked on the full pool; the N+1th Begin never waited")
+	}
+	releaseHolders()
 	wg.Wait()
 
 	// Every goroutine must have succeeded (no errors).
