@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^collaborationspawn_agent$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || { echo 'Eshu spawn guard cannot resolve the active worktree' >&2; exit 2; }; [ -f \"$r/scripts/guard-codex-spawn.py\" ] || { echo 'Eshu spawn guard is missing' >&2; exit 2; }; command -v python3 >/dev/null 2>&1 || { echo 'Eshu spawn guard needs python3' >&2; exit 2; }; python3 \"$r/scripts/guard-codex-spawn.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
