@@ -19,6 +19,7 @@ It answers two related questions:
 | `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
+| `required_workflow_postmerge_test.go` | executes the publisher shell steps against recorded PR API responses and status writes, including late merged PRs |
 | `requiredworkflow_concurrency.go` | serialized per-head publisher concurrency contract |
 | `requiredworkflow_triggers.go` | trusted workflow trigger and source-workflow validation |
 | `scriptworkflow.go` | `checkVerifyScriptWorkflowMatch`, called from `DriftCheck` — a gate whose `verify-*.sh` is executed by exactly one workflow must declare that workflow ([#5748](https://github.com/eshu-hq/eshu/issues/5748)) |
@@ -80,6 +81,14 @@ declare `self_test_triggers`. This lets a product change run the product
 verifier without rerunning the verifier's own fixture suite.
 
 ## Required-gate semantics
+
+The trusted `workflow_run` publisher checks that a pull-request source still
+has an open PR owning the head before writing its first status, then checks
+again before a terminal verdict. A run that begins publishing after merge
+leaves the head's last verified verdict alone. Ambiguous ownership publishes
+`error`; merge-queue heads use their queue commit without a PR lookup. A merge
+between the lookup and status POST remains possible because the status API
+has no conditional write. These checks narrow that race window.
 
 `RequiredGates(changed)` is separate from local `Select`. It includes every
 matching `blocking: true` row regardless of tier or local availability,

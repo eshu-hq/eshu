@@ -79,8 +79,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -euo pipefail
+          # A source run can finish after its PR merges. Classify before the
+          # first status write so a run that starts publishing after merge
+          # leaves the last verified success alone.
+          disposition=active
+          if [[ "${RUN_EVENT}" == "pull_request" ]]; then
+            pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+            matches="$(jq -ec --arg sha "${HEAD_SHA}" \
+              'if type != "array" then error("expected PR array") else
+                 [.[] | select(.state == "open" and .head.sha == $sha)] end' <<<"${pulls}")"
+            count="$(jq 'length' <<<"${matches}")"
+            case "${count}" in
+              0)
+                echo 'disposition=inactive' >> "${GITHUB_OUTPUT}"
+                echo '::notice::source PR is no longer open; leaving its verified status unchanged'
+                exit 0
+                ;;
+              1)
+                number="$(jq -r '.[0].number' <<<"${matches}")"
+                echo "number=${number}" >> "${GITHUB_OUTPUT}"
+                ;;
+              *) disposition=ambiguous ;;
+            esac
+          fi
+          echo "disposition=${disposition}" >> "${GITHUB_OUTPUT}"
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state=pending \
             -f context=required-gates-complete \
@@ -88,11 +114,13 @@ jobs:
             -f target_url="${TARGET_URL}"
 
       - name: Check out trusted default-branch policy
+        if: ${{ steps.pending.outputs.disposition == 'active' }}
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.repository.default_branch }}
 
       - name: Set up Go
+        if: ${{ steps.pending.outputs.disposition == 'active' }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
@@ -103,7 +131,7 @@ jobs:
       # diffs a merge group against its fixed base SHA instead.
       - name: Resolve pull request identity
         id: pr
-        if: ${{ github.event.workflow_run.event == 'pull_request' }}
+        if: ${{ github.event.workflow_run.event == 'pull_request' && steps.pending.outputs.disposition == 'active' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -126,10 +154,12 @@ jobs:
       # HERE, named for what it is, instead of the trusted publisher's own
       # `go build` failing inside the step below (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
+        if: ${{ steps.pending.outputs.disposition == 'active' }}
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Await every selected blocking gate
         id: aggregate
+        if: ${{ steps.pending.outputs.disposition == 'active' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -193,9 +223,43 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          PR_DISPOSITION: ${{ steps.pending.outputs.disposition }}
+          PR_NUMBER: ${{ steps.pending.outputs.number }}
           PENDING_OUTCOME: ${{ steps.pending.outcome }}
           AGGREGATE_CODE: ${{ steps.aggregate.outputs.code }}
         run: |
+          set -euo pipefail
+          if [[ "${PR_DISPOSITION}" == "inactive" ]]; then
+            echo '::notice::source PR is no longer open; no required status was published'
+            exit 0
+          fi
+          if [[ "${PR_DISPOSITION}" != "active" && "${PR_DISPOSITION}" != "ambiguous" ]]; then
+            echo '::error::could not classify the source PR; no required status was published'
+            exit 1
+          fi
+          # The PR may have merged during setup or the await. A fresh lookup
+          # narrows the window for a late terminal result to overwrite it.
+          if [[ "${RUN_EVENT}" == "pull_request" ]]; then
+            pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+            matches="$(jq -ec --arg sha "${HEAD_SHA}" \
+              'if type != "array" then error("expected PR array") else
+                 [.[] | select(.state == "open" and .head.sha == $sha)] end' <<<"${pulls}")"
+            count="$(jq 'length' <<<"${matches}")"
+            if [[ "${count}" -eq 0 ]]; then
+              echo '::notice::source PR closed before terminal publication; skipping a late verdict'
+              exit 0
+            fi
+            current_number="$(jq -r '.[0].number' <<<"${matches}")"
+            if [[ "${count}" -ne 1 || "${PR_DISPOSITION}" == "ambiguous" || "${current_number}" != "${PR_NUMBER}" ]]; then
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+                -f state=error \
+                -f context=required-gates-complete \
+                -f description='Pull request ownership of this head is ambiguous; no gate verdict was used' \
+                -f target_url="${TARGET_URL}"
+              exit 1
+            fi
+          fi
           # #6075: publish what actually happened, not "failure" for every
           # non-success. `main` is guarded by a repository ruleset, not classic
           # branch protection, and this status is that ruleset's summary of
