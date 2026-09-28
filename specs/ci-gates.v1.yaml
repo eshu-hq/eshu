@@ -347,6 +347,8 @@ gates:
       - "scripts/verify-agent-canon.sh"
       - "scripts/agent-roles.py"
       - "scripts/test-agent-roles.py"
+      - "scripts/guard-codex-spawn.py"
+      - "scripts/test-codex-spawn-guard.py"
       - "scripts/goal-role-router.py"
       - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
@@ -398,6 +400,8 @@ gates:
       - "scripts/verify-agent-canon.sh"
       - "scripts/agent-roles.py"
       - "scripts/test-agent-roles.py"
+      - "scripts/guard-codex-spawn.py"
+      - "scripts/test-codex-spawn-guard.py"
       - "scripts/goal-role-router.py"
       - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
@@ -421,7 +425,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"
@@ -5167,6 +5171,8 @@ gates:
 # Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
 # NOT registry gates. The drift check allows these without a gate mapping.
 hygiene_hooks:
+  - id: codex-spawn-guard
+    reason: "pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI"
   - id: goal-role-routing
     reason: "pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow"
   - id: no-ai-attribution-message

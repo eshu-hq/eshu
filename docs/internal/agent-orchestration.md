@@ -241,30 +241,31 @@ calls for a bounded role, the coordinator selects the manifest tier and either
 uses its native child tool with that configuration or invokes `muse-exec`
 itself; the user does not run the launcher.
 
-Codex custom role files bind models only when the active spawn tool can select
-the named role. When the active spawn tool offers a custom-role selector, use
-it to select the role file directly. The older Codex 0.156.1 CLI/app schema
-tested here exposed a task name and optional model override, but no custom-role
-selector. A child merely
-named `debug_eshu_deep` inherits its parent's model; that name does not load
-`debug-eshu-deep.toml`. The coordinator must pass the manifest's model, effort,
-access, and instructions explicitly to a native child, or invoke
-`scripts/agent-roles.py codex-exec ROLE TASK` itself. The user still supplies
-only the goal and skills. The launcher starts a separate headless Codex session
-with the model, effort, role instructions, and sandbox read from
-`.agents/roles.json`; it is not a spawned child of the coordinator. Check the
-CLI startup banner for the resolved model and effort. Do not report task-name
-dispatch as role routing.
+Codex custom role files bind models only when the active spawn tool selects
+the named role. Codex 0.158.0 did so: a `debug-eshu` child resolved to Sol while
+the parent used Luna. The older 0.156.1 CLI/app schema exposed a task name and
+optional model override, but no custom-role selector. A child merely named
+`debug_eshu_deep` does not load `debug-eshu-deep.toml`. If the active spawn tool
+cannot select the role file, the coordinator can invoke
+`scripts/agent-roles.py codex-exec ROLE TASK`. The user still supplies only the
+goal and skills. The launcher starts a separate headless Codex session with
+the model, effort, role instructions, and sandbox from `.agents/roles.json`;
+it is not a spawned child of the coordinator. Check the CLI startup banner for
+the resolved model and effort. Do not report task-name dispatch as role routing.
 
 For new trusted Eshu sessions, `.codex/config.toml` defaults the coordinator
-and generic child agents to GPT-6 Luna at high effort. A CLI model selection
-overrides the coordinator default. When a spawn selects a custom Eshu role,
-its role file overrides the generic child default with its manifest tier.
-Routine workhorse roles currently use
-GPT-6 Sol at medium effort, and deep roles use Sol at high effort. Check the
-resolved model when spawning and audit actual usage after long goals. The
-tested Codex 0.158.0 `spawn_agent` path bypassed `PreToolUse`, so a project
-hook cannot be treated as a model enforcement point for that path.
+and the generic child fallback to GPT-6 Luna at high effort. The trusted spawn
+hook blocks generic child requests, so this fallback matters when the hook is
+untrusted or unavailable. A CLI model selection overrides the coordinator
+default. When a spawn selects a custom Eshu role, its role file supplies the
+manifest tier instead of the generic child default. The guard leaves explicit
+per-spawn model fields untouched; verify the resolved child model and only
+request an override when the owner asks for it.
+Routine workhorse roles currently use GPT-6 Sol at medium effort, and deep
+roles use Sol at high effort. Check the resolved model when spawning and audit
+actual usage after long goals. The Codex spawn `PreToolUse` hook requires a
+manifest-backed Eshu role; its canonical matcher was proved on CLI 0.158.0.
+New or changed hook definitions must be trusted with `/hooks` before they run.
 
 The reviewer uses the same skill in all four:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),

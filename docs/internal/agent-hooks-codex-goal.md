@@ -24,15 +24,32 @@ porting.
 ## Agent spawn probe
 
 On 2026-09-28, a trusted Eshu worktree on Codex CLI 0.158.0 loaded the project
-default as `gpt-6-luna` at high effort. In a separate run with a Sol low CLI
-override on the parent, a generic `worker` child resolved to Luna high; its
-token usage records were all on Luna high. A temporary `PreToolUse` hook at the
-user level fired for `Bash`, while a hook
-matching `Agent` did not fire for `spawn_agent`. A project hook with a catch-all
-matcher likewise did not see the spawn. The same result held on CLI 0.157.0.
+default as `gpt-6-luna` at high effort. A generic child resolved to Luna high;
+a named `debug-eshu` child resolved to Sol. Child token records confirmed the
+models used. A temporary `PreToolUse` hook fired for a harmless Bash control.
 
-The current [Codex hook reference](https://developers.openai.com/codex/hooks)
-lists `spawn_agent` under the `Agent` matcher but notes that specialized tool
-paths can opt out of tool hooks. For this tested path, use the project model
-defaults and named role files as the binding; do not claim a `PreToolUse`
-spawn guard is active without a new live probe on the target Codex runtime.
+The first spawn probe used the `Agent` matcher from the
+[Codex hook reference](https://learn.chatgpt.com/docs/hooks), but it missed the
+spawn tool. A catch-all probe revealed the canonical tool name
+`collaborationspawn_agent`. A trusted hook matching that name rewrote a generic
+spawn to `scan-eshu` through `permissionDecision: "allow"` and `updatedInput`;
+the following `SubagentStart` reported `scan-eshu` on Luna. The temporary probe
+was removed, and the worktree stayed clean. This 0.158.0 test proved the earlier
+`Agent` matcher missed the spawn path; the 0.157.0 canonical name was not
+retested.
+
+The production guard matches the observed canonical name and requires a named
+Eshu role. It refuses a generic or unknown role instead of assigning a scan
+role to work whose intent it cannot infer. The guard uses the role manifest for
+its allowlist. The guard leaves explicit per-spawn model fields untouched. It
+cannot determine whether the owner requested an override or which model the
+spawn tool finally resolves; the coordinator must honor the goal's explicit
+model choices and verify the child model. A separate 0.158.0 TUI probe ran the
+committed guard through an isolated trusted hook source: a `default` spawn was
+blocked by `PreToolUse`
+with the allowed Eshu roles in the reason. The PR worktree's project hook
+source still resolved to the sibling checkout, so this probe proved the guard
+code and canonical matcher, not project-hook activation before merge. Because
+non-managed hooks require trust, review the new definition with `/hooks` in an
+interactive session. A future Codex version can change the canonical tool name;
+repeat the live probe before claiming the guard works on that version.
