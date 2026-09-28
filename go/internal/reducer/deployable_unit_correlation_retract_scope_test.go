@@ -283,7 +283,7 @@ func TestDeployableUnitRetractMatcherAgreesWithCandidateFilter(t *testing.T) {
 // collapse to the segment after the last colon). A trailing colon does not:
 // payloadcore.NormalizedEntityKey returns the whole key when the colon is last,
 // so "repo:pkg:" never equals the bare name "pkg:". That non-match is an open
-// gap, tracked as FOLLOWUP-7316B; it predates #7316 and exists for a checkout
+// gap, tracked as #7384; it predates #7316 and exists for a checkout
 // directory ending in a colon as well. When it is fixed this row flips to true
 // and the docs/internal/evidence/7316 note must change with it.
 func TestDeployableUnitCollectorKeySelectsDisplayNames(t *testing.T) {
@@ -298,7 +298,7 @@ func TestDeployableUnitCollectorKeySelectsDisplayNames(t *testing.T) {
 		{name: "mixed case display name", repoName: "Pkg-Display", matches: true},
 		{name: "interior colon (maven style)", repoName: "group:artifact", matches: true},
 		{name: "scoped npm style", repoName: "@scope/pkg", matches: true},
-		{name: "trailing colon is an open gap (FOLLOWUP-7316B)", repoName: "pkg:", matches: false},
+		{name: "trailing colon is an open gap (#7384)", repoName: "pkg:", matches: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

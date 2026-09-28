@@ -52,7 +52,7 @@ name, so the path basename differs, and the reducer selects candidates by
 comparing the key against the repository fact name (#7316). A new follow-up
 envelope takes `repoName` and calls the helper; add its domain to
 `followupKeyPrefixes` in `followup_key_test.go` so the count assertion covers it.
-The residual gap (a name ending in `:`) is documented in
+The residual gap (a name ending in `:`, tracked in #7384) is documented in
 `docs/internal/evidence/7316-followup-key-repository-name.md`.
 
 ## Directory size

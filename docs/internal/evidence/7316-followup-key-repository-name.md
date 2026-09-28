@@ -83,7 +83,7 @@ would close only one of the two sources. The fix belongs in the matcher (a
 prefix-aware alias) or in id-based selection, both reducer contract changes.
 `TestDeployableUnitCollectorKeySelectsDisplayNames` pins the current non-match
 so the day it is fixed the test forces this note to change. Tracked in
-FOLLOWUP-7316B, together with:
+#7384, together with:
 
 - id or scope based selection (most projector intents already key on
   `<domain>:<scopeID>`), which needs the workload-name read model to stop

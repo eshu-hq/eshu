@@ -54,6 +54,7 @@ repository fact publishes. It is never derived from the checkout path: in
 dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets the name, the two differ, and
 the reducer's candidate filter would select nothing. Without a display name the
 name is the checkout basename, so the keys are unchanged.
+A name ending in `:` still does not match; that gap is tracked in #7384.
 
 ## Directory size
 
