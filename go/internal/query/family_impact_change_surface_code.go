@@ -49,6 +49,8 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	symbols := make([]map[string]any, 0)
 	evidenceGroups := make([]map[string]any, 0)
 	truncated := false
+	poolTruncated := false
+	poolStatusUnknown := false
 	sourceBackends := []string{}
 
 	if req.Topic != "" {
@@ -64,10 +66,18 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 		// route never surfaces another tenant's code content through a topic
 		// search.
 		rows = filterCodeTopicRowsForAccess(rows, querycontract.RepositoryAccessFilterFromContext(ctx))
-		truncated = len(rows) > req.Limit
-		if truncated {
+		poolStatusUnknown = req.Offset > 0 && len(rows) == 0
+		for _, row := range rows {
+			if row.PoolTruncated {
+				poolTruncated = true
+				break
+			}
+		}
+		pageTruncated := len(rows) > req.Limit
+		if pageTruncated {
 			rows = rows[:req.Limit]
 		}
+		truncated = pageTruncated || poolTruncated
 		sourceBackends = append(sourceBackends, "postgres_content_store")
 		for index, row := range rows {
 			files = codequery.AppendMatchedFile(files, row)
@@ -89,24 +99,33 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	}
 	truncated = truncated || pathSymbolsTruncated
 
+	coverage := map[string]any{
+		"query_shape":              "content_topic_and_changed_path_surface",
+		"changed_path_count":       len(req.ChangedPaths),
+		"changed_path_lookup":      "path_scoped",
+		"returned_symbols":         len(symbols),
+		"limit":                    req.Limit,
+		"offset":                   req.Offset,
+		"truncated":                truncated,
+		"candidate_pool_truncated": poolTruncated,
+		"path_symbols_truncated":   pathSymbolsTruncated,
+	}
+	if poolStatusUnknown {
+		coverage["state"] = "partial"
+		coverage["candidate_pool_status"] = "unknown_empty_page"
+	}
+
 	return map[string]any{
-		"topic":              req.Topic,
-		"changed_files":      files,
-		"matched_file_count": len(files),
-		"touched_symbols":    symbols,
-		"symbol_count":       len(symbols),
-		"evidence_groups":    evidenceGroups,
-		"truncated":          truncated,
-		"source_backends":    impact.UniqueStrings(sourceBackends),
-		"coverage": map[string]any{
-			"query_shape":         "content_topic_and_changed_path_surface",
-			"changed_path_count":  len(req.ChangedPaths),
-			"changed_path_lookup": "path_scoped",
-			"returned_symbols":    len(symbols),
-			"limit":               req.Limit,
-			"offset":              req.Offset,
-			"truncated":           truncated,
-		},
+		"topic":                    req.Topic,
+		"changed_files":            files,
+		"matched_file_count":       len(files),
+		"touched_symbols":          symbols,
+		"symbol_count":             len(symbols),
+		"evidence_groups":          evidenceGroups,
+		"truncated":                truncated,
+		"candidate_pool_truncated": poolTruncated,
+		"source_backends":          impact.UniqueStrings(sourceBackends),
+		"coverage":                 coverage,
 	}, nil
 }
 

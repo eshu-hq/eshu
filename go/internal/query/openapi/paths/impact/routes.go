@@ -472,7 +472,7 @@ const Routes = `
                   "properties": {
                     "scope": {"type": "object"},
                     "target_resolution": {"type": "object"},
-                    "code_surface": {"type": "object"},
+                    "code_surface": {"type": "object", "description": "Bounded topic and changed-path evidence. candidate_pool_truncated reports a capped topic pool; coverage.path_symbols_truncated reports a capped changed-path lookup. An empty nonzero-offset topic page has coverage.state=partial and candidate_pool_status=unknown_empty_page because no row can carry the pool marker."},
                     "direct_impact": {"type": "array", "items": {"type": "object"}},
                     "transitive_impact": {"type": "array", "items": {"type": "object"}},
                     "impact_summary": {"type": "object"},

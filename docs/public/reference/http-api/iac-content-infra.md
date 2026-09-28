@@ -879,7 +879,7 @@ counter (resolution_mode-dimensioned) and the
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or
 `module_id`) and/or a code scope (`topic`, `repo_id`, `changed_paths`).
 `changed_paths` requires `repo_id`. `max_depth` defaults to 4 and caps at 8;
-`limit` defaults to 25 and caps at 100; `offset` caps at 10000.
+`limit` defaults to 25 and caps at 100; `offset` caps at 10000. A topic pool cap sets `code_surface.candidate_pool_truncated`; a changed-path symbol cap sets `code_surface.coverage.path_symbols_truncated`; either sets response `truncated`. An empty nonzero-offset topic page reports `code_surface.coverage.state: partial` and `candidate_pool_status: unknown_empty_page` because the pool cap status is unknown.
 
 `/impact/pre-change` is the pre-change workflow entrypoint over the same
 change-surface evidence. It accepts `changed_paths` or structured `changes`
@@ -892,7 +892,7 @@ preserves added, modified, deleted, renamed, and copied file statuses, reports
 deleted or unmatched paths under `missing_evidence`, carries coverage and
 truncation fields, and includes `answer_metadata` plus an AnswerPacket-shaped
 `answer_packet`. Unsupported profiles fail closed with `501`, and unavailable
-content-backed code-surface evidence returns `503`.
+content-backed code-surface evidence returns `503`. A capped changed-path lookup marks unmatched paths `changed_path_lookup_truncated`; any truncated read makes coverage `partial`, including topic-only requests.
 
 `/impact/developer-change-plan` uses the same bounded input families as
 `/impact/pre-change` and accepts optional `developer_intent` context from the
@@ -901,7 +901,7 @@ changed-file coverage, affected entities, missing evidence, recommended tests,
 bounded next calls, action steps, and patch guidance. The route does not
 generate or apply patches; stale, missing, or partial graph evidence is reported
 as `blocked`, `missing_evidence`, partial AnswerPacket metadata, and follow-up
-calls instead of being filled by guesses. Unsupported profiles fail closed with
+calls instead of being filled by guesses. Partial coverage or a truncated read sets `blocked` and makes patch guidance unsafe, even with no `missing_evidence` row. Unsupported profiles fail closed with
 `501`, and unavailable content-backed code-surface evidence returns `503`.
 
 `/impact/contracts` investigates contract impact from deterministic parser,

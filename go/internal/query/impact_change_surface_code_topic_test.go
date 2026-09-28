@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -106,6 +107,100 @@ func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 	nextCalls := data["recommended_next_calls"].([]any)
 	if got, want := len(nextCalls), 2; got < want {
 		t.Fatalf("recommended_next_calls = %d, want at least %d", got, want)
+	}
+}
+
+func TestInvestigateChangeSurfaceMarksCandidatePoolTruncation(t *testing.T) {
+	t.Parallel()
+
+	store := &topicInvestigationContentStore{rows: []codequery.CodeTopicEvidenceRow{{
+		SourceKind:    "entity",
+		RepoID:        "repo-1",
+		RelativePath:  "src/change.go",
+		EntityID:      "entity-change",
+		EntityName:    "Change",
+		MatchedTerms:  []string{"change"},
+		Score:         1,
+		PoolTruncated: true,
+	}}}
+	handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"topic":"change","repo_id":"repo-1","limit":10}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	data := decodeChangeSurfaceCodeTopicData(t, w)
+	if got := data["truncated"]; got != true {
+		t.Fatalf("truncated = %#v, want true for capped candidate pool", got)
+	}
+	codeSurface := data["code_surface"].(map[string]any)
+	if got := codeSurface["candidate_pool_truncated"]; got != true {
+		t.Fatalf("code_surface.candidate_pool_truncated = %#v, want true", got)
+	}
+	metadata := data["answer_metadata"].(map[string]any)
+	if got := metadata["truncated"]; got != true {
+		t.Fatalf("answer_metadata.truncated = %#v, want true", got)
+	}
+}
+
+func TestChangeSurfaceCodeBackendReportsPathLookupTruncation(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{Content: &topicInvestigationContentStore{}, Profile: ProfileLocalAuthoritative}
+	response, err := (changeSurfaceCodeBackend{}).FetchCodeSurface(
+		context.Background(), handler,
+		impact.ChangeSurfaceInvestigationRequest{
+			RepoID: "repo-1", ChangedPaths: []string{"src/change.go"}, Limit: 10,
+		},
+		func(context.Context, impact.ChangeSurfaceInvestigationRequest) ([]map[string]any, bool, error) {
+			return nil, true, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("FetchCodeSurface() error = %v", err)
+	}
+	coverage := response["coverage"].(map[string]any)
+	if got := coverage["path_symbols_truncated"]; got != true {
+		t.Fatalf("coverage.path_symbols_truncated = %#v, want true", got)
+	}
+	if got := response["truncated"]; got != true {
+		t.Fatalf("truncated = %#v, want true", got)
+	}
+}
+
+func TestInvestigateChangeSurfaceMarksEmptyOffsetPoolStatusUnknown(t *testing.T) {
+	t.Parallel()
+
+	store := &topicInvestigationContentStore{}
+	handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/change-surface/investigate",
+		bytes.NewBufferString(`{"topic":"change","repo_id":"repo-1","limit":10,"offset":10000}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	data := decodeChangeSurfaceCodeTopicData(t, w)
+	codeSurface := data["code_surface"].(map[string]any)
+	codeCoverage := codeSurface["coverage"].(map[string]any)
+	if got := codeCoverage["candidate_pool_status"]; got != "unknown_empty_page" {
+		t.Fatalf("code coverage candidate_pool_status = %#v, want unknown_empty_page", got)
+	}
+	coverage := data["coverage"].(map[string]any)
+	if got := coverage["state"]; got != "partial" {
+		t.Fatalf("coverage.state = %#v, want partial", got)
+	}
+	metadata := data["answer_metadata"].(map[string]any)
+	if got := metadata["partial_reasons"].([]any); len(got) == 0 {
+		t.Fatal("answer_metadata.partial_reasons is empty for unknown candidate pool status")
 	}
 }
 

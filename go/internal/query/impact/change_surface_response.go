@@ -180,6 +180,11 @@ func (h *Handler) changeSurfaceResponse(
 		"truncated":      truncated,
 		"source_backend": "hybrid_graph_and_content",
 	}
+	if codeCoverage := querycontract.MapValue(codeSurface, "coverage"); querycontract.StringVal(codeCoverage, "state") == "partial" {
+		responseCoverage := resp["coverage"].(map[string]any)
+		responseCoverage["state"] = "partial"
+		responseCoverage["candidate_pool_status"] = querycontract.StringVal(codeCoverage, "candidate_pool_status")
+	}
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
