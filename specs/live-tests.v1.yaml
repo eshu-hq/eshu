@@ -1,5 +1,5 @@
 version: live-tests/v1
-updated_at: 2026-09-27
+updated_at: 2026-09-28
 issue: 6784
 parent_issue: 6788
 owners:
@@ -557,6 +557,11 @@ tests:
     tag: live_nornicdb_language_imports_grant
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/infra_graph_summary_hot_entities_neo4j_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: isolated Neo4j #7251 degree-page parity fixture is env-gated and requires a disposable backend; promote to blocking after runner compatibility and repeated timing proof
+    backends: neo4j
   - file: go/internal/query/infra_resource_aggregates_live_test.go
     tag: ~
     class: scheduled
