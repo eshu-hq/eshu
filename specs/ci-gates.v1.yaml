@@ -686,6 +686,8 @@ gates:
   - id: pre-enqueue-check
     name: Pre-enqueue merge-queue check test mirror
     category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a PR joins the queue."
     tier: pre-pr
     blocking: true
     triggers:

@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (39 gates)
+### Hygiene: Is the change well-formed? (40 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -58,6 +58,7 @@ results are derived from the inputs rather than written by hand. See
 - `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
 - `main-health-watcher` (blocking): Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue.
+- `pre-enqueue-check` (blocking): Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a PR joins the queue.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.
 - `claude-rules-scope` (blocking): Lints .claude/rules files for correct path-scoping so agent rules apply only where intended.
 - `docs-catalog-metadata` (blocking): Checks that public docs pages carry the required catalog metadata (nav/front-matter fields).
