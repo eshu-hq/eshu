@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +32,11 @@ import (
 // ESHU_7320_COST_PAIRS (default 9 pairs), ESHU_7320_COST_ROWS (3500) and
 // ESHU_7320_COST_DETAIL_BYTES (800), ESHU_7320_COST_STRESS_ROWS (500) and
 // ESHU_7320_COST_STRESS_BYTES (65536). Wall time on a shared host is not
-// evidence; the test logs the host load so a reader can label the run.
+// evidence; the test samples the host load once a second and labels the run PD
+// (load1 below costPDLoadLimit at the start, the end and every sample) or
+// NON-PD. Each statement also gets a control: the "before" text run against
+// itself the same way, so the run's own spread is measured, not assumed. The
+// quiet-host re-run is one command, given in the #7320 evidence note.
 
 // requireCostProof skips a #7320 measurement unless it is opted in.
 func requireCostProof(t *testing.T) {
@@ -69,7 +74,7 @@ SELECT 'scope-'||i||'-g1','scope-'||i,'push', now()-interval '2 hours', now()-in
 		fmt.Sprintf(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
 SELECT 'scope-'||i||'-g2','scope-'||i,'push', now()-interval '1 hour', now()-interval '1 hour','pending' FROM generate_series(1,%d) i`, n),
 		fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, last_attempt_at, failure_class, failure_message, failure_details, payload, created_at, updated_at)
-SELECT 'projector_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','projector','source_local','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', repeat('x', %d),'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, detailBytes, n),
+SELECT 'projector_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','projector','source_local','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', %s,'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, costDetailExpr(detailBytes), n),
 		fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, visible_at, payload, created_at, updated_at)
 SELECT 'projector_scope-'||i||'_g2','scope-'||i,'scope-'||i||'-g2','projector','source_local','pending',0, now()-interval '1 hour','{}'::jsonb, now()-interval '1 hour', now()-interval '1 hour' FROM generate_series(1,%d) i`, n),
 		`VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)
@@ -89,7 +94,7 @@ SELECT 'scope-'||i||'-g1','scope-'||i,'push', now()-interval '2 hours', now()-in
 SELECT 'scope-'||i||'-g2','scope-'||i,'push', now()-interval '1 hour', now()-interval '1 hour','active' FROM generate_series(1,%d) i`, n),
 		`UPDATE ingestion_scopes SET active_generation_id = scope_id || '-g2'`,
 		fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, last_attempt_at, failure_class, failure_message, failure_details, payload, created_at, updated_at)
-SELECT 'reducer_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','reducer','zz_probe_domain','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', repeat('x', %d),'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, detailBytes, n),
+SELECT 'reducer_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','reducer','zz_probe_domain','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', %s,'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, costDetailExpr(detailBytes), n),
 		`VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)
 }
 
@@ -139,7 +144,14 @@ func costStatements() []costStatement {
 // "before" variant is derived from production text and cannot drift.
 func costBeforeText(t *testing.T, name, shipped string) string {
 	t.Helper()
-	fragment := " || " + priorFailureStaleSQL
+	return costBeforeTextWith(t, name, shipped, priorFailureStaleSQL)
+}
+
+// costBeforeTextWith cuts the given fragment constant (the stale or work alias
+// variant) out of a shipped statement.
+func costBeforeTextWith(t *testing.T, name, shipped, fold string) string {
+	t.Helper()
+	fragment := " || " + fold
 	if !strings.Contains(shipped, fragment) {
 		t.Fatalf("%s: shipped statement does not contain the fold, so there is no before variant to derive", name)
 	}
@@ -161,12 +173,128 @@ func costRun(ctx context.Context, database *sql.DB, statement string, args []any
 	return n, rows.Err()
 }
 
+// costPDLoadLimit is the load1 at or above which a timing run is NON-PD (the
+// owner's ruling PD: load1 below 9 on the 18-CPU host, at start, end and max).
+const costPDLoadLimit = 9.0
+
+var loadAveragePattern = regexp.MustCompile(`load averages?:\s*([0-9.]+)`)
+
+// load1 returns the one-minute load average from uptime, or -1 if unreadable.
+func load1() float64 {
+	out, err := exec.Command("uptime").Output()
+	if err != nil {
+		return -1
+	}
+	m := loadAveragePattern.FindSubmatch(out)
+	if m == nil {
+		return -1
+	}
+	v, err := strconv.ParseFloat(string(m[1]), 64)
+	if err != nil {
+		return -1
+	}
+	return v
+}
+
+// loadWatch samples load1 while a measurement runs.
+type loadWatch struct {
+	start, max float64
+	stop       chan struct{}
+	done       chan struct{}
+}
+
+// startLoadWatch records load1 now and once a second until finish.
+func startLoadWatch() *loadWatch {
+	w := &loadWatch{start: load1(), stop: make(chan struct{}), done: make(chan struct{})}
+	w.max = w.start
+	go func() {
+		defer close(w.done)
+		tick := time.NewTicker(time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-w.stop:
+				return
+			case <-tick.C:
+				if v := load1(); v > w.max {
+					w.max = v
+				}
+			}
+		}
+	}()
+	return w
+}
+
+// finish stops sampling and returns a log fragment and the PD label: PD only
+// when the start, the end and the in-run maximum are all below costPDLoadLimit.
+func (w *loadWatch) finish() string {
+	close(w.stop)
+	<-w.done
+	end := load1()
+	if end > w.max {
+		w.max = end
+	}
+	label := "NON-PD"
+	if w.start >= 0 && end >= 0 && w.max < costPDLoadLimit && w.start < costPDLoadLimit {
+		label = "PD"
+	}
+	return fmt.Sprintf("load1_start=%.2f load1_end=%.2f load1_max=%.2f label=%s", w.start, end, w.max, label)
+}
+
+// costDetailExpr is the SQL for a details value of about bytes bytes for row i:
+// incompressible hex, so TOAST and WAL see what a real details blob costs
+// instead of what repeat('x', n) compresses to.
+func costDetailExpr(bytes int) string {
+	return fmt.Sprintf(`left((SELECT string_agg(md5(i::text || '-' || k::text), '') FROM generate_series(1, %d) k), %d)`, bytes/32+1, bytes)
+}
+
+// costAssertSuperseded fails unless the run superseded exactly want rows and
+// prior_failure landed on wantPrior of them: a harness that timed a no-op would
+// otherwise report a flattering number.
+func costAssertSuperseded(t *testing.T, database *sql.DB, name, variant string, want int, foldExpected bool) {
+	t.Helper()
+	var superseded, withPrior int
+	if err := database.QueryRow(`
+SELECT count(*) FILTER (WHERE status = 'superseded'),
+       count(*) FILTER (WHERE status = 'superseded' AND failure_details LIKE '%"prior_failure"%')
+FROM fact_work_items`).Scan(&superseded, &withPrior); err != nil {
+		t.Fatalf("%s %s: count superseded: %v", name, variant, err)
+	}
+	wantPrior := 0
+	if foldExpected {
+		wantPrior = want
+	}
+	if superseded != want || withPrior != wantPrior {
+		t.Fatalf("%s %s superseded %d rows (%d carrying prior_failure), want %d and %d: the run did not exercise the fold it times",
+			name, variant, superseded, withPrior, want, wantPrior)
+	}
+}
+
+// pairRatios returns the per-pair second/first ratios, each pair measured
+// back to back so slow drift in host load cancels inside the pair.
+func pairRatios(first, second []float64) []float64 {
+	out := make([]float64, len(first))
+	for i := range first {
+		out[i] = second[i] / first[i]
+	}
+	return out
+}
+
+func quantile(v []float64, q float64) float64 {
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	if len(s) == 0 {
+		return 0
+	}
+	return s[int(q*float64(len(s)-1)+0.5)]
+}
+
 func TestSupersedePriorFailureClaimCost(t *testing.T) {
 	requireCostProof(t)
 	dsn := claimMaintenanceProofDSN(t)
 	database := openClaimDeadlockProofDB(t, dsn, 2)
 	ctx := context.Background()
-	pairs := costEnvInt("ESHU_7320_COST_PAIRS", 9)
+	pairs := costEnvInt("ESHU_7320_COST_PAIRS", 12)
 	statements := costStatements()
 	scenarios := []struct {
 		name        string
@@ -175,11 +303,12 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 		{"ops_qa_scale", costEnvInt("ESHU_7320_COST_ROWS", 3500), costEnvInt("ESHU_7320_COST_DETAIL_BYTES", 800)},
 		{"stress_wide_details", costEnvInt("ESHU_7320_COST_STRESS_ROWS", 500), costEnvInt("ESHU_7320_COST_STRESS_BYTES", 65536)},
 	}
-	t.Logf("host load: %s", hostLoad())
+	t.Logf("host load at start: %s", hostLoad())
 	for _, st := range statements {
 		after := st.text
 		before := costBeforeText(t, st.name, after)
 		for _, sc := range scenarios {
+			watch := startLoadWatch()
 			for _, variant := range []string{"before", "after"} {
 				st.seed(t, database, sc.rows, sc.bytes)
 				text := after
@@ -188,37 +317,50 @@ func TestSupersedePriorFailureClaimCost(t *testing.T) {
 				}
 				t.Logf("PLAN %s %s %s: %s", st.name, sc.name, variant, costExplain(t, database, text, st.args(time.Now().UTC())))
 			}
-			var beforeSecs, afterSecs []float64
-			for i := 0; i < pairs; i++ {
-				order := []string{"before", "after"}
-				if i%2 == 1 {
-					order = []string{"after", "before"}
+			run := func(variant, text string, fold bool) float64 {
+				st.seed(t, database, sc.rows, sc.bytes)
+				start := time.Now()
+				n, err := costRun(ctx, database, text, st.args(time.Now().UTC()))
+				elapsed := time.Since(start).Seconds()
+				if err != nil {
+					t.Fatalf("%s %s %s: %v", st.name, sc.name, variant, err)
 				}
-				for _, variant := range order {
-					st.seed(t, database, sc.rows, sc.bytes)
-					text := after
-					if variant == "before" {
-						text = before
-					}
-					start := time.Now()
-					n, err := costRun(ctx, database, text, st.args(time.Now().UTC()))
-					elapsed := time.Since(start).Seconds()
-					if err != nil {
-						t.Fatalf("%s %s %s: %v", st.name, sc.name, variant, err)
-					}
-					if st.name == "projector_claim" && n != 1 {
-						t.Fatalf("%s %s %s claimed %d rows, want the one newer-generation row", st.name, sc.name, variant, n)
-					}
-					if variant == "before" {
-						beforeSecs = append(beforeSecs, elapsed)
-					} else {
-						afterSecs = append(afterSecs, elapsed)
-					}
+				if st.name == "projector_claim" && n != 1 {
+					t.Fatalf("%s %s %s claimed %d rows, want the one newer-generation row", st.name, sc.name, variant, n)
 				}
+				costAssertSuperseded(t, database, st.name+" "+sc.name, variant, sc.rows, fold)
+				return elapsed
 			}
-			t.Logf("COST %s %s rows=%d detail_bytes=%d pairs=%d before_median=%.6fs after_median=%.6fs ratio=%.3f before=%s after=%s load_end=%q",
-				st.name, sc.name, sc.rows, sc.bytes, pairs, median(beforeSecs), median(afterSecs),
-				median(afterSecs)/median(beforeSecs), fmtSecs(beforeSecs), fmtSecs(afterSecs), hostLoad())
+			// Experiment: before (A) against after (B). Control: before (A)
+			// against the same before text (B), which measures the spread of
+			// the harness itself. Both alternate the first mover every pair.
+			var expA, expB, ctlA, ctlB []float64
+			for i := 0; i < pairs; i++ {
+				a, b := "A", "B"
+				if i%2 == 1 {
+					a, b = "B", "A"
+				}
+				got := map[string]float64{}
+				for _, slot := range []string{a, b} {
+					if slot == "A" {
+						got["A"] = run("before", before, false)
+					} else {
+						got["B"] = run("after", after, true)
+					}
+				}
+				expA, expB = append(expA, got["A"]), append(expB, got["B"])
+				got = map[string]float64{}
+				for _, slot := range []string{a, b} {
+					got[slot] = run("control-"+slot, before, false)
+				}
+				ctlA, ctlB = append(ctlA, got["A"]), append(ctlB, got["B"])
+			}
+			exp, ctl := pairRatios(expA, expB), pairRatios(ctlA, ctlB)
+			t.Logf("COST %s %s rows=%d detail_bytes=%d pairs=%d before_median=%.6fs after_median=%.6fs median_ratio=%.3f exp_pair_ratio[min=%.3f q1=%.3f med=%.3f q3=%.3f max=%.3f] control_pair_ratio[min=%.3f q1=%.3f med=%.3f q3=%.3f max=%.3f] before=%s after=%s ctl_a=%s ctl_b=%s %s",
+				st.name, sc.name, sc.rows, sc.bytes, pairs, median(expA), median(expB), median(expB)/median(expA),
+				quantile(exp, 0), quantile(exp, .25), quantile(exp, .5), quantile(exp, .75), quantile(exp, 1),
+				quantile(ctl, 0), quantile(ctl, .25), quantile(ctl, .5), quantile(ctl, .75), quantile(ctl, 1),
+				fmtSecs(expA), fmtSecs(expB), fmtSecs(ctlA), fmtSecs(ctlB), watch.finish())
 		}
 	}
 }
