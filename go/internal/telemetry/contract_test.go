@@ -166,6 +166,8 @@ func TestSpanNames(t *testing.T) {
 		"query.documentation_packet_freshness",
 		"query.semantic_evidence",
 		"query.semantic_search",
+		"query.semantic_search.persisted_index",
+		"query.semantic_search.vector_ready",
 		"query.documentation_aggregate",
 		"query.dead_iac",
 		"query.iac_unmanaged_resources",

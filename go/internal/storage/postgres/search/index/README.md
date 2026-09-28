@@ -39,10 +39,19 @@ See `doc.go` for the godoc contract.
 ## Telemetry
 
 This is a synchronous read with no worker, queue, lease, or retry of its own.
-The query layer's `query.semantic_search` span covers this call; PostgreSQL
-statement timing and plans identify the BM25 statement within a slow request.
-The query rewrite adds no new telemetry label. Language filtering now treats
-non-array labels as empty instead of returning a database error.
+`query.semantic_search.persisted_index` is a child of the query layer's
+`query.semantic_search` span. It covers the active-generation stats read, BM25
+query, cursor drain, row scans, JSON decoding, and cursor close. Its bounded
+events mark `stats_complete`, `query_returned`, `first_row`, and
+`rows_complete` (with the returned `candidate_count`). A `stage_error` event
+names only the closed failure stage (`stats`, `query`, `scan`, `decode`, or
+`iterate`) and marks the span as failed. An empty normalized term set records
+`rows_complete` with zero candidates after `stats_complete`, without issuing
+the BM25 query. The span never records query text, scope, repo, document,
+or user identifiers. The child span and its events show elapsed query-plus-row
+work in Tempo; PostgreSQL statement timing and plans require separate database
+inspection. Language filtering treats non-array labels as empty instead of
+returning a database error.
 
 ## Gotchas / invariants
 

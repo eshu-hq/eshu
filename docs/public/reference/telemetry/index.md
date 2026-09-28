@@ -453,14 +453,14 @@ degradations do. The handler also stamps `search.retrieval_state`,
 `search.degraded`, and (when degraded) `search.degraded_reason` span attributes on
 every request span, so a single trace shows the served mode.
 
-Persisted semantic/hybrid retrieval also stamps the bounded
-`search.index_cache` attribute on the existing request span. Values are `hit`,
-`miss`, `coalesced`, `bypass_unready`, or `retry_snapshot_changed`. The API and
-MCP snapshot check runs through the instrumented Postgres store named
-`semantic_search_snapshot`, so its child span and database duration remain
-visible alongside document, vector-metadata, and vector-value loads. This is a
-span-only signal: no new metric is needed because the existing route-duration
-histogram measures impact and traces retain the per-request cache decision.
+Persisted semantic/hybrid retrieval stamps `search.index_cache` on the request span: `hit`, `miss`, `coalesced`, `bypass_unready`, or
+`retry_snapshot_changed`. API/MCP snapshot reads use the instrumented `semantic_search_snapshot` store; its child span and DB duration
+show that cost. The existing route-duration histogram covers the full request.
+
+The persisted BM25 read emits `query.semantic_search.persisted_index` with `stats_complete`, `query_returned`, `first_row`,
+`rows_complete`, and `stage_error` events. Their timestamps separate stats, ranking-query return, first-row wait, row drain/decode,
+and the failed stage. Vector-backed modes emit `query.semantic_search.vector_ready` with `search.vector_ready.outcome` set to
+`missing`, `present`, or `error`; keyword mode skips that probe. These spans record no query text, repository ID, or vector identity.
 
 **Degraded search is expected, not an error, in no-provider mode.** Eshu runs
 deterministic keyword search with no embedder configured by design (the

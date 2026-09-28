@@ -524,6 +524,11 @@ const (
 	// SpanQuerySemanticSearch wraps bounded curated search-document retrieval
 	// exposed through the HTTP API and MCP transport.
 	SpanQuerySemanticSearch = "query.semantic_search"
+	// SpanQuerySemanticSearchPersistedIndex times the persisted BM25 lookup,
+	// including row iteration and document decoding.
+	SpanQuerySemanticSearchPersistedIndex = "query.semantic_search.persisted_index"
+	// SpanQuerySemanticSearchVectorReady times the optional freshness probe.
+	SpanQuerySemanticSearchVectorReady = "query.semantic_search.vector_ready"
 	// SpanQueryDocumentationAggregate wraps cheap-summary count and inventory
 	// aggregates over reducer-owned documentation findings. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like

@@ -867,7 +867,7 @@ catalog; per-route variants share the same `route` label dimension.
 | OIDC login rate-limit | go/internal/query/oidc_rate_limiter.go | `eshu_dp_oidc_login_throttled_total` | query auth |
 | IdP bearer-token resolver (#5162) | go/internal/oidcbearer/resolver.go | `eshu_dp_oidc_bearer_validation_total` | query auth |
 | Search hybrid degradation | go/internal/query/semanticsearch/semantic_search_telemetry.go | `eshu_dp_search_hybrid_degraded_total` | query search |
-| Semantic-search canonical scope resolution | go/internal/query/semanticsearch/semantic_search_scope.go | `postgres.query` span and `eshu_dp_postgres_query_duration_seconds` with `store=semantic_search_scope` | query search |
+| Semantic-search query diagnostics | go/internal/query/semanticsearch/semantic_search_scope.go, go/internal/storage/postgres/search/index/store.go, go/internal/query/semanticsearch/semantic_search_freshness.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_postgres_query_duration_seconds` (`store=semantic_search_scope`); `postgres.query`, `query.semantic_search.persisted_index` (`stats_complete`, `query_returned`, `first_row`, `rows_complete`, `stage_error`), and `query.semantic_search.vector_ready` (`search.vector_ready.outcome=missing|present|error`) spans | query search |
 | Component extensions | go/internal/query/component_extensions.go:149 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query extensions |
 | Ask (CLI/MCP) | go/internal/query/ask/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query ask |
 | Capabilities | go/internal/query/capability/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query capabilities |

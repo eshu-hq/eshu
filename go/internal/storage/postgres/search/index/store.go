@@ -11,14 +11,24 @@ import (
 	"sort"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const eshuSearchIndexDefaultLimit = 100
+
+// searchIndexTracer is package-local so tests can record this leaf's spans
+// without changing tracers used by concurrent query packages.
+var searchIndexTracer = otel.Tracer("github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index")
 
 const eshuSearchIndexStatsQuery = `
 WITH active_generation AS (
@@ -81,33 +91,45 @@ func (s EshuSearchIndexStore) Search(
 	if err := validateEshuSearchIndexSearch(search); err != nil {
 		return EshuSearchIndexSearchResult{}, err
 	}
+	ctx, span := searchIndexTracer.Start(ctx, telemetry.SpanQuerySemanticSearchPersistedIndex)
+	defer span.End()
 	result, err := s.loadStats(ctx, search.ScopeID)
 	if err != nil {
+		recordPersistedIndexStageError(span, "stats")
 		return EshuSearchIndexSearchResult{}, err
 	}
+	span.AddEvent("stats_complete")
 	terms, termKeys := SortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
 	if len(terms) == 0 {
+		span.AddEvent("rows_complete", trace.WithAttributes(attribute.Int("candidate_count", 0)))
 		return result, nil
 	}
 
 	query, args := BuildEshuSearchIndexQuery(search, terms, termKeys)
 	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
+		recordPersistedIndexStageError(span, "query")
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("search persisted eshu search index: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	span.AddEvent("query_returned")
 
 	rank := 0
 	for rows.Next() {
+		if rank == 0 {
+			span.AddEvent("first_row")
+		}
 		var payload []byte
 		var score float64
 		var documentCount int64
 		var corpusMayBeTruncated bool
 		if err := rows.Scan(&payload, &score, &documentCount, &corpusMayBeTruncated); err != nil {
+			recordPersistedIndexStageError(span, "scan")
 			return EshuSearchIndexSearchResult{}, fmt.Errorf("scan persisted eshu search result: %w", err)
 		}
 		var doc searchdocs.Document
 		if err := json.Unmarshal(payload, &doc); err != nil {
+			recordPersistedIndexStageError(span, "decode")
 			return EshuSearchIndexSearchResult{}, fmt.Errorf("decode persisted eshu search document: %w", err)
 		}
 		rank++
@@ -123,9 +145,16 @@ func (s EshuSearchIndexStore) Search(
 		})
 	}
 	if err := rows.Err(); err != nil {
+		recordPersistedIndexStageError(span, "iterate")
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("iterate persisted eshu search results: %w", err)
 	}
+	span.AddEvent("rows_complete", trace.WithAttributes(attribute.Int("candidate_count", rank)))
 	return result, nil
+}
+
+func recordPersistedIndexStageError(span trace.Span, stage string) {
+	span.AddEvent("stage_error", trace.WithAttributes(attribute.String("stage", stage)))
+	span.SetStatus(codes.Error, "")
 }
 
 func (s EshuSearchIndexStore) loadStats(
