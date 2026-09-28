@@ -257,9 +257,10 @@ For new trusted Eshu sessions, `.codex/config.toml` defaults the coordinator
 and the generic child fallback to GPT-6 Luna at high effort. The trusted spawn
 hook blocks generic child requests, so this fallback matters when the hook is
 untrusted or unavailable. A CLI model selection overrides the coordinator
-default. When a spawn selects a custom Eshu role, its role file overrides the
-generic child default with its manifest tier unless a per-spawn model override
-is supplied. The coordinator must only supply one when the owner requests it.
+default. When a spawn selects a custom Eshu role, its role file supplies the
+manifest tier instead of the generic child default. The guard leaves explicit
+per-spawn model fields untouched; verify the resolved child model and only
+request an override when the owner asks for it.
 Routine workhorse roles currently use GPT-6 Sol at medium effort, and deep
 roles use Sol at high effort. Check the resolved model when spawning and audit
 actual usage after long goals. The Codex spawn `PreToolUse` hook requires a

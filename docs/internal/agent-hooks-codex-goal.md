@@ -41,11 +41,12 @@ retested.
 The production guard matches the observed canonical name and requires a named
 Eshu role. It refuses a generic or unknown role instead of assigning a scan
 role to work whose intent it cannot infer. The guard uses the role manifest for
-its allowlist. A selected role file supplies its model binding unless a
-per-spawn model override is supplied. The guard cannot determine whether the
-owner requested that override; the coordinator must honor the goal's explicit
-model choices. A separate 0.158.0 TUI probe ran the committed guard through an
-isolated trusted hook source: a `default` spawn was blocked by `PreToolUse`
+its allowlist. The guard leaves explicit per-spawn model fields untouched. It
+cannot determine whether the owner requested an override or which model the
+spawn tool finally resolves; the coordinator must honor the goal's explicit
+model choices and verify the child model. A separate 0.158.0 TUI probe ran the
+committed guard through an isolated trusted hook source: a `default` spawn was
+blocked by `PreToolUse`
 with the allowed Eshu roles in the reason. The PR worktree's project hook
 source still resolved to the sibling checkout, so this probe proved the guard
 code and canonical matcher, not project-hook activation before merge. Because
