@@ -301,3 +301,39 @@ ifa_workload_cloud_relationship_assert() {
 		-domain workload_cloud_relationship \
 		-expected "${expected_edges}"
 }
+
+# ifa_iam_escalation_drive replays the iam-escalation cassette.
+ifa_iam_escalation_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive iam-escalation \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_iam_escalation_assert pins the five-edge exact set. Called twice per
+# cell for the reason recorded on the namespace assert above: post-delta is
+# the only place an identical-across-N generation-2 mutation shows up.
+#
+# The five edges come from six Allow identity statements converging on five
+# resolved (principal, target) pairs: a policy-target primitive, three
+# primitives on one role merging into a single three-token edge, a
+# group-target primitive, a PassRole-family three-action primitive, and a
+# second principal resolving a user target. A regression
+# that emitted one edge per primitive instead of one per resolved pair would
+# still produce "some edges" and fail only against an exact set. The
+# fixture's other nine statements -- self-loop, deny, conditioned, NotAction,
+# wildcard, unscanned target, unscanned principal, deferred sts:AssumeRole,
+# wrong target -- must contribute nothing; the extractor drops an
+# unresolvable primitive rather than inventing an endpoint, and this set is
+# what holds it to that.
+#
+# The relationship type is CAN_ESCALATE_TO, read off the writer's MERGE and
+# the iamEscalationEdgeLabel const (which IS "CAN_ESCALATE_TO").
+# IAM_ESCALATION appears nowhere in code; the type is never derived from the
+# port or family name.
+ifa_iam_escalation_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert iam_escalation materialized edges (five-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain iam_escalation \
+		-expected "${expected_edges}"
+}

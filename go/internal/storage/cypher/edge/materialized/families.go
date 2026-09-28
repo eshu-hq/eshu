@@ -128,7 +128,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The first four DIRECT-materialization families registered here (#6228).
+	// The first six DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -150,11 +150,11 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 two of the four carry coverage rows. Registering a family
+	// Since #6309 two of the six carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
-	// drives it. workload_cloud_relationship and iam_can_assume still carry
-	// their waiver rows in
+	// drives it. workload_cloud_relationship, iam_can_assume,
+	// iam_can_perform, and iam_escalation still carry their waiver rows in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
@@ -227,6 +227,23 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"CAN_PERFORM": "principal to resource effective-permission attachment (CanonicalIAMCanPerformEdgeUpsertCypher)"},
 		RetractCypher:  sourcecypher.RetractIAMCanPerformEdgesCypher,
 		IdentityCypher: sourcecypher.CanonicalIAMCanPerformEdgeUpsertCypher,
+	},
+	// iam_escalation follows the same static-token shape as iam_can_perform:
+	// CanonicalIAMEscalationEdgeUpsertCypher bakes the static
+	// CAN_ESCALATE_TO token directly into the MERGE (the merged primitive
+	// set lives in rel.primitives, never in the relationship type), so
+	// CAN_ESCALATE_TO is still the only type this writer can emit. The
+	// template MERGEs on its two endpoint nodes alone (both are MATCHed,
+	// never merged, on the uid index), so IdentityProperties stays nil —
+	// the identity scan yields nothing. iamEscalationEdgeLabel IS
+	// "CAN_ESCALATE_TO" here (the const doubles as the relationship type
+	// and the statement-metadata tag); "IAM_ESCALATION" appears nowhere in
+	// code, so the type is read off the template, never derived from the
+	// port or family name.
+	"iam_escalation": {
+		EdgeTypes:      map[string]string{"CAN_ESCALATE_TO": "principal to target privilege-escalation attachment (CanonicalIAMEscalationEdgeUpsertCypher)"},
+		RetractCypher:  sourcecypher.RetractIAMEscalationEdgesCypher,
+		IdentityCypher: sourcecypher.CanonicalIAMEscalationEdgeUpsertCypher,
 	},
 }
 

@@ -133,12 +133,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
   - surface: "materialized_edges:assumes_iam_role"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
   - surface: "materialized_edges:authenticates_vault_role"
     proof_gate: ifa-determinism
     issue: "#6228"

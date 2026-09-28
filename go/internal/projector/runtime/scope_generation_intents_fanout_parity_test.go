@@ -137,6 +137,13 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 		factID: "iam-permission-inline-1", entityKey: "aws_resource_materialization:mixed:fanout:demo",
 		reason: "aws iam identity or resource-policy permission statements observed", sourceSystem: "aws",
 	},
+	reducer.DomainIAMEscalationMaterialization: {
+		// Skips the "trust" policy_source permission and anchors the
+		// inline-policy-source permission, the same earliest identity
+		// fact the perform builder anchors.
+		factID: "iam-permission-inline-1", entityKey: "aws_resource_materialization:mixed:fanout:demo",
+		reason: "aws iam identity statements observed", sourceSystem: "aws",
+	},
 	reducer.DomainIAMInstanceProfileRoleMaterialization: {
 		factID: "aws-resource-iam-profile-1", entityKey: "aws_resource_materialization:mixed:fanout:demo",
 		reason: "iam instance profiles observed", sourceSystem: "aws",
@@ -281,6 +288,7 @@ var fanOutParityExpectedOrder = []reducer.Domain{
 	reducer.DomainCodeFunctionSummary,
 	reducer.DomainIAMCanAssumeMaterialization,
 	reducer.DomainIAMCanPerformMaterialization,
+	reducer.DomainIAMEscalationMaterialization,
 	reducer.DomainS3LogsToMaterialization,
 	reducer.DomainS3ExternalPrincipalGrantMaterialization,
 	reducer.DomainRDSPostureMaterialization,
@@ -307,7 +315,7 @@ var fanOutParityExpectedOrder = []reducer.Domain{
 
 // TestAppendScopeGenerationReducerIntentsFanOutParity is the #4875 accuracy
 // gate: it proves appendScopeGenerationReducerIntents (and, after the shared
-// reducerIntentFactIndex lands, the 45 reducer-intent builder probes it fans out
+// reducerIntentFactIndex lands, the 46 reducer-intent builder probes it fans out
 // to) emits byte-identical intents — same anchor fact, entity key, reason,
 // source system, and payload for every domain — before and after the index
 // refactor. fanOutParityExpectations was captured from the pre-refactor

@@ -1,0 +1,468 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "aws",
+      "facts": [
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:user/attacker",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:user/attacker",
+            "resource_type": "aws_iam_user"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:user/attacker"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:user/victim",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:user/victim",
+            "resource_type": "aws_iam_user"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:user/victim"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:policy/team-policy",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:policy/team-policy",
+            "resource_type": "aws_iam_policy"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:policy/team-policy"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/exec-role",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/exec-role",
+            "resource_type": "aws_iam_role"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:role/exec-role"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/deploy-role",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/deploy-role",
+            "resource_type": "aws_iam_role"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:role/deploy-role"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:group/admins",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:group/admins",
+            "resource_type": "aws_iam_group"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:group/admins"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/bystander",
+            "region": "aws-global",
+            "resource_id": "arn:aws:iam::123456789012:role/bystander",
+            "resource_type": "aws_iam_role"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:arn:aws:iam::123456789012:role/bystander"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:createpolicyversion"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:policy/team-policy"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:createpolicyversion::arn:aws:iam::123456789012:policy/team-policy:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:attachrolepolicy"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/exec-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:attachrolepolicy::arn:aws:iam::123456789012:role/exec-role:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:putrolepolicy",
+              "iam:updateassumerolepolicy"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/exec-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:putrolepolicy,iam:updateassumerolepolicy::arn:aws:iam::123456789012:role/exec-role:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:addusertogroup"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:group/admins"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:addusertogroup::arn:aws:iam::123456789012:group/admins:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:passrole",
+              "lambda:createfunction",
+              "lambda:invokefunction"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/deploy-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:passrole,lambda:createfunction,lambda:invokefunction::arn:aws:iam::123456789012:role/deploy-role:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:createaccesskey"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/victim",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:user/attacker"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/victim:Allow:iam:createaccesskey::arn:aws:iam::123456789012:user/attacker:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:createaccesskey"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:user/attacker"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:createaccesskey::arn:aws:iam::123456789012:user/attacker:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:attachuserpolicy"
+            ],
+            "effect": "Deny",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:user/victim"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Deny:iam:attachuserpolicy::arn:aws:iam::123456789012:user/victim:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:putuserpolicy"
+            ],
+            "condition_keys": [
+              "aws:MultiFactorAuthPresent"
+            ],
+            "effect": "Allow",
+            "has_conditions": true,
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:user/victim"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:putuserpolicy::arn:aws:iam::123456789012:user/victim:aws:MultiFactorAuthPresent"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:putgrouppolicy"
+            ],
+            "effect": "Allow",
+            "not_actions": [
+              "iam:deletegrouppolicy"
+            ],
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:group/admins"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:putgrouppolicy:iam:deletegrouppolicy:arn:aws:iam::123456789012:group/admins:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:updateloginprofile"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "*"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:updateloginprofile::*:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:createloginprofile"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:policy/ghost-unscanned"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:createloginprofile::arn:aws:iam::123456789012:policy/ghost-unscanned:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:attachrolepolicy"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/ghost-unscanned",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/exec-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/ghost-unscanned:Allow:iam:attachrolepolicy::arn:aws:iam::123456789012:role/exec-role:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "sts:assumerole"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/exec-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:sts:assumerole::arn:aws:iam::123456789012:role/exec-role:"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_iam_permission",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "actions": [
+              "iam:createaccesskey"
+            ],
+            "effect": "Allow",
+            "policy_source": "inline",
+            "principal_arn": "arn:aws:iam::123456789012:user/attacker",
+            "principal_type": "user",
+            "region": "aws-global",
+            "resources": [
+              "arn:aws:iam::123456789012:role/exec-role"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_permission:arn:aws:iam::123456789012:user/attacker:Allow:iam:createaccesskey::arn:aws:iam::123456789012:role/exec-role:"
+        }
+      ],
+      "generation_id": "gen-ifa-iam-escalation-family-1",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "aws-global",
+        "service_kind": "iam"
+      },
+      "observed_at": "2026-09-27T00:00:00Z",
+      "partition_key": "aws:eshu-fixture-iam-escalation-account",
+      "scope_id": "aws:eshu-fixture-iam-escalation-account",
+      "scope_kind": "region",
+      "source_system": "aws",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}
