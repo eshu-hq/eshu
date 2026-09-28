@@ -143,6 +143,29 @@ func TestValidateManifestRejectsForbiddenPlanOperators(t *testing.T) {
 	}
 }
 
+// Neo4j emits no operator named UnboundedExpand, so listing it as forbidden
+// guards nothing (#7335). Unbounded traversal is checked from the expansion
+// operator's plan details instead; the validator keeps the dead name out.
+func TestValidateManifestRejectsUnboundedExpandPseudoOperator(t *testing.T) {
+	manifest := singleCypherManifest(`
+		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
+		RETURN f.path AS path
+		ORDER BY path
+		LIMIT $limit
+	`)
+	for _, spelling := range []string{"UnboundedExpand", "unboundedexpand", " UNBOUNDEDEXPAND "} {
+		manifest.Entries[0].Plan = PlanExpectation{
+			Operators:          []string{"NodeIndexSeek"},
+			ForbiddenOperators: []string{"AllNodesScan", spelling},
+		}
+
+		err := ValidateManifest(manifest, schemaStatements())
+		if err == nil || !strings.Contains(err.Error(), "UnboundedExpand is not a Neo4j operator") {
+			t.Fatalf("ValidateManifest(%q) error = %v, want the UnboundedExpand pseudo-operator rejected", spelling, err)
+		}
+	}
+}
+
 func TestValidateManifestRejectsMissingSchemaEvidence(t *testing.T) {
 	manifest := singleCypherManifest(`
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)

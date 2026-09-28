@@ -39,7 +39,7 @@ entries:
     requires_order: true
     plan: &indexed_plan
       operators: [NodeIndexSeek, Expand]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
 
   # The directory language-query statement (#6541). It is the one entry here
   # whose anchor is not a Repository: it seeks a granted repository's
@@ -235,7 +235,7 @@ entries:
       - The CALL wrapper preserves later UNION branches when an earlier concrete-label branch is empty on pinned NornicDB; each arm repeats the equality-indexed digest anchor. Every digest query is bounded to its balanced quota (plus one all-scope sentinel), for aggregate graph work of at most 200 scoped or 400 all-scope candidates.
     plan:
       operators: [NodeIndexSeek, Expand]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
 
   - id: QP-CALL-GRAPH-HUBS
     domain: code
@@ -273,7 +273,7 @@ entries:
     caveats: [Eight scalar CALL subqueries return all fixed facet counts in one round trip; every subquery returns exactly one row and stays label-bounded, the live Neo4j gate requires exactly seven bounded one-row CartesianProduct joins plus eight count-store anchors, and no all-node scan is permitted.]
     plan:
       operators: [NodeCountFromCountStore, CartesianProduct]
-      forbidden_operators: [AllNodesScan, UnboundedExpand]
+      forbidden_operators: [AllNodesScan]
 
   - id: QP-GRAPH-ENTITY-LIST
     domain: graph
@@ -289,7 +289,7 @@ entries:
     caveats: [Substring search is label-bounded; PROFILE must reject an all-node scan even when the backend cannot use the name index for CONTAINS.]
     plan:
       operators: [NodeByLabelScan]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
 
   - id: QP-WORKLOAD-RESOLVE-PROPERTY
     domain: entity
@@ -331,7 +331,7 @@ entries:
     caveats: [The production resolver runs one direct query per reachable label with at most four read sessions; the safe-variant family PROFILEs every reachable label, type, environment, access, and exact or fuzzy shape.]
     plan:
       operators: [NodeByLabelScan]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
 
   - id: QP-RESOURCE-INVESTIGATION-WORKLOADS
     domain: impact
@@ -347,7 +347,7 @@ entries:
     caveats: [The NornicDB-safe query anchors on the USES relationship type and a whitelisted resource label; Neo4j may choose DirectedRelationshipTypeScan on an empty proof graph, which remains bounded by relationship type and LIMIT.]
     plan:
       operators: [DirectedRelationshipTypeScan]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
 
   - id: QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
     domain: impact
@@ -374,4 +374,4 @@ entries:
     caveats: [The NornicDB-safe path read starts from the resolved whitelisted resource label and has fixed max depth plus LIMIT; the retained 91k-node precedent measured the label-bounded form at 1.2ms versus 410ms unlabeled.]
     plan:
       operators: [NodeByLabelScan, VarLengthExpand]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]

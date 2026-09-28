@@ -655,6 +655,10 @@ tests:
     tag: queryplan_profile_live
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/queryplan_profile_unbounded_live_test.go
+    tag: queryplan_profile_live
+    class: scheduled
+    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/relationships_catalog_lambda_image_scope_nornicdb_live_test.go
     tag: ~
     class: scheduled

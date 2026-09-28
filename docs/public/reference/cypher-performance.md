@@ -840,8 +840,8 @@ The verb, source label, and source property come only from the fixed
 `relationshipVerbCatalog`, never from request input. The
 `QP-RELATIONSHIPS-CATALOG-COUNT` gate requires `RelationshipTypeScan` and the
 `QP-RELATIONSHIPS-EDGES` gate retains the `Function` source-label index evidence
-for the representative `CALLS` slice. Both forbid `AllNodesScan`,
-`CartesianProduct`, and `UnboundedExpand`. Catalog cost is one typed count per
+for the representative `CALLS` slice. Both forbid `AllNodesScan`, `CartesianProduct` and unbounded expansion,
+read from plan details since Neo4j has no `UnboundedExpand` operator (#7335). Catalog cost is one typed count per
 fixed verb at page load; the capability matrix records a 2000 ms local p95 and
 3000 ms production p95 budget for `platform_impact.relationships_catalog`.
 

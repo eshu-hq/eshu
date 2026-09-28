@@ -118,6 +118,9 @@ creates schema objects.
 
 - Cypher entries must be anchored on declared label/property pairs.
 - Variable-length traversals must have an upper bound.
+- `forbidden_operators` must not list `UnboundedExpand`. Neo4j has no operator
+  by that name, so the check could never fire. The live PROFILE proof reads the
+  bound from the expansion operator's Details instead (#7335).
 - Paginated paths using `SKIP` must order before offsetting.
 - Required schema names must exist in the supplied schema statement list.
 - SQL/read-model entries must carry caveats so the gate does not pretend they
@@ -136,6 +139,16 @@ PROFILE proof. Run the live proof independently as:
 ```bash
 scripts/verify-query-plan-profile.sh
 ```
+
+No-Regression Evidence (#7335): the baseline gate passed an unbounded
+`[:CALLS*]` read. After the change, the same Neo4j 2026.05.0 PROFILE run (the
+pinned image, 927 production shapes) passes with the plan-details check active,
+and the seeded unbounded, lower-bound-only, DISTINCT and quantified `SHORTEST`
+shapes fail. The change only rejects manifest entries and plans. It does not
+change any production query.
+
+No-Observability-Change (#7335): the new check runs in tests and the validator
+only, so it adds no metric, span, log or runtime path.
 
 No-Observability-Change: this package performs static validation only. It adds
 no API route, graph query, graph write, metric, span, runtime knob, queue work,

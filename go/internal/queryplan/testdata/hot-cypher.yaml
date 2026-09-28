@@ -65,7 +65,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "4659ec15db9b2b6c47609e1ac4a26b93d89d34dd9b18925e78983d50042f6ec1"
   - id: QP-SC-PKGREG-DEPS
     domain: supply_chain
@@ -123,7 +122,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "ba83cb90cf425cbea234e759660bbdde842c0021626df6b95c58214b483f90cc"
   - id: QP-DEPLOY-CATALOG-WORKLOAD-REPO
     domain: deployable
@@ -151,7 +149,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "05f0ec10527a2710d5c54fa4c0825ce7b9437fab5181e660f80ba315f163f44e"
   - id: QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE
     domain: deployable
@@ -180,7 +177,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "d12bf86cbc4a55ae7255a7953e28968a843be9e3a8081dee6124871d2ae896ae"
   - id: QP-SVC-RESOLVE
     domain: service
@@ -266,7 +262,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "139559a6f53158a507a54ee5bf4f610dc6fe40604ec0e30d744cce4cbd75ab9e"
   - id: QP-SVC-RUNS-ON
     domain: service
@@ -391,7 +386,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "5900cdd68cc579fd2756b7135995db270e982bbdd10d74ebcb2a0f29e9dd008a"
   - id: QP-CODE-REL-STORY-INCOMING
     domain: code_relationship
@@ -479,7 +473,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "03d641efabac1a59818e790354ed551d528db1cc3b6ee8755ec608a3d2917569"
   - id: QP-READINESS-HOSTED
     domain: readiness
@@ -500,7 +493,6 @@ entries:
         - LabelCount
       forbidden_operators:
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "408895ec7f111c5838d75c5a47ddd5dfd6c4da2d59bcbc94ea04a5301f2f63d3"
   - id: QP-READINESS-SC-IMPACT
     domain: readiness
@@ -540,7 +532,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "f1e6c69d7adb7491d85781bf5ad112c9ecbb2df485b82330730f19109584044f"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
@@ -570,7 +561,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "bec2c0827f2e94edfaa1f66f638ea1d2f70d3083e9d637bb6f96ce7ea6156687"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
     domain: impact
@@ -600,7 +590,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "e99de77e702476efce7933fdc1158b4e6ed787d2df060013c8ed91323c026708"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED
     domain: impact
@@ -630,7 +619,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "65d78abe8f017f7586889fcb4c1c7437e7339b982c0c4e0d8500360dba51eda9"
   - id: QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
     domain: impact
@@ -658,7 +646,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "da11d286386c199f8bb79be0ff341992129f63b8a205626953429774d78fadd2"
   - id: QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION
     domain: impact
@@ -689,7 +676,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "51a52e966308dfb470b80594aaade4d6f6f933e704af28d470800e3aa78f5303"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
@@ -708,7 +694,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "5b291be26d0e23d5fad1af36da66d405ac1a04c3c8071db8f1387c56cf367907"
   - id: QP-RELATIONSHIPS-EDGES
     domain: relationships
@@ -734,7 +719,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "06e16468d5b5e94368f95850826cca3e343dfe0b80c3e1931c821a9c42434331"
   - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
     domain: relationships
@@ -757,7 +741,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "07a13370f975567f59765dd1dac5ac7ebb0c700df5536a518cf7a3ca23905aa0"
   - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
     domain: relationships
@@ -780,7 +763,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "0e19f900818725d51a410a03f3cefe9f59b126381c71ed029366ab28b4ac7d8e"
   - id: QP-INFRA-RESOURCE-SEARCH
     domain: infra
@@ -804,7 +786,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "7047e6e0961883a760e32a9523cd0d5b6553d572611062e09e4caaafd92151c3"
   - id: QP-INFRA-RESOURCE-AGGREGATE
     domain: infra
@@ -825,7 +806,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "c5c0da930b9583c73ffff79fdea9a7118da9a7ce65d2cc9ea32d052d63efd750"
   - id: QP-INFRA-RESOURCE-AGGREGATE-GRAPH
     domain: infra
@@ -854,7 +834,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "5bfabda32742f7065a2e4afad85fea257559b88183ae83092838a6a992c239bc"
   - id: QP-CODEOWNERS-OWNERSHIP-LIST
     domain: codeowners
@@ -887,7 +866,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "06032344e19c7986a918a147ae1713bffec21ad0e42774fb523ef503e7fcea12"
   - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER
     domain: codeowners
@@ -908,7 +886,7 @@ entries:
       - First of three mutually exclusive cursor branches; selects rows with a larger order_index. The handler merges the three bounded branch results and retains limit+1 rows.
     plan:
       operators: [NodeIndexSeek, Expand, Sort]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
     cypher_sha256: "e15ec98bf46edc11192f125f3d2c7f7643f6b1c6a50e00f05284df098970cae4"
   - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN
     domain: codeowners
@@ -929,7 +907,7 @@ entries:
       - Second mutually exclusive cursor branch; holds order_index equal and selects a larger pattern. It avoids the pinned NornicDB mixed-OR false-empty behavior.
     plan:
       operators: [NodeIndexSeek, Expand, Sort]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
     cypher_sha256: "51bc6c9a6f029cce81ef857cf0c676218e945f4036112a3be1cd70576858955c"
   - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-REF
     domain: codeowners
@@ -950,7 +928,7 @@ entries:
       - Third mutually exclusive cursor branch; holds order_index and pattern equal and selects a larger owner ref, completing the lexicographic suffix without OR.
     plan:
       operators: [NodeIndexSeek, Expand, Sort]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct]
     cypher_sha256: "94ab89b32f69843998d6f80eeeb21cf6ecde5ba038e6e1cc00245d7cca85724e"
   - id: QP-CODEOWNERS-LAST-MATCH-OWNER
     domain: codeowners
@@ -983,7 +961,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "b18dcd0994646aea41750cec8817cd4464e58c737300ad4435e8121373d7bffd"
   - id: QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT
     domain: repository
@@ -1029,7 +1006,6 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "29c6fce224b6b2c81b81810567e41ed1d28bd35ec254edafa90c26c361480aef"
   - id: QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES
     domain: repository
@@ -1055,5 +1031,4 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-        - UnboundedExpand
     cypher_sha256: "8500cbef13c5e1b7820ce2768dfc9abee127b228755a370fc5dd6ef8c71d190b"

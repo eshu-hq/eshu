@@ -66,12 +66,12 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 
 func TestQueryplanForbiddenOperatorPolicyIsClosed(t *testing.T) {
 	entry := queryplan.Entry{Plan: queryplan.PlanExpectation{ForbiddenOperators: []string{"Eager"}}}
-	want := []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand", "Eager"}
+	want := []string{"AllNodesScan", "CartesianProduct", "Eager"}
 	if got := queryplanForbiddenOperators(entry); !slices.Equal(got, want) {
 		t.Fatalf("queryplanForbiddenOperators() = %v, want %v", got, want)
 	}
 	scalarEntry := queryplan.Entry{ID: "QP-GRAPH-ENTITY-COUNT"}
-	if got, want := queryplanForbiddenOperators(scalarEntry), []string{"AllNodesScan", "UnboundedExpand"}; !slices.Equal(got, want) {
+	if got, want := queryplanForbiddenOperators(scalarEntry), []string{"AllNodesScan"}; !slices.Equal(got, want) {
 		t.Fatalf("queryplanForbiddenOperators(scalar count) = %v, want %v", got, want)
 	}
 }
@@ -170,6 +170,7 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 			assertProfileExcludesOperators(t, entry, operators)
 			assertProfileCartesianBound(t, entry, operators)
 			assertProfileHasBoundedAnchor(t, entry, operators)
+			assertNoUnboundedVarLength(t, entry.ID, profile)
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
 	}
@@ -219,6 +220,7 @@ func profileQueryplanSafeProductionVariants(
 			}
 			operators := profiledPlanOperators(profile)
 			assertProductionVariantOperators(t, name, operators)
+			assertNoUnboundedVarLength(t, "production variant "+name, profile)
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
 	}
@@ -226,7 +228,7 @@ func profileQueryplanSafeProductionVariants(
 
 func assertProductionVariantOperators(t *testing.T, name string, operators []string) {
 	t.Helper()
-	for _, forbidden := range []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand"} {
+	for _, forbidden := range []string{"AllNodesScan", "CartesianProduct"} {
 		for _, operator := range operators {
 			if strings.EqualFold(operator, forbidden) {
 				t.Fatalf("production variant %s contains forbidden operator %s: %v", name, operator, operators)
@@ -345,7 +347,6 @@ func queryplanForbiddenOperators(entry queryplan.Entry) []string {
 	if entry.ID != "QP-GRAPH-ENTITY-COUNT" {
 		forbidden = append(forbidden, "CartesianProduct")
 	}
-	forbidden = append(forbidden, "UnboundedExpand")
 	seen := make(map[string]struct{}, len(forbidden))
 	for _, operator := range forbidden {
 		seen[operator] = struct{}{}
