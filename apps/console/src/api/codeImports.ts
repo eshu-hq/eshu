@@ -113,8 +113,11 @@ async function fetchCodeImportCycles(
     cycles,
     count: data.count ?? cycles.length,
     truncated: data.truncated === true,
-    // An API that predates has_more sent a cursor exactly when another page
-    // existed, so fall back to the cursor.
+    // An API that predates has_more sent a cursor whenever another page
+    // existed, so fall back to the cursor. That older API also echoed the request
+    // offset as a cursor on the last page of a capped run, so against it a capped
+    // last page still reads as "more available": no worse than before, and the
+    // very case has_more exists to fix.
     hasMore: typeof data.has_more === "boolean" ? data.has_more : nextOffset !== null,
     nextOffset,
   };

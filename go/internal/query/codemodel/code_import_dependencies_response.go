@@ -266,7 +266,13 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 		coverage["cycle_enumeration_cap"] = importCycleEnumerationCap
 		coverage["cycle_enumeration_truncated"] = enumeration.Truncated
 		coverage["cycle_enumeration_stop_reason"] = enumeration.StopReason
-		coverage["cycle_enumeration_step_budget"] = enumeration.StepBudget
+		// A caller that passes the zero enumeration must not publish a budget of
+		// 0, which would read as "no budget"; the walk always carries its own.
+		stepBudget := enumeration.StepBudget
+		if stepBudget == 0 {
+			stepBudget = importCycleEnumerationStepBudget
+		}
+		coverage["cycle_enumeration_step_budget"] = stepBudget
 	}
 	return coverage
 }

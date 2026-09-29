@@ -335,6 +335,14 @@ func TestCycleCoverageReportsTheBudgetTheWalkRanUnder(t *testing.T) {
 		t.Fatalf("coverage.cycle_enumeration_step_budget = %#v, want the enumeration's own budget 123", got)
 	}
 
+	// A caller that passes the zero enumeration for a cycle request must not
+	// publish a step budget of 0, which would read as "no budget".
+	zero := ImportDependencyResponseWithCycleEnumeration(req, nil, CycleEnumeration{})
+	zeroCoverage, _ := zero["coverage"].(map[string]any)
+	if got := zeroCoverage["cycle_enumeration_step_budget"]; got != importCycleEnumerationStepBudget {
+		t.Fatalf("zero-enumeration coverage step budget = %#v, want the package budget %d", got, importCycleEnumerationStepBudget)
+	}
+
 	empty := ImportDependencyResponse(req, nil)
 	emptyCoverage, _ := empty["coverage"].(map[string]any)
 	if got := emptyCoverage["cycle_enumeration_step_budget"]; got != importCycleEnumerationStepBudget {
