@@ -160,7 +160,13 @@ func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database 
 	}()
 
 	// Let the mirror query block on the holder's row lock before racing it.
-	time.Sleep(750 * time.Millisecond)
+	// A fixed sleep can pass without the mirror ever reaching its blocking
+	// lock on a loaded host: it would then take a fresh post-commit
+	// snapshot, filter the raced row out on its own, and return zero rows,
+	// so the assertions below would pass without ever exercising the
+	// EvalPlanQual recheck this test exists to prove. Poll for the mirror's
+	// own backend actually waiting on a lock instead.
+	waitForMirrorLockWait(t, ctx, database)
 	race(holder)
 	if err := holder.Commit(); err != nil {
 		t.Fatalf("holder commit: %v", err)
@@ -171,4 +177,33 @@ func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database 
 		t.Fatalf("mirror query: %v", lockErr)
 	}
 	return locked
+}
+
+// waitForMirrorLockWait polls pg_stat_activity for a backend other than this
+// one blocked on a lock while running a query against scope_generations: the
+// mirror goroutine's blocking-lock variant of the candidate query, actually
+// waiting on the holder's row lock rather than merely dispatched. Fails the
+// test if that never happens within the deadline, so the race case cannot
+// silently skip the wait it exists to force.
+func waitForMirrorLockWait(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var blocked int
+		if err := database.QueryRowContext(ctx,
+			`SELECT count(*) FROM pg_stat_activity
+			 WHERE pid <> pg_backend_pid()
+			   AND wait_event_type = 'Lock'
+			   AND query LIKE '%scope_generations%'`,
+		).Scan(&blocked); err != nil {
+			t.Fatalf("poll mirror wait: %v", err)
+		}
+		if blocked > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("mirror query never blocked on the holder row lock")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 }
