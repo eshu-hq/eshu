@@ -89,6 +89,9 @@ func TestRepoIDPredicateMatchesTheAliasExactly(t *testing.T) {
 	if !repoIDPredicate([]string{"(repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"}, "repo") {
 		t.Fatal("repo.id predicate not recognised")
 	}
+	if !repoIDPredicate([]string{"(repo.id IN $allowed_scope_ids)"}, "repo") {
+		t.Fatal("a scope-only repo.id predicate must count as a repo.id predicate")
+	}
 	if repoIDPredicate([]string{"(source_repo.id IN $allowed_repository_ids)"}, "repo") {
 		t.Fatal("source_repo.id predicate read as repo.id")
 	}

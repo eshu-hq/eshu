@@ -63,11 +63,11 @@ func storyPredicateAdmits(predicate string, repoByAlias map[string]string, param
 	return true
 }
 
-// repoIDPredicate reports whether any predicate tests alias.id against a grant.
-// The alias must start at a word boundary, so `source_repo.id` does not count
-// as `repo.id`.
+// repoIDPredicate reports whether any predicate tests alias.id against either
+// grant list. The alias must start at a word boundary, so `source_repo.id` does
+// not count as `repo.id`.
 func repoIDPredicate(predicates []string, alias string) bool {
-	pattern := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(alias) + `\.id IN \$allowed_repository_ids`)
+	pattern := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(alias) + `\.id IN \$allowed_(?:repository|scope)_ids`)
 	for _, predicate := range predicates {
 		if pattern.MatchString(predicate) {
 			return true
