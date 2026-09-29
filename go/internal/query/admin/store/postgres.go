@@ -39,6 +39,24 @@ type postgresStore struct {
 	now       func() time.Time
 }
 
+// deadLetterNoteDetailsSQL and skipNoteDetailsSQL are the failure_details
+// assignment of the two operator-note statements, over the note parameter each
+// one binds ($2 and $3). An empty note leaves the row's details as they are; a
+// note becomes the details and the row's current failure evidence rides under
+// prior_failure, the same fold the supersede writers use (#7388). The row only
+// holds the details it failed with: dead-letter acts on failed and dead_letter
+// rows, skip on unleased pending, retrying and failed rows.
+const (
+	deadLetterNoteDetailsSQL = `CASE
+        WHEN NULLIF($2, '') IS NULL THEN work.failure_details
+        ELSE (jsonb_build_object('operator_note', $2::text) || ` + pgstatus.PriorFailureWorkSQL + `)::text
+    END`
+	skipNoteDetailsSQL = `CASE
+            WHEN NULLIF($3, '') IS NULL THEN work.failure_details
+            ELSE (jsonb_build_object('operator_note', $3::text) || ` + pgstatus.PriorFailureWorkSQL + `)::text
+        END`
+)
+
 func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilter) ([]admin.WorkItem, error) {
 	query, args := buildListWorkItemsQuery(f)
 	return scanWorkItems(ctx, s.database, query, args...)
@@ -61,7 +79,7 @@ SET status = 'dead_letter',
     visible_at = $1,
     failure_class = COALESCE(NULLIF(work.failure_class, ''), 'operator_dead_letter'),
     failure_message = COALESCE(NULLIF(work.failure_message, ''), 'dead-lettered by operator'),
-    failure_details = COALESCE(NULLIF($2, ''), work.failure_details),
+    failure_details = `+deadLetterNoteDetailsSQL+`,
     updated_at = $1
 `)
 	args = append([]any{now, strings.TrimSpace(f.OperatorNote)}, args...)
@@ -93,9 +111,9 @@ WITH selected AS (
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $2,
-        failure_class = COALESCE(work.failure_class, 'operator_skipped'),
+        failure_class = COALESCE(NULLIF(work.failure_class, ''), 'operator_skipped'),
         failure_message = COALESCE(NULLIF(work.failure_message, ''), 'skipped by operator'),
-        failure_details = COALESCE(NULLIF($3, ''), work.failure_details),
+        failure_details = ` + skipNoteDetailsSQL + `,
         updated_at = $2
     FROM selected
     WHERE work.work_item_id = selected.work_item_id
