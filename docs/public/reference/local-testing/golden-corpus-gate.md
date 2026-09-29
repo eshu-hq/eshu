@@ -364,6 +364,7 @@ storage, the pipeline command binaries, the cassettes, or the snapshot). Its
 `specs/ci-gates.v1.yaml`), because Neo4j is the supported backend.
 `corpus-gate (nornicdb)` is watch-only (`golden-corpus-gate`: `blocking: false`,
 layer `secondary`): a red NornicDB cell is a backend-drift signal to triage, and
-`required-gates-complete` does not wait for it. The replay-coverage manifest
-cites the Neo4j row as each entry's `proof_gate`, because the coverage gate
-rejects a proof gate that does not block.
+`required-gates-complete` does not wait for it. The `differential nornicdb vs
+neo4j` job also runs NornicDB and is unchanged: it stays blocking. The
+replay-coverage manifest cites the Neo4j row as each entry's `proof_gate`,
+because the coverage gate rejects a proof gate that does not block.

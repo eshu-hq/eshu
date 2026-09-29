@@ -24,6 +24,28 @@ require_workflow_path() {
 	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow}" "- '${path_glob}'"
 }
 
+# #7362: the pre-pr live step must run the blocking Neo4j leg. Scoped to the
+# `run_or_defer golden-corpus` step (its first line through its `|| rc=1`), not
+# the whole file, so an identical env line elsewhere in pre-pr.sh cannot satisfy
+# it while the real step reverts to the default backend. `sed -n` prints EVERY
+# range that matches, so a second same-named step would widen the region and
+# could supply the one needle home while never running. The opener is therefore
+# counted with the SAME predicate, in the SAME engine (sed), that starts the
+# region: one variable feeds both, so the two cannot disagree about what counts
+# as whitespace (a form feed, vertical tab or carriage return after the name
+# opens the region just as a space does) or about a one-line or argument-bearing
+# opener.
+golden_step_opener='^[[:space:]]*run_or_defer golden-corpus[[:space:]]'
+# `=` prints a terminated line NUMBER per match. Counting the matched lines with
+# `p | wc -l` would miss an unterminated last line, because wc counts newlines
+# while the region still opens on that line.
+golden_step_openers="$(sed -n "/${golden_step_opener}/=" "${prepr}" | wc -l | tr -d ' ')"
+[[ "${golden_step_openers}" == 1 ]] ||
+	fail "pre-pr golden-corpus step opener must appear exactly once in $(basename "${prepr}"), found ${golden_step_openers} (#7362)"
+require_in_region "pre-pr golden-corpus live step runs the blocking Neo4j leg (#7362)" "${prepr}" \
+	"/${golden_step_opener}/,/|| rc=1/" \
+	'env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh"'
+
 # --- established (#5596) ----------------------------------------------------
 require_workflow_path "collector fact emission"        "go/internal/collector/**"
 require_workflow_path "parser fact emission"           "go/internal/parser/**"

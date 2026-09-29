@@ -2522,7 +2522,9 @@ gates:
   # the supported backend and golden-corpus-gate-neo4j is the blocking truth
   # gate, so this leg is watch-only: it reports NornicDB drift without holding
   # a merge. required-gates-complete waits only for registry-blocking gates, and
-  # the ruleset lists no per-leg context, so no ruleset change is involved.
+  # the ruleset lists no per-leg context, so no ruleset change is involved. This
+  # covers the corpus-gate (nornicdb) cell only: golden-corpus-differential
+  # still runs the NornicDB B-7 capture and stays blocking (out of scope here).
   - id: golden-corpus-gate
     name: Golden Corpus Gate on NornicDB (Docker)
     category: exactness
