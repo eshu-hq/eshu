@@ -113,10 +113,13 @@ modifier such as `import { type B, C } from "m"` (only `B` is flagged), and for
 
 The parser sets no `deferred` or `inferred` flag for TypeScript or JavaScript:
 the tsconfig resolver only returns files that exist on disk, and dynamic
-`import()` is not part of the import bucket. A `with`/`assert` attribute
-re-export recovered from a grammar error shape flags only a per-specifier
-`type` modifier, not a statement-level `export type`. The fixture gate is
-`TestDefaultEngineParsePathTypeScriptImportFlags`.
+`import()` is not part of the import bucket. Two spellings stay unflagged on
+purpose or by limit: `export { type as Y } from "m"` re-exports the value named
+`type` and is not type-only, and `export type * from "m" with { ... }` (a star
+re-export with an import attribute, recovered from a grammar error shape) loses
+its statement-level `type`, which errs toward keeping the edge. The fixture
+gates are `TestDefaultEngineParsePathTypeScriptImportFlags` and
+`TestDefaultEngineParsePathTypeScriptReExportTypeModifierEdges`.
 
 ## Related Docs
 

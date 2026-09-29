@@ -221,7 +221,7 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,
-			TypeOnly:     hasTypeModifier(candidate),
+			TypeOnly:     exportSpecifierIsTypeOnly(candidate, nameNode, aliasNode, source),
 			lineNumber:   shared.NodeLine(candidate),
 		})
 	})

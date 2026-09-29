@@ -51,6 +51,11 @@ func main() { fmt.Println(str.ToUpper("x"), Pi) }
 	for _, item := range items {
 		name, _ := item["name"].(string)
 		seen[name] = true
+		if name == "embed" || name == "math" {
+			if alias, present := item["alias"]; present {
+				t.Errorf("go import %q alias = %#v, want dropped for blank and dot imports", name, alias)
+			}
+		}
 		for _, flag := range []string{"type_only", "deferred", "inferred"} {
 			if value, present := item[flag]; present {
 				t.Errorf("go import %q flag %q = %#v, want absent", name, flag, value)

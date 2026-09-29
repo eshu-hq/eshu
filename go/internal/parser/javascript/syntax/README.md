@@ -54,7 +54,8 @@ does not import its sibling `project` either — the two are independent.
 - `ReExportEntries`, `ReExportSource`, `ReExportSpecifiers`, `IsStarReExport`,
   `ReExportSpecifier` — re-export rows and their specifier pairs
   (`ReExportSpecifier.TypeOnly` and a statement-level `export type` set
-  `type_only` on the row, see #7344; `ReExportSource` reads only the grammar's string-literal `source` field, and
+  `type_only` on the row, except that `export { type as Y }` is a value
+  re-export and stays unflagged, see #7344; `ReExportSource` reads only the grammar's string-literal `source` field, and
   the specifier text fallback never reads a declaration export's body; there is
   no text scan for `from`, see #7056)
 - `ReExportAttributeEntries` — re-export rows for `with`/`assert` attribute

@@ -172,3 +172,55 @@ func assertNoOtherImportFlags(t *testing.T, item map[string]any) {
 		}
 	}
 }
+
+// TestDefaultEngineParsePathTypeScriptReExportTypeModifierEdges pins two edges
+// of the re-export type modifier found in #7344 review. `export { type as Y }`
+// re-exports the VALUE named type under the alias Y (TypeScript 4.5), so it must
+// not be flagged, or a real runtime edge could be excluded from cycle results.
+// A comment between `export` and `type` must not hide a genuinely type-only
+// statement.
+func TestDefaultEngineParsePathTypeScriptReExportTypeModifierEdges(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "edges.ts")
+	writeTestFile(t, filePath, `export { type as Y } from "./value";
+export /* note */ type { Q } from "./commented";
+export type /* note */ { R } from "./commented-after";
+`)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+	items, ok := got["imports"].([]map[string]any)
+	if !ok {
+		t.Fatalf("imports = %T, want []map[string]any", got["imports"])
+	}
+
+	seen := map[string]bool{}
+	for _, item := range items {
+		source, _ := item["source"].(string)
+		seen[source] = true
+		_, flagged := item["type_only"]
+		switch source {
+		case "./value":
+			if flagged {
+				t.Errorf("export { type as Y } is a value re-export but row %v carries type_only", item)
+			}
+		case "./commented", "./commented-after":
+			if !flagged {
+				t.Errorf("export type with an interior comment must be type_only, row %v has none", item)
+			}
+		}
+	}
+	for _, source := range []string{"./value", "./commented", "./commented-after"} {
+		if !seen[source] {
+			t.Errorf("no imports row for %q in %#v", source, items)
+		}
+	}
+}

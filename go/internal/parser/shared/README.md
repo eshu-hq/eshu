@@ -50,8 +50,9 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `NewBranchNodeSet`, `CyclomaticComplexity`, and the import-entry flag keys
 `ImportFlagTypeOnly`, `ImportFlagDeferred`, and `ImportFlagInferred`
 (`import_flags.go`, issue #7344). A parser sets a flag on an `imports` entry
-only when it is true; the projector reads the same strings when it carries
-import flags onto IMPORTS edges.
+only when it is true. No consumer outside the parsers reads them yet; the
+projector is to read the same strings when it carries import flags onto IMPORTS
+edges (issue #7345).
 
 `NormalizeLineEndings` rewrites every carriage return to `\n`, but only in a
 source that contains no `\n` at all. Any source with a newline in it comes

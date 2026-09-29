@@ -7,8 +7,9 @@ package shared
 // bucket entry only when it is true and leaves it absent otherwise, so an
 // unflagged entry is byte-identical to the payload before the flag existed.
 // The keys ride in the typed Import view's open Attributes pass-through
-// (sdk/go/factschema/codegraph/v1), and the projector reads them by these exact
-// strings when it carries import flags onto IMPORTS edges (issue #7345).
+// (sdk/go/factschema/codegraph/v1). Nothing outside the parsers reads them yet:
+// the projector is to read them by these exact strings when it carries import
+// flags onto IMPORTS edges (issue #7345).
 const (
 	// ImportFlagTypeOnly marks an import that exists only for the type checker
 	// and never runs: Python's `if TYPE_CHECKING:` branch, TypeScript's
