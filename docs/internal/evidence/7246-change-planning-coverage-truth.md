@@ -40,7 +40,7 @@ ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN='postgresql://eshu_test@127.0.0.1:55432/pos
 exit 0
 ```
 
-It applied all 168 migrations and proved the scoped repository predicate, the
+It applied all 169 migrations and proved the scoped repository predicate, the
 capped 4,000-row topic pool, and empty offset-page coverage state. The fixture
 used a temporary PostgreSQL 18 container; test cleanup dropped its generated
 database and the container was stopped afterward.
