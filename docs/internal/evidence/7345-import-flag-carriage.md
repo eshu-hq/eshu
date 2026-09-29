@@ -74,6 +74,26 @@ Sensitivity: with the `r.inferred` SET removed from the writer statement the
 Neo4j run fails with `property "inferred" = <nil>, want an explicit boolean`.
 The writer statement was restored byte-identical (matching file hash).
 
+What the live re-projection does and does not prove: generation 2 is a non-first
+generation with files set, so the writer's refresh deletes each file's IMPORTS
+edges before the upsert recreates them. The live test therefore proves the
+end-to-end outcome (flags take their new values, no duplicate or dropped edge),
+not the unconditional SET in isolation. That shape is pinned by the writer
+statement test, and by the shim's re-projection without a delete (all flags
+false afterwards, 0 true), which is local smoke.
+
+Fold-order sensitivity: the fold matrix includes each mixed case in both entry
+orders. With a last-entry-wins fold six cases fail; with plain per-flag AND for
+`deferred` (the rule the arbiter rejected) the `deferred then type_only` case
+fails, which the original single-order cases missed because the accumulator is
+seeded from the first entry. Both mutants were applied and the file restored
+byte-identical.
+
+NornicDB chain-batch: the live test passes on the pinned NornicDB, but whether
+its UNWIND-MERGE chain-batch fast path still engages for this statement was not
+recorded (NOT_CHECKED). The IMPORTS SET is single-variable, which is the shape
+that path accepts.
+
 ## Performance Evidence:
 
 Stage: the canonical structural-edge phase, IMPORTS upsert
@@ -145,3 +165,11 @@ it. The flags are directly inspectable on the edge
 - The B-12 golden snapshot (`IMPORTS` floor of 63) is unchanged because fold
   identity is unchanged; the live B-7 gate is a CI check and was not run here.
 - Timing on the remote, and the NornicDB CI legs, are the remaining proof.
+- The `shared.ImportFlag*` drift test that ties the SDK field names to the
+  parser constants cannot exist until the parser change (#7344, PR #7432) is on
+  `main`. Today the strings match exactly (`type_only`, `deferred`, `inferred`).
+  It is tracked as the first item of #7346 so it does not get lost.
+- A legacy path in `builder.go` (`extractRelationships`, the Python-runtime-era
+  payload keys) can append an unfolded `ImportRow` with zero flags. It predates
+  this change, no Go collector emits its keys, and `imported_name` already has
+  the same exposure.

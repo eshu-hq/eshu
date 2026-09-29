@@ -87,6 +87,41 @@ func TestBuildMaterializationFoldsImportFlagsOntoTheSharedEdge(t *testing.T) {
 			entries: []map[string]any{entry("inferred"), entry("inferred")},
 			want:    true,
 		},
+
+		// The fold must not depend on entry order: the accumulator is seeded
+		// from the first entry, so every mixed case above puts the flagged
+		// entry first and needs its mirror with the runtime entry first.
+		{
+			name:    "runtime entry first keeps a type_only edge a runtime edge",
+			entries: []map[string]any{entry(), entry("type_only")},
+		},
+		{
+			name:    "runtime entry first keeps a deferred edge a runtime edge",
+			entries: []map[string]any{entry(), entry("deferred")},
+		},
+		{
+			name:    "resolved entry first keeps an inferred edge confirmed",
+			entries: []map[string]any{entry(), entry("inferred")},
+		},
+		{
+			name:         "deferred then type_only is deferred, not runtime",
+			entries:      []map[string]any{entry("deferred"), entry("type_only")},
+			wantDeferred: true,
+		},
+		{
+			name:         "deferred then a both-flag entry is deferred",
+			entries:      []map[string]any{entry("deferred"), entry("type_only", "deferred")},
+			wantDeferred: true,
+		},
+		{
+			name:         "a both-flag entry then type_only stays type_only",
+			entries:      []map[string]any{entry("type_only", "deferred"), entry("type_only")},
+			wantTypeOnly: true,
+		},
+		{
+			name:    "deferred, type_only, and a runtime entry in the middle is a runtime edge",
+			entries: []map[string]any{entry("deferred"), entry(), entry("type_only")},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

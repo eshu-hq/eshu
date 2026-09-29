@@ -87,8 +87,13 @@ func importEdgeMaterialization(generationID string, first bool, imports []canoni
 //
 // The rows also carry the #7345 import flags. Generation 1 sets type_only on the
 // express edge and deferred plus inferred on the fmt edge; generation 2 flips
-// every one of them, so the proof covers both directions: a true overwritten by
-// false (the stale-flag case) and a false overwritten by true.
+// every one of them, so the proof covers both directions: a true that becomes
+// false (the stale-flag case) and a false that becomes true. That is the
+// end-to-end outcome of a re-projection. It does not isolate the unconditional
+// SET as the mechanism: generation 2 is a non-first generation with Files set,
+// so the writer's refresh deletes the file's IMPORTS edges first and the upsert
+// recreates them. The unconditional-SET shape is pinned separately by
+// TestCanonicalNodeWriterCarriesImportFlagsAsExplicitBooleans.
 func importEdgeRows(generation int) []canonical.ImportRow {
 	app := canonical.ImportRow{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ModuleLanguage: "typescript", ImportedName: "Router", Alias: "R", LineNumber: 2}
 	fmtRow := canonical.ImportRow{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ModuleLanguage: "go", ImportedName: "", LineNumber: 4}
@@ -129,9 +134,10 @@ func TestCanonicalImportEdgesGraphTruth(t *testing.T) {
 	assertImportEdgeTruth(ctx, t, exec, "gen1", [2][3]bool{{true, false, false}, {false, true, true}})
 
 	// A second generation re-projects the same edges with every flag flipped.
-	// Every edge must be re-MERGEd onto itself, never duplicated and never
-	// dropped, and each flag must take the new value: a stale true surviving the
-	// re-projection would leave an import excluded from cycles it belongs to.
+	// No edge may be duplicated or dropped, and each flag must take the new
+	// value: a stale true surviving the re-projection would leave an import
+	// excluded from cycles it belongs to. The refresh deletes and recreates the
+	// edges, so this proves the outcome, not the SET in isolation.
 	if err := writer.Write(ctx, importEdgeMaterialization("gen2", false, importEdgeRows(2))); err != nil {
 		t.Fatalf("write gen2: %v", err)
 	}
