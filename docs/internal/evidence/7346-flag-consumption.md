@@ -151,6 +151,44 @@ asserts all five; the response carries the same counts as
 `coverage.cycle_edge_flags`. OpenAPI, the MCP tool description, the HTTP
 reference and the codemodel README are updated to the same contract.
 
+## Real-corpus proxy step count
+
+The 250,000-step walk budget from part 1 was set by a wall-time ceiling, not by a margin
+over a real import graph, and an arbiter condition on #7346 asked for that margin before this
+part merges. The named corpus (`trident-automation`, 4,522 edges over 626 files, 172 resolved
+in-repo) is an ops-qa graph that this lane may not read, so the measurement uses real public
+Python repositories as a labelled proxy. An arbiter accepted that on these terms: each proxy is
+chosen by reader-resolved edge count (at least 172), its rows are built through the projector's
+module-naming rule, and the bar is steps x 10 at most 250,000 on every qualifying proxy at
+`max_cycle_length` 8.
+
+Method: the merged reader (`BuildFileImportCycleRows`) run in process over the head Python parser's
+imports folded per (file, module), with the three flag columns false (a run with them omitted gave
+identical cycles and steps on every qualifying repo). 56 repositories were cloned, 38 parsed and 6
+qualify; the discarded ones are listed with their resolved counts in the local report, and most
+resolve almost nothing because a packaged library's imports are `./`-prefixed paths the reader never
+matches to a module name.
+
+| Repository | .py files | Resolved edges | Cyclic components (largest) | Length 5 cycles / steps | Length 8 cycles / steps |
+| --- | --- | --- | --- | --- | --- |
+| django/django | 2,932 | 696 | 0 | 0 / 0 | 0 / 0 |
+| tensorflow/models | 2,723 | 576 | 0 | 0 / 0 | 0 / 0 |
+| NVIDIA/DeepLearningExamples | 2,592 | 824 | 1 (17 files) | 26 / 2,104 | 26 / 4,184 |
+| ansible/ansible | 1,845 | 979 | 0 | 0 / 0 | 0 / 0 |
+| micropython/micropython-lib | 509 | 256 | 0 | 0 / 0 | 0 / 0 |
+| python/cpython | 2,364 | 729 | 0 | 0 / 0 | 0 / 0 |
+
+The bar holds on all six: every run stopped with reason `none`, and none stopped on `step_budget`.
+The worst case is NVIDIA/DeepLearningExamples (also the densest graph, 4,415 collapsed file hops) at 4,184
+steps at length 8, about 1.7% of the budget and a 60x margin. This is weak evidence and is stated as
+such: only one of the six proxies has a cyclic component at all, so on the other five the reader walks
+nothing. It shows the budget is not the binding constraint on these graphs; it does not show how
+`trident-automation` behaves. The resolved edges on the proxies are mostly standard-library names
+(`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. The
+replay of the exact corpus stays an open follow-up on #7346 (one read-only query and a CSV export, then a
+replay through the reader), and the merge does not wait for it. Wall time per step was not measured on
+this data.
+
 ## Limits stated plainly
 
 - **Legacy edges.** Edges on files that never change stay without flag
