@@ -16,20 +16,22 @@ import (
 // importIdentity is the identity of one File-[:IMPORTS]->Module edge: its two
 // endpoints, and nothing else.
 //
-// That is not a simplification, it is what the graph backend enforces. A
-// relationship property map in a MERGE pattern — `MERGE (f)-[r:IMPORTS
-// {imported_name: row.imported_name}]->(m)` — is NOT part of relationship
-// identity on the pinned NornicDB build: a second MERGE with a different
-// property value matches the first edge and overwrites it, leaving one edge
-// where Cypher semantics call for two. That was measured against the pinned
-// build before this extractor was written; see
-// docs/public/reference/nornicdb-pitfalls.md.
+// The edge is keyed on its endpoints by design, not because a backend forces
+// it. Every consumer of this graph reasons about files and modules, not about
+// individual imported symbols: the import read surface returns one row per
+// (file, module), and the file-level cycle query needs one edge per file pair.
+// One edge per symbol would add rows nothing reads.
+//
+// The writer's MERGE therefore names no relationship property. That keeps the
+// identity backend-independent: an older NornicDB build that leaves a
+// relationship property map out of MERGE identity (see
+// docs/public/reference/nornicdb-pitfalls.md; the pinned v1.3.3 build includes
+// it, Neo4j always did) would otherwise have overwritten one edge per batch
+// instead of holding two.
 //
 // So the extractor folds every parser entry for one (file, module) pair into
-// the single edge the backend can actually hold, and only carries a per-symbol
-// property onto that edge when every entry agrees on it. Emitting one row per
-// symbol would not have produced one edge per symbol — it would have produced
-// one edge whose properties were decided by batch ordering.
+// one edge. A per-symbol property (imported_name, alias) is carried only when
+// every entry agrees on it, and the import flags are folded by foldImportFlags.
 type importIdentity struct {
 	filePath   string
 	moduleName string
@@ -89,6 +91,12 @@ type importAccumulator struct {
 	// lineNumber is the earliest attributed source line, so the edge points at
 	// the first place the file imports the module.
 	lineNumber int
+
+	// allTypeOnly, allDeferredOrTypeOnly, and allInferred stay true only while
+	// every folded entry agrees; see foldImportFlags.
+	allTypeOnly           bool
+	allDeferredOrTypeOnly bool
+	allInferred           bool
 
 	order int
 }
@@ -157,10 +165,11 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 		fileLanguage := file.Language
 
 		for _, entry := range entries {
-			moduleName, importedName, alias, lineNumber, ok := normalizeImportEntry(entry)
+			normalized, ok := normalizeImportEntry(entry)
 			if !ok {
 				continue
 			}
+			moduleName, importedName, alias, lineNumber := normalized.moduleName, normalized.importedName, normalized.alias, normalized.lineNumber
 			identity := importIdentity{filePath: filePath, moduleName: moduleName}
 			acc, known := folded[identity]
 			if !known {
@@ -171,13 +180,19 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 					importedName:   importedName,
 					alias:          alias,
 					lineNumber:     lineNumber,
-					order:          len(folded),
+
+					allTypeOnly:           normalized.typeOnly,
+					allDeferredOrTypeOnly: normalized.deferred || normalized.typeOnly,
+					allInferred:           normalized.inferred,
+
+					order: len(folded),
 				}
 				folded[identity] = acc
 				modules[moduleIdentity{name: moduleName, language: fileLanguage}] = struct{}{}
 				continue
 			}
 			acc.fold(importedName, alias, lineNumber)
+			acc.foldImportFlags(normalized)
 		}
 	}
 
@@ -195,6 +210,29 @@ func (a *importAccumulator) fold(importedName, alias string, lineNumber int) {
 	if lineNumber != 0 && (a.lineNumber == 0 || lineNumber < a.lineNumber) {
 		a.lineNumber = lineNumber
 	}
+}
+
+// foldImportFlags narrows the edge's flags by one more parser entry. Every rule
+// asks the same question, "can this file's import of the module close a
+// load-time cycle?", and answers it conservatively: a flag is dropped as soon as
+// one entry contradicts it, so folding can only under-claim.
+//
+//   - TypeOnly holds only when every entry is type-only. One entry that really
+//     runs at load time keeps the edge a runtime edge.
+//   - Deferred holds only when every entry is deferred or type-only, and the
+//     edge is not TypeOnly (see importRowsFrom). An `if TYPE_CHECKING:` import
+//     beside a function-local import of the same module never runs at load
+//     time; plain per-flag AND would report neither flag and claim a load-time
+//     edge that does not exist. An entry carrying both flags counts as
+//     type-only.
+//   - Inferred holds only when every entry is inferred. Every folded entry names
+//     the identical module string, so one resolved entry already proves the
+//     target exists, and calling the edge inferred would mislabel a confirmed
+//     edge.
+func (a *importAccumulator) foldImportFlags(entry normalizedImport) {
+	a.allTypeOnly = a.allTypeOnly && entry.typeOnly
+	a.allDeferredOrTypeOnly = a.allDeferredOrTypeOnly && (entry.deferred || entry.typeOnly)
+	a.allInferred = a.allInferred && entry.inferred
 }
 
 // importRowsFrom flattens the folded edges into writer rows in discovery order,
@@ -218,6 +256,9 @@ func importRowsFrom(folded map[importIdentity]*importAccumulator) []ImportRow {
 			ImportedName:   acc.importedName,
 			Alias:          acc.alias,
 			LineNumber:     acc.lineNumber,
+			TypeOnly:       acc.allTypeOnly,
+			Deferred:       acc.allDeferredOrTypeOnly && !acc.allTypeOnly,
+			Inferred:       acc.allInferred,
 		}
 		if acc.nameConflict {
 			row.ImportedName = ""
@@ -235,28 +276,50 @@ func importRowsFrom(folded map[importIdentity]*importAccumulator) []ImportRow {
 // name nor source is a malformed producer emission, and minting an empty-named
 // Module node for it would put an anonymous global node in the graph that every
 // repository's unusable imports then attach to.
-func normalizeImportEntry(entry codegraphv1.Import) (moduleName, importedName, alias string, lineNumber int, ok bool) {
+func normalizeImportEntry(entry codegraphv1.Import) (normalizedImport, bool) {
 	name := strings.TrimSpace(entry.Name)
 	source := strings.TrimSpace(entry.Source)
 
-	moduleName = source
+	moduleName := source
 	if moduleName == "" {
 		moduleName = name
 	}
 	if moduleName == "" {
-		return "", "", "", 0, false
+		return normalizedImport{}, false
 	}
 
+	importedName := ""
 	if source != "" && name != source {
 		importedName = name
 	}
 
-	lineNumber = entry.LineNumber
+	lineNumber := entry.LineNumber
 	if lineNumber < 0 {
 		lineNumber = 0
 	}
 
-	return moduleName, importedName, strings.TrimSpace(entry.Alias), lineNumber, true
+	return normalizedImport{
+		moduleName:   moduleName,
+		importedName: importedName,
+		alias:        strings.TrimSpace(entry.Alias),
+		lineNumber:   lineNumber,
+		typeOnly:     entry.TypeOnly,
+		deferred:     entry.Deferred,
+		inferred:     entry.Inferred,
+	}, true
+}
+
+// normalizedImport is one parser entry reduced to the edge properties it can
+// contribute: the module it targets, the per-symbol properties, and the import
+// flags the parser set on it.
+type normalizedImport struct {
+	moduleName   string
+	importedName string
+	alias        string
+	lineNumber   int
+	typeOnly     bool
+	deferred     bool
+	inferred     bool
 }
 
 // moduleRowsFrom turns the deduped (name, language) module set into ModuleRow

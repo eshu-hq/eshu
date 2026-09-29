@@ -288,6 +288,11 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.Canoni
 				"alias":           imp.Alias,
 				"line_number":     imp.LineNumber,
 				"generation_id":   mat.GenerationID,
+				// The parser's import flags, folded per edge. Always present as
+				// explicit booleans so the SET overwrites a stale true.
+				"type_only": imp.TypeOnly,
+				"deferred":  imp.Deferred,
+				"inferred":  imp.Inferred,
 			}
 		}
 		stmts = append(stmts, BuildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)

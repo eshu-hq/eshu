@@ -84,11 +84,22 @@ func importEdgeMaterialization(generationID string, first bool, imports []canoni
 // the Module rows above. Module identity is (name, lang), so the edge statement
 // resolves its target on both properties; a row that named the module but not
 // its language would match no node and the edge would simply not be written.
-func importEdgeRows() []canonical.ImportRow {
-	return []canonical.ImportRow{
-		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ModuleLanguage: "typescript", ImportedName: "Router", Alias: "R", LineNumber: 2},
-		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ModuleLanguage: "go", ImportedName: "", LineNumber: 4},
+//
+// The rows also carry the #7345 import flags. Generation 1 sets type_only on the
+// express edge and deferred plus inferred on the fmt edge; generation 2 flips
+// every one of them, so the proof covers both directions: a true overwritten by
+// false (the stale-flag case) and a false overwritten by true.
+func importEdgeRows(generation int) []canonical.ImportRow {
+	app := canonical.ImportRow{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ModuleLanguage: "typescript", ImportedName: "Router", Alias: "R", LineNumber: 2}
+	fmtRow := canonical.ImportRow{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ModuleLanguage: "go", ImportedName: "", LineNumber: 4}
+	if generation == 1 {
+		app.TypeOnly = true
+		fmtRow.Deferred = true
+		fmtRow.Inferred = true
+	} else {
+		fmtRow.TypeOnly = true
 	}
+	return []canonical.ImportRow{app, fmtRow}
 }
 
 // TestCanonicalImportEdgesGraphTruth proves the whole chain the #5691 producer
@@ -111,30 +122,39 @@ func TestCanonicalImportEdgesGraphTruth(t *testing.T) {
 		importEdgeCleanup(cleanCtx, t, exec)
 	})
 
-	if err := writer.Write(ctx, importEdgeMaterialization("gen1", true, importEdgeRows())); err != nil {
+	if err := writer.Write(ctx, importEdgeMaterialization("gen1", true, importEdgeRows(1))); err != nil {
 		t.Fatalf("write gen1: %v", err)
 	}
 
-	assertImportEdgeTruth(ctx, t, exec, "gen1")
+	assertImportEdgeTruth(ctx, t, exec, "gen1", [2][3]bool{{true, false, false}, {false, true, true}})
 
-	// A second generation re-projects the identical rows. Every edge must be
-	// re-MERGEd onto itself, never duplicated and never dropped.
-	if err := writer.Write(ctx, importEdgeMaterialization("gen2", false, importEdgeRows())); err != nil {
+	// A second generation re-projects the same edges with every flag flipped.
+	// Every edge must be re-MERGEd onto itself, never duplicated and never
+	// dropped, and each flag must take the new value: a stale true surviving the
+	// re-projection would leave an import excluded from cycles it belongs to.
+	if err := writer.Write(ctx, importEdgeMaterialization("gen2", false, importEdgeRows(2))); err != nil {
 		t.Fatalf("write gen2: %v", err)
 	}
 
-	assertImportEdgeTruth(ctx, t, exec, "gen2 re-projection")
+	assertImportEdgeTruth(ctx, t, exec, "gen2 re-projection", [2][3]bool{{false, false, false}, {true, false, false}})
 }
 
 // assertImportEdgeTruth reads the projected IMPORTS edges back and checks the
 // full expected set, not just a count: a count alone would pass if two edges
 // existed with the wrong imported_name on each.
-func assertImportEdgeTruth(ctx context.Context, t *testing.T, exec liveExecutor, label string) {
+//
+// wantFlags is [type_only, deferred, inferred] for each edge in file order
+// (src/app.ts, then src/main.go). A flag property that is absent or not a
+// boolean fails the test rather than reading as false, because an edge that was
+// never written the flags is the case a reader must not mistake for a runtime
+// edge.
+func assertImportEdgeTruth(ctx context.Context, t *testing.T, exec liveExecutor, label string, wantFlags [2][3]bool) {
 	t.Helper()
 
 	rows, err := exec.Run(ctx, `MATCH (f:File)-[r:IMPORTS]->(m:Module)
 WHERE f.repo_id = $repo_id
-RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_name, r.alias AS alias, r.line_number AS line_number`,
+RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_name, r.alias AS alias, r.line_number AS line_number,
+       r.type_only AS type_only, r.deferred AS deferred, r.inferred AS inferred`,
 		map[string]any{"repo_id": importEdgeRepoID})
 	if err != nil {
 		t.Fatalf("%s: read IMPORTS edges: %v", label, err)
@@ -143,6 +163,7 @@ RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_na
 	type edge struct {
 		file, module, imported, alias string
 		line                          int64
+		flags                         [3]bool
 	}
 	got := make([]edge, 0, len(rows))
 	for _, row := range rows {
@@ -151,7 +172,15 @@ RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_na
 		imported, _ := row["imported_name"].(string)
 		alias, _ := row["alias"].(string)
 		line, _ := row["line_number"].(int64)
-		got = append(got, edge{file, module, imported, alias, line})
+		var flags [3]bool
+		for i, key := range []string{"type_only", "deferred", "inferred"} {
+			value, ok := row[key].(bool)
+			if !ok {
+				t.Fatalf("%s: edge %s->%s property %q = %#v, want an explicit boolean", label, file, module, key, row[key])
+			}
+			flags[i] = value
+		}
+		got = append(got, edge{file, module, imported, alias, line, flags})
 	}
 	sort.Slice(got, func(i, j int) bool {
 		if got[i].file != got[j].file {
@@ -161,8 +190,8 @@ RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_na
 	})
 
 	want := []edge{
-		{"src/app.ts", "5691-test-express", "Router", "R", 2},
-		{"src/main.go", "5691-test-fmt", "", "", 4},
+		{"src/app.ts", "5691-test-express", "Router", "R", 2, wantFlags[0]},
+		{"src/main.go", "5691-test-fmt", "", "", 4, wantFlags[1]},
 	}
 
 	t.Logf("%s: projected IMPORTS edges = %+v", label, got)

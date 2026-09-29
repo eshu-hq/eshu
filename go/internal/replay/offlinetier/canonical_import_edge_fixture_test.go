@@ -25,22 +25,24 @@ import (
 func TestImportEdgeFixtureImportsResolveToDeclaredModules(t *testing.T) {
 	t.Parallel()
 
-	mat := importEdgeMaterialization("gen-fixture-check", true, importEdgeRows())
+	for _, generation := range []int{1, 2} {
+		mat := importEdgeMaterialization("gen-fixture-check", true, importEdgeRows(generation))
 
-	if len(mat.Imports) == 0 {
-		t.Fatal("fixture declares no import rows, so this check would prove nothing")
-	}
+		if len(mat.Imports) == 0 {
+			t.Fatal("fixture declares no import rows, so this check would prove nothing")
+		}
 
-	declared := make(map[canonical.ModuleRow]struct{}, len(mat.Modules))
-	for _, m := range mat.Modules {
-		declared[canonical.ModuleRow{Name: m.Name, Language: m.Language}] = struct{}{}
-	}
-	for _, imp := range mat.Imports {
-		key := canonical.ModuleRow{Name: imp.ModuleName, Language: imp.ModuleLanguage}
-		if _, ok := declared[key]; !ok {
-			t.Fatalf("import row %+v targets Module{name=%q, lang=%q}, which no fixture module row declares; "+
-				"the writer would match no node and drop the edge silently. Declared: %+v",
-				imp, imp.ModuleName, imp.ModuleLanguage, mat.Modules)
+		declared := make(map[canonical.ModuleRow]struct{}, len(mat.Modules))
+		for _, m := range mat.Modules {
+			declared[canonical.ModuleRow{Name: m.Name, Language: m.Language}] = struct{}{}
+		}
+		for _, imp := range mat.Imports {
+			key := canonical.ModuleRow{Name: imp.ModuleName, Language: imp.ModuleLanguage}
+			if _, ok := declared[key]; !ok {
+				t.Fatalf("generation %d import row %+v targets Module{name=%q, lang=%q}, which no fixture module row declares; "+
+					"the writer would match no node and drop the edge silently. Declared: %+v",
+					generation, imp, imp.ModuleName, imp.ModuleLanguage, mat.Modules)
+			}
 		}
 	}
 }
