@@ -33,14 +33,14 @@ func TestBuildMaterializationFoldsImportFlagsOntoTheSharedEdge(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                             string
-		entries                          []map[string]any
-		wantTypeOnly, wantDeferred, want bool
+		name                                     string
+		entries                                  []map[string]any
+		wantTypeOnly, wantDeferred, wantInferred bool
 	}{
 		{name: "no flags", entries: []map[string]any{entry()}},
 		{name: "single type_only", entries: []map[string]any{entry("type_only")}, wantTypeOnly: true},
 		{name: "single deferred", entries: []map[string]any{entry("deferred")}, wantDeferred: true},
-		{name: "single inferred", entries: []map[string]any{entry("inferred")}, want: true},
+		{name: "single inferred", entries: []map[string]any{entry("inferred")}, wantInferred: true},
 		{
 			name:         "every entry type_only",
 			entries:      []map[string]any{entry("type_only"), entry("type_only")},
@@ -83,9 +83,9 @@ func TestBuildMaterializationFoldsImportFlagsOntoTheSharedEdge(t *testing.T) {
 			entries: []map[string]any{entry("inferred"), entry()},
 		},
 		{
-			name:    "every entry inferred",
-			entries: []map[string]any{entry("inferred"), entry("inferred")},
-			want:    true,
+			name:         "every entry inferred",
+			entries:      []map[string]any{entry("inferred"), entry("inferred")},
+			wantInferred: true,
 		},
 
 		// The fold must not depend on entry order: the accumulator is seeded
@@ -139,9 +139,9 @@ func TestBuildMaterializationFoldsImportFlagsOntoTheSharedEdge(t *testing.T) {
 				t.Fatalf("len(Imports) = %d, want 1 (one edge per file and module): %+v", len(result.Imports), result.Imports)
 			}
 			row := result.Imports[0]
-			if row.TypeOnly != tt.wantTypeOnly || row.Deferred != tt.wantDeferred || row.Inferred != tt.want {
+			if row.TypeOnly != tt.wantTypeOnly || row.Deferred != tt.wantDeferred || row.Inferred != tt.wantInferred {
 				t.Fatalf("flags = type_only:%v deferred:%v inferred:%v, want type_only:%v deferred:%v inferred:%v",
-					row.TypeOnly, row.Deferred, row.Inferred, tt.wantTypeOnly, tt.wantDeferred, tt.want)
+					row.TypeOnly, row.Deferred, row.Inferred, tt.wantTypeOnly, tt.wantDeferred, tt.wantInferred)
 			}
 		})
 	}
