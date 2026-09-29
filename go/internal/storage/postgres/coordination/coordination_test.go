@@ -35,7 +35,11 @@ func (r *recordedSleeps) sleep(_ context.Context, d time.Duration) error {
 func (r *recordedSleeps) now() time.Time { return r.clock }
 
 func retryPolicy(sleeps *recordedSleeps, budget, initial, maxBackoff time.Duration) LockRetryPolicy {
-	return LockRetryPolicy{Budget: budget, Deadline: sleeps.clock.Add(budget), InitialBackoff: initial, MaxBackoff: maxBackoff}
+	return LockRetryPolicy{
+		Allowance:      NewLockRetryAllowance(budget),
+		InitialBackoff: initial,
+		MaxBackoff:     maxBackoff,
+	}
 }
 
 // TestRetryOnLockTimeoutRetriesUntilTheLockClears pins #6956 cause 2: a
@@ -95,24 +99,22 @@ func TestRetryOnLockTimeoutDoesNotRetryOtherErrors(t *testing.T) {
 	}
 }
 
-// TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses pins the bound: the
-// deadline is wall clock, so time an attempt itself burned (the lock_timeout
-// it waited) counts as much as the sleeps; once the next backoff would end
-// after the deadline the migrator fails, naming the budget, the attempts and
-// the path, and the error still classifies as 55P03.
-func TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses(t *testing.T) {
+// TestRetryOnLockTimeoutGivesUpWhenAllowanceIsSpent pins the bound: failed
+// attempt time and backoff consume the shared allowance, and exhaustion keeps
+// the 55P03 classification while naming the budget, attempts, and migration.
+func TestRetryOnLockTimeoutGivesUpWhenAllowanceIsSpent(t *testing.T) {
 	t.Parallel()
 	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
 	attempts := 0
-	// Each failed attempt burns 5 s of lock_timeout on the clock before the
-	// backoff is considered, as the real statement does.
+	// Each failed attempt burns 5 s before the backoff is considered, as a real
+	// statement waiting on lock_timeout does.
 	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/004.sql", retryPolicy(sleeps, 20*time.Second, 5*time.Second, 15*time.Second), sleeps.sleep, sleeps.now, func() error {
 		attempts++
 		sleeps.clock = sleeps.clock.Add(5 * time.Second)
 		return lockNotAvailable()
 	})
 	if err == nil {
-		t.Fatal("RetryOnLockTimeout() = nil, want deadline exhaustion")
+		t.Fatal("RetryOnLockTimeout() = nil, want retry-allowance exhaustion")
 	}
 	if !IsLockNotAvailable(err) {
 		t.Fatalf("error lost its 55P03 classification: %v", err)
@@ -120,18 +122,46 @@ func TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses(t *testing.T) {
 	if !strings.Contains(err.Error(), "lock retry budget 20s") || !strings.Contains(err.Error(), "test/004.sql") {
 		t.Fatalf("error = %q, want it to name the budget and the migration", err)
 	}
-	// t=5 after attempt 1: 5+5=10 <= 20, sleep 5 (t=10); attempt 2 burns to
-	// t=15: 15+10=25 > 20, fail. Two attempts, one sleep: the 5 s each attempt
-	// burned is what ended the run, not the sleeps alone.
+	// Attempt one and its 5 s backoff spend 10 s. Attempt two then leaves only
+	// 5 s, less than its next 10 s backoff. Two attempts and one sleep prove
+	// both failed execution and delay consume the allowance.
 	if attempts != 2 || len(sleeps.waits) != 1 {
 		t.Fatalf("attempts=%d sleeps=%v, want 2 attempts and 1 sleep", attempts, sleeps.waits)
 	}
 }
 
-// TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements pins that the
-// deadline belongs to the run: a second statement retried with the same
-// policy after the first spent most of the budget gets only what is left.
-func TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements(t *testing.T) {
+// TestRetryOnLockTimeoutDoesNotRetryAfterBackoffOversleeps pins the allowance
+// boundary when the scheduler or sleeper exceeds the requested delay.
+func TestRetryOnLockTimeoutDoesNotRetryAfterBackoffOversleeps(t *testing.T) {
+	t.Parallel()
+	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
+	attempts := 0
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/oversleep.sql", retryPolicy(sleeps, time.Second, 500*time.Millisecond, 500*time.Millisecond), func(_ context.Context, requested time.Duration) error {
+		sleeps.waits = append(sleeps.waits, requested)
+		// The failed attempt uses 500 ms; the scheduler then oversleeps the
+		// requested 500 ms backoff by enough to exceed the 1 s allowance.
+		sleeps.clock = sleeps.clock.Add(600 * time.Millisecond)
+		return nil
+	}, sleeps.now, func() error {
+		attempts++
+		if attempts == 1 {
+			sleeps.clock = sleeps.clock.Add(500 * time.Millisecond)
+			return lockNotAvailable()
+		}
+		return nil
+	})
+	if err == nil || !IsLockNotAvailable(err) {
+		t.Fatalf("RetryOnLockTimeout() = %v, want 55P03 allowance exhaustion", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want no SQL retry after the shared allowance expires", attempts)
+	}
+}
+
+// TestRetryOnLockTimeoutAllowanceIsSharedAcrossStatements pins that the
+// same allowance belongs to the run: a second statement gets only what is
+// left after the first statement's failed attempts and backoffs.
+func TestRetryOnLockTimeoutAllowanceIsSharedAcrossStatements(t *testing.T) {
 	t.Parallel()
 	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
 	policy := retryPolicy(sleeps, 30*time.Second, 5*time.Second, 5*time.Second)
@@ -149,11 +179,20 @@ func TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements(t *testing.T) {
 	if err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/a.sql", policy, sleeps.sleep, sleeps.now, failTwice()); err != nil {
 		t.Fatalf("first statement: %v", err)
 	}
-	// The first statement consumed 25 s of the 30 s (three 5 s attempts, two
-	// 5 s sleeps); the second gets 5 s and must fail on its first lock timeout.
-	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/b.sql", policy, sleeps.sleep, sleeps.now, failTwice())
+	// The first statement spends 20 s on two failed attempts and two sleeps;
+	// its successful 5 s execution is excluded. The second statement uses its
+	// remaining allowance and cannot receive a fresh budget.
+	secondAttempts := 0
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/b.sql", policy, sleeps.sleep, sleeps.now, func() error {
+		secondAttempts++
+		sleeps.clock = sleeps.clock.Add(5 * time.Second)
+		return lockNotAvailable()
+	})
 	if err == nil || !strings.Contains(err.Error(), "test/b.sql") {
-		t.Fatalf("second statement err = %v, want the shared deadline to end it", err)
+		t.Fatalf("second statement err = %v, want the shared allowance to end it", err)
+	}
+	if secondAttempts != 1 || len(sleeps.waits) != 3 {
+		t.Fatalf("second attempts=%d sleeps=%v, want one attempt and no retry after its backoff spends the remaining allowance", secondAttempts, sleeps.waits)
 	}
 }
 
@@ -166,7 +205,7 @@ func TestRetryOnLockTimeoutStopsWhenTheContextEnds(t *testing.T) {
 	attempts := 0
 	clock := time.Unix(0, 0)
 	err := RetryOnLockTimeout(ctx, slog.Default(), "test/005.sql", LockRetryPolicy{
-		Budget: time.Minute, Deadline: clock.Add(time.Minute), InitialBackoff: time.Second, MaxBackoff: time.Second,
+		Allowance: NewLockRetryAllowance(time.Minute), InitialBackoff: time.Second, MaxBackoff: time.Second,
 	}, func(ctx context.Context, _ time.Duration) error {
 		cancel()
 		return ctx.Err()

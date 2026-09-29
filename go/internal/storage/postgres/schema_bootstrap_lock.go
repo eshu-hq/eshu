@@ -36,8 +36,8 @@ type schemaMigrationTracker interface {
 }
 
 // schemaStatementBounds are the per-statement bounds of one bootstrap run:
-// the lock_timeout each attempt sets, and the total backoff a statement may
-// spend retrying after lock_timeout before the run fails.
+// the lock_timeout each attempt sets and the total failed-attempt duration
+// plus backoff shared across the run.
 type schemaStatementBounds struct {
 	lockTimeout     time.Duration
 	lockRetryBudget time.Duration
@@ -49,13 +49,13 @@ type schemaStatementBounds struct {
 // for it rather than fail after one statement timeout; and a statement that
 // loses a lock race (SQLSTATE 55P03, e.g. against an anti-wraparound
 // autovacuum's ShareUpdateExclusiveLock) applied nothing and is retried.
-// Both bounds are wall clock: the ownership wait runs before any statement,
-// and the lock retry budget is one deadline shared by every statement of the
-// run (it counts the lock_timeout each failed attempt waited as well as the
-// sleeps). The defaults sum to 6 minutes, leaving 4 minutes of the chart's
-// schema bootstrap Job deadline (schemaBootstrap.activeDeadlineSeconds,
-// 600 s) for pod start, the migrations' own work and the graph schema; a
-// bound the Job cannot reach never prints its holder diagnostic.
+// Ownership wait is wall clock and runs before any statement. The shared
+// retry allowance counts failed 55P03 attempt duration and backoff across the
+// run, but not successful migration execution time. PostgreSQL applies
+// lock_timeout separately to each lock acquisition, so a failed statement can
+// exceed the remaining allowance before returning 55P03. The chart Job
+// deadline remains the outer client bound; it does not bound an in-flight
+// concurrent index statement on the server.
 // TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline binds this to
 // the chart value.
 const (
@@ -332,10 +332,9 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		plans = append(plans, schemaMigrationPlan{definition: def, checksum: checksum, variant: variant, apply: true})
 	}
 
-	// One retry deadline for the whole run: a statement that spends the
-	// budget leaves nothing for the next, so the run cannot exceed the bound
-	// by the number of contended statements.
-	retryDeadline := time.Now().Add(bounds.lockRetryBudget)
+	// Share one allowance across the whole run. Only failed lock attempts and
+	// their backoffs consume it; successful migration execution time does not.
+	retryAllowance := coordination.NewLockRetryAllowance(bounds.lockRetryBudget)
 	appliedCount := 0
 	for index, plan := range plans {
 		if !plan.apply {
@@ -370,8 +369,7 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 			}
 		}
 		retryPolicy := coordination.LockRetryPolicy{
-			Budget:         bounds.lockRetryBudget,
-			Deadline:       retryDeadline,
+			Allowance:      retryAllowance,
 			InitialBackoff: max(lockTimeout, time.Second),
 			MaxBackoff:     schemaLockRetryMaxBackoff,
 		}

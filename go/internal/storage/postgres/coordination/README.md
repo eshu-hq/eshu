@@ -14,8 +14,12 @@ Bounded wait and retry loops for the Postgres schema migrator (#6956).
   from `LockRetryPolicy.InitialBackoff` to `MaxBackoff`, logging
   `bootstrap.postgres.migration.lock_wait` per retry and
   `bootstrap.postgres.migration.lock_recovered` on success, and fails once
-  the next backoff would exceed `Budget`. Any other error returns on the
-  first attempt untouched.
+  the shared `LockRetryAllowance` cannot pay for the next backoff. The caller
+  shares one allowance across the run's sequential statements; failed-attempt
+  duration and backoff consume it, while successful migration execution time
+  does not. PostgreSQL applies `lock_timeout` separately to each lock
+  acquisition, so an attempt can exceed the remaining allowance before
+  returning 55P03. Any other error returns on the first attempt untouched.
 - `SleepContext` is the production `Sleeper`; tests inject a recorder and a
   fixed clock, so every bound is proven without a database.
 - `ConcurrentIndexBuildPlan` (production's only caller of
