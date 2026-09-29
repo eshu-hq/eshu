@@ -55,6 +55,9 @@ func applyWorkItemDetails(item *admin.WorkItem, details sql.NullString) {
 		FailureMessage: strings.TrimSpace(parsed.PriorFailure.FailureMessage),
 		UpdatedAt:      strings.TrimSpace(parsed.PriorFailure.UpdatedAt),
 	}
+	if prior == (admin.PriorFailure{}) {
+		return
+	}
 	if at, err := time.Parse(time.RFC3339Nano, prior.UpdatedAt); err == nil {
 		prior.UpdatedAt = at.UTC().Format(time.RFC3339)
 	}

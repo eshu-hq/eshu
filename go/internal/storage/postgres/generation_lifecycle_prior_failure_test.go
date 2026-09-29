@@ -80,6 +80,8 @@ func TestListGenerationLifecyclePriorFailureIsNilWhenDetailsCarryNone(t *testing
 		"free text":                   "phase=semantic label=Variable rows=500",
 		"json array":                  `[1,2]`,
 		"prior_failure not an object": `{"prior_failure":"oops"}`,
+		"prior_failure empty object":  `{"prior_failure":{}}`,
+		"prior_failure blank fields":  `{"prior_failure":{"status":" ","failure_class":""}}`,
 		"empty":                       "",
 	} {
 		if failure := listLifecycleFailure(t, details); failure.PriorFailure != nil {

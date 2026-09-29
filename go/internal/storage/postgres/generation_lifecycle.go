@@ -199,6 +199,9 @@ func parsePriorFailure(details string) *statuspkg.GenerationPriorFailure {
 		FailureMessage: strings.TrimSpace(parsed.PriorFailure.FailureMessage),
 		UpdatedAt:      strings.TrimSpace(parsed.PriorFailure.UpdatedAt),
 	}
+	if prior == (statuspkg.GenerationPriorFailure{}) {
+		return nil
+	}
 	if at, err := time.Parse(time.RFC3339Nano, prior.UpdatedAt); err == nil {
 		prior.UpdatedAt = statuspkg.GenerationLifecycleTimestamp(at)
 	}

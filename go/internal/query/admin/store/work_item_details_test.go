@@ -43,6 +43,8 @@ func TestApplyWorkItemDetailsLeavesFieldsNilWithoutAnObject(t *testing.T) {
 		"array":         {Valid: true, String: `[1]`},
 		"object no key": {Valid: true, String: `{"scope_id":"s"}`},
 		"bad prior":     {Valid: true, String: `{"prior_failure":"oops"}`},
+		"empty prior":   {Valid: true, String: `{"prior_failure":{}}`},
+		"blank prior":   {Valid: true, String: `{"prior_failure":{"status":" ","failure_class":""}}`},
 	} {
 		var item admin.WorkItem
 		applyWorkItemDetails(&item, details)
