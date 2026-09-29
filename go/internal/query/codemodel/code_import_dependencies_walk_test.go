@@ -343,6 +343,12 @@ func TestCycleCoverageReportsTheBudgetTheWalkRanUnder(t *testing.T) {
 		t.Fatalf("zero-enumeration coverage step budget = %#v, want the package budget %d", got, importCycleEnumerationStepBudget)
 	}
 
+	// The zero enumeration must not publish an empty stop reason either: the
+	// documented values are none, cycle_cap, and step_budget.
+	if got := zeroCoverage["cycle_enumeration_stop_reason"]; got != CycleStopNone {
+		t.Fatalf("zero-enumeration coverage stop reason = %#v, want %q", got, CycleStopNone)
+	}
+
 	empty := ImportDependencyResponse(req, nil)
 	emptyCoverage, _ := empty["coverage"].(map[string]any)
 	if got := emptyCoverage["cycle_enumeration_step_budget"]; got != importCycleEnumerationStepBudget {
