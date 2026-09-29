@@ -72,6 +72,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 		},
 		WorkSink:           &stubProjectorWorkSink{ackErr: errors.New("ack store unavailable")},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Logger:             logger,
 		Instruments:        instruments,

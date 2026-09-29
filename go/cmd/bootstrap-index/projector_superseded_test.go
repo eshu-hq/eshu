@@ -33,7 +33,7 @@ func TestDrainProjectorWorkItemStopsGracefullyWhenSuperseded(t *testing.T) {
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{},
 		&blockingProjectionRunner{started: started},
-		sink, passBootstrapBaselineFence{},
+		sink, passBootstrapBaselineFence{}, passBootstrapBaselineFence{},
 		projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
 			return failure.ErrWorkSuperseded
 		}),

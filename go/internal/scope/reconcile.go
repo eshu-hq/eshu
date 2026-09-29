@@ -32,3 +32,18 @@ type FullReconcileState struct {
 	// activated. A superseded generation with no activation never projected.
 	LatestFullProjected bool
 }
+
+// UncoveredProjectionWriter is a generation that started writing the canonical
+// graph and never activated, and that no later activated full generation has
+// covered (#7389). Its overlay may still be in the graph, so the git collector
+// forces the scope's next sync to a full snapshot instead of a delta.
+type UncoveredProjectionWriter struct {
+	// GenerationID identifies the generation.
+	GenerationID string
+	// Status is superseded or failed.
+	Status GenerationStatus
+	// FailureClass is the projector work row's failure_class, or empty.
+	FailureClass string
+	// ProjectionWriteStartedAt is its latest projection write start.
+	ProjectionWriteStartedAt time.Time
+}

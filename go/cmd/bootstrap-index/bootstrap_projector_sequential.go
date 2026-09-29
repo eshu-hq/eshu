@@ -26,6 +26,7 @@ func drainProjectorSequential(
 	runner projector.ProjectionRunner,
 	workSink projector.ProjectorWorkSink,
 	baselineFence projector.DeltaBaselineFence,
+	writeMarker projector.ProjectionWriteMarker,
 	heartbeater projector.ProjectorWorkHeartbeater,
 	heartbeatInterval time.Duration,
 	tracer trace.Tracer,
@@ -37,7 +38,7 @@ func drainProjectorSequential(
 	overallStart := time.Now()
 	for {
 		err := drainProjectorWorkItem(
-			ctx, workSource, factStore, runner, workSink, baselineFence,
+			ctx, workSource, factStore, runner, workSink, baselineFence, writeMarker,
 			heartbeater, heartbeatInterval,
 			0, &completed, tracer, instruments, logger,
 		)

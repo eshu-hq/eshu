@@ -163,3 +163,82 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 	return state, nil
 }
+
+// uncoveredProjectionWritersQuery finds the generations of one scope that
+// started writing the canonical graph and never activated (#7389): superseded
+// or failed rows with projection_write_started_at set and activated_at NULL,
+// whose write started after the write start of the newest activated full
+// generation. That full generation rewrote the whole tree after the overlay
+// landed, so it covers every earlier writer. The comparison is the exact write
+// start on both sides, never ingested_at or activated_at. A newest activated
+// full with no write start (written before migration 149), or no activated
+// full at all, compares as -infinity, so every uncovered writer is returned
+// and the scope fails closed to a full snapshot. Pending generations are not
+// returned: they can still activate.
+//
+// No index: the rows are one scope's generations, read through the existing
+// scope indexes; p99 0.587 ms on a 1,500-generation scope, and the failure
+// class lookup runs only for returned rows
+// (docs/internal/evidence/7389-superseded-writer-overlay.md).
+const uncoveredProjectionWritersQuery = `
+WITH last_full AS (
+    SELECT projection_write_started_at AS pws
+    FROM scope_generations
+    WHERE scope_id = $1
+      AND is_delta = false
+      AND activated_at IS NOT NULL
+    ORDER BY ingested_at DESC, generation_id DESC
+    LIMIT 1
+)
+SELECT generation.generation_id,
+       generation.status,
+       generation.projection_write_started_at,
+       COALESCE(work.failure_class, '')
+FROM scope_generations AS generation
+LEFT JOIN LATERAL (
+    SELECT failure_class
+    FROM fact_work_items
+    WHERE stage = 'projector'
+      AND scope_id = generation.scope_id
+      AND generation_id = generation.generation_id
+    ORDER BY updated_at DESC
+    LIMIT 1
+) AS work ON true
+WHERE generation.scope_id = $1
+  AND generation.projection_write_started_at IS NOT NULL
+  AND generation.activated_at IS NULL
+  AND generation.status IN ('superseded', 'failed')
+  AND generation.projection_write_started_at >
+      COALESCE((SELECT pws FROM last_full), '-infinity'::timestamptz)
+ORDER BY generation.projection_write_started_at, generation.generation_id
+`
+
+// UncoveredProjectionWriters returns scopeID's generations that wrote the
+// canonical graph, never activated, and are not covered by a later activated
+// full generation (#7389), oldest write first. A non-empty result means the
+// graph may hold an overlay the active generation does not describe, so the
+// next git sync must take a full snapshot. A blank scopeID returns nil without
+// querying; a read error is returned for the caller to fail closed on.
+func (s IngestionStore) UncoveredProjectionWriters(ctx context.Context, scopeID string) ([]scope.UncoveredProjectionWriter, error) {
+	if s.database == nil || strings.TrimSpace(scopeID) == "" {
+		return nil, nil
+	}
+	rows, err := s.database.QueryContext(ctx, uncoveredProjectionWritersQuery, scopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var writers []scope.UncoveredProjectionWriter
+	for rows.Next() {
+		var writer scope.UncoveredProjectionWriter
+		var status string
+		if err := rows.Scan(&writer.GenerationID, &status, &writer.ProjectionWriteStartedAt, &writer.FailureClass); err != nil {
+			return nil, err
+		}
+		writer.Status = scope.GenerationStatus(status)
+		writer.ProjectionWriteStartedAt = writer.ProjectionWriteStartedAt.UTC()
+		writers = append(writers, writer)
+	}
+	return writers, rows.Err()
+}

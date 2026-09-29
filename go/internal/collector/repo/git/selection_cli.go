@@ -80,7 +80,7 @@ func syncGitRepositoriesWithLogger(
 		} else {
 			var reconcile reconcileDecision
 			if reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) {
-				reconcile = baseline.reconcileDue(ctx, config, repoPath)
+				reconcile = baseline.reconcileDue(ctx, config, repoPath, logger)
 			}
 			forceReconcile := reconcile.Due
 			// updated==false with a nil updateErr is the legitimate no-new-changes
@@ -251,7 +251,7 @@ func updateRepository(
 	case baseline == "":
 		// No projected generation yet: there is no trustworthy baseline, so the
 		// whole repository must be re-observed.
-		notifyDeltaFallback(onFallback, "no_projected_baseline")
+		notifyDeltaFallback(onFallback, deltaFallbackNoProjectedBaseline)
 	case baseline == remoteSHA:
 		// The last projected commit already equals the remote head; nothing new
 		// has been observed since the last successful projection.
@@ -260,7 +260,7 @@ func updateRepository(
 	case !isGitCommitReachable(ctx, config, repoPath, token, baseline):
 		// The baseline is known but absent from local history (shallow-clone
 		// prune or divergence); a delta diff would be wrong, so re-observe fully.
-		notifyDeltaFallback(onFallback, "baseline_unreachable")
+		notifyDeltaFallback(onFallback, deltaFallbackBaselineUnreachable)
 	default:
 		delta, err := gitDiffDelta(ctx, config, repoPath, token, baseline, remoteRef)
 		if err != nil {

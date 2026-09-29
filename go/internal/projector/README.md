@@ -418,7 +418,7 @@ projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same bound
   project_generation stages), `projector runtime stage completed` (build,
   canonical write, content write, intent enqueue), `projection succeeded`,
   `projection failed`, `projector work canceled during shutdown`, `projector
-  work superseded by newer generation`, `projector delta refused before projection: baseline is not the active commit` (WARN, #7319, from `PreflightDeltaBaseline`, which every loop runs before `LoadFacts`; see `docs/public/reference/reconciliation-sweep.md#delta-baseline-fence`), `projector work claim lost to another
+  work superseded by newer generation`, `projector delta refused before projection: baseline is not the active commit` (WARN, #7319, from `PreflightDeltaBaseline`, which every loop runs before `LoadFacts`; see `docs/public/reference/reconciliation-sweep.md#delta-baseline-fence`; since #7389 `MarkProjectionWriteStarted` runs after `LoadFacts` and before `Runner.Project`, a writer runs to Ack, a marker refusal logs the supersede line with `fact_count` 0, and `projector lease heartbeat failed` no longer fires for a routine supersede), `projector work claim lost to another
   attempt` and `projector ack waiting for busy scope` (WARN). Most carry `scope_id`, `generation_id`,
   `source_system`, `worker_id`, `stage`, `duration_seconds`; errors add `failure_class`.
 

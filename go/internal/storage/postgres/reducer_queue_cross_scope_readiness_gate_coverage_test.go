@@ -174,6 +174,15 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// #6475 part B: the changed-since resolve binds the caller's grant on
 		// the lineage row's scope_id; only real Postgres runs that predicate.
 		"TestServiceChangedSinceBindsGrantToLineageScopeLive",
+		// #7389: the write-start marker and the heartbeat supersede must never
+		// both win; only real row locks and EvalPlanQual rechecks show it.
+		"TestProjectorHeartbeatWriteMarkerInterleave",
+		"TestProjectorWriteMarkerHeartbeatOrderingLive",
+		"TestProjectorHeartbeatWriteGateRowsLive",
+		"TestUncoveredProjectionWritersLive",
+		"TestReplayedFailedGenerationWritesAndActivatesLive",
+		"TestReplayAfterFullRecordsLatestWriteStartLive",
+		"TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

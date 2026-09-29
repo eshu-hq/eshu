@@ -46,6 +46,7 @@ func TestServiceRunDoesNotCountFailedOutcomeForLostClaim(t *testing.T) {
 		Runner:             &stubProjectionRunner{runErr: errors.New("projection failed")},
 		WorkSink:           &stubProjectorWorkSink{failErr: fmt.Errorf("stale attempt: %w", failure.ErrWorkClaimLost)},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Instruments:        instruments,
 		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },

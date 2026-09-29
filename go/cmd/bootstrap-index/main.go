@@ -84,6 +84,9 @@ type projectorDeps struct {
 	// baselineFence is the #7319 delta-baseline fence; drainProjector refuses
 	// to run without it.
 	baselineFence projector.DeltaBaselineFence
+	// writeMarker is the #7389 projection write-start marker; drainProjector
+	// refuses to run without it.
+	writeMarker projector.ProjectionWriteMarker
 }
 
 type (

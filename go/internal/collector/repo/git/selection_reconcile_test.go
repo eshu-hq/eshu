@@ -36,7 +36,7 @@ func TestReconcileDueWhenNoFullProjectionExists(t *testing.T) {
 		Now:       func() time.Time { return time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC) },
 	}
 
-	decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath)
+	decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath, discardLogger())
 	if !decision.Due || decision.Reason != reconcileReasonNeverReconciled {
 		t.Fatalf("reconcileDue = %+v, want due with reason %q when no full generation exists", decision, reconcileReasonNeverReconciled)
 	}
@@ -69,7 +69,7 @@ func TestReconcileDueRespectsInterval(t *testing.T) {
 				Reconcile: reconcilePolicy{Interval: 24 * time.Hour},
 				Now:       func() time.Time { return now },
 			}
-			if got := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath); got.Due != tc.want {
+			if got := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath, discardLogger()); got.Due != tc.want {
 				t.Fatalf("reconcileDue = %+v, want due=%v", got, tc.want)
 			}
 		})
@@ -84,7 +84,7 @@ func TestReconcileDueLookupErrorIsNotDue(t *testing.T) {
 	resolver := &stubBaselineResolver{stateErr: errStubResolver}
 	baseline := gitDeltaBaseline{Resolver: resolver, Reconcile: reconcilePolicy{Interval: 24 * time.Hour}}
 
-	if decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath); decision.Due {
+	if decision := baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath, discardLogger()); decision.Due {
 		t.Fatalf("reconcileDue = %+v, want not due on a resolver error", decision)
 	}
 }
@@ -97,7 +97,7 @@ func TestReconcileDisabledWhenIntervalZero(t *testing.T) {
 	resolver := &stubBaselineResolver{}
 	baseline := gitDeltaBaseline{Resolver: resolver, Reconcile: reconcilePolicy{Interval: 0}}
 
-	if baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath).Due {
+	if baseline.reconcileDue(context.Background(), reconcileTestConfig(reposDir), repoPath, discardLogger()).Due {
 		t.Fatal("reconcileDue = true, want false when reconciliation disabled")
 	}
 	if len(resolver.fullScopeIDs) != 0 {

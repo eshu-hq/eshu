@@ -68,3 +68,39 @@ func TestReconcilePolicyDecide(t *testing.T) {
 		})
 	}
 }
+
+// TestReconcilePolicyDecideGraphDirty pins the #7389 graph_dirty reason: only
+// the shared throttle holds it off, and a fresh full never does.
+func TestReconcilePolicyDecideGraphDirty(t *testing.T) {
+	t.Parallel()
+	policy := reconcilePolicy{Interval: 24 * time.Hour}
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	fresh := now.Add(-time.Hour)
+	latest := func(age time.Duration, status scope.GenerationStatus) scope.FullReconcileState {
+		return scope.FullReconcileState{
+			HasProjectedFull: true, LastProjectedFullAt: fresh,
+			HasLatestFull: true, LatestFullAt: now.Add(-age), LatestFullStatus: status,
+		}
+	}
+	for _, tc := range []struct {
+		name       string
+		state      scope.FullReconcileState
+		wantDue    bool
+		wantReason string
+	}{
+		{"pending full younger than interval holds it", latest(30*time.Minute, scope.GenerationStatusPending), false, reconcileReasonInFlight},
+		{"failed full younger than interval/4 holds it", latest(time.Hour, scope.GenerationStatusFailed), false, reconcileReasonRetryBackoff},
+		{"fresh projected full does not hold it", projectedFullState(fresh), true, reconcileReasonGraphDirty},
+		{"no full at all", scope.FullReconcileState{}, true, reconcileReasonGraphDirty},
+		{"pending full at interval no longer holds it", latest(24*time.Hour, scope.GenerationStatusPending), true, reconcileReasonGraphDirty},
+		{"failed full at interval/4 no longer holds it", latest(6*time.Hour, scope.GenerationStatusFailed), true, reconcileReasonGraphDirty},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			due, reason := policy.decideGraphDirty(now, tc.state)
+			if due != tc.wantDue || reason != tc.wantReason {
+				t.Fatalf("decideGraphDirty() = (%v, %q), want (%v, %q)", due, reason, tc.wantDue, tc.wantReason)
+			}
+		})
+	}
+}

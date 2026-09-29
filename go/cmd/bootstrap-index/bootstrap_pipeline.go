@@ -367,7 +367,7 @@ func drainProjectorPipelined(
 		pollInterval:  pollInterval,
 	}
 
-	return drainProjector(ctx, dws, pd.factStore, pd.runner, pd.workSink, pd.baselineFence, pd.heartbeater, pd.heartbeatInterval, workers, tracer, instruments, logger)
+	return drainProjector(ctx, dws, pd.factStore, pd.runner, pd.workSink, pd.baselineFence, pd.writeMarker, pd.heartbeater, pd.heartbeatInterval, workers, tracer, instruments, logger)
 }
 
 // drainingWorkSource wraps a ProjectorWorkSource to add drain-then-exit

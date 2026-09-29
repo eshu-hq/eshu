@@ -16,5 +16,9 @@
 // projection bug, not as a transient — an unknown failure must be visible, not
 // retried forever.
 //
+// The work sentinels (ErrWorkSuperseded, ErrWorkClaimLost, ErrWorkAckDeferred,
+// ErrWorkClaimConflict, ErrWorkWriteMarkerDeferred) tell a projection loop to
+// drop, retry, or re-run a claimed item without treating it as a failure.
+//
 // The package is a leaf: it imports no other projector package.
 package failure

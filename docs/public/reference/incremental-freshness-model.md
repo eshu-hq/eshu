@@ -114,8 +114,8 @@ LIMIT 1
 The baseline is the commit of the scope's **active** generation, the one whose
 content the graph holds. Projector Ack supersedes the old active generation and
 activates the new one in a single transaction, so a reader always sees exactly
-one of them. `pending` and `failed` generations never materialized into the
-graph, and a `superseded` generation may never have activated: a generation that
+one of them. A `pending`, `failed`, or `superseded` generation is not the
+graph's baseline, even if it wrote part of the graph (#7389): a generation that
 is superseded while still pending has `activated_at` NULL. Before #7317 such a
 generation could become the baseline, and the next delta then skipped every
 change between the active commit and it until the next full reconciliation. When
@@ -135,11 +135,20 @@ no trustworthy baseline exists or a delta would be wrong:
 - **Baseline lookup error**: the resolver read against Postgres failed; rather
   than trust the local HEAD as a delta base, the sync logs
   `git_delta_baseline_lookup_failed` and takes a full snapshot.
-
 Each fallback increments `eshu_dp_collector_delta_baseline_fallback_total`,
 labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`,
 `baseline_lookup_error`), so operators can watch the delta-skip rate and tell a
-fleet of cold first syncs apart from a Postgres outage. In the common case where projection
+fleet of cold first syncs apart from a Postgres outage.
+
+The projector keeps the baseline honest with a write-through contract: an
+attempt records `projection_write_started_at` on its generation before its
+first write, and the heartbeat never abandons a started projection write to a
+newer generation, so it runs to Ack and a stale delta diffed from the old
+active commit is refused before it writes. Every other retirement of a started
+write (claim-path or Ack obsolete supersede, dead letter, lease expiry, Ack
+refusal) is healed by a forced full: the sweep's `graph_dirty` reason (#7389)
+forces the scope even when the remote head equals the active commit. See
+[Reconciliation Sweep](reconciliation-sweep.md#delta-baseline-fence). In the common case where projection
 succeeds, the local branch ref still pins the last projected commit, so the
 baseline stays reachable and delta sync keeps applying; full snapshots are paid
 only on first sync or genuine divergence.
@@ -200,11 +209,14 @@ transitions are enforced by `allowedGenerationTransitions`:
 | `active` | Currently authoritative for the scope. | `superseded`, `completed`, `failed` |
 | `superseded` | Replaced by a newer generation. | terminal |
 | `completed` | Finished successfully. | terminal |
-| `failed` | Finished unsuccessfully. | terminal |
+| `failed` | Finished unsuccessfully. | none in the enum; replayable (below) |
 
-`superseded`, `completed`, and `failed` are terminal: a terminal generation
-cannot transition again. There is no separate "retired" status; a generation
-that is no longer active is in one of these three terminal states.
+`superseded` and `completed` are terminal. `failed` has no allowed next
+status in the enum, but the projector queue does not treat it as final: a
+dead-lettered projector row can be replayed (operator replay or the poison
+auto-retry), and its `failed` generation then projects again and activates
+through Ack, which refuses only `superseded`. There is no separate "retired"
+status.
 
 A scope has at most one active generation, named by
 `ingestion_scopes.active_generation_id`. Promotion happens at projection

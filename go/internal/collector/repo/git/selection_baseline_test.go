@@ -63,6 +63,9 @@ type stubBaselineResolver struct {
 	state        scope.FullReconcileState
 	stateErr     error
 	fullScopeIDs []string
+	// writers and writersErr answer UncoveredProjectionWriters (#7389).
+	writers    []scope.UncoveredProjectionWriter
+	writersErr error
 }
 
 func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID string) (string, error) {
@@ -73,6 +76,10 @@ func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID
 func (s *stubBaselineResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {
 	s.fullScopeIDs = append(s.fullScopeIDs, scopeID)
 	return s.state, s.stateErr
+}
+
+func (s *stubBaselineResolver) UncoveredProjectionWriters(context.Context, string) ([]scope.UncoveredProjectionWriter, error) {
+	return s.writers, s.writersErr
 }
 
 // TestGitScopeIDForManagedRepoMatchesSnapshotScope pins the correctness link of

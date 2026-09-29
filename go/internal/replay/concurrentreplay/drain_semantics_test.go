@@ -284,6 +284,7 @@ func TestDriverCommitsFeedProjectorClaimDrainAck(t *testing.T) {
 		WorkSink:     queue,
 		// These commits are full generations; the #7319 fence passes them.
 		DeltaBaselineFence: fullGenerationFence{},
+		WriteMarker:        fullGenerationFence{},
 		// Every commit already landed in queue before Service.Run starts (the
 		// assertions above prove that half of the pipeline). Once the queue
 		// reports empty, stop immediately rather than polling forever — the
@@ -342,5 +343,11 @@ func (fullGenerationFence) ReadDeltaBaseline(context.Context, projector.ScopeGen
 }
 
 func (fullGenerationFence) RefuseDeltaBaseline(context.Context, projector.ScopeGenerationWork, projector.DeltaBaselineRefusal) error {
+	return nil
+}
+
+// MarkProjectionWriteStarted is the #7389 write marker; the replay driver's
+// generations are never superseded mid-write, so it always marks.
+func (fullGenerationFence) MarkProjectionWriteStarted(context.Context, projector.ScopeGenerationWork) error {
 	return nil
 }

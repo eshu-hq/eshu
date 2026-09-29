@@ -206,19 +206,17 @@ func (q ProjectorQueue) Ack(
 		}
 	}()
 
-	lockTimeout := min(q.AckScopeLockTimeout, maxProjectorAckLockTimeout)
-	if lockTimeout < time.Millisecond { // "0ms" would disable lock_timeout
-		lockTimeout = defaultProjectorAckLockTimeout
-	}
-	// PostgreSQL accepts "2000ms" but not Go's "1m30s" duration syntax.
-	lockTimeoutSetting := fmt.Sprintf("%dms", lockTimeout.Milliseconds())
-	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeoutSetting); err != nil {
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", q.ackLockTimeoutSetting()); err != nil {
 		return fmt.Errorf("ack projector work: set lock timeout: %w", err)
 	}
 	now := q.now()
-	// Ingestion commits lock scope, then generation, then work. Locking the
-	// scope first serializes same-scope commits; work precedes generation so
-	// heartbeat and claim operations cannot invert the remaining lock order.
+	// Lock order (#7389). The heartbeat supersede takes no lock it can wait on
+	// (scope, work, generation, all SKIP LOCKED), so it cannot join a wait
+	// cycle. Every blocking path takes the scope row first: Ack (scope, work,
+	// other generations, target generation), Fail (scope, work, generation) and
+	// the ingestion commit (scope, generation, work). The delta-baseline refusal
+	// takes no scope row and shares work-then-generation with Ack. The
+	// write-start marker locks only its own generation row.
 	if _, err := tx.ExecContext(ctx, updateProjectorScopeGenerationQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		return fmt.Errorf("ack projector work: update scope active generation: %w", err)
@@ -410,6 +408,18 @@ func (q ProjectorQueue) Fail(
 	}
 
 	return nil
+}
+
+// ackLockTimeoutSetting returns the transaction-local lock_timeout Ack and the
+// write-start marker use: AckScopeLockTimeout capped at
+// maxProjectorAckLockTimeout, or defaultProjectorAckLockTimeout when unset.
+func (q ProjectorQueue) ackLockTimeoutSetting() string {
+	lockTimeout := min(q.AckScopeLockTimeout, maxProjectorAckLockTimeout)
+	if lockTimeout < time.Millisecond { // "0ms" would disable lock_timeout
+		lockTimeout = defaultProjectorAckLockTimeout
+	}
+	// PostgreSQL accepts "2000ms" but not Go's "1m30s" duration syntax.
+	return fmt.Sprintf("%dms", lockTimeout.Milliseconds())
 }
 
 func (q ProjectorQueue) validate() error {

@@ -65,6 +65,7 @@ func runDeltaBaselineService(t *testing.T, fence DeltaBaselineFence) (deltaBasel
 		Heartbeater:        probe.heartbeater,
 		HeartbeatInterval:  time.Millisecond,
 		DeltaBaselineFence: fence,
+		WriteMarker:        &fakeWriteMarker{},
 		FactCounter:        probe.counter,
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}

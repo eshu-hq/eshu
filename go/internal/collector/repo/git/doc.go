@@ -30,6 +30,12 @@
 // including generations with no current rationale comments, so downstream
 // reconciliation can retract stale EXPLAINS edges.
 //
+// The periodic reconciliation sweep also forces a full snapshot for a scope
+// with #7389 uncovered projection writers (reason graph_dirty), subject only to
+// the in-flight and retry-backoff throttle. ReconcileSweepDecision exposes that
+// decision and GenerationFreshnessHint the empty hint a reconciliation snapshot
+// carries, so the ingestion store never drops it as unchanged.
+//
 // Documentation extraction lives in the docs subpackage; see its doc.go for
 // the format list and the metadata-only boundaries (DOCX comments and tracked
 // changes, legacy XLS, PPTX hidden slides and speaker notes). Prose surfaces may

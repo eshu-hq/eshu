@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -80,6 +79,9 @@ type Service struct {
 	WorkSink           ProjectorWorkSink
 	Heartbeater        ProjectorWorkHeartbeater
 	DeltaBaselineFence DeltaBaselineFence // required; processWork runs it before anything else (#7319)
+	// WriteMarker is required; processWork runs it after LoadFacts and before
+	// the first graph or content write (#7389).
+	WriteMarker ProjectionWriteMarker
 	// HeartbeatInterval controls how often a claimed projector work item renews
 	// its lease while projection is still running. Zero means no heartbeats.
 	HeartbeatInterval time.Duration
@@ -264,6 +266,9 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		return s.failWork(workCtx, work, start, 0, err, workerID)
 	}
 	s.recordWorkStage(projectCtx, work, "load_facts", loadStart, len(factsForGeneration), workerID)
+	if handled, err := s.markProjectionWriteStarted(workCtx, projectCtx, work, stopHeartbeat, start, workerID); handled {
+		return err
+	}
 
 	projectStart := time.Now()
 	scopeValue := work.Scope
@@ -318,64 +323,6 @@ func projectorAckContext(ctx context.Context) (context.Context, context.CancelFu
 
 func projectorClaimCanceled(ctx context.Context, err error) bool {
 	return ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
-}
-
-type projectorHeartbeatStop func() error
-
-func (s Service) startHeartbeat(ctx context.Context, work ScopeGenerationWork, workerID int) (context.Context, projectorHeartbeatStop) {
-	if s.Heartbeater == nil || s.HeartbeatInterval <= 0 {
-		return ctx, func() error { return nil }
-	}
-
-	heartbeatCtx, cancel := context.WithCancel(ctx)
-	done := make(chan error, 1)
-	go func() {
-		ticker := time.NewTicker(s.HeartbeatInterval)
-		defer ticker.Stop()
-
-		var heartbeatErr error
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				done <- heartbeatErr
-				return
-			case <-ticker.C:
-				if err := s.Heartbeater.Heartbeat(heartbeatCtx, work); err != nil {
-					if heartbeatCtx.Err() != nil && errors.Is(err, heartbeatCtx.Err()) {
-						done <- nil
-						return
-					}
-					heartbeatErr = fmt.Errorf("heartbeat projector work: %w", err)
-					// A lost claim is expected under attempt fencing; processWork
-					// logs it at WARN, so it must not page as a heartbeat failure.
-					if s.Logger != nil && !errors.Is(err, failure.ErrWorkClaimLost) {
-						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
-						logAttrs := make([]any, 0, len(scopeAttrs)+4)
-						for _, a := range scopeAttrs {
-							logAttrs = append(logAttrs, a)
-						}
-						logAttrs = append(logAttrs, log.WorkerID(fmt.Sprintf("%d", workerID)))
-						logAttrs = append(logAttrs, slog.Duration("heartbeat_interval", s.HeartbeatInterval))
-						logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseProjection))
-						logAttrs = append(logAttrs, telemetry.FailureClassAttr("lease_heartbeat_failure"))
-						logAttrs = append(logAttrs, log.Err(heartbeatErr))
-						s.Logger.ErrorContext(heartbeatCtx, "projector lease heartbeat failed", logAttrs...)
-					}
-					cancel()
-				}
-			}
-		}
-	}()
-
-	var once sync.Once
-	return heartbeatCtx, func() error {
-		var heartbeatErr error
-		once.Do(func() {
-			cancel()
-			heartbeatErr = <-done
-		})
-		return heartbeatErr
-	}
 }
 
 // InitLargeGenSemaphore sets up the large-generation semaphore. Call after
@@ -470,6 +417,9 @@ func (s Service) validate() error {
 	}
 	if s.DeltaBaselineFence == nil {
 		return errDeltaBaselineFenceMissing
+	}
+	if s.WriteMarker == nil {
+		return errWriteMarkerMissing
 	}
 	return nil
 }

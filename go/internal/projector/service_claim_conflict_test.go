@@ -53,6 +53,7 @@ func TestServiceRunKeepsWorkersAfterClaimConflict(t *testing.T) {
 				Runner:             &stubProjectionRunner{},
 				WorkSink:           &stubProjectorWorkSink{},
 				DeltaBaselineFence: &fakeDeltaBaselineFence{},
+				WriteMarker:        &fakeWriteMarker{},
 				// Stop only after every scripted conflict has been seen,
 				// proving a conflict does not end the run.
 				Wait: func(context.Context, time.Duration) error {
@@ -85,6 +86,7 @@ func TestServiceRunStillStopsOnNonConflictClaimError(t *testing.T) {
 			Runner:             &stubProjectionRunner{},
 			WorkSink:           &stubProjectorWorkSink{},
 			DeltaBaselineFence: &fakeDeltaBaselineFence{},
+			WriteMarker:        &fakeWriteMarker{},
 			Wait:               func(context.Context, time.Duration) error { return nil },
 		}
 		if err := service.Run(context.Background()); !errors.Is(err, wantErr) {

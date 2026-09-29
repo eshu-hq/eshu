@@ -128,7 +128,7 @@ func TestClaimProjectorWorkCapErrorIsFatalToDrainProjector(t *testing.T) {
 	go func() {
 		done <- drainProjector(
 			context.Background(), source, &fakeFactStore{}, &fakeProjectionRunner{}, &concurrentWorkSink{},
-			passBootstrapBaselineFence{}, nil, 0, 1, nil, nil, nil,
+			passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, 1, nil, nil, nil,
 		)
 	}()
 	select {
@@ -225,6 +225,7 @@ func TestDrainProjectorPipelinedSurvivesClaimConflictAfterCollectorDone(t *testi
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	if err := drainProjectorPipelined(context.Background(), pd, 1, collectorDone, nil, nil, nil); err != nil {

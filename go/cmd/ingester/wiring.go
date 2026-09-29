@@ -294,7 +294,9 @@ func buildIngesterProjectorService(
 		WorkSink:     projectorQueue,
 		Heartbeater:  projectorQueue,
 		// #7319: the fence runs before every projection and inside Ack.
-		DeltaBaselineFence:    projectorQueue,
+		DeltaBaselineFence: projectorQueue,
+		// #7389: the write marker runs after LoadFacts, before the first write.
+		WriteMarker:           projectorQueue,
 		HeartbeatInterval:     projectorHeartbeatInterval(projectorQueue.LeaseDuration),
 		Tracer:                tracer,
 		Instruments:           instruments,

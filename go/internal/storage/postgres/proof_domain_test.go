@@ -167,6 +167,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 		Runner:             projectorRuntime,
 		WorkSink:           projectorQueue,
 		DeltaBaselineFence: projectorQueue,
+		WriteMarker:        projectorQueue,
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 

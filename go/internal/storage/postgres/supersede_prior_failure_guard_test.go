@@ -213,20 +213,25 @@ func TestSupersedeWriterGuardSeededViolation(t *testing.T) {
 		t.Fatalf("a retry that only reads superseded: violations=%v writers=%d, want neither", v, n)
 	}
 
-	real, err := os.ReadFile("projector_queue_sql.go")
-	if err != nil {
-		t.Fatalf("read projector_queue_sql.go: %v", err)
-	}
-	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", string(real)); n != 3 || len(v) != 0 {
-		t.Fatalf("real projector_queue_sql.go: violations=%v writers=%d, want 3 folded writers", v, n)
-	}
-	stripped := strings.NewReplacer("priorFailureStaleSQL", "somethingElse", "priorFailureWorkSQL", "somethingElse").Replace(string(real))
-	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", stripped); n != 3 || len(v) != 3 {
-		t.Fatalf("stripped projector_queue_sql.go: violations=%v writers=%d, want all 3 reported", v, n)
-	}
-	swapped := strings.NewReplacer("priorFailureStaleSQL", "priorFailureWorkSQL", "priorFailureWorkSQL", "priorFailureStaleSQL").Replace(string(real))
-	if v, n := supersedeWriterViolations(t, "projector_queue_sql.go", swapped); n != 3 || len(v) != 3 {
-		t.Fatalf("alias-swapped projector_queue_sql.go: violations=%v writers=%d, want all 3 reported", v, n)
+	// The projector's three writers: Ack's obsolete supersede and Ack refusal
+	// mark in projector_queue_sql.go, and the heartbeat supersede, which #7389
+	// moved next to supersedeRunningWork in projector_queue_scan.go.
+	for file, want := range map[string]int{"projector_queue_sql.go": 2, "projector_queue_scan.go": 1} {
+		real, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		if v, n := supersedeWriterViolations(t, file, string(real)); n != want || len(v) != 0 {
+			t.Fatalf("real %s: violations=%v writers=%d, want %d folded writers", file, v, n, want)
+		}
+		stripped := strings.NewReplacer("priorFailureStaleSQL", "somethingElse", "priorFailureWorkSQL", "somethingElse").Replace(string(real))
+		if v, n := supersedeWriterViolations(t, file, stripped); n != want || len(v) != want {
+			t.Fatalf("stripped %s: violations=%v writers=%d, want all %d reported", file, v, n, want)
+		}
+		swapped := strings.NewReplacer("priorFailureStaleSQL", "priorFailureWorkSQL", "priorFailureWorkSQL", "priorFailureStaleSQL").Replace(string(real))
+		if v, n := supersedeWriterViolations(t, file, swapped); n != want || len(v) != want {
+			t.Fatalf("alias-swapped %s: violations=%v writers=%d, want all %d reported", file, v, n, want)
+		}
 	}
 }
 

@@ -63,6 +63,18 @@ the directory is the single source of truth root already documented it as.
 - Root's `BootstrapDefinitionsWithoutContentSearchIndexes` stays in root: it
   needs the content store's deferred DDL, which this leaf does not own.
 
+## Catalog-only column and storage-parameter migrations
+
+Migrations 148 (`delta_baseline_commit_sha`, #7319) and 149
+(`projection_write_started_at`, #7389) each add one nullable
+`scope_generations` column with no default, backfill, CHECK, or index, so
+`ADD COLUMN` changes only the catalog and its ACCESS EXCLUSIVE lock is bounded
+by the runner's lock_timeout and retry. Migration 150 sets
+`scope_generations` `fillfactor = 90` (SHARE UPDATE EXCLUSIVE, catalog-only):
+existing pages are not rewritten, and new pages keep the free space that makes
+the #7389 write-start marker a HOT update. Keep each of these a single
+statement; see `docs/internal/evidence/7389-superseded-writer-overlay.md`.
+
 ## Verification
 
 ```bash

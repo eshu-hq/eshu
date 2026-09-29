@@ -55,6 +55,7 @@ func TestPipelinedBootstrapProjectsDuringCollection(t *testing.T) {
 		runner:        tracker,
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -105,6 +106,7 @@ func TestPipelinedBootstrapDrainsQueueAfterCollectorExits(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -132,6 +134,7 @@ func TestPipelinedBootstrapExitsCleanlyWhenQueueEmpty(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	start := time.Now()
@@ -165,6 +168,7 @@ func TestPipelinedBootstrapCollectorErrorCancelsProjector(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -191,6 +195,7 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -235,6 +240,7 @@ func TestPipelinedBootstrapBackfillFailureIsFatal(t *testing.T) {
 			runner:        &fakeProjectionRunner{},
 			workSink:      &concurrentWorkSink{},
 			baselineFence: passBootstrapBaselineFence{},
+			writeMarker:   passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -267,6 +273,7 @@ func TestPipelinedBootstrapIaCReachabilityFailureIsFatal(t *testing.T) {
 			runner:        &fakeProjectionRunner{},
 			workSink:      &concurrentWorkSink{},
 			baselineFence: passBootstrapBaselineFence{},
+			writeMarker:   passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -299,6 +306,7 @@ func TestPipelinedBootstrapReopenFailureIsFatal(t *testing.T) {
 			runner:        &fakeProjectionRunner{},
 			workSink:      &concurrentWorkSink{},
 			baselineFence: passBootstrapBaselineFence{},
+			writeMarker:   passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -333,6 +341,7 @@ func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
 			runner:        &fakeProjectionRunner{},
 			workSink:      &concurrentWorkSink{},
 			baselineFence: passBootstrapBaselineFence{},
+			writeMarker:   passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -369,6 +378,7 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 			runner:        &delayedProjectionRunner{delay: 50 * time.Millisecond},
 			workSink:      sink,
 			baselineFence: passBootstrapBaselineFence{},
+			writeMarker:   passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -410,6 +420,7 @@ func TestPipelinedBootstrapHeartbeatsLongProjectorWork(t *testing.T) {
 				runner:            &blockingProjectionRunner{started: started, release: release},
 				workSink:          &concurrentWorkSink{},
 				baselineFence:     passBootstrapBaselineFence{},
+				writeMarker:       passBootstrapBaselineFence{},
 				heartbeater:       heartbeater,
 				heartbeatInterval: time.Millisecond,
 			},

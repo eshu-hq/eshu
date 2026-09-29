@@ -74,7 +74,7 @@ Cost is one full re-observation and projection per scope per interval — the sa
 cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
-`retry_after_unprojected`), and logs `git_reconcile_forced` with `scope_id`,
+`retry_after_unprojected`, `graph_dirty`), and logs `git_reconcile_forced` with `scope_id`,
 `reason`, `last_projected_full_at`, `latest_full_at`, and `latest_full_status`.
 The log is WARN for `in_flight_expired` and `retry_after_unprojected`: repeats of
 either mean projection is not keeping up with the sweep. Each evaluation the
@@ -139,17 +139,43 @@ when Ack refused it, and `failure_details` names the scope, generation, baseline
 commit, active commit (or `none`), active generation, and phase. The next
 collector cycle diffs from the new active commit, so recovery needs no trigger.
 
-What the fence does not enforce: that the graph content equals the baseline
-commit. A generation can write the graph and never activate, and a later delta
-then passes the fence on a graph that is not at its baseline. That hole is
-tracked as #7389 and is not fixed here. An Ack-phase refusal also leaves the
-refused delta's overlay in the graph; the next delta repairs it only when the
-remote head has not moved again, and otherwise the reconciliation sweep above
-does.
+What the fence does not enforce on its own: that the graph content equals the
+baseline commit. The write-through contract (#7389) closes that gap. Before
+its first graph or content write, after it loads facts, a projector attempt
+sets its generation's `projection_write_started_at` marker (the latest write
+start, fenced on its claim). The heartbeat never supersedes a generation whose
+marker is set for a newer one, so a writer runs to Ack; a newer delta diffed
+from the same active commit is then refused at preflight before it writes, and the
+collector's next delta is diffed from the writer's commit. A generation that
+wrote and still never activated keeps its marker. The heartbeat never
+abandons a started write to a newer generation, but other paths still retire
+one: the claim path's stale-generation supersede and Ack's obsolete supersede
+(a marked pending generation whose work was retrying), a dead letter, a lease
+expiry, or an Ack refusal. Each is healed by a forced full: while such a
+writer is uncovered, the sweep forces the scope with reason `graph_dirty` (WARN
+log `git_delta_baseline_graph_dirty`), held off only by the in-flight and
+retry-backoff throttle, never by a fresh full, and counted against
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE` (a scope over budget stays on its delta and
+is forced a cycle later). Setting `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` also
+disables this heal. A marked writer is released only by its own completion,
+failure, or a lease expiry after its process dies; on Neo4j
+`ESHU_CANONICAL_WRITE_TIMEOUT` is unbounded by default, so a hung write with a
+live heartbeat freezes that scope's freshness until the worker restarts.
+The heal is paced by that throttle: a pending heal full holds the scope for up
+to the reconcile interval, and a heal full superseded or failed before
+activation backs the scope off a quarter of the interval. The claim path
+supersedes a pending full when a newer delta arrives before it is claimed, so a
+hot repo under projector backlog repeats the heal in quarter-interval steps
+rather than at the next sync (about 28 consecutive attempts at the defaults
+before a 168-hour retention prune could remove the marker). Retention of an uncovered writer before its heal
+is a tracked follow-up.
 
 `eshu_dp_projector_delta_baseline_fence_total` counts decisions by `phase`
-(`preflight`, `ack`) and `outcome`. Passes are counted once, at Ack. A rising
-refusal share means the projector lags the collector. Any `phase=ack` refusal
+(`preflight`, `ack`) and `outcome`. Passes are counted once, at Ack. A
+preflight `refused_active_differs` is expected whenever a newer generation
+arrives while an older one is writing; its rate should not exceed the scope's
+generation commit rate. A rising refusal share beyond that means the projector
+lags the collector. Any `phase=ack` refusal
 (`refused_active_differs` or `refused_no_active`) means two claims were valid
 in one scope and logs at ERROR; a preflight refusal logs at WARN. This holds
 because a target already superseded by a newer activation never reaches a
@@ -159,7 +185,7 @@ every collector writes the baseline. Commit SHAs appear in logs and
 `failure_details`, never as labels. The collector's `git repository sync
 completed` log carries `delta_baseline_commit_sha` for a delta sync.
 
-Rollout order is migration 148, then binaries. Deltas written by an older
+Rollout order is migrations 148-150, then binaries. Deltas written by an older
 collector, or in flight during the rollout, have no baseline and are not fenced.
 
 ## Related references
