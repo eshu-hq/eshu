@@ -1518,6 +1518,11 @@ type Instruments struct {
 	// rising rate means claimers contend on shared rows (#7108).
 	QueueClaimConflictRetries metric.Int64Counter
 
+	// QueueDeadLetters counts work items a Fail path moved to dead_letter
+	// (eshu_dp_queue_dead_letters_total), labeled queue (projector or reducer)
+	// and a bounded failure_class. Operator dead-letters are not counted (#7386).
+	QueueDeadLetters metric.Int64Counter
+
 	// SupersededGenerationFence counts projector work a superseded-generation
 	// fence stopped (#7130), labeled by a closed failure_class:
 	// projector_ack_generation_superseded (Ack refused to re-activate a
@@ -4708,6 +4713,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueueClaimConflictRetries counter: %w", err)
+	}
+
+	inst.QueueDeadLetters, err = meter.Int64Counter(
+		"eshu_dp_queue_dead_letters_total",
+		metric.WithDescription("Work items a projector or reducer Fail path dead-lettered, labeled by queue and failure_class (#7386)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueueDeadLetters counter: %w", err)
 	}
 
 	inst.SupersededGenerationFence, err = meter.Int64Counter(

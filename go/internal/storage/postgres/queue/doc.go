@@ -20,6 +20,9 @@
 // and the details to MaxFailureDetailsBytes. Longer text keeps a prefix cut on
 // a rune boundary and ends in "...[truncated: <original> bytes, kept <n>]",
 // counted inside the limit. failure_class is not bounded.
+// BoundedFailureClassLabel bounds a failure_class metric label to a lowercase
+// identifier of at most 64 characters, returning FailureClassOtherLabel for
+// anything else (#7386). It bounds only the label; the stored class is unchanged.
 //
 // ComputeRetryDelay returns the exponential-backoff-with-jitter delay to add
 // to "now" when scheduling a retry (issue #4450), replacing the historical

@@ -20,6 +20,9 @@
   `MaxFailureMessageBytes`, applied after `sanitizeFailureText`, rune-safe, with
   the marker inside the limit. Never move it into SQL or the #7320 supersede
   fold; the stored evidence and its `prior_failure` copy must stay equal.
+- Keep `BoundedFailureClassLabel` pure and its pattern `^[a-z0-9_]{1,64}$`: the
+  dead-letter counter (#7386) uses it so a metric label never takes an unbounded
+  value. It must not change the stored class.
 - Keep `ComputeRetryDelay`'s overflow guard (the doubling loop breaks on
   `doubled < backoff`) — do not replace it with a direct shift.
 - Never import the parent `postgres` package from here.

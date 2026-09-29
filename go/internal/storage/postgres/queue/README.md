@@ -5,7 +5,8 @@
 This package holds the failure-classification and retry-backoff helpers
 shared by the Postgres projector and reducer work queues. It is the
 `queue/` leaf of the storage/postgres split (#6693) and, for now, holds only
-the two pure helper files the split hoisted out of the parent package. The
+the pure helper files the split hoisted out of the parent package and the
+failure-class label bound (`failure_class_label.go`). The
 queue types themselves (`ProjectorQueue`, `ReducerQueue`) stay in the parent
 `postgres` package until their own later `queue/projector/` and
 `queue/reducer/` moves.
@@ -26,6 +27,7 @@ this package's dead-letter path defers to.
 - `DeadLetterTriageMetadata(cause error, stage string, retryable bool) (string, string, string)`
 - `ComputeRetryDelay(baseDelay, maxDelay time.Duration, jitterFraction float64, attempt int, jitterSource func() float64) time.Duration`
 - `MaxFailureDetailsBytes`, `MaxFailureMessageBytes` (consts, 4096 and 1024)
+- `BoundedFailureClassLabel(class string) string` and `FailureClassOtherLabel` (const): bound a `failure_class` metric label to `^[a-z0-9_]{1,64}$`, else `other` (#7386)
 - `DefaultRetryMaxDelayFallback time.Duration` (const)
 - `DefaultJitterSource() float64`
 
