@@ -36,6 +36,23 @@ See `doc.go` for the package contract.
 status to the caller's `postgres.query` span. The caller records errors and the
 chosen execution mode on that span.
 
+## Measured scope
+
+Performance Evidence: A read-only SQL assembly shim on an isolated PostgreSQL
+18.6 corpus of 984 repositories compared the captured 16-term single statement
+with four snapshot-sharing probes and PostgreSQL final assembly. The same
+storage snapshot held 155,826 `content_files` rows and 2,808,209
+`content_entities` rows. Interleaved baseline/candidate medians were 0.810743
+and 0.568569 seconds from dispatch through consumption of the 26-row ordered
+page. All measured ordered pages, including cap status, matched. This proves
+the theory on that corpus; a built binary and the ops-qa endpoint remain to be
+measured after schema bootstrap. It does not establish an endpoint target.
+
+Observability Evidence: The `postgres.query` span records the selected route,
+probe row count, JSON bytes, probe and assembly duration, pool-cap status, and
+errors. A pool below four open connections uses the single statement and marks
+the fallback reason on the same span.
+
 ## Gotchas / invariants
 
 - Import an exported snapshot before a worker's first SELECT. Keep the exporter
