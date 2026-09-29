@@ -107,6 +107,27 @@ func TestChangePlanningEmptyScopedGrantSkipsContentRead(t *testing.T) {
 			if got := store.calls; got != 0 {
 				t.Fatalf("content-store calls = %d, want no read for an empty scoped grant", got)
 			}
+			var envelope querycontract.ResponseEnvelope
+			if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("json.Unmarshal(response) error = %v", err)
+			}
+			data, ok := envelope.Data.(map[string]any)
+			if !ok {
+				t.Fatalf("response data type = %T, want map[string]any", envelope.Data)
+			}
+			if route != "/api/v0/impact/developer-change-plan" {
+				codeSurface, ok := data["code_surface"].(map[string]any)
+				if !ok {
+					t.Fatalf("code_surface type = %T, want map[string]any", data["code_surface"])
+				}
+				sourceBackends, ok := codeSurface["source_backends"].([]any)
+				if !ok {
+					t.Fatalf("source_backends type = %T, want []any", codeSurface["source_backends"])
+				}
+				if len(sourceBackends) != 0 {
+					t.Fatalf("source_backends = %#v, want no backend for the skipped content read", sourceBackends)
+				}
+			}
 		})
 	}
 }

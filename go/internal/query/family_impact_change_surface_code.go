@@ -42,11 +42,12 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	req impact.ChangeSurfaceInvestigationRequest,
 	fetchPathSymbols func(context.Context, impact.ChangeSurfaceInvestigationRequest) ([]map[string]any, bool, error),
 ) (map[string]any, error) {
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	// #5167 W3: req.RepoID is used directly below to read topic evidence and
 	// changed-path symbols from the content store, bypassing the graph-target
 	// resolver's grant filtering entirely -- an explicit repo_id must be
 	// checked against the caller's grant before any content read runs.
-	if req.RepoID != "" && !impact.RepoIDAllowed(req.RepoID, querycontract.RepositoryAccessFilterFromContext(ctx)) {
+	if req.RepoID != "" && !impact.RepoIDAllowed(req.RepoID, access) {
 		return nil, impact.ErrChangeSurfaceRepoNotGranted
 	}
 	files := impact.ChangeSurfaceFileMaps(req.ChangedPaths, req.RepoID)
@@ -58,11 +59,11 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	sourceBackends := []string{}
 
 	if req.Topic != "" {
-		rows, err := fetchChangeSurfaceTopicRows(ctx, h, req)
+		rows, topicStoreRead, err := fetchChangeSurfaceTopicRows(ctx, h, req)
 		if err != nil {
 			return nil, err
 		}
-		rows = filterCodeTopicRowsForAccess(rows, querycontract.RepositoryAccessFilterFromContext(ctx))
+		rows = filterCodeTopicRowsForAccess(rows, access)
 		if req.Offset > 0 && len(rows) == 0 {
 			poolStatus = changeSurfacePoolStatusUnknownEmptyPage
 		}
@@ -77,7 +78,9 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 			rows = rows[:req.Limit]
 		}
 		truncated = pageTruncated || poolTruncated
-		sourceBackends = append(sourceBackends, "postgres_content_store")
+		if topicStoreRead {
+			sourceBackends = append(sourceBackends, "postgres_content_store")
+		}
 		for index, row := range rows {
 			files = codequery.AppendMatchedFile(files, row)
 			if row.EntityID != "" {
@@ -131,17 +134,17 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 // fetchChangeSurfaceTopicRows is the former (h *ImpactHandler)
 // changeSurfaceTopicRows, converted to a free function with zero body
 // changes. It stays in root because it names lane-A codeTopic* types.
-func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impact.ChangeSurfaceInvestigationRequest) ([]codequery.CodeTopicEvidenceRow, error) {
+func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impact.ChangeSurfaceInvestigationRequest) ([]codequery.CodeTopicEvidenceRow, bool, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Scoped() && access.Empty() {
-		return nil, nil
+		return nil, false, nil
 	}
 	if h == nil || h.Content == nil {
-		return nil, codequery.ErrCodeTopicBackendUnavailable
+		return nil, false, codequery.ErrCodeTopicBackendUnavailable
 	}
 	investigator, ok := h.Content.(codequery.CodeTopicContentInvestigator)
 	if !ok {
-		return nil, codequery.ErrCodeTopicBackendUnavailable
+		return nil, false, codequery.ErrCodeTopicBackendUnavailable
 	}
 	topicReq := codequery.CodeTopicInvestigationRequest{
 		Topic:  req.Topic,
@@ -161,9 +164,9 @@ func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impa
 	}
 	rows, err := investigator.InvestigateCodeTopic(ctx, topicReq)
 	if err != nil {
-		return nil, fmt.Errorf("investigate code topic: %w", err)
+		return nil, true, fmt.Errorf("investigate code topic: %w", err)
 	}
-	return rows, nil
+	return rows, true, nil
 }
 
 // filterCodeTopicRowsForAccess drops codequery.CodeTopicEvidenceRow entries whose
