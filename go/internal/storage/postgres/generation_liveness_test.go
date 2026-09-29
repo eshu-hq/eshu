@@ -194,7 +194,7 @@ func TestGenerationLivenessStoreRecoverWedgedGenerations(t *testing.T) {
 			// supersede orphaned actives returns superseded generation ids.
 			{rows: [][]any{{"scope-1", "gen-old"}}},
 			// recover wedged returns re-enqueued (scope, generation) pairs.
-			{rows: [][]any{{"scope-2", "gen-wedged-a"}, {"scope-3", "gen-wedged-b"}}},
+			{rows: [][]any{{"scope-2", "gen-wedged-a", 1}, {"scope-3", "gen-wedged-b", 2}}},
 		},
 	}
 
@@ -377,7 +377,7 @@ func TestRecoverWedgedActiveGenerationsRecoversBlockedScopes(t *testing.T) {
 			// supersede orphaned actives: none.
 			{rows: [][]any{}},
 			// recover wedged: one blocked scope is re-driven.
-			{rows: [][]any{{"scope-wedged", "gen-wedged"}}},
+			{rows: [][]any{{"scope-wedged", "gen-wedged", 1}}},
 		},
 	}
 

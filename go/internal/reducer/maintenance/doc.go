@@ -10,7 +10,10 @@
 // projection itself.
 //
 // [GenerationLivenessRunner] re-drives active generations that wedge past
-// their activation deadline and supersedes orphaned older actives.
+// their activation deadline, skipping generations whose blocking shared-intent
+// domain queues are still progressing inside the policy's progress window, and
+// supersedes orphaned older actives. It logs each re-driven
+// [GenerationLivenessRecovery].
 // [PoisonLivenessRunner] closes the gap it cannot reach: a scope whose newest
 // generation is terminally dead_letter. [GenerationRetentionRunner] prunes
 // superseded source-generation history in bounded transactions.
@@ -44,7 +47,7 @@
 //
 // The exported surface is [GenerationLivenessRunner],
 // [GenerationLivenessPolicy], [GenerationLivenessResult],
-// [GenerationLivenessRecoverer], [GenerationLivenessRunnerConfig],
+// [GenerationLivenessRecovery], [GenerationLivenessRecoverer], [GenerationLivenessRunnerConfig],
 // [PoisonLivenessRunner], [PoisonLivenessPolicy], [PoisonLivenessResult],
 // [PoisonLivenessRecoverer], [PoisonLivenessRunnerConfig],
 // [GenerationRetentionRunner], [GenerationRetentionPolicy],

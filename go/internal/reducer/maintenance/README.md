@@ -25,7 +25,7 @@ package mirrors locally (see Dependencies below) so it never imports
 
 | symbol | consumer |
 |---|---|
-| `GenerationLivenessRunner`, `GenerationLivenessPolicy`, `GenerationLivenessResult`, `GenerationLivenessRecoverer`, `GenerationLivenessRunnerConfig` | `cmd/reducer` (`generation_liveness_wiring.go`, `config.go`); `Service.GenerationLivenessRunner` field |
+| `GenerationLivenessRunner`, `GenerationLivenessPolicy`, `GenerationLivenessResult`, `GenerationLivenessRecovery`, `GenerationLivenessRecoverer`, `GenerationLivenessRunnerConfig` | `cmd/reducer` (`generation_liveness_wiring.go`, `config.go`); `Service.GenerationLivenessRunner` field |
 | `PoisonLivenessRunner`, `PoisonLivenessPolicy`, `PoisonLivenessResult`, `PoisonLivenessRecoverer`, `PoisonLivenessRunnerConfig` | `cmd/reducer` (`poison_liveness_wiring.go`, `config.go`); `Service.PoisonLivenessRunner` field |
 | `GenerationRetentionRunner`, `GenerationRetentionPolicy`, `GenerationRetentionResult`, `GenerationRetentionPruner`, `GenerationRetentionRunnerConfig` | `cmd/reducer` (`generation_retention_wiring.go`, `config.go`, `default_wiring_test.go`); `Service.GenerationRetentionRunner` field |
 | `GraphOrphanSweepRunner`, `GraphOrphanSweepPolicy`, `GraphOrphanSweepResult`, `GraphOrphanSweeper`, `GraphOrphanSweepRunnerConfig`, `ErrGraphOrphanSweeperRequired` | `cmd/reducer` (`graph_orphan_sweep_wiring.go`, `config.go`); `Service.GraphOrphanSweepRunner` field |

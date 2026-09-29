@@ -101,7 +101,7 @@
   Source-local replay cannot advance the shared resolver and can launch an
   obsolete full canonical retract. Keep recovery and stuck-age predicates in
   lockstep, preserve other domains and prefix-collision source runs, and do not
-  reduce worker concurrency as a substitute.
+  reduce worker concurrency as a substitute. #7265: both liveness queries MUST embed the one `generationIntentProgressingPredicate` const; its progress probe is per `projection_domain` queue and MUST NOT filter completions on `source_run_id` (the exact `repo_dependency` family is excluded only from actionability). Keep `liveness_progress` unfenced in the recovery query and `OFFSET 0`-fenced in the gauge query; both shapes are measured (join order vs. JIT cost) in `docs/internal/evidence/7265-liveness-recovery-progress-window.md`. Skips never touch `liveness_recovery_attempts`.
 - **Schema ordering** — tables with foreign key constraints must appear after
   their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
   `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.

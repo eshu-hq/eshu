@@ -500,12 +500,12 @@ or wedged.
 
 `eshu_dp_active_generations` is an observable gauge of the current active scope
 generation count by closed activation-age bucket. The only metric label is
-`age_bucket`, with the bounded values `fresh`, `aging`, and `stuck`. The `stuck`
-bucket is the alarm signal: a non-zero, non-draining `stuck` count means
-generations have outstanding shared projection work after same-generation reducer
-fact-work has drained, and no source-local projector row is already pending,
-in progress. Scopes still moving through reducer backlog or in-flight liveness
-recovery stay in `aging`, not `stuck`.
+`age_bucket`, with the bounded values `fresh`, `aging`, `draining`, and `stuck`.
+The `stuck` bucket is the alarm signal: a non-zero `stuck` count means
+generations have actionable outstanding shared projection work after same-generation reducer
+fact-work has drained, no source-local projector row is already pending or in progress, and no
+outstanding intent sits in a domain queue that completed work inside `ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW`; those are `draining` and never re-driven (see [reducer and storage metrics](metrics-reducer-storage.md#generation-liveness)).
+Scopes still moving through reducer backlog or in-flight liveness recovery stay in `aging`, not `stuck`.
 
 Three counters describe what the sweep did about it:
 

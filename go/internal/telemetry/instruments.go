@@ -83,8 +83,10 @@ type GraphOrphanObserver interface {
 }
 
 // ActiveGenerationAgeObserver provides bounded active-generation counts keyed by
-// a closed activation-age bucket (fresh, aging, stuck). The stuck bucket is the
-// operator alarm signal that generations are wedging.
+// a closed activation-age bucket (fresh, aging, draining, stuck). The stuck
+// bucket is the operator alarm signal that generations are wedging; draining
+// counts blocked generations whose shared-intent domain queues are still
+// progressing inside the liveness progress window (#7265).
 type ActiveGenerationAgeObserver interface {
 	// ActiveGenerationsByAge returns current active generation counts keyed by a
 	// closed age bucket. Implementations must never key by raw scope or
@@ -97,7 +99,7 @@ type ActiveGenerationAgeObserver interface {
 // scope_generations row for the same scope (#4740). This is the class the
 // generation-liveness ActiveGenerationAgeObserver above does not reach — a
 // poison scope's newest generation is not 'active' (it is 'failed'), so it
-// never appears in the fresh/aging/stuck buckets at all.
+// never appears in the fresh/aging/draining/stuck buckets at all.
 type PoisonLivenessObserver interface {
 	// PoisonDeadLetterCounts returns the current poison-class scope count, item
 	// count, and the oldest item's age in seconds. Implementations must never
@@ -5948,6 +5950,8 @@ func RegisterGraphOrphanObservableGauge(inst *Instruments, meter metric.Meter, o
 // goroutine and is a no-op when observer is nil so binaries without a liveness
 // store skip it. The "stuck" bucket doubles as the wedged-generation alarm
 // signal: a non-zero value means active generations are eligible for recovery.
+// The "draining" bucket counts generations the recovery sweep skips because a
+// blocking domain queue completed work inside the progress window.
 func RegisterActiveGenerationAgeObservableGauge(inst *Instruments, meter metric.Meter, observer ActiveGenerationAgeObserver) error {
 	if inst == nil {
 		return errors.New("instruments are required")
@@ -5962,7 +5966,7 @@ func RegisterActiveGenerationAgeObservableGauge(inst *Instruments, meter metric.
 	var err error
 	inst.ActiveGenerationsByAge, err = meter.Int64ObservableGauge(
 		"eshu_dp_active_generations",
-		metric.WithDescription("Current active scope generation count by closed activation-age bucket (fresh, aging, stuck)"),
+		metric.WithDescription("Current active scope generation count by closed activation-age bucket (fresh, aging, draining, stuck)"),
 		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
 			counts, err := observer.ActiveGenerationsByAge(ctx)
 			if err != nil {

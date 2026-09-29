@@ -116,7 +116,7 @@ High-signal invariants for this package:
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age
   gauge uses the same exclusion. Other domains and lookalike source runs remain
-  recoverable.
+  recoverable. #7265: blockage must also have stopped moving. A generation whose actionable outstanding intent sits in a `projection_domain` queue that completed any intent after `now - ProgressWindow` (default 10m) is draining: the sweep skips it without spending budget and the gauge counts it `draining`. Both queries embed `generationIntentProgressingPredicate`; the progress probe never filters on `source_run_id`. See `docs/internal/evidence/7265-liveness-recovery-progress-window.md`.
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
   source-local projection is in flight. A reducer claim also supersedes

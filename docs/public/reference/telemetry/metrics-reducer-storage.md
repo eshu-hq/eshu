@@ -134,14 +134,28 @@ Repository ids appear only in the `infra_inventory.reconcile.drift` and
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_active_generations` | observable gauge | Current active scope generation count by closed activation-age bucket `age_bucket` (`fresh`, `aging`, `stuck`). |
+| `eshu_dp_active_generations` | observable gauge | Current active scope generation count by closed activation-age bucket `age_bucket` (`fresh`, `aging`, `draining`, `stuck`). |
 | `eshu_dp_generation_liveness_recovered_total` | counter | Wedged active generations re-driven through projector re-enqueue by the liveness sweep. |
 | `eshu_dp_generation_liveness_superseded_total` | counter | Orphaned older active generations superseded by the liveness sweep. |
 | `eshu_dp_generation_liveness_failures_total` | counter | Generation liveness recovery sweep failures by bounded reason. |
 
 The `eshu_dp_active_generations{age_bucket="stuck"}` series is the operator alarm
-signal: a non-zero, non-draining `stuck` count means generations are activating
-but not completing. Read it against the recovered and superseded counters to
+signal: a non-zero `stuck` count means generations are activating but not
+completing, and none of their actionable outstanding shared intents sits in a
+`projection_domain` queue that completed any intent inside
+`ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW`. The `draining` bucket counts the
+same blocked generations while their domain queues are still moving; the sweep
+leaves them alone and spends no recovery budget. A generation whose domain queue
+never goes quiet stays `draining`; recover it by hand with
+`POST /api/v0/admin/recover-generations` if it is genuinely wedged.
+`ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW` defaults to `10m` and is raised to
+the sweep poll interval when set lower.
+
+Each re-drive logs `generation liveness re-drove wedged generation` at Info
+with `scope_id`, `generation_id`, `liveness_recovery_attempts`,
+`reason="no_intent_progress_within_window"`, and `progress_window`. Skipped
+(`draining`) generations are not logged individually; the gauge bucket is
+their signal. Read it against the recovered and superseded counters to
 separate self-healing from a backlog the sweep cannot clear; a rising
 `eshu_dp_generation_liveness_failures_total` means the sweep itself is failing,
 and the bounded failure reason lives in reducer logs.

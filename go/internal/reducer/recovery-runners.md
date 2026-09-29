@@ -18,7 +18,14 @@ existing facts). Wedge detection gates on real downstream blockage, not age
 alone: a generation is only wedged when it has an outstanding
 `shared_projection_intents` row (`completed_at IS NULL`) and no unresolved
 reducer fact-work remains for that same generation, and no source-local
-projector work is already pending, claimed, running, or retrying. A
+projector work is already pending, claimed, running, or retrying, and (#7265)
+when none of its actionable outstanding intents sits in a `projection_domain`
+queue that completed any intent inside `ProgressWindow`
+(`ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW`, default 10m, clamped to at least
+the poll interval). A generation whose domain queue is still moving is
+draining: it is skipped without spending budget and counted in the `draining`
+gauge bucket; a never-quiet domain therefore keeps a genuinely wedged
+generation `draining`, and the recovery endpoint below is the manual path. A
 healthy quiet scope stays `active` and projected (the projected baseline is "has
 been active") with every intent completed; a busy full-corpus bootstrap scope
 still moving through reducer work is treated as progressing; and a pending
@@ -35,8 +42,12 @@ The operator escape hatch is
 `POST /api/v0/admin/recover-generations`, which durably re-drives a named scope
 set and records the action in the `admin_replay_requests` ledger.
 
-Observability Evidence: `eshu_dp_active_generations` gauges active generations by
-`fresh`/`aging`/`stuck` age bucket (`stuck` requires age past the deadline,
+Observability Evidence: each re-drive logs `generation liveness re-drove wedged
+generation` (Info) with `scope_id`, `generation_id`,
+`liveness_recovery_attempts`, `reason="no_intent_progress_within_window"`, and
+`progress_window`; skips have no per-generation log.
+`eshu_dp_active_generations` gauges active generations by
+`fresh`/`aging`/`draining`/`stuck` age bucket (`stuck` requires age past the deadline,
 outstanding `shared_projection_intents`, no unresolved reducer fact-work for the
 same generation, and no source-local projector row already pending, in progress,
 so it does not fire on healthy quiet aged scopes, reducer backlog, or in-flight

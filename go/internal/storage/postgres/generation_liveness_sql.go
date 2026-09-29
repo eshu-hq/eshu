@@ -52,13 +52,55 @@ WHERE generation.generation_id = stale_active.generation_id
 RETURNING generation.scope_id, generation.generation_id
 `
 
+// generationIntentProgressingPredicate is the #7265 progress gate shared,
+// byte for byte, by recoverWedgedActiveGenerationsQuery (as AND NOT) and
+// countActiveGenerationsByAgeQuery (as the draining/stuck split). It is true
+// when the generation has an actionable outstanding shared intent whose
+// projection_domain queue completed any intent, for any generation, inside the
+// progress window. Such a generation is draining, not wedged: its downstream
+// queue is still moving, and reopening source_local would only launch a
+// duplicate canonical replay.
+//
+// Actionable repeats the recovery gate's exact repo_dependency exclusion: the
+// exact family is owned by the shared resolver and never makes a generation
+// eligible. Progress is per domain queue, so the probe deliberately does NOT
+// filter completions on source_run_id: an exact repo_dependency completion
+// proves the repo_dependency queue is moving, which is why a lookalike
+// code_import_repo_dependency intent in that domain is draining.
+//
+// The enclosing query must expose liveness_progress.progressed_domains, the
+// DISTINCT projection_domain set completed after the window start. It is one
+// InitPlan per statement (an Index Only Scan with skip scan on
+// shared_projection_intents_pending_idx); the per-generation probe then reads
+// the generation's outstanding intents through
+// shared_projection_intents_generation_pending_idx. No index was added
+// (docs/internal/evidence/7265-liveness-recovery-progress-window.md).
+const generationIntentProgressingPredicate = `EXISTS (
+          SELECT 1
+          FROM shared_projection_intents AS progress_intent
+          WHERE progress_intent.generation_id = generation.generation_id
+            AND progress_intent.completed_at IS NULL
+            AND NOT (
+                progress_intent.projection_domain = 'repo_dependency'
+                AND (
+                    progress_intent.source_run_id = 'repo_dependency'
+                    OR starts_with(progress_intent.source_run_id, 'repo_dependency:')
+                )
+            )
+            AND progress_intent.projection_domain = ANY (liveness_progress.progressed_domains)
+      )`
+
 // recoverWedgedActiveGenerationsQuery durably re-drives active generations that
 // still have ready downstream blockage after the activation deadline, but only
 // when no source-local projector work is already in flight.
 //
 // A wedged generation is one with outstanding shared-projection intent after
 // reducer fact-work drained, but without source-local projector work already
-// pending, claimed, running, or retrying. Age alone is NOT enough: a healthy
+// pending, claimed, running, or retrying, and whose outstanding intents have
+// stopped moving: none of them sits in a projection_domain queue that
+// completed any intent after $5 (generationIntentProgressingPredicate, #7265).
+// A generation failing only that last gate is draining; it is skipped without
+// touching its liveness_recovery_attempts budget. Age alone is NOT enough: a healthy
 // quiet scope normally stays active and projected (the projected baseline is
 // "has been active", see generation_projected_commit.go) with no outstanding
 // work, and re-driving those on every poll would burn the liveness budget and
@@ -94,6 +136,11 @@ RETURNING generation.scope_id, generation.generation_id
 //	$2 max recover attempts  (re-drive budget ceiling)
 //	$3 batch limit           (max generations re-driven per sweep)
 //	$4 now                   (work item visibility/update stamp)
+//	$5 progress window start (now minus the progress window)
+//
+// liveness_progress is deliberately NOT fenced here: Postgres pulls it up so
+// the domain set becomes a statement InitPlan feeding the anti-join. Fencing it
+// (OFFSET 0) changed the join order and cost 147 ms on the doubled fixture.
 const recoverWedgedActiveGenerationsQuery = `
 WITH wedged AS (
     SELECT
@@ -102,6 +149,13 @@ WITH wedged AS (
     FROM scope_generations AS generation
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = generation.scope_id
+    CROSS JOIN (
+        SELECT ARRAY(
+            SELECT DISTINCT progressed_intent.projection_domain
+            FROM shared_projection_intents AS progressed_intent
+            WHERE progressed_intent.completed_at > $5
+        ) AS progressed_domains
+    ) AS liveness_progress
     WHERE generation.status = 'active'
       AND generation.activated_at IS NOT NULL
       AND generation.activated_at < $1
@@ -134,6 +188,9 @@ WITH wedged AS (
                 )
             )
       )
+      -- Progress gate (#7265): outstanding work in a domain queue that is still
+      -- completing intents is draining, not wedged.
+      AND NOT ` + generationIntentProgressingPredicate + `
       -- Normal reducer backlog is progress, not a wedged generation. Do not
       -- re-drive source-local projection until reducer fact-work for the same
       -- generation has drained; otherwise a full-corpus bootstrap can reopen
@@ -281,9 +338,14 @@ re_enqueued AS (
             AND fact_work_items.claim_until > $4
         )
     )
-    RETURNING scope_id, generation_id
+    RETURNING
+        scope_id,
+        generation_id,
+        (payload ->> 'liveness_recovery_attempts')::int AS liveness_recovery_attempts
 )
-SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
+SELECT scope_id, generation_id, liveness_recovery_attempts
+FROM re_enqueued
+ORDER BY scope_id, generation_id
 `
 
 // countActiveGenerationsByAgeQuery buckets active generations by activation age
@@ -303,11 +365,23 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // installations or reducer/backfill backlog. Another unresolved same-scope
 // generation also owns forward progress, matching the recovery sweep's gate.
 //
+// A generation that passes every stuck gate but still has an actionable
+// outstanding intent in a domain queue that completed work after $4 is
+// counted draining (generationIntentProgressingPredicate, #7265): the sweep
+// skips it, so stuck keeps meaning "eligible for recovery".
+//
 // Parameter order:
 //
 //	$1 aging boundary   (now minus half the activation deadline)
 //	$2 stuck boundary   (now minus the activation deadline)
 //	$3 now              (lease-expiry comparison for the in-flight gate)
+//	$4 progress window start (now minus the progress window)
+//
+// liveness_progress IS fenced here (OFFSET 0). The progress EXISTS sits in a
+// CASE, so it stays a correlated SubPlan; without the fence the domain set is
+// pulled back inside it, the planner charges that InitPlan to every row, and
+// the inflated estimate (about 7M) triggers JIT inlining and optimization,
+// which alone cost about 260 ms on the #7265 fixture.
 const countActiveGenerationsByAgeQuery = `
 SELECT
     CASE
@@ -357,12 +431,23 @@ SELECT
             WHERE newer.scope_id = generation.scope_id
               AND newer.generation_id <> generation.generation_id
               AND newer.status IN ('pending', 'active')
-        ) THEN 'stuck'
+        ) THEN CASE
+            WHEN ` + generationIntentProgressingPredicate + ` THEN 'draining'
+            ELSE 'stuck'
+        END
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'
     END AS age_bucket,
     COUNT(*) AS generation_count
 FROM scope_generations AS generation
+CROSS JOIN (
+    SELECT ARRAY(
+        SELECT DISTINCT progressed_intent.projection_domain
+        FROM shared_projection_intents AS progressed_intent
+        WHERE progressed_intent.completed_at > $4
+    ) AS progressed_domains
+    OFFSET 0
+) AS liveness_progress
 WHERE generation.status = 'active'
 GROUP BY age_bucket
 `

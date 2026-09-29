@@ -116,7 +116,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_generation_retention_batch_size` | Generation-retention batch size selected for one cleanup transaction. |
 | `eshu_dp_generation_retention_phase_duration_seconds` | Generation-retention transaction time by bounded phase. |
 | `eshu_dp_generation_retention_scope_lock_hold_seconds` | How long one generation-retention transaction held its scope row locks. |
-| `eshu_dp_active_generations` | Current active scope generation count by closed activation-age bucket `age_bucket` (`fresh`, `aging`, `stuck`); the `stuck` bucket is the operator alarm signal. |
+| `eshu_dp_active_generations` | Current active scope generation count by closed activation-age bucket `age_bucket` (`fresh`, `aging`, `draining`, `stuck`); the `stuck` bucket is the operator alarm signal, and `draining` counts blocked generations whose shared-intent domain queues are still progressing. |
 | `eshu_dp_generation_liveness_recovered_total` | Wedged active generations re-driven through projector re-enqueue by the liveness sweep. |
 | `eshu_dp_generation_liveness_superseded_total` | Orphaned older active generations superseded by the liveness sweep. |
 | `eshu_dp_generation_liveness_failures_total` | Generation liveness recovery sweep failures by bounded reason. |

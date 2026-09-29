@@ -52,8 +52,8 @@ const (
 	// must never use raw node ids, names, paths, or provider locators here.
 	MetricDimensionNodeLabel = "node_label"
 	// MetricDimensionAgeBucket labels active-generation gauges with a closed
-	// activation-age bucket (fresh, aging, stuck). Producers must never use raw
-	// scope ids, generation ids, or timestamps here.
+	// activation-age bucket (fresh, aging, draining, stuck). Producers must
+	// never use raw scope ids, generation ids, or timestamps here.
 	MetricDimensionAgeBucket  = "age_bucket"
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
