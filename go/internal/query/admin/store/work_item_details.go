@@ -17,13 +17,19 @@ import (
 // a supersede or an operator note kept (#7320). The prior failure's own details
 // text is deliberately not decoded.
 type workItemDetails struct {
-	OperatorNote *string `json:"operator_note"`
 	PriorFailure *struct {
 		Status         string `json:"status"`
 		FailureClass   string `json:"failure_class"`
 		FailureMessage string `json:"failure_message"`
 		UpdatedAt      string `json:"updated_at"`
 	} `json:"prior_failure"`
+}
+
+// workItemNote is decoded on its own so a malformed prior_failure cannot discard
+// a valid operator_note, and a malformed operator_note cannot discard a valid
+// prior_failure.
+type workItemNote struct {
+	OperatorNote *string `json:"operator_note"`
 }
 
 // applyWorkItemDetails fills item.OperatorNote and item.PriorFailure from a
@@ -35,12 +41,12 @@ func applyWorkItemDetails(item *admin.WorkItem, details sql.NullString) {
 	if !details.Valid || text == "" || text[0] != '{' {
 		return
 	}
-	var parsed workItemDetails
-	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
-		return
+	var note workItemNote
+	if err := json.Unmarshal([]byte(text), &note); err == nil {
+		item.OperatorNote = note.OperatorNote
 	}
-	item.OperatorNote = parsed.OperatorNote
-	if parsed.PriorFailure == nil {
+	var parsed workItemDetails
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil || parsed.PriorFailure == nil {
 		return
 	}
 	prior := admin.PriorFailure{

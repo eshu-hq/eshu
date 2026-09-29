@@ -68,3 +68,20 @@ func TestListWorkItemsQuerySelectsFailureDetails(t *testing.T) {
 		t.Fatalf("mutating RETURNING does not carry failure_details:\n%s", mutating)
 	}
 }
+
+// TestApplyWorkItemDetailsDecodesTheKeysIndependently: one malformed key must not
+// discard the other, valid one.
+func TestApplyWorkItemDetailsDecodesTheKeysIndependently(t *testing.T) {
+	t.Parallel()
+
+	var badPrior admin.WorkItem
+	applyWorkItemDetails(&badPrior, sql.NullString{Valid: true, String: `{"operator_note":"triaged","prior_failure":{"status":5}}`})
+	if badPrior.OperatorNote == nil || *badPrior.OperatorNote != "triaged" || badPrior.PriorFailure != nil {
+		t.Fatalf("wrong-typed prior_failure: note=%v prior=%+v, want the note kept and no prior", badPrior.OperatorNote, badPrior.PriorFailure)
+	}
+	var badNote admin.WorkItem
+	applyWorkItemDetails(&badNote, sql.NullString{Valid: true, String: `{"operator_note":5,"prior_failure":{"status":"failed","failure_class":"c"}}`})
+	if badNote.OperatorNote != nil || badNote.PriorFailure == nil || badNote.PriorFailure.FailureClass != "c" {
+		t.Fatalf("wrong-typed operator_note: note=%v prior=%+v, want the prior kept and no note", badNote.OperatorNote, badNote.PriorFailure)
+	}
+}
