@@ -67,8 +67,9 @@ constant SQL). It adds one key, `prior_failure`, read from the OLD row:
 - The old `failure_details` is embedded as a JSON string, verbatim, and is never
   cast to jsonb: it is free text or JSON, and one non-JSON row would abort the
   claim statement for every worker. NULL stays JSON `null`, distinct from `""`.
-- No truncation. Truncated evidence is wrong evidence; the cost is measured
-  below instead.
+- No truncation in the fold. Truncated evidence is wrong evidence; the cost is
+  measured below instead. (#7407 later bounded the text at the Fail-time writer,
+  where the stored value and its copy stay equal.)
 - No migration, no new column, no claim result-shape change, no new counter.
 - `superseded` is in no supersede source set, so a row that holds `prior_failure`
   is never folded again; the revive paths null the failure fields first.
@@ -220,8 +221,9 @@ a row (+70,156), WAL records 47 to 113, TOAST rows written 0 to 33 a row,
 buffers dirtied +8.33 a row. The same fold, the same expression; the details
 text is simply 80 times larger. 64 KB is not an observed size: the one ops-qa
 dead letter has 793-byte details. It is not excluded either, because the Fail
-path sets no limit on the details it stores (#7407). The fold does not truncate,
-so the cost is measured, not capped.
+path set no limit on the details it stored when this was measured. #7407 has
+since bounded them at the writer (4096 bytes; see `7407-failure-text-bound.md`).
+The fold itself does not truncate, so the cost here is measured, not capped.
 
 ### Why the projector fold cost differed from the reducer's in the first run
 
@@ -275,7 +277,7 @@ KB more WAL and 33 to 34 TOAST rows per row.
 
 64 KB is not an observed size: the one ops-qa dead letter has 793-byte details. It
 is not excluded either, because the Fail path sets no limit on the details it
-stores (#7407). The fold does not truncate. If a bound is ever set it belongs at
+stored when this was measured. The fold does not truncate. #7407 set the bound at
 the Fail-time writer, so that the stored evidence and its copy stay equal.
 
 A claim with no supersede candidates is the common case, and the deterministic

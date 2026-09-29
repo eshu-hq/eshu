@@ -16,6 +16,11 @@
 // DeadLetterTriageMetadata otherwise falls back to the operator-facing
 // triage class and details from internal/projector/failure.TriageFailure.
 //
+// Both bound what they return (#7407): the message to MaxFailureMessageBytes
+// and the details to MaxFailureDetailsBytes. Longer text keeps a prefix cut on
+// a rune boundary and ends in "...[truncated: <original> bytes, kept <n>]",
+// counted inside the limit. failure_class is not bounded.
+//
 // ComputeRetryDelay returns the exponential-backoff-with-jitter delay to add
 // to "now" when scheduling a retry (issue #4450), replacing the historical
 // fixed-delay behavior that let many simultaneously-failing work items
