@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -77,6 +78,21 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		),
 	)
 	defer span.End()
+	maxOpenConns := cr.db.Stats().MaxOpenConnections
+	if codetopicparallel.Eligible(len(req.Terms), maxOpenConns) {
+		span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
+		filters, args, _ := codeTopicFilters(req)
+		results, err := codetopicparallel.Investigate(ctx, cr.db, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
+		if err != nil {
+			span.RecordError(err)
+			return nil, contentSubstringIndexReadError(err)
+		}
+		return results, nil
+	}
+	span.SetAttributes(attribute.String("code_topic.execution_mode", "single_statement"))
+	if len(req.Terms) == 16 && maxOpenConns > 0 && maxOpenConns < codetopicparallel.Partitions {
+		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
+	}
 
 	filters, args, nextArg := codeTopicFilters(req)
 	where := ""
@@ -88,27 +104,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	fileBranches := make([]string, len(req.Terms))
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
-		// #nosec G201 -- nextArg/where/candidateCap are integer/placeholder-only; no user data concatenated
-		fileBranches[i] = fmt.Sprintf(`(
-		  WITH path_pool AS MATERIALIZED (
-		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
-		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
-		    FROM content_files f
-		    WHERE f.relative_path ILIKE '%%' || $%[1]d || '%%'
-		    %[2]s LIMIT %[3]d
-		  ),
-		  content_pool AS (
-		    SELECT f.repo_id, f.relative_path, coalesce(f.language, '') AS language,
-		           least(greatest(coalesce(f.line_count, 1), 1), 80) AS end_line, $%[1]d AS matched_term
-		    FROM content_files f
-		    WHERE f.content ILIKE '%%' || $%[1]d || '%%'
-		      AND f.relative_path NOT ILIKE '%%' || $%[1]d || '%%'
-		    %[2]s LIMIT (SELECT %[3]d - count(*) FROM path_pool)
-		  )
-		  SELECT * FROM path_pool
-		  UNION ALL
-		  SELECT * FROM content_pool
-		)`, nextArg, where, candidateCap)
+		fileBranches[i] = codetopicparallel.FileBranch(nextArg, where, candidateCap)
 		args = append(args, term)
 		nextArg++
 	}
