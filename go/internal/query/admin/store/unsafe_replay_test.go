@@ -102,7 +102,7 @@ func TestUnsafeReplayTargetsQueryAppliesFailureClassSelector(t *testing.T) {
 func TestReplayFencesSupersededProjectorGenerationsButDeadLetterDoesNot(t *testing.T) {
 	t.Parallel()
 
-	replay, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 1, true, "SET status = 'pending'\n")
+	replay, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 1, true, false, "SET status = 'pending'\n")
 	if !strings.Contains(replay, "AND NOT (stage = 'projector' AND EXISTS (") ||
 		!strings.Contains(replay, "fenced_generation.status = 'superseded'") {
 		t.Fatalf("replay query lacks the superseded-generation fence:\n%s", replay)
@@ -110,7 +110,7 @@ func TestReplayFencesSupersededProjectorGenerationsButDeadLetterDoesNot(t *testi
 	if strings.Index(replay, "fenced_generation") > strings.Index(replay, "ORDER BY updated_at DESC") {
 		t.Fatalf("fence must sit in the selection before its LIMIT:\n%s", replay)
 	}
-	deadLetter, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 2, false, "SET status = 'dead_letter'\n")
+	deadLetter, _ := buildMutatingWorkItemsQuery(nil, "", "projector", "", 10, 2, false, false, "SET status = 'dead_letter'\n")
 	if strings.Contains(deadLetter, "fenced_generation") {
 		t.Fatalf("dead-letter query must not carry the replay fence:\n%s", deadLetter)
 	}

@@ -20,20 +20,24 @@ const supersededProjectorGenerationFence = `      AND NOT (stage = 'projector' A
 
 // buildMutatingWorkItemsQuery renders a bounded select-then-update over
 // terminal work items. fenceSupersededProjector adds the #7130 fence; the
-// replay sets it and the dead-letter mutation does not.
+// replay sets it and the dead-letter mutation does not. returnPriorFailure
+// appends the selection-time failure_class to RETURNING so the replay can
+// record what a row had failed with (#7387) even though its update clears the
+// class; the shared work columns still carry post-update truth.
 func buildMutatingWorkItemsQuery(
 	workItemIDs []string,
 	scopeID, stage, failureClass string,
 	limit int,
 	baseArgCount int,
 	fenceSupersededProjector bool,
+	returnPriorFailure bool,
 	updateClause string,
 	excludeFailureClasses ...string,
 ) (string, []any) {
 	var builder strings.Builder
 	builder.WriteString(`
 WITH selected AS (
-    SELECT work_item_id
+    SELECT work_item_id, failure_class
     FROM fact_work_items
     WHERE status IN ('dead_letter', 'failed')
 `)
@@ -90,7 +94,15 @@ WITH selected AS (
         work.failure_message,
         work.created_at,
         work.updated_at,
-        work.visible_at
+        work.visible_at`)
+	if returnPriorFailure {
+		// The replay clears work.failure_class, so RETURNING work.* can no
+		// longer say what the row failed with. The selection CTE read the
+		// class before the update (#7387); carry it as a trailing column so
+		// the shared prefix keeps its scan shape for scanWorkItems callers.
+		builder.WriteString(",\n        selected.failure_class AS replayed_failure_class")
+	}
+	builder.WriteString(`
 )
 SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 `)

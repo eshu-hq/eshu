@@ -48,7 +48,7 @@ func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilte
 // required identity status authorizations and newer worker claims.
 func (s *postgresStore) DeadLetterWorkItems(ctx context.Context, f admin.DeadLetterFilter) ([]admin.WorkItem, error) {
 	now := s.time()
-	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, false, `
+	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, false, false, `
 SET status = 'dead_letter',
     container_image_identity_v2_authorized_status = CASE
         WHEN work.container_image_identity_v2_required THEN 'dead_letter' ELSE ''
@@ -120,39 +120,6 @@ WITH selected AS (
 SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 `
 	return scanWorkItems(ctx, s.database, query, repoID, now, strings.TrimSpace(note))
-}
-
-// ReplayFailedWorkItems requeues terminal work and records replay events while
-// preserving required identity status authorizations and newer worker claims.
-func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
-	now := s.time()
-	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, true, `
-SET status = 'pending',
-    attempt_count = GREATEST(work.attempt_count, 1),
-    container_image_identity_v2_authorized_status = CASE
-        WHEN work.container_image_identity_v2_required THEN 'pending' ELSE ''
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN work.container_image_identity_v3_required THEN 'pending' ELSE ''
-    END,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = $1,
-    next_attempt_at = NULL,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL,
-    updated_at = $1
-`, f.ExcludeFailureClasses...)
-	args = append([]any{now}, args...)
-	items, err := scanWorkItems(ctx, s.database, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.insertReplayEvents(ctx, items, strings.TrimSpace(f.OperatorNote), now); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 func (s *postgresStore) RequestBackfill(ctx context.Context, input admin.BackfillInput) (*admin.BackfillRequest, error) {
@@ -312,42 +279,6 @@ func (s *postgresStore) ListEvidence(ctx context.Context, decisionID string) ([]
 		})
 	}
 	return result, nil
-}
-
-func (s *postgresStore) insertReplayEvents(ctx context.Context, items []admin.WorkItem, operatorNote string, now time.Time) error {
-	if len(items) == 0 {
-		return nil
-	}
-
-	const query = `
-INSERT INTO fact_replay_events (
-    replay_event_id,
-    work_item_id,
-    scope_id,
-    generation_id,
-    failure_class,
-    operator_note,
-    created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-`
-	for _, item := range items {
-		id, err := newStoreID("replay")
-		if err != nil {
-			return err
-		}
-		var failureClass any
-		if item.FailureClass != nil {
-			failureClass = *item.FailureClass
-		}
-		var note any
-		if operatorNote != "" {
-			note = operatorNote
-		}
-		if _, err := s.database.ExecContext(ctx, query, id, item.WorkItemID, item.ScopeID, item.GenerationID, failureClass, note, now); err != nil {
-			return fmt.Errorf("insert replay event: %w", err)
-		}
-	}
-	return nil
 }
 
 func buildListWorkItemsQuery(f admin.WorkItemFilter) (string, []any) {
