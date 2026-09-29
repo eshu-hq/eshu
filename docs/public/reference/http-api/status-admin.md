@@ -733,7 +733,7 @@ activation deadline (default 30m) under unit and race tests. Full before/after
 operational verification step below.
 
 Observability Evidence: New metrics `eshu_dp_active_generations` (gauge by
-fresh/aging/stuck age bucket; `stuck` is the wedged-generation alarm signal),
+fresh/aging/stuck age bucket, plus `draining` since #7265; `stuck` is the wedged-generation alarm signal),
 `eshu_dp_generation_liveness_recovered_total`,
 `eshu_dp_generation_liveness_superseded_total`, and
 `eshu_dp_generation_liveness_failures_total` (by bounded reason), plus structured

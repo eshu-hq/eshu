@@ -71,6 +71,20 @@ VALUES ('intent-done-%[1]d', '%[2]s', 'p-%[1]d', 'scope-other', '', 'acme/other'
 `, f.seq, domain, sourceRunID, f.at(ago+time.Minute), f.at(ago))
 }
 
+// ownCompleted seeds one intent of gen-<name> itself in domain that completed
+// ago before the anchor. A completed intent is not outstanding, so it must
+// never count as the generation's blocking work even though it also makes
+// its domain look progressing.
+func (f *progressFixture) ownCompleted(name, domain, sourceRunID string, ago time.Duration) {
+	f.seq++
+	fmt.Fprintf(&f.sql, `
+INSERT INTO shared_projection_intents (intent_id, projection_domain, partition_key, scope_id,
+    acceptance_unit_id, repository_id, source_run_id, generation_id, payload, created_at, completed_at)
+VALUES ('intent-own-done-%[1]d', '%[2]s', 'p-%[1]d', 'scope-%[3]s', '', 'acme/%[3]s', '%[4]s', 'gen-%[3]s',
+    '{"action":"upsert"}'::jsonb, %[5]s, %[6]s);
+`, f.seq, domain, name, sourceRunID, f.at(ago+time.Minute), f.at(ago))
+}
+
 // provision creates an isolated proof schema seeded with the fixture.
 func (f *progressFixture) provision(t *testing.T, db *sql.DB) {
 	t.Helper()

@@ -89,6 +89,31 @@ func TestGenerationLivenessProgressWindow(t *testing.T) {
 			},
 		},
 		{
+			// The exact repo_dependency family is never actionable, so its
+			// outstanding intent cannot make the generation draining even
+			// while the repo_dependency queue is completing work in-window.
+			name: "quiet intent plus exact repo_dependency intent in a flowing queue is wedged",
+			seed: func(f *progressFixture) {
+				f.pending("g", "sql_relationships", "run-g")
+				f.pending("g", "repo_dependency", "repo_dependency:scope-g")
+				f.completed("sql_relationships", "run-other", 2*time.Hour)
+				f.completed("repo_dependency", "repo_dependency:scope-other", time.Minute)
+			},
+			wantRedrive: true,
+		},
+		{
+			// Only outstanding intents block: the generation's own completed
+			// code_calls intent makes code_calls progressing but is not
+			// outstanding work, so the quiet intent still wedges it.
+			name: "quiet intent plus own completed intent in a flowing queue is wedged",
+			seed: func(f *progressFixture) {
+				f.pending("g", "sql_relationships", "run-g")
+				f.completed("sql_relationships", "run-other", 2*time.Hour)
+				f.ownCompleted("g", "code_calls", "run-g", time.Minute)
+			},
+			wantRedrive: true,
+		},
+		{
 			name: "domain with no completion at all is wedged",
 			seed: func(f *progressFixture) {
 				f.pending("g", "code_calls", "run-g")

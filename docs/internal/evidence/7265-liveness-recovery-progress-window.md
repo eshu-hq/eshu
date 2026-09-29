@@ -93,7 +93,12 @@ Median ms over 5 interleaved runs:
 - **The domain set is cheap.** With `source_run_id` gone, the DISTINCT domain
   set is one InitPlan: an Index Only Scan with skip scan on
   `shared_projection_intents_pending_idx`, 0 heap fetches, 6 to 8 ms at 122K to
-  250K window rows. That removed the 31 ms exact-family filter cost.
+  250K window rows. That removed the 31 ms exact-family filter cost. The
+  cheap plan depends on the PostgreSQL 18 btree skip scan: `completed_at` is
+  the second column of that index and the query has no `projection_domain`
+  equality. Versions before 18 cannot skip, so they pay a full scan of the
+  index (or a bitmap scan) for the domain set. That cost scales with the
+  table, not the window, and none of these numbers measure it.
 - **Why B and C fail on count.** In the count query the progress EXISTS sits
   inside a `CASE`, so it stays a correlated SubPlan. The planner charges the
   InitPlan cost (about 2,900) to each of the 1,200 rows, so the estimated total
@@ -173,6 +178,15 @@ cost about 31 ms at 120K window rows, which leaves headroom under 250 ms.
 - **Transition.** The transition subtest proves the sequence: skip, then
   exactly one re-drive once the domain has been quiet past the window, then a
   no-op while that re-drive is pending.
+- **Predicate filters are behaviour-tested.** Two subtests guard the filters
+  inside `generationIntentProgressingPredicate`, and each goes RED under the
+  matching mutation:
+  - A quiet intent plus an outstanding exact `repo_dependency:scope-g` intent,
+    while the `repo_dependency` queue completes in-window, must stay wedged.
+    Removing the exact-family exclusion turns it `draining`.
+  - A quiet intent plus the generation's own completed `code_calls` intent
+    in-window must stay wedged. Removing `completed_at IS NULL` turns it
+    `draining`.
 - **No serialization.** No worker count, batch size, or poll default changed.
 
 ## Observability Evidence
@@ -207,7 +221,22 @@ Observability Evidence:
 
 ## Artifacts
 
-Plans, candidate SQL, seed scripts (`seed7265.sql`, `seed7265_doubled.sql`),
-the harnesses (`explain.sh`, `bench_refined.sh`, `bench_final.sh`), and
-`red-origin-main.log` are kept outside the tree in the session scratchpad
-folder `7265-plans/`. The coordinator report lists the absolute path.
+To reproduce the fixture and the final measurements, use the committed files
+in `7265-liveness-recovery-progress-window/` next to this record:
+
+- `seed.sql`: the base fixture described above. It includes the rewrite that
+  produces the doubled-window variant.
+- `explain.sh`: the harness. It has five subcommands:
+  - `schema` applies the eight migrations listed under Fixture.
+  - `seed` loads the base fixture.
+  - `seed-doubled` loads the doubled-window variant.
+  - `extract` rebuilds the query text from the Go consts.
+  - `bench` runs the interleaved `EXPLAIN (ANALYZE, BUFFERS)` inside
+    `BEGIN`/`ROLLBACK` and prints the bucket counts.
+
+A rerun on 2026-09-29 through this harness (5 rounds) gave medians of 54.0 ms
+for recover and 76.8 ms for count on the base seed, and 56.2 ms and 78.7 ms on
+the doubled seed. The buckets were again 313 / 570 / 117 / 200.
+
+The intermediate candidate plans (A to E) and the rejected-shape harnesses are
+not committed. Their timings and plan facts are recorded above.
