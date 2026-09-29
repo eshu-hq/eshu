@@ -131,6 +131,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestSharedProjectionAcceptanceLegacyNullKeyInvisibleGenerationAdvancesLive",
 		"TestSharedIntentAcceptanceWriterReversedBatchesDoNotDeadlockLive",
 		"TestSharedIntentAcceptanceWriterStaleWriteCounterLive",
+		// #7323: the intent upsert overwrites created_at and payload while
+		// completed_at only advances; only real Postgres evaluates the
+		// ON CONFLICT COALESCE.
+		"TestSharedIntentUpsertCreatedAtLastWriterWinsLive",
 		// #6475: the service lineage is keyed by (scope_id, service_id); the
 		// migrations, writer, and changed-since resolve pick need real Postgres.
 		"TestServiceMaterializationActiveIndexReplayConvergesLive",
