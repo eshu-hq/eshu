@@ -87,10 +87,9 @@ constant by reversing the change, so it cannot drift):
 | 4,096 B (the #7407 bound) | steady | 1,099.2 to 5,795.5 (+4,696.3) | 10.17 to 16.18 | 0.064 to 0.734 |
 | 4,096 B | post-checkpoint | 5,855.3 to 10,618.5 (+4,763.2) | 10.17 to 16.18 | 0.816 to 1.496 |
 
-That is the same per-byte cost the #7320 supersede fold pays. #7407 (PR #7452, open
-when this was written and ordered ahead of this change) caps the text the folds
-copy at 4,096 bytes; until it lands they copy details of any size. The 4,096 B rows
-above are the cost at that cap. Wall time is not reported: the host load average
+That is the same per-byte cost the #7320 supersede fold pays. #7407 (merged in
+`eea68a679`) caps the text the folds copy at 4,096 bytes, so the 4,096 B rows above
+are the cost at that cap. Wall time is not reported: the host load average
 was 26 to 44. NOT_CHECKED: the operator-note statements' write cost. They run once
 per operator call over the filter's limit of rows (100 by default) and are not on
 any claim path.
