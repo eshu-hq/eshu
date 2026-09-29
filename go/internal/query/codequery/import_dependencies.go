@@ -130,8 +130,14 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 	span.SetAttributes(
 		attribute.Int("eshu.import_dependencies.result_count", IntVal(data, "count")),
 		attribute.Bool("eshu.import_dependencies.truncated", BoolVal(data, "truncated")),
+		attribute.Bool("eshu.import_dependencies.has_more", BoolVal(data, "has_more")),
 		attribute.Bool("eshu.import_dependencies.scan_overflow", false),
 	)
+	if coverage, ok := data["coverage"].(map[string]any); ok {
+		if reason, ok := coverage["cycle_enumeration_stop_reason"].(string); ok {
+			span.SetAttributes(attribute.String("eshu.import_dependencies.cycle_stop_reason", reason))
+		}
+	}
 	WriteSuccess(
 		w,
 		r,
@@ -149,18 +155,11 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 	if h == nil || h.Neo4j == nil {
 		return nil, errImportDependencyUnavailable
 	}
-	if req.EffectiveQueryType() == "file_import_cycles" {
-		rows, enumTruncated, err := imports.CycleRows(ctx, h.Neo4j, req)
-		if err != nil {
-			return nil, err
-		}
-		return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumTruncated), nil
-	}
-	rows, err := h.importDependencyRows(ctx, req)
+	rows, enumeration, err := h.importDependencyRows(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return codemodel.ImportDependencyResponse(req, rows), nil
+	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil
 }
 
 // ImportDependencyParams builds the parameter map the import-dependency

@@ -24,7 +24,7 @@ import (
 func (h *CodeHandler) importDependencyRows(
 	ctx context.Context,
 	req codemodel.ImportDependencyRequest,
-) ([]map[string]any, error) {
+) ([]map[string]any, codemodel.CycleEnumeration, error) {
 	return imports.Rows(ctx, h.Neo4j, req)
 }
 

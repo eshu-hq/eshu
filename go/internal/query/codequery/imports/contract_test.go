@@ -71,7 +71,7 @@ func TestModuleScopesEmptyModuleReadsNothing(t *testing.T) {
 
 func TestRowsDispatchesDirectRead(t *testing.T) {
 	want := []map[string]any{{"source_path": "a.py"}}
-	rows, err := Rows(context.Background(), stubGraph{rows: want}, codemodel.ImportDependencyRequest{})
+	rows, _, err := Rows(context.Background(), stubGraph{rows: want}, codemodel.ImportDependencyRequest{})
 	if err != nil {
 		t.Fatalf("Rows = %v, want nil", err)
 	}

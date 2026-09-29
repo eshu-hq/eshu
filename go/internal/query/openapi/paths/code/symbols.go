@@ -128,7 +128,7 @@ const Symbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1000 cycles and reports truncated:true with the cap value. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1000 cycles or a fixed step budget and reports truncated:true with the stop reason; page on has_more and next_offset. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
         "operationId": "investigateImportDependencies",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -173,7 +173,7 @@ const Symbols = `
                     "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "cycles": {
                       "type": "array",
-                      "description": "Canonical rows for file_import_cycles query_type: bounded simple Python import cycles ordered length-ascending, then normalized path. cycle_length counts edges; cycle_path closes back on its first file; cycle_edges carries one IMPORTS proof edge per hop. Enumeration stops at 1000 cycles and reports truncated:true with coverage.cycle_enumeration_cap.",
+                      "description": "Canonical rows for file_import_cycles query_type: bounded simple Python import cycles ordered length-ascending, then normalized path. cycle_length counts edges; cycle_path closes back on its first file; cycle_edges carries one IMPORTS proof edge per hop. Enumeration stops at 1000 cycles or at a fixed step budget, whichever comes first, and reports truncated:true with coverage.cycle_enumeration_cap, coverage.cycle_enumeration_step_budget, and coverage.cycle_enumeration_stop_reason.",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -211,10 +211,11 @@ const Symbols = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": "integer", "nullable": true},
+                    "truncated": {"type": "boolean", "description": "True when the answer is partial: another page exists, or (for file_import_cycles) the cycle enumeration stopped early at the 1000-cycle cap or the step budget. A capped run stays truncated on every page, including the last. Page on has_more and next_offset, not on truncated."},
+                    "has_more": {"type": "boolean", "description": "True only while another page of this enumeration exists. It is false on the last page even when truncated is true."},
+                    "next_offset": {"type": "integer", "nullable": true, "description": "The offset to request next, or null when has_more is false."},
                     "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true}
+                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget."}
                   }
                 }
               }

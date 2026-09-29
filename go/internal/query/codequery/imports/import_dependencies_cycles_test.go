@@ -20,13 +20,13 @@ func buildCycleResponse(
 	t *testing.T,
 	req codemodel.ImportDependencyRequest,
 	edges []map[string]any,
-) (bool, map[string]any) {
+) (codemodel.CycleEnumeration, map[string]any) {
 	t.Helper()
-	rows, enumTruncated, err := codemodel.BuildFileImportCycleRows(req, edges)
+	rows, enumeration, err := codemodel.BuildFileImportCycleRows(req, edges)
 	if err != nil {
 		t.Fatalf("codemodel.BuildFileImportCycleRows() error = %v, want nil", err)
 	}
-	return enumTruncated, codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumTruncated)
+	return enumeration, codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration)
 }
 
 func cycleStrings(t *testing.T, value any) []string {
@@ -62,9 +62,9 @@ func TestBuildFileImportCycleRowsFindsThreeNodeCycle(t *testing.T) {
 	}
 
 	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 25}
-	enumTruncated, resp := buildCycleResponse(t, req, edges)
-	if enumTruncated {
-		t.Fatal("enumTruncated = true, want false for one small cycle")
+	enumeration, resp := buildCycleResponse(t, req, edges)
+	if enumeration.Truncated {
+		t.Fatal("enumeration.Truncated = true, want false for one small cycle")
 	}
 	cycles, ok := resp["cycles"].([]map[string]any)
 	if !ok || len(cycles) != 1 {
@@ -183,9 +183,9 @@ func TestBuildFileImportCycleRowsDiamondHasNoCycle(t *testing.T) {
 	}
 
 	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 25}
-	enumTruncated, resp := buildCycleResponse(t, req, edges)
-	if enumTruncated {
-		t.Fatal("enumTruncated = true, want false for an acyclic graph")
+	enumeration, resp := buildCycleResponse(t, req, edges)
+	if enumeration.Truncated {
+		t.Fatal("enumeration.Truncated = true, want false for an acyclic graph")
 	}
 	if cycles := resp["cycles"].([]map[string]any); len(cycles) != 0 {
 		t.Fatalf("cycles = %#v, want no cycles in a diamond", cycles)
@@ -235,9 +235,9 @@ func TestBuildFileImportCycleRowsTruncatesAtEnumerationCap(t *testing.T) {
 	}
 
 	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 10}
-	enumTruncated, resp := buildCycleResponse(t, req, edges)
-	if !enumTruncated {
-		t.Fatal("enumTruncated = false, want true past the 1000-cycle enumeration cap")
+	enumeration, resp := buildCycleResponse(t, req, edges)
+	if !enumeration.Truncated || enumeration.StopReason != codemodel.CycleStopCycleCap {
+		t.Fatalf("enumeration = %+v, want Truncated with stop reason %q past the 1000-cycle enumeration cap", enumeration, codemodel.CycleStopCycleCap)
 	}
 	if got := resp["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true so the list is never silently partial", got)

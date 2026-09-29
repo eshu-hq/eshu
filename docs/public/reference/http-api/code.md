@@ -87,7 +87,7 @@ handler requests one extra sentinel row and returns HTTP 422 with an instruction
 to narrow the repository, file, or module scope when that ceiling is exceeded.
 This internal bound is separate from the caller's page limit.
 `file_import_cycles` enumerates bounded simple Python cycles over one bounded edge fetch: reciprocal pairs through `max_cycle_length` (default 5, range 2-8), rotation-deduplicated to the smallest start and ordered length-ascending, then path.
-Anchors match any cycle member after enumeration. Enumeration caps at 1,000 cycles with `truncated:true` plus `coverage.cycle_enumeration_cap`; it runs over all stored `IMPORTS` edges (no type-only/deferred exclusion, no inferred labelling; other languages rejected).
+Anchors match any cycle member after enumeration. Enumeration stops at 1,000 cycles or a fixed step budget (250,000 examined hops) with `truncated:true`, `coverage.cycle_enumeration_cap`, `coverage.cycle_enumeration_step_budget`, and `coverage.cycle_enumeration_stop_reason` (`none`, `cycle_cap`, or `step_budget`). Only hops inside a strongly connected component are walked, so an acyclic graph costs no steps. It runs over all stored `IMPORTS` edges (no type-only/deferred exclusion, no inferred labelling; other languages rejected).
 Rows carry `cycle_length`, the closed `cycle_path`, and per-hop `cycle_edges`. Empty pages return `cycles=[]`; unavailable backends return service-unavailable instead of pretending the repository is acyclic.
 
 `repo_id` is only one of five ways to anchor this route, so a scoped token that
@@ -109,9 +109,9 @@ recorded in `docs/internal/evidence/5561-import-investigation-bounds.md` against
 the 1.5-second interactive SLO.
 
 Observability: the route emits `query.import_dependency_investigation` with
-`eshu.import_dependencies.query_type`, `result_count`, `truncated`, and
-`scan_overflow` attributes. Responses keep the Eshu truth envelope, `coverage`,
-`truncated`, and `next_offset`. The read path adds no graph write, queue, worker,
+`eshu.import_dependencies.query_type`, `result_count`, `truncated`, `has_more`,
+`scan_overflow`, and (for `file_import_cycles`) `cycle_stop_reason` attributes. Responses keep the Eshu truth envelope, `coverage`,
+`truncated`, `has_more`, and `next_offset`. `truncated` means the answer is partial (another page exists, or the cycle enumeration stopped early) and stays true on every page of a stopped run, so page on `has_more` and `next_offset`: `next_offset` is null on the last page. The read path adds no graph write, queue, worker,
 or runtime setting.
 
 `POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports

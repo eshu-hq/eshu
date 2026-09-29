@@ -56,6 +56,11 @@ the staying code family still uses.
 - `code_hybrid_rerank.go` — in-process hybrid re-ranker.
 - `code_import_dependencies_{queries,response,rows}.go` — the seven
   investigation builders plus envelope and row shaping.
+- `code_import_dependencies_{cycles,components,enumeration}.go` — the bounded
+  cycle walk (#6851), the strongly-connected-component prefilter that leaves an
+  acyclic graph nothing to walk, and the `CycleEnumeration` result with its cap
+  and step-budget stop reasons (#7346). `truncated` means the answer is partial;
+  `has_more` and `next_offset` carry paging.
 - `code_relationship_story_{evidence_state,provenance}.go`,
   `code_relationships_{graph_response,resolution}.go` — story contract,
   evidence classification, graph shaping, name resolution.

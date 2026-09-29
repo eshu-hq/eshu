@@ -14,22 +14,30 @@ import (
 // ImportDependencyResponseWithCycleEnumeration when the enumeration cap
 // state is known so a capped list still says truncated:true.
 func ImportDependencyResponse(req ImportDependencyRequest, rows []map[string]any) map[string]any {
-	return ImportDependencyResponseWithCycleEnumeration(req, rows, false)
+	return ImportDependencyResponseWithCycleEnumeration(req, rows, CycleEnumeration{StopReason: CycleStopNone})
 }
 
 // ImportDependencyResponseWithCycleEnumeration shapes one
 // import-dependency page with the cycle enumeration state attached. When
-// enumTruncated is true the enumeration hit importCycleEnumerationCap,
-// so the page reports truncated:true and the coverage carries the cap
-// value: a capped cycle list is never silently partial.
+// enumeration.Truncated is true the walk stopped at
+// importCycleEnumerationCap or importCycleEnumerationStepBudget, so the
+// page reports truncated:true and the coverage carries the cap, the step
+// budget, and the stop reason: a capped cycle list is never silently
+// partial.
 func ImportDependencyResponseWithCycleEnumeration(
 	req ImportDependencyRequest,
 	rows []map[string]any,
-	enumTruncated bool,
+	enumeration CycleEnumeration,
 ) map[string]any {
 	limit := req.normalizedLimit()
-	truncated := len(rows) > limit
-	if req.EffectiveQueryType() == "file_import_cycles" && enumTruncated {
+	// hasMore is the paging signal: another page exists. truncated is the
+	// completeness signal: the answer is partial, either because another page
+	// exists or because the cycle enumeration stopped early. Keeping them apart
+	// is what lets the last page of a capped run say truncated:true (the list is
+	// still partial) while ending the pager (has_more:false, next_offset:null).
+	hasMore := len(rows) > limit
+	truncated := hasMore
+	if req.EffectiveQueryType() == "file_import_cycles" && enumeration.Truncated {
 		truncated = true
 	}
 	if len(rows) > limit {
@@ -42,9 +50,10 @@ func ImportDependencyResponseWithCycleEnumeration(
 		"limit":          limit,
 		"offset":         req.Offset,
 		"truncated":      truncated,
-		"next_offset":    nextImportDependencyOffset(req.Offset, len(results), truncated),
+		"has_more":       hasMore,
+		"next_offset":    nextImportDependencyOffset(req.Offset, len(results), hasMore),
 		"source_backend": "graph",
-		"coverage":       importDependencyCoverage(req, truncated, enumTruncated),
+		"coverage":       importDependencyCoverage(req, truncated, enumeration),
 	}
 	switch req.EffectiveQueryType() {
 	case "file_import_cycles":
@@ -234,7 +243,7 @@ func importDependencyScope(req ImportDependencyRequest) map[string]any {
 	return scope
 }
 
-func importDependencyCoverage(req ImportDependencyRequest, truncated, enumTruncated bool) map[string]any {
+func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enumeration CycleEnumeration) map[string]any {
 	queryShape := "repo_file_imports"
 	if req.EffectiveQueryType() == "file_import_cycles" {
 		queryShape = "python_file_import_cycle"
@@ -252,7 +261,9 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated, enumTrunca
 	if req.EffectiveQueryType() == "file_import_cycles" {
 		coverage["cycle_max_length"] = req.effectiveMaxCycleLength()
 		coverage["cycle_enumeration_cap"] = importCycleEnumerationCap
-		coverage["cycle_enumeration_truncated"] = enumTruncated
+		coverage["cycle_enumeration_truncated"] = enumeration.Truncated
+		coverage["cycle_enumeration_stop_reason"] = enumeration.StopReason
+		coverage["cycle_enumeration_step_budget"] = importCycleEnumerationStepBudget
 	}
 	return coverage
 }
@@ -264,8 +275,12 @@ func importDependencyRelationshipTypes(req ImportDependencyRequest) []string {
 	return []string{"IMPORTS"}
 }
 
-func nextImportDependencyOffset(offset, count int, truncated bool) any {
-	if !truncated {
+// nextImportDependencyOffset returns the cursor for the next page, or nil when
+// there is none. It keys on hasMore, not truncated: a capped enumeration stays
+// truncated on its last page, and echoing offset+0 there sent a pager into a
+// fixed-cursor loop.
+func nextImportDependencyOffset(offset, count int, hasMore bool) any {
+	if !hasMore {
 		return nil
 	}
 	return offset + count
