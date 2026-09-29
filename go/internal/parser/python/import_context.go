@@ -12,9 +12,9 @@ import (
 //
 // A statement is type-only when it sits in the consequence of an `if` or `elif`
 // guarded by TYPE_CHECKING: the branch never runs, so the import cannot close a
-// runtime cycle. The `else` branch of that guard, a negated guard, a
-// parenthesized guard, and a composite condition such as `TYPE_CHECKING and x`
-// are not type-only. A statement is deferred when a function body encloses it,
+// runtime cycle. A parenthesized guard counts. The `else` branch of that guard,
+// a negated guard, and a composite condition such as `TYPE_CHECKING and x` are
+// not type-only. A statement is deferred when a function body encloses it,
 // because it then runs at call time instead of at module load. A class body runs
 // at definition time, so it is neither. A lambda is not checked: an import is a
 // statement and cannot appear in a lambda body. Both flags can hold at once, and
@@ -39,9 +39,12 @@ func pythonImportContext(node *tree_sitter.Node, source []byte) (typeOnly bool, 
 }
 
 // pythonIsTypeCheckingGuard reports whether a condition is the bare name
-// TYPE_CHECKING or an attribute access ending in it (typing.TYPE_CHECKING).
-// Anything composite, such as `not TYPE_CHECKING`, is not a type-only guard.
+// TYPE_CHECKING or an attribute access ending in it (typing.TYPE_CHECKING),
+// possibly wrapped in parentheses, which do not change what a guard means.
+// Anything composite, such as `not TYPE_CHECKING` or `TYPE_CHECKING and x`, is
+// not a type-only guard.
 func pythonIsTypeCheckingGuard(condition *tree_sitter.Node, source []byte) bool {
+	condition = pythonUnwrapParenthesized(condition)
 	if condition == nil {
 		return false
 	}

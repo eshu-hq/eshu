@@ -49,6 +49,12 @@ elif PLAIN:
 if (TYPE_CHECKING):
     from .b import ParenGuard
 
+if ((typing.TYPE_CHECKING)):
+    from .b import NestedParenGuard
+
+if (not TYPE_CHECKING):
+    from .b import ParenNegatedGuard
+
 if TYPE_CHECKING and PLAIN:
     from .b import CompositeGuard
 
@@ -111,9 +117,13 @@ func TestDefaultEngineParsePathPythonImportFlags(t *testing.T) {
 		{name: "ElifOther", wantSource: "./b"},
 		{name: "GuardIf", typeOnly: true, wantSource: "./b"},
 		{name: "PlainElifAfterGuard", wantSource: "./b"},
-		// A parenthesized or composite condition is not a bare guard, so the
-		// import stays a runtime edge; that errs toward keeping the edge.
-		{name: "ParenGuard", wantSource: "./b"},
+		// Parentheses do not change what a guard means, so a parenthesized
+		// guard is a guard at any depth; a parenthesized negation is not.
+		{name: "ParenGuard", typeOnly: true, wantSource: "./b"},
+		{name: "NestedParenGuard", typeOnly: true, wantSource: "./b"},
+		{name: "ParenNegatedGuard", wantSource: "./b"},
+		// A composite condition is not a bare guard, so the import stays a
+		// runtime edge; that errs toward keeping the edge.
 		{name: "CompositeGuard", wantSource: "./b"},
 		{name: "LateB", deferred: true, wantSource: "./b"},
 		{name: "json", deferred: true, wantSource: "json"},

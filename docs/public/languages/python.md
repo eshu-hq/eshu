@@ -167,11 +167,11 @@ payload from before the flag existed. The keys are the `shared.ImportFlag*`
 constants (issue #7344).
 
 - `type_only`: the import sits in the consequence of an `if TYPE_CHECKING:` or
-  `if typing.TYPE_CHECKING:` branch (`elif` counts). The `else` branch,
-  `if not TYPE_CHECKING:`, a parenthesized `if (TYPE_CHECKING):`, and a composite
-  condition such as `if TYPE_CHECKING and x:` are not type-only, which errs
-  toward keeping the edge. The branch never runs, so the import cannot close a
-  runtime import cycle.
+  `if typing.TYPE_CHECKING:` branch (`elif` counts), including a parenthesized
+  `if (TYPE_CHECKING):`. The `else` branch, `if not TYPE_CHECKING:`, and a
+  composite condition such as `if TYPE_CHECKING and x:` are not type-only, which
+  errs toward keeping the edge. The branch never runs, so the import cannot
+  close a runtime import cycle.
 - `deferred`: a function body encloses the import, so it runs at call
   time instead of at module load. A class body runs at definition time and is
   not deferred. `type_only` and `deferred` can both hold, and a guard outside a
