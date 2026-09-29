@@ -244,6 +244,47 @@ func TestProjectorDeltaBaselineChain(t *testing.T) {
 	}
 }
 
+// TestProjectorDeltaBaselineAckRefusalFoldsPriorFailure proves the #7320 fold
+// (priorFailureWorkSQL) actually appears in a row markProjectorDeltaBaselineRefusedQuery
+// writes, not only that the statement's SQL text contains the constant
+// (TestSupersedeStatementsFoldPriorFailure only scans source). A retry's prior
+// attempt left failure_class/failure_message on the claimed row before this
+// attempt was claimed; the fence refuses the delta (active differs), and the
+// refusal's failure_details must carry that prior attempt under prior_failure,
+// not overwrite it silently.
+func TestProjectorDeltaBaselineAckRefusalFoldsPriorFailure(t *testing.T) {
+	dsn := proofDSN(t)
+	database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
+	if _, err := database.ExecContext(context.Background(), `
+UPDATE fact_work_items
+SET failure_class = 'projector_transient_error', failure_message = 'prior attempt: connection reset'
+WHERE generation_id = 'gen-d'`); err != nil {
+		t.Fatalf("seed prior failure: %v", err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	err := queue.Ack(context.Background(), fenceWork("gen-d"), runtime.Result{})
+	if !projector.IsDeltaBaselineRefusal(err) {
+		t.Fatalf("Ack = %v, want a delta-baseline refusal", err)
+	}
+	var raw string
+	if err := database.QueryRowContext(context.Background(),
+		`SELECT failure_details FROM fact_work_items WHERE generation_id = 'gen-d'`,
+	).Scan(&raw); err != nil {
+		t.Fatalf("read failure_details: %v", err)
+	}
+	var details map[string]any
+	if err := json.Unmarshal([]byte(raw), &details); err != nil {
+		t.Fatalf("decode failure_details %q: %v", raw, err)
+	}
+	prior, ok := details["prior_failure"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_details = %+v, want a prior_failure object", details)
+	}
+	if prior["failure_class"] != "projector_transient_error" || prior["failure_message"] != "prior attempt: connection reset" {
+		t.Fatalf("prior_failure = %+v, want the seeded prior attempt's class and message", prior)
+	}
+}
+
 func isClaimRejected(err error) bool {
 	return err != nil && strings.Contains(err.Error(), ErrProjectorClaimRejected.Error())
 }
