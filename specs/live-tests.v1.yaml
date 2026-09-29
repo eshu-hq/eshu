@@ -1970,7 +1970,7 @@ tests:
   - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
     tag: ~
     class: scheduled
-    reason: #7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
     tag: ~
     class: scheduled
@@ -2026,19 +2026,19 @@ tests:
   - file: go/internal/storage/postgres/projector_queue_delta_baseline_concurrency_live_test.go
     tag: ~
     class: scheduled
-    reason: #7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_delta_baseline_edge_live_test.go
     tag: ~
     class: scheduled
-    reason: #7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_delta_baseline_live_test.go
     tag: ~
     class: scheduled
-    reason: #7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_delta_baseline_race_live_test.go
     tag: ~
     class: scheduled
-    reason: #7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence
+    reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_heartbeat_scope_lock_live_test.go
     tag: ~
     class: scheduled
