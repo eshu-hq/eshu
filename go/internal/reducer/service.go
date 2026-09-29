@@ -161,6 +161,10 @@ type Service struct {
 	Logger         *slog.Logger
 	Workers        int // concurrent worker count; 0 or 1 means sequential
 	BatchClaimSize int // items per ClaimBatch call; 0 uses default (Workers * 4, max 64)
+
+	// ackRetryBase is the first backoff between transient AckBatch retries;
+	// zero uses defaultAckRetryBase. Tests shrink it.
+	ackRetryBase time.Duration
 }
 
 // Run polls for reducer work until the context is canceled. If a

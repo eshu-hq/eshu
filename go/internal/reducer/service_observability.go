@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -119,4 +120,89 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 			s.Logger.InfoContext(ctx, "reducer execution succeeded", logAttrs...)
 		}
 	}
+}
+
+const (
+	// ackRetryAttempts is the total AckBatch attempts (first try plus retries).
+	ackRetryAttempts = 5
+	// defaultAckRetryBase is the first backoff between transient ack retries.
+	defaultAckRetryBase = 50 * time.Millisecond
+	// ackRetryMaxBackoff caps the doubling backoff.
+	ackRetryMaxBackoff = 2 * time.Second
+)
+
+// errAckAbandonedToLeaseExpiry marks a batch ack whose transient failures
+// outlasted the retry budget. The claims stay leased and expire for reclaim, so
+// the run keeps draining instead of cancelling every worker (#7267).
+var errAckAbandonedToLeaseExpiry = errors.New("batch ack abandoned to lease expiry after transient failures")
+
+// isTransientAckError reports whether err carries a Postgres 40P01 (deadlock)
+// or 40001 (serialization failure) SQLSTATE. Those are normal, retryable
+// outcomes; matching the SQLState accessor keeps the reducer free of a driver
+// import.
+func isTransientAckError(err error) bool {
+	var stateErr interface{ SQLState() string }
+	if !errors.As(err, &stateErr) {
+		return false
+	}
+	switch stateErr.SQLState() {
+	case "40P01", "40001":
+		return true
+	}
+	return false
+}
+
+// ackBatchRetryingTransient calls AckBatch, retrying transient serialization
+// failures with bounded exponential backoff. Retrying is idempotent: the ack is
+// keyed by claim epoch, so a retry after a reclaim matches zero rows and
+// surfaces ErrExecutionClaimRejected rather than double-completing a row. A
+// non-transient error is returned untouched; an exhausted budget returns
+// errAckAbandonedToLeaseExpiry.
+func (s Service) ackBatchRetryingTransient(
+	ctx context.Context,
+	sink BatchWorkSink,
+	intents []Intent,
+	results []Result,
+) error {
+	backoff := s.ackRetryBase
+	if backoff <= 0 {
+		backoff = defaultAckRetryBase
+	}
+
+	var err error
+	for attempt := 1; attempt <= ackRetryAttempts; attempt++ {
+		err = sink.AckBatch(ctx, intents, results)
+		if err == nil || !isTransientAckError(err) {
+			return err
+		}
+		if attempt == ackRetryAttempts {
+			break
+		}
+		s.logAckTransient(ctx, "reducer batch ack hit transient failure; retrying", "ack_transient_retry", len(intents), attempt, err)
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+		backoff = min(backoff*2, ackRetryMaxBackoff)
+	}
+
+	s.logAckTransient(ctx, "reducer batch ack abandoned to lease expiry", "ack_abandoned_to_lease_expiry", len(intents), ackRetryAttempts, err)
+	return fmt.Errorf("%w: %w", errAckAbandonedToLeaseExpiry, err)
+}
+
+func (s Service) logAckTransient(ctx context.Context, message, failureClass string, batchSize, attempt int, err error) {
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.WarnContext(ctx, message,
+		log.Queue("reducer"),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+		telemetry.FailureClassAttr(failureClass),
+		"batch_size", batchSize,
+		"attempt", attempt,
+		log.Err(err),
+	)
 }
