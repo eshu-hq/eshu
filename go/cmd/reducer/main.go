@@ -55,6 +55,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	generationLivenessCfg := loadGenerationLivenessConfig(getenv)
+	warnGenerationLivenessProgressWindowClamp(ctx, logger, generationLivenessCfg)
 	poisonLivenessCfg := loadPoisonLivenessConfig(getenv)
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)

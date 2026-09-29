@@ -17,12 +17,22 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const defaultGenerationLivenessPollInterval = 5 * time.Minute
+const (
+	defaultGenerationLivenessPollInterval   = 5 * time.Minute
+	defaultGenerationLivenessProgressWindow = 10 * time.Minute
+
+	// generationLivenessRedriveLogMessage is the per-generation Info log
+	// emitted for every re-driven generation (#7265).
+	generationLivenessRedriveLogMessage = "generation liveness re-drove wedged generation"
+	// generationLivenessRedriveReason is the bounded reason on that log: the
+	// generation's actionable outstanding intents sit only in domain queues
+	// that completed nothing inside the progress window.
+	generationLivenessRedriveReason = "no_intent_progress_within_window"
+)
 
 // GenerationLivenessPolicy bounds the liveness sweep that recovers wedged
-// active generations. Raw scope and generation identifiers are intentionally
-// absent from the runner contract; the storage implementation owns candidate
-// selection and locking.
+// active generations. The storage implementation owns candidate selection and
+// locking; the runner only receives the re-driven rows back for logging.
 type GenerationLivenessPolicy struct {
 	// ActivationDeadline is how long an active generation may make no forward
 	// progress past canonical-nodes-committed before it is treated as wedged.
@@ -31,6 +41,19 @@ type GenerationLivenessPolicy struct {
 	MaxRecoverAttempts int
 	// BatchLimit caps how many generations one sweep retires or re-drives.
 	BatchLimit int
+	// ProgressWindow is how recently a blocking projection_domain queue must
+	// have completed any intent for its generation to be draining, not wedged.
+	// Zero or negative means the 10-minute default (#7265).
+	ProgressWindow time.Duration
+}
+
+// effectiveProgressWindow returns the window the storage layer applies after
+// normalization, so logs report the value actually used.
+func (p GenerationLivenessPolicy) effectiveProgressWindow() time.Duration {
+	if p.ProgressWindow <= 0 {
+		return defaultGenerationLivenessProgressWindow
+	}
+	return p.ProgressWindow
 }
 
 // GenerationLivenessResult summarizes one liveness sweep.
@@ -40,6 +63,17 @@ type GenerationLivenessResult struct {
 	// Recovered counts wedged active generations re-driven through projector
 	// re-enqueue this cycle.
 	Recovered int
+	// Recoveries lists each re-driven generation. Skipped (draining)
+	// generations never appear here; the draining gauge bucket covers them.
+	Recoveries []GenerationLivenessRecovery
+}
+
+// GenerationLivenessRecovery identifies one re-driven generation and the
+// durable liveness_recovery_attempts value its re-enqueue wrote.
+type GenerationLivenessRecovery struct {
+	ScopeID                  string
+	GenerationID             string
+	LivenessRecoveryAttempts int
 }
 
 // GenerationLivenessRecoverer runs one bounded liveness recovery sweep over the
@@ -166,6 +200,19 @@ func (r *GenerationLivenessRunner) recordResult(ctx context.Context, result Gene
 	}
 	if r.Logger == nil {
 		return
+	}
+	progressWindow := r.Config.Policy.effectiveProgressWindow().String()
+	for _, recovery := range result.Recoveries {
+		r.Logger.InfoContext(
+			ctx,
+			generationLivenessRedriveLogMessage,
+			slog.String(telemetry.LogKeyScopeID, recovery.ScopeID),
+			slog.String(telemetry.LogKeyGenerationID, recovery.GenerationID),
+			slog.Int("liveness_recovery_attempts", recovery.LivenessRecoveryAttempts),
+			slog.String("reason", generationLivenessRedriveReason),
+			slog.String("progress_window", progressWindow),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
 	}
 	if result.Recovered == 0 && result.Superseded == 0 {
 		return

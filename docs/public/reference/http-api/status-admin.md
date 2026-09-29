@@ -672,8 +672,8 @@ arrives to supersede it. Two mechanisms protect against this:
   (`liveness_recovery_attempts`, stored on the work item payload) prevents a
   poison scope from looping forever. The sweep also supersedes orphaned older
   `active` generations once a newer same-scope generation is authoritative.
-  Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation
-  deadline, max recover attempts, batch limit). It is enabled by default.
+  Outstanding shared work is only a wedge once it stops moving: a generation is skipped (counted `draining`, budget untouched) while any of its actionable outstanding intents sits in a `projection_domain` queue that completed any intent, for any generation, inside the progress window (exact `repo_dependency` completions count as progress for that queue; the exact family is excluded only from actionability), so a never-quiet queue keeps a wedged generation `draining` and the recovery endpoint below is the manual path.
+  Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation deadline, max recover attempts, batch limit, progress window); it is enabled by default. `ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW` (Go duration, default `10m`) is that quiet period; a value below the liveness poll interval is raised to the poll interval with one warning log at reducer startup.
 - **Operator escape hatch.** `POST /api/v0/admin/recover-generations` re-drives a
   named set of wedged scopes on demand, or every recoverable scope with
   `all_scopes: true`. Like replay it requires an explicit `reason` and an
@@ -686,12 +686,12 @@ arrives to supersede it. Two mechanisms protect against this:
 Observability for wedged generations:
 
 - `eshu_dp_active_generations` is a gauge of current active generations by
-  closed activation-age bucket (`fresh`, `aging`, `stuck`). The `stuck` bucket
-  matches the recovery gate: a generation is only `stuck` when it has aged past
-  the deadline AND has outstanding `shared_projection_intents`
+  closed activation-age bucket (`fresh`, `aging`, `draining`, `stuck`). The
+  `stuck` bucket matches the recovery gate: a generation is only `stuck` when it
+  has aged past the deadline AND has actionable outstanding `shared_projection_intents`
   (`completed_at IS NULL`) AND has no unresolved reducer fact-work for the same
   generation AND has no source-local projector row already pending or in
-  progress. A healthy quiet scope that merely aged, a scope still moving through
+  progress AND none of those intents sits in a domain queue that completed work inside the progress window (that case is counted `draining` and is not re-driven). A healthy quiet scope that merely aged, a scope still moving through
   reducer backlog, or an in-flight liveness recovery row is counted `aging`,
   never `stuck`, so a non-zero `stuck` bucket avoids false alarms on idle
   installations and normal bootstrap backlog while still surfacing blocked
@@ -733,7 +733,7 @@ activation deadline (default 30m) under unit and race tests. Full before/after
 operational verification step below.
 
 Observability Evidence: New metrics `eshu_dp_active_generations` (gauge by
-fresh/aging/stuck age bucket; `stuck` is the wedged-generation alarm signal),
+fresh/aging/stuck age bucket, plus `draining` since #7265; `stuck` is the wedged-generation alarm signal),
 `eshu_dp_generation_liveness_recovered_total`,
 `eshu_dp_generation_liveness_superseded_total`, and
 `eshu_dp_generation_liveness_failures_total` (by bounded reason), plus structured

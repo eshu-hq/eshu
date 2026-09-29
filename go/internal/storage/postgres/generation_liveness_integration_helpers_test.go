@@ -293,6 +293,9 @@ INSERT INTO scope_generations (
     'active', now() - interval '20 minutes'
 );
 -- Completed intent: completed_at IS NOT NULL → downstream is drained, not stuck.
+-- It completed 15 minutes ago, outside the default 10-minute progress window
+-- (#7265), so the 'graph' queue reads as quiet and gen-wedged, whose only
+-- outstanding intent is in 'graph', stays wedged rather than draining.
 INSERT INTO shared_projection_intents (
     intent_id, projection_domain, partition_key, scope_id,
     acceptance_unit_id, repository_id, source_run_id, generation_id,
@@ -300,7 +303,7 @@ INSERT INTO shared_projection_intents (
 ) VALUES (
     'intent-aging', 'graph', 'acme/aging', 'scope-aging',
     '', 'acme/aging', 'run-aging', 'gen-aging',
-    '{"action":"sync"}'::jsonb, now() - interval '20 minutes', now() - interval '10 minutes'
+    '{"action":"sync"}'::jsonb, now() - interval '20 minutes', now() - interval '15 minutes'
 );
 
 -- scope-orphaned: two active generations; gen-orphaned-new has a later ingested_at.

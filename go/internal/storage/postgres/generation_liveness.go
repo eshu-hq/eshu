@@ -16,6 +16,7 @@ const (
 	defaultGenerationActivationDeadline = 30 * time.Minute
 	defaultGenerationMaxRecoverAttempts = 5
 	defaultGenerationLivenessBatchLimit = 200
+	defaultGenerationProgressWindow     = 10 * time.Minute
 )
 
 // GenerationLivenessPolicy bounds the liveness sweep that recovers wedged
@@ -33,6 +34,11 @@ type GenerationLivenessPolicy struct {
 	MaxRecoverAttempts int
 	// BatchLimit caps how many generations a single sweep retires or re-drives.
 	BatchLimit int
+	// ProgressWindow is how recently a projection_domain queue must have
+	// completed any intent for an aged generation with actionable outstanding
+	// intent in that domain to count as draining rather than wedged (#7265).
+	// Draining generations are skipped and never spend recovery budget.
+	ProgressWindow time.Duration
 }
 
 // Normalize fills zero or negative fields with the documented defaults so a
@@ -47,17 +53,30 @@ func (p GenerationLivenessPolicy) Normalize() GenerationLivenessPolicy {
 	if p.BatchLimit <= 0 {
 		p.BatchLimit = defaultGenerationLivenessBatchLimit
 	}
+	if p.ProgressWindow <= 0 {
+		p.ProgressWindow = defaultGenerationProgressWindow
+	}
 	return p
 }
 
 // GenerationLivenessResult summarizes one liveness sweep. Superseded counts
 // orphaned older active generations retired this cycle; Recovered counts wedged
-// active generations re-driven through projector re-enqueue.
+// active generations re-driven through projector re-enqueue, and Recoveries
+// lists each of them in (scope_id, generation_id) order.
 type GenerationLivenessResult struct {
 	Superseded         int
 	Recovered          int
 	SupersededScopeIDs []string
 	RecoveredScopeIDs  []string
+	Recoveries         []GenerationLivenessRecovery
+}
+
+// GenerationLivenessRecovery identifies one generation the sweep re-drove and
+// the durable liveness_recovery_attempts value the re-enqueue wrote.
+type GenerationLivenessRecovery struct {
+	ScopeID                  string
+	GenerationID             string
+	LivenessRecoveryAttempts int
 }
 
 // GenerationLivenessStore detects and recovers wedged active generations in
@@ -101,32 +120,64 @@ func (s GenerationLivenessStore) RecoverWedgedGenerations(
 		return GenerationLivenessResult{}, err
 	}
 
-	deadline := now.Add(-policy.ActivationDeadline)
-	recoveredScopeIDs, err := s.collectScopeGenerationPairs(
-		ctx,
-		recoverWedgedActiveGenerationsQuery,
-		"recover wedged active generations",
-		deadline,
-		policy.MaxRecoverAttempts,
-		policy.BatchLimit,
-		now,
-	)
+	recoveries, err := s.recoverWedged(ctx, policy, now)
 	if err != nil {
 		return GenerationLivenessResult{}, err
+	}
+	recoveredScopeIDs := make([]string, 0, len(recoveries))
+	for _, recovery := range recoveries {
+		recoveredScopeIDs = append(recoveredScopeIDs, recovery.ScopeID)
 	}
 
 	return GenerationLivenessResult{
 		Superseded:         len(supersededScopeIDs),
-		Recovered:          len(recoveredScopeIDs),
+		Recovered:          len(recoveries),
 		SupersededScopeIDs: supersededScopeIDs,
 		RecoveredScopeIDs:  recoveredScopeIDs,
+		Recoveries:         recoveries,
 	}, nil
 }
 
-// collectScopeGenerationPairs runs a (scope_id, generation_id)-returning query
-// and reports the affected scope ids. The generation id is read so the row
-// shape stays explicit for callers and future telemetry, but only scope ids are
-// surfaced today.
+// recoverWedged runs the bounded wedged re-drive and returns every re-driven
+// generation with the attempt count its re-enqueue wrote.
+func (s GenerationLivenessStore) recoverWedged(
+	ctx context.Context,
+	policy GenerationLivenessPolicy,
+	now time.Time,
+) ([]GenerationLivenessRecovery, error) {
+	const op = "recover wedged active generations"
+	rows, err := s.database.QueryContext(
+		ctx,
+		recoverWedgedActiveGenerationsQuery,
+		now.Add(-policy.ActivationDeadline),
+		policy.MaxRecoverAttempts,
+		policy.BatchLimit,
+		now,
+		now.Add(-policy.ProgressWindow),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var recoveries []GenerationLivenessRecovery
+	for rows.Next() {
+		var recovery GenerationLivenessRecovery
+		if scanErr := rows.Scan(&recovery.ScopeID, &recovery.GenerationID, &recovery.LivenessRecoveryAttempts); scanErr != nil {
+			return nil, fmt.Errorf("%s: %w", op, scanErr)
+		}
+		recoveries = append(recoveries, recovery)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return recoveries, nil
+}
+
+// collectScopeGenerationPairs runs the (scope_id, generation_id)-returning
+// supersede query and reports the affected scope ids. The generation id is
+// read so the row shape stays explicit; the recovery path uses recoverWedged,
+// which surfaces generation ids and attempt counts.
 func (s GenerationLivenessStore) collectScopeGenerationPairs(
 	ctx context.Context,
 	query string,
@@ -155,9 +206,10 @@ func (s GenerationLivenessStore) collectScopeGenerationPairs(
 }
 
 // CountActiveGenerationsByAge buckets active generations by activation age into
-// fresh, aging, and stuck. The stuck bucket uses the same activation deadline
-// the recovery sweep uses, so a non-zero stuck count is the operator alarm
-// signal that generations are wedging.
+// fresh, aging, draining, and stuck. The stuck bucket uses the same gates the
+// recovery sweep uses, so a non-zero stuck count is the operator alarm signal
+// that generations are wedging; draining counts blocked generations whose
+// domain queues are still progressing inside the progress window.
 func (s GenerationLivenessStore) CountActiveGenerationsByAge(
 	ctx context.Context,
 	policy GenerationLivenessPolicy,
@@ -172,13 +224,15 @@ func (s GenerationLivenessStore) CountActiveGenerationsByAge(
 	agingBoundary := now.Add(-policy.ActivationDeadline / 2)
 	stuckBoundary := now.Add(-policy.ActivationDeadline)
 
-	rows, err := s.database.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary, now)
+	progressSince := now.Add(-policy.ProgressWindow)
+
+	rows, err := s.database.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary, now, progressSince)
 	if err != nil {
 		return nil, fmt.Errorf("count active generations by age: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	counts := map[string]int64{"fresh": 0, "aging": 0, "stuck": 0}
+	counts := map[string]int64{"fresh": 0, "aging": 0, "draining": 0, "stuck": 0}
 	for rows.Next() {
 		var bucket string
 		var count int64

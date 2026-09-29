@@ -67,6 +67,11 @@ fighting the type system here).
 
 ## What must stay conservative
 
+- `GenerationLivenessRunner` MUST log each re-driven generation from
+  `GenerationLivenessResult.Recoveries` (scope, generation, attempts, the
+  bounded `no_intent_progress_within_window` reason, the effective progress
+  window) and MUST NOT log skipped draining generations individually; the
+  `draining` gauge bucket is their signal (#7265).
 - `PoisonLivenessRunner` MUST only re-drive a dead-letter row when
   `PoisonLivenessRunnerConfig.AutoRetryEnabled` is true. The stuck-gauge
   reporting the poison class size is wired independently in `cmd/reducer` and
