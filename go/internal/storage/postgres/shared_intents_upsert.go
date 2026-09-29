@@ -50,6 +50,41 @@ INSERT INTO shared_projection_intents (
     created_at, completed_at
 ) VALUES `
 
+// upsertSharedIntentBatchSuffix is the ON CONFLICT clause of the shared
+// projection intent upsert. Its overwrite and advance-only semantics are
+// intended (#7323) and pinned by
+// TestSharedIntentUpsertCreatedAtLastWriterWinsLive and
+// TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAtMoves.
+//
+// Overwritten (last writer wins): every column, including payload and
+// created_at. intent_id is derived without created_at
+// (sharedintent.Build hashes the identity fields through
+// sharedintent.StableIntentID), so a re-emitted intent conflicts on the same
+// row and refreshes it in place.
+//
+// Advance-only: completed_at. COALESCE keeps an existing completed_at, so a
+// completed intent stays completed after a retry, while a not-yet-completed row
+// takes EXCLUDED.completed_at when the writer supplies one. The upsert never
+// reopens (clears) completed_at; reopening stays the explicit act of
+// rebuild/reset (storage/postgres/rebuild/reset), and a retry is not allowed to
+// trigger a repo-wide retract and rewrite.
+//
+// Why created_at moves: it is the acceptance epoch of the RUNS_ON workload
+// readiness fence (repoDependencyRunsOnFenceRequests in the reducer hashes each
+// active row's intent_id and created_at). Only pending intents select an
+// acceptance unit (listPendingDomainIntentsSQL filters completed_at IS NULL),
+// so moving created_at on a completed row is inert while no pending sibling
+// exists. When one does, the runner computes a new fence token, requests one
+// fenced workload replay, the workload handler publishes that token, and the
+// next cycle rewrites the active rows idempotently. It converges and never
+// stalls.
+//
+// Why created_at is not frozen for completed rows: an older epoch would let a
+// token published before the re-upsert satisfy the fence, weakening the
+// WorkloadInstance prerequisite for RUNS_ON, and would corrupt created_at
+// ordering of pending rows after a rebuild reset reopens them. Why the upsert
+// does not reopen: see above. Both alternatives were rejected in the #7323
+// ruling; do not change this clause without revisiting it.
 const upsertSharedIntentBatchSuffix = `
 ON CONFLICT (intent_id) DO UPDATE
 SET projection_domain = EXCLUDED.projection_domain,
