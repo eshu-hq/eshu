@@ -83,9 +83,6 @@ done
 require_matches "the pre-pr golden-corpus selector must match the golden-corpus libs and the mutex" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|test-golden-corpus-\.\+\|live-gate-lock\)"
-require_matches "the pre-pr golden-corpus live step must run the blocking Neo4j leg (#7362)" \
-	"${prepr}" \
-	"^(?!\s*#)[^\n]*env ESHU_GRAPH_BACKEND=neo4j bash \"\\$\{repo_root\}/scripts/verify-golden-corpus-gate\.sh\""
 require_matches "the pre-pr golden-corpus selector must match static ecosystem corpus inputs" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*tests/fixtures/ecosystems/"

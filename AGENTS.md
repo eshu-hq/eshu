@@ -117,7 +117,7 @@ it complements [Evidence Rules](#evidence-rules) and
 - **Neo4j** is the supported canonical graph backend. Correctness, performance
   budgets and gates are defined against the pinned Neo4j. NornicDB is secondary
   and not supported for deployment. Its other CI legs stay blocking until
-  phase 2; the golden-corpus NornicDB leg is already watch-only (#7362).
+  phase 2; the `corpus-gate (nornicdb)` cell is already watch-only (#7362).
   See [Graph Backend Decision](docs/internal/design/7331-neo4j-primary-graph-backend-decision.md).
 
 There is no Python runtime on the normal platform path. Python remains only in

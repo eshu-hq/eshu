@@ -52,8 +52,8 @@ had moved to Neo4j:
 3. **NornicDB is secondary.** It is not supported for deployment, and it stops
    being a merge gate once phase 2 (section 6) moves its CI legs out of the
    required set. Until that ruleset change lands, the required NornicDB checks
-   still block merges, except the golden-corpus NornicDB leg, which #7362 made
-   watch-only through the gate registry. `ESHU_GRAPH_BACKEND=nornicdb` keeps
+   still block merges, except the `corpus-gate (nornicdb)` cell, which #7362
+   made watch-only through the gate registry. `ESHU_GRAPH_BACKEND=nornicdb` keeps
    parsing, and the NornicDB code keeps compiling. Re-qualification is a
    separate, deliberate effort (section 7), taken on when there is time.
 4. **Cypher compliance is enforced on Neo4j.** Every inventoried production

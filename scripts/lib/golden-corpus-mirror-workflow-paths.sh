@@ -24,6 +24,14 @@ require_workflow_path() {
 	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow}" "- '${path_glob}'"
 }
 
+# #7362: the pre-pr live step must run the blocking Neo4j leg. Scoped to the
+# `run_or_defer golden-corpus` step (its first line through its `|| rc=1`), not
+# the whole file, so an identical env line elsewhere in pre-pr.sh cannot satisfy
+# it while the real step reverts to the default backend.
+require_in_region "pre-pr golden-corpus live step runs the blocking Neo4j leg (#7362)" "${prepr}" \
+	'/^[[:space:]]*run_or_defer golden-corpus[[:space:]]/,/|| rc=1/' \
+	'env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh"'
+
 # --- established (#5596) ----------------------------------------------------
 require_workflow_path "collector fact emission"        "go/internal/collector/**"
 require_workflow_path "parser fact emission"           "go/internal/parser/**"
