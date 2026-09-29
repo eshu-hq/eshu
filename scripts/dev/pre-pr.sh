@@ -262,11 +262,13 @@ step_live() {
 	# Mirror .github/workflows/golden-corpus-gate.yml paths exactly, so any diff
 	# that trips the corpus gate in CI also runs (or is honestly deferred) here —
 	# not just the internal/ packages. Includes the go/cmd entrypoints, demospec,
-	# the demo-first-answers spec, and the gate's own scripts/workflow.
+	# the demo-first-answers spec, and the gate's own scripts/workflow. Runs on
+	# Neo4j because that leg (golden-corpus-gate-neo4j) is the blocking one in CI;
+	# the NornicDB leg is watch-only (#7362).
 	run_or_defer golden-corpus \
 		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec|ask|askwiring|answerguardrail|answernarration)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate|mock-prometheus-mimir|mock-openai-compatible)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|tests/fixtures/ecosystems/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|scripts/lib/(golden-corpus-.+|test-golden-corpus-.+|live-gate-lock)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
 		'docker info' \
-		bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
+		env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
 	run_or_defer replay-tier \
 		'^(go/cmd/(ingester|projector)/|go/internal/(query|replay|reducer|storage/cypher|storage/nornicdb|projector|graph|runtime)/|testdata/cassettes/(replayoffline|replaydelta)/|scripts/(verify-replay-tier|test-verify-replay-tier)\.sh|scripts/dev/pre-pr\.sh|scripts/ci/install-apt-packages\.sh|\.github/workflows/verify-replay-tier\.yml)' \
 		'docker info' \

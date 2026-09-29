@@ -126,7 +126,7 @@ bash scripts/verify-golden-corpus-gate.sh
 
 ### Running it on Neo4j
 
-The same gate runs against the Neo4j compatibility backend. Set
+The same gate runs against Neo4j, the supported backend. Set
 `ESHU_GRAPH_BACKEND=neo4j` and the orchestrator switches to
 `docker-compose.neo4j.yml`, the `neo4j` service, and the `neo4j` database; every
 other step, and every snapshot assertion, is unchanged:
@@ -360,6 +360,10 @@ In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,
 storage, the pipeline command binaries, the cassettes, or the snapshot). Its
 `corpus-gate` job is a matrix with one cell per graph backend:
-`corpus-gate (nornicdb)` is blocking (`golden-corpus-gate` in
-`specs/ci-gates.v1.yaml`), and `corpus-gate (neo4j)` is registered as the
-non-blocking `golden-corpus-gate-neo4j` until main is green on it.
+`corpus-gate (neo4j)` is blocking (`golden-corpus-gate-neo4j` in
+`specs/ci-gates.v1.yaml`), because Neo4j is the supported backend.
+`corpus-gate (nornicdb)` is watch-only (`golden-corpus-gate`: `blocking: false`,
+layer `secondary`): a red NornicDB cell is a backend-drift signal to triage, and
+`required-gates-complete` does not wait for it. The replay-coverage manifest
+cites the Neo4j row as each entry's `proof_gate`, because the coverage gate
+rejects a proof gate that does not block.

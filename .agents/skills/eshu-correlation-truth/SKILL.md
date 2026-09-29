@@ -115,7 +115,7 @@ red result:
   that only shows up on retry fails this, not a one-shot test.
 - `ifa-contract-layer` -- reducer contract-layer coverage
   (`go/internal/ifa`, `go/internal/reducer/...`).
-- `golden-corpus-gate` (B-7) -- end-to-end replay proving collector fact
+- `golden-corpus-gate-neo4j` (B-7 on Neo4j) -- end-to-end replay proving collector fact
   emission, graph write, and query/MCP response shape agree; see
   `eshu-golden-corpus-rigor` for cassette/snapshot mechanics.
 

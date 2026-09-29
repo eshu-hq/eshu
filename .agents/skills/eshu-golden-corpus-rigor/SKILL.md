@@ -107,8 +107,9 @@ fixture.
 cd go && go test ./cmd/golden-corpus-gate/ -count=1
 bash scripts/test-verify-golden-corpus-gate.sh
 # full live run (Docker): bootstrap + replay cassettes + drain + diff snapshot
-# -- gate id: golden-corpus-gate (B-7), tier ci-heavy, blocking on required-gates-complete
-bash scripts/verify-golden-corpus-gate.sh
+# -- gate id: golden-corpus-gate-neo4j (B-7 on Neo4j), tier ci-heavy, blocking on
+# required-gates-complete. golden-corpus-gate is the watch-only NornicDB leg.
+ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh
 ```
 
 The full run is the proof. Terminal shape is `N pass, 0 required-fail,

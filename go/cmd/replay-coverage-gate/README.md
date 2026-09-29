@@ -77,7 +77,7 @@ regenerate it after a coverage-moving change with
 
 This gate verifies a scenario artifact **exists**; it does not run it. Each
 manifest entry names the `proof_gate` that runs the scenario and proves it green
-(`golden-corpus-gate`, replay tier, Go race tests, parser fixture tests,
+(`golden-corpus-gate-neo4j`, replay tier, Go race tests, parser fixture tests,
 `capability-inventory`, `capability-inventory-docs`, `authz-scoped-route-tests`,
 or capability-budget proof). Keeping existence here and greenness there is what
 makes this gate fast and credential-free.

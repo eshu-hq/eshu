@@ -2518,13 +2518,18 @@ gates:
       job: "static mirror"
     requirements: []
     ci_only_reason: ""
+  # #7362 (#7331 phase 2): the NornicDB leg of golden-corpus-gate.yml. Neo4j is
+  # the supported backend and golden-corpus-gate-neo4j is the blocking truth
+  # gate, so this leg is watch-only: it reports NornicDB drift without holding
+  # a merge. required-gates-complete waits only for registry-blocking gates, and
+  # the ruleset lists no per-leg context, so no ruleset change is involved.
   - id: golden-corpus-gate
-    name: Golden Corpus Gate (Docker)
+    name: Golden Corpus Gate on NornicDB (Docker)
     category: exactness
-    layer: truth
-    purpose: "Runs the full pipeline over the fixed golden corpus in Docker and fails if queues don't drain or the graph and answers differ from the snapshot."
+    layer: secondary
+    purpose: "Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate."
     tier: ci-heavy
-    blocking: true
+    blocking: false
     triggers:
       - "go/internal/collector/**"
       - "go/internal/parser/**"
@@ -2756,19 +2761,20 @@ gates:
       workflow: "read-api-latency-gate.yml"
       job: "static-mirror (backend latency comparator)"
     requirements: []
-  # #6782 slice 1: the same B-7 golden corpus run on the Neo4j compatibility
-  # backend, as the second cell of golden-corpus-gate.yml's corpus-gate matrix.
-  # It lands non-blocking because required-gates judges a PR with main's
-  # registry: a new blocking check_name cannot be introduced in the PR that
-  # first produces it. Flip blocking to true in a follow-up once main is green
-  # on this cell. Triggers mirror golden-corpus-gate exactly.
+  # #6782 slice 1 added the B-7 golden corpus on Neo4j as the second cell of
+  # golden-corpus-gate.yml's corpus-gate matrix. It landed non-blocking because
+  # required-gates judges a PR with main's registry: a new blocking check_name
+  # cannot be introduced in the PR that first produces it. #7362 (#7331 phase 2)
+  # flips it to blocking: it passed 60 of 60 main runs from 2026-09-27 to
+  # 2026-09-29 (the NornicDB leg failed 2 of those 60). Triggers mirror
+  # golden-corpus-gate exactly.
   - id: golden-corpus-gate-neo4j
     name: Golden Corpus Gate on Neo4j (Docker)
     category: exactness
     layer: truth
-    purpose: "Runs the same golden-corpus pipeline on Neo4j, the supported backend; advisory until main is green on it, then it becomes blocking."
+    purpose: "Runs the full pipeline over the fixed golden corpus on Neo4j, the supported backend, and fails if queues don't drain or the graph differs from the snapshot."
     tier: ci-heavy
-    blocking: false
+    blocking: true
     triggers:
       - "go/internal/collector/**"
       - "go/internal/parser/**"
@@ -2970,7 +2976,7 @@ gates:
     # #6783 statement coverage check (Neo4j-only per #7331: coverage-dirs
     # names the neo4j capture only; NornicDB is not a coverage target).
     # Per-backend truth is asserted by blocking
-    # gates (golden-corpus-gate on NornicDB, and the backendconformance
+    # gates (golden-corpus-gate-neo4j on Neo4j, and the backendconformance
     # WantRows the e2e-tests live lanes run on both backends), so a reproduced
     # divergence is filed as an issue (e.g. #6968), not a merge blocker.
     # #6782: the differential oracle. It replays the same B-7

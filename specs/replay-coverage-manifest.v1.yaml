@@ -45,33 +45,33 @@
 # coverage entry without a named proof_gate would claim a green nothing verifies.
 #
 # Seed coverage = only what is genuinely green today: the five implemented-lane
-# collectors whose cassettes the golden-corpus-gate already replays. Everything
+# collectors whose cassettes the golden-corpus-gate-neo4j leg already replays. Everything
 # else is intentionally uncovered until the relevant C-lane child authors its
 # scenario.
 version: "v1"
 
 coverage:
-  - {surface: "collector:aws", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/awscloud/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:oci_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/ociregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:package_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/packageregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:prometheus_mimir", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/prometheusmimir/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:terraform_state", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/terraformstate/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:aws", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/awscloud/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:oci_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/ociregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:package_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/packageregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:prometheus_mimir", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/prometheusmimir/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:terraform_state", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/terraformstate/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
 
   # C-2 (#4174): implemented-lane collectors backfilled with synthetic
   # supply-chain-demo cassettes (credential-free, matching each collector's real
-  # fact schema). The golden-corpus-gate replays them; a wrong fact_kind lands
+  # fact schema). The golden-corpus-gate-neo4j leg replays them; a wrong fact_kind lands
   # zero facts and fails the gate's collector-source assertion.
-  - {surface: "collector:tempo", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/tempo/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:loki", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/loki/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:jira", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/jira/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:pagerduty", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/pagerduty/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate}
-  - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:tempo", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/tempo/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:loki", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/loki/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:jira", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/jira/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:pagerduty", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/pagerduty/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate-neo4j}
 
   # C-5 (#4177): fact-kind read surfaces. Each maps to an api_mcp_golden whose ref
-  # is the B-12 snapshot query-shape key; the golden-corpus-gate calls the endpoint
+  # is the B-12 snapshot query-shape key; the golden-corpus-gate-neo4j leg calls the endpoint
   # live against the 20-repo corpus and asserts the response shape (truth, not just
   # schema). HTTP query params, when required, are embedded in the shape key.
   # code family (admission-exempt, #4752). The two exempt kinds read through
@@ -79,56 +79,56 @@ coverage:
   # rows via the list_repository_files MCP tool. Both are asserted live by the
   # golden-corpus gate and held as snapshot query shapes (HTTP and MCP), so
   # neither row can go green without exercising that kind's real read path.
-  - {surface: "read_surface:GET /api/v0/repositories", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/repositories", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:list_repository_files", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_repository_files", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/repositories", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/repositories", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:list_repository_files", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_repository_files", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate-neo4j}
   # kubernetes_live (#5398): the fact-kind registry read_surface was corrected
   # from the AWS/GCP cloud-posture endpoint (GET /api/v0/cloud/resources, zero
   # kubernetes handling — a copy-paste error) to the real mounted kubernetes
   # correlations route so the surface key and the proven route match.
-  - {surface: "read_surface:GET /api/v0/kubernetes/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/kubernetes/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50", proof_gate: golden-corpus-gate-neo4j}
   # codeowners (#5419 Phase 4/5): the fact-kind registry read_surface was
   # flipped from "none" to the live GET /api/v0/codeowners/ownership route in
   # Phase 4 seam 8, making this surface required; Phase 5 covers it here and
   # makes the underlying B-12 query shape non-vacuous (a real .github/CODEOWNERS
   # fixture now backs the go_comprehensive corpus repo).
-  - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/incidents/{incident_id}/context", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/incidents/PSCD1/context", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/work-items/evidence", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/supply-chain/impact/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:POST /api/v0/aws/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/aws/runtime-drift/findings", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:POST /api/v0/cloud/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/cloud/runtime-drift/findings", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:POST /api/v0/terraform/config-state-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/terraform/config-state-drift/findings", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:POST /api/v0/code/divergence/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/divergence/findings", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/incidents/{incident_id}/context", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/incidents/PSCD1/context", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/work-items/evidence", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/supply-chain/impact/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:POST /api/v0/aws/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/aws/runtime-drift/findings", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:POST /api/v0/cloud/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/cloud/runtime-drift/findings", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:POST /api/v0/terraform/config-state-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/terraform/config-state-drift/findings", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:POST /api/v0/code/divergence/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/divergence/findings", proof_gate: golden-corpus-gate-neo4j}
   # observability/coverage: the fact-kind registry read_surface was corrected from
   # the unmounted bare path to the real mounted route (.../coverage/correlations)
   # so the surface key and the proven route match (a query-param selector is
   # required).
-  - {surface: "read_surface:GET /api/v0/observability/coverage/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/iac/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/iac/resources?limit=50&include_facets=true", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/documentation/facts", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/documentation/facts?fact_kind=source", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/semantic/code-hints", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/semantic/documentation-observations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/observability/coverage/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/iac/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/iac/resources?limit=50&include_facets=true", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/documentation/facts", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/documentation/facts?fact_kind=source", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/semantic/code-hints", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/semantic/documentation-observations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9", proof_gate: golden-corpus-gate-neo4j}
 
   # C-9 (#4188): CLI read surfaces. Each maps to a B-12 query_shapes.cli key;
-  # the golden-corpus-gate asserts offline command/truth-class parity metadata,
+  # the golden-corpus-gate-neo4j leg asserts offline command/truth-class parity metadata,
   # while the CLI package tests keep the committed keys in lockstep with the
   # public command tree.
-  - {surface: "cli_surface:eshu list", scenario: cli_golden, scenario_type: baseline, ref: "eshu list", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu index-status", scenario: cli_golden, scenario_type: baseline, ref: "eshu index-status", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu trace service --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu trace service --json", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu playbooks list", scenario: cli_golden, scenario_type: baseline, ref: "eshu playbooks list", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu vuln-scan repo --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu vuln-scan repo --json", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu component inventory --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu component inventory --json", proof_gate: golden-corpus-gate}
-  - {surface: "cli_surface:eshu hosted-onboard --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu hosted-onboard --json", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu list", scenario: cli_golden, scenario_type: baseline, ref: "eshu list", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu index-status", scenario: cli_golden, scenario_type: baseline, ref: "eshu index-status", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu trace service --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu trace service --json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu playbooks list", scenario: cli_golden, scenario_type: baseline, ref: "eshu playbooks list", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu vuln-scan repo --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu vuln-scan repo --json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu component inventory --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu component inventory --json", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "cli_surface:eshu hosted-onboard --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu hosted-onboard --json", proof_gate: golden-corpus-gate-neo4j}
 
   # C-10 (#4189): authorization-catalog scoped-token coverage. Live permission
   # families with capability prefixes each get an in-grant and out-of-grant row;
@@ -199,33 +199,33 @@ coverage:
   # correlation already promoted in scripts/verify-golden-corpus-gate.sh. Shared
   # verbs stay pinned to evidence/source-tool narrowed rc-* rows in the snapshot
   # rather than a bare edge count.
-  - {surface: "capability:call_graph.call_chain_path", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.compare_code_paths", scenario: api_mcp_golden, scenario_type: baseline, ref: "compare_code_paths", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.direct_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.direct_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.metrics", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.relationship_story", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.route_to_caller", scenario: correlation, scenario_type: baseline, ref: "rc-8", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.transitive_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:call_graph.transitive_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:code_quality.dead_code", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/dead-code/cross-repo", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.call_chain_path", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.compare_code_paths", scenario: api_mcp_golden, scenario_type: baseline, ref: "compare_code_paths", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.direct_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.direct_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.metrics", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.relationship_story", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.route_to_caller", scenario: correlation, scenario_type: baseline, ref: "rc-8", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.transitive_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:call_graph.transitive_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:code_quality.dead_code", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/dead-code/cross-repo", proof_gate: golden-corpus-gate-neo4j}
   # codeowners.ownership.list (#5419 Phase 5): a capability-matrix entry added in
   # Phase 4 (go/internal/query/contract/capability_matrix_ext.go) with no
   # matching manifest row until now. The claim is exercised by the same rc-157
   # DECLARES_CODEOWNER correlation the read_surface row above proves, mirroring
   # the dependencies.list -> rc-9 precedent immediately below.
-  - {surface: "capability:codeowners.ownership.list", scenario: correlation, scenario_type: baseline, ref: "rc-157", proof_gate: golden-corpus-gate}
-  - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
-  - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate}
-  - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
-  - {surface: "capability:package_registry.dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-25", proof_gate: golden-corpus-gate}
-  - {surface: "capability:package_registry.dependency_chains.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
-  - {surface: "capability:platform_impact.dependency_path", scenario: correlation, scenario_type: baseline, ref: "rc-3", proof_gate: golden-corpus-gate}
-  - {surface: "capability:platform_impact.deployment_chain", scenario: correlation, scenario_type: baseline, ref: "rc-19", proof_gate: golden-corpus-gate}
-  - {surface: "capability:platform_impact.relationships_catalog", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
-  - {surface: "capability:relationship_evidence.drilldown", scenario: correlation, scenario_type: baseline, ref: "rc-21", proof_gate: golden-corpus-gate}
-  - {surface: "capability:service_catalog.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-1", proof_gate: golden-corpus-gate}
-  - {surface: "capability:symbol_graph.inheritance", scenario: correlation, scenario_type: baseline, ref: "rc-12", proof_gate: golden-corpus-gate}
+  - {surface: "capability:codeowners.ownership.list", scenario: correlation, scenario_type: baseline, ref: "rc-157", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:package_registry.dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-25", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:package_registry.dependency_chains.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:platform_impact.dependency_path", scenario: correlation, scenario_type: baseline, ref: "rc-3", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:platform_impact.deployment_chain", scenario: correlation, scenario_type: baseline, ref: "rc-19", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:platform_impact.relationships_catalog", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:relationship_evidence.drilldown", scenario: correlation, scenario_type: baseline, ref: "rc-21", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:service_catalog.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-1", proof_gate: golden-corpus-gate-neo4j}
+  - {surface: "capability:symbol_graph.inheritance", scenario: correlation, scenario_type: baseline, ref: "rc-12", proof_gate: golden-corpus-gate-neo4j}
 
   # C-6 (#4178): remaining capability-matrix claims. The
   # replay-coverage-gate resolves each ref against the capability matrix and

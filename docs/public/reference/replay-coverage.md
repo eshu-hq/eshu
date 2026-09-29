@@ -78,15 +78,15 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:answer_narration.status` | baseline | capability_claim | capability-inventory | `answer_narration.status` |
 | `capability:ask.natural_language_answer` | baseline | capability_claim | capability-inventory | `ask.natural_language_answer` |
 | `capability:aws_runtime_drift.findings.list` | baseline | capability_claim | capability-inventory | `aws_runtime_drift.findings.list` |
-| `capability:call_graph.call_chain_path` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.compare_code_paths` | baseline | api_mcp_golden | golden-corpus-gate | `compare_code_paths` |
-| `capability:call_graph.direct_callees` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.direct_callers` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.metrics` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.relationship_story` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.route_to_caller` | baseline | correlation | golden-corpus-gate | `rc-8` |
-| `capability:call_graph.transitive_callees` | baseline | correlation | golden-corpus-gate | `rc-11` |
-| `capability:call_graph.transitive_callers` | baseline | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.call_chain_path` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.compare_code_paths` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `compare_code_paths` |
+| `capability:call_graph.direct_callees` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.direct_callers` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.metrics` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.relationship_story` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.route_to_caller` | baseline | correlation | golden-corpus-gate-neo4j | `rc-8` |
+| `capability:call_graph.transitive_callees` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
+| `capability:call_graph.transitive_callers` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
 | `capability:capability_catalog.list` | baseline | capability_claim | capability-inventory | `capability_catalog.list` |
 | `capability:ci_cd.run_correlations.aggregate` | baseline | capability_claim | capability-inventory | `ci_cd.run_correlations.aggregate` |
 | `capability:ci_cd.run_correlations.list` | baseline | capability_claim | capability-inventory | `ci_cd.run_correlations.list` |
@@ -99,7 +99,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:code_flow.taint_path` | baseline | capability_claim | capability-inventory | `code_flow.taint_path` |
 | `capability:code_inventory.structural` | baseline | capability_claim | capability-inventory | `code_inventory.structural` |
 | `capability:code_quality.complexity` | baseline | capability_claim | capability-inventory | `code_quality.complexity` |
-| `capability:code_quality.dead_code` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/code/dead-code/cross-repo` |
+| `capability:code_quality.dead_code` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/code/dead-code/cross-repo` |
 | `capability:code_quality.refactoring` | baseline | capability_claim | capability-inventory | `code_quality.refactoring` |
 | `capability:code_search.content_search` | baseline | capability_claim | capability-inventory | `code_search.content_search` |
 | `capability:code_search.content_search` | cost | proof_artifact | capability-budget-proof | `specs/capability-budget-proof.v1.yaml` |
@@ -109,12 +109,12 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:code_search.topic_investigation` | baseline | capability_claim | capability-inventory | `code_search.topic_investigation` |
 | `capability:code_search.variable_lookup` | baseline | capability_claim | capability-inventory | `code_search.variable_lookup` |
 | `capability:code_to_cloud.trace_exposure_path` | baseline | capability_claim | capability-inventory | `code_to_cloud.trace_exposure_path` |
-| `capability:codeowners.ownership.list` | baseline | correlation | golden-corpus-gate | `rc-157` |
+| `capability:codeowners.ownership.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-157` |
 | `capability:collector_extraction_readiness.family` | baseline | capability_claim | capability-inventory | `collector_extraction_readiness.family` |
 | `capability:collector_extraction_readiness.list` | baseline | capability_claim | capability-inventory | `collector_extraction_readiness.list` |
 | `capability:component_extensions.diagnostics` | baseline | capability_claim | capability-inventory | `component_extensions.diagnostics` |
 | `capability:component_extensions.inventory` | baseline | capability_claim | capability-inventory | `component_extensions.inventory` |
-| `capability:dependencies.list` | baseline | correlation | golden-corpus-gate | `rc-9` |
+| `capability:dependencies.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-9` |
 | `capability:documentation_evidence_packet.freshness` | baseline | capability_claim | capability-inventory | `documentation_evidence_packet.freshness` |
 | `capability:documentation_evidence_packet.read` | baseline | capability_claim | capability-inventory | `documentation_evidence_packet.read` |
 | `capability:documentation_facts.list` | baseline | capability_claim | capability-inventory | `documentation_facts.list` |
@@ -136,15 +136,15 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:iac_management.propose_terraform_import_plan` | baseline | capability_claim | capability-inventory | `iac_management.propose_terraform_import_plan` |
 | `capability:iac_quality.dead_iac` | baseline | capability_claim | capability-inventory | `iac_quality.dead_iac` |
 | `capability:incident.context.read` | baseline | capability_claim | capability-inventory | `incident.context.read` |
-| `capability:kubernetes.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-4` |
+| `capability:kubernetes.correlations.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-4` |
 | `capability:observability.coverage.correlations.list` | baseline | capability_claim | capability-inventory | `observability.coverage.correlations.list` |
 | `capability:operations.status` | baseline | capability_claim | capability-inventory | `operations.status` |
 | `capability:operator.changed_since_poisoned_links.list` | baseline | capability_claim | capability-inventory | `operator.changed_since_poisoned_links.list` |
 | `capability:operator.dead_letters.list` | baseline | capability_claim | capability-inventory | `operator.dead_letters.list` |
 | `capability:operator.reducer_input_invalid_facts.list` | baseline | capability_claim | capability-inventory | `operator.reducer_input_invalid_facts.list` |
-| `capability:package_registry.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-9` |
-| `capability:package_registry.dependencies.list` | baseline | correlation | golden-corpus-gate | `rc-25` |
-| `capability:package_registry.dependency_chains.list` | baseline | correlation | golden-corpus-gate | `rc-9` |
+| `capability:package_registry.correlations.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-9` |
+| `capability:package_registry.dependencies.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-25` |
+| `capability:package_registry.dependency_chains.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-9` |
 | `capability:package_registry.packages.aggregate` | baseline | capability_claim | capability-inventory | `package_registry.packages.aggregate` |
 | `capability:package_registry.packages.list` | baseline | capability_claim | capability-inventory | `package_registry.packages.list` |
 | `capability:package_registry.versions.list` | baseline | capability_claim | capability-inventory | `package_registry.versions.list` |
@@ -156,8 +156,8 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:platform_impact.container_image_tag_history` | baseline | capability_claim | capability-inventory | `platform_impact.container_image_tag_history` |
 | `capability:platform_impact.context_overview` | baseline | capability_claim | capability-inventory | `platform_impact.context_overview` |
 | `capability:platform_impact.contract_impact` | baseline | capability_claim | capability-inventory | `platform_impact.contract_impact` |
-| `capability:platform_impact.dependency_path` | baseline | correlation | golden-corpus-gate | `rc-3` |
-| `capability:platform_impact.deployment_chain` | baseline | correlation | golden-corpus-gate | `rc-19` |
+| `capability:platform_impact.dependency_path` | baseline | correlation | golden-corpus-gate-neo4j | `rc-3` |
+| `capability:platform_impact.deployment_chain` | baseline | correlation | golden-corpus-gate-neo4j | `rc-19` |
 | `capability:platform_impact.deployment_config_influence` | baseline | capability_claim | capability-inventory | `platform_impact.deployment_config_influence` |
 | `capability:platform_impact.developer_change_plan` | baseline | capability_claim | capability-inventory | `platform_impact.developer_change_plan` |
 | `capability:platform_impact.entity_map` | baseline | capability_claim | capability-inventory | `platform_impact.entity_map` |
@@ -165,7 +165,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:platform_impact.graph_summary_packet` | baseline | capability_claim | capability-inventory | `platform_impact.graph_summary_packet` |
 | `capability:platform_impact.infra_resource_aggregate` | baseline | capability_claim | capability-inventory | `platform_impact.infra_resource_aggregate` |
 | `capability:platform_impact.pre_change` | baseline | capability_claim | capability-inventory | `platform_impact.pre_change` |
-| `capability:platform_impact.relationships_catalog` | baseline | correlation | golden-corpus-gate | `rc-11` |
+| `capability:platform_impact.relationships_catalog` | baseline | correlation | golden-corpus-gate-neo4j | `rc-11` |
 | `capability:platform_impact.relationships_catalog` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/scenario_test.go` |
 | `capability:platform_impact.relationships_catalog` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `capability:platform_impact.resource_investigation` | baseline | capability_claim | capability-inventory | `platform_impact.resource_investigation` |
@@ -175,7 +175,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:query.playbooks` | baseline | capability_claim | capability-inventory | `query.playbooks` |
 | `capability:reachability.go.govulncheck` | baseline | capability_claim | capability-inventory | `reachability.go.govulncheck` |
 | `capability:reachability.jvm.bounded` | baseline | capability_claim | capability-inventory | `reachability.jvm.bounded` |
-| `capability:relationship_evidence.drilldown` | baseline | correlation | golden-corpus-gate | `rc-21` |
+| `capability:relationship_evidence.drilldown` | baseline | correlation | golden-corpus-gate-neo4j | `rc-21` |
 | `capability:replatforming.ownership.candidates` | baseline | capability_claim | capability-inventory | `replatforming.ownership.candidates` |
 | `capability:replatforming.plan.readiness` | baseline | capability_claim | capability-inventory | `replatforming.plan.readiness` |
 | `capability:replatforming.rollups.readiness` | baseline | capability_claim | capability-inventory | `replatforming.rollups.readiness` |
@@ -190,7 +190,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:semantic_evidence.documentation_observations.list` | baseline | capability_claim | capability-inventory | `semantic_evidence.documentation_observations.list` |
 | `capability:semantic_extraction.status` | baseline | capability_claim | capability-inventory | `semantic_extraction.status` |
 | `capability:semantic_search.curated_retrieval` | baseline | capability_claim | capability-inventory | `semantic_search.curated_retrieval` |
-| `capability:service_catalog.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-1` |
+| `capability:service_catalog.correlations.list` | baseline | correlation | golden-corpus-gate-neo4j | `rc-1` |
 | `capability:supply_chain.advisory_catalog.list` | baseline | capability_claim | capability-inventory | `supply_chain.advisory_catalog.list` |
 | `capability:supply_chain.advisory_evidence.list` | baseline | capability_claim | capability-inventory | `supply_chain.advisory_evidence.list` |
 | `capability:supply_chain.container_image_identities.aggregate` | baseline | capability_claim | capability-inventory | `supply_chain.container_image_identities.aggregate` |
@@ -209,45 +209,45 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:symbol_graph.decorators` | baseline | capability_claim | capability-inventory | `symbol_graph.decorators` |
 | `capability:symbol_graph.import_dependencies` | baseline | capability_claim | capability-inventory | `symbol_graph.import_dependencies` |
 | `capability:symbol_graph.imports` | baseline | capability_claim | capability-inventory | `symbol_graph.imports` |
-| `capability:symbol_graph.inheritance` | baseline | correlation | golden-corpus-gate | `rc-12` |
+| `capability:symbol_graph.inheritance` | baseline | correlation | golden-corpus-gate-neo4j | `rc-12` |
 | `capability:symbol_graph.language_entities` | baseline | capability_claim | capability-inventory | `symbol_graph.language_entities` |
 | `capability:terraform_config_state_drift.findings.list` | baseline | capability_claim | capability-inventory | `terraform_config_state_drift.findings.list` |
 | `capability:visualization.graph_query` | baseline | capability_claim | capability-inventory | `visualization.graph_query` |
 | `capability:visualization.packet_derivation` | baseline | capability_claim | capability-inventory | `visualization.packet_derivation` |
 | `capability:work_item.evidence.list` | baseline | capability_claim | capability-inventory | `work_item.evidence.list` |
-| `cli_surface:eshu component inventory --json` | baseline | cli_golden | golden-corpus-gate | `eshu component inventory --json` |
-| `cli_surface:eshu hosted-onboard --json` | baseline | cli_golden | golden-corpus-gate | `eshu hosted-onboard --json` |
-| `cli_surface:eshu index-status` | baseline | cli_golden | golden-corpus-gate | `eshu index-status` |
-| `cli_surface:eshu list` | baseline | cli_golden | golden-corpus-gate | `eshu list` |
-| `cli_surface:eshu playbooks list` | baseline | cli_golden | golden-corpus-gate | `eshu playbooks list` |
-| `cli_surface:eshu trace service --json` | baseline | cli_golden | golden-corpus-gate | `eshu trace service --json` |
-| `cli_surface:eshu vuln-scan repo --json` | baseline | cli_golden | golden-corpus-gate | `eshu vuln-scan repo --json` |
-| `read_surface:GET /api/v0/ci-cd/run-correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
-| `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
-| `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
-| `read_surface:GET /api/v0/codeowners/ownership` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50` |
-| `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/documentation/facts?fact_kind=source` |
-| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
-| `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
-| `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
-| `read_surface:GET /api/v0/kubernetes/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50` |
-| `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
-| `read_surface:GET /api/v0/package-registry/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50` |
-| `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
-| `read_surface:GET /api/v0/repositories` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/repositories` |
-| `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
-| `read_surface:GET /api/v0/semantic/code-hints` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25` |
-| `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
-| `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9` |
-| `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
-| `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a` |
+| `cli_surface:eshu component inventory --json` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu component inventory --json` |
+| `cli_surface:eshu hosted-onboard --json` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu hosted-onboard --json` |
+| `cli_surface:eshu index-status` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu index-status` |
+| `cli_surface:eshu list` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu list` |
+| `cli_surface:eshu playbooks list` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu playbooks list` |
+| `cli_surface:eshu trace service --json` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu trace service --json` |
+| `cli_surface:eshu vuln-scan repo --json` | baseline | cli_golden | golden-corpus-gate-neo4j | `eshu vuln-scan repo --json` |
+| `read_surface:GET /api/v0/ci-cd/run-correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
+| `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/cloud/inventory` |
+| `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/cloud/resources` |
+| `read_surface:GET /api/v0/codeowners/ownership` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50` |
+| `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/documentation/facts?fact_kind=source` |
+| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
+| `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/images` |
+| `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/incidents/PSCD1/context` |
+| `read_surface:GET /api/v0/kubernetes/correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50` |
+| `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
+| `read_surface:GET /api/v0/package-registry/correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50` |
+| `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
+| `read_surface:GET /api/v0/repositories` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/repositories` |
+| `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
+| `read_surface:GET /api/v0/semantic/code-hints` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25` |
+| `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
+| `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9` |
+| `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
+| `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a` |
 | `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | Truth-ceiling: the security_alert_reconciliations.list capability is unsupported in the golden-corpus gate's local_full_stack query profile (the route returns the profile-required refusal, HTTP 404), so the gate cannot assert a green response for it. The refusal is correct behavior under the capability matrix; covering it would require a profile that enables the provider security-alert reconciliation read model. |
-| `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
-| `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/aws/runtime-drift/findings` |
-| `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/cloud/runtime-drift/findings` |
-| `read_surface:POST /api/v0/code/divergence/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/code/divergence/findings` |
-| `read_surface:POST /api/v0/terraform/config-state-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/terraform/config-state-drift/findings` |
-| `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate | `list_repository_files` |
+| `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
+| `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/aws/runtime-drift/findings` |
+| `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/cloud/runtime-drift/findings` |
+| `read_surface:POST /api/v0/code/divergence/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/code/divergence/findings` |
+| `read_surface:POST /api/v0/terraform/config-state-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `POST /api/v0/terraform/config-state-drift/findings` |
+| `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate-neo4j | `list_repository_files` |
 | `parser:cloudformation` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |
 | `parser:hcl` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |
@@ -457,37 +457,37 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `retractable_node:Typedef` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Union` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Variable` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go` |
-| `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
+| `collector:aws` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |
 | `collector:documentation` | baseline | exempt | — | Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input. |
 | `collector:documentation` | fault | exempt | — | Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input. |
 | `collector:git` | baseline | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
 | `collector:git` | fault | exempt | — | Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -> discover -> parse -> emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario. |
-| `collector:grafana` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/grafana/supply-chain-demo.json` |
+| `collector:grafana` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/grafana/supply-chain-demo.json` |
 | `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:jira` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/jira/supply-chain-demo.json` |
+| `collector:jira` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/jira/supply-chain-demo.json` |
 | `collector:jira` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:loki` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/loki/supply-chain-demo.json` |
+| `collector:loki` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/loki/supply-chain-demo.json` |
 | `collector:loki` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:oci_registry` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
+| `collector:oci_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:oci_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:package_registry` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
+| `collector:package_registry` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
 | `collector:package_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:pagerduty` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/pagerduty/supply-chain-demo.json` |
+| `collector:pagerduty` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/pagerduty/supply-chain-demo.json` |
 | `collector:pagerduty` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
+| `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
 | `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
+| `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
 | `collector:sbom_attestation` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:scanner_worker` | baseline | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
 | `collector:scanner_worker` | fault | exempt | — | Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply. |
-| `collector:security_alert` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
+| `collector:security_alert` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:security_alert` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:tempo` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
+| `collector:tempo` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:tempo` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:terraform_state` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
+| `collector:terraform_state` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
 | `collector:terraform_state` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
-| `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
+| `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate-neo4j | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
 | `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:webhook` | baseline | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |
 | `collector:webhook` | fault | exempt | — | Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette. |
