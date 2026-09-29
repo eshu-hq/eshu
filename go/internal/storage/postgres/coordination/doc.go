@@ -4,7 +4,11 @@
 // Package coordination holds the bounded wait and retry loops the Postgres
 // schema migrator uses when another session is in its way (#6956): waiting
 // for a bootstrapper that owns the schema advisory lock, and re-running a
-// migration statement that lost a lock race (SQLSTATE 55P03).
+// migration statement that lost a lock race (SQLSTATE 55P03). One
+// LockRetryAllowance is shared across all migrations in a bootstrap run. It
+// counts failed-attempt duration and backoff, not successful migration
+// execution time; PostgreSQL can still spend longer than the remaining
+// allowance inside an individual lock_timeout interval.
 //
 // The loops are pure: they take a Locker, a Sleeper, and a clock, and log
 // through the caller's logger with the bootstrap.postgres.ownership.* and

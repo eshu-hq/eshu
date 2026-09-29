@@ -60,8 +60,9 @@ func TestMigration148AddColumnIsBoundedByTheRunner(t *testing.T) {
 
 	migrated := make(chan error, 1)
 	go func() {
+		allowance := coordination.NewLockRetryAllowance(45 * time.Second)
 		policy := coordination.LockRetryPolicy{
-			Budget: 45 * time.Second, Deadline: time.Now().Add(45 * time.Second),
+			Allowance:      allowance,
 			InitialBackoff: 100 * time.Millisecond, MaxBackoff: 200 * time.Millisecond,
 		}
 		migrated <- coordination.RetryOnLockTimeout(ctx, slog.Default(), "148", policy, coordination.SleepContext, time.Now,

@@ -47,26 +47,21 @@ migration wants a conflicting lock (migration 118's index build and 119's
   two bootstrappers that exist (a Job and bootstrap-index) and is stated in
   the public doc rather than hidden.
 - Starvation bounds: ownership wait 3 m (`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`),
-  lock retry budget 3 m (`ESHU_SCHEMA_LOCK_RETRY_BUDGET`, backoff 5 s
-  doubling to 15 s), both wall clock and both also cut by the caller's
-  context. The retry budget is ONE deadline computed when the run starts
-  applying and shared by every statement, and it counts the 5 s
-  `lock_timeout` each failed attempt waited as well as the sleeps, so two
-  contended statements (118 and 119 both touch `fact_records`) cannot
-  multiply it: the run's waiting is bounded by 3 m + 3 m = 6 m, leaving 4 m
-  of the chart's `schemaBootstrap.activeDeadlineSeconds: 600` for pod start,
-  the migrations' own work and the graph schema. The retry deadline is wall
-  clock from the moment the run starts applying, so a long legitimate
-  statement (a `CREATE INDEX CONCURRENTLY` on a large table) consumes it
-  too and can leave a later contended statement no retries at all; that is
-  the intended shape, because the Job deadline it protects is wall clock as
-  well, and the ownership wait is separate and runs before any statement. `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads
-  the chart value and fails if the defaults plus a 4 m work floor exceed it
-  (proven RED with 5 m + 5 m defaults through a `go test -overlay` mutant);
-  `TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses` proves attempt time
-  counts and `TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements` proves
-  the sharing. The 5 s statement `lock_timeout` is unchanged, so a single
-  attempt still cannot pin a table lock queue for long.
+  lock retry allowance 3 m (`ESHU_SCHEMA_LOCK_RETRY_BUDGET`, backoff 5 s
+  doubling to 15 s), shared by every statement and also cut by the caller's
+  context. Failed-attempt duration and backoff consume the allowance;
+  successful migration execution time does not. Two contended statements
+  (118 and 119 both touch `fact_records`) cannot multiply it. PostgreSQL
+  applies `lock_timeout` separately to each lock acquisition, so one failed
+  statement can run past the remaining allowance before returning 55P03; the
+  allowance limits later retries rather than strictly bounding server-side
+  wait time. The two configured waits total 6 m, leaving a 4 m planning floor
+  under the chart's `schemaBootstrap.activeDeadlineSeconds: 600` for pod start,
+  migration execution and graph schema. `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads the chart value and checks that floor.
+  `TestRetryOnLockTimeoutGivesUpWhenAllowanceIsSpent` proves failed-attempt
+  time and backoff count, while `TestRetryOnLockTimeoutAllowanceIsSharedAcrossStatements` pins shared use across statements. The 5 s statement
+  `lock_timeout` is unchanged, so an individual lock acquisition remains
+  short-lived.
 - Retry boundary: only SQLSTATE 55P03 is retried. Any other failure returns
   on the first attempt with the original error.
 
@@ -92,13 +87,12 @@ is named.
 
 - Hermetic (`go test ./internal/storage/postgres/coordination`): retry
   until the lock clears with backoff 1 s, 2 s, 4 s and a `lock_recovered`
-  event naming `attempts=4`; no retry on a non-55P03 error; deadline
-  exhaustion where the 5 s each attempt burns is what ends the run, error
-  naming the budget and the path and still classifying as 55P03; the
-  deadline shared across two statements; context cancellation
-  during backoff returns `context.Canceled` after one attempt; ownership
-  polling logs the holder and proceeds on the third try; ownership give-up
-  names the wait and the holder.
+  event naming `attempts=4`; no retry on a non-55P03 error; retry-allowance
+  exhaustion after failed-attempt time and backoff, with the error naming the
+  budget and path while retaining 55P03; one shared allowance across two
+  statements; context cancellation during backoff returns `context.Canceled`
+  after one attempt; ownership polling logs the holder and proceeds on the
+  third try; ownership give-up names the wait and the holder.
 - `TestBootstrapOptionsFromEnv`: both knobs, all five cases each (unset,
   set, garbage, zero, negative), plus both set at once;
   `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads the
@@ -134,3 +128,45 @@ is named.
 No-Regression Evidence: the happy path executes the same statements on the same session as before with one `pg_try_advisory_lock` round trip replacing the blocking `pg_advisory_lock` (both return immediately when the lock is free); no migration statement, ledger query, or lock timeout changed. Measured on the same disposable database: `TestBootstrapRetryAfterRecordedIndexRecoveryFailsLive` (bootstrap of a two-definition layout, twice, plus the recovery path) takes 0.03-0.05 s on origin/main 4a04039dbb (three runs) and 0.03 s on this branch. The new behavior only runs while another session is in the way, where the alternative was a failed bootstrap.
 
 Observability Evidence: `bootstrap.postgres.ownership.waiting` (holder from `pg_locks` joined to `pg_stat_activity`, current database only: pid, application_name when the client set one, state, connected_for; waited_ms, wait_ms) on the first failed try and then every 15 s while blocked, `bootstrap.postgres.ownership.acquired` (waited_ms, polls) once the wait ends, `bootstrap.postgres.migration.lock_wait` (path, attempt, backoff_ms, waited_ms, budget_left_ms, error) per retry, `bootstrap.postgres.migration.lock_recovered` (path, attempts, waited_ms) on success; the terminal errors name the holder or the spent budget. The events are documented in `docs/public/deployment/service-runtimes-bootstrap.md` and `docs/public/reference/environment-runtime-storage.md`; `scripts/verify-telemetry-coverage.sh` reports no new untracked stage for the leaf (it is a helper of the existing schema bootstrap, not a pipeline stage), and the grandfathered coverage table cannot grow.
+
+## Retry allowance accounting correction (2026-09-29)
+
+The deployment failure after migrations 140 and 141 established that the
+previous run-wide wall-clock deadline included successful migration runtime.
+A local PostgreSQL 16 regression through
+`schemaConnectionExecutor.applyTrackedDefinitions` reproduced the failure:
+a 2.011 s successful migration exceeded a 1.5 s retry budget, then a later
+100 ms lock wait returned 55P03 with the entire deadline already spent.
+
+The corrected allowance is still shared across the run and is not replenished
+between statements. Failed 55P03 attempt duration and actual backoff time
+consume it; successful migration execution time does not. Persistent contention
+still exhausts the allowance. Non-55P03 errors and caller cancellation retain
+their existing first-error behavior. The test uses a multi-statement migration:
+Postgres rolls back its earlier CREATE TABLE when the later ALTER TABLE hits
+55P03, and the ledger records no receipt until a later full attempt succeeds.
+
+No-Regression Evidence: On disposable `postgres:16-alpine`, the regression
+failed on the pre-fix tree after the first 100 ms lock timeout (1.5 s retry
+allowance; first migration completed in 2.011 s). After the correction,
+`TestBootstrapRetryAllowanceExcludesSuccessfulMigrationTimeLive` passed in
+3.16 s including its intentional 2 s successful migration, one 100 ms failed
+lock attempt, 1 s backoff, and successful retry. It verified a separate INSERT
+completed during backoff while the conflicting read transaction remained
+open, the failed multi-statement attempt left no partial table, and both
+migration receipts were recorded once after success.
+`TestBootstrapRetryAllowanceExhaustsOnPersistentLockLive` passed in 1.23 s:
+two 100 ms failed attempts plus one 1 s backoff exhausted the same shared
+allowance, with no partial DDL or ledger receipt. No migration SQL, lock
+modes, `lock_timeout`, backoff schedule, or worker/writer concurrency setting
+changed. Hermetic retry and failure-class checks passed in
+`go test ./internal/storage/postgres/coordination -count=1`.
+
+Observability Evidence: event names and attributes stay stable. The existing
+`lock_wait` event reports the cumulative allowance remaining before its next
+backoff in `budget_left_ms`; `waited_ms` remains wall time for that statement's
+retry loop. The existing `lock_recovered` event still reports the statement's
+wall wait and attempt count. No metric or span was added; the clarified
+semantics are documented in `docs/public/deployment/service-runtimes-bootstrap.md`,
+`docs/public/reference/environment-runtime-storage.md`, and
+`docs/public/observability/telemetry-coverage.md`.

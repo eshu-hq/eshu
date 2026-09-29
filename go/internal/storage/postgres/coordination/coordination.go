@@ -43,15 +43,37 @@ const (
 	defaultOwnershipLock    = "schema"
 )
 
+// LockRetryAllowance accounts for failed-attempt time and backoff across one
+// bootstrap run. Successful migration execution time does not consume it.
+// A caller must share one allowance across the run's sequential statements.
+// The database still applies lock_timeout independently to each lock wait, so
+// one attempt can run past the allowance before its 55P03 error is observed.
+type LockRetryAllowance struct {
+	budget time.Duration
+	spent  time.Duration
+}
+
+// NewLockRetryAllowance creates the shared retry allowance for one bootstrap
+// run. It is intended for sequential use by that run's migration loop.
+func NewLockRetryAllowance(budget time.Duration) *LockRetryAllowance {
+	return &LockRetryAllowance{budget: budget}
+}
+
+func (allowance *LockRetryAllowance) remaining() time.Duration {
+	return allowance.budget - allowance.spent
+}
+
+func (allowance *LockRetryAllowance) consume(duration time.Duration) {
+	if duration > 0 {
+		allowance.spent += duration
+	}
+}
+
 // LockRetryPolicy bounds RetryOnLockTimeout: the backoff doubles from
-// InitialBackoff up to MaxBackoff, and the statement fails once the next
-// backoff would end after Deadline. Deadline is wall clock and shared by
-// every statement of one bootstrap run, so it counts the lock_timeout each
-// failed attempt waited as well as the sleeps; Budget is the duration the
-// deadline was derived from, named in the failure.
+// InitialBackoff up to MaxBackoff, while Allowance carries the shared retry
+// budget across the bootstrap run's migration statements.
 type LockRetryPolicy struct {
-	Budget         time.Duration
-	Deadline       time.Time
+	Allowance      *LockRetryAllowance
 	InitialBackoff time.Duration
 	MaxBackoff     time.Duration
 }
@@ -151,9 +173,11 @@ func describeHolder(ctx context.Context, locker Locker) string {
 }
 
 // RetryOnLockTimeout runs exec until it succeeds, fails for a reason other
-// than lock_timeout, or the run's retry deadline would pass during the next
-// backoff. Only SQLSTATE 55P03 is retried: that statement never acquired
-// its lock, so nothing was applied. now is injectable for tests.
+// than lock_timeout, or the shared retry allowance cannot pay for the next
+// backoff. Only SQLSTATE 55P03 is retried: that statement never acquired its
+// lock, so nothing was applied. Failed-attempt duration and backoff consume
+// the allowance; successful attempt duration does not. now is injectable for
+// tests.
 func RetryOnLockTimeout(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -163,10 +187,15 @@ func RetryOnLockTimeout(
 	now func() time.Time,
 	exec func() error,
 ) error {
+	if policy.Allowance == nil {
+		return errors.New("lock retry allowance is required")
+	}
 	backoff := policy.InitialBackoff
 	started := now()
 	for attempt := 1; ; attempt++ {
+		attemptStarted := now()
 		err := exec()
+		current := now()
 		if err == nil {
 			if attempt > 1 {
 				logger.InfoContext(ctx, "postgres schema migration acquired its lock after retrying",
@@ -181,10 +210,11 @@ func RetryOnLockTimeout(
 		if !IsLockNotAvailable(err) {
 			return err
 		}
-		current := now()
-		if current.Add(backoff).After(policy.Deadline) {
+		policy.Allowance.consume(current.Sub(attemptStarted))
+		remaining := policy.Allowance.remaining()
+		if backoff > remaining {
 			return fmt.Errorf("lock retry budget %s for this bootstrap run exhausted after %d attempts on %s (%s left): %w",
-				policy.Budget, attempt, path, policy.Deadline.Sub(current).Round(time.Millisecond), err)
+				policy.Allowance.budget, attempt, path, remaining.Round(time.Millisecond), err)
 		}
 		logger.WarnContext(ctx, "postgres schema migration waiting for a lock held by another session",
 			telemetry.EventAttr("bootstrap.postgres.migration.lock_wait"),
@@ -192,11 +222,19 @@ func RetryOnLockTimeout(
 			"attempt", attempt,
 			"backoff_ms", backoff.Milliseconds(),
 			"waited_ms", current.Sub(started).Milliseconds(),
-			"budget_left_ms", policy.Deadline.Sub(current).Milliseconds(),
+			"budget_left_ms", remaining.Milliseconds(),
 			"error", err.Error(),
 		)
-		if err := sleep(ctx, backoff); err != nil {
-			return fmt.Errorf("retry %s after lock timeout: %w", path, err)
+		backoffStarted := now()
+		sleepErr := sleep(ctx, backoff)
+		policy.Allowance.consume(now().Sub(backoffStarted))
+		if sleepErr != nil {
+			return fmt.Errorf("retry %s after lock timeout: %w", path, sleepErr)
+		}
+		remaining = policy.Allowance.remaining()
+		if remaining <= 0 {
+			return fmt.Errorf("lock retry budget %s for this bootstrap run exhausted after %d attempts on %s (%s left): %w",
+				policy.Allowance.budget, attempt, path, remaining.Round(time.Millisecond), err)
 		}
 		backoff = min(backoff*2, policy.MaxBackoff)
 	}

@@ -16,6 +16,11 @@
   reason may have side effects; it must surface on the first attempt.
 - Every loop is bounded by its policy and by the caller's context. Never add
   an unbounded wait, and never sleep without the injected `Sleeper`.
+- `RetryOnLockTimeout` receives one `LockRetryAllowance` shared across the
+  bootstrap run's sequential migrations. Failed 55P03 attempt duration and
+  actual backoff consume it; successful migration execution time does not.
+  PostgreSQL applies `lock_timeout` per lock acquisition, so the allowance
+  bounds further retries rather than strictly bounding server-side wait time.
 - Log events are operator contracts (`bootstrap.postgres.ownership.waiting`,
   `.acquired`, `bootstrap.postgres.migration.lock_wait`, `.lock_recovered`,
   `.concurrent_index_build.starting`, `.finished`); keep their names and

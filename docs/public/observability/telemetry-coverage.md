@@ -5,7 +5,7 @@ source of truth that the CI coverage script (X2) diffs against. A new pipeline s
 entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
 `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains
 the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`;
-dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`.
+dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`. The schema migration `bootstrap.postgres.migration.lock_wait` and `lock_recovered` events remain the operator signals; `budget_left_ms` reports the remaining shared allowance after failed-attempt time and backoff, excludes successful migration time, and is not a strict server-side deadline because PostgreSQL applies `lock_timeout` per lock acquisition.
 
 ## How To Read This Doc
 

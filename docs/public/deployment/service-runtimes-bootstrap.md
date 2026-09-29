@@ -89,21 +89,28 @@ queued: when the lock frees they race for it, each bounded by its own wait.
 A migration statement that hits `lock_timeout` (5 s, SQLSTATE 55P03)
 because another session holds a conflicting table lock, such as an
 anti-wraparound autovacuum, applied nothing and is retried with doubling
-backoff (5 s up to 15 s) until `ESHU_SCHEMA_LOCK_RETRY_BUDGET` (default 3 m)
-of wall-clock time is spent; the budget is one deadline shared by every
-statement of the run and counts the `lock_timeout` each failed attempt
-waited, so contended statements cannot multiply it. Each retry logs
+backoff (5 s up to 15 s) against one shared `ESHU_SCHEMA_LOCK_RETRY_BUDGET`
+(default 3 m) for the run. Failed-attempt duration and backoff consume this
+allowance; successful migration execution time does not. This keeps long
+successful migrations from using up retry allowance needed by a later lock
+race, and contended statements cannot each receive a fresh allowance. PostgreSQL
+applies `lock_timeout` separately to each lock acquisition, so one failed
+statement can run past the remaining allowance before returning 55P03; this
+setting limits further retries rather than acting as a strict server-side
+wall-clock deadline. Each retry logs
 `bootstrap.postgres.migration.lock_wait`
 and the eventual success logs `bootstrap.postgres.migration.lock_recovered`
 with the attempt count. Any other statement failure still fails the
 bootstrap on the first attempt. `db-migrate` (`eshu-bootstrap-data-plane`)
 and `bootstrap-index` both read the two variables; the local supervisor
 applies its schema without the ownership lock and is unaffected. The two
-defaults sum to 6 m, leaving 4 m of the schema bootstrap Job's
-`activeDeadlineSeconds` (600 in the chart) for pod start, the migrations'
-own work and the graph schema; keep that relation when raising either
-bound, because a bound the Job cannot reach never prints its holder
-diagnostic (#6956).
+defaults sum to 6 m, leaving a 4 m planning floor under the schema
+bootstrap Job's `activeDeadlineSeconds` (600 in the chart) for pod start,
+migration execution and the graph schema. The Job deadline is the outer bound
+for the bootstrap client; it can stop a run before the retry allowance is
+spent, and it does not cancel an in-flight concurrent index statement on the
+Postgres server. Keep the configured waits and expected migration work within
+the Job deadline (#6956).
 
 A `CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY` statement (see the
 `CREATE INDEX CONCURRENTLY` paragraph above) is exempt from `lock_timeout`
