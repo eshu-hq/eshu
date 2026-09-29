@@ -90,7 +90,7 @@ require "workflow watches cassettes" "testdata/cassettes/**" "${workflow}"
 [[ -f "${ci_gates}" ]] || fail "missing ${ci_gates}"
 require "ci registry replay gate" "id: replay-coverage-gate" "${ci_gates}"
 require "ci registry blocking command" 'command: "bash scripts/verify-replay-coverage-gate.sh --blocking"' "${ci_gates}"
-rg --fixed-strings --line-regexp --quiet -- "  - id: golden-corpus-gate-neo4j" "${ci_gates}" ||
+rg --pcre2 --quiet -- '^  - id: golden-corpus-gate-neo4j\s*$' "${ci_gates}" ||
 	fail "missing ci registry known golden proof gate: id: golden-corpus-gate-neo4j"
 require "ci registry known parser fixture proof gate" "id: parserfixture-tests" "${ci_gates}"
 require "ci registry known capability proof gate" "id: capability-inventory" "${ci_gates}"
