@@ -63,6 +63,10 @@ var ecosystemOverviewCounts = []struct {
 		durableProvenance: true,
 	},
 	{
+		// `i` is pinned to WorkloadInstance, never a Repository, so the CASE
+		// id operand in infraResourceScopePredicate is safe in this single-node
+		// read; a Repository-capable alias here would need
+		// infraResourceScopeNodePredicate (#7220).
 		field:             "instance_count",
 		cypher:            "MATCH (i:WorkloadInstance) RETURN count(i) AS c",
 		scopedCypher:      "MATCH (i:WorkloadInstance) %s RETURN count(DISTINCT i) AS c",

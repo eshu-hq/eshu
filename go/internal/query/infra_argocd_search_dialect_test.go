@@ -23,10 +23,16 @@ const infraArgoCDSearchBody = `{"category":"argocd"}`
 // nornicDBArgoCDStatementDigests pins the SHAPE-A category=argocd statements
 // (both label reads) NornicDB receives today, captured before the ArgoCD path
 // joined the dialect split. Keys are the grant names from dialectGrants.
+// Re-pinned for #7220: the only change is the id-equality operand. A single-node
+// read (search, aggregates, the relationships anchor) now carries
+// `(<alias>:Repository AND (<alias>.id IN ... OR <alias>.id IN ...))`, and a
+// relationship-pattern read (the neighbors) carries
+// `(CASE WHEN 'Repository' IN labels(<alias>) THEN <alias>.id END)`. Substituting
+// the old bare `<alias>.id` terms back reproduces the pre-#7220 digests exactly.
 var nornicDBArgoCDStatementDigests = map[string]string{
-	"g1":  "a89864df9e2c56050757226e40b36520d350dcf0a77687b0478345f501123940",
-	"g5":  "7ee01a9ad47457f05e43ccec901c635643aab8cbddd96500a85d34e7824e7734",
-	"cap": "e93d69e7e75c31288a7dc726b2a8a56c30272c5c6de21c1b2c65e2ada3adb618",
+	"g1":  "18203f66ff98a41457a971668f56cff6a8e350dedb77fa6a85b479584f5c5202",
+	"g5":  "0e2a301f0b7b46598432a512bf4a453f12ac8dd81371b8575e4159d1e83f649c",
+	"cap": "71e213643538baba8c101eff7500676678eb80c84347f588de3f6b9e7a22b7fc",
 }
 
 func TestInfraArgoCDSearchNornicDBStatementsByteIdentical(t *testing.T) {

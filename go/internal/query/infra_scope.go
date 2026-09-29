@@ -68,7 +68,7 @@ func infraSearchScopeClause(access querycontract.RepositoryAccessFilter) string 
 		return ""
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return " AND " + infraResourceScopePredicate("n", scalars)
+	return " AND " + infraResourceScopeNodePredicate("n", scalars)
 }
 
 // infraRelationshipAnchorClause bounds the relationship seed node `n` to a
@@ -80,7 +80,7 @@ func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) 
 		return ""
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return " AND " + infraResourceScopePredicate("n", scalars)
+	return " AND " + infraResourceScopeNodePredicate("n", scalars)
 }
 
 // infraRelationshipNeighborClause bounds an OPTIONAL MATCH neighbor (target /
@@ -177,10 +177,28 @@ func (h *InfraHandler) infraScopeDialectLabel(access querycontract.RepositoryAcc
 	}
 }
 
+// infraRepositoryIDLabelTerm is the id-equality disjunct that admits a
+// Repository only (#7220): both id tests sit under one label test. Neo4j
+// evaluates it in every position. NornicDB evaluates it correctly in the WHERE
+// of a single-node MATCH but ignores or zeroes the OR chain in the WHERE of a
+// relationship MATCH, so SHAPE-A uses it only for single-node reads
+// (infraResourceScopeNodePredicate) and infraRepositoryIDExpr elsewhere.
+func infraRepositoryIDLabelTerm(alias string) string {
+	return "(" + alias + ":Repository AND (" + alias + ".id IN $allowed_repository_ids OR " +
+		alias + ".id IN $allowed_scope_ids))"
+}
+
 // infraResourceScopeListPredicate is the Neo4j form of
 // infraResourceScopePredicate: the same five disjunct families in the same
 // order, with the three inline-map OR-chains (USES, MATCHES_STATE, DEFINES)
-// each replaced by one EXISTS over $scope_grants. `x IN $scope_grants` is true
+// each replaced by one EXISTS over $scope_grants. The two id-equality terms
+// admit only a Repository node (#7220): a Repository carries its grant identity
+// as `id`, every other label is admitted through `repo_id` or the ownership
+// walks, so a non-Repository node whose id spells a granted id is not admitted.
+// Both id tests sit under one label test: on a 283k-node graph with the full
+// predicate, two separately guarded terms measured 17-25% slower than the
+// unguarded form, and this single grouped term about 2% (see the
+// No-Regression Evidence note for #7220). `x IN $scope_grants` is true
 // exactly when one inline-map term {prop:$scope_grant_i} would match, and a
 // null property is false in both forms. The inner variables carry a scope
 // prefix so they never correlate with an outer alias of the same name.
@@ -188,8 +206,7 @@ func infraResourceScopeListPredicate(alias string) string {
 	return "(" + strings.Join([]string{
 		alias + ".repo_id IN $allowed_repository_ids",
 		alias + ".repo_id IN $allowed_scope_ids",
-		alias + ".id IN $allowed_repository_ids",
-		alias + ".id IN $allowed_scope_ids",
+		infraRepositoryIDLabelTerm(alias),
 		"EXISTS { MATCH (" + alias + ")<-[:USES]-(scopeUsesInstance:WorkloadInstance) " +
 			"WHERE scopeUsesInstance.repo_id IN $" + infraScopeGrantsParam + " }",
 		"EXISTS { MATCH (" + alias + ")<-[:MATCHES_STATE]-(scopeStateConfig:TerraformResource) " +

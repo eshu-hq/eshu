@@ -13,7 +13,10 @@ has two dialects, and what each backend receives.
 `infraResourceScopePredicate` (`go/internal/query/infra_scope_grant.go`) admits
 a node through five families, OR-joined:
 
-1. direct ownership: `n.repo_id` or `n.id` in the grant arrays;
+1. direct ownership: `n.repo_id` in the grant arrays, or `n.id` in the grant
+   arrays when `n` is a `Repository`. The `id` compare is guarded to
+   `Repository` in both dialects (#7220): a node of any other label whose `id`
+   happens to equal a granted repository id is not admitted by it;
 2. `CloudResource` via `USES` from a granted `WorkloadInstance`;
 3. `TerraformStateResource` via `MATCHES_STATE` from a granted
    `TerraformResource`;

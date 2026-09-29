@@ -34,13 +34,19 @@ const (
 // "<route>/<grant>". A mismatch means the NornicDB path changed; that must
 // never happen as a side effect of a Neo4j-only rewrite. Regenerate only with
 // a live NornicDB proof of the new statement.
+// Re-pinned for #7220: the only change is the id-equality operand. A single-node
+// read (search, aggregates, the relationships anchor) now carries
+// `(<alias>:Repository AND (<alias>.id IN ... OR <alias>.id IN ...))`, and a
+// relationship-pattern read (the neighbors) carries
+// `(CASE WHEN 'Repository' IN labels(<alias>) THEN <alias>.id END)`. Substituting
+// the old bare `<alias>.id` terms back reproduces the pre-#7220 digests exactly.
 var nornicDBStatementDigests = map[string]string{
-	"search/g1":         "47ee31764c58d0168c81eb6543e876e1198f3ce1b8aeb50b2f42cb488d02ec3b",
-	"relationships/g1":  "bdda8475e2a279b0c82a34394faecf008d5189c845ea9d67e8af38efb1bb8554",
-	"search/g5":         "15c005edfc04b3ff5fd4849bcc638592ccde4d64f4f12d464523f10258c0364b",
-	"relationships/g5":  "95a385230443088ba63b6310b7da7b4cdf8b72eccc0421cf069a299a3de65a8b",
-	"search/cap":        "119f9e8c91d8b1b24afe541bb6499b870ddbf6db5dcf72238659a3f26d94a77d",
-	"relationships/cap": "dfbe0ae08edbdd31b00a677397dcbe7d688e30f461de0e311fcfc2e566c76e91",
+	"search/g1":         "84da26fabb4038d54993bce90a86330822646d0bde3554b1edea1c7620ed938f",
+	"relationships/g1":  "44cd68e97a96006360aae5c204fd4d11edabe942d53b0744f003857edc3b25ea",
+	"search/g5":         "97868a13465242955e2c273bcceb9ce7a62f850fed1881ccbb7333cef7b42323",
+	"relationships/g5":  "9ecefc1babfc26dcafb227574cd2e8c69fa168fcd18eaa248241655adf8ebe7a",
+	"search/cap":        "073f07932ef094b1683b67225a2f5612271d23932de3810fd1e6a19ed411d60b",
+	"relationships/cap": "9b114cfa0198049732399d07619a8268431e1bf715756535337bb2abef3564e8",
 }
 
 func TestInfraScopeNornicDBStatementsByteIdentical(t *testing.T) {

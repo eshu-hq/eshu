@@ -108,8 +108,8 @@ func TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes(t *t
 	for _, want := range []string{
 		"n.repo_id IN $allowed_repository_ids",
 		"n.repo_id IN $allowed_scope_ids",
-		"n.id IN $allowed_repository_ids",
-		"n.id IN $allowed_scope_ids",
+		"(CASE WHEN 'Repository' IN labels(n) THEN n.id END) IN $allowed_repository_ids",
+		"(CASE WHEN 'Repository' IN labels(n) THEN n.id END) IN $allowed_scope_ids",
 		"(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
 		"(n)<-[:MATCHES_STATE]-(:TerraformResource {repo_id:$scope_grant_0})",
 		"EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository) WHERE (scopeDeployRepo.id IN $allowed_repository_ids OR scopeDeployRepo.id IN $allowed_scope_ids) }",

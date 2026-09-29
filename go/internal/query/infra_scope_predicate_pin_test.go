@@ -23,13 +23,14 @@ func TestInfraResourceScopeListPredicatePinsAuthorizationText(t *testing.T) {
 			t.Parallel()
 			got := infraResourceScopeListPredicate(alias)
 
-			// The four direct-ownership disjuncts, then the four EXISTS
+			// The three direct-ownership disjuncts, then the four EXISTS
 			// families, in order, joined by OR and wrapped in one group.
 			ordered := []string{
 				alias + ".repo_id IN $allowed_repository_ids",
 				alias + ".repo_id IN $allowed_scope_ids",
-				alias + ".id IN $allowed_repository_ids",
-				alias + ".id IN $allowed_scope_ids",
+				// Repository-only id equality (#7220): the id terms admit only a
+				// Repository node, never another label whose id spells a grant.
+				"(" + alias + ":Repository AND (" + alias + ".id IN $allowed_repository_ids OR " + alias + ".id IN $allowed_scope_ids))",
 				// USES: backward, WorkloadInstance, repo_id, grant list.
 				"EXISTS { MATCH (" + alias + ")<-[:USES]-(scopeUsesInstance:WorkloadInstance) " +
 					"WHERE scopeUsesInstance.repo_id IN $scope_grants }",
