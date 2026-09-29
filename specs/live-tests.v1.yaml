@@ -192,6 +192,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/admin/replay_failure_class_live_test.go
+    tag: ~
+    class: scheduled
+    reason: replay event failure-class proof (#7387), untagged and gated by env Skip (ESHU_ADMIN_REPLAY_FENCE_LIVE with ESHU_POSTGRES_DSN); Postgres-only, no build tag, so it does not enter the graph-backend live-backend CI plan (scripts/run-live-backend-tests.sh schedules only class=ci rows); unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/admin/changedsincepoisonedlinks_live_test.go
     tag: ~
     class: scheduled
