@@ -9,42 +9,37 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// generationRetentionCandidateQuery selects up to BatchGenerationLimit
+// prunable superseded generations across every scope, oldest-first, and locks
+// their owning scopes. One eligibility definition feeds both the lock set and
+// the candidate list, so they cannot disagree; live_work is read once
+// (MATERIALIZED) instead of probed per row (the #6809 class). locked_scopes
+// orders oldest-eligible-first, scope_id tie-break, FOR UPDATE OF scope SKIP
+// LOCKED only on ingestion_scopes, so a held scope is skipped and replaced
+// without waiting. The final SELECT re-checks status, superseded_at and
+// active_generation_id at lock time and is byte-identical to the prior
+// statement. Rationale/proofs: docs/internal/evidence/7334-generation-retention-selection.md.
+//
+// $1 cutoff, $2 min newer superseded generations, $3 batch/lock-set limit.
 const generationRetentionCandidateQuery = `
-WITH locked_scopes AS (
-    SELECT scope.scope_id
-    FROM ingestion_scopes AS scope
-    WHERE EXISTS (
-        SELECT 1
-        FROM scope_generations AS generation
-        WHERE generation.scope_id = scope.scope_id
-          AND generation.status = 'superseded'
-          AND generation.generation_id <> ALL($4::text[])
-          AND generation.superseded_at IS NOT NULL
-          AND generation.superseded_at < $1
-    )
-    ORDER BY scope.scope_id ASC
-    LIMIT $3
-    FOR UPDATE SKIP LOCKED
-),
-ranked_superseded_generations AS (
+WITH ranked_superseded_generations AS (
     SELECT
         generation.scope_id,
         generation.generation_id,
-        scope.scope_kind,
         generation.superseded_at,
         generation.observed_at,
         ROW_NUMBER() OVER (PARTITION BY generation.scope_id ORDER BY generation.superseded_at DESC, generation.generation_id DESC) AS superseded_rank
     FROM scope_generations AS generation
-    JOIN locked_scopes AS locked_scope
-      ON locked_scope.scope_id = generation.scope_id
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
     WHERE generation.status = 'superseded'
-      AND generation.generation_id <> ALL($4::text[])
       AND generation.superseded_at IS NOT NULL
 ),
-eligible_generations AS (
-    SELECT ranked.*
+live_work AS MATERIALIZED (
+    SELECT DISTINCT work.generation_id
+    FROM fact_work_items AS work
+    WHERE work.status IN ('claimed', 'running', 'retrying')
+),
+eligible AS MATERIALIZED (
+    SELECT ranked.scope_id, ranked.generation_id, scope.scope_kind, ranked.superseded_at, ranked.observed_at
     FROM ranked_superseded_generations AS ranked
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = ranked.scope_id
@@ -53,11 +48,29 @@ eligible_generations AS (
       AND ranked.superseded_rank > $2
       AND NOT EXISTS (
           SELECT 1
-          FROM fact_work_items AS work
-          WHERE work.generation_id = ranked.generation_id
-            AND work.status IN ('claimed', 'running', 'retrying')
+          FROM live_work
+          WHERE live_work.generation_id = ranked.generation_id
       )
-    ORDER BY ranked.superseded_at ASC, ranked.generation_id ASC
+),
+eligible_scopes AS (
+    SELECT eligible.scope_id, min(eligible.superseded_at) AS oldest_superseded_at
+    FROM eligible
+    GROUP BY eligible.scope_id
+),
+locked_scopes AS (
+    SELECT scope.scope_id
+    FROM ingestion_scopes AS scope
+    JOIN eligible_scopes ON eligible_scopes.scope_id = scope.scope_id
+    ORDER BY eligible_scopes.oldest_superseded_at ASC, scope.scope_id ASC
+    LIMIT $3
+    FOR UPDATE OF scope SKIP LOCKED
+),
+eligible_generations AS (
+    SELECT eligible.*
+    FROM eligible
+    JOIN locked_scopes AS locked_scope
+      ON locked_scope.scope_id = eligible.scope_id
+    ORDER BY eligible.superseded_at ASC, eligible.generation_id ASC
     LIMIT $3
 )
 SELECT

@@ -227,6 +227,14 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	return result, nil
 }
 
+// selectPrunableCandidates runs the general candidate query exactly once per
+// pass (arbiter ruling arb-7334.md section 3): the query already returns the
+// full eligible set across every scope, oldest-first, up to
+// BatchGenerationLimit, so there is nothing left to discover by excluding a
+// skip and re-querying. The re-check loop over a shrinking or growing recount
+// (arbiter ruling arb-7127-3d-b, generationRetentionRecheckLimit) is
+// unrelated and stays: it re-evaluates the same already-fetched candidates
+// after a recount, it does not requery scope_generations.
 func (s GenerationRetentionStore) selectPrunableCandidates(
 	ctx context.Context,
 	tx db.Transaction,
@@ -234,68 +242,57 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 	policy GenerationRetentionPolicy,
 	result *GenerationRetentionResult,
 ) ([]generationRetentionCandidate, map[string]int64, map[string]map[string]int64, error) {
-	excludedGenerationIDs := make([]string, 0)
-	searchLimit := generationRetentionSkipSearchLimit(policy.BatchGenerationLimit)
-	for {
-		phaseStart := time.Now()
-		candidates, err := s.selectCandidates(ctx, tx, now, policy, excludedGenerationIDs)
-		result.PhaseDurations[GenerationRetentionPhaseSelectCandidates] += time.Since(phaseStart)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if len(candidates) == 0 {
-			return nil, nil, nil, nil
-		}
+	phaseStart := time.Now()
+	candidates, err := s.selectCandidates(ctx, tx, now, policy)
+	result.PhaseDurations[GenerationRetentionPhaseSelectCandidates] += time.Since(phaseStart)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, nil, nil, nil
+	}
 
+	phaseStart = time.Now()
+	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(candidates), retentionGenerationIDs(candidates))
+	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	selected, rowCounts, selectedEventRowCounts, skipped := selectCandidatesWithinRowLimit(
+		candidates, eventRowCounts, policy.BatchRowLimit)
+	for rechecks := 0; len(skipped) > 0; rechecks++ {
+		for _, generationID := range skipped {
+			result.Skipped[rowLimitSkipReason(eventRowCounts[generationID], policy.BatchRowLimit)]++
+		}
+		if len(selected) == 0 {
+			break
+		}
+		if rechecks == generationRetentionRecheckLimit {
+			// Keep the first member only; its rows outside the ledger only
+			// shrink on a recount, so one recount settles it.
+			for _, dropped := range selected[1:] {
+				result.Skipped[rowLimitSkipReason(eventRowCounts[dropped.generationID], policy.BatchRowLimit)]++
+			}
+			selected = selected[:1]
+		}
+		// Skipped generations stay on disk. Their facts protect keys the
+		// count charged to a selected one (#6809), and a changed-since link
+		// shared with one is still deleted with the selected generation, so
+		// its charge moves there (#7127). The recount can shrink or grow;
+		// re-check the limit, at most generationRetentionRecheckLimit times.
 		phaseStart = time.Now()
-		_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(candidates), retentionGenerationIDs(candidates))
+		_, eventRowCounts, _, err = s.countRows(ctx, tx, retentionScopeIDs(selected), retentionGenerationIDs(selected))
 		result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		selected, rowCounts, selectedEventRowCounts, skipped := selectCandidatesWithinRowLimit(
-			candidates, eventRowCounts, policy.BatchRowLimit)
-		for rechecks := 0; len(skipped) > 0; rechecks++ {
-			for _, generationID := range skipped {
-				result.Skipped[rowLimitSkipReason(eventRowCounts[generationID], policy.BatchRowLimit)]++
-			}
-			excludedGenerationIDs = append(excludedGenerationIDs, skipped...)
-			if len(selected) == 0 {
-				break
-			}
-			if rechecks == generationRetentionRecheckLimit {
-				// Keep the first member only; its rows outside the ledger only
-				// shrink on a recount, so one recount settles it.
-				for _, dropped := range selected[1:] {
-					result.Skipped[rowLimitSkipReason(eventRowCounts[dropped.generationID], policy.BatchRowLimit)]++
-					excludedGenerationIDs = append(excludedGenerationIDs, dropped.generationID)
-				}
-				selected = selected[:1]
-			}
-			// Skipped generations stay on disk. Their facts protect keys the
-			// count charged to a selected one (#6809), and a changed-since link
-			// shared with one is still deleted with the selected generation, so
-			// its charge moves there (#7127). The recount can shrink or grow;
-			// re-check the limit, at most generationRetentionRecheckLimit times.
-			phaseStart = time.Now()
-			_, eventRowCounts, _, err = s.countRows(ctx, tx, retentionScopeIDs(selected), retentionGenerationIDs(selected))
-			result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			selected, rowCounts, selectedEventRowCounts, skipped = selectCandidatesWithinRowLimit(
-				selected, eventRowCounts, policy.BatchRowLimit)
-			if rechecks == generationRetentionRecheckLimit {
-				break
-			}
-		}
-		if len(selected) > 0 {
-			return selected, rowCounts, selectedEventRowCounts, nil
-		}
-		if len(excludedGenerationIDs) >= searchLimit {
-			return nil, nil, nil, nil
+		selected, rowCounts, selectedEventRowCounts, skipped = selectCandidatesWithinRowLimit(
+			selected, eventRowCounts, policy.BatchRowLimit)
+		if rechecks == generationRetentionRecheckLimit {
+			break
 		}
 	}
+	return selected, rowCounts, selectedEventRowCounts, nil
 }
 
 type generationRetentionCandidate struct {
@@ -311,7 +308,6 @@ func (s GenerationRetentionStore) selectCandidates(
 	tx db.Transaction,
 	now time.Time,
 	policy GenerationRetentionPolicy,
-	excludedGenerationIDs []string,
 ) ([]generationRetentionCandidate, error) {
 	rows, err := tx.QueryContext(
 		ctx,
@@ -319,7 +315,6 @@ func (s GenerationRetentionStore) selectCandidates(
 		now.Add(-policy.MaxSupersededAge),
 		policy.MinSupersededGenerations,
 		policy.BatchGenerationLimit,
-		excludedGenerationIDs,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("generation retention: select candidates: %w", err)

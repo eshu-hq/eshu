@@ -153,6 +153,16 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestGenerationRetentionProbePlansStayOnKeyIndexesLive",
 		"TestGenerationRetentionRefusesWithoutValidKeyIndexLive",
 		"TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive",
+		// #7334 section 1: the all-scope eligibility statement that replaced
+		// the per-scope candidate query, and its EvalPlanQual/plan-shape
+		// proofs; only real Postgres row locks, snapshots, and query plans
+		// reproduce them.
+		"TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive",
+		"TestGenerationRetentionLockSetMatchesEligibleScopesLive",
+		"TestGenerationRetentionFairnessAcrossScopesLive",
+		"TestGenerationRetentionSkipsHeldScopeAndReplacesLive",
+		"TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive",
+		"TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive",
 		// #7127 PR-3d (arbiter ruling arb-7127-3d-c): an over-limit batch of
 		// one that another session takes after its savepoint rollback prunes
 		// nothing and writes no event; only real row locks reproduce it.

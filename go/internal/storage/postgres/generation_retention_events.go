@@ -383,11 +383,3 @@ func generationRetentionRowsTotal(rows map[string]int64) int64 {
 	}
 	return total
 }
-
-func generationRetentionSkipSearchLimit(batchLimit int) int {
-	limit := batchLimit * 4
-	if limit < 16 {
-		return 16
-	}
-	return limit
-}
