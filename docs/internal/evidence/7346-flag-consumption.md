@@ -53,8 +53,8 @@ with the behavioral messages below, not compile errors:
 ## Graph truth
 
 `TestFileImportCyclesFlagTruthAgainstARealGraph` seeds a repository with twelve
-`IMPORTS` edges carrying the projector's flag properties, plus one legacy edge
-written with none, and reads them through the production `imports.CycleRows` and
+`IMPORTS` edges, eleven carrying the projector's flag properties and one legacy
+edge written with none, and reads them through the production `imports.CycleRows` and
 response shaper: a runtime cycle (all flags explicitly false), a cycle closed only
 through a type-only edge, one closed only through a deferred edge, a legacy cycle
 with one no-flag edge, an inferred cycle, and the Python relative-import fallback
@@ -62,14 +62,30 @@ with one no-flag edge, an inferred cycle, and the Python relative-import fallbac
 
 | Backend | Result |
 | --- | --- |
-| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS. Cycles: `rt_a` runtime, `lg_a` flags_unknown, `in_a` ambiguous; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1 |
-| Neo4j, digest-pinned `neo4j:2026-community` (primary) | NOT_CHECKED for this test. The container would not start on a host under load (JVM aborted or failed startup with a load average of 14 to 32 from other lanes' work). It ran earlier the same day on a quieter host. Re-run before merge |
+| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the first implementation build; NOT re-run at the final head (the pinned image is not local and the Docker VM disk was full). Cycles: `rt_a` runtime, `lg_a` flags_unknown, `in_a` ambiguous; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1 |
+| Neo4j, digest-pinned `neo4j:2026-community@sha256:eabfbb04...` (Kernel 2026.08.1, primary) | PASS at the head that carries the order-independence fix (3.69 s). Cycles: `in_a` ambiguous, `lg_a` flags_unknown, `rt_a` runtime; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1, identical to the NornicDB run. Data and logs ran on tmpfs because the Docker VM disk was full |
 
 The NornicDB run answers the question the design left open: a relationship
 property that was never written comes back from the pinned NornicDB as a null
 that the reader classifies as `flags_unknown`, not as false. The test seeds edges
 in the writer's property shape and does not go through the canonical writer; a
 writer-driven case should join it once #7345 has merged.
+
+## Order independence
+
+The fold is a maximum over a total order, and the hop collapse decides on proof
+before line number. Both were first asserted only with the stronger row last and
+every row on line 1, so a reversed fold passed. `TestCycleFlagsFoldDoesNotDependOnRowOrder`
+and `TestCycleFlagsHopCollapsePrefersTheStrongerProof` feed each pair in both orders with the
+stronger row on line 9 and the weaker on line 1. Three overlay mutations that
+survived the earlier tests now fail: the fold returning the last row (4 failing
+lines), the hop rank preferring unknown (7), and the hop state check removed (7).
+Each mutated file was restored byte-identical.
+
+The dedupe used to keep the earliest-line row and overwrite only its state, so a
+type-only import's line could sit beside a runtime state. The kept row now comes
+from the surviving state, and the line assertions in the two tests failed first
+(`line_number = 1, want 9`).
 
 ## Performance Evidence:
 
@@ -110,7 +126,7 @@ reported as measured; the criterion was not relaxed to make it pass.
 
 Wall time: NOT_CHECKED on a valid test bed. The same runs on the shared laptop
 measured medians of 116 ms to 155 ms at 4,522 edges and 646 ms to 775 ms (scoped)
-at 25,000 edges, an increase of roughly 20% to 34%. That laptop was under heavy
+at 25,000 edges, an increase of roughly 18% to 34% across the four shapes (unscoped 4,522 edges 123.8 to 145.7 ms is the low end). That laptop was under heavy
 contention from other work and the dedicated remote was unreachable, so these are
 smoke figures, not accepted timing, and no claim is made about the interactive
 1.5 s bound at the scan limit. The increase in DB hits says the wall-time cost
@@ -148,11 +164,21 @@ reference and the codemodel README are updated to the same contract.
   inferred Python edge cannot close a cycle. The label is exercised on seeded
   edges. The matcher was deliberately not widened here: doing so risks false
   cycles and is a separate change.
-- **Neo4j leg pending** for the new live test (see Graph truth), and wall time is
+- The NornicDB leg was not re-run at the final head (see Graph truth), and wall time is
   NOT_CHECKED.
+- **The console does not show the labels yet.** `apps/console/src/api/codeImports.ts`
+  normalizes cycle rows and drops `cycle_label` and `flag_state`, so a cycle still
+  renders without its label. Rendering them is a separate console change; it is not
+  part of this reader change.
 - `codemodel` now holds 45 non-test files under its existing justified
   `//nolint:dirgate` marker, whose reason text is updated. A subpackage split is
   a package move and out of scope for this lane.
+- Two `internal/query` tests pin the import-dependency statement family
+  (`TestImportDependencyQueryplanVariantsStayComplete` and
+  `TestHandlerQueryplanProductionVariantFamiliesStayExplicit`). They failed on the
+  changed statement text and were missed by scoped runs that left the root
+  `internal/query` package out. The variant counts (280 and 488) are unchanged; only
+  the two family hashes moved, and both were refreshed to the values the tests report.
 - The `hot-cypher` manifest hashes for `QP-CODE-IMPORT-CYCLES` are refreshed
   because the statement text changed on purpose (three added projections); it is
   not a relocation.

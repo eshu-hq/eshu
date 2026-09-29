@@ -247,14 +247,17 @@ func deduplicateImportCycleEdges(
 		}, "\x00")
 		current, exists := deduplicated[key]
 		if exists {
-			// Rows sharing an edge key fold their flag states whichever row's
-			// line number wins, so the kept edge is as strong as its strongest
-			// proof.
+			// Rows sharing an edge key fold their flag states, so the kept edge
+			// is as strong as its strongest proof. Its line comes from a row in
+			// that surviving state: a weaker duplicate on an earlier line must
+			// not put a type-only import's line beside a runtime state.
 			folded := foldImportCycleEdgeState(current.state, edge.state)
-			if earlierPositiveLine(edge.lineNumber, current.lineNumber) {
+			switch {
+			case edge.state == folded && current.state != folded:
+				current = edge
+			case edge.state == folded && earlierPositiveLine(edge.lineNumber, current.lineNumber):
 				current = edge
 			}
-			current.state = folded
 			deduplicated[key] = current
 			continue
 		}

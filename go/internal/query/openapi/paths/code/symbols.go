@@ -200,7 +200,7 @@ const Symbols = `
                                 "source_module": {"type": "string"},
                                 "target_module": {"type": "string"},
                                 "line_number": {"type": "integer"},
-                                "flag_state": {"type": "string", "enum": ["runtime", "inferred", "unknown"], "description": "runtime: the projector wrote all three import flags and none is set. inferred: the parser synthesized the import's source. unknown: a flag property is missing because the edge was written before the flags existed. Type-only and deferred edges are excluded before the walk and never appear here."}
+                                "flag_state": {"type": "string", "enum": ["runtime", "inferred", "unknown"], "description": "runtime: the projector wrote all three import flags and none is set. inferred: the parser synthesized the import's source. unknown: a flag property is missing or is not a boolean, which is how an edge written before the flags existed reads. Type-only and deferred edges are excluded before the walk and never appear here."}
                               }
                             }
                           },
@@ -217,7 +217,7 @@ const Symbols = `
                     "has_more": {"type": "boolean", "description": "True only while another page of this enumeration exists. It is false on the last page even when truncated is true."},
                     "next_offset": {"type": "integer", "nullable": true, "description": "The offset to request next, or null when has_more is false."},
                     "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget."}
+                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget. It also carries cycle_edge_flags, an object with edges_considered, type_only_excluded, deferred_excluded, inferred, and flags_unknown: the deduplicated edges counted by class before anchor filtering and paging, so a client can tell how much of a result rests on inferred edges or on edges written before the flags existed."}
                   }
                 }
               }
