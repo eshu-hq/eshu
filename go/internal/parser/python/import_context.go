@@ -12,16 +12,18 @@ import (
 //
 // A statement is type-only when it sits in the consequence of an `if` or `elif`
 // guarded by TYPE_CHECKING: the branch never runs, so the import cannot close a
-// runtime cycle. The `else` branch of that guard, and a negated guard, are not
-// type-only. A statement is deferred when a function or lambda body encloses
-// it, because it then runs at call time instead of at module load. A class body
-// runs at definition time, so it is neither. Both flags can hold at once, and
+// runtime cycle. The `else` branch of that guard, a negated guard, a
+// parenthesized guard, and a composite condition such as `TYPE_CHECKING and x`
+// are not type-only. A statement is deferred when a function body encloses it,
+// because it then runs at call time instead of at module load. A class body runs
+// at definition time, so it is neither. A lambda is not checked: an import is a
+// statement and cannot appear in a lambda body. Both flags can hold at once, and
 // the walk keeps climbing past a function so a guard outside it still counts.
 func pythonImportContext(node *tree_sitter.Node, source []byte) (typeOnly bool, deferred bool) {
 	child := node
 	for current := node.Parent(); current != nil; child, current = current, current.Parent() {
 		switch current.Kind() {
-		case "function_definition", "lambda":
+		case "function_definition":
 			deferred = true
 		case "if_statement", "elif_clause":
 			consequence := current.ChildByFieldName("consequence")

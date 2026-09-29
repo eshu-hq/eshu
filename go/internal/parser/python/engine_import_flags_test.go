@@ -34,6 +34,24 @@ if t.TYPE_CHECKING:
 if not TYPE_CHECKING:
     from .b import NegatedGuard
 
+if PLAIN:
+    from .b import PlainBranch
+elif TYPE_CHECKING:
+    from .b import ElifGuard
+elif OTHER:
+    from .b import ElifOther
+
+if TYPE_CHECKING:
+    from .b import GuardIf
+elif PLAIN:
+    from .b import PlainElifAfterGuard
+
+if (TYPE_CHECKING):
+    from .b import ParenGuard
+
+if TYPE_CHECKING and PLAIN:
+    from .b import CompositeGuard
+
 
 def late():
     from .b import LateB
@@ -88,6 +106,15 @@ func TestDefaultEngineParsePathPythonImportFlags(t *testing.T) {
 		{name: "RuntimeB", wantSource: "./b"},
 		{name: "BTypeViaAttribute", typeOnly: true, wantSource: "./b"},
 		{name: "NegatedGuard", wantSource: "./b"},
+		{name: "PlainBranch", wantSource: "./b"},
+		{name: "ElifGuard", typeOnly: true, wantSource: "./b"},
+		{name: "ElifOther", wantSource: "./b"},
+		{name: "GuardIf", typeOnly: true, wantSource: "./b"},
+		{name: "PlainElifAfterGuard", wantSource: "./b"},
+		// A parenthesized or composite condition is not a bare guard, so the
+		// import stays a runtime edge; that errs toward keeping the edge.
+		{name: "ParenGuard", wantSource: "./b"},
+		{name: "CompositeGuard", wantSource: "./b"},
 		{name: "LateB", deferred: true, wantSource: "./b"},
 		{name: "json", deferred: true, wantSource: "json"},
 		{name: "decimal", wantSource: "decimal"},
