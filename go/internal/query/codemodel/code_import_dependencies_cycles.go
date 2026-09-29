@@ -38,6 +38,7 @@ type importCycleStep struct {
 	sourceModule string
 	targetModule string
 	lineNumber   int
+	state        importCycleEdgeState
 }
 
 // importCycle is one enumerated simple cycle. Steps are ordered along the
@@ -63,6 +64,7 @@ type importCycleHop struct {
 	destination  string
 	targetModule string
 	lineNumber   int
+	state        importCycleEdgeState
 }
 
 // enumerateImportCycles collapses deduplicated import edges into a
@@ -84,10 +86,12 @@ type importCycleHop struct {
 // Why here and not in Cypher: the same edge fetch profiles at 40ms/27k
 // DbHits for 4,522 rows while a Cypher reciprocal join over it costs
 // 1,522ms/5.5M DbHits with zero rows, and variable-length cycle patterns
-// scale worse. The projector now stores type_only, deferred, and inferred on
-// IMPORTS edges (#7345), but this reader does not fetch or consume them yet, so
-// cycles are still computed over all stored IMPORTS edges with no type-only or
-// deferred exclusion and no inferred labelling; #7346 owns consuming them.
+// scale worse. The edges carry type_only, deferred, and inferred flags
+// (#7345). Type-only and deferred edges are dropped before this walk, since a
+// cycle closed through an import that never runs at load time is not a
+// load-time cycle; an inferred edge stays in and labels its cycle ambiguous; an
+// edge with no flag properties (written before the flags existed) stays in and
+// labels its cycle flags_unknown, never runtime (#7346).
 func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycle, CycleEnumeration) {
 	return enumerateImportCyclesWithinBudget(edges, maxLength, importCycleEnumerationStepBudget)
 }
@@ -217,6 +221,7 @@ func buildImportCycleGraph(
 				destination:  destination,
 				targetModule: edge.targetModule,
 				lineNumber:   edge.lineNumber,
+				state:        edge.state,
 			}
 			current, exists := hops[pair]
 			if !exists || earlierImportCycleHop(candidate, current) {
@@ -271,6 +276,7 @@ func closeImportCycle(
 			sourceModule: node.sourceModule,
 			targetModule: proof.targetModule,
 			lineNumber:   proof.lineNumber,
+			state:        proof.state,
 		})
 	}
 	return importCycle{steps: steps}
@@ -298,6 +304,12 @@ func importCycleKey(cycle importCycle) string {
 // collapsed pair, breaking ties on the imported module name so duplicate
 // edges resolve deterministically.
 func earlierImportCycleHop(candidate, current importCycleHop) bool {
+	// Several edges can feed one collapsed hop. The hop is only as certain as its
+	// best proof, so a runtime edge wins over an inferred one, which wins over
+	// one with unknown flags, before any line-number preference applies.
+	if candidate.state != current.state {
+		return hopRank(candidate.state) > hopRank(current.state)
+	}
 	if candidate.lineNumber <= 0 {
 		return false
 	}

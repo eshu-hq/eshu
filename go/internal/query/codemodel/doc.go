@@ -30,4 +30,4 @@
 //
 // See README.md for the full boundary and AGENTS.md for the per-symbol
 // export list.
-package codemodel //nolint:dirgate // The 500-line file cap forces files 41-43: bounded cycle enumeration (#6851), its component prefilter, and its result type and step budget (#7346) cannot fold back into their callers without breaching it.
+package codemodel //nolint:dirgate // The 500-line file cap forces files 41-45: bounded cycle enumeration (#6851), its component prefilter, its result type and step budget, its row helpers, and the import-flag model (#7346) cannot fold back into their callers without breaching it.

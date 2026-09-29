@@ -160,6 +160,9 @@ LIMIT $scan_limit`)
 }
 
 // FileImportCycleEdgeRowsCypher returns a bounded, ordered import-edge list.
+// It projects the edge's type_only, deferred, and inferred flags raw, with no
+// coalesce: a null means the edge predates the flags (#7345), and the reader
+// treats that as its own unknown state, never as false.
 // Bounded simple-cycle enumeration (#6851) happens in Go over this single
 // fetch: the Cypher reciprocal join costs 1522ms/5.5M DbHits where the
 // same fetch profiles at 40ms/27k DbHits. Directional anchors narrow the
@@ -184,7 +187,10 @@ func FileImportCycleEdgeRowsCypher(req ImportDependencyRequest) string {
        source_file.name as source_name,
        coalesce(source_file.language, source_file.lang) as language,
        target_module.name as target_module,
-       rel.line_number as line_number
+       rel.line_number as line_number,
+       rel.type_only as type_only,
+       rel.deferred as deferred,
+       rel.inferred as inferred
 ORDER BY repo.id, source_file.relative_path, target_module.name,
          coalesce(rel.line_number, 0), source_file.path
 LIMIT $scan_limit`)

@@ -111,7 +111,7 @@ func importDependencyResults(req ImportDependencyRequest, rows []map[string]any)
 		item["source_handle"] = importDependencySourceHandle(row)
 		if req.EffectiveQueryType() == "file_import_cycles" {
 			item["cycle_length"], item["cycle_path"], item["cycle_edges"] = importDependencyCycleProof(row)
-			for _, internal := range []string{"cycle_files", "cycle_source_modules", "cycle_target_modules", "cycle_lines"} {
+			for _, internal := range []string{"cycle_files", "cycle_source_modules", "cycle_target_modules", "cycle_lines", "cycle_flag_states"} {
 				delete(item, internal)
 			}
 		}
@@ -152,6 +152,7 @@ func importDependencyCycleProof(row map[string]any) (int, []string, []map[string
 	sourceModules := importCycleStringList(row, "cycle_source_modules")
 	targetModules := importCycleStringList(row, "cycle_target_modules")
 	lines := importCycleIntList(row, "cycle_lines")
+	flagStates := importCycleStringList(row, "cycle_flag_states")
 	path := append(append([]string{}, files...), files[0])
 	edges := make([]map[string]any, 0, len(files))
 	for index, file := range files {
@@ -168,6 +169,9 @@ func importDependencyCycleProof(row map[string]any) (int, []string, []map[string
 		}
 		if index < len(lines) && lines[index] > 0 {
 			edge["line_number"] = lines[index]
+		}
+		if index < len(flagStates) {
+			edge["flag_state"] = flagStates[index]
 		}
 		edges = append(edges, edge)
 	}
@@ -277,6 +281,13 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 			stepBudget = importCycleEnumerationStepBudget
 		}
 		coverage["cycle_enumeration_step_budget"] = stepBudget
+		coverage["cycle_edge_flags"] = map[string]any{
+			"edges_considered":   enumeration.EdgeFlags.Considered,
+			"type_only_excluded": enumeration.EdgeFlags.TypeOnlyExcluded,
+			"deferred_excluded":  enumeration.EdgeFlags.DeferredExcluded,
+			"inferred":           enumeration.EdgeFlags.Inferred,
+			"flags_unknown":      enumeration.EdgeFlags.Unknown,
+		}
 	}
 	return coverage
 }

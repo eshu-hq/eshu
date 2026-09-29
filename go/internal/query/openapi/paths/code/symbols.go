@@ -128,7 +128,7 @@ const Symbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1000 cycles or a fixed step budget and reports truncated:true with the stop reason; page on has_more and next_offset. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) after excluding type-only and deferred IMPORTS edges, labelling each cycle runtime, ambiguous (an inferred edge), or flags_unknown (an edge written before the import flags existed); enumeration stops at 1000 cycles or a fixed step budget and reports truncated:true with the stop reason; page on has_more and next_offset. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
         "operationId": "investigateImportDependencies",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -188,6 +188,7 @@ const Symbols = `
                           "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
                           "cycle_length": {"type": "integer", "description": "Number of import edges in the cycle (2 through max_cycle_length)."},
                           "cycle_path": {"type": "array", "items": {"type": "string"}},
+                          "cycle_label": {"type": "string", "enum": ["runtime", "ambiguous", "flags_unknown"], "description": "runtime: every edge is a proven load-time import. ambiguous: at least one edge is inferred (a guessed target). flags_unknown: no edge is inferred and at least one has no flag properties because it was written before the import flags existed; the cycle may include an import that never runs."},
                           "cycle_edges": {
                             "type": "array",
                             "items": {
@@ -198,7 +199,8 @@ const Symbols = `
                                 "target_file": {"type": "string"},
                                 "source_module": {"type": "string"},
                                 "target_module": {"type": "string"},
-                                "line_number": {"type": "integer"}
+                                "line_number": {"type": "integer"},
+                                "flag_state": {"type": "string", "enum": ["runtime", "inferred", "unknown"], "description": "runtime: the projector wrote all three import flags and none is set. inferred: the parser synthesized the import's source. unknown: a flag property is missing because the edge was written before the flags existed. Type-only and deferred edges are excluded before the walk and never appear here."}
                               }
                             }
                           },

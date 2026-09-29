@@ -56,4 +56,7 @@ type CycleEnumeration struct {
 	// StepsExamined is the number of hops the walk examined, for the operator
 	// span and for tests that pin the walk's cost.
 	StepsExamined int
+	// EdgeFlags counts the edges the cycle read saw by flag class, including the
+	// type-only and deferred edges left out of the walk.
+	EdgeFlags CycleEdgeFlags
 }

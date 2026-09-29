@@ -22,11 +22,15 @@ func importCycleRow(cycle importCycle) map[string]any {
 	sourceModules := make([]string, 0, len(cycle.steps))
 	targetModules := make([]string, 0, len(cycle.steps))
 	lines := make([]int, 0, len(cycle.steps))
+	states := make([]importCycleEdgeState, 0, len(cycle.steps))
+	flagStates := make([]string, 0, len(cycle.steps))
 	for _, step := range cycle.steps {
 		files = append(files, step.file)
 		sourceModules = append(sourceModules, step.sourceModule)
 		targetModules = append(targetModules, step.targetModule)
 		lines = append(lines, step.lineNumber)
+		states = append(states, step.state)
+		flagStates = append(flagStates, importCycleFlagStateName(step.state))
 	}
 	return map[string]any{
 		"repo_id":               first.repoID,
@@ -41,6 +45,8 @@ func importCycleRow(cycle importCycle) map[string]any {
 		"cycle_source_modules":  sourceModules,
 		"cycle_target_modules":  targetModules,
 		"cycle_lines":           lines,
+		"cycle_flag_states":     flagStates,
+		"cycle_label":           importCycleLabelFor(states),
 	}
 }
 
