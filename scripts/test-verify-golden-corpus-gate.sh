@@ -70,7 +70,7 @@ bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh 
 # Scoped to each gate's OWN trigger block: a file-wide grep passes while the path
 # is present in either gate, so deleting it from one silently un-selects that
 # gate and the local half of the gap reopens.
-for gate_id in golden-corpus-mirror golden-corpus-gate; do
+for gate_id in golden-corpus-mirror golden-corpus-gate golden-corpus-gate-neo4j; do
 	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/test-golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
 		require_in_region "ci-gates gate ${gate_id} trigger ${gate_path}" "${ci_gates}" \
 			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${gate_path}\""
@@ -83,6 +83,9 @@ done
 require_matches "the pre-pr golden-corpus selector must match the golden-corpus libs and the mutex" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|test-golden-corpus-\.\+\|live-gate-lock\)"
+require_matches "the pre-pr golden-corpus live step must run the blocking Neo4j leg (#7362)" \
+	"${prepr}" \
+	"^(?!\s*#)[^\n]*env ESHU_GRAPH_BACKEND=neo4j bash \"\\$\{repo_root\}/scripts/verify-golden-corpus-gate\.sh\""
 require_matches "the pre-pr golden-corpus selector must match static ecosystem corpus inputs" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*tests/fixtures/ecosystems/"

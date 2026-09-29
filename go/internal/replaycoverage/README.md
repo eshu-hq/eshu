@@ -100,7 +100,7 @@ docs gate validates the exact source quote, surfaces, proof signals, and semanti
 posture. For `authz_scoped_route` entries it resolves the `ref` against
 `specs/authorization-replay-coverage.v1.yaml` and requires the focused query test
 proof row. It deliberately does **not** run the scenario. Greenness is proven by the sibling
-gate named in each manifest entry's `proof_gate` (`golden-corpus-gate`, replay
+gate named in each manifest entry's `proof_gate` (`golden-corpus-gate-neo4j`, replay
 tier, Go race tests, parser fixture tests, `capability-inventory`,
 `capability-inventory-docs`, `authz-scoped-route-tests`, or capability-budget
 proof). That split keeps this gate fast and credential-free while never claiming

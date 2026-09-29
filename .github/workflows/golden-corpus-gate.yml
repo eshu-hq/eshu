@@ -219,9 +219,10 @@ jobs:
         include:
           - graph_backend: nornicdb
             compose_file: docker-compose.yaml
-          # #6782: the Neo4j compatibility backend runs the same corpus. Its
-          # registry row (golden-corpus-gate-neo4j) is non-blocking until main
-          # is green on this cell.
+          # #6782: the Neo4j backend runs the same corpus. Its registry row
+          # (golden-corpus-gate-neo4j) is the blocking truth gate (#7362).
+          # The NornicDB cell above is watch-only: its row (golden-corpus-gate)
+          # is blocking: false, layer secondary.
           - graph_backend: neo4j
             compose_file: docker-compose.neo4j.yml
     env:
@@ -379,7 +380,7 @@ jobs:
           exit "${missing}"
 
       # #6965 phase 5: the comparison is discovery, not a merge gate. Per-backend
-      # truth is asserted by blocking gates (B-7 on NornicDB, and the
+      # truth is asserted by blocking gates (B-7 on Neo4j, and the
       # backendconformance WantRows the e2e-tests live lanes run on both
       # backends), so a reproduced divergence is filed as an issue (e.g. #6968)
       # instead of blocking an unrelated PR. continue-on-error keeps the job
