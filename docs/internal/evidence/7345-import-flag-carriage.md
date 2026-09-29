@@ -67,7 +67,7 @@ false) and an unchanged edge count.
 
 | Backend | Result |
 | --- | --- |
-| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS at the final code: `ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -count=1 -v` on a throwaway tmpfs container, exit 0 (the `go/` and `sdk/` diff has patch-id `b6559c19662cff40`, unchanged by the later documentation commits and by the base-only rebase). gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
+| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS at the final code: `ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -count=1 -v` on a throwaway tmpfs container, exit 0 (no non-test file under `go/internal/projector/canonical`, `go/internal/storage/cypher`, `go/internal/parser/shared` or `sdk/` changed after this run, and the live test file itself is unchanged; the later commits changed two unit-test field names, a two-key list in `go/internal/goldengate`, and documentation). gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
 | NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the build before the rebase onto #7438, identical values and edge count; not re-run at the final head (secondary backend, #7331) |
 
 Sensitivity: with the `r.inferred` SET removed from the writer statement the
@@ -121,10 +121,12 @@ for both statements, so db hits do not reflect the added property writes.
 Wall time, before/after, accepted run on the dedicated remote validation host.
 The reviewed branch head was fetched and checked out detached in its own checkout;
 the base and head statement text came from `git show` of the two commits and differ
-only by the three SETs. The branch was later rebased onto a newer base with no conflict
-and gained only documentation; the cumulative diff of `go/` and `sdk/` has the same stable
-patch-id (`b6559c19662cff40`) at the measured head and at the final head, so the timed code is the
-code under review. Neo4j was the digest-pinned
+only by the three SETs. The branch was later rebased onto a newer base with no conflict. The extended statement text on the
+branch is byte-identical to the one timed (extracted with the same `git show` step), and the writer and
+fold code did not change after the timed head: no non-test file under `go/internal/projector/canonical`,
+`go/internal/storage/cypher`, `go/internal/parser/shared` or `sdk/` differs from it. The later commits changed
+only unit-test field names, a two-key plain row-key list in `go/internal/goldengate` (`deferred` and
+`inferred`), and documentation. Neo4j was the digest-pinned
 `neo4j:2026-community@sha256:eabfbb04...` (Kernel 2026.08.1, heap 8 GiB, page cache
 8 GiB) with the production graph schema applied by `eshu-bootstrap-data-plane`.
 Host: Linux x86_64, 16 logical CPUs, 123 GiB RAM. The result is a same-machine
