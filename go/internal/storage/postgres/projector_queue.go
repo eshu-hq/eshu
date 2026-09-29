@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -399,6 +400,13 @@ func (q ProjectorQueue) Fail(
 	}
 	if rowsAffected != 1 {
 		return ErrProjectorClaimRejected
+	}
+	if q.Instruments != nil && q.Instruments.QueueDeadLetters != nil {
+		// Counted once, after the UPDATE reported exactly one row (#7386).
+		q.Instruments.QueueDeadLetters.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("queue", "projector"),
+			telemetry.AttrFailureClass(queuestore.BoundedFailureClassLabel(failureClass)),
+		))
 	}
 
 	return nil

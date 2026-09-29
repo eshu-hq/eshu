@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -326,6 +327,13 @@ func (q ReducerQueue) failIntent(
 	}
 	if rowsAffected != 1 {
 		return ErrReducerClaimRejected
+	}
+	if q.Instruments != nil && q.Instruments.QueueDeadLetters != nil {
+		// Counted once, after the UPDATE reported exactly one row (#7386).
+		q.Instruments.QueueDeadLetters.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("queue", "reducer"),
+			telemetry.AttrFailureClass(queuestore.BoundedFailureClassLabel(failureClass)),
+		))
 	}
 
 	return nil
