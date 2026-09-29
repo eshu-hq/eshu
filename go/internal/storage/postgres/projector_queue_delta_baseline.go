@@ -240,7 +240,7 @@ WITH refused_work AS (
             'active_commit_sha', $9::text,
             'active_generation_id', $10::text,
             'phase', $11::text
-        )
+        ) || ` + priorFailureWorkSQL + `
     WHERE work.stage = 'projector'
       AND work.scope_id = $2
       AND work.generation_id = $3
