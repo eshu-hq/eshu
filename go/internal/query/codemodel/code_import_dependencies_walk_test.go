@@ -256,13 +256,15 @@ func randomImportGraph(seed int64, n, edgeCount int) []importCycleEdge {
 	return edges
 }
 
-// TestImportCycleStepBudgetCoversMeasuredCorpusShapes ties the budget to
-// measurement. The largest measured Python corpus has 4,522 IMPORTS edges over
-// 626 files, but only 172 of those imports resolved to a file in the repository,
-// and only resolved imports become hops. That 626-file, 172-edge shape is the
-// measured one, and the budget must be at least ten times the steps its walk
-// needs at the maximum cycle length, across many random placements of those
-// edges. The denser shapes below are stress cases, not measurements: a corpus in
+// TestImportCycleStepBudgetCoversMeasuredCorpusShapes checks the budget against
+// a MODEL of the largest measured Python corpus. That corpus has 4,522 IMPORTS
+// edges over 626 files, but only 172 of those imports resolved to a file in the
+// repository, and only resolved imports become hops. The test does not walk the
+// real edge list, which it does not have: it places 172 edges uniformly at
+// random over 626 files, many times, and requires the budget to be at least ten
+// times the worst walk at the maximum cycle length. A uniform placement is far
+// sparser in cycles than clustered real graphs, so this establishes no margin
+// over a real corpus; see the clustered-graph test for a denser model. The denser shapes below are stress cases, not measurements: a corpus in
 // which every import resolved, and the 25,000-row scan limit. They are allowed to
 // stop at the cycle cap or the budget, and the test only requires that they stop
 // within the budget and say why.
@@ -313,4 +315,88 @@ func BenchmarkEnumerateImportCyclesDenseComponent(b *testing.B) {
 	}
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(steps), "ns/step")
 	b.ReportMetric(float64(steps), "steps/op")
+}
+
+// TestCycleCoverageReportsTheBudgetTheWalkRanUnder proves the response reports
+// the step budget carried by the enumeration, not the package constant. The two
+// are equal today; a caller that injects a budget must see its own value, or the
+// coverage would name a bound the walk never ran under.
+func TestCycleCoverageReportsTheBudgetTheWalkRanUnder(t *testing.T) {
+	t.Parallel()
+
+	req := ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "repo-1", Limit: 10}
+	response := ImportDependencyResponseWithCycleEnumeration(req, nil, CycleEnumeration{
+		Truncated:  true,
+		StopReason: CycleStopStepBudget,
+		StepBudget: 123,
+	})
+	coverage, _ := response["coverage"].(map[string]any)
+	if got := coverage["cycle_enumeration_step_budget"]; got != 123 {
+		t.Fatalf("coverage.cycle_enumeration_step_budget = %#v, want the enumeration's own budget 123", got)
+	}
+
+	empty := ImportDependencyResponse(req, nil)
+	emptyCoverage, _ := empty["coverage"].(map[string]any)
+	if got := emptyCoverage["cycle_enumeration_step_budget"]; got != importCycleEnumerationStepBudget {
+		t.Fatalf("empty-page coverage step budget = %#v, want the package budget %d", got, importCycleEnumerationStepBudget)
+	}
+}
+
+// clusteredImportGraph models real import structure more closely than a uniform
+// random graph: files sit in packages, every file imports a few files of its own
+// package, and a small share of imports reach a file of another package. Import
+// graphs are dense inside a package and sparse across, which is what makes real
+// strongly connected components, so this shape stresses the walk where a uniform
+// placement barely creates any. It is a model: no real corpus edge list is walked.
+func clusteredImportGraph(seed int64, files, packageSize, importsPerFile, crossPercent int) []importCycleEdge {
+	rng := rand.New(rand.NewSource(seed))
+	seen := map[[2]int]bool{}
+	var edges []importCycleEdge
+	add := func(from, to int) {
+		if from == to || seen[[2]int{from, to}] {
+			return
+		}
+		seen[[2]int{from, to}] = true
+		edges = append(edges, walkEdge(fmt.Sprintf("f%04d", from), fmt.Sprintf("f%04d", to)))
+	}
+	for from := 0; from < files; from++ {
+		base := from - from%packageSize
+		size := min(packageSize, files-base)
+		for i := 0; i < importsPerFile; i++ {
+			add(from, base+rng.Intn(size))
+		}
+		if rng.Intn(100) < crossPercent {
+			add(from, rng.Intn(files))
+		}
+	}
+	for from := 0; from < files; from++ {
+		edges = append(edges, walkEdge(fmt.Sprintf("f%04d", from), "external_module"))
+	}
+	return edges
+}
+
+// TestClusteredImportGraphWalkStaysWithinTheBudgetOrSaysWhy walks modelled
+// package-clustered graphs at the maximum cycle length. It does not claim a
+// margin over any real corpus; it records how the walk behaves when components
+// are dense, and requires that every stop is within the budget and named.
+func TestClusteredImportGraphWalkStaysWithinTheBudgetOrSaysWhy(t *testing.T) {
+	t.Parallel()
+
+	for _, shape := range []struct {
+		name                                      string
+		files, packageSize, perFile, crossPercent int
+	}{
+		{name: "626 files, packages of 16, 2 in-package imports each", files: 626, packageSize: 16, perFile: 2, crossPercent: 5},
+		{name: "626 files, packages of 16, 4 in-package imports each", files: 626, packageSize: 16, perFile: 4, crossPercent: 5},
+		{name: "626 files, packages of 40, 5 in-package imports each", files: 626, packageSize: 40, perFile: 5, crossPercent: 5},
+	} {
+		_, enumeration := enumerateImportCycles(clusteredImportGraph(11, shape.files, shape.packageSize, shape.perFile, shape.crossPercent), importCycleMaxMaxLength)
+		t.Logf("clustered model %q: steps=%d stop=%s", shape.name, enumeration.StepsExamined, enumeration.StopReason)
+		if enumeration.StepsExamined > importCycleEnumerationStepBudget {
+			t.Fatalf("%q examined %d steps, over the budget %d", shape.name, enumeration.StepsExamined, importCycleEnumerationStepBudget)
+		}
+		if enumeration.Truncated && enumeration.StopReason == CycleStopNone {
+			t.Fatalf("%q truncated without a stop reason: %+v", shape.name, enumeration)
+		}
+	}
 }

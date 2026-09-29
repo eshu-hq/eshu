@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -158,6 +159,14 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 	rows, enumeration, err := h.importDependencyRows(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+	if req.EffectiveQueryType() == "file_import_cycles" {
+		// The stop reason says a walk was cut short; the steps examined say how
+		// close an unstopped walk came to its budget, which is what an operator
+		// needs to see a near miss before it becomes a stop.
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.Int("eshu.import_dependencies.cycle_steps_examined", enumeration.StepsExamined),
+		)
 	}
 	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil
 }

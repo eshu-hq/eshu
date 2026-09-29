@@ -23,17 +23,23 @@ const (
 // deterministic (a time budget would make the same request answer differently
 // on a slower host), and runs in-process, so it serializes nothing.
 //
-// The value is derived from two measurements. Coverage: the largest measured
-// Python corpus (626 files, 172 imports resolved to an in-repo file) walks in at
-// most 9 steps at the maximum cycle length across 200 random placements of those
-// edges, so the budget sits four orders of magnitude above real use. Wall time:
-// a dense component costs about 530 ns per examined hop on the development
-// laptop (BenchmarkEnumerateImportCyclesDenseComponent), which puts 250,000
-// steps near 130 ms against the 250 ms ceiling. The per-step figure is a local
-// smoke number, not accepted timing; confirm it on the remote before relying on
-// the ceiling. A corpus in which every import resolves needs about 370,000 steps
-// and stops at this budget with stop reason step_budget, which is the intended
-// answer for a graph that dense: a partial list that says why.
+// The value is set by the wall-time ceiling, not by a measured coverage margin.
+// Wall time: a dense component costs about 530 ns per examined hop on the
+// development laptop (BenchmarkEnumerateImportCyclesDenseComponent), which puts
+// 250,000 steps near 130 ms against a 250 ms ceiling. That per-step figure is a
+// local smoke number from a contended host, not accepted timing; confirm it on
+// the remote before relying on the ceiling.
+//
+// Coverage is modelled, not measured. The real edge list of the largest Python
+// corpus (626 files, 172 imports resolved in-repo) was never walked. Uniform
+// random placements of that many edges need at most 9 steps, but a uniform graph
+// has almost no strongly connected component and says little about real import
+// graphs, which cluster. Package-clustered models (see the walk tests) need about
+// 8,000 steps to complete, and denser ones reach the 1,000-cycle cap near 17,000
+// to 38,000 steps, before this budget. So the budget is comfortably above every
+// modelled shape, but no margin over a real corpus is established. A graph dense
+// enough to exhaust it stops with stop reason step_budget: a partial list that
+// says why.
 const importCycleEnumerationStepBudget = 250_000
 
 // CycleEnumeration reports how one file_import_cycles enumeration ended. The

@@ -14,7 +14,10 @@ import (
 // ImportDependencyResponseWithCycleEnumeration when the enumeration cap
 // state is known so a capped list still says truncated:true.
 func ImportDependencyResponse(req ImportDependencyRequest, rows []map[string]any) map[string]any {
-	return ImportDependencyResponseWithCycleEnumeration(req, rows, CycleEnumeration{StopReason: CycleStopNone})
+	return ImportDependencyResponseWithCycleEnumeration(req, rows, CycleEnumeration{
+		StopReason: CycleStopNone,
+		StepBudget: importCycleEnumerationStepBudget,
+	})
 }
 
 // ImportDependencyResponseWithCycleEnumeration shapes one
@@ -263,7 +266,7 @@ func importDependencyCoverage(req ImportDependencyRequest, truncated bool, enume
 		coverage["cycle_enumeration_cap"] = importCycleEnumerationCap
 		coverage["cycle_enumeration_truncated"] = enumeration.Truncated
 		coverage["cycle_enumeration_stop_reason"] = enumeration.StopReason
-		coverage["cycle_enumeration_step_budget"] = importCycleEnumerationStepBudget
+		coverage["cycle_enumeration_step_budget"] = enumeration.StepBudget
 	}
 	return coverage
 }

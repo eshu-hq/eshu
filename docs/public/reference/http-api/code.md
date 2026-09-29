@@ -110,7 +110,7 @@ the 1.5-second interactive SLO.
 
 Observability: the route emits `query.import_dependency_investigation` with
 `eshu.import_dependencies.query_type`, `result_count`, `truncated`, `has_more`,
-`scan_overflow`, and (for `file_import_cycles`) `cycle_stop_reason` attributes. Responses keep the Eshu truth envelope, `coverage`,
+`scan_overflow`, and (for `file_import_cycles`) `cycle_stop_reason` and `cycle_steps_examined` attributes. Responses keep the Eshu truth envelope, `coverage`,
 `truncated`, `has_more`, and `next_offset`. `truncated` means the answer is partial (another page exists, or the cycle enumeration stopped early) and stays true on every page of a stopped run, so page on `has_more` and `next_offset`: `next_offset` is null on the last page. The read path adds no graph write, queue, worker,
 or runtime setting.
 

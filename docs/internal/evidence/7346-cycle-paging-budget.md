@@ -55,23 +55,40 @@ The oracle shares no code with the walk or the filter.
 Stage: the in-process cycle walk over one bounded edge fetch (25,000-row scan
 limit). No graph read or write changes here.
 
-Step counts, measured by `TestImportCycleStepBudgetCoversMeasuredCorpusShapes`
-and the walk tests, at the maximum `max_cycle_length` of 8:
+Step counts at the maximum `max_cycle_length` of 8. Every graph below is a
+model; no real corpus edge list was walked (none is available on this machine,
+and probing a production cluster is out of bounds for this lane). The corpus
+figures used to size the models (4,522 edges over 626 files, of which 172
+resolved in-repo) are as reported on #6851 and were not re-verified here:
 
 | Shape | Steps examined | Stop |
 | --- | --- | --- |
-| Largest measured Python corpus: 626 files, 172 imports resolved in-repo (worst of 200 random placements) | 9 | none |
+| Uniform random placement of the largest measured Python corpus shape (626 files, 172 in-repo edges), worst of 200 placements | 9 | none |
+| Package-clustered model: 626 files, packages of 16, 2 in-package imports per file | 8,101 | none |
+| Package-clustered model: 626 files, packages of 16, 4 in-package imports per file | 16,791 | cycle_cap |
+| Package-clustered model: 626 files, packages of 40, 5 in-package imports per file | 38,268 | cycle_cap |
 | Layered DAG, 12 layers of 4 files (about 16.7 million paths), before the component filter | 1,514,544 | none |
 | Same DAG after the component filter | 0 | none |
-| 626 files, all 4,522 imports resolved (stress, not a measurement) | 250,000 | step_budget |
-| 626 files, 25,000 edges (scan-limit stress) | 250,000 | step_budget |
+| Uniform random, 626 files, all 4,522 imports resolved (stress) | 250,000 | step_budget |
+| Uniform random, 626 files, 25,000 edges (scan-limit stress) | 250,000 | step_budget |
 
-Budget value: 250,000 steps. Coverage: the measured corpus needs at most 9 steps,
-four orders of magnitude below it. Wall time: `BenchmarkEnumerateImportCyclesDenseComponent`
-measured about 530 ns per examined hop (three runs, 531 to 549 ns) on the
-development laptop, putting 250,000 steps near 130 ms against a 250 ms ceiling.
-The provisional value of 1,000,000 was rejected on this evidence, because it would
-exceed the ceiling at that cost per hop.
+The two stress rows stop at the budget by construction. When the budget was still
+1,000,000 during derivation those two shapes were observed once to need 371,366
+and 604,605 steps before the cycle cap; that output is not asserted by any test
+and is recorded only as where the value came from.
+
+Budget value: 250,000 steps, set by the wall-time ceiling and not by a measured
+coverage margin. `BenchmarkEnumerateImportCyclesDenseComponent` measured about
+530 ns per examined hop (three runs, 531 to 549 ns) on the development laptop,
+putting 250,000 steps near 130 ms against a 250 ms ceiling. The provisional value
+of 1,000,000 was rejected on this evidence: it would exceed the ceiling at that
+cost per hop.
+
+Coverage is modelled, not established. The uniform placement needs at most 9
+steps, but it has almost no strongly connected component and says little about
+real graphs. The clustered models are the more relevant ones: the budget sits
+6.5 times above the densest of them, and their cycle cap (1,000 cycles) bites
+before the budget does. No margin over a real corpus is claimed.
 
 Timing is NOT_CHECKED on a valid test bed. The ns/step figure came from a shared,
 contended laptop (load average near 25 during the neighbouring benchmark runs) and
@@ -92,7 +109,10 @@ cross-component parts of a graph.
 
 The `query.import_dependency_investigation` span gains `eshu.import_dependencies.has_more`
 and, for `file_import_cycles`, `eshu.import_dependencies.cycle_stop_reason`
-(`none`, `cycle_cap`, or `step_budget`), read from the response coverage. The
+(`none`, `cycle_cap`, or `step_budget`, read from the response coverage) and
+`eshu.import_dependencies.cycle_steps_examined`. The steps examined let an operator
+see a request approach its budget before it becomes a stop; a handler test drives
+the real route and asserts all three, and fails if the steps attribute is removed. The
 response carries `coverage.cycle_enumeration_stop_reason` and
 `coverage.cycle_enumeration_step_budget`, so a partial list says why it is
 partial and an operator can see a step-budget stop in the trace without reading
