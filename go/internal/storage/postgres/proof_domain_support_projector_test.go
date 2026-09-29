@@ -70,8 +70,9 @@ func runProofProjectorCycleWithWriters(
 			IntentWriter:    ReducerQueue{database: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute, Now: func() time.Time { return now }},
 			RetryInjector:   retryInjector,
 		},
-		WorkSink: projectorQueue,
-		Wait:     func(context.Context, time.Duration) error { return context.Canceled },
+		WorkSink:           projectorQueue,
+		DeltaBaselineFence: projectorQueue,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := projectorService.Run(context.Background()); err != nil {

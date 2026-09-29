@@ -47,11 +47,12 @@ func TestServiceRunKeepsWorkersAfterClaimConflict(t *testing.T) {
 			t.Parallel()
 			source := &conflictingWorkSource{conflicts: 2 * workers}
 			service := Service{
-				Workers:    workers,
-				WorkSource: source,
-				FactStore:  &stubFactStore{},
-				Runner:     &stubProjectionRunner{},
-				WorkSink:   &stubProjectorWorkSink{},
+				Workers:            workers,
+				WorkSource:         source,
+				FactStore:          &stubFactStore{},
+				Runner:             &stubProjectionRunner{},
+				WorkSink:           &stubProjectorWorkSink{},
+				DeltaBaselineFence: &fakeDeltaBaselineFence{},
 				// Stop only after every scripted conflict has been seen,
 				// proving a conflict does not end the run.
 				Wait: func(context.Context, time.Duration) error {
@@ -78,12 +79,13 @@ func TestServiceRunStillStopsOnNonConflictClaimError(t *testing.T) {
 	wantErr := errors.New("claim projector work: relation does not exist")
 	for _, workers := range []int{1, 2} {
 		service := Service{
-			Workers:    workers,
-			WorkSource: claimErrorSource{err: wantErr},
-			FactStore:  &stubFactStore{},
-			Runner:     &stubProjectionRunner{},
-			WorkSink:   &stubProjectorWorkSink{},
-			Wait:       func(context.Context, time.Duration) error { return nil },
+			Workers:            workers,
+			WorkSource:         claimErrorSource{err: wantErr},
+			FactStore:          &stubFactStore{},
+			Runner:             &stubProjectionRunner{},
+			WorkSink:           &stubProjectorWorkSink{},
+			DeltaBaselineFence: &fakeDeltaBaselineFence{},
+			Wait:               func(context.Context, time.Duration) error { return nil },
 		}
 		if err := service.Run(context.Background()); !errors.Is(err, wantErr) {
 			t.Fatalf("workers=%d Run() error = %v, want %v", workers, err, wantErr)

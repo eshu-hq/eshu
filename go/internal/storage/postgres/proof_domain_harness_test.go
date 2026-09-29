@@ -169,6 +169,8 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 
 func (database *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
+	case query == deltaBaselineFenceQuery:
+		return newProofRows(proofDeltaBaselineFenceRows(database.state, args)), nil
 	case strings.Contains(query, "SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')"):
 		if len(args) != 1 {
 			return nil, fmt.Errorf("active generation freshness args = %d, want 1", len(args))

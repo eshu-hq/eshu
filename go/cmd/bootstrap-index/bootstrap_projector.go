@@ -51,6 +51,7 @@ func drainProjector(
 	factStore projector.FactStore,
 	runner projector.ProjectionRunner,
 	workSink projector.ProjectorWorkSink,
+	baselineFence projector.DeltaBaselineFence,
 	heartbeater projector.ProjectorWorkHeartbeater,
 	heartbeatInterval time.Duration,
 	workers int,
@@ -58,8 +59,11 @@ func drainProjector(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) error {
+	if baselineFence == nil { // #7319: never project unfenced.
+		return errors.New("bootstrap projector: delta baseline fence is required")
+	}
 	if workers <= 1 {
-		return drainProjectorSequential(ctx, workSource, factStore, runner, workSink, heartbeater, heartbeatInterval, tracer, instruments, logger)
+		return drainProjectorSequential(ctx, workSource, factStore, runner, workSink, baselineFence, heartbeater, heartbeatInterval, tracer, instruments, logger)
 	}
 
 	overallStart := time.Now()
@@ -85,7 +89,7 @@ func drainProjector(
 				}
 
 				if err := drainProjectorWorkItem(
-					ctx, workSource, factStore, runner, workSink,
+					ctx, workSource, factStore, runner, workSink, baselineFence,
 					heartbeater, heartbeatInterval,
 					workerID, &completed, tracer, instruments, logger,
 				); err != nil {
@@ -188,6 +192,7 @@ func drainProjectorWorkItem(
 	factStore projector.FactStore,
 	runner projector.ProjectionRunner,
 	workSink projector.ProjectorWorkSink,
+	baselineFence projector.DeltaBaselineFence,
 	heartbeater projector.ProjectorWorkHeartbeater,
 	heartbeatInterval time.Duration,
 	workerID int,
@@ -220,6 +225,11 @@ func drainProjectorWorkItem(
 		)
 	}
 
+	if handled, err := preflightBootstrapDeltaBaseline(
+		itemCtx, baselineFence, workSink, work, workerID, itemStart, span, instruments, logger,
+	); handled {
+		return err
+	}
 	heartbeatCtx, stopHeartbeat := startBootstrapProjectorHeartbeat(
 		itemCtx,
 		work,
@@ -286,7 +296,8 @@ func drainProjectorWorkItem(
 	onDeferred := bootstrapAckDeferredLogger(itemCtx, work, workerID, logger)
 	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, instruments, work, result, 0, onDeferred); ackErr != nil {
 		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", span, logger) ||
-			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) {
+			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) ||
+			endRefusedBootstrapDelta(ackErr, span) {
 			return nil
 		}
 		if errors.Is(ackErr, failure.ErrWorkSuperseded) {
@@ -433,58 +444,5 @@ func recordBootstrapProjectionResult(
 			message = "bootstrap projection superseded by newer generation"
 		}
 		logger.InfoContext(ctx, message, logAttrs...)
-	}
-}
-
-// drainProjectorSequential is the single-worker fallback. It uses the same
-// per-item instrumentation as the concurrent path for consistent telemetry.
-func drainProjectorSequential(
-	ctx context.Context,
-	workSource projector.ProjectorWorkSource,
-	factStore projector.FactStore,
-	runner projector.ProjectionRunner,
-	workSink projector.ProjectorWorkSink,
-	heartbeater projector.ProjectorWorkHeartbeater,
-	heartbeatInterval time.Duration,
-	tracer trace.Tracer,
-	instruments *telemetry.Instruments,
-	logger *slog.Logger,
-) error {
-	var completed atomic.Int64
-	var failed atomic.Int64
-	overallStart := time.Now()
-	for {
-		err := drainProjectorWorkItem(
-			ctx, workSource, factStore, runner, workSink,
-			heartbeater, heartbeatInterval,
-			0, &completed, tracer, instruments, logger,
-		)
-		if err != nil {
-			if errors.Is(err, errProjectorItemFailed) {
-				failed.Add(1)
-				continue
-			}
-			if errors.Is(err, errProjectorDrained) {
-				totalFailed := failed.Load()
-				if logger != nil {
-					logger.InfoContext(
-						ctx, "bootstrap projection complete",
-						slog.Int64("items_projected", completed.Load()),
-						slog.Int64("items_failed", totalFailed),
-						slog.Int("workers", 1),
-						slog.Float64("total_duration_seconds", time.Since(overallStart).Seconds()),
-						telemetry.PhaseAttr(telemetry.PhaseProjection),
-					)
-				}
-				if totalFailed > 0 {
-					return fmt.Errorf(
-						"bootstrap projection incomplete: %d work item(s) failed and were routed to retry/dead-letter; graph truth is not fully materialized",
-						totalFailed,
-					)
-				}
-				return nil
-			}
-			return err
-		}
 	}
 }

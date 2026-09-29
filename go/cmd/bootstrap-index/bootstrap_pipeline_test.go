@@ -50,10 +50,11 @@ func TestPipelinedBootstrapProjectsDuringCollection(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     tracker,
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        tracker,
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -99,10 +100,11 @@ func TestPipelinedBootstrapDrainsQueueAfterCollectorExits(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -125,10 +127,11 @@ func TestPipelinedBootstrapExitsCleanlyWhenQueueEmpty(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	start := time.Now()
@@ -157,10 +160,11 @@ func TestPipelinedBootstrapCollectorErrorCancelsProjector(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -182,10 +186,11 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	err := runPipelined(context.Background(), cd, pd, 2, nil, nil, nil)
@@ -225,10 +230,11 @@ func TestPipelinedBootstrapBackfillFailureIsFatal(t *testing.T) {
 		context.Background(),
 		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
 		projectorDeps{
-			workSource: &concurrentWorkSource{items: nil},
-			factStore:  &fakeFactStore{},
-			runner:     &fakeProjectionRunner{},
-			workSink:   &concurrentWorkSink{},
+			workSource:    &concurrentWorkSource{items: nil},
+			factStore:     &fakeFactStore{},
+			runner:        &fakeProjectionRunner{},
+			workSink:      &concurrentWorkSink{},
+			baselineFence: passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -256,10 +262,11 @@ func TestPipelinedBootstrapIaCReachabilityFailureIsFatal(t *testing.T) {
 		context.Background(),
 		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
 		projectorDeps{
-			workSource: &concurrentWorkSource{items: nil},
-			factStore:  &fakeFactStore{},
-			runner:     &fakeProjectionRunner{},
-			workSink:   &concurrentWorkSink{},
+			workSource:    &concurrentWorkSource{items: nil},
+			factStore:     &fakeFactStore{},
+			runner:        &fakeProjectionRunner{},
+			workSink:      &concurrentWorkSink{},
+			baselineFence: passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -287,10 +294,11 @@ func TestPipelinedBootstrapReopenFailureIsFatal(t *testing.T) {
 		context.Background(),
 		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
 		projectorDeps{
-			workSource: &concurrentWorkSource{items: nil},
-			factStore:  &fakeFactStore{},
-			runner:     &fakeProjectionRunner{},
-			workSink:   &concurrentWorkSink{},
+			workSource:    &concurrentWorkSource{items: nil},
+			factStore:     &fakeFactStore{},
+			runner:        &fakeProjectionRunner{},
+			workSink:      &concurrentWorkSink{},
+			baselineFence: passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -320,10 +328,11 @@ func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
 		context.Background(),
 		collectorDeps{source: &fakeSource{generations: nil}, committer: committer},
 		projectorDeps{
-			workSource: &concurrentWorkSource{items: nil},
-			factStore:  &fakeFactStore{},
-			runner:     &fakeProjectionRunner{},
-			workSink:   &concurrentWorkSink{},
+			workSource:    &concurrentWorkSource{items: nil},
+			factStore:     &fakeFactStore{},
+			runner:        &fakeProjectionRunner{},
+			workSink:      &concurrentWorkSink{},
+			baselineFence: passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -356,9 +365,10 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 					{Scope: scope.IngestionScope{ScopeID: "s1"}},
 				},
 			},
-			factStore: &fakeFactStore{},
-			runner:    &delayedProjectionRunner{delay: 50 * time.Millisecond},
-			workSink:  sink,
+			factStore:     &fakeFactStore{},
+			runner:        &delayedProjectionRunner{delay: 50 * time.Millisecond},
+			workSink:      sink,
+			baselineFence: passBootstrapBaselineFence{},
 		},
 		2,
 		nil,
@@ -399,6 +409,7 @@ func TestPipelinedBootstrapHeartbeatsLongProjectorWork(t *testing.T) {
 				factStore:         &fakeFactStore{},
 				runner:            &blockingProjectionRunner{started: started, release: release},
 				workSink:          &concurrentWorkSink{},
+				baselineFence:     passBootstrapBaselineFence{},
 				heartbeater:       heartbeater,
 				heartbeatInterval: time.Millisecond,
 			},

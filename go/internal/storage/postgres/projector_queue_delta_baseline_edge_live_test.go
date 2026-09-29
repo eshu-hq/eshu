@@ -1,0 +1,264 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
+)
+
+// assertFenceCounter checks eshu_dp_projector_delta_baseline_fence_total has
+// exactly one point with the phase and outcome, or none when outcome is "".
+func assertFenceCounter(t *testing.T, reader sdkmetric.Reader, phase, outcome string) {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	total := counterTotal(rm, "eshu_dp_projector_delta_baseline_fence_total")
+	if outcome == "" {
+		if total != 0 {
+			t.Fatalf("fence counter = %d, want 0", total)
+		}
+		return
+	}
+	assertCounterPresentWithLabels(t, rm, "eshu_dp_projector_delta_baseline_fence_total",
+		map[string]string{"phase": phase, "outcome": outcome})
+	if total != 1 {
+		t.Fatalf("fence counter = %d, want 1", total)
+	}
+}
+
+// TestProjectorDeltaBaselinePreflightLive runs the shared preflight against
+// Postgres: a refusal marks with the preflight class and writes nothing else;
+// a pass writes nothing and counts nothing.
+func TestProjectorDeltaBaselinePreflightLive(t *testing.T) {
+	dsn := proofDSN(t)
+	t.Run("refused", func(t *testing.T) {
+		database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
+		queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+		instruments, reader := newEnqueueInstruments(t)
+		err := projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), instruments, nil)
+		if !projector.IsDeltaBaselineRefusal(err) {
+			t.Fatalf("PreflightDeltaBaseline() = %v, want a delta-baseline refusal", err)
+		}
+		assertFenceRefused(t, readFenceState(t, database, "gen-d"), projector.DeltaBaselinePhasePreflight, "gen-b", "A", "B")
+		assertFenceCounter(t, reader, projector.DeltaBaselinePhasePreflight, "refused_active_differs")
+	})
+	t.Run("matched", func(t *testing.T) {
+		database := provisionFenceProof(t, dsn, "gen-a", []fenceGen{genActiveA, pendingDelta("A")}, "gen-d")
+		queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+		instruments, reader := newEnqueueInstruments(t)
+		if err := projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), instruments, nil); err != nil {
+			t.Fatalf("PreflightDeltaBaseline() = %v, want nil", err)
+		}
+		if got := readFenceState(t, database, "gen-d"); got.work != "running" || got.target != "pending" || got.pointer != "gen-a" {
+			t.Fatalf("state after pass = %+v, want untouched", got)
+		}
+		assertFenceCounter(t, reader, projector.DeltaBaselinePhasePreflight, "")
+	})
+	// #7319 P1: a target already superseded by a newer generation's
+	// activation is routine projector lag, not an invariant breach (see
+	// TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough for
+	// the Ack-side counterpart). Preflight must proceed exactly as it would
+	// for a full generation raced this way, and mark nothing.
+	t.Run("target already superseded", func(t *testing.T) {
+		superseded := fenceGen{id: "gen-d", commit: "D", status: "superseded", isDelta: true, baseline: "A", minutesAgo: 5}
+		database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, superseded}, "gen-d")
+		queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+		instruments, reader := newEnqueueInstruments(t)
+		if err := projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), instruments, nil); err != nil {
+			t.Fatalf("PreflightDeltaBaseline() = %v, want nil", err)
+		}
+		if got := readFenceState(t, database, "gen-d"); got.work != "running" || got.target != "superseded" || got.pointer != "gen-b" || got.class != "" {
+			t.Fatalf("state after pass = %+v, want untouched (no delta-baseline mark)", got)
+		}
+		assertFenceCounter(t, reader, projector.DeltaBaselinePhasePreflight, "")
+	})
+}
+
+// TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough is the
+// #7319 P1 fix: worker B claims delta gen-d (baseline A), G2 (gen-b, commit B)
+// activates normally and gen-d's own scope_generations row is already
+// superseded by the time B reaches Ack -- projector lag, not an invariant
+// breach. DecideDeltaBaseline must not refuse it as
+// projector_delta_baseline_mismatch_after_projection (ERROR, "two claims were
+// valid in one scope"); Ack's own activation predicate (status <> 'superseded')
+// already refuses an already-superseded target through the pre-existing,
+// correctly-classified superseded-generation path (refuseSupersededAck, INFO,
+// projector_ack_generation_superseded), exactly as it would for a raced full
+// generation.
+func TestProjectorDeltaBaselineAckTargetAlreadySupersededPassesThrough(t *testing.T) {
+	dsn := proofDSN(t)
+	superseded := fenceGen{id: "gen-d", commit: "D", status: "superseded", isDelta: true, baseline: "A", minutesAgo: 5}
+	database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, superseded}, "gen-d")
+	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	instruments, reader := newEnqueueInstruments(t)
+	queue.Instruments = instruments
+
+	err := queue.Ack(context.Background(), fenceWork("gen-d"), runtime.Result{})
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("Ack() = %v, want ErrWorkSuperseded", err)
+	}
+	if projector.IsDeltaBaselineRefusal(err) {
+		t.Fatalf("Ack() = %v, must not be classified as a delta-baseline refusal", err)
+	}
+	got := readFenceState(t, database, "gen-d")
+	if got.work != "superseded" || got.target != "superseded" || got.pointer != "gen-b" || got.active != "gen-b" ||
+		got.class != projectorAckGenerationSupersededClass {
+		t.Fatalf("state = %+v, want work+target superseded, class %s, pointer/active gen-b",
+			got, projectorAckGenerationSupersededClass)
+	}
+	// The delta-baseline fence never decided this case: it is not counted on
+	// eshu_dp_projector_delta_baseline_fence_total at either phase.
+	assertFenceCounter(t, reader, projector.DeltaBaselinePhaseAck, "")
+}
+
+// TestProjectorDeltaBaselineAckLeaseLostBeforeMark reclaims the work row
+// between Ack's rollback and its mark. The mark's claim fences match nothing,
+// Ack reports a lost claim, and the new owner's row is untouched.
+func TestProjectorDeltaBaselineAckLeaseLostBeforeMark(t *testing.T) {
+	database := provisionFenceProof(t, proofDSN(t), "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
+	hook := &markHookDB{SQLDB: SQLDB{DB: database}, before: func() error {
+		_, err := database.ExecContext(context.Background(),
+			`UPDATE fact_work_items SET lease_owner = 'other-worker', attempt_count = attempt_count + 1 WHERE generation_id = 'gen-d'`)
+		return err
+	}}
+	queue := NewProjectorQueue(hook, "proof-worker", time.Minute)
+	instruments, reader := newEnqueueInstruments(t)
+	queue.Instruments = instruments
+	if err := queue.Ack(context.Background(), fenceWork("gen-d"), runtime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+		t.Fatalf("Ack() = %v, want ErrProjectorClaimRejected", err)
+	}
+	var owner string
+	if err := database.QueryRowContext(context.Background(),
+		"SELECT lease_owner FROM fact_work_items WHERE generation_id = 'gen-d'").Scan(&owner); err != nil {
+		t.Fatalf("read owner: %v", err)
+	}
+	got := readFenceState(t, database, "gen-d")
+	if got.work != "running" || owner != "other-worker" || got.target != "pending" || got.pointer != "gen-b" {
+		t.Fatalf("state = %+v owner %s; want the new owner's running row, gen-d pending, gen-b published", got, owner)
+	}
+	assertFenceCounter(t, reader, projector.DeltaBaselinePhaseAck, "")
+}
+
+// TestProjectorDeltaBaselineMarkFailureConverges fails Ack's mark once. The
+// Ack rolled back, so nothing moved; the next attempt's preflight refuses and
+// marks the delta.
+func TestProjectorDeltaBaselineMarkFailureConverges(t *testing.T) {
+	database := provisionFenceProof(t, proofDSN(t), "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
+	hook := &markHookDB{SQLDB: SQLDB{DB: database}, before: func() error { return errors.New("injected mark failure") }}
+	err := NewProjectorQueue(hook, "proof-worker", time.Minute).Ack(context.Background(), fenceWork("gen-d"), runtime.Result{})
+	if err == nil || errors.Is(err, failure.ErrWorkSuperseded) || errors.Is(err, ErrProjectorClaimRejected) {
+		t.Fatalf("Ack() with failed mark = %v, want a plain error", err)
+	}
+	if got := readFenceState(t, database, "gen-d"); got.work != "running" || got.target != "pending" || got.pointer != "gen-b" {
+		t.Fatalf("state after failed mark = %+v, want the Ack rolled back", got)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	if err := projector.PreflightDeltaBaseline(context.Background(), queue, fenceWork("gen-d"), nil, nil); !projector.IsDeltaBaselineRefusal(err) {
+		t.Fatalf("next attempt preflight = %v, want a refusal", err)
+	}
+	assertFenceRefused(t, readFenceState(t, database, "gen-d"), projector.DeltaBaselinePhasePreflight, "gen-b", "A", "B")
+}
+
+// TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow holds the scope row
+// the way an ingestion commit does. The preflight read and the refusal mark
+// must finish without waiting for it. The proof is the lock itself, not wall
+// time: the preflight session runs with a 50 ms lock_timeout, so any lock wait
+// raises 55P03 and turns the refusal into a retryable error.
+func TestProjectorDeltaBaselineReadAndMarkNeverWaitOnScopeRow(t *testing.T) {
+	if err := preflightUnderHeldScopeRow(t, func(queue ProjectorQueue, _ *sql.DB) projector.DeltaBaselineFence {
+		return queue
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestPreflightUnderHeldScopeRowCatchesALockWait is the planted RED for the
+// check above: a fence that takes the held scope row (FOR SHARE conflicts
+// with the holder's FOR NO KEY UPDATE) must fail the check with 55P03.
+func TestPreflightUnderHeldScopeRowCatchesALockWait(t *testing.T) {
+	err := preflightUnderHeldScopeRow(t, func(queue ProjectorQueue, database *sql.DB) projector.DeltaBaselineFence {
+		return scopeLockingFence{ProjectorQueue: queue, database: database}
+	})
+	if err == nil {
+		t.Fatal("a fence that waits on the scope row passed the no-wait check")
+	}
+	if !coordination.IsLockNotAvailable(err) {
+		t.Fatalf("check failed for %v, want the 55P03 lock timeout", err)
+	}
+}
+
+// preflightUnderHeldScopeRow holds the scope row in another session and runs
+// the preflight of the fence build returns on a session with a 50 ms
+// lock_timeout. It returns nil only when the preflight refused the delta.
+func preflightUnderHeldScopeRow(
+	t *testing.T,
+	build func(ProjectorQueue, *sql.DB) projector.DeltaBaselineFence,
+) error {
+	t.Helper()
+	dsn := proofDSN(t)
+	database := provisionFenceProof(t, dsn, "gen-b", []fenceGen{genActiveB, pendingDelta("A")}, "gen-d")
+	holder := searchPathPeer(t, dsn, database)
+	holdTx, err := holder.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = holdTx.Rollback() }()
+	if _, err := holdTx.ExecContext(context.Background(),
+		"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE", fenceProofScope); err != nil {
+		t.Fatalf("hold scope row: %v", err)
+	}
+	if _, err := database.ExecContext(context.Background(), "SET lock_timeout = '50ms'"); err != nil {
+		t.Fatalf("set lock_timeout: %v", err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: database}, "proof-worker", time.Minute)
+	err = projector.PreflightDeltaBaseline(context.Background(), build(queue, database), fenceWork("gen-d"), nil, nil)
+	if !projector.IsDeltaBaselineRefusal(err) {
+		return fmt.Errorf("preflight under a held scope row = %w, want a refusal", err)
+	}
+	return nil
+}
+
+// scopeLockingFence is the planted violation: its read first locks the scope
+// row, which the holder has, so it waits.
+type scopeLockingFence struct {
+	ProjectorQueue
+	database *sql.DB
+}
+
+func (f scopeLockingFence) ReadDeltaBaseline(ctx context.Context, work projector.ScopeGenerationWork) (projector.DeltaBaselineState, error) {
+	if _, err := f.database.ExecContext(ctx,
+		"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR SHARE", work.Scope.ScopeID); err != nil {
+		return projector.DeltaBaselineState{}, err
+	}
+	return f.ProjectorQueue.ReadDeltaBaseline(ctx, work)
+}
+
+// searchPathPeer opens a second connection on the proof schema of database.
+func searchPathPeer(t *testing.T, dsn string, database *sql.DB) *sql.DB {
+	t.Helper()
+	var searchPath string
+	if err := database.QueryRowContext(context.Background(), "SHOW search_path").Scan(&searchPath); err != nil {
+		t.Fatalf("read search_path: %v", err)
+	}
+	peer := openLivenessProofDB(t, dsn)
+	if _, err := peer.ExecContext(context.Background(), "SET search_path TO "+searchPath); err != nil {
+		t.Fatalf("set peer search_path: %v", err)
+	}
+	return peer
+}

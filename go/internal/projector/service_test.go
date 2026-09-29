@@ -63,12 +63,13 @@ func TestServiceRunClaimsLoadsProjectsAndAcknowledges(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   source,
-		FactStore:    factStore,
-		Runner:       runner,
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         source,
+		FactStore:          factStore,
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -120,12 +121,13 @@ func TestServiceRunTreatsRetriedFirstGenerationAsCleanupRequired(t *testing.T) {
 		},
 	}
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:    &stubFactStore{},
-		Runner:       runner,
-		WorkSink:     &stubProjectorWorkSink{},
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             runner,
+		WorkSink:           &stubProjectorWorkSink{},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -174,9 +176,10 @@ func TestServiceRunLogsFactLoadAndProjectionStages(t *testing.T) {
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		}},
-		WorkSink: &stubProjectorWorkSink{},
-		Wait:     func(context.Context, time.Duration) error { return context.Canceled },
-		Logger:   slog.New(slog.NewJSONHandler(&logs, nil)),
+		WorkSink:           &stubProjectorWorkSink{},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -219,12 +222,13 @@ func TestServiceRunMarksFailureWhenProjectionFails(t *testing.T) {
 
 	wantErr := errors.New("projection failed")
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:    &stubFactStore{},
-		Runner:       &stubProjectionRunner{runErr: wantErr},
-		WorkSink:     &stubProjectorWorkSink{},
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             &stubProjectionRunner{runErr: wantErr},
+		WorkSink:           &stubProjectorWorkSink{},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	sink := service.WorkSink.(*stubProjectorWorkSink)
@@ -276,14 +280,15 @@ func TestServiceRunHeartbeatsLongRunningProjection(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:         &stubFactStore{},
-		Runner:            runner,
-		WorkSink:          sink,
-		Heartbeater:       heartbeater,
-		HeartbeatInterval: 5 * time.Millisecond,
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        heartbeater,
+		HeartbeatInterval:  5 * time.Millisecond,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -333,14 +338,15 @@ func TestServiceRunStopsWhenHeartbeatLosesLease(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:         &stubFactStore{},
-		Runner:            runner,
-		WorkSink:          sink,
-		Heartbeater:       heartbeater,
-		HeartbeatInterval: 5 * time.Millisecond,
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        heartbeater,
+		HeartbeatInterval:  5 * time.Millisecond,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	err := service.Run(context.Background())
@@ -390,14 +396,15 @@ func TestServiceRunAcksWithLiveContextAfterHeartbeatStops(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:         &stubFactStore{},
-		Runner:            runner,
-		WorkSink:          sink,
-		Heartbeater:       heartbeater,
-		HeartbeatInterval: 5 * time.Millisecond,
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        heartbeater,
+		HeartbeatInterval:  5 * time.Millisecond,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -654,15 +661,16 @@ func TestServiceRunWithTelemetry(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   source,
-		FactStore:    factStore,
-		Runner:       runner,
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
-		Tracer:       tracer,
-		Instruments:  instruments,
-		Logger:       logger,
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         source,
+		FactStore:          factStore,
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Tracer:             tracer,
+		Instruments:        instruments,
+		Logger:             logger,
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -795,13 +803,14 @@ func TestServiceRunConcurrentMultipleItems(t *testing.T) {
 	sink := &stubProjectorWorkSink{}
 
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   source,
-		FactStore:    factStore,
-		Runner:       runner,
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
-		Workers:      3,
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         source,
+		FactStore:          factStore,
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Workers:            3,
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -935,13 +944,14 @@ func TestServiceRunConcurrentErrorCancelsWorkers(t *testing.T) {
 	sink := &stubProjectorWorkSink{failAfter: 2}
 
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   source,
-		FactStore:    factStore,
-		Runner:       runner,
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
-		Workers:      3,
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         source,
+		FactStore:          factStore,
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Workers:            3,
 	}
 
 	err := service.Run(context.Background())
@@ -1060,6 +1070,7 @@ func TestLargeGenSemaphoreLimitsConcurrency(t *testing.T) {
 		FactStore:             &stubFactStore{},
 		Runner:                runner,
 		WorkSink:              &stubProjectorWorkSink{},
+		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:               3,
 		FactCounter:           counter,
@@ -1130,6 +1141,7 @@ func TestSmallGenBypassesSemaphore(t *testing.T) {
 		FactStore:             &stubFactStore{},
 		Runner:                runner,
 		WorkSink:              &stubProjectorWorkSink{},
+		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:               3,
 		FactCounter:           counter,
@@ -1185,6 +1197,7 @@ func TestLargeGenSemaphoreSkipsOnCountError(t *testing.T) {
 		FactStore:             &stubFactStore{facts: []facts.Envelope{{FactID: "f1", ScopeID: "scope-123", GenerationID: "generation-456", FactKind: "source_node"}}},
 		Runner:                &stubProjectionRunner{result: runtime.Result{ScopeID: "scope-123", GenerationID: "generation-456"}},
 		WorkSink:              &stubProjectorWorkSink{},
+		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		FactCounter:           counter,
 		LargeGenThreshold:     1,

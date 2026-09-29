@@ -234,6 +234,16 @@ func (q ProjectorQueue) Ack(
 	if ackRows != 1 {
 		return fmt.Errorf("ack projector work: %w", ErrProjectorClaimRejected)
 	}
+	// #7319: its own statement, after the scope lock returned, before any
+	// statement that changes another generation (see deltaBaselineFenceQuery).
+	baselineFence, err := checkAckDeltaBaseline(ctx, tx, work)
+	if err != nil {
+		return err
+	}
+	if baselineFence.outcome.Refused() {
+		txDone = true // refuseDeltaBaselineAck rolls the transaction back.
+		return q.refuseDeltaBaselineAck(ctx, tx, work, baselineFence, now)
+	}
 	steps := []struct {
 		query string
 		op    string
@@ -267,6 +277,7 @@ func (q ProjectorQueue) Ack(
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
 	txDone = true
+	projector.RecordDeltaBaselineFence(ctx, q.Instruments, projector.DeltaBaselinePhaseAck, baselineFence.outcome)
 
 	q.runCrossplaneRedriveHook(ctx, work)
 	q.runConfigStateDriftTriggerHook(ctx, work)

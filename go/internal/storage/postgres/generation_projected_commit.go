@@ -29,10 +29,16 @@ const lastProjectedCommitSHAQuery = `
 SELECT source_commit_sha
 FROM scope_generations
 WHERE scope_id = $1
-  AND status = 'active'
-  AND activated_at IS NOT NULL
+  AND ` + activeGenerationPredicate + `
 LIMIT 1
 `
+
+// activeGenerationPredicate selects a scope's active generation. The delta
+// baseline read above and the projector's delta-baseline fence
+// (deltaBaselineFenceQuery, #7319) share it, so the commit a delta is diffed
+// from and the commit the fence compares it with come from the same rule.
+const activeGenerationPredicate = `status = 'active'
+  AND activated_at IS NOT NULL`
 
 // LastProjectedCommitSHA returns the source commit SHA of the active generation
 // for scopeID, or an empty string when the scope has no active generation or

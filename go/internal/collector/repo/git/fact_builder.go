@@ -77,6 +77,9 @@ func buildStreamingGenerationWithContext(
 		snapshot.HeadCommitSHA,
 		snapshot.Delta,
 	)
+	if snapshot.Delta {
+		generation.DeltaBaselineCommitSHA = snapshot.DeltaBaselineCommitSHA
+	}
 	contentFileCount := len(snapshot.ContentFiles)
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)

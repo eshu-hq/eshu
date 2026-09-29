@@ -1529,6 +1529,13 @@ type Instruments struct {
 	// superseded-generation work reached a worker.
 	SupersededGenerationFence metric.Int64Counter
 
+	// ProjectorDeltaBaselineFence counts delta-baseline fence decisions
+	// (#7319), labeled by phase (preflight, ack) and a closed outcome:
+	// matched, unfenced, already_active, refused_active_differs,
+	// refused_no_active. Passes count once, at Ack; preflight counts only
+	// refusals. Full generations are not counted.
+	ProjectorDeltaBaselineFence metric.Int64Counter
+
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
 	// one of the four handler-wide relationship source-tool breakdown permits.
 	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the
@@ -4648,6 +4655,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerChangedSinceLinkInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
 		return nil, err
 	}
 

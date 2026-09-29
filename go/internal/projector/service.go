@@ -73,12 +73,13 @@ type FactCounter interface {
 
 // Service coordinates the projector work loop without owning projection logic.
 type Service struct {
-	PollInterval time.Duration
-	WorkSource   ProjectorWorkSource
-	FactStore    FactStore
-	Runner       ProjectionRunner
-	WorkSink     ProjectorWorkSink
-	Heartbeater  ProjectorWorkHeartbeater
+	PollInterval       time.Duration
+	WorkSource         ProjectorWorkSource
+	FactStore          FactStore
+	Runner             ProjectionRunner
+	WorkSink           ProjectorWorkSink
+	Heartbeater        ProjectorWorkHeartbeater
+	DeltaBaselineFence DeltaBaselineFence // required; processWork runs it before anything else (#7319)
 	// HeartbeatInterval controls how often a claimed projector work item renews
 	// its lease while projection is still running. Zero means no heartbeats.
 	HeartbeatInterval time.Duration
@@ -230,6 +231,9 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		var span trace.Span
 		workCtx, span = s.Tracer.Start(workCtx, telemetry.SpanProjectorRun)
 		defer span.End()
+	}
+	if handled, err := s.preflightDeltaBaseline(workCtx, work, start, workerID); handled {
+		return err
 	}
 
 	projectCtx, stopHeartbeat := s.startHeartbeat(workCtx, work, workerID)
@@ -464,7 +468,9 @@ func (s Service) validate() error {
 	if s.WorkSink == nil {
 		return errors.New("work sink is required")
 	}
-
+	if s.DeltaBaselineFence == nil {
+		return errDeltaBaselineFenceMissing
+	}
 	return nil
 }
 

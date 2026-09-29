@@ -291,6 +291,11 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 		// Claim() with `relation "projector_scope_claim_fences" does not exist`.
 		MigrationSQL("projector_scope_claim_fences"),
 		MigrationSQL("scope_generations"),
+		// migration 148 (#7319): scope_generations.delta_baseline_commit_sha,
+		// read by the Ack/preflight delta-baseline fence. A fixture that
+		// applies the base table without this ALTER makes every fenced Ack
+		// fail with `column target.delta_baseline_commit_sha does not exist`.
+		MigrationSQL("scope_generations_delta_baseline_commit_sha"),
 		MigrationSQL("fact_work_items"),
 		reducerClaimCapabilityColumnsSchemaSQL,
 		// migration 088 (#5848/#5837): fact_work_items.reopened_at, read by the

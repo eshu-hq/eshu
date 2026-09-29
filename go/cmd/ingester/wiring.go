@@ -287,12 +287,14 @@ func buildIngesterProjectorService(
 	}
 
 	svc := projector.Service{
-		PollInterval:          time.Second,
-		WorkSource:            projectorQueue,
-		FactStore:             postgres.NewFactStore(database),
-		Runner:                runner,
-		WorkSink:              projectorQueue,
-		Heartbeater:           projectorQueue,
+		PollInterval: time.Second,
+		WorkSource:   projectorQueue,
+		FactStore:    postgres.NewFactStore(database),
+		Runner:       runner,
+		WorkSink:     projectorQueue,
+		Heartbeater:  projectorQueue,
+		// #7319: the fence runs before every projection and inside Ack.
+		DeltaBaselineFence:    projectorQueue,
 		HeartbeatInterval:     projectorHeartbeatInterval(projectorQueue.LeaseDuration),
 		Tracer:                tracer,
 		Instruments:           instruments,

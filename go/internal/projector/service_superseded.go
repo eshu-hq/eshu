@@ -51,7 +51,11 @@ func (s Service) recordSupersededWork(
 		telemetry.FailureClassAttr(supersededFailureClass(heartbeatErr)),
 		log.Err(heartbeatErr),
 	)
-	s.Logger.InfoContext(context.WithoutCancel(ctx), "projector work superseded by newer generation", logAttrs...)
+	message := "projector work superseded by newer generation"
+	if IsDeltaBaselineRefusal(heartbeatErr) {
+		message = "projector work refused: delta baseline is not the active commit"
+	}
+	s.Logger.InfoContext(context.WithoutCancel(ctx), message, logAttrs...)
 	return true
 }
 

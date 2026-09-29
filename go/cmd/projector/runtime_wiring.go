@@ -100,17 +100,19 @@ func buildProjectorService(
 	}
 
 	return projector.Service{
-		PollInterval:      time.Second,
-		WorkSource:        projectorQueue,
-		FactStore:         postgres.NewFactStore(database),
-		Runner:            runner,
-		WorkSink:          projectorQueue,
-		Heartbeater:       projectorQueue,
-		HeartbeatInterval: projectorHeartbeatInterval(projectorQueue.LeaseDuration),
-		Tracer:            tracer,
-		Instruments:       instruments,
-		Logger:            logger,
-		Workers:           projectorWorkerCount(getenv),
+		PollInterval: time.Second,
+		WorkSource:   projectorQueue,
+		FactStore:    postgres.NewFactStore(database),
+		Runner:       runner,
+		WorkSink:     projectorQueue,
+		Heartbeater:  projectorQueue,
+		// #7319: the fence runs before every projection and inside Ack.
+		DeltaBaselineFence: projectorQueue,
+		HeartbeatInterval:  projectorHeartbeatInterval(projectorQueue.LeaseDuration),
+		Tracer:             tracer,
+		Instruments:        instruments,
+		Logger:             logger,
+		Workers:            projectorWorkerCount(getenv),
 	}, nil
 }
 

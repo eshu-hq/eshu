@@ -66,6 +66,16 @@ func validateGenerationInput(
 	if generation.IsTerminal() {
 		return fmt.Errorf("generation %q must not be terminal before projection", generation.GenerationID)
 	}
+	// #7319: the one choke point for every writer. A delta must record the
+	// commit it diffed from so the projector can fence it; a full generation
+	// has no baseline.
+	hasBaseline := strings.TrimSpace(generation.DeltaBaselineCommitSHA) != ""
+	if generation.IsDelta && !hasBaseline {
+		return fmt.Errorf("delta generation %q requires delta_baseline_commit_sha", generation.GenerationID)
+	}
+	if !generation.IsDelta && hasBaseline {
+		return fmt.Errorf("full generation %q must not carry delta_baseline_commit_sha", generation.GenerationID)
+	}
 
 	return nil
 }

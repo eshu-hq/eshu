@@ -48,6 +48,9 @@ type SelectedRepository struct {
 	GitRefs              []GitRef `json:"git_refs,omitempty"`
 	Delta                bool     `json:"delta,omitempty"`
 	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// DeltaBaselineCommitSHA is the commit a Delta selection was diffed from
+	// (#7319). Empty unless Delta is true.
+	DeltaBaselineCommitSHA string `json:"delta_baseline_commit_sha,omitempty"`
 	// Reconcile marks a forced full reconciliation observation whose generation
 	// must bypass the freshness-hint skip so it always re-projects and retracts
 	// any drift the delta path missed (epic #2340).
@@ -109,6 +112,9 @@ type RepositorySnapshot struct {
 	// DeletedRelativePaths holds repo-relative paths that disappeared between
 	// Git revisions and must be retracted from content and graph projections.
 	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// DeltaBaselineCommitSHA is the commit a Delta snapshot was diffed from
+	// (#7319). It becomes ScopeGeneration.DeltaBaselineCommitSHA.
+	DeltaBaselineCommitSHA string `json:"delta_baseline_commit_sha,omitempty"`
 	// Reconcile marks a forced full reconciliation snapshot. Its generation
 	// carries an empty freshness hint so the commit-time skip never elides it,
 	// guaranteeing a periodic full re-projection that retracts drift the delta

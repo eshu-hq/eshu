@@ -24,12 +24,13 @@ func TestServiceRunDoesNotFailWorkWhenShutdownCancelsLoad(t *testing.T) {
 
 	sink := &stubProjectorWorkSink{}
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
-		FactStore:    &stubFactStore{returnContextErr: true},
-		Runner:       &stubProjectionRunner{},
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
+		FactStore:          &stubFactStore{returnContextErr: true},
+		Runner:             &stubProjectionRunner{},
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(ctx); err != nil {
@@ -51,12 +52,13 @@ func TestServiceRunDoesNotFailWorkWhenShutdownCancelsProjection(t *testing.T) {
 
 	sink := &stubProjectorWorkSink{}
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
-		FactStore:    &stubFactStore{},
-		Runner:       &stubProjectionRunner{waitForContextCancellation: true},
-		WorkSink:     sink,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
+		FactStore:          &stubFactStore{},
+		Runner:             &stubProjectionRunner{waitForContextCancellation: true},
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(ctx); err != nil {
@@ -78,13 +80,14 @@ func TestServiceRunLogsShutdownCancellation(t *testing.T) {
 
 	var logs bytes.Buffer
 	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
-		FactStore:    &stubFactStore{returnContextErr: true},
-		Runner:       &stubProjectionRunner{},
-		WorkSink:     &stubProjectorWorkSink{},
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
-		Logger:       slog.New(slog.NewJSONHandler(&logs, nil)),
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{shutdownCanceledWork()}},
+		FactStore:          &stubFactStore{returnContextErr: true},
+		Runner:             &stubProjectionRunner{},
+		WorkSink:           &stubProjectorWorkSink{},
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
 
 	if err := service.Run(ctx); err != nil {
@@ -125,8 +128,9 @@ func TestServiceRunAcksSuccessfulProjectionAfterShutdownCancel(t *testing.T) {
 				cancel()
 			},
 		},
-		WorkSink: sink,
-		Wait:     func(context.Context, time.Duration) error { return context.Canceled },
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(ctx); err != nil {
@@ -162,8 +166,9 @@ func TestServiceRunAcksSuccessfulProjectionWhenShutdownCancelsDuringAck(t *testi
 				GenerationID: "generation-456",
 			},
 		},
-		WorkSink: sink,
-		Wait:     func(context.Context, time.Duration) error { return context.Canceled },
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(ctx); err != nil {

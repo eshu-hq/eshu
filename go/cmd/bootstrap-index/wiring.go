@@ -156,6 +156,7 @@ func buildBootstrapProjector(
 		workSink:          projectorQueue,
 		heartbeater:       projectorQueue,
 		heartbeatInterval: bootstrapProjectorHeartbeatInterval(projectorQueue.LeaseDuration),
+		baselineFence:     projectorQueue,
 	}, nil
 }
 

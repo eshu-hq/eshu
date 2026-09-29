@@ -144,10 +144,11 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 
 	cd := collectorDeps{source: source, committer: &fakeCommitter{}}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err != nil {
@@ -205,10 +206,11 @@ func TestRunPipelinedRecordsPhaseDurationOnError(t *testing.T) {
 	committer := &fakeCommitter{iacErr: errInjectedIaCFailure}
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	err = runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil)
@@ -270,10 +272,11 @@ func TestRunPipelinedProjectionPhaseExcludesBackfillWait(t *testing.T) {
 	committer := &fakeCommitter{backfillDelay: backfillDelay}
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err != nil {
@@ -323,10 +326,11 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 	committer := &fakeCommitter{reopenErr: errInjected("injected reopen failure")}
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err == nil {
@@ -389,10 +393,11 @@ func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testi
 	committer := &fakeCommitter{backfillStarted: started, backfillRelease: release}
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
-		workSource: ws,
-		factStore:  &fakeFactStore{},
-		runner:     &fakeProjectionRunner{},
-		workSink:   sink,
+		workSource:    ws,
+		factStore:     &fakeFactStore{},
+		runner:        &fakeProjectionRunner{},
+		workSink:      sink,
+		baselineFence: passBootstrapBaselineFence{},
 	}
 
 	done := make(chan error, 1)

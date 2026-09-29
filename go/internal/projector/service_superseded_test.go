@@ -49,14 +49,15 @@ func TestServiceRunStopsGracefullyWhenHeartbeatSupersedesWork(t *testing.T) {
 	}
 	sink := &stubProjectorWorkSink{}
 	service := Service{
-		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-		FactStore:         &stubFactStore{},
-		Runner:            runner,
-		WorkSink:          sink,
-		Heartbeater:       heartbeater,
-		HeartbeatInterval: 5 * time.Millisecond,
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       10 * time.Millisecond,
+		WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+		FactStore:          &stubFactStore{},
+		Runner:             runner,
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        heartbeater,
+		HeartbeatInterval:  5 * time.Millisecond,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -112,14 +113,15 @@ func TestServiceRunDropsWorkWhoseClaimWasLost(t *testing.T) {
 				AttemptCount: 1,
 			}
 			service := Service{
-				PollInterval:      10 * time.Millisecond,
-				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-				FactStore:         &stubFactStore{},
-				Runner:            tt.runner,
-				WorkSink:          tt.sink,
-				Heartbeater:       tt.heartbeater,
-				HeartbeatInterval: 5 * time.Millisecond,
-				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+				PollInterval:       10 * time.Millisecond,
+				WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:          &stubFactStore{},
+				Runner:             tt.runner,
+				WorkSink:           tt.sink,
+				DeltaBaselineFence: &fakeDeltaBaselineFence{},
+				Heartbeater:        tt.heartbeater,
+				HeartbeatInterval:  5 * time.Millisecond,
+				Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 			}
 
 			// Another attempt owns the work now; the stale worker must drop
@@ -201,14 +203,15 @@ func TestServiceRunRetriesAckWhileScopeIsBusy(t *testing.T) {
 				AttemptCount: 1,
 			}
 			service := Service{
-				PollInterval:      10 * time.Millisecond,
-				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-				FactStore:         &stubFactStore{},
-				Runner:            &stubProjectionRunner{},
-				WorkSink:          sink,
-				Heartbeater:       tt.heartbeater,
-				HeartbeatInterval: time.Hour, // only the deferral loop heartbeats
-				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+				PollInterval:       10 * time.Millisecond,
+				WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:          &stubFactStore{},
+				Runner:             &stubProjectionRunner{},
+				WorkSink:           sink,
+				DeltaBaselineFence: &fakeDeltaBaselineFence{},
+				Heartbeater:        tt.heartbeater,
+				HeartbeatInterval:  time.Hour, // only the deferral loop heartbeats
+				Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 			}
 
 			if err := service.Run(context.Background()); err != nil {
@@ -297,13 +300,14 @@ func TestServiceRunDropsAckAbandonedAfterBusyScopeWait(t *testing.T) {
 			Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
 			AttemptCount: 1,
 		}}},
-		FactStore:         &stubFactStore{},
-		Runner:            &stubProjectionRunner{},
-		WorkSink:          sink,
-		Heartbeater:       &stubProjectorWorkHeartbeater{},
-		HeartbeatInterval: time.Hour,
-		Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
-		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+		FactStore:          &stubFactStore{},
+		Runner:             &stubProjectionRunner{},
+		WorkSink:           sink,
+		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		Heartbeater:        &stubProjectorWorkHeartbeater{},
+		HeartbeatInterval:  time.Hour,
+		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := service.Run(context.Background()); err != nil {
@@ -358,15 +362,16 @@ func TestServiceLogsSupersededWorkWithSourceFailureClass(t *testing.T) {
 			}
 			sink := &stubProjectorWorkSink{}
 			service := Service{
-				PollInterval:      10 * time.Millisecond,
-				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
-				FactStore:         &stubFactStore{},
-				Runner:            &stubProjectionRunner{waitForContextCancellation: true},
-				WorkSink:          sink,
-				Heartbeater:       &stubProjectorWorkHeartbeater{failAfter: 1, err: tc.err},
-				HeartbeatInterval: 5 * time.Millisecond,
-				Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
-				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+				PollInterval:       10 * time.Millisecond,
+				WorkSource:         &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:          &stubFactStore{},
+				Runner:             &stubProjectionRunner{waitForContextCancellation: true},
+				WorkSink:           sink,
+				DeltaBaselineFence: &fakeDeltaBaselineFence{},
+				Heartbeater:        &stubProjectorWorkHeartbeater{failAfter: 1, err: tc.err},
+				HeartbeatInterval:  5 * time.Millisecond,
+				Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
+				Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 			}
 
 			if err := service.Run(context.Background()); err != nil {

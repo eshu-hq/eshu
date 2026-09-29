@@ -14,7 +14,11 @@
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
 // same-scope generation replaced stale local polling work. Ack returns the same
 // error when the generation is already superseded and was not re-activated
-// (#7130); the work item is then superseded. Workers drop the item when a
+// (#7130); the work item is then superseded. Every projection loop runs
+// PreflightDeltaBaseline before it loads facts, and Ack re-checks it (#7319):
+// a delta generation activates only while the scope's active commit equals
+// the commit the delta was diffed from; a refused delta is marked superseded
+// with its own failure class. Workers drop the item when a
 // Heartbeat, Ack, or Fail returns ErrWorkClaimLost because another attempt
 // owns the item. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.

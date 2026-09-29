@@ -61,7 +61,9 @@ CREATE TABLE scope_generations (
     status          TEXT NOT NULL,
     activated_at    TIMESTAMPTZ NULL,
     superseded_at   TIMESTAMPTZ NULL,
-    payload         JSONB NOT NULL DEFAULT '{}'::jsonb
+    payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- migration 148 (#7319)
+    delta_baseline_commit_sha TEXT NULL
 );
 
 CREATE TABLE fact_work_items (

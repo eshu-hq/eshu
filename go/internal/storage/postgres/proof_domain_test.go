@@ -161,12 +161,13 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 		IntentWriter:    reducerQueue,
 	}
 	projectorService := projector.Service{
-		PollInterval: time.Millisecond,
-		WorkSource:   projectorQueue,
-		FactStore:    factStore,
-		Runner:       projectorRuntime,
-		WorkSink:     projectorQueue,
-		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		PollInterval:       time.Millisecond,
+		WorkSource:         projectorQueue,
+		FactStore:          factStore,
+		Runner:             projectorRuntime,
+		WorkSink:           projectorQueue,
+		DeltaBaselineFence: projectorQueue,
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
 	if err := projectorService.Run(context.Background()); err != nil {
