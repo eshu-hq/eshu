@@ -52,6 +52,17 @@ Other passed gates: `scripts/verify-openapi.sh` (260 routes),
 
 ## Response-shaper performance
 
+Benchmark Evidence: This is a CPU-only benchmark of the response adapter; no
+Postgres, graph backend, endpoint, or queue work is included. Against base
+`4af00ab98f9ad239e32b338025a1313d343209d0`, the candidate measured three shared
+shapes on Go 1.27.1/darwin-arm64: 100 symbols, an empty page at offset 5,000,
+and a capped topic pool. Ten alternating pairs used `-benchtime=500ms`,
+`-benchmem`, and `GOMAXPROCS=1`; maximum sampled load1 was 4.95. The benchmark
+inputs contained 100, 0, and 1 response symbols respectively. This synthetic
+adapter benchmark has no SQL row set or terminal queue count.
+The table below records the candidate after measurements, including the cost
+of the added coverage metadata; it does not claim an endpoint latency gain.
+
 The comparison is limited to the unchanged `changeSurfaceResponse` shaper and
 three shared inputs: 100 symbols, an empty page at offset 5,000, and a capped
 topic pool. Ten alternating base/candidate pairs used base
@@ -81,6 +92,14 @@ improvement or deployed p95 claim is made. The original seconds-scale planning
 reads and under-one-second cold/warm p95 target remain open.
 
 ## Observability
+
+Observability Evidence: The existing `query.*` handler spans and
+`eshu_dp_api_request_duration_seconds` provide route-level duration evidence.
+No endpoint p95 sweep was performed for this change.
+
+No-Observability-Change: The change adds no metric, span, log field, queue
+stage, or storage operation. The scoped-grant regression test verifies zero
+content-store reads when the grant is empty; it does not add an operator signal.
 
 No metric, span, log field, queue stage, or storage operation was added. Existing
 `query.*` handler spans and `eshu_dp_api_request_duration_seconds` continue to
