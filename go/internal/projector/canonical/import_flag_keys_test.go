@@ -49,12 +49,12 @@ func TestParserFlagKeysReachTheImportEdgeFold(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		key                                 string
-		wantTypeOnly, wantDeferred, wantInf bool
+		key                                      string
+		wantTypeOnly, wantDeferred, wantInferred bool
 	}{
 		{key: shared.ImportFlagTypeOnly, wantTypeOnly: true},
 		{key: shared.ImportFlagDeferred, wantDeferred: true},
-		{key: shared.ImportFlagInferred, wantInf: true},
+		{key: shared.ImportFlagInferred, wantInferred: true},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -74,9 +74,9 @@ func TestParserFlagKeysReachTheImportEdgeFold(t *testing.T) {
 				t.Fatalf("len(Imports) = %d, want 1", len(result.Imports))
 			}
 			row := result.Imports[0]
-			if row.TypeOnly != tt.wantTypeOnly || row.Deferred != tt.wantDeferred || row.Inferred != tt.wantInf {
+			if row.TypeOnly != tt.wantTypeOnly || row.Deferred != tt.wantDeferred || row.Inferred != tt.wantInferred {
 				t.Fatalf("payload key %q gave flags type_only:%v deferred:%v inferred:%v, want type_only:%v deferred:%v inferred:%v",
-					tt.key, row.TypeOnly, row.Deferred, row.Inferred, tt.wantTypeOnly, tt.wantDeferred, tt.wantInf)
+					tt.key, row.TypeOnly, row.Deferred, row.Inferred, tt.wantTypeOnly, tt.wantDeferred, tt.wantInferred)
 			}
 		})
 	}
