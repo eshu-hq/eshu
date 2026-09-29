@@ -12,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+const (
+	changeSurfacePoolStatusUnknownEmptyPage = "unknown_empty_page"
+)
+
 // Change-surface code backends live in root because they are coupled to
 // lane-A codeTopic* types, which cannot cross into the impact subpackage.
 // ImpactHandler.CodeSurface carries the production adapter; tests inject
@@ -50,7 +54,7 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	evidenceGroups := make([]map[string]any, 0)
 	truncated := false
 	poolTruncated := false
-	poolStatusUnknown := false
+	poolStatus := ""
 	sourceBackends := []string{}
 
 	if req.Topic != "" {
@@ -58,15 +62,10 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 		if err != nil {
 			return nil, err
 		}
-		// #5167 W3: InvestigateCodeTopic (POST /api/v0/code/topics/investigate,
-		// the "code/*" family, a different #5167 workstream) has no grant
-		// filtering of its own yet -- a topic search with no repo_id scans the
-		// whole content-entity corpus. Bind every evidence row to the caller's
-		// grant here, independent of that family's own remediation, so this
-		// route never surfaces another tenant's code content through a topic
-		// search.
 		rows = filterCodeTopicRowsForAccess(rows, querycontract.RepositoryAccessFilterFromContext(ctx))
-		poolStatusUnknown = req.Offset > 0 && len(rows) == 0
+		if req.Offset > 0 && len(rows) == 0 {
+			poolStatus = changeSurfacePoolStatusUnknownEmptyPage
+		}
 		for _, row := range rows {
 			if row.PoolTruncated {
 				poolTruncated = true
@@ -110,9 +109,9 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 		"candidate_pool_truncated": poolTruncated,
 		"path_symbols_truncated":   pathSymbolsTruncated,
 	}
-	if poolStatusUnknown {
+	if poolStatus != "" {
 		coverage["state"] = "partial"
-		coverage["candidate_pool_status"] = "unknown_empty_page"
+		coverage["candidate_pool_status"] = poolStatus
 	}
 
 	return map[string]any{
@@ -133,6 +132,10 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 // changeSurfaceTopicRows, converted to a free function with zero body
 // changes. It stays in root because it names lane-A codeTopic* types.
 func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impact.ChangeSurfaceInvestigationRequest) ([]codequery.CodeTopicEvidenceRow, error) {
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if access.Scoped() && access.Empty() {
+		return nil, nil
+	}
 	if h == nil || h.Content == nil {
 		return nil, codequery.ErrCodeTopicBackendUnavailable
 	}
@@ -148,12 +151,11 @@ func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impa
 		Intent: "change_surface",
 		Terms:  codequery.CodeTopicSearchTerms(req.Topic, "change_surface", nil),
 	}
-	// #5167 W3 P1: when the search is corpus-wide (no explicit repo_id), push the
-	// caller's grant into the content-store SQL WHERE so its LIMIT is taken from
-	// the granted set, not a cross-tenant-polluted page. filterCodeTopicRowsForAccess
-	// below stays as defense-in-depth.
+	// For corpus-wide scoped searches, the ContentReader applies grant IDs in SQL
+	// before LIMIT/OFFSET. The row filter in FetchCodeSurface is defense-in-depth
+	// for alternate or faulty adapters and does not affect public coverage.
 	if req.RepoID == "" {
-		if access := querycontract.RepositoryAccessFilterFromContext(ctx); access.Scoped() {
+		if access.Scoped() {
 			topicReq.AllowedRepositoryIDs = access.RepositorySearchIDs()
 		}
 	}
@@ -165,11 +167,9 @@ func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impa
 }
 
 // filterCodeTopicRowsForAccess drops codequery.CodeTopicEvidenceRow entries whose
-// RepoID is outside the caller's grant. InvestigateCodeTopic (the "code/*"
-// #5167 family) has no grant filtering of its own, so change-surface callers
-// that fold topic evidence into their response bind it here independently
-// (see changeSurfaceCodeBackend.FetchCodeSurface). It stays in root because
-// it names the lane-A row type.
+// RepoID is outside the caller's grant. It provides defense-in-depth after the
+// content store applies scoped grants before pagination. It stays in root
+// because it names the lane-A row type.
 func filterCodeTopicRowsForAccess(rows []codequery.CodeTopicEvidenceRow, access querycontract.RepositoryAccessFilter) []codequery.CodeTopicEvidenceRow {
 	if !access.Scoped() {
 		return rows

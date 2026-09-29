@@ -166,14 +166,16 @@ func (h *Handler) changeSurfaceResponse(
 			"total_count":      len(direct) + len(transitive),
 		},
 		"coverage": map[string]any{
-			"query_shape":       changeSurfaceQueryShape(resolution),
-			"max_depth":         req.MaxDepth,
-			"limit":             req.Limit,
-			"offset":            req.Offset,
-			"truncated":         truncated,
-			"direct_count":      len(direct),
-			"transitive_count":  len(transitive),
-			"code_symbol_count": intMapValue(codeSurface, "symbol_count"),
+			"query_shape":              changeSurfaceQueryShape(resolution),
+			"max_depth":                req.MaxDepth,
+			"limit":                    req.Limit,
+			"offset":                   req.Offset,
+			"truncated":                truncated,
+			"candidate_pool_truncated": boolMapValue(codeSurface, "candidate_pool_truncated"),
+			"path_symbols_truncated":   boolMapValue(querycontract.MapValue(codeSurface, "coverage"), "path_symbols_truncated"),
+			"direct_count":             len(direct),
+			"transitive_count":         len(transitive),
+			"code_symbol_count":        intMapValue(codeSurface, "symbol_count"),
 		},
 		"limit":          req.Limit,
 		"offset":         req.Offset,
@@ -183,7 +185,9 @@ func (h *Handler) changeSurfaceResponse(
 	if codeCoverage := querycontract.MapValue(codeSurface, "coverage"); querycontract.StringVal(codeCoverage, "state") == "partial" {
 		responseCoverage := resp["coverage"].(map[string]any)
 		responseCoverage["state"] = "partial"
-		responseCoverage["candidate_pool_status"] = querycontract.StringVal(codeCoverage, "candidate_pool_status")
+		if status := querycontract.StringVal(codeCoverage, "candidate_pool_status"); status != "" {
+			responseCoverage["candidate_pool_status"] = status
+		}
 	}
 	if req.Environment != "" {
 		resp["environment"] = req.Environment

@@ -227,3 +227,79 @@ func (s *topicInvestigationContentStore) InvestigateCodeTopic(
 	}
 	return append([]codequery.CodeTopicEvidenceRow(nil), s.rows...), nil
 }
+
+func TestChangePlanningCoveragePropagatesSpecificTruncationMarkers(t *testing.T) {
+	t.Parallel()
+
+	for _, route := range []string{
+		"/api/v0/impact/change-surface/investigate",
+		"/api/v0/impact/pre-change",
+		"/api/v0/impact/developer-change-plan",
+	} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+
+			store := &topicInvestigationContentStore{
+				fakePortContentStore: fakePortContentStore{entities: []EntityContent{
+					{EntityID: "symbol-a", EntityName: "AuthA", EntityType: "Function", RepoID: "repo-1", RelativePath: "src/auth.go", Language: "go"},
+					{EntityID: "symbol-b", EntityName: "AuthB", EntityType: "Function", RepoID: "repo-1", RelativePath: "src/auth.go", Language: "go"},
+				}},
+				rows: []codequery.CodeTopicEvidenceRow{{
+					SourceKind:    "entity",
+					RepoID:        "repo-1",
+					RelativePath:  "src/auth.go",
+					EntityID:      "symbol-a",
+					EntityName:    "AuthA",
+					EntityType:    "Function",
+					Language:      "go",
+					MatchedTerms:  []string{"auth"},
+					Score:         1,
+					PoolTruncated: true,
+				}},
+			}
+			handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			body := `{"repo_id":"repo-1","topic":"auth","changed_paths":["src/auth.go"],"limit":1}`
+			req := httptest.NewRequest(http.MethodPost, route, bytes.NewBufferString(body))
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+
+			var envelope querycontract.ResponseEnvelope
+			if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			data, ok := envelope.Data.(map[string]any)
+			if !ok {
+				t.Fatalf("data type = %T, want map[string]any", envelope.Data)
+			}
+			coverage, ok := data["coverage"].(map[string]any)
+			if !ok {
+				t.Fatalf("coverage type = %T, want map[string]any", data["coverage"])
+			}
+			for field, want := range map[string]any{
+				"candidate_pool_truncated": true,
+				"path_symbols_truncated":   true,
+				"truncated":                true,
+			} {
+				if got := coverage[field]; got != want {
+					t.Errorf("coverage.%s = %#v, want %#v", field, got, want)
+				}
+			}
+			if route != "/api/v0/impact/change-surface/investigate" {
+				packet, ok := data["answer_packet"].(map[string]any)
+				if !ok {
+					t.Fatalf("answer_packet type = %T, want map[string]any", data["answer_packet"])
+				}
+				if got := packet["partial"]; got != true {
+					t.Errorf("answer_packet.partial = %#v, want true", got)
+				}
+			}
+		})
+	}
+}
