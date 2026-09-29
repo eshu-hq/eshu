@@ -195,6 +195,31 @@ jobs:
         # dropped, invalid, or misshaped key index refuses the cycle, and
         # TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive pins the
         # scope-join invariant's leak-only direction.
+        # #7334 section 1 replaced the per-scope candidate query with a single
+        # all-scope eligibility statement that locks only scopes owning an
+        # eligible generation.
+        # TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive proves
+        # the whole BatchGenerationLimit lock budget never goes to scopes that
+        # only own an old-but-retained generation while eligible scopes sort
+        # after them.
+        # TestGenerationRetentionLockSetMatchesEligibleScopesLive proves the
+        # statement locks exactly the scopes that own an eligible generation,
+        # and no others.
+        # TestGenerationRetentionFairnessAcrossScopesLive proves the pruned
+        # batch is the globally-oldest eligible generations, not the ones that
+        # sort first by scope_id.
+        # TestGenerationRetentionSkipsHeldScopeAndReplacesLive proves a held
+        # scope row is skipped under SKIP LOCKED rather than waited on, and the
+        # next-oldest candidate is pruned instead.
+        # TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive is the
+        # EvalPlanQual proof: a candidate deleted or reactivated by another
+        # session between the statement's snapshot and its row lock is dropped
+        # correctly in both directions, using the same blocking-lock mirror
+        # technique the reducer queue's own lock-recheck proof uses.
+        # TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive proves
+        # the live_work CTE's fact_work_items access node has Actual Loops = 1
+        # in every plan state, guarding against the O(n) growth a per-row
+        # correlated NOT EXISTS would reintroduce.
         # TestGenerationRetentionNarrowedCandidateTakenElsewhereLive (#7127) proves
         # an over-limit batch of one, narrowed by a savepoint rollback, prunes
         # nothing when another session takes its candidate before the re-lock.
@@ -239,7 +264,7 @@ jobs:
         # (TestReducerContentionGate*, TestSharedProjectionAcceptance*Live,
         # TestSharedIntentAcceptanceWriter*Live, TestServiceCatalogCorpusFence*Live),
         # or the hermetic enrollment guard that reads this filter.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live)' -race -count=1 -timeout 600s -v
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live)' -race -count=1 -timeout 600s -v
       - name: Run story target-support semantics proof
         working-directory: go
         env:

@@ -193,6 +193,7 @@ func waitForMirrorLockWait(t *testing.T, ctx context.Context, database *sql.DB) 
 		if err := database.QueryRowContext(ctx,
 			`SELECT count(*) FROM pg_stat_activity
 			 WHERE pid <> pg_backend_pid()
+			   AND datname = current_database()
 			   AND wait_event_type = 'Lock'
 			   AND query LIKE '%scope_generations%'`,
 		).Scan(&blocked); err != nil {
