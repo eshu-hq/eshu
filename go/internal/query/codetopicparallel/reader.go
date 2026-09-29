@@ -211,9 +211,21 @@ func readCodeTopicProbe(ctx context.Context, tx *sql.Tx, req codequery.CodeTopic
 // Investigate reads four per-term partitions on one exported snapshot, then
 // asks PostgreSQL to assemble the ordered page with the original SQL rules.
 func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(*sql.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) ([]codequery.CodeTopicEvidenceRow, error) {
-	started := time.Now()
+	reservationStarted := time.Now()
+	conns, err := reserveConnections(ctx, db, Partitions)
+	span.SetAttributes(
+		attribute.Int("code_topic.requested_connections", Partitions),
+		attribute.Int64("code_topic.connection_reservation_wait_ms", time.Since(reservationStarted).Milliseconds()),
+	)
+	if err != nil {
+		span.SetAttributes(attribute.Bool("code_topic.connection_reservation_canceled", errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)))
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("code_topic.reserved_connections", len(conns)))
+	defer closeConnections(conns)
+	probeStarted := time.Now()
 	options := &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}
-	exporter, err := db.BeginTx(ctx, options)
+	exporter, err := conns[0].BeginTx(ctx, options)
 	if err != nil {
 		return nil, fmt.Errorf("begin code topic snapshot: %w", err)
 	}
@@ -239,7 +251,7 @@ func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery
 		if index == 0 {
 			return readCodeTopicProbe(workerCtx, exporter, group, cap, filters, baseArgs)
 		}
-		tx, beginErr := db.BeginTx(workerCtx, options)
+		tx, beginErr := conns[index].BeginTx(workerCtx, options)
 		if beginErr != nil {
 			return nil, fmt.Errorf("begin code topic worker %d: %w", index, beginErr)
 		}
@@ -253,7 +265,8 @@ func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery
 	if err != nil {
 		return nil, err
 	}
-	probeDone := time.Since(started)
+	probeDone := time.Since(probeStarted)
+	assemblyStarted := time.Now()
 	candidates := make([]ProbeRow, 0)
 	for _, group := range probes {
 		candidates = append(candidates, group...)
@@ -275,7 +288,7 @@ func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery
 		attribute.Int("code_topic.probe_rows", len(candidates)),
 		attribute.Int("code_topic.probe_payload_bytes", len(payload)),
 		attribute.Int64("code_topic.probe_duration_ms", probeDone.Milliseconds()),
-		attribute.Int64("code_topic.assembly_duration_ms", time.Since(started.Add(probeDone)).Milliseconds()),
+		attribute.Int64("code_topic.assembly_duration_ms", time.Since(assemblyStarted).Milliseconds()),
 		attribute.Bool("code_topic.pool_truncated", capped),
 	)
 	return result, nil

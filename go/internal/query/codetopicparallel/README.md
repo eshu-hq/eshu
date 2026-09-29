@@ -32,33 +32,40 @@ See `doc.go` for the package contract.
 
 ## Telemetry
 
-`Investigate` adds probe row count, payload bytes, phase durations, and pool-cap
-status to the caller's `postgres.query` span. The caller records errors and the
-chosen execution mode on that span.
+`Investigate` adds reservation wait, connection count, probe row count, payload
+bytes, phase durations, reservation cancellation, and pool-cap status to the
+caller's `postgres.query` span. The caller records errors and the chosen
+execution mode on that span.
 
 ## Measured scope
 
 Performance Evidence: A read-only SQL assembly shim on an isolated PostgreSQL
 18.6 corpus of 984 repositories compared the captured 16-term single statement
-with four snapshot-sharing probes and PostgreSQL final assembly. The same
-storage snapshot held 155,826 `content_files` rows and 2,808,209
-`content_entities` rows. Interleaved baseline/candidate medians were 0.810743
-and 0.568569 seconds from dispatch through consumption of the 26-row ordered
-page. All measured ordered pages, including cap status, matched. This proves
+with four snapshot-sharing probes and PostgreSQL final assembly. The isolated
+corpus had unchanged storage state across samples: 155,826 `content_files`
+rows and 2,808,209 `content_entities` rows. Interleaved baseline/candidate
+medians were 0.810743 and 0.568569 seconds from dispatch through consumption
+of the 26-row ordered page. All measured ordered pages, including cap status,
+matched. This proves
 the theory on that corpus; a built binary and the ops-qa endpoint remain to be
 measured after schema bootstrap. It does not establish an endpoint target.
 
 Observability Evidence: The `postgres.query` span records the selected route,
-probe row count, JSON bytes, probe and assembly duration, pool-cap status, and
-errors. A pool below four open connections uses the single statement and marks
-the fallback reason on the same span.
+reservation wait and cancellation, connection count, probe row count, JSON
+bytes, probe and assembly duration, pool-cap status, and errors. A pool below
+four open connections uses the single statement and marks the fallback reason
+on the same span.
 
 ## Gotchas / invariants
 
 - Import an exported snapshot before a worker's first SELECT. Keep the exporter
   transaction open until final assembly completes.
 - Compute the candidate cap from the full request before partitioning terms.
-- The four transactions must fit in the configured connection pool; smaller
+- Reserve four connections under a per-pool acquisition gate before starting
+  any transaction. On cancellation, release each partial reservation. This
+  prevents competing requests from filling the pool with exporters and waiting
+  for their own workers. The gate is released after all four connections are
+  reserved, so a pool of eight can run two requests concurrently. Smaller
   pools use the single-statement path.
 - Preserve the SQL `ORDER BY` and `string_agg(DISTINCT ...)` rules. Go string
   sorting is not a replacement for database collation.
