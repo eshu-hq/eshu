@@ -87,10 +87,13 @@ reclaimed_stale_projector_duplicates AS (
         updated_at = $1,
         failure_class = 'projector_stale_scope_reclaim',
         failure_message = 'expired duplicate projector lease reclaimed',
-        failure_details = jsonb_build_object(
-            'scope_id', stale.scope_id,
-            'work_item_id', stale.work_item_id
-        )
+        failure_details = CASE
+            WHEN stale.failure_class = 'projector_stale_scope_reclaim' THEN stale.failure_details
+            ELSE (jsonb_build_object(
+                'scope_id', stale.scope_id,
+                'work_item_id', stale.work_item_id
+            ) || ` + priorFailureStaleSQL + `)::text
+        END
     FROM locked_stale_projector_duplicates AS locked
     WHERE stale.work_item_id = locked.work_item_id
       AND stale.stage = 'projector'
@@ -402,11 +405,14 @@ reclaimed_claim_siblings AS (
         updated_at = $1,
         failure_class = 'projector_stale_scope_reclaim',
         failure_message = 'expired duplicate projector lease reclaimed',
-        failure_details = jsonb_build_object(
-            'scope_id', stale.scope_id,
-            'work_item_id', stale.work_item_id,
-            'claimed_work_item_id', locked.claimed_work_item_id
-        )
+        failure_details = CASE
+            WHEN stale.failure_class = 'projector_stale_scope_reclaim' THEN stale.failure_details
+            ELSE (jsonb_build_object(
+                'scope_id', stale.scope_id,
+                'work_item_id', stale.work_item_id,
+                'claimed_work_item_id', locked.claimed_work_item_id
+            ) || ` + priorFailureStaleSQL + `)::text
+        END
     FROM locked_claim_siblings AS locked
     WHERE stale.work_item_id = locked.work_item_id
       AND stale.stage = 'projector'

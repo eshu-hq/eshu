@@ -56,6 +56,9 @@ type walSample struct {
 	hit, read, dirtied, written, tempWritten  float64
 	toastInserts, heapUpdates, heapHotUpdates float64
 	execMillis                                float64
+	// reclaimed counts rows the statement moved to retrying under the
+	// projector_stale_scope_reclaim marker (#7388).
+	reclaimed float64
 }
 
 // costSeedScopes seeds n scopes, each with an old and a newer generation and
@@ -188,8 +191,9 @@ FROM pg_class c WHERE c.oid = to_regclass('fact_work_items')`).Scan(&s.toastInse
 	}
 	if err := tx.QueryRowContext(ctx, `
 SELECT count(*) FILTER (WHERE status = 'superseded')::float8,
-       count(*) FILTER (WHERE status = 'superseded' AND failure_details LIKE '%"prior_failure"%')::float8
-FROM fact_work_items`).Scan(&s.superseded, &s.withPrior); err != nil {
+       count(*) FILTER (WHERE status = 'superseded' AND failure_details LIKE '%"prior_failure"%')::float8,
+       count(*) FILTER (WHERE status = 'retrying' AND failure_class = 'projector_stale_scope_reclaim')::float8
+FROM fact_work_items`).Scan(&s.superseded, &s.withPrior, &s.reclaimed); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	_ = tx.Rollback()
