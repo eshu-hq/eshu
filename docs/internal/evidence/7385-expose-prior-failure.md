@@ -38,7 +38,7 @@ writer put them.
 | `TestListGenerationLifecycleQuerySelectsFailureDetails` | the read selects `work.failure_details` and has no `IS JSON` |
 | `TestFreshnessGenerationLifecycleExposesPriorFailure` | the HTTP handler returns `latest_failure.prior_failure.failure_class`, with no details text |
 | `TestRunGenerationsRendersPriorFailure` | the CLI line contains ` failure=<class> prior_failure=<class>` and prints nothing extra without one |
-| `TestApplyWorkItemDetailsParsesNoteAndPriorFailure`, `...LeavesFieldsNilWithoutAnObject` | the admin listing parser, including free text and null |
+| `TestApplyWorkItemDetailsParsesNoteAndPriorFailure`, `...LeavesFieldsNilWithoutAnObject`, `...DecodesTheKeysIndependently` | the admin listing parser, including free text and null, and that a wrong-typed `operator_note` or `prior_failure` does not discard the other key, in both directions |
 | `TestListWorkItemsQuerySelectsFailureDetails` | the list query and the mutating RETURNING carry `failure_details` |
 | `TestAdminWorkItemListingExposesPriorFailureAndNote` (live, real schema) | a superseded row and a noted row return their prior failure and note; free-text and NULL rows return neither |
 
