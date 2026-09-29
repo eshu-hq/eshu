@@ -165,10 +165,12 @@ it. The flags are directly inspectable on the edge
 - The B-12 golden snapshot (`IMPORTS` floor of 63) is unchanged because fold
   identity is unchanged; the live B-7 gate is a CI check and was not run here.
 - Timing on the remote, and the NornicDB CI legs, are the remaining proof.
-- The `shared.ImportFlag*` drift test that ties the SDK field names to the
-  parser constants cannot exist until the parser change (#7344, PR #7432) is on
-  `main`. Today the strings match exactly (`type_only`, `deferred`, `inferred`).
-  It is tracked as the first item of #7346 so it does not get lost.
+- Key drift: the parser change (#7344, merged as #7432) wrote the flags under
+  the `shared.ImportFlag*` keys, and the SDK reads them through `json` tags. Two
+  tests in `projector/canonical` (`TestImportFlagKeysMatchTheSDKFieldTags`,
+  `TestParserFlagKeysReachTheImportEdgeFold`) tie the two together and fail if
+  either side is renamed. Changing the `inferred` tag to `inferrd` fails both;
+  the SDK file was restored byte-identical.
 - A legacy path in `builder.go` (`extractRelationships`, the Python-runtime-era
   payload keys) can append an unfolded `ImportRow` with zero flags. It predates
   this change, no Go collector emits its keys, and `imported_name` already has
