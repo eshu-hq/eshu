@@ -107,7 +107,7 @@ source_coverage:
   - file: codequery/imports/rows.go
     calls:
       - {symbol: "CrossModuleCalls", count: 1, source_sha256: 1ded5b481349e5c0437fc468d5aa0d712315a012ca47af215ff4c8db48ad7c01, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}
-      - {symbol: "CycleRows", count: 1, source_sha256: f777e1de18cd59e5190908fe4a30105c392e0e4a72da79aca665ddacf00e8e2d, entry_ids: [QP-CODE-IMPORT-CYCLES]}
+      - {symbol: "CycleRows", count: 1, source_sha256: e2361147db78b1e4ca087c4c4b0948d9ad02fed696ca4225080d9d754a99afa6, entry_ids: [QP-CODE-IMPORT-CYCLES]}
       - {symbol: "ModuleScopes", count: 1, source_sha256: 083f7df47a61b4a4b9e2be1fc9c1f56d85dc2c43c9dfae2cecc91350e0cd589f, entry_ids: [QP-CODE-IMPORT-SOURCE-MODULE-FILES, QP-CODE-IMPORT-TARGET-MODULE-FILES]}
       - {symbol: "ImportRows", count: 1, source_sha256: 57b56ee11db757697bf1df6adfb528d33bc488506692a9a4fbc1d113d7c0b550, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
   - file: codequery/quality/inspect.go

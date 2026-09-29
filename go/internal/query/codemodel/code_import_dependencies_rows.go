@@ -53,9 +53,9 @@ type importDependencyScopeKey struct {
 // normalized path. Duplicate directed edges retain their earliest
 // positive source line.
 //
-// The second return reports whether enumeration hit
-// importCycleEnumerationCap. The response carries that state as
-// truncated:true plus the cap value, so a capped list is never silently
+// The second return reports how the enumeration ended: the cap or the
+// step budget can stop it early. The response carries that state as
+// truncated:true plus the stop reason, so a capped list is never silently
 // partial. The cap (1,000) sits far below the 25,000-row internal scan
 // limit the edge fetch enforces, so the old reciprocal-era overflow guard
 // is subsumed: a capped enumeration always pages truncated.
@@ -69,13 +69,13 @@ type importDependencyScopeKey struct {
 func BuildFileImportCycleRows(
 	req ImportDependencyRequest,
 	edgeRows []map[string]any,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, CycleEnumeration, error) {
 	if err := ImportDependencyScanBoundError(len(edgeRows)); err != nil {
-		return nil, false, err
+		return nil, CycleEnumeration{}, err
 	}
 
 	directedEdges := deduplicateImportCycleEdges(req, edgeRows)
-	cycles, enumTruncated := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
+	cycles, enumeration := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
 
 	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
@@ -95,7 +95,7 @@ func BuildFileImportCycleRows(
 	sort.Slice(cycleRows, func(i, j int) bool {
 		return compareImportCycleRows(cycleRows[i], cycleRows[j]) < 0
 	})
-	return PageImportDependencyRows(req, cycleRows), enumTruncated, nil
+	return PageImportDependencyRows(req, cycleRows), enumeration, nil
 }
 
 // FilterCrossModuleCallRows removes cross-repository candidates before stable

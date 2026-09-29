@@ -170,7 +170,7 @@ func TestLiveImportDependencyRepresentativeShapes(t *testing.T) {
 			var rowCount int
 			for index := range durations {
 				started := time.Now()
-				rows, err := handler.importDependencyRows(ctx, test.request)
+				rows, _, err := handler.importDependencyRows(ctx, test.request)
 				durations[index] = time.Since(started)
 				if err != nil {
 					t.Fatalf("representative query run %d: %v", index+1, err)

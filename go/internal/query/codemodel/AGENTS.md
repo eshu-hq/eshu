@@ -54,7 +54,8 @@ without moving its staying callers first.
 - Builder/shaper/validator surface called from staying code or tests:
   the `CallGraphMetrics*`, `Direct/Package/SourceModule/TargetModule/
   FileImportCycle/CrossModuleCall*Import*Cypher`,
-  `BuildFileImportCycleRows`, `FilterCrossModuleCallRows`,
+  `BuildFileImportCycleRows`, `CycleEnumeration` (+ the `CycleStopNone`,
+  `CycleStopCycleCap`, `CycleStopStepBudget` reasons), `FilterCrossModuleCallRows`,
   `FilterImportDependencyScopeRows`, `UniquePackageImportRows`,
   `StripImportDependencyInternalPaths`,
   `ImportDependencyScanBoundError`, `PageImportDependencyRows`,

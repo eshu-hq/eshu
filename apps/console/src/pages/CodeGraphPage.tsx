@@ -155,6 +155,7 @@ export function CodeGraphPage({
             cycles: page.cycles,
             error: "",
             truncated: page.truncated,
+            hasMore: page.hasMore,
             nextOffset: page.nextOffset,
           });
         }
@@ -166,6 +167,7 @@ export function CodeGraphPage({
             cycles: [],
             error: error instanceof Error ? error.message : "failed to load import cycles",
             truncated: false,
+            hasMore: false,
             nextOffset: null,
           });
         }

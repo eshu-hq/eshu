@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -130,8 +131,14 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 	span.SetAttributes(
 		attribute.Int("eshu.import_dependencies.result_count", IntVal(data, "count")),
 		attribute.Bool("eshu.import_dependencies.truncated", BoolVal(data, "truncated")),
+		attribute.Bool("eshu.import_dependencies.has_more", BoolVal(data, "has_more")),
 		attribute.Bool("eshu.import_dependencies.scan_overflow", false),
 	)
+	if coverage, ok := data["coverage"].(map[string]any); ok {
+		if reason, ok := coverage["cycle_enumeration_stop_reason"].(string); ok {
+			span.SetAttributes(attribute.String("eshu.import_dependencies.cycle_stop_reason", reason))
+		}
+	}
 	WriteSuccess(
 		w,
 		r,
@@ -149,18 +156,19 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 	if h == nil || h.Neo4j == nil {
 		return nil, errImportDependencyUnavailable
 	}
-	if req.EffectiveQueryType() == "file_import_cycles" {
-		rows, enumTruncated, err := imports.CycleRows(ctx, h.Neo4j, req)
-		if err != nil {
-			return nil, err
-		}
-		return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumTruncated), nil
-	}
-	rows, err := h.importDependencyRows(ctx, req)
+	rows, enumeration, err := h.importDependencyRows(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return codemodel.ImportDependencyResponse(req, rows), nil
+	if req.EffectiveQueryType() == "file_import_cycles" {
+		// The stop reason says a walk was cut short; the steps examined say how
+		// close an unstopped walk came to its budget, which is what an operator
+		// needs to see a near miss before it becomes a stop.
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.Int("eshu.import_dependencies.cycle_steps_examined", enumeration.StepsExamined),
+		)
+	}
+	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil
 }
 
 // ImportDependencyParams builds the parameter map the import-dependency

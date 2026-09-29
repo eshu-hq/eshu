@@ -90,11 +90,22 @@ type importCycleHop struct {
 // reach the graph (edges carry only imported_name, alias, and
 // line_number), so cycles are computed over all stored IMPORTS edges;
 // per-language follow-ups own carrying those flags.
-func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycle, bool) {
-	nodes, adjacency, meta := buildImportCycleGraph(edges)
+func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycle, CycleEnumeration) {
+	return enumerateImportCyclesWithinBudget(edges, maxLength, importCycleEnumerationStepBudget)
+}
+
+// enumerateImportCyclesWithinBudget is enumerateImportCycles with the step
+// budget injected, so tests can exhaust it on a small graph.
+func enumerateImportCyclesWithinBudget(edges []importCycleEdge, maxLength, stepBudget int) ([]importCycle, CycleEnumeration) {
+	allNodes, allAdjacency, meta := buildImportCycleGraph(edges)
+	// Only hops inside a strongly connected component can lie on a cycle, so the
+	// walk starts from and stays within those; see restrictToCyclicComponents.
+	nodes, adjacency := restrictToCyclicComponents(allNodes, allAdjacency)
 	var cycles []importCycle
 	seen := make(map[string]struct{})
 	truncated := false
+	steps := 0
+	stopReason := CycleStopNone
 	for _, start := range nodes {
 		if truncated {
 			break
@@ -111,6 +122,12 @@ func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycl
 				if truncated {
 					return
 				}
+				if steps >= stepBudget {
+					truncated = true
+					stopReason = CycleStopStepBudget
+					return
+				}
+				steps++
 				if hop.destination == start {
 					if len(path)+1 < 2 || len(path)+1 > maxLength {
 						continue
@@ -124,6 +141,7 @@ func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycl
 					cycles = append(cycles, cycle)
 					if len(cycles) >= importCycleEnumerationCap {
 						truncated = true
+						stopReason = CycleStopCycleCap
 						return
 					}
 					continue
@@ -148,7 +166,12 @@ func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycl
 	sort.Slice(cycles, func(i, j int) bool {
 		return compareImportCycles(cycles[i], cycles[j]) < 0
 	})
-	return cycles, truncated
+	return cycles, CycleEnumeration{
+		Truncated:     truncated,
+		StopReason:    stopReason,
+		StepBudget:    stepBudget,
+		StepsExamined: steps,
+	}
 }
 
 // buildImportCycleGraph collapses import edges into a sorted file-level

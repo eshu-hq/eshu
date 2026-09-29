@@ -14,22 +14,25 @@ import (
 
 // Rows dispatches one import-dependency read by the request's effective
 // query type: file import cycles, cross-module calls, or the default
-// import rows. The cycle enumeration cap state is discarded here; the
-// handler's cycle path reads CycleRows directly so a capped enumeration
-// still reports truncated:true with the cap value.
+// import rows. The second return is the cycle enumeration state. It is
+// meaningful only for file_import_cycles and is the zero value for every other
+// query type; a caller shaping a cycle response must pass it on, so a capped or
+// budget-stopped enumeration reports truncated:true with its stop reason and is
+// never a silently partial list.
 func Rows(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	req codemodel.ImportDependencyRequest,
-) ([]map[string]any, error) {
+) ([]map[string]any, codemodel.CycleEnumeration, error) {
 	switch req.EffectiveQueryType() {
 	case "file_import_cycles":
-		rows, _, err := CycleRows(ctx, graph, req)
-		return rows, err
+		return CycleRows(ctx, graph, req)
 	case "cross_module_calls":
-		return CrossModuleCalls(ctx, graph, req)
+		rows, err := CrossModuleCalls(ctx, graph, req)
+		return rows, codemodel.CycleEnumeration{}, err
 	default:
-		return ImportRows(ctx, graph, req)
+		rows, err := ImportRows(ctx, graph, req)
+		return rows, codemodel.CycleEnumeration{}, err
 	}
 }
 
@@ -89,20 +92,21 @@ func ImportRows(
 }
 
 // CycleRows reads the file import cycle edges for the request and shapes
-// them into bounded simple-cycle rows. The second return reports whether
-// enumeration hit the enumeration cap; callers shaping the response must
-// carry it so a capped list says truncated:true with the cap value.
+// them into bounded simple-cycle rows. The second return reports how
+// enumeration ended (cap, step budget, or neither); callers shaping the
+// response must carry it so a partial list says truncated:true with its
+// stop reason.
 func CycleRows(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	req codemodel.ImportDependencyRequest,
-) ([]map[string]any, bool, error) {
+) ([]map[string]any, codemodel.CycleEnumeration, error) {
 	params := Params(req)
 	params["cycle_language"] = "python"
 	params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
 	rows, err := graph.Run(ctx, codemodel.FileImportCycleEdgeRowsCypher(req), params)
 	if err != nil {
-		return nil, false, fmt.Errorf("query file import cycle edges: %w", err)
+		return nil, codemodel.CycleEnumeration{}, fmt.Errorf("query file import cycle edges: %w", err)
 	}
 	return codemodel.BuildFileImportCycleRows(req, rows)
 }
