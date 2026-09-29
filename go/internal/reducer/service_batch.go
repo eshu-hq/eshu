@@ -229,14 +229,18 @@ func (s Service) runBatchConcurrent(
 				results[i] = item.result
 			}
 
-			if err := batchSink.AckBatch(ctx, intents, results); err != nil {
+			if err := s.ackBatchRetryingTransient(ctx, batchSink, intents, results); err != nil {
 				for _, item := range pending {
 					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", err)
 				}
 				if ctx.Err() == nil {
-					if errors.Is(err, ErrExecutionClaimRejected) {
+					switch {
+					case errors.Is(err, errAckAbandonedToLeaseExpiry):
+						// Claims stay leased and expire for reclaim; the run
+						// keeps draining (#7267). Already logged by the retrier.
+					case errors.Is(err, ErrExecutionClaimRejected):
 						s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
-					} else {
+					default:
 						appendErr(fmt.Errorf("batch ack reducer work: %w", err))
 					}
 				}
