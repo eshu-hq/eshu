@@ -8,6 +8,7 @@ export interface ImportCycleState {
   readonly cycles: readonly CodeImportCycleRow[];
   readonly error: string;
   readonly truncated: boolean;
+  readonly hasMore: boolean;
   readonly nextOffset: number | null;
 }
 
@@ -16,6 +17,7 @@ export const emptyImportCycleState: ImportCycleState = {
   cycles: [],
   error: "",
   truncated: false,
+  hasMore: false,
   nextOffset: null,
 };
 
@@ -71,10 +73,15 @@ export function ImportCyclesPanel({
           })}
         </div>
       ) : null}
-      {state.truncated ? (
+      {state.hasMore ? (
         <p className="t-mut" style={{ fontSize: ".78rem", margin: "6px 0 0" }}>
           More import cycles are available
           {state.nextOffset !== null ? ` at offset ${state.nextOffset}` : ""}.
+        </p>
+      ) : state.truncated ? (
+        <p className="t-mut" style={{ fontSize: ".78rem", margin: "6px 0 0" }}>
+          This cycle list is partial: the enumeration stopped at its bound, and no further page
+          exists.
         </p>
       ) : null}
     </>

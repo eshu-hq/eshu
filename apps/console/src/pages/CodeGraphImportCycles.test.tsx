@@ -112,6 +112,61 @@ describe("CodeGraphPage import cycles", () => {
     expect(screen.queryByText(/not reported/)).not.toBeInTheDocument();
   });
 
+  it("says a stopped enumeration is partial without offering a page that does not exist", async () => {
+    const client = {
+      post: async (path: string) => ({
+        data:
+          path === "/api/v0/code/imports/investigate"
+            ? {
+                cycles: [
+                  {
+                    repo_id: "repository:r_platform",
+                    repo_name: "platform-api",
+                    source_file: "src/module_a.py",
+                    target_file: "src/module_b.py",
+                    source_module: "module_a",
+                    target_module: "module_b",
+                    source_line_number: 4,
+                    back_edge_line_number: 7,
+                    relationship_type: "IMPORTS",
+                    cycle_path: ["src/module_a.py", "src/module_b.py", "src/module_a.py"],
+                    cycle_edges: [],
+                  },
+                ],
+                count: 1,
+                // The walk stopped at its bound, but this is the last page: the
+                // list is partial, and there is no further page to request.
+                truncated: true,
+                has_more: false,
+                next_offset: null,
+              }
+            : {
+                entity_id: "content-entity:e1",
+                name: "handler",
+                labels: ["Function"],
+                incoming: [],
+                outgoing: [],
+              },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={cycleModel()} client={client} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Import cycles · 1")).toBeInTheDocument();
+    expect(screen.queryByText(/More import cycles are available/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This cycle list is partial: the enumeration stopped at its bound, and no further page exists.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("distinguishes an empty source-backed cycle response", async () => {
     const client = {
       post: async (path: string) => ({

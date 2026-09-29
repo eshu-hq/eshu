@@ -99,6 +99,21 @@ partial and an operator can see a step-budget stop in the trace without reading
 the payload. `docs/public/reference/http-api/code.md`, the OpenAPI operation, and
 the MCP tool description are updated to the same contract.
 
+## Console consumer
+
+The console's code-graph page (`apps/console/src/api/codeImports.ts`,
+`pages/CodeGraphPageSupport.tsx`) loads only the first page and printed "More
+import cycles are available" whenever `truncated` was true. With `truncated`
+staying true on a capped run's last page, that text would offer more cycles
+where no page exists. The client now reads `has_more` (falling back to the cursor
+for an API that predates it), says "More import cycles are available at offset
+N" only while `has_more` is true, and otherwise says the list is partial because
+the enumeration stopped at its bound. A component test (`says a stopped
+enumeration is partial without offering a page that does not exist`) failed on the
+old text first. From the repository root, as CI runs it: `npm run console:test`
+passes 279 files and 1,790 tests, `npm run console:typecheck` exits 0, and
+Prettier's pinned version is clean on the changed files.
+
 ## Contract and gates
 
 - `has_more` is additive. `truncated` keeps its meaning for every existing reader

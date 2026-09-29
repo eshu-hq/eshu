@@ -27,7 +27,10 @@ export interface CodeImportCycleRow {
 export interface CodeImportCyclesPage {
   readonly cycles: readonly CodeImportCycleRow[];
   readonly count: number;
+  /** True when the answer is partial: another page exists, or the enumeration stopped at its bound. */
   readonly truncated: boolean;
+  /** True only while another page exists; page on this and nextOffset, not on truncated. */
+  readonly hasMore: boolean;
   readonly nextOffset: number | null;
 }
 
@@ -35,6 +38,7 @@ interface CodeImportCyclesResponse {
   readonly cycles?: readonly CycleRecord[];
   readonly count?: number;
   readonly truncated?: boolean;
+  readonly has_more?: boolean;
   readonly next_offset?: number | null;
 }
 
@@ -104,11 +108,15 @@ async function fetchCodeImportCycles(
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const cycles = (data.cycles ?? []).map(normalizeCycleRecord);
+  const nextOffset = typeof data.next_offset === "number" ? data.next_offset : null;
   return {
     cycles,
     count: data.count ?? cycles.length,
     truncated: data.truncated === true,
-    nextOffset: typeof data.next_offset === "number" ? data.next_offset : null,
+    // An API that predates has_more sent a cursor exactly when another page
+    // existed, so fall back to the cursor.
+    hasMore: typeof data.has_more === "boolean" ? data.has_more : nextOffset !== null,
+    nextOffset,
   };
 }
 
