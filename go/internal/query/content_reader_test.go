@@ -236,8 +236,19 @@ func TestContentReaderRepositoryLanguageInventoryReturnsAggregateRows(t *testing
 	if got, want := len(recorder.queries), 1; got != want {
 		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
 	}
-	if !strings.Contains(recorder.queries[0], "GROUP BY coalesce(NULLIF(language, ''), 'unknown')") {
-		t.Fatalf("query = %q, want normalized language grouping", recorder.queries[0])
+	query := recorder.queries[0]
+	if strings.Contains(query, "COUNT(DISTINCT repo_id)") {
+		t.Fatalf("query = %q, want one row per language and repository before the final count", query)
+	}
+	for _, want := range []string{
+		"GROUP BY coalesce(NULLIF(language, ''), 'unknown'), repo_id",
+		"COUNT(*) AS repository_count",
+		"SUM(file_count)::bigint AS file_count",
+		"GROUP BY language",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query = %q, want %q", query, want)
+		}
 	}
 }
 

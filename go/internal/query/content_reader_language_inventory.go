@@ -239,12 +239,20 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	}
 
 	rows, err := cr.db.QueryContext(ctx, `
-		SELECT coalesce(NULLIF(language, ''), 'unknown') AS language,
-		       COUNT(DISTINCT repo_id) AS repository_count,
-		       COUNT(*) AS file_count,
-		       MAX(indexed_at) AS last_indexed_at
-		FROM content_files
-		`+where+`GROUP BY coalesce(NULLIF(language, ''), 'unknown')
+		WITH per_repo AS (
+			SELECT coalesce(NULLIF(language, ''), 'unknown') AS language,
+			       repo_id,
+			       COUNT(*) AS file_count,
+			       MAX(indexed_at) AS last_indexed_at
+			FROM content_files
+			`+where+`GROUP BY coalesce(NULLIF(language, ''), 'unknown'), repo_id
+		)
+		SELECT language,
+		       COUNT(*) AS repository_count,
+		       SUM(file_count)::bigint AS file_count,
+		       MAX(last_indexed_at) AS last_indexed_at
+		FROM per_repo
+		GROUP BY language
 		ORDER BY repository_count DESC, file_count DESC, language
 		LIMIT $1 OFFSET $2
 	`, args...)
