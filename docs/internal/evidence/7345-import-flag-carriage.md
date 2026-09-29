@@ -67,8 +67,8 @@ false) and an unchanged edge count.
 
 | Backend | Result |
 | --- | --- |
-| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS at the pre-rebase build (the same change on the base before #7438 merged). The rebase after it touched only a comment in the reader file, and the writer statement and refresh are unchanged on the new base, but the live test was not re-run at the final head. gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
-| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the same pre-rebase build, identical values and edge count |
+| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS at the final code: `ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -count=1 -v` on a throwaway tmpfs container, exit 0 (the `go/` and `sdk/` diff has patch-id `b6559c19662cff40`, unchanged by the later documentation commits and by the base-only rebase). gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
+| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the build before the rebase onto #7438, identical values and edge count; not re-run at the final head (secondary backend, #7331) |
 
 Sensitivity: with the `r.inferred` SET removed from the writer statement the
 Neo4j run fails with `property "inferred" = <nil>, want an explicit boolean`.
@@ -89,10 +89,9 @@ fails, which the original single-order cases missed because the accumulator is
 seeded from the first entry. Both mutants were applied and the file restored
 byte-identical.
 
-NornicDB chain-batch: the live test passes on the pinned NornicDB, but whether
-its UNWIND-MERGE chain-batch fast path still engages for this statement was not
-recorded (NOT_CHECKED). The IMPORTS SET is single-variable, which is the shape
-that path accepts.
+NornicDB (secondary, #7331): correctness proven by the live graph-truth test on the pinned v1.3.3 (explicit true/false stored and read back, edge
+count unchanged); NornicDB write-path performance and chain-batch fast-path engagement not measured, withdrawn by arbiter ruling under #7331
+(budgets are defined on Neo4j). The required NornicDB CI legs remain blocking.
 
 ## Performance Evidence:
 
@@ -159,7 +158,7 @@ DB hits do not reflect the property writes. The read-back after the extended wri
 The extended statement is measurably a little slower (7 of 9 same-round ratios above 1),
 about 2 to 3%, which is inside the bar. The estimator's own spread on unchanged code is small: the A/A ratio of
 medians was 1.0156 and 1.0071 in the two pre-sets, and in the gated set the control against the baseline was
-0.9995 while the extended against the control was 1.0255. The +10% bar sits well outside that spread; the
+0.9997 while the extended against the control was 1.025. The +10% bar sits well outside that spread; the
 wider 11.1% control bound is an outlier filter for a starved round, not the precision of the ratio.
 
 Rule PD (host quiet): load1 was 2.96 at the start, 2.85 at the end and at most 3.04 in
@@ -178,7 +177,7 @@ five containers were up throughout, none of them mine: the four `eshu7033proof-*
 resolution-engine on the `eshu-7033-proof` image, Postgres 18, Neo4j 2026-community) and an idle `pg-6809`
 Postgres. The run's own `eshu7345-timing-neo4j` and `eshu7345-timing-pg` containers were removed at exit.
 
-NornicDB (secondary): the chain-batch fast path check is still NOT_CHECKED; this run used Neo4j only.
+This run used Neo4j only; NornicDB is covered by the paragraph under Graph truth.
 
 ## Benchmark Evidence:
 
@@ -219,7 +218,7 @@ it. The flags are directly inspectable on the edge
   must not count it as proven runtime.
 - The B-12 golden snapshot (`IMPORTS` floor of 63) is unchanged because fold
   identity is unchanged; the live B-7 gate is a CI check and was not run here.
-- The NornicDB CI legs and the NornicDB chain-batch check remain the open proof; the Neo4j write timing is in the Performance Evidence section.
+- The required NornicDB CI legs must be green on the pushed head; NornicDB write-path performance is not measured (withdrawn under #7331). The Neo4j write timing is in the Performance Evidence section.
 - Key drift: the parser change (#7344, merged as #7432) wrote the flags under
   the `shared.ImportFlag*` keys, and the SDK reads them through `json` tags. Two
   tests in `projector/canonical` (`TestImportFlagKeysMatchTheSDKFieldTags`,
