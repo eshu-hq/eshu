@@ -244,13 +244,13 @@ check "real repo: derived list includes the aggregator's source workflow" "$(pri
 expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/required-gates.yml")"
 check "real repo: derived list covers every workflow the aggregator listens to" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -ge "${expected_n}" ] && echo 0 || echo 1)"
 
-# 20. F1: the ruleset probe asks for one run in one request (the paginated
-#     per_page=1 probe walked the whole history: 208 calls, 57 s live), and a
-#     whole evaluation makes a bounded number of gh calls.
+# 20. F1: the ruleset probe asks for one bounded page (10 runs) in one request
+#     (the paginated per_page=1 probe walked the whole history: 208 calls,
+#     57 s live), and a whole evaluation makes a bounded number of gh calls.
 new_case f1-bounded "${TIP}"
 green_runs
 run_watcher
-check "F1: ruleset probe asks for a single run" "$(ok called '^api repos/eshu-hq/eshu/actions/workflows/required-gates.yml/runs\?.*per_page=1')"
+check "F1: ruleset probe asks for one bounded page (10 runs) in one request" "$(ok called '^api repos/eshu-hq/eshu/actions/workflows/required-gates.yml/runs\?.*per_page=10')"
 check "F1: ruleset probe is never paginated" "$(ok not_called '--paginate.*required-gates.yml/runs')"
 check "F1: a green evaluation makes at most 8 gh calls" "$([ "$(wc -l <"${case_dir}/calls.log" | tr -d ' ')" -le 8 ] && echo 0 || echo 1)"
 check "P3-2: the status probe is one read of the combined status" "$(ok called "^api repos/eshu-hq/eshu/commits/${TIP}/status$")"
@@ -475,6 +475,8 @@ check "P3: summary counts the derived required list exactly" "$(ok out_has ' req
 # 27. #7111: a run listing larger than one argv string is still judged.
 # shellcheck source=scripts/lib/test-main-health-argmax.sh
 . "${repo_root}/scripts/lib/test-main-health-argmax.sh"
+# shellcheck source=scripts/lib/test-main-health-ruleset.sh
+. "${repo_root}/scripts/lib/test-main-health-ruleset.sh"
 
 # 19. static mirror of the workflow and of the script's write discipline.
 # shellcheck source=scripts/lib/test-main-health-workflow.sh
