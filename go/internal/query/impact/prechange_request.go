@@ -56,3 +56,34 @@ func preChangeImpactErrorStatus(err error) int {
 	}
 	return http.StatusInternalServerError
 }
+
+func preChangeMode(req preChangeImpactRequest) string {
+	switch {
+	case req.BaseRef != "" || req.HeadRef != "":
+		return "ref_diff"
+	case len(req.Changes) > 0:
+		return "file_list"
+	default:
+		return "target_or_topic"
+	}
+}
+
+func preChangeFileMaps(repoID string, changes []preChangeFileChange) []map[string]any {
+	files := make([]map[string]any, 0, len(changes))
+	for _, change := range changes {
+		row := map[string]any{
+			"repo_id": repoID,
+			"path":    change.Path,
+			"status":  change.Status,
+			"source_handle": map[string]any{
+				"repo_id":       repoID,
+				"relative_path": change.Path,
+			},
+		}
+		if change.OldPath != "" {
+			row["old_path"] = change.OldPath
+		}
+		files = append(files, row)
+	}
+	return files
+}

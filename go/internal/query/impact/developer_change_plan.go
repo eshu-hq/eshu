@@ -82,10 +82,12 @@ func developerChangePlanData(req preChangeImpactRequest, impactData map[string]a
 		"pre_change_summary":    preChangeSummary(impactData),
 		"pre_change_impact_ref": "eshu://api-result/impact/pre-change",
 	}
+	data["truncated"] = querycontract.BoolVal(impactData, "truncated")
+	data["blocked"] = querycontract.BoolVal(data, "truncated") ||
+		querycontract.StringVal(querycontract.MapValue(data, "coverage"), "state") == "partial" ||
+		len(querycontract.MapSliceValue(data, "missing_evidence")) > 0
 	data["actions"] = developerPlanActions(req, data)
 	data["patch_guidance"] = developerPlanPatchGuidance(data)
-	data["blocked"] = len(querycontract.MapSliceValue(data, "missing_evidence")) > 0
-	data["truncated"] = querycontract.BoolVal(impactData, "truncated")
 	return answer.AttachAnswerMetadata(data)
 }
 
@@ -121,13 +123,13 @@ func developerPlanActions(req preChangeImpactRequest, plan map[string]any) []map
 			})
 		}
 	}
-	if len(querycontract.MapSliceValue(plan, "missing_evidence")) > 0 {
+	if querycontract.BoolVal(plan, "blocked") {
 		actions = append(actions, map[string]any{
 			"order":            len(actions) + 1,
 			"kind":             "block_unsafe_recommendation",
 			"risk":             "high",
-			"title":            "Block unsafe patch guidance until missing evidence is resolved",
-			"rationale":        "Missing, stale, or deleted-path evidence can hide affected symbols or owners.",
+			"title":            "Block unsafe patch guidance until evidence is complete",
+			"rationale":        "Incomplete or uncertain evidence can hide affected symbols or owners.",
 			"missing_evidence": querycontract.MapSliceValue(plan, "missing_evidence"),
 			"follow_up_calls":  []string{"get_generation_lifecycle", "eshu change impact"},
 		})
@@ -216,7 +218,7 @@ func developerPlanPatchGuidance(plan map[string]any) []map[string]any {
 			"status":        status,
 			"relative_path": querycontract.StringVal(file, "path"),
 			"guidance":      developerPlanPatchGuidanceText(status),
-			"safe":          status != "deleted" && len(querycontract.MapSliceValue(plan, "missing_evidence")) == 0,
+			"safe":          status != "deleted" && !querycontract.BoolVal(plan, "blocked"),
 		}
 		if oldPath := querycontract.StringVal(file, "old_path"); oldPath != "" {
 			row["old_path"] = oldPath

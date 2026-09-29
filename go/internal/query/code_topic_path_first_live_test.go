@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -97,5 +98,28 @@ SELECT 'repo-dense', 'src/only-content.go', 'needle', 'content', 1, 'go', now()
 			t.Fatalf("dense row %d = (%s, %s, capped=%v), want repo-dense path hit and capped marker",
 				index, row.RepoID, row.RelativePath, row.PoolTruncated)
 		}
+	}
+	// An offset past the result removes the row-carried pool marker even though
+	// the per-term pool was capped. The impact adapter must fail closed.
+	emptyPage, err := reader.InvestigateCodeTopic(ctx, CodeTopicInvestigationRequest{
+		RepoID: "repo-dense", Terms: []string{"needle"}, Limit: 10, Offset: 5000,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateCodeTopic() empty offset: %v", err)
+	}
+	if len(emptyPage) != 0 {
+		t.Fatalf("empty offset rows = %d, want zero", len(emptyPage))
+	}
+	surface, err := (changeSurfaceCodeBackend{}).FetchCodeSurface(
+		ctx, &ImpactHandler{Content: reader, Profile: ProfileLocalAuthoritative},
+		impact.ChangeSurfaceInvestigationRequest{RepoID: "repo-dense", Topic: "needle", Limit: 10, Offset: 5000},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("FetchCodeSurface() empty offset: %v", err)
+	}
+	coverage := surface["coverage"].(map[string]any)
+	if coverage["state"] != "partial" || coverage["candidate_pool_status"] != "unknown_empty_page" {
+		t.Fatalf("coverage = %#v, want partial unknown_empty_page", coverage)
 	}
 }

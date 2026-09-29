@@ -361,37 +361,6 @@ func preChangeImpactData(req preChangeImpactRequest, surface map[string]any) map
 	return answer.AttachAnswerMetadata(data)
 }
 
-func preChangeMode(req preChangeImpactRequest) string {
-	switch {
-	case req.BaseRef != "" || req.HeadRef != "":
-		return "ref_diff"
-	case len(req.Changes) > 0:
-		return "file_list"
-	default:
-		return "target_or_topic"
-	}
-}
-
-func preChangeFileMaps(repoID string, changes []preChangeFileChange) []map[string]any {
-	files := make([]map[string]any, 0, len(changes))
-	for _, change := range changes {
-		row := map[string]any{
-			"repo_id": repoID,
-			"path":    change.Path,
-			"status":  change.Status,
-			"source_handle": map[string]any{
-				"repo_id":       repoID,
-				"relative_path": change.Path,
-			},
-		}
-		if change.OldPath != "" {
-			row["old_path"] = change.OldPath
-		}
-		files = append(files, row)
-	}
-	return files
-}
-
 func preChangeMissingEvidence(req preChangeImpactRequest, codeSurface map[string]any) []map[string]any {
 	matched := map[string]struct{}{}
 	for _, symbol := range querycontract.MapSliceValue(codeSurface, "touched_symbols") {
@@ -400,11 +369,15 @@ func preChangeMissingEvidence(req preChangeImpactRequest, codeSurface map[string
 		}
 	}
 	missing := make([]map[string]any, 0)
+	pathLookupTruncated := querycontract.BoolVal(querycontract.MapValue(codeSurface, "coverage"), "path_symbols_truncated")
 	for _, change := range req.Changes {
 		if _, ok := matched[change.Path]; ok {
 			continue
 		}
 		reason := "changed_path_no_symbol_evidence"
+		if pathLookupTruncated {
+			reason = "changed_path_lookup_truncated"
+		}
 		if change.Status == "deleted" {
 			reason = "deleted_path_requires_prior_generation"
 		}
@@ -425,7 +398,9 @@ func preChangeCoverage(req preChangeImpactRequest, surface map[string]any) map[s
 	coverage["changed_file_count"] = len(req.Changes)
 	coverage["changed_path_count"] = len(req.ChangedPaths)
 	coverage["truncated"] = querycontract.BoolVal(surface, "truncated")
-	if len(req.Changes) == 0 {
+	if querycontract.BoolVal(surface, "truncated") || querycontract.StringVal(coverage, "state") == "partial" {
+		coverage["state"] = "partial"
+	} else if len(req.Changes) == 0 {
 		coverage["state"] = "empty_diff"
 	} else if len(preChangeMissingEvidence(req, querycontract.MapValue(surface, "code_surface"))) > 0 {
 		coverage["state"] = "partial"
