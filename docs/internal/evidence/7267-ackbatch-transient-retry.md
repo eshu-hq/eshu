@@ -50,8 +50,10 @@ enrolled in the reducer contention gate by its name prefix) runs
 `reducer.Service.Run` with 2 workers and batch size 2 against the real
 `ReducerQueue` as source and a recording wrapper around the real `AckBatch` as
 sink. A blocker transaction locks the rows in the reverse of AckBatch's
-`work_item_id` order and sets `deadlock_timeout` high, so Postgres always aborts
-the ACK backend with a genuine 40P01.
+`work_item_id` order and sets `deadlock_timeout` high, so Postgres aborts the
+ACK backend with a genuine 40P01 in the normal case (the blocker's second lock
+request lands within the ACK's own `deadlock_timeout`; a stalled runner can
+miss that window and the test then fails at the blocker's timeout).
 
 - `retry_acks_each_row_once`: run returns nil; ACK calls are `[40P01, nil]`;
   both rows end `succeeded` with `attempt_count=1`; a replayed `AckBatch`
@@ -63,7 +65,8 @@ the ACK backend with a genuine 40P01.
 
 Test-First: against `origin/main`'s `service_batch.go` (via `go test -overlay`,
 tree untouched) both subtests fail with `reducer run ended on the deadlocked
-ACK: ... (SQLSTATE 40P01)`; on the fix they pass, 10 of 10 with `-race`.
+ACK: ... (SQLSTATE 40P01)`; on the fix they pass (10 of 10 runs with `-race` by the author, 5 of 5 by the
+independent reviewer).
 
 ## Lock order and transaction scope
 
@@ -88,3 +91,20 @@ ACK: ... (SQLSTATE 40P01)`; on the fix they pass, 10 of 10 with `-race`.
 Unexplained, not reproduced: one earlier run on a stalled USB-backed Go cache
 failed at the executor-wait step (`claims never reached the executor`) after
 0.49 s; it did not recur in 10 runs on a local cache.
+
+## Known limits
+
+- Only the batch ack path retries. The single-item `WorkSink.Ack` path used when
+  `Workers <= 1` still treats a 40P01 as fatal, and only SQLSTATE 40P01 and
+  40001 are classified transient (not 55P03, 57014 or connection errors).
+- The retry and abandonment signals are WARN logs with
+  `failure_class=ack_transient_retry` and `ack_abandoned_to_lease_expiry`;
+  abandoned items share `eshu_dp_reducer_executions_total{status="ack_outcome_unknown"}`
+  with shutdown cancellation. There is no dedicated counter.
+- Worst case one batch holds the single ack goroutine for about 750 ms of
+  backoff (50, 100, 200, 400 ms) plus five statement times while `ackCh`
+  (twice the batch size) fills and workers wait. The lease is one minute with
+  30 s heartbeats, so a lease is not expected to expire inside that window; if it
+  did, the ack would match 0 rows and the work would be reclaimed safely.
+- The after-fix Ifá `expirelease` fault-injection cell has not been run locally;
+  the `ifa-fault-injection` gate is selected for these paths in CI.

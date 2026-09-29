@@ -179,7 +179,10 @@ func openReducerAckFanoutProofDB(t *testing.T) *sql.DB {
 // (#7267). The ACK locks its rows FOR NO KEY UPDATE in work_item_id order; the
 // blocker takes the same two rows in reverse, so Postgres's deadlock detector
 // aborts the ACK statement. The blocker's raised deadlock_timeout makes the ACK
-// backend the detector, and therefore the victim, on every run.
+// backend the one that runs the detector, and therefore the victim, provided
+// the blocker's second lock request arrives within the ACK's own
+// deadlock_timeout (normally a few tens of milliseconds; a stalled runner can
+// miss that window and the run then fails at the blocker's timeout).
 func TestReducerContentionGateAckBatchDeadlockRetryLive(t *testing.T) {
 	for _, variant := range []struct {
 		name    string
