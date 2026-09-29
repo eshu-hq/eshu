@@ -1,0 +1,42 @@
+go/internal/query/code_topic_exact_plan_probe_test.go
+  s_b0d7e3abc26c5a::t_86fd12cf12626b 221
+  s_b0d7e3abc26c5a::t_4ce9fc03bba5de 352,354
+  s_b0d7e3abc26c5a::t_46069b1c13f613 14,116-144,177-181,204,219,224-231,233,240-243,324-345,351,353
+  s_b0d7e3abc26c5a::t_645abc61a5ccb9 217-218,232,236,238
+  s_b0d7e3abc26c5a::t_1728e3850dbe6d 18
+  s_b0d7e3abc26c5a::t_cbd8836caf4af4 152-154,220,235,355-367
+  s_b0d7e3abc26c5a::t_bdf17babf16413 96-107,346-350
+  s_b0d7e3abc26c5a::t_badd0f232c42c3 189-192,237
+  s_b0d7e3abc26c5a::t_21e52fd88ae38d 368
+  s_82087c56388db9::t_f90743f150d08b 159-161,163
+go/internal/query/code_topic_exact_plan_probe_diagnostics_test.go
+  s_b0d7e3abc26c5a::t_6ef240cb8f6b4c 1-71
+go/internal/query/code_topic_exact_plan_probe_summary_test.go
+  s_b0d7e3abc26c5a::t_85b5b071a0be1e 143-148
+  s_b0d7e3abc26c5a::t_c5351744b56fc7 1-34,50-52,59-142,149-174
+  s_b0d7e3abc26c5a::t_90383e3aff125a 35-49,53-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fd066c6a4f3e187b8202d21de31bc94f8afe7afd",
+  "prompts": {},
+  "sessions": {
+    "s_82087c56388db9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0eac3-936d-72b3-b5fd-e7975c13a16c",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
