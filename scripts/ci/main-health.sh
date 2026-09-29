@@ -39,8 +39,10 @@
 #           cannot be read, counts as blocking (fail closed). The ruleset
 #           verification is not a registry gate and is unconditionally
 #           blocking: it guards the required-status mirror itself. Only its
-#           `success` counts as green; any other conclusion is red, and no
-#           completed scheduled run yet is unknown.
+#           fresh `success` counts as green; any other conclusion of the NEWEST
+#           completed run in a 10-run page (by created_at, not row 0) is red.
+#           No completed scheduled run yet, or a newest one older than 12h
+#           (two cron periods), is unknown.
 #   green   every required workflow that ran on the tip succeeded or failed
 #           only in advisory jobs, none is pending, and the registry's source
 #           workflow has a verdict
@@ -50,7 +52,8 @@
 #           -> leave the issue alone, status pending
 #   unknown a required run was cancelled and never re-run (no verdict), a run
 #           listing came back truncated, or no scheduled ruleset verification
-#           has completed yet (cannot prove green)
+#           has completed yet or the newest is older than 12h (cannot prove
+#           green)
 #           -> leave the issue alone, status error
 #
 # The required workflows are not listed here. They are derived from the two
@@ -72,7 +75,7 @@
 # scripts/test-main-health.sh fails if a gh call appears anywhere else.
 #
 # API cost per evaluation is bounded and independent of history length: one
-# commit read, one ruleset probe (a single run), one filtered run listing per
+# commit read, one ruleset probe (one page of 10 runs), one filtered run listing per
 # event (push, schedule) plus one per required workflow file that has a
 # workflow_run trigger, one job listing per failed run, the open issues, and
 # the tip's combined status (one read).
@@ -254,19 +257,39 @@ verdicts="$(jq -c --argjson req "${req_json}" '
 
 # --- scheduled ruleset verification (verify-live-ruleset) -------------------
 ruleset_file="$(ruleset_workflow_file)"
-# One request for one run: never paginate this probe, since --paginate would
-# walk every scheduled run in history (4 a day).
-ruleset_json="$(gh_get "repos/${repo}/actions/workflows/${ruleset_file}/runs?event=schedule&status=completed&branch=${branch}&per_page=1" |
-	jq -c '.workflow_runs[0] // null')"
-# Fail closed: only a success proves the live ruleset still matches the
+# One request for one bounded page: never paginate this probe, since --paginate
+# would walk every scheduled run in history (4 a day). The verdict is the
+# NEWEST completed run in that page by created_at, not row 0: the listing has
+# returned a nine-day-old failing run on one call and the current success on the
+# next three (#7430, #7448), so a single row of it is not evidence. The cause of
+# that instability is not known.
+ruleset_json="$(gh_get "repos/${repo}/actions/workflows/${ruleset_file}/runs?event=schedule&status=completed&branch=${branch}&per_page=10" |
+	jq -c '[.workflow_runs[]?] | if length == 0 then null else max_by(.created_at // "") end')"
+# The verifier runs every 6h. A newest completed run older than two periods
+# (12h) is no evidence about the live ruleset either way, so it is unknown: it
+# can neither make main red (it may be a stale snapshot) nor prove it green.
+ruleset_max_age_s=43200
+ruleset_age_s=0
+if [[ "${ruleset_json}" != "null" ]]; then
+	# A run with no created_at has no provable age, so it is treated as stale:
+	# it cannot prove the ruleset is current (fail closed).
+	ruleset_age_s="$(jq -r 'if .created_at then (now - (.created_at | fromdateiso8601) | floor) else "none" end' <<<"${ruleset_json}")"
+	[[ "${ruleset_age_s}" == "none" ]] && ruleset_age_s=$((ruleset_max_age_s + 1))
+fi
+# Fail closed: only a fresh success proves the live ruleset still matches the
 # registry. Any other conclusion (failure, timed_out, startup_failure,
-# cancelled, ...) means drift was not ruled out, so it is red. No completed
-# scheduled run yet is unknown: it can never make main green.
+# cancelled, ...) on a fresh run means drift was not ruled out, so it is red.
+# No completed scheduled run yet, or only a stale one, is unknown: it can never
+# make main green.
 ruleset_conclusion="$(jq -r '.conclusion // "none"' <<<"${ruleset_json}")"
 ruleset_red=false
 ruleset_missing=false
+ruleset_stale=false
 if [[ "${ruleset_json}" == "null" ]]; then
 	ruleset_missing=true
+elif [[ "${ruleset_age_s}" -gt "${ruleset_max_age_s}" ]]; then
+	ruleset_missing=true
+	ruleset_stale=true
 elif [[ "${ruleset_conclusion}" != "success" ]]; then
 	ruleset_red=true
 fi
@@ -432,6 +455,8 @@ unknown)
 	status_state=error
 	if [[ "${truncated}" == "true" ]]; then
 		status_desc="Run listing for ${short} was truncated; cannot prove main green"
+	elif [[ "${ruleset_stale}" == "true" && "${n_unknown}" -eq 0 ]]; then
+		status_desc="Latest scheduled ruleset verification is older than 12h ($((ruleset_age_s / 3600))h); cannot prove main green"
 	elif [[ "${ruleset_missing}" == "true" && "${n_unknown}" -eq 0 ]]; then
 		status_desc="No completed scheduled ruleset verification yet; cannot prove main green"
 	else
@@ -453,7 +478,7 @@ else
 		-f target_url="${status_url}" >/dev/null
 fi
 
-summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} advisory=${n_advisory} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} ruleset_conclusion=${ruleset_conclusion} open_issues=$(jq 'length' <<<"${issues_json}")"
+summary="main-health: sha=${tip} state=${state} action=${action} required=${n_required} red=${n_red} advisory=${n_advisory} pending=${n_pending} unknown=${n_unknown} truncated=${truncated} ruleset_red=${ruleset_red} ruleset_conclusion=${ruleset_conclusion} ruleset_stale=${ruleset_stale} ruleset_age_s=${ruleset_age_s} open_issues=$(jq 'length' <<<"${issues_json}")"
 echo "${summary}"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	{

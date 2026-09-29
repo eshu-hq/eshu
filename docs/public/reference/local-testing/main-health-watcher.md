@@ -14,10 +14,10 @@ whichever workflow woke it up) and publishes a `main-health` commit status:
 
 | Verdict | Condition | Issue | Status |
 | --- | --- | --- | --- |
-| red | a required workflow's latest run on the tip failed in a blocking job, or the latest completed scheduled `Required Gates` ruleset verification did not succeed | open or update the single `main is red @<sha>` issue; comment on it when the set of blocking reds changes | `failure` |
-| green | every required workflow that ran on the tip succeeded or failed only in advisory jobs, none is running, and the aggregator's source workflow has a verdict | close the open issue | `success`, naming any advisory failure |
+| red | a required workflow's latest run on the tip failed in a blocking job, or the newest completed scheduled `Required Gates` ruleset verification (in a page of 10, by `created_at`, and no older than 12h) did not succeed | open or update the single `main is red @<sha>` issue; comment on it when the set of blocking reds changes | `failure` |
+| green | every required workflow that ran on the tip succeeded or failed only in advisory jobs, none is running, the aggregator's source workflow has a verdict, and the ruleset verification is fresh and passing | close the open issue | `success`, naming any advisory failure |
 | pending | a required workflow is still running, or the source workflow has not registered yet | unchanged | `pending` |
-| unknown | a required run was cancelled and never re-run, a run listing came back truncated, or no scheduled ruleset verification has completed yet | unchanged | `error` |
+| unknown | a required run was cancelled and never re-run, a run listing came back truncated, or the ruleset verification is missing, has no `created_at`, or is older than 12h | unchanged | `error` |
 
 "Latest run" is judged per triggering event, because one workflow can carry
 more than one verdict on a commit. Security Scan's `push` run scans the tree,
@@ -75,11 +75,23 @@ declares, so a failure means merge protection itself may have drifted, and
 nothing in the registry could make that advisory.
 
 The ruleset probe fails closed. Only a `success` conclusion proves the
-ruleset matches, so any other conclusion of the latest completed scheduled
+ruleset matches, so any other conclusion of the newest completed scheduled
 run is red, including `failure`, `timed_out`, `startup_failure`, and
 `cancelled`: none of them ruled drift out. The issue names the conclusion.
-If no scheduled run has completed yet (a new repository), the verdict is
-unknown, never green, and an open issue is left alone.
+
+The probe reads one page of 10 completed scheduled runs and takes the newest by
+`created_at`, not the first row. The GitHub listing has returned a nine-day-old
+failing run on one call and the current success on the next three (#7430,
+#7448), so a single row is not evidence. The cause of that instability is not
+known. The verifier runs every 6 hours, so a newest run older than 12 hours (or
+with no `created_at`) is no evidence either way. The 12 hours is a heuristic:
+scheduled runs have been created up to about 13.8 hours apart, so a healthy
+repository can briefly read unknown. That only leaves the status at `error`; it
+never opens an issue or turns red. The summary line carries `ruleset_stale` and
+`ruleset_age_s`. In that case the verdict is unknown, the status says the
+verification is older than 12h, and an open issue is left alone. If no
+scheduled run has completed yet (a new repository), the verdict is likewise
+unknown, never green.
 
 The issue body records the current set of blocking reds in a hidden marker.
 When a later evaluation finds a different set, with a new red added or a red

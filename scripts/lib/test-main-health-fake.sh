@@ -109,17 +109,32 @@ new_case() { # <name> <tip-sha>
 	: >"${case_dir}/calls.log"
 }
 
-# ruleset_run <conclusion>: the latest completed scheduled `Required Gates`
-# run (the ruleset verification) has this conclusion; "none" means there is
-# no such run yet. Every case starts from a passing verification.
+# ruleset_run <conclusion> [age_s]: the latest completed scheduled `Required Gates`
+# run (the ruleset verification) has this conclusion and was created age_s
+# seconds ago (default one hour, well inside the freshness window); "none"
+# means there is no such run yet. Every case starts from a passing verification.
 ruleset_run() {
 	if [ "$1" = none ]; then
 		echo '{"workflow_runs":[]}' >"${case_dir}/ruleset-runs.json"
 		return 0
 	fi
-	jq -cn --arg c "$1" '{workflow_runs:[{id:70,name:"Required Gates",status:"completed",conclusion:$c,
-		event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",head_branch:"main",
-		html_url:"https://github.example/runs/70"}]}' >"${case_dir}/ruleset-runs.json"
+	ruleset_runs "70:$1:${2:-3600}"
+}
+
+# ruleset_runs <id:conclusion:age_s>...: the scheduled listing, IN THIS ORDER
+# (the fake serves fixture order, so a stale or mis-sorted API response is
+# seedable). Each run was created age_s seconds ago; age "none" omits created_at.
+ruleset_runs() {
+	local spec rest id concl age out=""
+	for spec in "$@"; do
+		id="${spec%%:*}"; rest="${spec#*:}"; concl="${rest%%:*}"; age="${rest#*:}"
+		out+="$(jq -cn --argjson id "${id}" --arg c "${concl}" --arg age "${age}" \
+			'{id:$id,name:"Required Gates",status:"completed",conclusion:$c,
+			event:"schedule",run_number:5,run_attempt:1,head_sha:"cccc",head_branch:"main",
+			html_url:("https://github.example/runs/" + ($id|tostring))}
+			+ (if $age == "none" then {} else {created_at:((now - ($age|tonumber))|todate)} end)')"$'\n'
+	done
+	printf '%s' "${out}" | jq -s '{workflow_runs: .}' >"${case_dir}/ruleset-runs.json"
 }
 
 set_runs() { # run-json...
