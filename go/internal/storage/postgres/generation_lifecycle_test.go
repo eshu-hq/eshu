@@ -27,6 +27,7 @@ func lifecycleRow(
 		observed, ingested, activated, superseded,
 		total, outstanding, inflight, retrying, succeeded, failed, deadLetter,
 		failureClass, failureMessage, failureWorkItemStatus, failureObserved,
+		"",
 	}
 }
 

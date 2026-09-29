@@ -389,6 +389,9 @@ func workItemsToSlice(items []WorkItem) []map[string]any {
 		if item.OperatorNote != nil {
 			entry["operator_note"] = *item.OperatorNote
 		}
+		if item.PriorFailure != nil {
+			entry["prior_failure"] = item.PriorFailure
+		}
 		if item.VisibleAt != nil {
 			entry["visible_at"] = item.VisibleAt.Format(time.RFC3339)
 		}

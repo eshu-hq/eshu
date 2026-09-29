@@ -137,7 +137,8 @@ WITH selected AS (
         work.failure_message,
         work.created_at,
         work.updated_at,
-        work.visible_at
+        work.visible_at,
+        work.failure_details
 )
 SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 `
@@ -319,7 +320,8 @@ SELECT
     failure_message,
     created_at,
     updated_at,
-    visible_at
+    visible_at,
+    failure_details
 FROM fact_work_items
 WHERE 1=1
 `)
@@ -363,6 +365,7 @@ func scanWorkItems(ctx context.Context, database db.ExecQueryer, query string, a
 		var failureClass sql.NullString
 		var failureMessage sql.NullString
 		var visibleAt sql.NullTime
+		var failureDetails sql.NullString
 		if err := rows.Scan(
 			&item.WorkItemID,
 			&item.ScopeID,
@@ -377,9 +380,11 @@ func scanWorkItems(ctx context.Context, database db.ExecQueryer, query string, a
 			&item.CreatedAt,
 			&item.UpdatedAt,
 			&visibleAt,
+			&failureDetails,
 		); err != nil {
 			return nil, fmt.Errorf("scan work item: %w", err)
 		}
+		applyWorkItemDetails(&item, failureDetails)
 		if leaseOwner.Valid {
 			item.LeaseOwner = &leaseOwner.String
 		}

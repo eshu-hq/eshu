@@ -6,8 +6,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -97,6 +99,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 	var failureMessage string
 	var failureWorkItemStatus string
 	var failureObservedAt sql.NullTime
+	var failureDetails string
 
 	if err := rows.Scan(
 		&record.ScopeID,
@@ -124,6 +127,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 		&failureMessage,
 		&failureWorkItemStatus,
 		&failureObservedAt,
+		&failureDetails,
 	); err != nil {
 		return statuspkg.GenerationLifecycleRecord{}, err
 	}
@@ -150,6 +154,7 @@ func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleReco
 			FailureMessage: strings.TrimSpace(failureMessage),
 			WorkItemStatus: strings.TrimSpace(failureWorkItemStatus),
 			ObservedAt:     nullableLifecycleTimestamp(failureObservedAt),
+			PriorFailure:   parsePriorFailure(failureDetails),
 		}
 	}
 
@@ -161,4 +166,41 @@ func nullableLifecycleTimestamp(value sql.NullTime) string {
 		return ""
 	}
 	return statuspkg.GenerationLifecycleTimestamp(value.Time)
+}
+
+// priorFailureDetails is the part of failure_details the drilldown reads: the
+// prior_failure object the #7320 supersede fold writes. The prior failure's own
+// details text is deliberately not decoded.
+type priorFailureDetails struct {
+	PriorFailure *struct {
+		Status         string `json:"status"`
+		FailureClass   string `json:"failure_class"`
+		FailureMessage string `json:"failure_message"`
+		UpdatedAt      string `json:"updated_at"`
+	} `json:"prior_failure"`
+}
+
+// parsePriorFailure returns the prior failure a superseded row's failure_details
+// carries, or nil. failure_details is free text or JSON, so anything that is not
+// a JSON object with an object-valued prior_failure yields nil and no error: a
+// non-JSON row must never fail the drilldown page (#7385).
+func parsePriorFailure(details string) *statuspkg.GenerationPriorFailure {
+	details = strings.TrimSpace(details)
+	if details == "" || details[0] != '{' {
+		return nil
+	}
+	var parsed priorFailureDetails
+	if err := json.Unmarshal([]byte(details), &parsed); err != nil || parsed.PriorFailure == nil {
+		return nil
+	}
+	prior := statuspkg.GenerationPriorFailure{
+		Status:         strings.TrimSpace(parsed.PriorFailure.Status),
+		FailureClass:   strings.TrimSpace(parsed.PriorFailure.FailureClass),
+		FailureMessage: strings.TrimSpace(parsed.PriorFailure.FailureMessage),
+		UpdatedAt:      strings.TrimSpace(parsed.PriorFailure.UpdatedAt),
+	}
+	if at, err := time.Parse(time.RFC3339Nano, prior.UpdatedAt); err == nil {
+		prior.UpdatedAt = statuspkg.GenerationLifecycleTimestamp(at)
+	}
+	return &prior
 }

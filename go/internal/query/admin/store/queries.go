@@ -94,7 +94,8 @@ WITH selected AS (
         work.failure_message,
         work.created_at,
         work.updated_at,
-        work.visible_at`)
+        work.visible_at,
+        work.failure_details`)
 	if returnPriorFailure {
 		// The replay clears work.failure_class, so RETURNING work.* can no
 		// longer say what the row failed with. The selection CTE read the

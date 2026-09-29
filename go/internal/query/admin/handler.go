@@ -72,20 +72,33 @@ type Store interface {
 
 // WorkItem is an admin-friendly view of a fact_work_items row.
 type WorkItem struct {
-	WorkItemID     string     `json:"work_item_id"`
-	ScopeID        string     `json:"scope_id"`
-	GenerationID   string     `json:"generation_id"`
-	Stage          string     `json:"stage"`
-	Domain         string     `json:"domain"`
-	Status         string     `json:"status"`
-	AttemptCount   int        `json:"attempt_count"`
-	LeaseOwner     *string    `json:"lease_owner"`
-	FailureClass   *string    `json:"failure_class"`
-	FailureMessage *string    `json:"failure_message"`
-	OperatorNote   *string    `json:"operator_note"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	VisibleAt      *time.Time `json:"visible_at"`
+	WorkItemID     string  `json:"work_item_id"`
+	ScopeID        string  `json:"scope_id"`
+	GenerationID   string  `json:"generation_id"`
+	Stage          string  `json:"stage"`
+	Domain         string  `json:"domain"`
+	Status         string  `json:"status"`
+	AttemptCount   int     `json:"attempt_count"`
+	LeaseOwner     *string `json:"lease_owner"`
+	FailureClass   *string `json:"failure_class"`
+	FailureMessage *string `json:"failure_message"`
+	OperatorNote   *string `json:"operator_note"`
+	// PriorFailure is the failure the row carried before a supersede or an
+	// operator note replaced its failure fields (#7320, #7388, #7385). Nil when
+	// failure_details carries none. Its details text is not exposed.
+	PriorFailure *PriorFailure `json:"prior_failure,omitempty"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	VisibleAt    *time.Time    `json:"visible_at"`
+}
+
+// PriorFailure is the kept failure evidence of a work item: its status, class
+// and message before the overwrite, and when the row was last updated then.
+type PriorFailure struct {
+	Status         string `json:"status,omitempty"`
+	FailureClass   string `json:"failure_class,omitempty"`
+	FailureMessage string `json:"failure_message,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
 }
 
 // DeadLetterWorkItem is a bounded operator-facing view of one durable

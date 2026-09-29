@@ -236,3 +236,27 @@ func TestRunGenerationsPropagatesAWriteError(t *testing.T) {
 		t.Fatalf("RunGenerations(--json) error = %v, want the write error", jsonErr)
 	}
 }
+
+// TestRunGenerationsRendersPriorFailure pins #7385: a superseded generation's
+// latest failure names the class its work item failed with before the supersede
+// overwrote it, after the failure class, and prints nothing when there is none.
+func TestRunGenerationsRendersPriorFailure(t *testing.T) {
+	body := `{"data":{"count":2,"truncated":false,"generations":[
+	{"generation_id":"gen-old","status":"superseded","scope_id":"scope-a","trigger_kind":"push","is_active":false,
+	 "latest_failure":{"failure_class":"projector_superseded_by_newer_generation",
+	                   "prior_failure":{"status":"dead_letter","failure_class":"graph_write_timeout"}}},
+	{"generation_id":"gen-new","status":"failed","scope_id":"scope-a","trigger_kind":"push","is_active":false,
+	 "latest_failure":{"failure_class":"transient"}}
+]},"truth":{"freshness":{"state":"fresh"}},"error":null}`
+	out := &bytes.Buffer{}
+	if err := RunGenerations(out, &fakeFetcher{body: body}, GenerationsOptions{}); err != nil {
+		t.Fatalf("RunGenerations() error = %v", err)
+	}
+	want := "Truth freshness: fresh\n" +
+		"Generations: 2 (truncated=false)\n" +
+		"  gen-old status=superseded scope=scope-a trigger=push failure=projector_superseded_by_newer_generation prior_failure=graph_write_timeout\n" +
+		"  gen-new status=failed scope=scope-a trigger=push failure=transient\n"
+	if got := out.String(); got != want {
+		t.Fatalf("summary =\n%q\nwant\n%q", got, want)
+	}
+}
