@@ -99,6 +99,29 @@ func TestRetryOnLockTimeoutDoesNotRetryOtherErrors(t *testing.T) {
 	}
 }
 
+func TestRetryOnLockTimeoutRequiresAllowance(t *testing.T) {
+	t.Parallel()
+	attempts := 0
+	sleeps := 0
+	clock := time.Unix(0, 0)
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/missing-allowance.sql", LockRetryPolicy{
+		InitialBackoff: time.Second,
+		MaxBackoff:     time.Second,
+	}, func(context.Context, time.Duration) error {
+		sleeps++
+		return nil
+	}, func() time.Time { return clock }, func() error {
+		attempts++
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "lock retry allowance is required") {
+		t.Fatalf("RetryOnLockTimeout() = %v, want missing-allowance error", err)
+	}
+	if attempts != 0 || sleeps != 0 {
+		t.Fatalf("attempts=%d sleeps=%d, want no work before rejecting missing allowance", attempts, sleeps)
+	}
+}
+
 // TestRetryOnLockTimeoutGivesUpWhenAllowanceIsSpent pins the bound: failed
 // attempt time and backoff consume the shared allowance, and exhaustion keeps
 // the 55P03 classification while naming the budget, attempts, and migration.
