@@ -37,7 +37,22 @@ that statement is recorded on
 `eshu_dp_canonical_repository_retirements_total{outcome}` and the
 `canonical repository retired` log (WARN when relationships were deleted,
 with scope_id, generation_id, repo_id, path, nodes_deleted,
-relationships_deleted, deletes_counted, outcome).
+relationships_deleted, deletes_counted, outcome). That line appears only when
+the statement deleted a node. A steady-state projection logs nothing at INFO
+or WARN. When the executor reported no write summary, the writer logs a
+distinct DEBUG line (`canonical repository retirement not counted: executor
+reported no write summary`, `deletes_counted=false`) and moves no counter.
+It never claims a retirement it cannot see.
+
+It is the one delete that drops edges with a Repository or removes a
+projected one. The only other Repository delete in the tree is the orphan
+sweep (`BuildSweepOrphanNodesStatement`, `orphan_sweep_writes.go`). That
+statement is a plain `DELETE n`, not DETACH, and it only applies to Repository
+stubs that are disconnected and not projector-owned
+(`evidence_source <> 'projector/canonical'`). It drops no edge and never
+removes a projected Repository, so contract A holds. Its label is built at run
+time with `fmt.Sprintf`, however, so the static guard cannot see it. That blind
+spot is listed in the guard's doc comment.
 
 ### Label refinement on measured evidence
 
@@ -64,8 +79,13 @@ The writer stashes a filtered `WriteCountsCollector`
 (`NewFilteredWriteCountsCollector`) on the context of only the statements that
 include the cleanup: the main atomic group on the `GroupExecutor` path, and the
 `repository_cleanup` phase on the phase-group and sequential paths. The
-production Bolt executors already call `ReportWriteCounts` for every
-statement, so the collector keeps the entry whose Cypher equals the constant.
+production Bolt executors call `ReportWriteCounts` for every statement:
+`cmd/projector`, `cmd/bootstrap-index`, `cmd/reducer` and, since review
+finding F1, `cmd/ingester`, whose in-process projector runs its own canonical
+writer (`Execute`, the plain group path and the file-group probe path;
+pinned by `TestIngesterNeo4jExecutorReportsWriteCountsOnEveryStatementPath`
+and `TestIngesterCanonicalWriterReportsPathConflictRetirement`). The collector
+keeps the entry whose Cypher equals the constant.
 It forwards every entry to any collector already stashed, such as the #6783
 differential recorder. The last entry wins, because driver and
 `RetryingExecutor` retries re-run and re-report the statement and the report
@@ -103,8 +123,14 @@ and no new lock. It does not serialise anything.
   `repository_cleanup` phase is its own all-retract phase, executed as an
   autocommit statement and committed before the `repository` upsert phase. A
   failure in a later phase requeues the whole write. On retry the cleanup
-  matches nothing (the node is gone), so the retirement is reported exactly
-  once, at the commit that deleted it.
+  matches nothing (the node is gone), so the retirement is reported once, at
+  the commit that deleted it.
+- At most once, not exactly once: if the retirement commits but the driver
+  call still returns an error (for example, a lost acknowledgement), the write
+  is retried. The retried cleanup matches nothing, so that retirement is never
+  counted. On the atomic path, a group that fails after the cleanup ran rolls
+  the delete back and is not reported
+  (`TestCanonicalNodeWriterDoesNotReportARolledBackAtomicRetirement`).
 - Conflict domain: the `(Repository {path})` unique-index entry for this path,
   which the cleanup reaches through a locking seek. This change adds no
   statement and no lock to that domain: it only reads the write summary the
@@ -117,8 +143,9 @@ and no new lock. It does not serialise anything.
 - Static guard `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners`
   (`go/internal/storage/cypher`). It scans every string constant expression
   under go/internal and go/cmd, folding same-package constant concatenations.
-  Rule 1: any delete of a Repository-bound variable must whitespace-normalise
-  to the path-conflict constant. Rule 2: any delete of a relationship whose
+  Rule 1: any statically visible delete of a Repository-bound variable must
+  whitespace-normalise to the path-conflict constant. The runtime-labelled
+  orphan sweep is the documented exception above. Rule 2: any delete of a relationship whose
   arrow-head endpoint is a Repository must carry `rel.evidence_source =`. The
   seeded violation fails both rules (RED) and the clean tree passes (GREEN).
   At landing the scan reached 227 strings, 22 with DELETE, 1 node delete and

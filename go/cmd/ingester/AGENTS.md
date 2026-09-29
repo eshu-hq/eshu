@@ -49,6 +49,14 @@
   sibling error is masked or dropped), and joins `errCompositeDrainTimeout` if a
   sibling ignores cancellation. Do not reintroduce returning only the
   first-arriving result, and do not drop sibling errors.
+- **Bolt write summaries are reported** — `ingesterNeo4jExecutor` calls
+  `sourcecypher.ReportWriteCounts` after every consumed statement on `Execute`,
+  the plain `ExecuteGroup` path and the file-group probe path (inside the
+  transaction function), mirroring `cmd/projector/neo4j_executor.go`. The
+  in-process projector's canonical writer reads them to report path-conflict
+  Repository retirements (#7324). The tests in
+  `canonical_retirement_write_counts_test.go` pin this; `RunWrite` (the drain
+  path) stays unreported, as in the projector.
 - **Signal-driven shutdown** — `signal.NotifyContext(SIGINT, SIGTERM)` is the
   only supported shutdown path. Do not add alternate shutdown mechanisms.
 

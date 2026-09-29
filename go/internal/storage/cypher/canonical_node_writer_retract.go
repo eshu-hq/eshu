@@ -365,10 +365,15 @@ func captureRepositoryRetirement(ctx context.Context, statements []Statement) (c
 //
 // The last collected entry is the committed attempt: a driver or executor
 // retry re-runs the statement and reports again, and Write calls this only
-// after the statement's transaction committed. A retirement that matched no
-// node (the steady state) records nothing. With no entry at all the executor
-// did not report a write summary, so the log says deletes_counted=false and
-// no counter moves.
+// after the statement's transaction committed. The `canonical repository
+// retired` line and the counter appear only when the statement deleted a
+// node; a retirement that matched nothing (the steady state) records nothing
+// at INFO or WARN. With no entry at all the executor reported no write
+// summary, so nothing is known about the retirement: a DEBUG line with a
+// distinct message and deletes_counted=false says so, and no counter moves.
+// A retirement that committed but whose driver call still returned an error
+// is re-run on retry, matches nothing, and so is not counted: the count is
+// at most once per retirement, not exactly once.
 func (w *CanonicalNodeWriter) reportRepositoryRetirement(
 	ctx context.Context,
 	mat canonical.CanonicalMaterialization,
@@ -385,7 +390,8 @@ func (w *CanonicalNodeWriter) reportRepositoryRetirement(
 		"path", mat.Repository.Path,
 	}
 	if len(entries) == 0 {
-		slog.InfoContext(ctx, "canonical repository retired", append(fields, "deletes_counted", false)...)
+		slog.DebugContext(ctx, "canonical repository retirement not counted: executor reported no write summary",
+			append(fields, "deletes_counted", false)...)
 		return
 	}
 	counters := entries[len(entries)-1].Counters

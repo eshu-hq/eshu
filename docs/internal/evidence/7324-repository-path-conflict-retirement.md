@@ -167,7 +167,21 @@ No-Regression Evidence: retry-shape `CanonicalNodeWriter.Write` timing on neo4j:
 
 Median of per-pair medians: atomic_group 29.815 ms before vs 30.339 ms after. phase_group 37.164 ms before vs 36.454 ms after. Median paired delta: -0.2 ms (atomic) and -0.3 ms (phase). The single-pair outliers (pair 1 before, pair 5 phase after) fall in opposite arms and match host contention, so no regression is measurable.
 
-Observability Evidence: `eshu_dp_canonical_repository_retirements_total{outcome}` (closed set `clean`, `dropped_relationships`; constants in `go/internal/telemetry/instruments_repository_retirement.go`) and the `canonical repository retired` log. The log is WARN when relationships were deleted and INFO when clean or uncounted, with fields scope_id, generation_id, repo_id, path, nodes_deleted, relationships_deleted, deletes_counted and outcome. The GREEN run above shows both, on both executor shapes. Hermetic tests cover the atomic path under a simulated driver retry (last attempt counted, not summed), the phase-group clean path, sequential steady state (nothing recorded), a non-reporting executor (`deletes_counted=false`, no counter), a failed cleanup (nothing reported), and forwarding of every entry to a caller's collector. Each of the three `Write` call sites was mutation-checked: removing its report call fails its test.
+Observability Evidence: `eshu_dp_canonical_repository_retirements_total{outcome}` (closed set `clean`, `dropped_relationships`; constants in `go/internal/telemetry/instruments_repository_retirement.go`) and the `canonical repository retired` log. The log is WARN when relationships were deleted and INFO when clean, with fields scope_id, generation_id, repo_id, path, nodes_deleted, relationships_deleted, deletes_counted and outcome. The GREEN run above shows both, on both executor shapes. Hermetic tests cover the atomic path under a simulated driver retry (last attempt counted, not summed), the phase-group clean path, sequential steady state (nothing recorded), a non-reporting executor (no retired line, only a distinct DEBUG line with `deletes_counted=false`, no counter), a failed phase-group cleanup and a rolled-back atomic group (nothing reported), and forwarding of every entry to a caller's collector. Review finding F1 added write-count reporting to the ingester's Bolt executor (`cmd/ingester/wiring_neo4j_executor.go`), whose in-process projector runs its own canonical writer. `TestIngesterNeo4jExecutorReportsWriteCountsOnEveryStatementPath` and `TestIngesterCanonicalWriterReportsPathConflictRetirement` (the real ingester executor chain with a fake Bolt driver, on both backend shapes) pin it. Each of the three `Write` call sites was mutation-checked: removing its report call fails its test.
+
+## Review fixes: mutation proof
+
+Each mutant below was applied, run, and restored, and `cmp` confirmed each
+file byte-identical afterwards.
+
+- F1: removing the ingester's `ReportWriteCounts` call on each path fails that
+  path's test.
+  - `Execute`: fails `.../Execute` and the NornicDB chain case.
+  - File-group probe: fails `.../ExecuteGroup_file-group_probe`.
+  - Plain `ExecuteGroup`: fails `.../ExecuteGroup` and the Neo4j chain case.
+- F3: moving the atomic path's report ahead of the `ExecuteGroup` error check
+  fails exactly `TestCanonicalNodeWriterDoesNotReportARolledBackAtomicRetirement`.
+  Before that test existed, this mutant survived every test.
 
 ## Not checked
 

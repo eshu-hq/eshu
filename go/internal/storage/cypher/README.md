@@ -207,7 +207,7 @@ implements
 run sequentially.
 
 `repository_cleanup` only retires a different-id `Repository` at this path (skipped for first-generation and delta scopes); it never deletes the node the upsert re-MERGEs, whose reducer and cross-scope edges a retry cannot rebuild (#7285, `docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`).
-A retirement that deleted a node is reported from the backend write summary on `eshu_dp_canonical_repository_retirements_total{outcome}` and the `canonical repository retired` log (contract A, #7324, `docs/internal/design/7324-cross-scope-writer-rearm.md`); `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners` pins that no other statement deletes a `Repository` or an un-scoped incoming `Repository` edge.
+A retirement that deleted a node is reported from the backend write summary on `eshu_dp_canonical_repository_retirements_total{outcome}` and the `canonical repository retired` log (contract A, #7324, `docs/internal/design/7324-cross-scope-writer-rearm.md`); `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners` pins that no other statically visible statement deletes a projector-owned `Repository` or drops edges with one, and that every incoming `Repository`-edge delete is `evidence_source`-scoped; the orphan sweep's plain `DELETE n` of disconnected, non-projector `Repository` stubs (runtime-built label) is the documented exception it cannot see.
 Directory rows
 use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with

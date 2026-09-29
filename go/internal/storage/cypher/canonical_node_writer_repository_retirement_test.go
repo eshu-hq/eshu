@@ -36,13 +36,20 @@ type retirementReportingExecutor struct {
 	cleanupCounters     WriteCounters
 	reportsPerStatement int
 	failCleanup         bool
-	statements          int
+	// failAfterCleanup fails the repository upsert, the statement right after
+	// the cleanup, so the cleanup has already reported its counters when the
+	// group fails and rolls back.
+	failAfterCleanup bool
+	statements       int
 }
 
 func (e *retirementReportingExecutor) report(ctx context.Context, stmt Statement) error {
 	e.statements++
 	if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher && e.failCleanup {
 		return errors.New("injected cleanup failure")
+	}
+	if stmt.Cypher == canonicalNodeRepositoryUpsertCypher && e.failAfterCleanup {
+		return errors.New("injected failure after the cleanup reported")
 	}
 	counters := WriteCounters{}
 	if stmt.Cypher == canonicalNodeRepositoryPathCleanupCypher {
@@ -95,7 +102,7 @@ func newRetirementHarness(t *testing.T) retirementHarness {
 	t.Helper()
 	var logs bytes.Buffer
 	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 	reader := metric.NewManualReader()
 	instruments, err := telemetry.NewInstruments(metric.NewMeterProvider(metric.WithReader(reader)).Meter("test"))
@@ -107,6 +114,11 @@ func newRetirementHarness(t *testing.T) retirementHarness {
 
 func (h retirementHarness) retiredLogs(t *testing.T) []map[string]any {
 	t.Helper()
+	return h.logsWithMessage(t, "canonical repository retired")
+}
+
+func (h retirementHarness) logsWithMessage(t *testing.T, message string) []map[string]any {
+	t.Helper()
 	var entries []map[string]any
 	for _, line := range bytes.Split(bytes.TrimSpace(h.logs.Bytes()), []byte("\n")) {
 		if len(line) == 0 {
@@ -116,7 +128,7 @@ func (h retirementHarness) retiredLogs(t *testing.T) []map[string]any {
 		if err := json.Unmarshal(line, &entry); err != nil {
 			t.Fatalf("decode log line %q: %v", line, err)
 		}
-		if entry["msg"] == "canonical repository retired" {
+		if entry["msg"] == message {
 			entries = append(entries, entry)
 		}
 	}
@@ -228,22 +240,31 @@ func TestCanonicalNodeWriterRecordsNothingForSteadyStateRetirementOnTheSequentia
 	if logs := h.retiredLogs(t); len(logs) != 0 {
 		t.Fatalf("retirement log lines = %d, want 0 for a retirement that matched no node", len(logs))
 	}
+	if logs := h.logsWithMessage(t, "canonical repository retirement not counted: executor reported no write summary"); len(logs) != 0 {
+		t.Fatalf("uncounted lines = %d, want 0: the executor did report a summary", len(logs))
+	}
 	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeClean) +
 		h.counter(t, telemetry.RepositoryRetirementOutcomeDroppedRelationships); got != 0 {
 		t.Fatalf("%s = %d, want 0", retirementMetric, got)
 	}
 }
 
+// With no write summary nothing is known, so the writer must not claim a
+// retirement: no `canonical repository retired` line at any level, only a
+// distinct DEBUG line, and no counter.
 func TestCanonicalNodeWriterSaysDeletesWereNotCountedWithoutAWriteSummary(t *testing.T) {
 	h := newRetirementHarness(t)
 	if err := NewCanonicalNodeWriter(&mockExecutor{}, 500, h.instruments).Write(context.Background(), retirementMaterialization(false, false)); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
-	logs := h.retiredLogs(t)
-	if len(logs) != 1 {
-		t.Fatalf("retirement log lines = %d, want 1", len(logs))
+	if logs := h.retiredLogs(t); len(logs) != 0 {
+		t.Fatalf("`canonical repository retired` lines = %d, want 0 when no summary was reported: %v", len(logs), logs)
 	}
-	assertRetirementLog(t, logs[0], map[string]any{"level": "INFO", "deletes_counted": false})
+	logs := h.logsWithMessage(t, "canonical repository retirement not counted: executor reported no write summary")
+	if len(logs) != 1 {
+		t.Fatalf("uncounted-retirement DEBUG lines = %d, want 1; logs = %s", len(logs), h.logs.String())
+	}
+	assertRetirementLog(t, logs[0], map[string]any{"level": "DEBUG", "deletes_counted": false})
 	if _, ok := logs[0]["relationships_deleted"]; ok {
 		t.Fatalf("uncounted retirement log carries relationships_deleted: %v", logs[0])
 	}
@@ -285,6 +306,29 @@ func TestCanonicalNodeWriterDoesNotReportAFailedRetirement(t *testing.T) {
 	}
 	if logs := h.retiredLogs(t); len(logs) != 0 {
 		t.Fatalf("retirement log lines = %d, want 0 for a cleanup that did not commit", len(logs))
+	}
+}
+
+// On the atomic path the cleanup runs inside the main group. When a later
+// statement fails, the group rolls back, so the cleanup's already-reported
+// counters describe a delete that never committed and must not be reported.
+func TestCanonicalNodeWriterDoesNotReportARolledBackAtomicRetirement(t *testing.T) {
+	h := newRetirementHarness(t)
+	exec := &retirementGroupExecutor{retirementReportingExecutor{
+		cleanupCounters: WriteCounters{NodesDeleted: 1, RelationshipsDeleted: 3}, failAfterCleanup: true,
+	}}
+	if err := NewCanonicalNodeWriter(exec, 500, h.instruments).Write(context.Background(), retirementMaterialization(false, false)); err == nil {
+		t.Fatal("Write() error = nil, want the injected failure after the cleanup")
+	}
+	if exec.statements < 2 {
+		t.Fatalf("executed statements = %d; the cleanup must have run and reported before the failure", exec.statements)
+	}
+	if logs := h.retiredLogs(t); len(logs) != 0 {
+		t.Fatalf("retirement log lines = %d, want 0 for a rolled-back atomic group", len(logs))
+	}
+	if got := h.counter(t, telemetry.RepositoryRetirementOutcomeClean) +
+		h.counter(t, telemetry.RepositoryRetirementOutcomeDroppedRelationships); got != 0 {
+		t.Fatalf("%s = %d, want 0 for a rolled-back atomic group", retirementMetric, got)
 	}
 }
 

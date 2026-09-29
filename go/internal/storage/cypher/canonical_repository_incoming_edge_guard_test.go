@@ -21,10 +21,17 @@ import (
 // general re-arm signal exists to rebuild edges a delete dropped. The
 // contract therefore forbids the deletes that would drop them:
 //
-//   - Rule 1: the only statement that may delete a Repository node is
-//     canonicalNodeRepositoryPathCleanupCypher, the path-conflict retirement
-//     the repository_path UNIQUE constraint requires. Identity is the
-//     constant itself (whitespace-normalised), not a string allowlist.
+//   - Rule 1: the only statically visible statement that may delete a
+//     Repository node is canonicalNodeRepositoryPathCleanupCypher, the
+//     path-conflict retirement the repository_path UNIQUE constraint
+//     requires, and it is the only delete that drops edges with a Repository.
+//     Identity is the constant itself (whitespace-normalised), not a string
+//     allowlist. The one other Repository delete in the tree is the orphan
+//     sweep (BuildSweepOrphanNodesStatement, orphan_sweep_writes.go): a plain
+//     `DELETE n` (not DETACH) of Repository stubs that are disconnected and
+//     not projector-owned (`evidence_source <> 'projector/canonical'`). It
+//     drops no edge and never touches a projected Repository, so contract A
+//     holds, but its label is built at run time and this guard cannot see it.
 //   - Rule 2: a relationship whose arrow-head endpoint is a Repository may be
 //     deleted only by its own writer: the statement must scope the delete by
 //     `rel.evidence_source =` (source-anchored, evidence-scoped retracts).
@@ -36,9 +43,13 @@ import (
 //
 //   - Cypher assembled at run time (fmt.Sprintf, strings.Join, a variable):
 //     same-package constant concatenations ARE folded, nothing else is;
-//   - a label filled at run time (`fmt.Sprintf("(r:%s)", label)`), a
-//     Repository reached with no label (`MATCH (n {id: $repo_id})`), or a
-//     variable rebound through UNWIND, collect or a list comprehension;
+//   - a label filled at run time (`fmt.Sprintf("(r:%s)", label)`, as the
+//     orphan sweep above does), a Repository reached with no label
+//     (`MATCH (n {id: $repo_id})`), or a variable rebound through UNWIND,
+//     collect or a list comprehension;
+//   - a multi-label node whose Repository label is not first
+//     (`(r:Foo:Repository ...)` binds `Foo`, not `r`) and a backticked label
+//     (``(r:`Repository`)``): repositoryBindings matches neither;
 //   - deletes through procedures (`CALL apoc.*`) or statements built outside
 //     go/internal and go/cmd, in tests, or in testdata;
 //   - an undirected relationship pattern is treated as incoming on both

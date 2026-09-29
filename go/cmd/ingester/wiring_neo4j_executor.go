@@ -55,6 +55,10 @@ func (e ingesterNeo4jExecutor) Execute(ctx context.Context, statement sourcecyph
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
+		// Mirror cmd/projector/neo4j_executor.go: the in-process projector's
+		// canonical writer reads these to report path-conflict Repository
+		// retirements (#7324), and differential capture joins on them.
+		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 	}
 	return err
 }
@@ -91,6 +95,7 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 					if consumeErr != nil {
 						return fileResult{}, consumeErr
 					}
+					sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 					return ingesterStatementRetractionCounts(stmt, summary), nil
 				}, nil
 			})
@@ -106,6 +111,9 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 				return consumeErr
 			}
 			counts = append(counts, ingesterStatementRetractionCounts(stmt, summary))
+			// Reported inside the transaction function, as the projector does:
+			// a driver retry re-runs and re-reports, and the last report wins.
+			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {

@@ -29,7 +29,7 @@
   package_registry_dependency_edges → package_registry_artifact_edges →
   package_registry_event_edges. Parent nodes must
   exist before child MATCH statements run, repository cleanup (path-conflict retirement
-  only, never the node being re-MERGEd, #7285; its deletes are reported and no other Repository or un-scoped incoming Repository-edge delete may exist, #7324 contract A) must commit before the repository MERGE, and stale entity cleanup must run after current
+  only, never the node being re-MERGEd, #7285; its deletes are reported; no other statement may delete a projector-owned Repository or drop edges with one, and incoming Repository-edge deletes must be evidence_source-scoped, #7324 contract A; the orphan sweep's plain DELETE of disconnected non-projector Repository stubs is the documented exception the guard cannot see) must commit before the repository MERGE, and stale entity cleanup must run after current
   entity upserts so it can avoid giant `uid IN` exclusion filters. The four
   `package_registry_*_edges` phases run LAST,
   after every node phase they MATCH, because they MATCH multi-label nodes
