@@ -157,17 +157,26 @@ The PROFILE operator trees are identical (13 operators, no `Eager`, no new scan)
 DB hits do not reflect the property writes. The read-back after the extended write was
 3,824 of each flag with no null flags, and the all-false re-projection left 0 true with 38,240 edges.
 The extended statement is measurably a little slower (7 of 9 same-round ratios above 1),
-about 2 to 3%, which is inside the bar and inside the spread of the control.
+about 2 to 3%, which is inside the bar. The estimator's own spread on unchanged code is small: the A/A ratio of
+medians was 1.0156 and 1.0071 in the two pre-sets, and in the gated set the control against the baseline was
+0.9995 while the extended against the control was 1.0255. The +10% bar sits well outside that spread; the
+wider 11.1% control bound is an outlier filter for a starved round, not the precision of the ratio.
 
 Rule PD (host quiet): load1 was 2.96 at the start, 2.85 at the end and at most 3.04 in
 the run (sampled every second, 79 samples), against a limit of 8 (half the 16 CPUs); the A/A sets
 peaked at 3.97 and 3.40. The host was not idle: an unrelated compose project owned by another lane
 was up throughout and is disclosed here rather than stopped. Its containers averaged about 110% CPU
 (Postgres, peak 202%) and 56% CPU (Neo4j, peak 249%) across the seven samples taken during the gated set. The
-run therefore measures the change under a steady background of about two to three cores, and the A/A
+run therefore measures the change under a bursty background that averaged about 1.7 cores (Postgres mean
+110%, peak 202%; Neo4j mean 56%, peak 249%, near idle at the start and end), and the interleaved A/A
 control, not an idle machine, is what bounds the noise. The derived control bound of 11.1% is wider than a
 quiet host would give, which is why the verdict rests on the ratio of medians and the spread, and the stated
 result is "inside the +10% bar with a measured cost of about 2 to 3%", not a precise cost.
+
+Host snapshots taken by the runner at the start (20:01:50Z, load average 2.04, 2.04, 1.93) and the end (load average 2.70, 3.02, 2.55):
+five containers were up throughout, none of them mine: the four `eshu7033proof-*` containers (eshu and
+resolution-engine on the `eshu-7033-proof` image, Postgres 18, Neo4j 2026-community) and an idle `pg-6809`
+Postgres. The run's own `eshu7345-timing-neo4j` and `eshu7345-timing-pg` containers were removed at exit.
 
 NornicDB (secondary): the chain-batch fast path check is still NOT_CHECKED; this run used Neo4j only.
 
