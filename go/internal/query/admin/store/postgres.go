@@ -45,7 +45,11 @@ type postgresStore struct {
 // note becomes the details and the row's current failure evidence rides under
 // prior_failure, the same fold the supersede writers use (#7388). The row only
 // holds the details it failed with: dead-letter acts on failed and dead_letter
-// rows, skip on unleased pending, retrying and failed rows.
+// rows, skip on unleased pending, retrying and failed rows. Dead-lettering a row
+// that is already dead_letter with a second note folds the first note's row under
+// prior_failure again, so each repeat nests one level deeper; nothing is lost,
+// and unlike the reclaim UPDATEs this path has no keep-as-is rule for a row it
+// already rewrote. Skip cannot reach a dead_letter row.
 const (
 	deadLetterNoteDetailsSQL = `CASE
         WHEN NULLIF($2, '') IS NULL THEN work.failure_details

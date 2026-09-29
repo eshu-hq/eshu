@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +58,7 @@ func TestSkipRepositoryWorkItemsFoldsPriorFailureUnderTheOperatorNote(t *testing
 // work-alias fold and leaves the details untouched when the note is empty.
 func requireNoteFold(t *testing.T, label, query string, noteParam int) {
 	t.Helper()
-	want := strings.Replace(strings.Replace(noteFoldCase, "%d", itoa(noteParam), 1), "%d", itoa(noteParam), 1) +
+	want := strings.Replace(strings.Replace(noteFoldCase, "%d", strconv.Itoa(noteParam), 1), "%d", strconv.Itoa(noteParam), 1) +
 		pgstatus.PriorFailureWorkSQL + ")::text\n    END"
 	if !strings.Contains(strings.Join(strings.Fields(query), " "), strings.Join(strings.Fields(want), " ")) {
 		t.Fatalf("%s statement does not wrap the operator note around the prior failure:\nwant (whitespace-normalized) %s\ngot %s", label, want, query)
@@ -66,5 +67,3 @@ func requireNoteFold(t *testing.T, label, query string, noteParam int) {
 		t.Fatalf("%s statement still replaces failure_details with the note:\n%s", label, query)
 	}
 }
-
-func itoa(n int) string { return string(rune('0' + n)) }
