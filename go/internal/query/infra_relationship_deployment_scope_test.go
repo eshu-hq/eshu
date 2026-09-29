@@ -39,7 +39,7 @@ func (g *deploymentScopeGraph) RunSingle(_ context.Context, cypher string, _ map
 	// predicate checked only target.repo_id (null on a Repository node) and the
 	// USES path (a Repository is not a USES target), so the neighbor never bound.
 	neighborAdmitted := g.grantInScope &&
-		strings.Contains(cypher, "target.id IN $allowed_repository_ids")
+		strings.Contains(cypher, "(CASE WHEN 'Repository' IN labels(target) THEN target.id END) IN $allowed_repository_ids")
 
 	outgoing := []any{}
 	if neighborAdmitted {
@@ -142,8 +142,8 @@ func TestInfraResourceScopePredicateAdmitsDeploymentTopology(t *testing.T) {
 	for _, want := range []string{
 		// Direct ownership (flat).
 		"target.repo_id IN $allowed_repository_ids",
-		"target.id IN $allowed_repository_ids",
-		"target.id IN $allowed_scope_ids",
+		"(CASE WHEN 'Repository' IN labels(target) THEN target.id END) IN $allowed_repository_ids",
+		"(CASE WHEN 'Repository' IN labels(target) THEN target.id END) IN $allowed_scope_ids",
 		// CloudResource via its using instance's repo_id (inline-map).
 		"(target)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
 		// WorkloadInstance via forward DEPLOYMENT_SOURCE to a granted repo.

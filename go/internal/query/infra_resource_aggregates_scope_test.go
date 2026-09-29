@@ -176,7 +176,7 @@ func TestInfraResourceScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	for _, want := range []string{
 		"n.repo_id IN $allowed_repository_ids",
 		"n.repo_id IN $allowed_scope_ids",
-		"n.id IN $allowed_repository_ids",
+		"(n:Repository AND (n.id IN $allowed_repository_ids OR n.id IN $allowed_scope_ids))",
 		"(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
 		"EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository)",
 		"(n)<-[:DEFINES]-(:Repository {id:$scope_grant_0})",

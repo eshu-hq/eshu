@@ -587,6 +587,11 @@ tests:
     tag: live_infra_scope_neo4j
     class: scheduled
     reason: live Neo4j #7215 category=argocd dialect equivalence and no-leak proof; about 17 s on an emulated Neo4j — promote to blocking with timing evidence
+  - file: go/internal/query/infra_scope_neo4j_id_collision_live_test.go
+    tag: live_infra_scope_neo4j
+    class: scheduled
+    reason: live Neo4j #7220 proof that a non-Repository node whose id equals a granted repository or scope id is not returned by scoped infra search or relationships in either dialect; about 10 s on native arm64 Neo4j — promote to blocking with timing evidence
+    backends: neo4j
   - file: go/internal/query/infra_scope_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled

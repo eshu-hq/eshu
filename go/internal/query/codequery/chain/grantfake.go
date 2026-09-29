@@ -113,6 +113,12 @@ func (g *GrantGraph) labelRows(params map[string]any) []map[string]any {
 
 func (g *GrantGraph) metadataRows(cypher string, params map[string]any) []map[string]any {
 	anchoring, _ := StoryClausePredicates(cypher)
+	if repoIDPredicate(anchoring, "repo") && !strings.Contains(cypher, "(repo:Repository") {
+		// `repo.id IN $allowed_*` is sound only on a Repository node; an unbound
+		// alias would admit any label whose id spells a grant (#7220).
+		g.ParseFailures = append(g.ParseFailures, cypher)
+		return nil
+	}
 	name, _ := params["name"].(string)
 	entityID, _ := params["entity_id"].(string)
 	rows := make([]map[string]any, 0, 2)
@@ -196,7 +202,7 @@ func (g *GrantGraph) shortestPathRows(cypher string, params map[string]any) []ma
 	// fails it is never expanded, so a longer in-bound chain still answers.
 	admits := func(node GrantEntity) bool {
 		for _, predicate := range hopPredicates {
-			if !callChainHopAdmits(predicate, node.RepoID, params) {
+			if !callChainHopAdmits(predicate, node, params) {
 				return false
 			}
 		}
@@ -325,28 +331,6 @@ func ClausePredicates(cypher string) (endpoints []string, hops []string, parsed 
 	return endpoints, storySplitPredicates(strings.TrimSpace(block[:end])), true
 }
 
-// callChainHopAdmits evaluates one hop predicate. The request's own hop bounds
-// coalesce node.repo_id against the empty string, the grant's reads the bare
-// property, and neither matches storyPredicateAdmits' per-alias keys, so they
-// need their own matcher.
-//
-// The Cypher literal is spelled out rather than quoted because gofmt reformats
-// doc comments and turns a pair of single quotes into a typographic quote pair.
-func callChainHopAdmits(predicate, repoID string, params map[string]any) bool {
-	switch {
-	case strings.Contains(predicate, "IN $allowed_repository_ids"):
-		return querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) ||
-			querycontract.GraphParamContains(params, "allowed_scope_ids", repoID)
-	case strings.Contains(predicate, "IN $traversal_repo_ids"):
-		return querycontract.GraphParamContains(params, "traversal_repo_ids", repoID)
-	case strings.Contains(predicate, "= $repo_id"):
-		bound, _ := params["repo_id"].(string)
-		return repoID == bound && repoID != ""
-	default:
-		return true
-	}
-}
-
 func (g *GrantGraph) entity(uid string) (GrantEntity, bool) {
 	for _, entity := range g.Entities {
 		if entity.UID == uid {
@@ -442,43 +426,4 @@ func storySplitPredicates(block string) []string {
 		predicates = append(predicates, strings.TrimSpace(part))
 	}
 	return predicates
-}
-
-// storyPredicateAdmits evaluates one repository predicate against a seed. A
-// predicate this fake does not recognise admits the row. Copy of
-// story_grant_clause_fake_test.go.
-func storyPredicateAdmits(predicate string, repoByAlias map[string]string, params map[string]any) bool {
-	for alias, repoID := range repoByAlias {
-		switch {
-		case strings.Contains(predicate, alias+".repo_id IN $allowed_repository_ids"):
-			return querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) ||
-				querycontract.GraphParamContains(params, "allowed_scope_ids", repoID)
-		case strings.Contains(predicate, alias+".repo_id = $repo_id"):
-			bound, _ := params["repo_id"].(string)
-			return repoID == bound && repoID != ""
-		case strings.Contains(predicate, alias+".repo_id, '') IN $traversal_repo_ids"):
-			return querycontract.GraphParamContains(params, "traversal_repo_ids", repoID)
-		}
-	}
-	return true
-}
-
-// callChainRepoAliasAdmits evaluates the predicates on a Repository alias, whose
-// grant key is its own id rather than a repo_id property.
-func callChainRepoAliasAdmits(predicates []string, alias, repoID string, params map[string]any) bool {
-	for _, predicate := range predicates {
-		switch {
-		case strings.Contains(predicate, alias+".id IN $allowed_repository_ids"):
-			if !querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) &&
-				!querycontract.GraphParamContains(params, "allowed_scope_ids", repoID) {
-				return false
-			}
-		case strings.Contains(predicate, alias+".id = $repo_id"):
-			bound, _ := params["repo_id"].(string)
-			if repoID != bound || repoID == "" {
-				return false
-			}
-		}
-	}
-	return true
 }

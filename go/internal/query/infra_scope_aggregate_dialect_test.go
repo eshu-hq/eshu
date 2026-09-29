@@ -43,13 +43,19 @@ func serveInfraAggregateDialect(
 // "<route>/<grant>". Count sends four statements (total, provider,
 // environment, label); inventory sends one. Regenerate only with a live
 // NornicDB proof of the new statement.
+// Re-pinned for #7220: the only change is the id-equality operand. A single-node
+// read (search, aggregates, the relationships anchor) now carries
+// `(<alias>:Repository AND (<alias>.id IN ... OR <alias>.id IN ...))`, and a
+// relationship-pattern read (the neighbors) carries
+// `(CASE WHEN 'Repository' IN labels(<alias>) THEN <alias>.id END)`. Substituting
+// the old bare `<alias>.id` terms back reproduces the pre-#7220 digests exactly.
 var nornicDBAggregateStatementDigests = map[string]string{
-	"count/g1":      "14b0517d5a874568c54c4dc00c440508cd3b6b0dd03ed8e726bbf4bab7341ded",
-	"inventory/g1":  "9deb12ff5757603bc90a70e6436b7844352ffac1bfbdaa3029f11b706fc61219",
-	"count/g5":      "6d6461e78d78af4ae8ce3e8f26899669c9dcf39fed957a19f21aac4a39065dbb",
-	"inventory/g5":  "a57851f804aff61d3deedf8432733bec5018b2fe3ca313bb5baa9a492bcafcb4",
-	"count/cap":     "58aa5fb02bcf73f7bd373ec09ff865e85e369123e3903c6bc951ce4de1883a4c",
-	"inventory/cap": "dc8e7b7d16b013522b36735adf611093609e9da0a62038388125cf863b2a319d",
+	"count/g1":      "3b81d1ddd30737b162f665ed772edf97a1101339d79724ec88153bb2494d75fb",
+	"inventory/g1":  "36bb310f25384f855a88c101c8065b3c907104ef535b514edc96638553a55617",
+	"count/g5":      "727049a4f29d2c9a7991fff5323302a5377d1af387bd33b0d3ba3e0e17eced33",
+	"inventory/g5":  "9d009ba5511fa7397a3a67db373c0adbd3b43549f699cddc6cf7463211b4e639",
+	"count/cap":     "ffa1dd0290936f16cbd349461d9507d6b1b1998366181e54d957efd603345fa1",
+	"inventory/cap": "b5a000a31e1403541c8910f95f71d080cd7fceb9dda473e1558c39dd146df019",
 }
 
 var infraAggregateRoutes = map[string]string{

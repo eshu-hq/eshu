@@ -61,7 +61,10 @@ func workloadScopePredicate(alias string, access querycontract.RepositoryAccessF
 //     HelmChart, ...) and materialized Workload / WorkloadInstance nodes carry a
 //     durable `repo_id`; Repository nodes carry their grant identity as `id`. The
 //     direct `IN $allowed_repository_ids` / `IN $allowed_scope_ids` compares are
-//     the durable join for those.
+//     the durable join for those. The `id` compare admits a Repository only
+//     (#7220): every other label is admitted through `repo_id` or the ownership
+//     disjuncts below, so a non-Repository node whose id spells a granted id is
+//     not admitted.
 //  2. CloudResource via USES (inline-map, O(grant)): a CloudResource carries no
 //     `repo_id`; it anchors to a repository through the WorkloadInstance that
 //     USES it. The SHAPE-A inline-map disjunction admits it when a using
@@ -112,11 +115,42 @@ func workloadScopePredicate(alias string, access querycontract.RepositoryAccessF
 // relationship handlers). The predicate renders only in scoped mode; the
 // unscoped query shape for shared / admin / local callers is unchanged.
 func infraResourceScopePredicate(alias string, scalars []string) string {
-	disjuncts := infraResourceScopeCoreDisjuncts(alias, scalars)
+	return infraScopePredicate(infraResourceScopeCoreDisjuncts(alias, scalars), alias, scalars)
+}
+
+// infraResourceScopeNodePredicate is infraResourceScopePredicate for an alias
+// bound by a single-node MATCH (`MATCH (n:Label) WHERE ...`): a search branch, a
+// per-label aggregate scan, or the relationships anchor. It spells the
+// Repository-only id test as a label test, which NornicDB evaluates correctly
+// there and which also admits a labeled Repository anchor; the CASE operand in
+// infraResourceScopePredicate does not (#7220). Use infraResourceScopePredicate
+// for an alias bound by a relationship pattern.
+func infraResourceScopeNodePredicate(alias string, scalars []string) string {
+	return infraScopePredicate(infraScopeDisjuncts(alias, scalars, true), alias, scalars)
+}
+
+// infraScopePredicate appends the DEFINES disjunct to core and joins the OR
+// group.
+func infraScopePredicate(core []string, alias string, scalars []string) string {
 	if defines := scopeGrantInlineMapDisjunction(alias, scopeHopInbound, "DEFINES", "Repository", "id", scalars); defines != "" {
-		disjuncts = append(disjuncts, defines)
+		core = append(core, defines)
 	}
-	return "(" + strings.Join(disjuncts, " OR ") + ")"
+	return "(" + strings.Join(core, " OR ") + ")"
+}
+
+// infraRepositoryIDExpr is the SHAPE-A id-equality operand for an alias bound
+// by a relationship pattern: the node's `id` when it is a Repository and null
+// for every other label, so `<expr> IN $allowed_*` admits only a Repository
+// whose id is granted (#7220). A label test cannot go here: on the pinned
+// NornicDB build a label test ANDed inside this OR chain, in the WHERE of a
+// relationship MATCH, is ignored or zeroes the whole chain
+// (docs/public/reference/nornicdb-query-pitfalls.md, "A Label Predicate's Clause
+// Position Decides Whether It Is Evaluated"), while `'Repository' IN
+// labels(alias)` inside a CASE evaluates correctly there. The same CASE never
+// matches a labeled Repository in a single-node MATCH, so single-node reads use
+// infraRepositoryIDLabelTerm through infraResourceScopeNodePredicate.
+func infraRepositoryIDExpr(alias string) string {
+	return "(CASE WHEN 'Repository' IN labels(" + alias + ") THEN " + alias + ".id END)"
 }
 
 // infraResourceScopeCoreDisjuncts returns disjuncts 1-4 of
@@ -167,11 +201,22 @@ func infraResourceScopePredicate(alias string, scalars []string) string {
 // reintroduce a DeltaProjection skip on that retract without re-proving this
 // disjunct stays safe.
 func infraResourceScopeCoreDisjuncts(alias string, scalars []string) []string {
+	return infraScopeDisjuncts(alias, scalars, false)
+}
+
+// infraScopeDisjuncts renders disjuncts 1-4; singleNode selects the label-test
+// id term over the CASE operand (see infraResourceScopeNodePredicate).
+func infraScopeDisjuncts(alias string, scalars []string, singleNode bool) []string {
 	disjuncts := []string{
 		alias + ".repo_id IN $allowed_repository_ids",
 		alias + ".repo_id IN $allowed_scope_ids",
-		alias + ".id IN $allowed_repository_ids",
-		alias + ".id IN $allowed_scope_ids",
+	}
+	if singleNode {
+		disjuncts = append(disjuncts, infraRepositoryIDLabelTerm(alias))
+	} else {
+		disjuncts = append(disjuncts,
+			infraRepositoryIDExpr(alias)+" IN $allowed_repository_ids",
+			infraRepositoryIDExpr(alias)+" IN $allowed_scope_ids")
 	}
 	if uses := scopeGrantInlineMapDisjunction(alias, scopeHopInbound, "USES", "WorkloadInstance", "repo_id", scalars); uses != "" {
 		disjuncts = append(disjuncts, uses)

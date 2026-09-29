@@ -288,16 +288,16 @@
   the runtime deployment-source edge. When adding a new deployment edge type to
   the graph, add it here too so the deploy alias stays complete.
 
-- **Scope predicate admits the deployment-source topology (#3519)** —
-  `infraResourceScopePredicate` (`infra_resource_aggregates.go`) must also
-  admit a node whose own `id` is a granted repository (`n.id IN $allowed_*`,
-  for the `DEPLOYMENT_SOURCE` Repository neighbor) and a `WorkloadInstance`
-  anchored to a granted repo via
+- **Scope predicate admits the deployment-source topology (#3519)** --
+  `infraResourceScopePredicate` (`infra_resource_aggregates.go`) must admit a
+  Repository whose own `id` is granted (the `DEPLOYMENT_SOURCE` neighbor) and a
+  `WorkloadInstance` anchored to a granted repo via
   `(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(n)` (no USES hop), or
-  a `DEPLOYMENT_SOURCE` edge from an in-grant `WorkloadInstance` to a
-  `Repository` is dropped even when the repository is in grant. Do not drop the
-  label/anchor shape: matching a bare `id` without the `Repository`/`DEFINES`
-  anchor would risk authorizing a cross-tenant node by id collision.
+  the in-grant edge is dropped. The `id` compare MUST stay guarded to
+  `Repository` (#7220: a bare `id` admitted any label whose id collided): a
+  `:Repository` label test in Neo4j and SHAPE-A single-node reads
+  (`infraResourceScopeNodePredicate`), a labels() CASE in SHAPE-A relationship
+  reads; NornicDB needs both, each misreads the other's position.
 
 - **Scope predicate admits `TerraformStateResource` via `MATCHES_STATE`
   (#5623)** — `infraResourceScopeCoreDisjuncts` admits a

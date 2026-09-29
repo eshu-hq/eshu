@@ -290,7 +290,7 @@ func infraResourceAggregateFilterClauses(filter InfraResourceAggregateFilter) []
 	// its branches, because it applies the list predicate after the CALL.
 	if filter.scoped() {
 		scalars, _ := scopeGrantInlineScalars(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
-		clauses = append(clauses, infraResourceScopePredicate("n", scalars))
+		clauses = append(clauses, infraResourceScopeNodePredicate("n", scalars))
 	}
 	return clauses
 }
