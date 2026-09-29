@@ -119,11 +119,57 @@ rows read back exactly (3,824 of each flag, no null flags), and a re-projection
 with all flags false leaves 0 true. PROFILE reports the same 10 db hits per row
 for both statements, so db hits do not reflect the added property writes.
 
-Wall time, before/after: NOT_CHECKED on a valid test bed. A local run measured a
-median of 1.181 s (baseline) against 1.184 s (extended) over 5 interleaved runs,
-but that run was on a shared laptop and is not accepted timing evidence. The
-dedicated remote was unreachable when this was written. The write-cost timing
-must be re-run on the remote before merge against the pass bar above.
+Wall time, before/after, accepted run on the dedicated remote validation host.
+The reviewed branch head was fetched and checked out detached in its own checkout;
+the base and head statement text came from `git show` of the two commits and differ
+only by the three SETs. The branch was later rebased onto a newer base with no conflict
+and gained only documentation; the cumulative diff of `go/` and `sdk/` has the same stable
+patch-id (`b6559c19662cff40`) at the measured head and at the final head, so the timed code is the
+code under review. Neo4j was the digest-pinned
+`neo4j:2026-community@sha256:eabfbb04...` (Kernel 2026.08.1, heap 8 GiB, page cache
+8 GiB) with the production graph schema applied by `eshu-bootstrap-data-plane`.
+Host: Linux x86_64, 16 logical CPUs, 123 GiB RAM. The result is a same-machine
+relative ratio; `absolute_target_applicable` is false.
+
+The harness ran, per set: 2,000 File, 3,000 Module and 38,240 IMPORTS edges (checked
+before and after every timed write, and the edge set verified empty before each), batches of
+500; one cold pair reported separately; one discarded warm-up per statement; then nine
+warm rounds in a rotating Latin-square order of baseline, extended and a control (the
+baseline statement again). Two A/A-only sets of nine rounds came first, and the control
+bound was derived from their pooled control-to-baseline ratios (n=18, min 0.9590,
+max 1.0397, SD 0.0234): bound = max |ratio - 1| + 3 SD = 0.1112. A round is valid only if its
+control stays within that bound; a breach discards the round and re-runs it. None did (0 invalid
+rounds in 9 attempts).
+
+| Measure | Value |
+| --- | --- |
+| Baseline, nine warm runs (s) | 2.013, 1.995, 2.003, 2.017, 1.980, 2.032, 2.043, 1.953, 1.951 |
+| Extended, nine warm runs (s) | 2.078, 2.014, 2.092, 2.083, 2.053, 2.030, 2.036, 2.083, 2.032 |
+| Median baseline / extended | 2.003 s / 2.053 s |
+| Ratio of medians | 1.0247 (+2.5%) |
+| Same-round ratios, mean and SD | 1.0288 and 0.0229; range 0.9968 to 1.0666 |
+| Cold pair, baseline / extended | 2.088 s / 2.067 s |
+| Control-to-baseline ratios in the gated set | 0.9583 to 1.0359 |
+| DB hits per row, baseline / extended | 10.0 / 10.0 (delta 0) |
+
+Pass bar (extended median within +10% of the baseline median, same operator tree): met.
+The PROFILE operator trees are identical (13 operators, no `Eager`, no new scan); as before,
+DB hits do not reflect the property writes. The read-back after the extended write was
+3,824 of each flag with no null flags, and the all-false re-projection left 0 true with 38,240 edges.
+The extended statement is measurably a little slower (7 of 9 same-round ratios above 1),
+about 2 to 3%, which is inside the bar and inside the spread of the control.
+
+Rule PD (host quiet): load1 was 2.96 at the start, 2.85 at the end and at most 3.04 in
+the run (sampled every second, 79 samples), against a limit of 8 (half the 16 CPUs); the A/A sets
+peaked at 3.97 and 3.40. The host was not idle: an unrelated compose project owned by another lane
+was up throughout and is disclosed here rather than stopped. Its containers averaged about 110% CPU
+(Postgres, peak 202%) and 56% CPU (Neo4j, peak 249%) across the seven samples taken during the gated set. The
+run therefore measures the change under a steady background of about two to three cores, and the A/A
+control, not an idle machine, is what bounds the noise. The derived control bound of 11.1% is wider than a
+quiet host would give, which is why the verdict rests on the ratio of medians and the spread, and the stated
+result is "inside the +10% bar with a measured cost of about 2 to 3%", not a precise cost.
+
+NornicDB (secondary): the chain-batch fast path check is still NOT_CHECKED; this run used Neo4j only.
 
 ## Benchmark Evidence:
 
@@ -164,7 +210,7 @@ it. The flags are directly inspectable on the edge
   must not count it as proven runtime.
 - The B-12 golden snapshot (`IMPORTS` floor of 63) is unchanged because fold
   identity is unchanged; the live B-7 gate is a CI check and was not run here.
-- Timing on the remote, and the NornicDB CI legs, are the remaining proof.
+- The NornicDB CI legs and the NornicDB chain-batch check remain the open proof; the Neo4j write timing is in the Performance Evidence section.
 - Key drift: the parser change (#7344, merged as #7432) wrote the flags under
   the `shared.ImportFlag*` keys, and the SDK reads them through `json` tags. Two
   tests in `projector/canonical` (`TestImportFlagKeysMatchTheSDKFieldTags`,
