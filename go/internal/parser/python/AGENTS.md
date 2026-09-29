@@ -195,6 +195,13 @@ honest wall-clock noise caveat) and the payload-equivalence tests
 (`TestParseNotebookMatchesEquivalentPythonSource`,
 `TestPreScanNotebookMatchesEquivalentPythonSource`).
 
+Import flags (issue #7344): `type_only`, `deferred`, and `inferred` on an
+`imports` entry are stored only when true. Never write `false`: it would change
+the payload of every unflagged import. Keep the `else` branch of a
+`TYPE_CHECKING` guard and `not TYPE_CHECKING` unflagged, and keep class bodies
+non-deferred. Add a case to `engine_import_flags_test.go` with any new
+context.
+
 No-Observability-Change: this parser package still emits no metrics, spans,
 or logs. Operators diagnose parser cost through existing collector
 snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.

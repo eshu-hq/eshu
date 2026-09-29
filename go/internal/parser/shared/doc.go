@@ -16,7 +16,9 @@
 // method-call roots for imported package receiver types. Options carry the
 // opt-in value-flow gate plus the stable repository and package identity
 // required for durable FunctionIDs, while bucket sorting keeps the parent
-// parser's line-number then name ordering contract.
+// parser's line-number then name ordering contract. The ImportFlag constants
+// name the optional type_only, deferred, and inferred keys a language parser
+// sets on an "imports" entry; a flag is present only when true.
 //
 // CyclomaticComplexity is the shared McCabe complexity walker. It counts
 // decision points from a BranchNodeSet so every tree-sitter language computes

@@ -136,6 +136,14 @@ Not claimed today:
   generated handlers, and other JVM web frameworks are not claimed as exact
   route truth.
 
+## Import Flags
+
+Java import entries carry no `type_only`, `deferred`, or `inferred` flag (issue
+#7344). Plain, `import static`, and on-demand (`.*`) imports are all retained,
+and a static import is a compile-time dependency like any other. `import_type`
+keeps the `static` spelling so a consumer can tell the forms apart. The decision
+is pinned by `TestDefaultEngineParsePathJavaImportsCarryNoFlags`.
+
 ## Known Limitations
 
 - Generic type bounds and wildcards are not captured as structured data beyond

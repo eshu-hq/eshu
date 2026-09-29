@@ -159,6 +159,32 @@ runtime-behavior change and no new metric/span/log surface. Per-file Python pars
 timing is already covered by the existing parser parse-stage telemetry; no new
 operator signals are warranted.
 
+## Import Flags
+
+Each `imports` bucket entry can carry up to three boolean flags. A flag is
+present only when it is true, so an unflagged entry is byte-identical to the
+payload from before the flag existed. The keys are the `shared.ImportFlag*`
+constants (issue #7344).
+
+- `type_only`: the import sits in the consequence of an `if TYPE_CHECKING:` or
+  `if typing.TYPE_CHECKING:` branch (`elif` counts), including a parenthesized
+  `if (TYPE_CHECKING):`. The `else` branch, `if not TYPE_CHECKING:`, and a
+  composite condition such as `if TYPE_CHECKING and x:` are not type-only, which
+  errs toward keeping the edge. The branch never runs, so the import cannot
+  close a runtime import cycle.
+- `deferred`: a function body encloses the import, so it runs at call
+  time instead of at module load. A class body runs at definition time and is
+  not deferred. `type_only` and `deferred` can both hold, and a guard outside a
+  function still marks an import inside it.
+- `inferred`: a relative import whose module is not on disk got the synthesized
+  `./x` fallback source. A resolved file, and an absolute module name kept
+  verbatim, are not inferred.
+
+This change only adds the flags to the parser payload. The projector carries
+them onto IMPORTS edges in #7345 and the `file_import_cycles` query consumes
+them in #7346, so no graph or query output changes here. The fixture gate is
+`TestDefaultEngineParsePathPythonImportFlags`.
+
 ## Related Docs
 
 - [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)

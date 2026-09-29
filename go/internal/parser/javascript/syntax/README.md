@@ -48,10 +48,14 @@ does not import its sibling `project` either — the two are independent.
 - `ParameterCount` — declared parameter count for a signature
 - `ImportEntries`, `NamespaceImportAlias`, `RequireImportEntries`,
   `RequireModuleSource` — import and `require` entry rows (`ImportEntries`
-  also covers the TypeScript `import x = require("...")` clause, see #7059)
+  also covers the TypeScript `import x = require("...")` clause, see #7059;
+  it sets `type_only` for `import type` and for a per-specifier `type`
+  modifier, see #7344)
 - `ReExportEntries`, `ReExportSource`, `ReExportSpecifiers`, `IsStarReExport`,
   `ReExportSpecifier` — re-export rows and their specifier pairs
-  (`ReExportSource` reads only the grammar's string-literal `source` field, and
+  (`ReExportSpecifier.TypeOnly` and a statement-level `export type` set
+  `type_only` on the row, except that `export { type as Y }` is a value
+  re-export and stays unflagged, see #7344; `ReExportSource` reads only the grammar's string-literal `source` field, and
   the specifier text fallback never reads a declaration export's body; there is
   no text scan for `from`, see #7056)
 - `ReExportAttributeEntries` — re-export rows for `with`/`assert` attribute

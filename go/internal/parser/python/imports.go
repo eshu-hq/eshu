@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -25,7 +26,9 @@ func pythonImportEntries(
 		return nil
 	}
 
-	appendEntry := func(entries []map[string]any, name string, alias string, importSource string, importType string) []map[string]any {
+	typeOnly, deferred := pythonImportContext(node, source)
+
+	appendEntry := func(entries []map[string]any, name string, alias string, importSource string, importType string, inferred bool) []map[string]any {
 		name = strings.TrimSpace(name)
 		alias = strings.TrimSpace(alias)
 		importSource = strings.TrimSpace(importSource)
@@ -44,6 +47,15 @@ func pythonImportEntries(
 		if alias != "" {
 			entry["alias"] = alias
 		}
+		if typeOnly {
+			entry[shared.ImportFlagTypeOnly] = true
+		}
+		if deferred {
+			entry[shared.ImportFlagDeferred] = true
+		}
+		if inferred {
+			entry[shared.ImportFlagInferred] = true
+		}
 		return append(entries, entry)
 	}
 
@@ -58,11 +70,11 @@ func pythonImportEntries(
 			if alias == "" {
 				alias = pythonImportLocalAlias(modulePath)
 			}
-			importSource := pythonResolvedImportSource(path, modulePath, "")
+			importSource, inferred := pythonResolvedImportSource(path, modulePath, "")
 			if importSource == "" {
 				importSource = modulePath
 			}
-			entries = appendEntry(entries, modulePath, alias, importSource, "import")
+			entries = appendEntry(entries, modulePath, alias, importSource, "import", inferred)
 		}
 		return entries
 	case strings.HasPrefix(statement, "from "):
@@ -77,22 +89,22 @@ func pythonImportEntries(
 		entries := make([]map[string]any, 0)
 		for _, clause := range pythonSplitImportClauses(importClause) {
 			if strings.TrimSpace(clause) == "*" {
-				importSource := pythonResolvedImportSource(path, modulePath, "")
+				importSource, inferred := pythonResolvedImportSource(path, modulePath, "")
 				if importSource == "" {
 					importSource = modulePath
 				}
-				entries = appendEntry(entries, "*", "", importSource, "from")
+				entries = appendEntry(entries, "*", "", importSource, "from", inferred)
 				continue
 			}
 			name, alias := pythonSplitImportAlias(clause)
 			if name == "" {
 				continue
 			}
-			importSource := pythonResolvedImportSource(path, modulePath, name)
+			importSource, inferred := pythonResolvedImportSource(path, modulePath, name)
 			if importSource == "" {
 				importSource = modulePath
 			}
-			entries = appendEntry(entries, name, alias, importSource, "from")
+			entries = appendEntry(entries, name, alias, importSource, "from", inferred)
 		}
 		return entries
 	default:
@@ -156,24 +168,29 @@ func pythonImportLocalAlias(modulePath string) string {
 	return modulePath
 }
 
-func pythonResolvedImportSource(path string, modulePath string, importedName string) string {
+// pythonResolvedImportSource returns the import's source and whether the parser
+// synthesized it. A relative import whose module is not on disk falls back to a
+// path built from the dots and the module name; that path is a guess, so the
+// second result is true and the entry carries the inferred flag. A resolved
+// file, and an absolute name kept verbatim, are not inferred.
+func pythonResolvedImportSource(path string, modulePath string, importedName string) (string, bool) {
 	modulePath = strings.TrimSpace(modulePath)
 	importedName = strings.TrimSpace(importedName)
 	if modulePath == "" {
-		return ""
+		return "", false
 	}
 
 	if strings.HasPrefix(modulePath, ".") {
 		if resolved := pythonResolvedRelativeImportSource(path, modulePath, importedName); resolved != "" {
-			return resolved
+			return resolved, false
 		}
-		return pythonRelativeImportFallback(modulePath, importedName)
+		return pythonRelativeImportFallback(modulePath, importedName), true
 	}
 
 	if resolved := pythonResolvedAbsoluteImportSource(path, modulePath); resolved != "" {
-		return resolved
+		return resolved, false
 	}
-	return modulePath
+	return modulePath, false
 }
 
 func pythonResolvedRelativeImportSource(path string, modulePath string, importedName string) string {

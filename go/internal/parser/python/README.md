@@ -136,6 +136,16 @@ No-Observability-Change: this parser package still emits no metrics, spans,
 or logs. Operators diagnose parser cost through existing collector
 snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
 
+## Import flags (issue #7344)
+
+`import_context.go` decides `type_only` (consequence of an `if`/`elif` guarded by
+`TYPE_CHECKING` or `x.TYPE_CHECKING`) and `deferred` (a function body
+encloses the statement) by climbing the statement's parents. `imports.go` sets
+`inferred` when `pythonResolvedImportSource` fell back to the synthesized
+`./x` path for a relative import whose module is not on disk. Each flag is
+stored only when true, using the `shared.ImportFlag*` keys. The public contract
+is in [Python Parser](../../../../docs/public/languages/python.md#import-flags).
+
 ## Gotchas / invariants
 
 NotebookSource returns an empty string for notebooks without code cells. Invalid

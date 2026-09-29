@@ -100,6 +100,30 @@ No-Observability-Change: same as the JavaScript-family parser — no metric,
 span, structured log, status field, queue, graph-write, worker, lease, batch,
 or runtime knob is added or removed.
 
+## Import Flags
+
+TypeScript import rows carry `type_only: true` when the import is erased at
+compile time and so cannot close a runtime import cycle (issue #7344). The
+flag is set for `import type { A } from "m"`, `import type D from "m"`,
+`import type * as NS from "m"`, `import type X = require("m")`, a per-specifier
+modifier such as `import { type B, C } from "m"` (only `B` is flagged), and for
+`export type { A } from "./m"`, `export type * from "./m"`, and
+`export { type Z, W } from "./m"`. Value imports, side-effect imports, and
+`export { I } from "./m"` never carry it. A flag is present only when true.
+
+The parser sets no `deferred` or `inferred` flag for TypeScript or JavaScript:
+the tsconfig resolver only returns files that exist on disk, and dynamic
+`import()` is not part of the import bucket. Some spellings stay unflagged on
+purpose or by limit, and all of them err toward keeping the edge:
+`export { type as Y } from "m"` re-exports the value named `type` and is not
+type-only; `export { type as }` and `import { type as as Y } from "m"` (a
+type-only use of a binding named `as`) are left unflagged because the grammar
+yields the same node as the value spelling; and `export type * from "m" with
+{ ... }` (a star re-export with an import attribute, recovered from a grammar
+error shape) loses its statement-level `type`. The fixture
+gates are `TestDefaultEngineParsePathTypeScriptImportFlags` and
+`TestDefaultEngineParsePathTypeScriptReExportTypeModifierEdges`.
+
 ## Related Docs
 
 - [TypeScript JSX Parser](typescriptjsx.md)

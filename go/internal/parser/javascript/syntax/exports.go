@@ -31,6 +31,7 @@ func ReExportEntries(
 	}
 
 	fullImportName := strings.TrimSpace(shared.NodeText(node, source))
+	statementTypeOnly := reExportStatementIsTypeOnly(fullImportName)
 	if IsStarReExport(node, source) {
 		return []map[string]any{reExportEntry(
 			"*",
@@ -39,6 +40,7 @@ func ReExportEntries(
 			fullImportName,
 			shared.NodeLine(sourceNode),
 			lang,
+			statementTypeOnly,
 		)}
 	}
 
@@ -52,9 +54,34 @@ func ReExportEntries(
 			fullImportName,
 			specifier.lineNumber,
 			lang,
+			statementTypeOnly || specifier.TypeOnly,
 		))
 	}
 	return items
+}
+
+// reExportStatementIsTypeOnly reports whether a re-export statement is spelled
+// `export type { … } from` or `export type * from`. It reads the statement text
+// because the TypeScript grammar leaves the modifier on a star re-export as an
+// ERROR token instead of a `type` child.
+func reExportStatementIsTypeOnly(statement string) bool {
+	// Comments may sit between the keywords (`export /* c */ type { Q }`), and
+	// the statement text keeps them.
+	statement = exportSpecifierWithoutLineComments(statement)
+	rest, ok := strings.CutPrefix(strings.TrimSpace(statement), "export")
+	if !ok {
+		return false
+	}
+	rest, ok = strings.CutPrefix(strings.TrimSpace(rest), "type")
+	if !ok || rest == "" {
+		return false
+	}
+	switch rest[0] {
+	case ' ', '\t', '\n', '\r', '{', '*':
+		return true
+	default:
+		return false
+	}
 }
 
 // ReExportSource returns the unquoted module specifier of a re-export statement
@@ -84,7 +111,11 @@ func ReExportSource(node *tree_sitter.Node, source []byte) string {
 type ReExportSpecifier struct {
 	ExportedName string
 	OriginalName string
-	lineNumber   int
+	// TypeOnly is true when the specifier itself carries the `type` modifier
+	// (`export { type Z } from "m"`); a statement-level `export type` is read
+	// from the statement text instead.
+	TypeOnly   bool
+	lineNumber int
 }
 
 func reExportEntry(
@@ -94,6 +125,7 @@ func reExportEntry(
 	fullImportName string,
 	lineNumber int,
 	lang string,
+	typeOnly bool,
 ) map[string]any {
 	item := map[string]any{
 		"name":             exportedName,
@@ -105,6 +137,9 @@ func reExportEntry(
 	}
 	if originalName != "" {
 		item["original_name"] = originalName
+	}
+	if typeOnly {
+		item[shared.ImportFlagTypeOnly] = true
 	}
 	return item
 }
@@ -167,6 +202,7 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,
+			TypeOnly:     exportSpecifierIsTypeOnly(candidate, nameNode, aliasNode, source),
 			lineNumber:   shared.NodeLine(candidate),
 		})
 	})
@@ -212,10 +248,37 @@ func reExportSpecifiersFromText(
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,
+			TypeOnly:     exportSpecifierTextIsTypeOnly(part),
 			lineNumber:   shared.NodeLine(node),
 		})
 	}
 	return specifiers
+}
+
+// exportSpecifierIsTypeOnly reports whether one export specifier carries the
+// `type` modifier. The grammar reads `export { type as Y }` as a modifier plus a
+// name `as` with no alias, but TypeScript 4.5 defines that spelling as the VALUE
+// named type exported under the alias Y, so it is not type-only. Flagging it
+// would let a cycle query drop a real runtime edge; a genuine type-only export
+// of a binding named `as` (`{ type as as Y }`) still carries an alias and is
+// flagged.
+func exportSpecifierIsTypeOnly(specifier, nameNode, aliasNode *tree_sitter.Node, source []byte) bool {
+	if !hasTypeModifier(specifier) {
+		return false
+	}
+	return aliasNode != nil || strings.TrimSpace(shared.NodeText(nameNode, source)) != "as"
+}
+
+// exportSpecifierTextIsTypeOnly is the text-fallback counterpart of
+// exportSpecifierIsTypeOnly: a `type ` prefix marks the specifier type-only
+// unless the whole specifier is the three-word value spelling `type as Y`.
+func exportSpecifierTextIsTypeOnly(raw string) bool {
+	part := strings.TrimSpace(exportSpecifierWithoutLineComments(raw))
+	if !strings.HasPrefix(part, "type ") {
+		return false
+	}
+	fields := strings.Fields(part)
+	return len(fields) != 3 || fields[1] != "as"
 }
 
 func reExportSpecifierNames(raw string) (string, string) {

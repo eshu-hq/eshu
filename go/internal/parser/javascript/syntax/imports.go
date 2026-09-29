@@ -16,6 +16,34 @@ import (
 // node must be a non-nil import_statement; the result is nil when the statement
 // carries no module specifier.
 func ImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
+	items := importEntries(node, source, lang)
+	if hasTypeModifier(node) {
+		for _, item := range items {
+			item[shared.ImportFlagTypeOnly] = true
+		}
+	}
+	return items
+}
+
+// hasTypeModifier reports whether a TypeScript import statement or specifier
+// carries the `type` modifier (`import type { A } from "m"`, `import type X =
+// require("m")`, `import { type B } from "m"`, `export { type Z } from "m"`).
+// The grammar models the modifier as an anonymous `type` token child, distinct
+// from an identifier that happens to be named type.
+func hasTypeModifier(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	for index := uint(0); index < node.ChildCount(); index++ {
+		child := node.Child(index)
+		if child != nil && !child.IsNamed() && child.Kind() == "type" {
+			return true
+		}
+	}
+	return false
+}
+
+func importEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
 	sourceNode := node.ChildByFieldName("source")
 	moduleSource := strings.Trim(shared.NodeText(sourceNode, source), `"'`)
 	if strings.TrimSpace(moduleSource) == "" {
@@ -189,13 +217,17 @@ func importEntriesFromClause(
 			}
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
-			items = append(items, map[string]any{
+			item := map[string]any{
 				"name":        shared.NodeText(nameNode, source),
 				"source":      moduleSource,
 				"alias":       shared.NodeText(aliasNode, source),
 				"line_number": shared.NodeLine(&specifier),
 				"lang":        lang,
-			})
+			}
+			if hasTypeModifier(&specifier) {
+				item[shared.ImportFlagTypeOnly] = true
+			}
+			items = append(items, item)
 		}
 		return items
 	default:
