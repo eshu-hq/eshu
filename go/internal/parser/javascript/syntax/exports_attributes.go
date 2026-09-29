@@ -92,6 +92,7 @@ func ReExportAttributeEntries(
 				fullImportName,
 				specifier.lineNumber,
 				lang,
+				specifier.TypeOnly,
 			))
 		}
 		return items
@@ -104,6 +105,7 @@ func ReExportAttributeEntries(
 			fmt.Sprintf("export * from %q", moduleSource),
 			shared.NodeLine(specNode),
 			lang,
+			false,
 		)}
 	}
 	return nil
@@ -219,6 +221,7 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,
+			TypeOnly:     hasTypeModifier(candidate),
 			lineNumber:   shared.NodeLine(candidate),
 		})
 	})

@@ -230,6 +230,14 @@ and fails if ForNode stops honoring the query position. See issue #5219.
 No-Observability-Change: a pure per-parse memoization; no new metric, span,
 log, queue, worker, or runtime-behavior surface.
 
+## Import Flags
+Go import entries carry no `type_only`, `deferred`, or `inferred` flag (issue
+#7344). Blank (`_`) and dot (`.`) imports are retained as ordinary import
+entries with the alias dropped, because the Go compiler rejects an import cycle
+even when one edge is a blank or dot import. Dropping or flagging one would hide
+a real cycle. The decision is pinned by
+`TestDefaultEngineParsePathGoImportsCarryNoFlags`.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
