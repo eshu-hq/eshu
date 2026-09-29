@@ -16,6 +16,10 @@
 - Keep `QueueFailureMetadata`/`DeadLetterTriageMetadata`'s precedence: a
   self-classifying cause (`classifiedFailure`/`detailedFailure`) always
   wins over the fallback class and the triage details.
+- Keep the failure-text bound here (#7407): `MaxFailureDetailsBytes` and
+  `MaxFailureMessageBytes`, applied after `sanitizeFailureText`, rune-safe, with
+  the marker inside the limit. Never move it into SQL or the #7320 supersede
+  fold; the stored evidence and its `prior_failure` copy must stay equal.
 - Keep `ComputeRetryDelay`'s overflow guard (the doubling loop breaks on
   `doubled < backoff`) — do not replace it with a direct shift.
 - Never import the parent `postgres` package from here.

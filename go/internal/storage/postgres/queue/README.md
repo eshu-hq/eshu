@@ -25,6 +25,7 @@ this package's dead-letter path defers to.
 - `QueueFailureMetadata(cause error, fallbackClass string) (string, string, string)`
 - `DeadLetterTriageMetadata(cause error, stage string, retryable bool) (string, string, string)`
 - `ComputeRetryDelay(baseDelay, maxDelay time.Duration, jitterFraction float64, attempt int, jitterSource func() float64) time.Duration`
+- `MaxFailureDetailsBytes`, `MaxFailureMessageBytes` (consts, 4096 and 1024)
 - `DefaultRetryMaxDelayFallback time.Duration` (const)
 - `DefaultJitterSource() float64`
 
@@ -46,6 +47,15 @@ them own the retry-surge counters and failure-class attributes.
   self-classifying error's own class or details; they only supply a
   fallback. Changing that precedence changes which failure_class lands on
   retrying and dead-lettered rows.
+- Failure text is bounded here, at the Fail-time writer, and nowhere else
+  (#7407): the message to `MaxFailureMessageBytes` and the details to
+  `MaxFailureDetailsBytes`, cut on a rune boundary after `sanitizeFailureText`,
+  ending in `...[truncated: <original> bytes, kept <n>]`. The marker counts
+  toward the limit. `failure_class` is not bounded; it only holds constants.
+  The bound is deliberately not in SQL and not in the #7320 supersede fold, so
+  the stored evidence and the `prior_failure` copy of it stay equal. The
+  "was this the cause's own details" test compares the unbounded text, because
+  the two limits differ.
 - `ComputeRetryDelay`'s doubling loop is the actual overflow guard for a
   large attempt count against a multi-minute base delay; `maxBackoffShift`
   only bounds loop iterations. Do not "simplify" the loop to
