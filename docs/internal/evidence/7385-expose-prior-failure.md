@@ -1,8 +1,8 @@
 # #7385 Expose A Superseded Work Item's prior_failure
 
 #7320 keeps a superseded work item's old failure under
-`failure_details.prior_failure`. #7388 (open) extends that to a stale-scope reclaim
-and an operator note, and #7407 (open) caps the details text. Nothing read the kept
+`failure_details.prior_failure`. #7388 (PR #7454) extends that to a stale-scope reclaim
+and an operator note, and #7407 (merged, `eea68a679`) caps newly stored details text at 4,096 bytes. Nothing read the kept
 failure back. This change exposes it, additively, by reading the keys wherever a
 writer put them.
 
@@ -56,14 +56,14 @@ the ratio is what matters:
 | Details width | Before | After |
 | --- | --- | --- |
 | about 800 B | 4.92 / 5.39 / 7.40 ms | 5.48 / 6.13 / 7.45 ms (+0.74 ms median) |
-| about 4 KB (the cap #7407 proposes) | 4.39 / 4.75 / 5.96 ms | 6.80 / 7.40 / 10.65 ms (+2.65 ms median) |
+| about 4 KB (the cap #7407 set) | 4.39 / 4.75 / 5.96 ms | 6.80 / 7.40 / 10.65 ms (+2.65 ms median) |
 
 That is +14% and +56% on the median at the maximum page, worst case for the
 column: every generation returns a superseded row with folded details. A typical
 page is smaller and most failure rows carry short details. The read is an operator
 drilldown, not a claim or projection path. NOT_CHECKED: a page against a large
 production table, and the admin listing's added column. Rows written before #7407
-lands have unbounded details.
+merged can hold longer details.
 
 Observability Evidence: no new signal. The read's existing bounded-read
 telemetry and the `page.truncated` flag are unchanged; a row whose details cannot
