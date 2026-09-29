@@ -39,6 +39,9 @@ func (e provenanceReplayExecutor) sessionConfig(mode neo4jdriver.AccessMode) neo
 }
 
 // Execute runs retracts and setup statements as auto-commit transactions.
+// Like the production projector Bolt executor (cmd/projector
+// neo4j_executor.go), it reports each statement's summary counters through
+// cypher.ReportWriteCounts, a no-op unless a caller stashed a collector.
 func (e provenanceReplayExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
 	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
 	defer func() { _ = session.Close(ctx) }()
@@ -46,14 +49,18 @@ func (e provenanceReplayExecutor) Execute(ctx context.Context, stmt cypher.State
 	if err != nil {
 		return fmt.Errorf("execute auto-commit statement: %w", err)
 	}
-	if _, err := result.Consume(ctx); err != nil {
+	summary, err := result.Consume(ctx)
+	if err != nil {
 		return fmt.Errorf("consume auto-commit statement: %w", err)
 	}
+	cypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()))
 	return nil
 }
 
 // ExecuteGroup runs upserts in the managed transaction selected by the real
-// writer when its executor implements cypher.GroupExecutor.
+// writer when its executor implements cypher.GroupExecutor. It reports write
+// counts per statement inside the transaction function, as the production
+// executor does, so a driver retry of the function reports every attempt.
 func (e provenanceReplayExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -66,9 +73,11 @@ func (e provenanceReplayExecutor) ExecuteGroup(ctx context.Context, stmts []cyph
 			if runErr != nil {
 				return nil, runErr
 			}
-			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+			summary, consumeErr := result.Consume(ctx)
+			if consumeErr != nil {
 				return nil, consumeErr
 			}
+			cypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, cypher.WriteCountersFromSummary(summary.Counters()))
 		}
 		return nil, nil
 	})

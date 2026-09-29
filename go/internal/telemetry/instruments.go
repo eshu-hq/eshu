@@ -1538,6 +1538,14 @@ type Instruments struct {
 	// refusals. Full generations are not counted.
 	ProjectorDeltaBaselineFence metric.Int64Counter
 
+	// CanonicalRepositoryRetirements counts the canonical writer's
+	// path-conflict retirements of a different-id Repository (#7324), by a
+	// closed outcome: clean (no relationships deleted) or
+	// dropped_relationships (the backend deleted relationships with it,
+	// both directions counted). Steady-state projections match nothing and
+	// record nothing.
+	CanonicalRepositoryRetirements metric.Int64Counter
+
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
 	// one of the four handler-wide relationship source-tool breakdown permits.
 	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the
@@ -4661,6 +4669,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerCanonicalRepositoryRetirements(meter, inst); err != nil {
 		return nil, err
 	}
 

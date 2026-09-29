@@ -155,9 +155,23 @@ func TestLiveRepositoryRetryKeepsReducerEdges(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 			repoID := live.repoID(retryFixtureRepo.name)
+			pinParams := map[string]any{"repo_id": repoID, "other": live.repoID(retryFixtureOther.name)}
+
+			// P4 (#7324): the submodule_pin writer MERGEs the pinned
+			// Repository as a path-less stub before its first projection;
+			// the projector's MERGE + SET must adopt that node, not replace it.
+			live.run(ctx, t, cypher.BatchCanonicalSubmodulePinEdgeCypher, map[string]any{"rows": []map[string]any{{
+				"parent_repo_id": pinParams["other"], "resolved_repo_id": repoID, "submodule_path": "vendor/payments",
+				"pinned_sha": nil, "generation_id": "reducer-gen", "evidence_source": "reducer/submodule_pin",
+			}}})
+			stubElement := live.repositoryElementID(ctx, t, repoID)
 
 			live.write(ctx, t, writer, live.materialization(retryFixtureRepo, "gen-1", true))
 			live.write(ctx, t, writer, live.materialization(retryFixtureOther, "gen-1", true))
+			if got := live.repositoryElementID(ctx, t, repoID); got != stubElement {
+				t.Fatalf("first projection replaced the submodule_pin stub Repository %s with %s", stubElement, got)
+			}
+			live.assertSubmodulePinSurvives(ctx, t, pinParams, "after stub adoption")
 			live.materializeRetryWorkloads(ctx, t)
 			live.seedReducerEdges(ctx, t)
 
@@ -189,7 +203,38 @@ func TestLiveRepositoryRetryKeepsReducerEdges(t *testing.T) {
 				t.Fatalf("reducer edges after generation 2 = %v, want %v", got, wantReducerEdgesOnRepo)
 			}
 			live.assertProjectorEdges(ctx, t, smaller, "gen-2")
+
+			// P3 (#7324): a delta generation skips repository_cleanup and
+			// touches only its changed files, so every reducer edge and the
+			// node itself survive it too.
+			delta := live.materialization(smaller, "gen-3", false)
+			delta.DeltaProjection = true
+			delta.DeltaFilePaths = []string{delta.RepoPath + "/README.md"}
+			delta.Files = delta.Files[:1]
+			delta.Directories = nil
+			live.write(ctx, t, writer, delta)
+			if got := live.relationshipTypeCounts(ctx, t, repoID); !reflect.DeepEqual(got, wantReducerEdgesOnRepo) {
+				t.Fatalf("reducer edges after delta generation 3 = %v, want %v", got, wantReducerEdgesOnRepo)
+			}
+			if got := live.repositoryElementID(ctx, t, repoID); got != elementBefore {
+				t.Fatalf("Repository element id changed %s -> %s across the delta generation", elementBefore, got)
+			}
+			if got := live.count(ctx, t, `MATCH (:Repository {id: $repo_id})-[rel:REPO_CONTAINS]->(:File) RETURN count(rel) AS count`,
+				map[string]any{"repo_id": repoID}); got != int64(len(smaller.files)) {
+				t.Fatalf("REPO_CONTAINS after delta generation 3 = %d, want %d", got, len(smaller.files))
+			}
+			live.assertSubmodulePinSurvives(ctx, t, pinParams, "after delta generation 3")
 		})
+	}
+}
+
+// assertSubmodulePinSurvives checks the path-keyed PINS_SUBMODULE edge the
+// submodule_pin writer created on the stub is still on the Repository.
+func (l *repoRetryLive) assertSubmodulePinSurvives(ctx context.Context, t *testing.T, params map[string]any, when string) {
+	t.Helper()
+	if got := l.count(ctx, t, `MATCH (:Repository {id: $other})-[pin:PINS_SUBMODULE {path: 'vendor/payments'}]->(:Repository {id: $repo_id})
+RETURN count(pin) AS count`, params); got != 1 {
+		t.Fatalf("PINS_SUBMODULE {path: vendor/payments} %s = %d, want 1", when, got)
 	}
 }
 
