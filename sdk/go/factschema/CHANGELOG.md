@@ -20,6 +20,12 @@ version — pinning this module pins the fixture pack too.
 
 ## [Unreleased]
 
+### Added
+
+- `codegraph/v1` `Import` gains three optional booleans, `type_only`, `deferred`
+  and `inferred` (json tags of the same names, `omitempty`). A parser sets one
+  only when it is true. An additive optional field is a minor change.
+
 ## [0.2.0] - 2026-09-16
 
 Additive post-`v0.1.0` changes only — 46 new schemas, zero breaking schema

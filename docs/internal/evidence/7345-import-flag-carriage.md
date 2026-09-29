@@ -60,15 +60,15 @@ in `import_extract.go` and the stale "flags do not reach the graph" comment in
 
 `TestCanonicalImportEdgesGraphTruth` (extended) writes generation 1 with
 `type_only` on one edge and `deferred` plus `inferred` on the other, then
-re-projects generation 2 with every flag flipped, through the production
+re-projects generation 2 with every generation-1 true flag now false and `type_only` true on the other edge, through the production
 `CanonicalNodeWriter`. It reads the properties back and requires an explicit
 boolean on each edge (a missing property fails the test, it is not read as
 false) and an unchanged edge count.
 
 | Backend | Result |
 | --- | --- |
-| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS. gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
-| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS, identical values and edge count |
+| Neo4j, digest-pinned `neo4j:2026-community` (Kernel 2026.08.1) | PASS at the pre-rebase build (the same change on the base before #7438 merged). The rebase after it touched only a comment in the reader file, and the writer statement and refresh are unchanged on the new base, but the live test was not re-run at the final head. gen1 flags `[true false false]` and `[false true true]`; gen2 `[false false false]` and `[true false false]`; 2 edges each generation |
+| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the same pre-rebase build, identical values and edge count |
 
 Sensitivity: with the `r.inferred` SET removed from the writer statement the
 Neo4j run fails with `property "inferred" = <nil>, want an explicit boolean`.
