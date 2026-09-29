@@ -228,8 +228,10 @@ in `7265-liveness-recovery-progress-window/` next to this record:
   produces the doubled-window variant.
 - `explain.sh`: the harness. It has five subcommands:
   - `schema` applies the eight migrations listed under Fixture.
-  - `seed` loads the base fixture.
-  - `seed-doubled` loads the doubled-window variant.
+  - `seed` loads the base fixture. Seeding TRUNCATEs the queue tables, so it
+    refuses to run unless `ESHU_7265_I_AM_DISPOSABLE=1` confirms the target
+    container is a throwaway fixture.
+  - `seed-doubled` loads the doubled-window variant (same guard).
   - `extract` rebuilds the query text from the Go consts.
   - `bench` runs the interleaved `EXPLAIN (ANALYZE, BUFFERS)` inside
     `BEGIN`/`ROLLBACK` and prints the bucket counts.

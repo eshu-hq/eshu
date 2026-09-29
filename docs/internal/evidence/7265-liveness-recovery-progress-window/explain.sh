@@ -20,7 +20,8 @@
 #                              bucket counts; default 7 rounds
 #
 # Every EXPLAIN runs inside BEGIN/ROLLBACK because the recovery query writes.
-# Never point it at a database you care about.
+# Never point it at a database you care about: seeding TRUNCATEs the queue
+# tables and only runs with ESHU_7265_I_AM_DISPOSABLE=1.
 set -euo pipefail
 
 container="${ESHU_7265_CONTAINER:-eshu7265-pg}"
@@ -39,6 +40,12 @@ vacuum_all() {
 }
 
 reset_and_seed() {
+	# TRUNCATE ... CASCADE wipes the queue tables, so seeding refuses to run
+	# unless the caller states the target container is a disposable fixture.
+	if [ "${ESHU_7265_I_AM_DISPOSABLE:-}" != "1" ]; then
+		echo "refusing to TRUNCATE container '${container}': set ESHU_7265_I_AM_DISPOSABLE=1 to confirm it is a throwaway fixture database" >&2
+		return 1
+	fi
 	psql_exec -c "TRUNCATE shared_projection_intents, fact_work_items, scope_generations, ingestion_scopes CASCADE"
 	psql_exec <"$1"
 	vacuum_all
