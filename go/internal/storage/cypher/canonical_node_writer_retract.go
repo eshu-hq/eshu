@@ -4,11 +4,16 @@
 package cypher
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
@@ -326,3 +331,84 @@ func fileNameLineKey(filePath, name string, line int) string {
 }
 
 // --- Phase B: Repository ---
+
+// isRepositoryPathCleanupEntry reports whether a write-count entry belongs to
+// the path-conflict retirement statement. It matches on the Cypher text,
+// which no executor rewrites; the summary metadata key is stripped before
+// the Bolt seam on the phase-group path (SanitizeStatement).
+func isRepositoryPathCleanupEntry(entry WriteCountEntry) bool {
+	return entry.Cypher == canonicalNodeRepositoryPathCleanupCypher
+}
+
+// captureRepositoryRetirement stashes a filtered write-count collector for
+// the statements about to execute when they include the path-conflict
+// retirement, and returns ctx unchanged (and a nil collector) otherwise, so
+// first-generation and delta writes pay nothing. The collector forwards
+// every entry to any collector the caller already stashed.
+func captureRepositoryRetirement(ctx context.Context, statements []Statement) (context.Context, *WriteCountsCollector) {
+	for _, stmt := range statements {
+		if stmt.Cypher != canonicalNodeRepositoryPathCleanupCypher {
+			continue
+		}
+		collector := NewFilteredWriteCountsCollector(WriteCountsCollectorFromContext(ctx), isRepositoryPathCleanupEntry)
+		return WithWriteCountsCollector(ctx, collector), collector
+	}
+	return ctx, nil
+}
+
+// reportRepositoryRetirement publishes what the committed path-conflict
+// retirement deleted (#7324). The statement DETACH DELETEs a different-id
+// Repository still holding this path, which drops every relationship on it:
+// reducer edges other scopes wrote into it, which nothing re-arms, and its
+// own projector edges. relationships_deleted is the backend's count of both
+// directions; direction and type are not attributed.
+//
+// The last collected entry is the committed attempt: a driver or executor
+// retry re-runs the statement and reports again, and Write calls this only
+// after the statement's transaction committed. The `canonical repository
+// retired` line and the counter appear only when the statement deleted a
+// node; a retirement that matched nothing (the steady state) records nothing
+// at INFO or WARN. With no entry at all the executor reported no write
+// summary, so nothing is known about the retirement: a DEBUG line with a
+// distinct message and deletes_counted=false says so, and no counter moves.
+// A retirement that committed but whose driver call still returned an error
+// is re-run on retry, matches nothing, and so is not counted: the count is
+// at most once per retirement, not exactly once.
+func (w *CanonicalNodeWriter) reportRepositoryRetirement(
+	ctx context.Context,
+	mat canonical.CanonicalMaterialization,
+	collector *WriteCountsCollector,
+) {
+	if collector == nil || mat.Repository == nil {
+		return
+	}
+	entries := collector.Entries()
+	fields := []any{
+		"scope_id", mat.ScopeID,
+		"generation_id", mat.GenerationID,
+		"repo_id", mat.Repository.RepoID,
+		"path", mat.Repository.Path,
+	}
+	if len(entries) == 0 {
+		slog.DebugContext(ctx, "canonical repository retirement not counted: executor reported no write summary",
+			append(fields, "deletes_counted", false)...)
+		return
+	}
+	counters := entries[len(entries)-1].Counters
+	if counters.NodesDeleted == 0 {
+		return
+	}
+	outcome, level := telemetry.RepositoryRetirementOutcomeClean, slog.LevelInfo
+	if counters.RelationshipsDeleted > 0 {
+		outcome, level = telemetry.RepositoryRetirementOutcomeDroppedRelationships, slog.LevelWarn
+	}
+	if w.instruments != nil && w.instruments.CanonicalRepositoryRetirements != nil {
+		w.instruments.CanonicalRepositoryRetirements.Add(ctx, 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+	}
+	slog.Log(ctx, level, "canonical repository retired", append(fields,
+		"nodes_deleted", counters.NodesDeleted,
+		"relationships_deleted", counters.RelationshipsDeleted,
+		"deletes_counted", true,
+		"outcome", outcome,
+	)...)
+}

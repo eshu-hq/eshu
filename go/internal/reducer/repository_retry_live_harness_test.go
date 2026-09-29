@@ -36,6 +36,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // repoRetryLive is one test's connection, backend identity, and id prefix.
@@ -138,6 +139,12 @@ func (l *repoRetryLive) repoPath(name string) string { return l.pathPrefix() + "
 // GroupExecutor (the Neo4j projector path) and the phase-group executor (the
 // NornicDB projector path). Both must keep reducer edges across a retry.
 func (l *repoRetryLive) writerShapes() map[string]*cypher.CanonicalNodeWriter {
+	return l.instrumentedWriterShapes(nil)
+}
+
+// instrumentedWriterShapes is writerShapes with the writer's telemetry
+// instruments wired, so a test can read the writer's own counters (#7324).
+func (l *repoRetryLive) instrumentedWriterShapes(instruments *telemetry.Instruments) map[string]*cypher.CanonicalNodeWriter {
 	phaseExecutor := storagenornicdb.PhaseGroupExecutor{
 		Inner:                    l.exec,
 		MaxStatements:            storagenornicdb.DefaultPhaseGroupStatements,
@@ -149,12 +156,12 @@ func (l *repoRetryLive) writerShapes() map[string]*cypher.CanonicalNodeWriter {
 		DrainReader:              l.exec,
 		RetractBatchSize:         storagenornicdb.DefaultCanonicalRetractBatchSize,
 	}
-	phaseWriter := cypher.NewCanonicalNodeWriter(phaseExecutor, 500, nil)
+	phaseWriter := cypher.NewCanonicalNodeWriter(phaseExecutor, 500, instruments)
 	if l.backend != "neo4j" {
 		phaseWriter = storagenornicdb.ConfigureCanonicalWriter(phaseWriter, storagenornicdb.DefaultWriterConfig())
 	}
 	return map[string]*cypher.CanonicalNodeWriter{
-		"atomic_group": cypher.NewCanonicalNodeWriter(l.exec, 500, nil),
+		"atomic_group": cypher.NewCanonicalNodeWriter(l.exec, 500, instruments),
 		"phase_group":  phaseWriter,
 	}
 }

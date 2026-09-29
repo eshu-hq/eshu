@@ -54,6 +54,11 @@ type WriteCountEntry struct {
 type WriteCountsCollector struct {
 	mutex   sync.Mutex
 	entries []WriteCountEntry
+	// parent receives every entry this collector is offered, so a narrower
+	// collector stashed below an outer one never hides entries from it.
+	parent *WriteCountsCollector
+	// accept, when set, limits which entries this collector keeps.
+	accept func(WriteCountEntry) bool
 }
 
 // NewWriteCountsCollector returns an empty collector.
@@ -61,9 +66,24 @@ func NewWriteCountsCollector() *WriteCountsCollector {
 	return &WriteCountsCollector{}
 }
 
-// Add appends one entry.
+// NewFilteredWriteCountsCollector returns an empty collector that keeps only
+// the entries accept admits and forwards every entry, kept or not, to parent
+// (nil for none). A writer that needs one statement's counters stashes it
+// over whatever collector the caller already stashed (the differential
+// capture recorder, issue #6783), so that recorder still sees every
+// statement while the writer holds only the entries it reads (#7324).
+func NewFilteredWriteCountsCollector(parent *WriteCountsCollector, accept func(WriteCountEntry) bool) *WriteCountsCollector {
+	return &WriteCountsCollector{parent: parent, accept: accept}
+}
+
+// Add forwards the entry to the parent collector, then appends it when this
+// collector's filter admits it.
 func (c *WriteCountsCollector) Add(entry WriteCountEntry) {
 	if c == nil {
+		return
+	}
+	c.parent.Add(entry)
+	if c.accept != nil && !c.accept(entry) {
 		return
 	}
 	c.mutex.Lock()

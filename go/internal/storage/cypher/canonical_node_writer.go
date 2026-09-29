@@ -59,7 +59,10 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 //
 //	A: retract stale nodes
 //	B: repository_cleanup (path-conflict retirement only; skipped for
-//	   first-generation and delta scopes; never deletes the node C re-MERGEs)
+//	   first-generation and delta scopes; never deletes the node C re-MERGEs;
+//	   a retirement that deleted a node is reported on
+//	   eshu_dp_canonical_repository_retirements_total and the
+//	   `canonical repository retired` log, #7324)
 //	C: repository
 //	D: directory nodes (MERGE by path, no parent MATCH)
 //	D2: directory edges (parent CONTAINS, after directory nodes commit)
@@ -156,11 +159,13 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		mainStatements, edgeStatements := partitionDeferredPackageRegistryEdgePhases(phases)
 		start := time.Now()
-		if err := ge.ExecuteGroup(ctx, mainStatements); err != nil {
+		groupCtx, retirement := captureRepositoryRetirement(ctx, mainStatements)
+		if err := ge.ExecuteGroup(groupCtx, mainStatements); err != nil {
 			writeSpan.RecordError(err)
 			writeSpan.SetStatus(codes.Error, err.Error())
 			return WrapRetryableNeo4jError(fmt.Errorf("canonical atomic write: %w", err))
 		}
+		w.reportRepositoryRetirement(ctx, mat, retirement) // committed with the main group, before the edge group can fail
 		if len(edgeStatements) > 0 {
 			if err := ge.ExecuteGroup(ctx, edgeStatements); err != nil {
 				writeSpan.RecordError(err)
@@ -190,6 +195,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 			}
 			phaseStart := time.Now()
 			phaseCtx, phaseSpan := w.startPhaseSpan(ctx, phase, mat)
+			phaseCtx, retirement := captureRepositoryRetirement(phaseCtx, phase.statements)
 			if err := pge.ExecutePhaseGroup(phaseCtx, phase.statements); err != nil {
 				phaseSpan.RecordError(err)
 				phaseSpan.SetStatus(codes.Error, err.Error())
@@ -200,6 +206,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 				return WrapRetryableNeo4jError(fmt.Errorf("canonical phase-group write (%s): %w", phase.name, err))
 			}
 			phaseSpan.End()
+			w.reportRepositoryRetirement(ctx, mat, retirement)
 			phaseSeconds := time.Since(phaseStart).Seconds()
 			slog.Info(
 				"canonical phase group completed",
@@ -226,6 +233,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 		}
 		phaseStart := time.Now()
 		phaseCtx, phaseSpan := w.startPhaseSpan(ctx, phase, mat)
+		phaseCtx, retirement := captureRepositoryRetirement(phaseCtx, phase.statements)
 		for _, stmt := range phase.statements {
 			if err := w.executor.Execute(phaseCtx, stmt); err != nil {
 				phaseSpan.RecordError(err)
@@ -238,6 +246,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 			}
 		}
 		phaseSpan.End()
+		w.reportRepositoryRetirement(ctx, mat, retirement)
 		phaseSeconds := time.Since(phaseStart).Seconds()
 		slog.Info(
 			"canonical phase completed",
