@@ -180,9 +180,9 @@ constants (issue #7344).
   `./x` fallback source. A resolved file, and an absolute module name kept
   verbatim, are not inferred.
 
-This change only adds the flags to the parser payload. The projector carries
-them onto IMPORTS edges in #7345 and the `file_import_cycles` query consumes
-them in #7346, so no graph or query output changes here. The fixture gate is
+The parser adds the flags to its payload, and the projector carries them onto
+IMPORTS edges (#7345). The `file_import_cycles` query consumes them in #7346, so
+no query output changes here. The fixture gate is
 `TestDefaultEngineParsePathPythonImportFlags`.
 
 ## Related Docs

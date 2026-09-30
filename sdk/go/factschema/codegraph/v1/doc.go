@@ -49,8 +49,10 @@
 // argocd_applicationsets, and flux_git_repositories. Issue #5691 typed the
 // first of the wide per-language AST buckets, imports: because its element
 // shape is a union of many per-language field sets, Import names only the
-// fields a consumer joins on and carries the rest in an open Attributes
-// remainder rather than enumerating every parser's extras. The remaining wide
+// fields a consumer reads (the four join fields plus the language-neutral
+// TypeOnly, Deferred, and Inferred import flags, issue #7345) and carries the
+// rest in an open Attributes remainder rather than enumerating every parser's
+// extras. The remaining wide
 // buckets (functions, function_calls, classes, variables,
 // framework_semantics) are deferred to later increments and continue to be
 // read as untyped map slices until then.

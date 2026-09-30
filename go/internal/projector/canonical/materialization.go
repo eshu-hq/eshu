@@ -148,6 +148,17 @@ type ImportRow struct {
 	ImportedName   string
 	Alias          string
 	LineNumber     int
+
+	// TypeOnly, Deferred, and Inferred carry the parser's import flags (issue
+	// #7344) onto the edge, folded across every entry for the (file, module)
+	// pair. An edge is TypeOnly only when every entry is type-only, Deferred
+	// only when every entry is deferred or type-only and the edge is not
+	// TypeOnly, and Inferred only when every entry is inferred. The writer
+	// stores all three as explicit booleans, so a re-projected edge overwrites a
+	// stale true. See foldImportFlags in import_extract.go for the rule and why.
+	TypeOnly bool
+	Deferred bool
+	Inferred bool
 }
 
 // ParameterRow captures one Function -> Parameter HAS_PARAMETER edge.

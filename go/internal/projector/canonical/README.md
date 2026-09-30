@@ -36,6 +36,16 @@ calls and never the reverse.
 - `EntityMetadataFromPayload` — derives an entity's metadata map, preferring an
   explicit `entity_metadata` object and otherwise carrying through every
   non-structural payload key.
+- `extractImportsFromFiles` — folds every parser import entry for one
+  (file, module) pair into one `IMPORTS` edge row. `imported_name` and `alias`
+  survive only when every entry agrees. The parser flags (#7344) fold by
+  unanimity so the edge never claims more than every entry supports:
+  `TypeOnly` when every entry is type-only; `Deferred` when every entry is
+  deferred or type-only and the edge is not type-only (so an
+  `if TYPE_CHECKING:` import beside a function-local import of the same module
+  is deferred, not a load-time edge); `Inferred` when every entry is inferred.
+  The writer stores all three as explicit booleans. An edge written before this
+  change has no flag property and readers must treat that as unknown (#7345).
 - The row types (`FileRow`, `EntityRow`, `DirectoryRow`, `ImportRow`,
   `ModuleRow`, `TerraformStateResourceRow`, `OCIImageManifestRow`,
   `PackageRegistryPackageRow` and their siblings) and the

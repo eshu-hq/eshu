@@ -137,3 +137,62 @@ func TestDecodeParsedFileDataImports_CoercesPostgresRoundTripNumbers(t *testing.
 		t.Fatalf("entries = %+v, want line_number 7", entries)
 	}
 }
+
+// TestDecodeParsedFileDataImports_ImportFlagsAreNamedFields proves the three
+// #7344 parser flags decode into the named Import fields and do not also land in
+// the Attributes remainder, and that an entry that sets none reads false. They
+// are named so the projector can read them without decoding Attributes, which
+// allocates one map per import entry.
+func TestDecodeParsedFileDataImports_ImportFlagsAreNamedFields(t *testing.T) {
+	t.Parallel()
+
+	parsed := map[string]any{
+		"imports": []any{
+			map[string]any{"name": "A", "source": "./a", "type_only": true},
+			map[string]any{"name": "B", "source": "./b", "deferred": true},
+			map[string]any{"name": "C", "source": "./c", "inferred": true, "import_type": "from"},
+			map[string]any{"name": "D", "source": "./d"},
+		},
+	}
+
+	entries, err := DecodeParsedFileDataImports(parsed)
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataImports() error = %v", err)
+	}
+	if len(entries) != 4 {
+		t.Fatalf("len(entries) = %d, want 4", len(entries))
+	}
+
+	want := [][3]bool{{true, false, false}, {false, true, false}, {false, false, true}, {false, false, false}}
+	for i, entry := range entries {
+		got := [3]bool{entry.TypeOnly, entry.Deferred, entry.Inferred}
+		if got != want[i] {
+			t.Errorf("entry %d flags [type_only deferred inferred] = %v, want %v", i, got, want[i])
+		}
+		for _, key := range []string{"type_only", "deferred", "inferred"} {
+			if _, leaked := entry.Attributes[key]; leaked {
+				t.Errorf("entry %d: named flag %q leaked into Attributes", i, key)
+			}
+		}
+	}
+	if got := entries[2].Attributes["import_type"]; got != "from" {
+		t.Errorf("entry 2 Attributes[import_type] = %v, want from (unnamed fields still pass through)", got)
+	}
+}
+
+// TestDecodeParsedFileDataImports_NonBooleanFlagSurfaces proves a flag whose
+// value is not a boolean is reported, not read as false. Reading it as false
+// would let a malformed producer silently turn a type-only import into a
+// runtime edge.
+func TestDecodeParsedFileDataImports_NonBooleanFlagSurfaces(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{"type_only", "deferred", "inferred"} {
+		parsed := map[string]any{
+			"imports": []any{map[string]any{"name": "A", "source": "./a", flag: "true"}},
+		}
+		if _, err := DecodeParsedFileDataImports(parsed); err == nil {
+			t.Errorf("flag %q = \"true\" (string): error = nil, want a decode error", flag)
+		}
+	}
+}

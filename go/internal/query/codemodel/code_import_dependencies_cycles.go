@@ -86,10 +86,10 @@ type importCycleHop struct {
 // Why here and not in Cypher: the same edge fetch profiles at 40ms/27k
 // DbHits for 4,522 rows while a Cypher reciprocal join over it costs
 // 1,522ms/5.5M DbHits with zero rows, and variable-length cycle patterns
-// scale worse. Type-only, deferred, and inferred import flags do not
-// reach the graph (edges carry only imported_name, alias, and
-// line_number), so cycles are computed over all stored IMPORTS edges;
-// per-language follow-ups own carrying those flags.
+// scale worse. The projector now stores type_only, deferred, and inferred on
+// IMPORTS edges (#7345), but this reader does not fetch or consume them yet, so
+// cycles are still computed over all stored IMPORTS edges with no type-only or
+// deferred exclusion and no inferred labelling; #7346 owns consuming them.
 func enumerateImportCycles(edges []importCycleEdge, maxLength int) ([]importCycle, CycleEnumeration) {
 	return enumerateImportCyclesWithinBudget(edges, maxLength, importCycleEnumerationStepBudget)
 }

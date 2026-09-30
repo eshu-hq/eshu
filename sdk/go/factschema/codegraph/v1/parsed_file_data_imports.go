@@ -10,12 +10,18 @@ package v1
 // Unlike the closed-shape single-producer keys typed alongside it
 // (parsed_file_data.go), "imports" is one of the wide per-language AST buckets:
 // roughly thirty parsers write it and each names its own extra fields. That is
-// why only the four fields a consumer joins on are named here, with every other
+// why only the fields a consumer reads are named here, with every other
 // producer field carried verbatim in the open Attributes pass-through
 // (import_type, full_import_name, resolved_source, component_type_assertion,
 // end_line, …), the same aws_resource/Attributes shape sdk/go/factschema/AGENTS.md
 // prescribes. Naming a per-language field here would silently drop it for every
 // other language.
+//
+// The three import flags (TypeOnly, Deferred, Inferred) are named because the
+// projector reads them for every import on every generation, and reading them
+// out of Attributes would allocate one map per entry just to inspect three
+// booleans. They are language-neutral, optional, and written only when true, so
+// a parser that never sets one leaves the field false.
 //
 // The per-language variance the named fields absorb, and why the two-key
 // Name/Source split is enough to normalize it:
@@ -56,6 +62,23 @@ type Import struct {
 	// Optional: a parser that cannot attribute a line writes none, and the
 	// extractor treats the resulting 0 as "unknown line", not line zero.
 	LineNumber int `json:"line_number,omitempty"`
+
+	// TypeOnly is true when the import exists only for the type checker and
+	// never runs (Python's `if TYPE_CHECKING:` branch, TypeScript `import type`),
+	// so it cannot close a runtime import cycle. Producers write it only when
+	// true.
+	TypeOnly bool `json:"type_only,omitempty"`
+
+	// Deferred is true when the import runs at call time rather than at module
+	// load (a Python import inside a function or lambda body). Producers write
+	// it only when true.
+	Deferred bool `json:"deferred,omitempty"`
+
+	// Inferred is true when the parser synthesized the import's source instead
+	// of resolving it against files on disk (Python's `./x` fallback for a
+	// relative import whose module is missing), so an edge built from it is a
+	// guess. Producers write it only when true.
+	Inferred bool `json:"inferred,omitempty"`
 
 	// Attributes carries every import-entry field with no named struct field
 	// above, preserving each value's JSON-native Go type. It is what keeps this
