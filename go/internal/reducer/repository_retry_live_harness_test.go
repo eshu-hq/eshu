@@ -116,13 +116,16 @@ func openRepoRetryLive(t *testing.T) *repoRetryLive {
 	return live
 }
 
+// cleanup removes every node the test created. The 'repository:' + $prefix
+// arm catches a path-less Repository stub a MERGE-by-id writer re-created
+// under a retired id (#7445): it has no path and no uid, only its id.
 func (l *repoRetryLive) cleanup(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := l.exec.Execute(ctx, cypher.Statement{
-		Cypher: `MATCH (n) WHERE n.id STARTS WITH $prefix OR n.path STARTS WITH $path_prefix
-  OR n.uid STARTS WITH $prefix DETACH DELETE n`,
+		Cypher: `MATCH (n) WHERE n.id STARTS WITH $prefix OR n.id STARTS WITH 'repository:' + $prefix
+  OR n.path STARTS WITH $path_prefix OR n.uid STARTS WITH $prefix DETACH DELETE n`,
 		Parameters: map[string]any{"prefix": l.prefix, "path_prefix": l.pathPrefix()},
 	}); err != nil {
 		t.Fatalf("clean #7285 fixture: %v", err)

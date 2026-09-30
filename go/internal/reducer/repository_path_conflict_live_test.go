@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -229,33 +228,20 @@ func TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges(t *test
 				t.Fatalf("%s after a steady-state retry = %d, want still 1", metricName, got)
 			}
 
-			live.observeStubRecreation(ctx, t, oldID)
+			live.assertStubRecreation(ctx, t, stubProof{
+				oldID: oldID, newID: newID, path: path, logs: logs, instruments: instruments, reader: reader,
+			})
 		})
 	}
-}
 
-// observeStubRecreation records, without asserting it correct (#7324 arbiter
-// "unverified"), what the stub-MERGE writers do to the retired id: the
-// repo_dependency upsert and the submodule_pin edge both MERGE a Repository
-// by id, so a later run naming the retired id can re-create it path-less.
-func (l *repoRetryLive) observeStubRecreation(ctx context.Context, t *testing.T, oldID string) {
-	t.Helper()
-	otherID := l.repoID(retryFixtureOther.name)
-	l.run(ctx, t, cypher.CanonicalRepoDependencyUpsertCypher, map[string]any{
-		"repo_id": otherID, "target_repo_id": oldID,
-		"evidence_source": "resolver/cross-repo", "generation_id": "reducer-gen", "confidence": 0.9,
-		"evidence_type": "test", "resolved_id": "resolved-7324", "evidence_count": 1,
-		"evidence_kinds": []string{"test"}, "resolution_source": "test", "rationale": "#7324", "source_tool": "test",
-	})
-	l.run(ctx, t, cypher.BatchCanonicalSubmodulePinEdgeCypher, map[string]any{"rows": []map[string]any{{
-		"parent_repo_id": otherID, "resolved_repo_id": oldID, "submodule_path": "vendor/payments",
-		"pinned_sha": nil, "generation_id": "reducer-gen", "evidence_source": "reducer/submodule_pin",
-	}}})
-	rows, err := l.exec.readRows(ctx, `MATCH (r:Repository {id: $old})
-OPTIONAL MATCH (r)<-[rel]-()
-RETURN r.path AS path, r.evidence_source AS evidence_source, collect(type(rel)) AS incoming`, map[string]any{"old": oldID})
-	if err != nil {
-		t.Fatalf("observe stub recreation: %v", err)
+	// #7445: the shared cleanup must remove the path-less stub the writers
+	// re-created under the retired id; it carries no path and no uid, so
+	// only its id ties it to this test's prefix.
+	live.cleanup(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if got := live.count(ctx, t, `MATCH (r:Repository) WHERE r.id STARTS WITH 'repository:' + $prefix RETURN count(r) AS count`,
+		map[string]any{"prefix": live.prefix}); got != 0 {
+		t.Fatalf("prefix-scoped Repository nodes after cleanup = %d, want 0", got)
 	}
-	t.Logf("OBSERVED stub recreation after retirement: %d Repository node(s) under the retired id %s: %v", len(rows), oldID, rows)
 }
