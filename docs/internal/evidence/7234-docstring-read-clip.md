@@ -11,14 +11,14 @@ row for a 2 KB docstring. The issue's "about five copies" is confirmed.
 ## Change
 
 `querycontract.ClipRowsDocstring` cuts `metadata.docstring` (on a copy of the
-map, since the store may hand every caller the same one) and a graph row's
-top-level `docstring` to `DocstringClipBytes` = 512, UTF-8 safe, and marks the
+map, since the store may hand every caller the same one) to
+`DocstringClipBytes` = 512, UTF-8 safe, and marks the
 row with `docstring_clipped`, `docstring_clip_bytes`, and
 `docstring_total_bytes`. On the three routes whose rows carry fields derived from the metadata
 (`find_symbol`, `inspect_code_inventory`, `find_code`) it then calls
 `entitysemantics.ReattachSemanticSummary` for each clipped row, so
 `semantic_summary`, `semantic_profile`, the language blocks, and `story` are
-rebuilt from the clipped value and no echo exceeds 512 bytes. The fourth route,
+rebuilt from the clipped value, so every echo is derived from the 512-byte string (a quoted echo can run a few bytes over where quotes and newlines are escaped). The fourth route,
 `search_entity_content`, builds rows from `EntityContentSearchRow` and derives
 nothing, so the metadata clip alone bounds it. Responses
 gain `docstring_clip_bytes` and `docstring_clipped_rows`, beside the

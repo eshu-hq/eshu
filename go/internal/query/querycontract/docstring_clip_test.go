@@ -58,13 +58,17 @@ func TestClipRowsDocstringNeverSplitsACodePoint(t *testing.T) {
 	}
 }
 
-func TestClipRowsDocstringClipsTopLevelGraphDocstring(t *testing.T) {
+// TestClipRowsDocstringIgnoresATopLevelDocstring records that the clip reads
+// metadata only: no row on the clipped routes carries a top-level docstring
+// (graph rows get theirs through GraphResultMetadata), so a stray one is left
+// alone rather than half-handled.
+func TestClipRowsDocstringIgnoresATopLevelDocstring(t *testing.T) {
 	row := map[string]any{"docstring": strings.Repeat("g", 900)}
-	if got := ClipRowsDocstring([]map[string]any{row}, nil); got != 1 {
-		t.Fatalf("ClipRowsDocstring() = %d, want 1 for a graph row's top-level docstring", got)
+	if got := ClipRowsDocstring([]map[string]any{row}, nil); got != 0 {
+		t.Fatalf("ClipRowsDocstring() = %d, want 0 for a row with no metadata docstring", got)
 	}
-	if got := len(row["docstring"].(string)); got != DocstringClipBytes || row[DocstringTotalBytesKey] != 900 {
-		t.Fatalf("top-level docstring = %d bytes, total marker = %v, want %d and 900", got, row[DocstringTotalBytesKey], DocstringClipBytes)
+	if got := len(row["docstring"].(string)); got != 900 {
+		t.Fatalf("top-level docstring = %d bytes, want it untouched at 900", got)
 	}
 }
 

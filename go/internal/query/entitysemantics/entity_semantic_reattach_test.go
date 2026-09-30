@@ -46,12 +46,13 @@ func TestReattachSemanticSummaryEchoesTheChangedMetadata(t *testing.T) {
 		t.Fatal("story kept its stale value; reattach must rebuild it")
 	}
 
+	// With no metadata there is nothing to derive from: the row is left as it
+	// was rather than stripped of fields another step set.
+	before := row["semantic_summary"]
 	row["metadata"] = map[string]any{}
 	ReattachSemanticSummary(row)
-	for _, key := range derivedSemanticKeys {
-		if _, ok := row[key]; ok {
-			t.Fatalf("%s survived reattach over empty metadata", key)
-		}
+	if row["semantic_summary"] != before {
+		t.Fatalf("semantic_summary = %v after reattach over empty metadata, want it untouched (%v)", row["semantic_summary"], before)
 	}
 	ReattachSemanticSummary(nil)
 }

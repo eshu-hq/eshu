@@ -88,6 +88,11 @@ func ReattachSemanticSummary(result map[string]any) {
 	if result == nil {
 		return
 	}
+	// AttachSemanticSummary derives nothing from empty metadata, so dropping the
+	// derived fields first would only lose what another step put there.
+	if metadata, _ := result["metadata"].(map[string]any); len(metadata) == 0 {
+		return
+	}
 	for _, key := range derivedSemanticKeys {
 		delete(result, key)
 	}

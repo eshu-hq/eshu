@@ -27,9 +27,10 @@ budget. The clip is a response-shaping rule; it never changes what is stored.
   shape echoes a docstring into `metadata.docstring`, `semantic_summary`,
   `semantic_profile`, the per-language semantics blocks
   (`python_semantics`, `javascript_semantics`, `typescript_semantics`), and
-  `story`; on `find_symbol` and `inspect_code_inventory` those fields are
-  rebuilt from the clipped value, so no copy exceeds 512 bytes. Graph-sourced
-  rows with a top-level `docstring` are clipped too. A clipped row carries
+  `story`; on `find_symbol`, `inspect_code_inventory`, and `find_code` those fields are
+  rebuilt from the clipped value, so every copy is derived from a 512-byte
+  string (`semantic_summary` and `story` quote it, so escaped quotes and
+  newlines can add a few bytes). A clipped row carries
   `docstring_clipped: true`, `docstring_clip_bytes: 512`, and
   `docstring_total_bytes` (the stored length before the clip), and only a
   clipped row does. Every response of these routes carries
