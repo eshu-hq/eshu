@@ -180,13 +180,20 @@ matches to a module name.
 | micropython/micropython-lib | 509 | 256 | 0 | 0 / 0 | 0 / 0 |
 | python/cpython | 2,364 | 729 | 0 | 0 / 0 | 0 / 0 |
 
+Pinned commits of the six: django `5a4511adb247a44a1cada11fe4763abba0a42663`, tensorflow/models
+`3c4ccb467af565394c58eca434c5bfb12dcd0b3a`, NVIDIA/DeepLearningExamples
+`729963dd47e7c8bd462ad10bfac7a7b0b604e6dd`, ansible `a900ea9d0c3665d4013d305dabe6d0af2c3231f8`,
+micropython-lib `4fa59bd6a5916783e8503e9f2339627c8cffa5bf`, cpython
+`39e5ed7fea8364dc30efd3fa5d68644606b0eac8`. The probe was a throwaway Go test in a detached worktree that
+ran the head Python parser over each clone and called the merged reader; it was not committed.
+
 The bar holds on all six: every run stopped with reason `none`, and none stopped on `step_budget`.
 The worst case is NVIDIA/DeepLearningExamples (also the densest graph, 4,415 collapsed file hops) at 4,184
 steps at length 8, about 1.7% of the budget and a 60x margin. This is weak evidence and is stated as
 such: only one of the six proxies has a cyclic component at all, so on the other five the reader walks
 nothing. It shows the budget is not the binding constraint on these graphs; it does not show how
 `trident-automation` behaves. The resolved edges on the proxies are mostly standard-library names
-(`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. The
+(`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. That is a pre-existing accuracy risk the proxy data exposed, not one this change introduces: the reader turns `import json` into a hop to any repository file named `json.py`, which can report a false cycle and inflates the resolved-edge counts these proxies qualified on. The matcher is deliberately not widened or narrowed here. The
 replay of the exact corpus stays an open follow-up on #7346 (one read-only query and a CSV export, then a
 replay through the reader), and the merge does not wait for it. Wall time per step was not measured on
 this data.
