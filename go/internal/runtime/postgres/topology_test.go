@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -82,7 +83,7 @@ func TestAccessWrongDatabaseFailsBeforePoolExposure(t *testing.T) {
 		t.Fatal(err)
 	}
 	access, err := Open(context.Background(), cfg, nil)
-	if access != nil || err == nil || !strings.Contains(err.Error(), "topology mismatch") {
+	if access != nil || !errors.Is(err, ErrWrongTopology) || strings.Contains(err.Error(), "shim_wrong") {
 		t.Fatalf("wrong database startup: access=%v err=%v", access, err)
 	}
 }
@@ -152,7 +153,7 @@ func TestAccessRefusesReadOnlyWriterAtStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 	access, err := Open(context.Background(), cfg, nil)
-	if access != nil || err == nil || !strings.Contains(err.Error(), "read only connection") {
+	if access != nil || err == nil || strings.Contains(err.Error(), "read only connection") || !strings.Contains(err.Error(), "PostgreSQL writer identity unavailable") {
 		t.Fatalf("read-only writer startup: access=%v err=%v", access, err)
 	}
 }

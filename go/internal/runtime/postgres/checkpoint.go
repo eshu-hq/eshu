@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -46,12 +45,12 @@ func (a *Access) ContextWithCheckpoint(ctx context.Context) (context.Context, er
 	err := a.writer.QueryRowContext(checkpointCtx, `SELECT pg_current_wal_insert_lsn()::text, system_identifier::text, current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), current_setting('default_transaction_read_only'), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text FROM pg_control_system()`).Scan(&point.lsn, &point.systemID, &point.database, &recovery, &readOnly, &defaultReadOnly, &point.incarnation)
 	if err != nil {
 		a.observe("writer", StageWriterCheckpoint, started, err)
-		return nil, fmt.Errorf("writer checkpoint: %w", errors.Join(ErrWriterUnavailable, err))
+		return nil, privateFailure(failureWriterCheckpoint, errors.Join(ErrWriterUnavailable, err))
 	}
 	if recovery || readOnly != "off" || defaultReadOnly != "off" || point.lsn == "" || point.systemID != a.identity.systemID || point.database != a.identity.database || point.incarnation != a.identity.incarnation {
 		err = ErrWrongTopology
 		a.observe("writer", StageWriterCheckpoint, started, err)
-		return nil, fmt.Errorf("writer endpoint must be primary: %w", err)
+		return nil, privateFailure(failureWriterCheckpoint, err)
 	}
 	point.owner = a
 	a.observe("writer", StageWriterCheckpoint, started, nil)

@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -29,26 +28,26 @@ type fencedRow struct {
 
 func (r *fencedRow) Scan(dest ...any) error {
 	if r.err != nil {
-		return r.err
+		return privateFailure(failureReaderRows, r.err)
 	}
 	for _, value := range dest {
 		if _, raw := value.(*sql.RawBytes); raw {
-			return errors.Join(errors.New("sql: RawBytes isn't allowed on Row.Scan"), r.rows.Close())
+			return privateFailure(failureRawBytes, errors.Join(errors.New("sql: RawBytes isn't allowed on Row.Scan"), r.rows.Close()))
 		}
 	}
 	if !r.rows.Next() {
 		err := r.rows.Err()
 		_ = r.rows.Close()
 		if err != nil {
-			return err
+			return privateFailure(failureReaderRows, err)
 		}
 		return sql.ErrNoRows
 	}
 	if err := r.rows.Scan(dest...); err != nil {
 		_ = r.rows.Close()
-		return err
+		return privateFailure(failureReaderRows, err)
 	}
-	return r.rows.Close()
+	return privateFailure(failureReaderRows, r.rows.Close())
 }
 
 // BeginReadOnlySnapshot fences the borrowed connection before starting a
@@ -63,7 +62,7 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 	q.access.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("begin reader snapshot: %w", err)
+		return nil, privateFailure(failureSnapshotBegin, err)
 	}
 	owned := &readTransaction{tx: tx, conn: conn, access: q.access}
 	owned.stop = context.AfterFunc(ctx, func() { _ = owned.finish(false) })
@@ -86,7 +85,7 @@ func (r *readTransaction) QueryContext(ctx context.Context, statement string, ar
 	rows, err := r.tx.QueryContext(ctx, statement, args...)
 	r.access.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
-		return nil, err
+		return nil, privateFailure(failureReaderQuery, err)
 	}
 	return &txRows{rows: rows}, nil
 }
@@ -105,13 +104,13 @@ func (r *readTransaction) finish(commit bool) error {
 		} else {
 			r.err = r.tx.Rollback()
 		}
-		r.err = errors.Join(r.err, r.conn.Close())
+		r.err = privateFailure(failureSnapshotTerminal, errors.Join(r.err, r.conn.Close()))
 	})
 	if !executed {
 		if r.err == nil {
 			return sql.ErrTxDone
 		}
-		return errors.Join(sql.ErrTxDone, r.err)
+		return privateFailure(failureSnapshotTerminal, errors.Join(sql.ErrTxDone, r.err))
 	}
 	return r.err
 }
@@ -132,14 +131,14 @@ func (r *txRows) Next() bool {
 func (r *txRows) Scan(dest ...any) error {
 	for _, value := range dest {
 		if _, raw := value.(*sql.RawBytes); raw {
-			return errors.Join(errors.New("sql: RawBytes is unsupported on read-only snapshot rows; use *[]byte"), r.Close())
+			return privateFailure(failureRawBytes, errors.Join(errors.New("sql: RawBytes is unsupported on read-only snapshot rows; use *[]byte"), r.Close()))
 		}
 	}
 	err := r.rows.Scan(dest...)
 	if err != nil {
 		_ = r.Close()
 	}
-	return err
+	return privateFailure(failureReaderRows, err)
 }
 
 func (r *txRows) Err() error {
@@ -147,6 +146,6 @@ func (r *txRows) Err() error {
 	if err != nil {
 		_ = r.rows.Close()
 	}
-	return err
+	return privateFailure(failureReaderRows, err)
 }
-func (r *txRows) Close() error { return r.rows.Close() }
+func (r *txRows) Close() error { return privateFailure(failureReaderRows, r.rows.Close()) }

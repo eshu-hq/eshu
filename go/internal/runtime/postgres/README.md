@@ -65,6 +65,14 @@ No failed fence falls back to the writer or executes business SQL. The reader
 cursor retains its borrowed connection until Close, exhaustion, scan failure,
 or request cancellation.
 
+A borrowed connection that fails its topology check is removed from the SQL
+pool before it can serve another request. Public API and MCP errors name only
+the failed reader or writer stage; private wrapped causes retain
+`errors.Is`/`errors.As` classification. Cursor and snapshot terminal errors
+follow the same rule, including rollback and Close. Existing closed `role`,
+`stage`, and `outcome` telemetry identifies failed work without endpoint,
+SQL, or driver text in labels.
+
 The application database role needs `EXECUTE` on `pg_control_system()` on the
 writer and reader; grant that specific function if a hardened role revokes its
 public default. No superuser role, automatic grant, or DDL is required.
@@ -97,6 +105,12 @@ The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
 with `ESHU_READER_TEST_RESTART_PRIMARY=1` and an explicit disposable
 `ESHU_READER_TEST_PRIMARY_CONTAINER` target. No fixture host, port, or
 container name is embedded in the tests.
+
+The API and MCP public-error wire tests additionally take
+`ESHU_AUTH_QUALIFIED_DSN` and `ESHU_AUTH_QUALIFIED_READ_DSN`, pointing at one
+owned, fully migrated disposable database and its physical standby. Each test
+interrupts only its own temporary TCP proxy after a healthy request. The
+PostgreSQL containers remain running and unchanged.
 
 Performance Evidence: On the owned PostgreSQL 18.3 physical primary/standby
 fixture (primary and reader each 4 CPU/8 GiB, 89 MB test corpus), four

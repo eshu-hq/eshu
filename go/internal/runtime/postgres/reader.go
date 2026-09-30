@@ -6,8 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -29,7 +29,7 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 	a.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, privateFailure(failureReaderQuery, err)
 	}
 	return newOwnedRows(ctx, rows, conn), nil
 }
@@ -45,9 +45,14 @@ func (a *Access) borrowFresh(ctx context.Context) (*sql.Conn, error) {
 	conn, err := a.reader.Conn(fenceCtx)
 	a.observe("reader", StageReaderBorrow, borrowed, err)
 	if err != nil {
-		return nil, fmt.Errorf("borrow PostgreSQL reader: %w", errors.Join(ErrReaderUnavailable, err))
+		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
 	if err := a.checkReader(fenceCtx, conn, point); err != nil {
+		if errors.Is(err, ErrWrongTopology) {
+			// sql.Conn.Close returns healthy connections to the pool. This
+			// physical connection failed its borrowed-session identity check.
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+		}
 		_ = conn.Close()
 		return nil, err
 	}
@@ -65,9 +70,9 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 	a.observe("reader", StageReaderIdentity, started, err)
 	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
-			return fmt.Errorf("reader identity refused: %w", err)
+			return privateFailure(failureReaderIdentity, err)
 		}
-		return fmt.Errorf("reader identity unavailable: %w", errors.Join(ErrReaderUnavailable, err))
+		return privateFailure(failureReaderIdentity, errors.Join(ErrReaderUnavailable, err))
 	}
 	if a.samePrimary {
 		return nil
@@ -85,7 +90,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 				return err
 			}
 			err = errors.Join(ErrReaderUnavailable, err)
-			return fmt.Errorf("reader replay check failed: %w", err)
+			return privateFailure(failureReaderReplay, err)
 		}
 		if caughtUp {
 			return nil
@@ -118,7 +123,7 @@ func newOwnedRows(ctx context.Context, rows *sql.Rows, conn *sql.Conn) *ownedRow
 }
 
 func (r *ownedRows) finish() error {
-	r.once.Do(func() { r.closeErr = errors.Join(r.rows.Close(), r.conn.Close()) })
+	r.once.Do(func() { r.closeErr = privateFailure(failureReaderRows, errors.Join(r.rows.Close(), r.conn.Close())) })
 	return r.closeErr
 }
 
@@ -135,7 +140,7 @@ func (r *ownedRows) Scan(dest ...any) error {
 	if err != nil {
 		_ = r.Close()
 	}
-	return err
+	return privateFailure(failureReaderRows, err)
 }
 
 func (r *ownedRows) Err() error {
@@ -143,7 +148,7 @@ func (r *ownedRows) Err() error {
 	if err != nil {
 		_ = r.Close()
 	}
-	return err
+	return privateFailure(failureReaderRows, err)
 }
 
 func (r *ownedRows) Close() error {

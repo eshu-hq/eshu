@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -82,7 +81,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	defer cancel()
 	identity, err := bootstrapPhysicalWriter(pingCtx, writerCfg, cfg.ExpectedSystemID)
 	if err != nil {
-		return nil, fmt.Errorf("writer PostgreSQL identity: %w", err)
+		return nil, privateFailure(failureWriterIdentity, err)
 	}
 	// The bootstrap connection is closed before either pool is exposed.
 	writerCfg.ValidateConnect = writerValidator(identity)
@@ -104,11 +103,11 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	access := &Access{writer: writer, reader: reader, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
-		return nil, fmt.Errorf("writer PostgreSQL ping: %w", err)
+		return nil, privateFailure(failureWriterPing, err)
 	}
 	if err := reader.PingContext(pingCtx); err != nil {
 		_ = access.Close()
-		return nil, fmt.Errorf("reader PostgreSQL ping: %w", err)
+		return nil, privateFailure(failureReaderPing, err)
 	}
 	return access, nil
 }
@@ -125,16 +124,18 @@ func (a *Access) Stats() (writer, reader sql.DBStats) { return a.writer.Stats(),
 // Ping checks connectivity of both pools for readiness probes.
 func (a *Access) Ping(ctx context.Context) error {
 	if err := a.writer.PingContext(ctx); err != nil {
-		return fmt.Errorf("writer PostgreSQL unavailable: %w", err)
+		return privateFailure(failureWriterPing, err)
 	}
 	if err := a.reader.PingContext(ctx); err != nil {
-		return fmt.Errorf("reader PostgreSQL unavailable: %w", err)
+		return privateFailure(failureReaderPing, err)
 	}
 	return nil
 }
 
 // Close releases both pools, including when one close reports an error.
-func (a *Access) Close() error { return errors.Join(a.reader.Close(), a.writer.Close()) }
+func (a *Access) Close() error {
+	return privateFailure(failurePoolClose, errors.Join(a.reader.Close(), a.writer.Close()))
+}
 
 func (a *Access) observe(role string, stage Stage, started time.Time, err error) {
 	if a.observer == nil {
