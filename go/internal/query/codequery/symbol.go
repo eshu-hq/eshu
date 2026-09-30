@@ -127,6 +127,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 	}
 	// Clip after the page is trimmed so the count covers the returned rows.
 	clippedRows := querycontract.ClipRowsSourceCache(results)
+	clippedDocstrings := querycontract.ClipRowsDocstring(results, entitysemantics.ReattachSemanticSummary)
 	data := map[string]any{
 		"symbol":         req.ResolvedSymbol(),
 		"query":          req.ResolvedSymbol(),
@@ -146,6 +147,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		},
 	}
 	querycontract.AddSourceCacheClipMarkers(data, clippedRows)
+	querycontract.AddDocstringClipMarkers(data, clippedDocstrings)
 
 	WriteSuccess(
 		w,

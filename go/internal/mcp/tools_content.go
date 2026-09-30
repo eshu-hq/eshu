@@ -166,7 +166,7 @@ func contentTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_entity_content",
-			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. Use get_entity_content with the row's entity_id for the full body.",
+			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. A docstring is clipped to 512 bytes the same way (docstring_clipped, docstring_total_bytes, docstring_clip_bytes, docstring_clipped_rows). Use get_entity_content with the row's entity_id for the full body and docstring.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

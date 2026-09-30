@@ -296,7 +296,15 @@ markers `source_cache_clip_bytes` and `source_cache_clipped_rows`. It is a
 re-implementation of `content/shape`'s write-time `truncateUTF8ByBytes` because
 `query` does not import collector-side packages; keep the two cut rules equal.
 The markers are deliberately not the write-time `metadata.source_cache_truncated`
-family. Callers clip after the page is trimmed to its limit and after any hybrid
+family. The same file owns the read-time docstring clip (#7234):
+`ClipRowsDocstring` cuts `metadata.docstring` (on a copy of the map, because the
+store may share it) and a graph row's top-level `docstring` to
+`DocstringClipBytes` (512), marks the row with `docstring_clipped`,
+`docstring_clip_bytes`, and `docstring_total_bytes`, and calls the optional
+`rederive` callback once per clipped row so the fields derived from the
+docstring (`entitysemantics.ReattachSemanticSummary`) echo the clipped value;
+`AddDocstringClipMarkers` writes `docstring_clip_bytes` and
+`docstring_clipped_rows` on the response. Callers clip after the page is trimmed to its limit and after any hybrid
 re-rank, which reads the full body. `EntityContentSearchRow` shapes the
 `search_entity_content` row map and adds `source_handle`.
 

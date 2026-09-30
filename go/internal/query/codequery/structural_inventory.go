@@ -114,6 +114,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 	limit := req.NormalizedLimit()
 	results := data.results
 	clippedRows := querycontract.ClipRowsSourceCache(results)
+	clippedDocstrings := querycontract.ClipRowsDocstring(results, entitysemantics.ReattachSemanticSummary)
 	response := map[string]any{
 		"repo_id":        req.RepoID,
 		"language":       strings.TrimSpace(req.Language),
@@ -133,6 +134,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 		"source_backend": "postgres_content_store",
 	}
 	querycontract.AddSourceCacheClipMarkers(response, clippedRows)
+	querycontract.AddDocstringClipMarkers(response, clippedDocstrings)
 	WriteSuccess(
 		w,
 		r,

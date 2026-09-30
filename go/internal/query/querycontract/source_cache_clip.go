@@ -108,3 +108,91 @@ func truncateUTF8ByBytes(value string, limit int) string {
 	}
 	return value[:cut]
 }
+
+// DocstringClipBytes is the read-time byte ceiling for one row's docstring on
+// the routes that clip source_cache (#7234). The row shape echoes a docstring
+// into metadata, semantic_summary, semantic_profile, the per-language
+// semantics blocks, and story, so an unbounded docstring is repeated five or
+// six times per row. Clipping the source value bounds every echo derived from
+// it. The stored docstring is untouched; get_entity_content returns it whole.
+const DocstringClipBytes = 512
+
+// Row and response marker keys for the read-time docstring clip. They mirror
+// the source_cache markers and are additive: a row that fits carries none.
+const (
+	// DocstringClippedKey is set to true on a row whose docstring was clipped.
+	DocstringClippedKey = "docstring_clipped"
+	// DocstringClipBytesKey is the clip ceiling; it is set on a clipped row and
+	// on every response that shapes docstring-bearing rows.
+	DocstringClipBytesKey = "docstring_clip_bytes"
+	// DocstringTotalBytesKey is the stored docstring length before the clip.
+	DocstringTotalBytesKey = "docstring_total_bytes"
+	// DocstringClippedRowsKey is the response count of clipped rows.
+	DocstringClippedRowsKey = "docstring_clipped_rows"
+
+	docstringKey = "docstring"
+	metadataKey  = "metadata"
+)
+
+// ClipRowsDocstring clips each row's docstring to DocstringClipBytes in place
+// and returns how many rows it clipped. It reads row["metadata"]["docstring"]
+// (the content-store shape) and a top-level row["docstring"] (the graph-row
+// shape). A clipped row's metadata is replaced by a clipped copy, because the
+// store may hand every caller the same map, and the row gains the markers
+// above.
+//
+// rederive, when non-nil, runs once on each clipped row after the clip so the
+// fields derived from the docstring (semantic_summary, semantic_profile, story
+// and the language blocks) are rebuilt from the clipped value instead of
+// carrying the full one. It is not called for a row that already fit. Call the
+// function after the page is trimmed to its public limit so the count matches
+// the rows returned.
+func ClipRowsDocstring(rows []map[string]any, rederive func(map[string]any)) int {
+	clipped := 0
+	for _, row := range rows {
+		if clipRowDocstring(row) {
+			clipped++
+			if rederive != nil {
+				rederive(row)
+			}
+		}
+	}
+	return clipped
+}
+
+// clipRowDocstring clips one row and reports whether it changed the row.
+func clipRowDocstring(row map[string]any) bool {
+	total := 0
+	if metadata, ok := row[metadataKey].(map[string]any); ok {
+		if doc, ok := metadata[docstringKey].(string); ok && len(doc) > DocstringClipBytes {
+			copied := make(map[string]any, len(metadata))
+			for key, value := range metadata {
+				copied[key] = value
+			}
+			copied[docstringKey] = truncateUTF8ByBytes(doc, DocstringClipBytes)
+			row[metadataKey] = copied
+			total = len(doc)
+		}
+	}
+	if doc, ok := row[docstringKey].(string); ok && len(doc) > DocstringClipBytes {
+		row[docstringKey] = truncateUTF8ByBytes(doc, DocstringClipBytes)
+		if len(doc) > total {
+			total = len(doc)
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	row[DocstringClippedKey] = true
+	row[DocstringClipBytesKey] = DocstringClipBytes
+	row[DocstringTotalBytesKey] = total
+	return true
+}
+
+// AddDocstringClipMarkers writes the response-level docstring clip markers
+// beside the source_cache ones: the ceiling always, and the number of clipped
+// rows (0 when none).
+func AddDocstringClipMarkers(data map[string]any, clippedRows int) {
+	data[DocstringClipBytesKey] = DocstringClipBytes
+	data[DocstringClippedRowsKey] = clippedRows
+}
