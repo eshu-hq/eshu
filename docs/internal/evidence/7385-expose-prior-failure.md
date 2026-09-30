@@ -22,7 +22,7 @@ writer put them.
   `WorkItem.OperatorNote` are filled from it and rendered. This route has no
   OpenAPI response schema, so it is documented in `status-admin.md`.
 - CLI `eshu freshness generations` prints ` prior_failure=<class>` after
-  ` failure=<class>`. The MCP tool `get_generation_lifecycle` changes its
+  ` failure=<class>`, only when the kept failure has a class. The MCP tool `get_generation_lifecycle` changes its
   description only; there is no input or output schema change, and the surface
   inventory check passes.
 - The OpenAPI schema for `latest_failure` gains an optional `prior_failure`
@@ -36,7 +36,7 @@ writer put them.
 | `TestListGenerationLifecyclePriorFailureIsNilWhenDetailsCarryNone` | free text, array, object without the key, a non-object value and empty all give nil with no error |
 | `TestListGenerationLifecycleQuerySelectsFailureDetails` | the read selects `work.failure_details` and has no `IS JSON` |
 | `TestFreshnessGenerationLifecycleExposesPriorFailure` | the HTTP handler returns `latest_failure.prior_failure.failure_class`, with no details text |
-| `TestRunGenerationsRendersPriorFailure` | the CLI line contains ` failure=<class> prior_failure=<class>` and prints nothing extra without one |
+| `TestRunGenerationsRendersPriorFailure` | the CLI line contains ` failure=<class> prior_failure=<class>` and prints nothing extra without one, or when the kept failure has no class |
 | `TestApplyWorkItemDetailsParsesNoteAndPriorFailure`, `...LeavesFieldsNilWithoutAnObject`, `...DecodesTheKeysIndependently` | the admin listing parser, including free text and null, and that a wrong-typed `operator_note` or `prior_failure` does not discard the other key, in both directions |
 | `TestListWorkItemsQuerySelectsFailureDetails` | the list query and the mutating RETURNING carry `failure_details` |
 | `TestAdminWorkItemListingExposesPriorFailureAndNote` (live, real schema) | a superseded row and a noted row return their prior failure and note; free-text and NULL rows return neither |
