@@ -14,8 +14,8 @@ import (
 
 // workItemDetails is the part of failure_details the admin listing reads: the
 // operator note an admin dead-letter or skip stored (#7388) and the prior_failure
-// a supersede or an operator note kept (#7320). The prior failure's own details
-// text is deliberately not decoded.
+// a supersede (#7320), a stale-scope reclaim or an operator note (#7388) kept.
+// The prior failure's own details text is deliberately not decoded.
 type workItemDetails struct {
 	PriorFailure *struct {
 		Status         string `json:"status"`

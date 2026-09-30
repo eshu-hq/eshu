@@ -1,4 +1,4 @@
-# #7385 Expose A Superseded Work Item's prior_failure
+# #7385 Expose The prior_failure A Work Item Kept
 
 #7320 keeps a superseded work item's old failure under
 `failure_details.prior_failure`. #7388 (merged, `d2e9e601f`) extends that to a stale-scope reclaim
