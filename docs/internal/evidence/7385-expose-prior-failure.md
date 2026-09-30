@@ -16,8 +16,8 @@ writer put them.
   `IS JSON` in SQL, so one non-JSON row cannot fail the page. `updated_at` is
   normalised to RFC3339 UTC like `observed_at`. The prior failure's own
   `failure_details` text is not decoded and is not on the wire.
-- `POST /api/v0/admin/work-items/query` (and the replay, dead-letter and skip
-  responses; `operator_note` is populated by the #7388 operator-note writers, merged): the list query and the shared RETURNING lists select
+- `POST /api/v0/admin/work-items/query` (and the dead-letter and skip
+  responses; a replay clears `failure_details`, so it carries neither; `operator_note` is populated by the #7388 operator-note writers, merged): the list query and the shared RETURNING lists select
   `failure_details`; `WorkItem.PriorFailure` and the previously unused
   `WorkItem.OperatorNote` are filled from it and rendered. This route has no
   OpenAPI response schema, so it is documented in `status-admin.md`.

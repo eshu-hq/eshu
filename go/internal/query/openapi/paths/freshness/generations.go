@@ -73,7 +73,7 @@ const Generations = `
                               "observed_at": {"type": "string"},
                               "prior_failure": {
                                 "type": "object",
-                                "description": "The failure the newest failure row kept before a supersede overwrote its failure fields. Absent when the row kept none. Its details text is not exposed.",
+                                "description": "The failure the newest failure row kept before a supersede, a stale-scope reclaim or an operator note rewrote its failure evidence. Absent when the row kept none. Its details text is not exposed.",
                                 "properties": {
                                   "status": {"type": "string"},
                                   "failure_class": {"type": "string"},

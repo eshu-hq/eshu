@@ -169,7 +169,8 @@ func nullableLifecycleTimestamp(value sql.NullTime) string {
 }
 
 // priorFailureDetails is the part of failure_details the drilldown reads: the
-// prior_failure object the #7320 supersede fold writes. The prior failure's own
+// prior_failure object the supersede fold (#7320), the stale-scope reclaim and
+// the operator note (#7388) write. The prior failure's own
 // details text is deliberately not decoded.
 type priorFailureDetails struct {
 	PriorFailure *struct {
@@ -180,7 +181,7 @@ type priorFailureDetails struct {
 	} `json:"prior_failure"`
 }
 
-// parsePriorFailure returns the prior failure a superseded row's failure_details
+// parsePriorFailure returns the prior failure a row's failure_details
 // carries, or nil. failure_details is free text or JSON, so anything that is not
 // a JSON object with an object-valued prior_failure yields nil and no error: a
 // non-JSON row must never fail the drilldown page (#7385).

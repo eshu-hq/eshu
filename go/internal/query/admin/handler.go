@@ -83,8 +83,9 @@ type WorkItem struct {
 	FailureClass   *string `json:"failure_class"`
 	FailureMessage *string `json:"failure_message"`
 	OperatorNote   *string `json:"operator_note"`
-	// PriorFailure is the failure the row carried before a supersede or an
-	// operator note replaced its failure fields (#7320, #7388, #7385). Nil when
+	// PriorFailure is the failure the row carried before a supersede, a
+	// stale-scope reclaim or an operator note rewrote its failure evidence
+	// (#7320, #7388, #7385). Nil when
 	// failure_details carries none. Its details text is not exposed.
 	PriorFailure *PriorFailure `json:"prior_failure,omitempty"`
 	CreatedAt    time.Time     `json:"created_at"`
