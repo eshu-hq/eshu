@@ -43,6 +43,14 @@
 #
 # golden-corpus-git.sh is excluded from the scan: it DEFINES the wrapper and is
 # the one place a bare git call belongs.
+# shellcheck source=scripts/lib/golden-corpus-git.sh
+. "${repo_root}/scripts/lib/golden-corpus-git.sh"
+# #7160: both working-tree assertions below once ran with this helper
+# undefined (it was sourced only inside a staging subshell), so each command
+# substitution printed "command not found" and tested empty -- always clean.
+# A missing helper must abort the suite, not pass it.
+command -v golden_corpus_git >/dev/null ||
+	fail "golden_corpus_git is not defined; scripts/lib/golden-corpus-git.sh must stay sourced"
 stage_case_sq="'"
 stage_case_git_pre="((command|exec|env|time|then|else|elif|do|if|while|until)[[:space:]]+|![[:space:]]*|[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|${stage_case_sq}[^${stage_case_sq}]*${stage_case_sq}|[^[:space:]]*)[[:space:]]+)*"
 stage_case_git_cmdpos="(^[[:space:]]*|\\\$\\([[:space:]]*|\`[[:space:]]*|[(){};|&][[:space:]]*)${stage_case_git_pre}git[[:space:]]"
@@ -176,11 +184,26 @@ git config --file "${stage_case_git_config}" filter.golden-corpus-mangle.clean "
 # shellcheck source=scripts/lib/golden-corpus-gate-integrity.sh
 . "${repo_root}/scripts/lib/golden-corpus-gate-integrity.sh"
 
+# The staged working tree must be fully committed: any status --porcelain
+# output means the history does not include the whole tree. The status call
+# is captured with its exit code instead of testing -z on the substitution
+# alone, because a failed command substitutes empty and a -z test alone
+# passes vacuous. Both call sites below share this helper so the seeded RED
+# after them exercises the same code the real assertions run.
+golden_corpus_assert_working_tree_clean() {
+	local repo="$1"
+	local label="$2"
+	local tree_status
+	tree_status="$(golden_corpus_git -C "${repo}" status --porcelain)" ||
+		fail "${label} staged git status failed; a status that fails to run is not a clean tree"
+	[[ -z "${tree_status}" ]] ||
+		fail "${label} staged Git history must include its complete working tree"
+}
+
 stage_case_repo="${stage_case_corpus}/container-ci-lineage"
 [[ -d "${stage_case_repo}/.git" ]] ||
 	fail "container-ci-lineage staging must create deterministic Git history"
-[[ -z "$(golden_corpus_git -C "${stage_case_repo}" status --porcelain)" ]] ||
-	fail "container-ci-lineage staged Git history must include its complete working tree"
+golden_corpus_assert_working_tree_clean "${stage_case_repo}" "container-ci-lineage"
 stage_case_head="$(git -C "${stage_case_repo}" rev-parse HEAD)"
 [[ "${#stage_case_head}" -eq 40 ]] ||
 	fail "container-ci-lineage staged HEAD must use SHA-1, got ${#stage_case_head} characters"
@@ -190,13 +213,60 @@ golden_corpus_assert_staged_pin "container-ci-lineage" "${stage_case_repo}" \
 stage_case_input_repo="${stage_case_corpus}/github_actions_workflows"
 [[ -d "${stage_case_input_repo}/.git" ]] ||
 	fail "github_actions_workflows staging must create deterministic Git history"
-[[ -z "$(golden_corpus_git -C "${stage_case_input_repo}" status --porcelain)" ]] ||
-	fail "github_actions_workflows staged Git history must include its complete working tree"
+golden_corpus_assert_working_tree_clean "${stage_case_input_repo}" "github_actions_workflows"
 stage_case_input_head="$(git -C "${stage_case_input_repo}" rev-parse HEAD)"
 [[ "${#stage_case_input_head}" -eq 40 ]] ||
 	fail "github_actions_workflows staged HEAD must use SHA-1, got ${#stage_case_input_head} characters"
 golden_corpus_assert_staged_pin "github_actions_workflows" "${stage_case_input_repo}" \
 	"ci_cd_run:github_actions:acme:github_actions_workflows" "9200" fail
+
+# Seeded RED: the two working-tree assertions above must be able to fail.
+# Stage a scratch fixture, dirty its working tree, and prove the assertion
+# fires on it. The assertion runs in a subshell so its fail exits the
+# subshell, not the suite; reaching the outer fail means the assertion
+# passed on a dirty tree.
+stage_case_red_repo="$(mktemp -d -t golden-corpus-stage-red.XXXXXX)"
+golden_corpus_git -C "${stage_case_red_repo}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1 ||
+	fail "seeded RED fixture init failed"
+golden_corpus_git -C "${stage_case_red_repo}" config user.email "gate@eshu.local" >/dev/null 2>&1 ||
+	fail "seeded RED fixture config failed"
+golden_corpus_git -C "${stage_case_red_repo}" config user.name "Golden Gate" >/dev/null 2>&1 ||
+	fail "seeded RED fixture config failed"
+printf 'seeded\n' >"${stage_case_red_repo}/seeded.txt"
+golden_corpus_git -C "${stage_case_red_repo}" add -A >/dev/null 2>&1 ||
+	fail "seeded RED fixture add failed"
+GIT_AUTHOR_NAME="Golden Gate" \
+	GIT_AUTHOR_EMAIL="gate@eshu.local" \
+	GIT_COMMITTER_NAME="Golden Gate" \
+	GIT_COMMITTER_EMAIL="gate@eshu.local" \
+	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+	GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+	golden_corpus_git -C "${stage_case_red_repo}" commit -m "seeded" >/dev/null 2>&1 ||
+	fail "seeded RED fixture commit failed"
+printf 'dirty\n' >>"${stage_case_red_repo}/seeded.txt"
+# Capture the output and require the dirty-tree message: a bare nonzero exit
+# would also satisfy this check if the status call itself errored, so the
+# message proves dirt detection fired, not the status-failure branch.
+if red_out="$(golden_corpus_assert_working_tree_clean "${stage_case_red_repo}" "seeded-RED" 2>&1)"; then
+	rm -rf "${stage_case_red_repo}"
+	fail "seeded RED fixture with a dirty working tree passed the working-tree assertion"
+fi
+rm -rf "${stage_case_red_repo}"
+[[ "${red_out}" == *"must include its complete working tree"* ]] ||
+	fail "dirty-tree seed fired the wrong branch, got: ${red_out}"
+
+# Companion seed for the other branch: a status that fails to run (here a
+# non-repository directory) must be treated as not-clean, and must fire the
+# status-failure message rather than the dirty-tree one.
+rm -rf "${stage_case_red_repo}"
+stage_case_red_status_dir="$(mktemp -d -t golden-corpus-stage-red-status.XXXXXX)"
+if red_status_out="$(golden_corpus_assert_working_tree_clean "${stage_case_red_status_dir}" "seeded-RED-status" 2>&1)"; then
+	rm -rf "${stage_case_red_status_dir}"
+	fail "working-tree assertion passed on a non-repository, so a status failure looks clean"
+fi
+rm -rf "${stage_case_red_status_dir}"
+[[ "${red_status_out}" == *"staged git status failed"* ]] ||
+	fail "status-failure seed fired the wrong branch, got: ${red_status_out}"
 
 stage_case_deployable_repo="${stage_case_corpus}/deployable-config"
 stage_case_deployable_head="$(git -C "${stage_case_deployable_repo}" rev-parse HEAD)"
