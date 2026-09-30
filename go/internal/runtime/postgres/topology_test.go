@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -63,7 +62,7 @@ func TestTargetSessionAttrsRoleOverride(t *testing.T) {
 	}
 }
 
-func TestAccessWrongDatabaseFailsBeforeBusinessSQL(t *testing.T) {
+func TestAccessWrongDatabaseFailsBeforePoolExposure(t *testing.T) {
 	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
 	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
 	if writer == "" || reader == "" {
@@ -83,19 +82,8 @@ func TestAccessWrongDatabaseFailsBeforeBusinessSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	access, err := Open(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer access.Close()
-	ctx, err := access.ContextWithCheckpoint(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := access.Reader().QueryContext(ctx, "SELECT 1"); !errors.Is(err, ErrWrongTopology) {
-		t.Fatalf("wrong database = %v", err)
-	}
-	if got := access.reader.Stats().InUse; got != 0 {
-		t.Fatalf("failed reader borrowed %d", got)
+	if access != nil || err == nil || !strings.Contains(err.Error(), "topology mismatch") {
+		t.Fatalf("wrong database startup: access=%v err=%v", access, err)
 	}
 }
 
@@ -149,7 +137,7 @@ func TestAccessParallelBorrowAndObserver(t *testing.T) {
 	}
 }
 
-func TestAccessRefusesReadOnlyWriter(t *testing.T) {
+func TestAccessRefusesReadOnlyWriterAtStartup(t *testing.T) {
 	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
 	if writer == "" {
 		t.Skip("owned PostgreSQL fixture not configured")
@@ -164,30 +152,16 @@ func TestAccessRefusesReadOnlyWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 	access, err := Open(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer access.Close()
-	if _, err := access.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWrongTopology) {
-		t.Fatalf("read-only writer = %v", err)
+	if access != nil || err == nil || !strings.Contains(err.Error(), "read only connection") {
+		t.Fatalf("read-only writer startup: access=%v err=%v", access, err)
 	}
 }
 
-func TestOpenRejectsUnprovedMultiHostBeforeDial(t *testing.T) {
-	for _, tc := range []struct{ name, writer, reader string }{
-		{"writer", "host=writer-a,writer-b port=5432,5432 user=eshu dbname=eshu", "postgres://eshu@reader/eshu"},
-		{"reader", "postgres://eshu@writer/eshu", "host=reader-a,reader-b port=5432,5432 user=eshu dbname=eshu"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := Config{
-				WriterDSN: tc.writer, ReadDSN: tc.reader, WriterMaxOpenConns: 1, ReadMaxOpenConns: 1,
-				PingTimeout: time.Second, ReplayTimeout: time.Second,
-			}
-			_, err := Open(context.Background(), cfg, nil)
-			if err == nil || !strings.Contains(err.Error(), "multi-host") {
-				t.Fatalf("direct Open = %v", err)
-			}
-		})
+func TestOpenRejectsInvalidCandidateConfigBeforeDial(t *testing.T) {
+	cfg := Config{WriterDSN: "postgres://user:secret@writer/db?connect_timeout=bogus", ReadDSN: "postgres://user:secret@writer/db?connect_timeout=bogus", SamePrimary: true, WriterMaxOpenConns: 1, ReadMaxOpenConns: 1, PingTimeout: time.Second, ReplayTimeout: time.Second}
+	_, err := Open(context.Background(), cfg, nil)
+	if err == nil || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "endpoint configuration") {
+		t.Fatalf("invalid candidate config: %v", err)
 	}
 }
 

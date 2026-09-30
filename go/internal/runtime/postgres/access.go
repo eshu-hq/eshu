@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -57,9 +56,10 @@ type Access struct {
 	samePrimary   bool
 	replayTimeout time.Duration
 	observer      Observer
+	identity      physicalIdentity
 }
 
-// Open initializes both pools and pings each within the shared startup bound.
+// Open validates physical writer and reader identity before exposing either pool.
 func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if cfg.WriterDSN == "" || cfg.ReadDSN == "" || cfg.WriterMaxOpenConns < 1 || cfg.ReadMaxOpenConns < 1 ||
 		cfg.WriterMaxIdleConns < 0 || cfg.ReadMaxIdleConns < 0 || cfg.WriterMaxIdleConns > cfg.WriterMaxOpenConns ||
@@ -67,16 +67,25 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		cfg.ReplayTimeout <= 0 || cfg.PingTimeout <= 0 {
 		return nil, errors.New("invalid Postgres reader access configuration")
 	}
-	writerCfg, err := parseStaticEndpoint(cfg.WriterDSN)
+	if err := validateExpectedSystemID(cfg.ExpectedSystemID); err != nil {
+		return nil, err
+	}
+	writerCfg, err := parsePhysicalEndpoint(cfg.WriterDSN)
 	if err != nil {
 		return nil, err
 	}
-	readCfg, err := parseStaticEndpoint(cfg.ReadDSN)
+	readCfg, err := parsePhysicalEndpoint(cfg.ReadDSN)
 	if err != nil {
 		return nil, err
 	}
-	// API/MCP writer calls include auth and admin mutations that do not keep
-	// infra inventory derived rows in step. They use an ordinary pgx session.
+	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
+	defer cancel()
+	identity, err := bootstrapPhysicalWriter(pingCtx, writerCfg, cfg.ExpectedSystemID)
+	if err != nil {
+		return nil, fmt.Errorf("writer PostgreSQL identity: %w", err)
+	}
+	// The bootstrap connection is closed before either pool is exposed.
+	writerCfg.ValidateConnect = writerValidator(identity)
 	writer := stdlib.OpenDB(*writerCfg)
 	writer.SetMaxOpenConns(cfg.WriterMaxOpenConns)
 	writer.SetMaxIdleConns(cfg.WriterMaxIdleConns)
@@ -85,25 +94,14 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if readCfg.RuntimeParams == nil {
 		readCfg.RuntimeParams = map[string]string{}
 	}
-	// The session default is set at startup on every physical connection,
-	// including reconnects. A conflicting DSN option cannot turn it off.
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
-	// target_session_attrs=read-write inspects transaction_read_only and would
-	// reject this deliberately read-only session even on the intended host.
-	// Select by physical role on connection; the request fence checks again.
-	if cfg.SamePrimary {
-		readCfg.ValidateConnect = pgconn.ValidateConnectTargetSessionAttrsPrimary
-	} else {
-		readCfg.ValidateConnect = pgconn.ValidateConnectTargetSessionAttrsStandby
-	}
-	reader := stdlib.OpenDB(*readCfg)
+	readCfg.ValidateConnect = readerValidator(identity, cfg.SamePrimary)
+	reader := stdlib.OpenDB(*readCfg, stdlib.OptionBeforeConnect(stdlib.RandomizeHostOrderFunc))
 	reader.SetMaxOpenConns(cfg.ReadMaxOpenConns)
 	reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
 	reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	access := &Access{writer: writer, reader: reader, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer}
-	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
-	defer cancel()
+	access := &Access{writer: writer, reader: reader, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
 		return nil, fmt.Errorf("writer PostgreSQL ping: %w", err)
@@ -118,8 +116,8 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 // Writer returns the write-capable pool for authorization, audits, and writes.
 func (a *Access) Writer() *sql.DB { return a.writer }
 
-// Reader returns the fenced Queryer without exposing the raw reader pool.
-func (a *Access) Reader() db.Queryer { return fencedQueryer{access: a} }
+// Reader returns guarded row, cursor, and snapshot reads without exposing the raw reader pool.
+func (a *Access) Reader() db.ReadStore { return fencedQueryer{access: a} }
 
 // Stats reports both pool states under closed role names.
 func (a *Access) Stats() (writer, reader sql.DBStats) { return a.writer.Stats(), a.reader.Stats() }

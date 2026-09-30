@@ -4,7 +4,11 @@
 // Package db holds the shared database contracts for the Postgres storage
 // layer: the row cursor (Rows), the read and write adapter surfaces (Queryer,
 // Executor, ExecQueryer), and the transaction surface (Transaction, Beginner,
-// ReadOnlyRepeatableReadBeginner).
+// ReadOnlyRepeatableReadBeginner), and the additive guarded read surfaces
+// (Row, RowQueryer, ReadTransaction, ReadSnapshotBeginner, ReadStore).
+//
+// ReadTransaction has no Exec or raw transaction method. A guarded runtime
+// implementation owns the connection and snapshot lifecycle behind this leaf.
 //
 // The package is a dependency leaf on purpose. It imports only the Go
 // standard library, so domain stores can depend on these contracts without

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -291,5 +292,114 @@ func TestOpenRejectsInconsistentSamePrimaryBeforeDial(t *testing.T) {
 	_, err := Open(context.Background(), cfg, nil)
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("Open error = %v", err)
+	}
+}
+
+func TestAccessCheckpointRejectsFrozenIncarnation(t *testing.T) {
+	access := testAccess(t, "")
+	access.identity.incarnation = "0"
+	if _, err := access.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWrongTopology) {
+		t.Fatalf("changed writer incarnation accepted: %v", err)
+	}
+}
+
+func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
+	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if writer == "" || reader == "" {
+		t.Skip("owned physical fixture not configured")
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return "host=127.0.0.1,127.0.0.1 port=35436,35432 user=proof dbname=eshu sslmode=disable connect_timeout=1"
+		case "ESHU_POSTGRES_READ_DSN":
+			return "host=127.0.0.1,127.0.0.1 port=35437,35433 user=proof dbname=eshu sslmode=disable connect_timeout=1"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ExpectedSystemID = "1"
+	if access, err := Open(context.Background(), cfg, nil); err == nil {
+		_ = access.Close()
+		t.Fatal("wrong expected system accepted")
+	}
+	cfg.ExpectedSystemID = ""
+	access, err := Open(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer access.Close()
+	if got := access.writer.Stats().MaxOpenConnections + access.reader.Stats().MaxOpenConnections; got != 30 {
+		t.Fatalf("candidate pools cap=%d", got)
+	}
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got int
+	if err := access.Reader().QueryRowContext(ctx, "SELECT 3").Scan(&got); err != nil || got != 3 {
+		t.Fatalf("candidate read=%d err=%v", got, err)
+	}
+}
+
+func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
+	if os.Getenv("ESHU_READER_TEST_RESTART_PRIMARY") != "1" {
+		t.Skip("owned primary restart requires explicit fixture flag")
+	}
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if reader == "" {
+		t.Fatal("owned streaming reader fixture required")
+	}
+	old := testAccess(t, reader)
+	before := old.identity.incarnation
+	restartCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(restartCtx, "docker", "restart", "eshu-7009-reader-theory-pg183-20260929-primary").CombinedOutput()
+	if err != nil {
+		t.Fatalf("owned primary restart: %v %s", err, output)
+	}
+	if _, err := old.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWriterUnavailable) && !errors.Is(err, ErrWrongTopology) {
+		t.Fatalf("old access accepted restart: %v", err)
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+		case "ESHU_POSTGRES_READ_DSN":
+			return reader
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fresh *Access
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		fresh, err = Open(context.Background(), cfg, nil)
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("explicit rebootstrap after readiness: %v", err)
+	}
+	defer fresh.Close()
+	if fresh.identity.incarnation == before {
+		t.Fatalf("primary incarnation unchanged: %s", before)
+	}
+	ctx, err := fresh.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got int
+	if err := fresh.Reader().QueryRowContext(ctx, "SELECT 11").Scan(&got); err != nil || got != 11 {
+		t.Fatalf("rebootstrap read=%d err=%v", got, err)
 	}
 }

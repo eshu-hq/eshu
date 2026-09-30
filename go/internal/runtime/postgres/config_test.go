@@ -56,14 +56,37 @@ func TestLoadConfigRejectsInvalidPoolsWithoutSecrets(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsUnprovedMultiHostRouting(t *testing.T) {
-	_, err := LoadConfig(func(key string) string {
-		if key == "ESHU_POSTGRES_DSN" {
-			return "host=writer-a,writer-b port=5432,5432 user=eshu dbname=eshu"
+func TestLoadConfigAcceptsNativeCandidateHostsWithinOneBudget(t *testing.T) {
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return "host=127.0.0.1,127.0.0.1 port=35432,35436 user=proof dbname=eshu sslmode=disable"
+		case "ESHU_POSTGRES_READ_DSN":
+			return "host=127.0.0.1,127.0.0.1 port=35433,35434 user=proof dbname=eshu sslmode=disable"
+		default:
+			return ""
 		}
-		return ""
 	})
-	if err == nil || !strings.Contains(err.Error(), "multi-host") {
-		t.Fatalf("multi-host config = %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WriterMaxOpenConns+cfg.ReadMaxOpenConns != 30 || cfg.WriterMaxIdleConns+cfg.ReadMaxIdleConns != 10 {
+		t.Fatalf("candidate pool budget=%+v", cfg)
+	}
+}
+
+func TestLoadConfigRejectsInvalidExpectedSystemIDBeforeDial(t *testing.T) {
+	_, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return "postgres://user:secret@writer/db"
+		case "ESHU_POSTGRES_EXPECTED_SYSTEM_ID":
+			return "not-a-system-id"
+		default:
+			return ""
+		}
+	})
+	if err == nil || !strings.Contains(err.Error(), "ESHU_POSTGRES_EXPECTED_SYSTEM_ID") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("expected system ID validation=%v", err)
 	}
 }

@@ -20,22 +20,8 @@ var _ db.Queryer = fencedQueryer{}
 
 func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
 	a := q.access
-	point, ok := ctx.Value(checkpointKey{}).(checkpoint)
-	if !ok || point.owner != a {
-		return nil, ErrMissingCheckpoint
-	}
-	// Fence and pool wait are bounded independently of the business query.
-	// The business cursor keeps the original request context alive.
-	fenceCtx, cancel := context.WithTimeout(ctx, a.replayTimeout)
-	defer cancel()
-	borrowed := time.Now()
-	conn, err := a.reader.Conn(fenceCtx)
-	a.observe("reader", StageReaderBorrow, borrowed, err)
+	conn, err := a.borrowFresh(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("borrow PostgreSQL reader: %w", errors.Join(ErrReaderUnavailable, err))
-	}
-	if err = a.checkReader(fenceCtx, conn, point); err != nil {
-		_ = conn.Close()
 		return nil, err
 	}
 	started := time.Now()
@@ -48,12 +34,32 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 	return newOwnedRows(ctx, rows, conn), nil
 }
 
+func (a *Access) borrowFresh(ctx context.Context) (*sql.Conn, error) {
+	point, ok := ctx.Value(checkpointKey{}).(checkpoint)
+	if !ok || point.owner != a {
+		return nil, ErrMissingCheckpoint
+	}
+	fenceCtx, cancel := context.WithTimeout(ctx, a.replayTimeout)
+	defer cancel()
+	borrowed := time.Now()
+	conn, err := a.reader.Conn(fenceCtx)
+	a.observe("reader", StageReaderBorrow, borrowed, err)
+	if err != nil {
+		return nil, fmt.Errorf("borrow PostgreSQL reader: %w", errors.Join(ErrReaderUnavailable, err))
+	}
+	if err := a.checkReader(fenceCtx, conn, point); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
 func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint) error {
 	started := time.Now()
 	var readOnly, systemID, database string
 	var recovery bool
 	err := conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database() FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database)
-	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || recovery == a.samePrimary) {
+	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != a.identity.systemID || database != a.identity.database || recovery == a.samePrimary) {
 		err = ErrWrongTopology
 	}
 	a.observe("reader", StageReaderIdentity, started, err)

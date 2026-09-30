@@ -14,8 +14,8 @@ import (
 )
 
 // Config fixes one API or MCP process's total pool budget across writer and reader.
-// Endpoint selection is intentionally limited to one static physical PostgreSQL
-// primary and, optionally, one physical streaming standby.
+// Candidates must resolve to one accepted physical primary and its streaming
+// standbys; routing does not imply failover or promotion safety.
 type Config struct {
 	WriterDSN          string
 	ReadDSN            string
@@ -28,6 +28,7 @@ type Config struct {
 	ConnMaxIdleTime    time.Duration
 	PingTimeout        time.Duration
 	ReplayTimeout      time.Duration
+	ExpectedSystemID   string
 }
 
 // LoadConfig resolves the optional reader endpoint and validates the shared
@@ -59,12 +60,16 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if base.MaxOpenConns < 2 {
 		return Config{}, fmt.Errorf("ESHU_POSTGRES_MAX_OPEN_CONNS must be at least 2 for separate reader and writer pools")
 	}
+	expectedSystemID := strings.TrimSpace(getenv("ESHU_POSTGRES_EXPECTED_SYSTEM_ID"))
+	if err := validateExpectedSystemID(expectedSystemID); err != nil {
+		return Config{}, err
+	}
 	read := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_DSN"))
 	if read == "" {
 		read = writer
 	}
 	for _, endpoint := range []string{writer, read} {
-		if _, err := parseStaticEndpoint(endpoint); err != nil {
+		if _, err := parsePhysicalEndpoint(endpoint); err != nil {
 			return Config{}, err
 		}
 	}
@@ -102,25 +107,32 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		WriterMaxIdleConns: base.MaxIdleConns - readIdle, ReadMaxIdleConns: readIdle,
 		ConnMaxLifetime: base.ConnMaxLifetime, ConnMaxIdleTime: base.ConnMaxIdleTime,
 		PingTimeout: base.PingTimeout, ReplayTimeout: 2 * time.Second,
+		ExpectedSystemID: expectedSystemID,
 	}, nil
 }
 
-func hasAlternateHost(cfg *pgx.ConnConfig) bool {
-	for _, fallback := range cfg.Fallbacks {
-		if fallback.Host != cfg.Host || fallback.Port != cfg.Port {
-			return true
-		}
-	}
-	return false
-}
-
-func parseStaticEndpoint(dsn string) (*pgx.ConnConfig, error) {
+func parsePhysicalEndpoint(dsn string) (*pgx.ConnConfig, error) {
 	parsed, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("invalid PostgreSQL endpoint configuration")
 	}
-	if parsed.Host == "" || hasAlternateHost(parsed) {
-		return nil, fmt.Errorf("PostgreSQL endpoint must name one static host; multi-host and failover routing are unsupported")
+	if parsed.Host == "" || parsed.Database == "" {
+		return nil, fmt.Errorf("PostgreSQL endpoint must name a host and database")
+	}
+	for _, fallback := range parsed.Fallbacks {
+		if fallback.Host == "" {
+			return nil, fmt.Errorf("PostgreSQL candidate host must not be empty")
+		}
 	}
 	return parsed, nil
+}
+
+func validateExpectedSystemID(value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := strconv.ParseUint(value, 10, 64); err != nil {
+		return fmt.Errorf("ESHU_POSTGRES_EXPECTED_SYSTEM_ID must be an unsigned decimal PostgreSQL system identifier")
+	}
+	return nil
 }
