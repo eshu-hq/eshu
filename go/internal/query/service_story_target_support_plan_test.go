@@ -22,54 +22,71 @@ import (
 func TestServiceStoryTargetSupportSQLProbesFactKindIndex(t *testing.T) {
 	t.Parallel()
 
-	targetSQL, _ := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{Repository: "repo-x", Limit: 10})
 	sourceOnlySQL, _ := buildServiceStoryTargetSupportSourceOnlySQL(serviceStoryTargetSupportFactKinds())
-	for name, query := range map[string]string{"target": targetSQL, "source-only": sourceOnlySQL} {
-		for _, want := range []string{
-			"CROSS JOIN (SELECT DISTINCT unnest($1::text[]) AS fact_kind) AS kind",
-			"CROSS JOIN LATERAL (",
-			"fact.scope_id = scope.scope_id",
-			"fact.generation_id = scope.active_generation_id",
-			"fact.fact_kind = kind.fact_kind",
-			"fact.is_tombstone = FALSE",
-			"OFFSET 0",
-			"generation.status = 'active'",
-		} {
-			if !strings.Contains(query, want) {
-				t.Fatalf("%s support SQL missing %q:\n%s", name, want, query)
-			}
+	for _, want := range []string{
+		"CROSS JOIN (SELECT DISTINCT unnest($1::text[]) AS fact_kind) AS kind",
+		"CROSS JOIN LATERAL (",
+		"fact.scope_id = scope.scope_id",
+		"fact.generation_id = scope.active_generation_id",
+		"fact.fact_kind = kind.fact_kind",
+		"fact.is_tombstone = FALSE",
+		"OFFSET 0",
+		"generation.status = 'active'",
+	} {
+		if !strings.Contains(sourceOnlySQL, want) {
+			t.Fatalf("source-only support SQL missing %q:\n%s", want, sourceOnlySQL)
 		}
-		if strings.Contains(query, "fact.fact_kind = ANY(") {
-			t.Fatalf("%s support SQL must probe one fact kind per LATERAL row, not filter fact_kind = ANY:\n%s", name, query)
+	}
+	if strings.Contains(sourceOnlySQL, "fact.fact_kind = ANY(") {
+		t.Fatalf("source-only support SQL must probe one fact kind per LATERAL row, not filter fact_kind = ANY:\n%s", sourceOnlySQL)
+	}
+
+	// The row read probes one literal kind per active scope/generation, so it
+	// has no kind cross join to fan out over (#7138).
+	targetSQL, _ := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{
+		TargetKind: "repository", TargetID: "repo-x", Limit: 10,
+	})
+	for _, want := range []string{
+		"CROSS JOIN LATERAL (",
+		"fact.scope_id = scope.scope_id",
+		"fact.generation_id = scope.active_generation_id",
+		"fact.fact_kind = 'work_item.external_link'",
+		"fact.is_tombstone = FALSE",
+		"OFFSET 0",
+		"generation.status = 'active'",
+	} {
+		if !strings.Contains(targetSQL, want) {
+			t.Fatalf("target support SQL missing %q:\n%s", want, targetSQL)
 		}
+	}
+	if strings.Contains(targetSQL, "unnest(") || strings.Contains(targetSQL, "fact.fact_kind = ANY(") {
+		t.Fatalf("target support SQL probes a single literal kind and must not fan out over a kind array:\n%s", targetSQL)
 	}
 }
 
-// TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex guards #7126:
-// both statements carry the support kinds as a literal IN list inside the
-// LATERAL, beside the bound array and the kind cross join, so the planner can
-// prove migration 123's partial index predicate. Removing the literals silently
-// falls back to the wide scope/generation index.
+// TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex guards #7126: the
+// source-only statement carries the support kinds as a literal IN list inside
+// the LATERAL, beside the bound array and the kind cross join, so the planner
+// can prove migration 123's partial index predicate. Removing the literals
+// silently falls back to the wide scope/generation index. The row read's index
+// (migration 152) is bound by TestServiceStoryTargetSupportLinkIndexMatchesQuery.
 func TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex(t *testing.T) {
 	t.Parallel()
 
-	targetSQL, _ := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{Repository: "repo-x", Limit: 10})
 	sourceOnlySQL, _ := buildServiceStoryTargetSupportSourceOnlySQL(serviceStoryTargetSupportFactKinds())
 	want := "fact.fact_kind IN (" + serviceStoryTargetSupportKindLiterals() + ")"
-	for name, query := range map[string]string{"target": targetSQL, "source-only": sourceOnlySQL} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("%s support SQL missing literal kind list %q:\n%s", name, want, query)
-		}
-		_, lateral, found := strings.Cut(query, "CROSS JOIN LATERAL (")
-		if !found {
-			t.Fatalf("%s support SQL lost its LATERAL probe:\n%s", name, query)
-		}
-		if strings.Index(lateral, want) > strings.Index(lateral, "OFFSET 0") {
-			t.Fatalf("%s support SQL must carry the literal kind list inside the LATERAL, before OFFSET 0:\n%s", name, query)
-		}
+	if !strings.Contains(sourceOnlySQL, want) {
+		t.Fatalf("source-only support SQL missing literal kind list %q:\n%s", want, sourceOnlySQL)
 	}
-	if !strings.Contains(sourceOnlySQL, documentationNoStructuredRefsPredicate("fact.payload")) {
-		t.Fatalf("source-only support SQL missing the two-valued no-refs predicate:\n%s", sourceOnlySQL)
+	_, lateral, found := strings.Cut(sourceOnlySQL, "CROSS JOIN LATERAL (")
+	if !found {
+		t.Fatalf("source-only support SQL lost its LATERAL probe:\n%s", sourceOnlySQL)
+	}
+	if strings.Index(lateral, want) > strings.Index(lateral, "OFFSET 0") {
+		t.Fatalf("source-only support SQL must carry the literal kind list inside the LATERAL, before OFFSET 0:\n%s", sourceOnlySQL)
+	}
+	if !strings.Contains(sourceOnlySQL, serviceStoryTargetSupportUnlinkedPredicate) {
+		t.Fatalf("source-only support SQL missing the two-valued unlinked predicate:\n%s", sourceOnlySQL)
 	}
 	if strings.Contains(sourceOnlySQL, "jsonb_array_length") {
 		t.Fatalf("source-only support SQL still uses the three-valued jsonb_array_length predicate:\n%s", sourceOnlySQL)

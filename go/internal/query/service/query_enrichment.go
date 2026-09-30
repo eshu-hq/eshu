@@ -348,13 +348,21 @@ func EnrichServiceQueryContextWithOptions(
 		workloadContext["deployment_evidence"] = deploymentEvidence
 	}
 	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "support_target_evidence")
-	targetSupport, err := loadServiceStoryTargetSupportForOperation(ctx, content, workloadContext, operation)
-	timer.Done(
-		ctx,
+	supportLoad, err := loadServiceStoryTargetSupportForOperation(ctx, graph, content, workloadContext, operation)
+	targetSupport := supportLoad.Support
+	supportAttrs := []slog.Attr{
 		slog.Bool("has_result", len(targetSupport) > 0),
 		slog.Int("target_support_evidence_count", querycontract.IntVal(targetSupport, "evidence_count")),
+		slog.Int("target_support_ambiguous_count", querycontract.IntVal(targetSupport, "ambiguous_count")),
+		slog.String("target_support_missing_reason", querycontract.FirstMissingEvidenceReason(targetSupport)),
+		slog.Int("repository_workload_count", supportLoad.RepositoryWorkloadCount),
+		slog.Bool("repository_defines_target", supportLoad.RepositoryDefinesTarget),
 		slog.Bool("error", err != nil),
-	)
+	}
+	if supportLoad.RepositoryDefinesErr != nil {
+		supportAttrs = append(supportAttrs, slog.String("repository_defines_error", supportLoad.RepositoryDefinesErr.Error()))
+	}
+	timer.Done(ctx, supportAttrs...)
 	if err != nil {
 		return fmt.Errorf("load service story target support: %w", err)
 	}

@@ -28,9 +28,11 @@ import (
 //   - the target read orders by observed_at DESC then fact_id DESC, so a tie on
 //     observed_at is broken deterministically;
 //   - a kind listed twice counts its facts once (fact_kind = ANY semantics);
-//   - the source-only rollup counts a fact with no structured refs: a missing
-//     or JSON-null key, an empty array, or a non-array value all mean no refs,
-//     and a nonempty ref array excludes the fact (#6807, #7126).
+//   - the source-only rollup counts an active support fact with no durable
+//     target link: only a work_item.external_link carrying a non-empty
+//     linked_repository_id is linked, so a missing, empty or JSON-null key, or
+//     any other kind whatever payload keys it carries, is source-only, and a
+//     link to another repository is neither evidence nor source-only (#7138).
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
@@ -42,7 +44,9 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 	conn := openStorySupportSchema(ctx, t, dsn)
 	seedStorySupportFixture(ctx, t, conn)
 
-	targetSQL, targetArgs := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{Repository: "repo-x", Limit: 20})
+	targetSQL, targetArgs := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{
+		Repository: "repo-x", TargetKind: "repository", TargetID: "repo-x", Limit: 20,
+	})
 	rows, err := conn.QueryContext(ctx, targetSQL, targetArgs...)
 	if err != nil {
 		t.Fatalf("target support query: %v", err)
@@ -60,22 +64,31 @@ func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
 		t.Fatalf("iterate target rows: %v", err)
 	}
 	_ = rows.Close()
-	if got, want := strings.Join(gotIDs, ","), "f-incident,f-transition,f-record"; got != want {
+	if got, want := strings.Join(gotIDs, ","), "f-link-b,f-link-a2,f-link-a"; got != want {
 		t.Fatalf("target support facts = %s, want %s", got, want)
 	}
 
-	// A kind listed twice must not double-count its facts.
+	// A kind listed twice must not double-count its facts: of the source-only
+	// facts only the two records and the one coverage warning are these kinds.
 	kinds := []string{"work_item.record", "work_item.record", "incident_routing.coverage_warning"}
 	sourceSQL, _ := buildServiceStoryTargetSupportSourceOnlySQL(kinds)
 	var total, workItems, incidents int64
 	if err := conn.QueryRowContext(ctx, sourceSQL, array.Of(kinds)).Scan(&total, &workItems, &incidents); err != nil {
 		t.Fatalf("source-only query: %v", err)
 	}
+	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "3|2|1"; got != want {
+		t.Fatalf("source-only counts for a duplicated kind list = %s, want %s", got, want)
+	}
+	fullKinds := serviceStoryTargetSupportFactKinds()
+	fullSQL, _ := buildServiceStoryTargetSupportSourceOnlySQL(fullKinds)
+	if err := conn.QueryRowContext(ctx, fullSQL, array.Of(fullKinds)).Scan(&total, &workItems, &incidents); err != nil {
+		t.Fatalf("source-only query (all kinds): %v", err)
+	}
 	if got, want := fmt.Sprintf("%d|%d|%d", total, workItems, incidents), "6|5|1"; got != want {
-		t.Fatalf("source-only counts = %s, want %s", got, want)
+		t.Fatalf("source-only counts = %s, want %s (linked links and the other repository's link excluded)", got, want)
 	}
 	support := buildStoryTargetSupportWithSourceOnlySummary(
-		serviceStoryTargetSupportFilter{Repository: "repo-x", Limit: 20},
+		serviceStoryTargetSupportFilter{Repository: "repo-x", TargetKind: "repository", TargetID: "repo-x", Limit: 20},
 		nil,
 		false,
 		serviceStoryTargetSupportSourceOnlySummary{
@@ -155,33 +168,35 @@ VALUES ($1, 'repository', 'git', $1, 'git', $1, $2, $2, 'active', NULLIF($3, '')
 		exec(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
 VALUES ($1, $2, 'snapshot', $3, $3, $4, '{}'::jsonb)`, gen.id, gen.scope, base, gen.status)
 	}
-	linked := `{"candidate_refs":[{"id":"repo-x","kind":"repository"}]}`
-	allEmpty := `{"candidate_refs":[],"evidence_refs":[],"linked_entities":[]}`
+	const link = "work_item.external_link"
+	linked := `{"linked_repository_id":"repo-x"}`
 	for _, fact := range []struct {
 		id, scope, gen, kind, payload string
 		observed                      time.Duration
 		tombstone                     bool
 	}{
-		{"f-record", "s-a", "g-a", "work_item.record", linked, -time.Hour, false},
-		{"f-transition", "s-a", "g-a", "work_item.transition", `{"evidence_refs":[{"id":"repo-x","kind":"repository"}]}`, -time.Hour, false},
-		{"f-incident", "s-b", "g-b", "incident_routing.coverage_warning", `{"linked_entities":[{"entity_id":"repo-x","entity_type":"repository"}]}`, 0, false},
-		{"f-superseded", "s-a", "g-a-old", "work_item.record", linked, 0, false},
-		{"f-tombstone", "s-b", "g-b", "work_item.record", linked, 0, true},
+		// Linked to repo-x on an active generation: the target read's rows. The
+		// two on s-a tie on observed_at, so fact_id DESC orders them.
+		{"f-link-a", "s-a", "g-a", link, linked, -time.Hour, false},
+		{"f-link-a2", "s-a", "g-a", link, linked, -time.Hour, false},
+		{"f-link-b", "s-b", "g-b", link, linked, 0, false},
+		// Excluded from the row read and from source-only alike.
+		{"f-superseded", "s-a", "g-a-old", link, linked, 0, false},
+		{"f-tombstone", "s-b", "g-b", link, linked, 0, true},
 		{"f-other-kind", "s-b", "g-b", "content_entity", linked, 0, false},
-		{"f-other-repo", "s-b", "g-b", "work_item.record", `{"candidate_refs":[{"id":"repo-y","kind":"repository"}]}`, 0, false},
-		{"f-foreign", "s-foreign", "g-none", "work_item.record", linked, 0, false},
-		{"f-pending", "s-pending", "g-p", "work_item.record", linked, 0, false},
-		// Source-only candidates on the active generation of s-b. A fact with
-		// no ref keys, one with only some empty ref keys, one with a non-array
-		// ref value, and facts with all empty ref keys must count. Any nonempty
-		// ref array must exclude it.
-		{"src-work", "s-b", "g-b", "work_item.record", allEmpty, 0, false},
-		{"src-incident", "s-b", "g-b", "incident_routing.coverage_warning", allEmpty, 0, false},
-		{"src-no-ref-keys", "s-b", "g-b", "work_item.record", `{}`, 0, false},
-		{"src-some-ref-keys", "s-b", "g-b", "work_item.record", `{"candidate_refs":[]}`, 0, false},
-		{"src-nonarray-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":{}}`, 0, false},
-		{"src-scalar-ref", "s-b", "g-b", "work_item.record", `{"evidence_refs":"x"}`, 0, false},
-		{"src-nonempty-ref", "s-b", "g-b", "work_item.record", `{"candidate_refs":[],"evidence_refs":[{"id":"repo-z"}],"linked_entities":[]}`, 0, false},
+		{"f-foreign", "s-foreign", "g-none", link, linked, 0, false},
+		{"f-pending", "s-pending", "g-p", link, linked, 0, false},
+		// A link to another repository: neither repo-x evidence nor source-only.
+		{"f-other-repo", "s-b", "g-b", link, `{"linked_repository_id":"repo-y"}`, 0, false},
+		// Source-only on the active generation of s-b: a link with no key, an
+		// empty key or a JSON-null key; any other kind, even one carrying the
+		// key; and the incident kind.
+		{"src-work", "s-b", "g-b", "work_item.record", `{}`, 0, false},
+		{"src-incident", "s-b", "g-b", "incident_routing.coverage_warning", `{}`, 0, false},
+		{"src-plain-link", "s-b", "g-b", link, `{"application_name":"Confluence"}`, 0, false},
+		{"src-empty-key-link", "s-b", "g-b", link, `{"linked_repository_id":""}`, 0, false},
+		{"src-null-key-link", "s-b", "g-b", link, `{"linked_repository_id":null}`, 0, false},
+		{"src-record-with-key", "s-b", "g-b", "work_item.record", linked, 0, false},
 	} {
 		exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)

@@ -67,7 +67,10 @@
 // RepositoryDeploymentEvidenceReadModel, RelationshipEvidenceReadModel,
 // RepositoryReadModelSummary, RepositoryRelationshipReadModel, RepositoryRef,
 // CatalogWorkloadIdentityEntry, ServiceStoryTargetSupportFilter and
-// ServiceStoryTargetSupportReadModel. The candidate projection the double needs
+// ServiceStoryTargetSupportReadModel. The filter carries the graph gate a
+// service target needs (RepositoryWorkloadCount and RepositoryDefinesTarget,
+// #7138), and FirstMissingEvidenceReason reads a support block's first missing
+// reason for the story stage events. The candidate projection the double needs
 // moved on to the kubernetes/ subpackage with the rest of the SELECTS matcher;
 // K8sSelectCandidate itself stays here, because it is a ContentStore read model
 // that the projection returns rather than part of the matching decision. Root

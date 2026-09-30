@@ -105,6 +105,16 @@ func contentReaderFactDefaultRows(query string, results []ReaderQueryResult) dri
 		!contentReaderHeadHasColumns(results, []string{"payload"}) {
 		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
 	}
+	// The story target-support row read (#7138) probes the one literal
+	// work_item.external_link kind and matches its linked_repository_id key.
+	if strings.Contains(query, "FROM fact_records AS fact") &&
+		strings.Contains(query, "fact.fact_kind = 'work_item.external_link'") &&
+		strings.Contains(query, "linked_repository_id") &&
+		strings.Contains(query, "generation.status = 'active'") &&
+		strings.Contains(query, "source_record_id") &&
+		!contentReaderHeadHasColumns(results, []string{"payload"}) {
+		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
+	}
 	supportOnlyColumns := []string{
 		"support_source_only_count",
 		"work_item_source_only_count",

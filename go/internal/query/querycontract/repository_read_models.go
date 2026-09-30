@@ -54,6 +54,18 @@ type ServiceStoryTargetSupportFilter struct {
 	TargetID   string
 	ServiceID  string
 	Limit      int
+	// RepositoryWorkloadCount is how many Workloads the canonical graph says
+	// Repository DEFINES, read once per story and bounded at
+	// ServiceStoryRepositoryWorkloadReadLimit. It is 0 when the graph is
+	// unavailable, the read failed, or the story context is identity-only.
+	// Repository targets ignore it.
+	RepositoryWorkloadCount int
+	// RepositoryDefinesTarget reports that TargetID is among the Workloads the
+	// graph says Repository DEFINES. A service target may receive
+	// repository-linked support only when this is true and
+	// RepositoryWorkloadCount is 1; a count of 2 or more with this true makes
+	// that support ambiguous (#7138).
+	RepositoryDefinesTarget bool
 }
 
 // ServiceStoryTargetSupportReadModel carries the support block a service story
@@ -91,6 +103,11 @@ func LoadRepositoryEntryPoints(ctx context.Context, content ContentStore, repoID
 // unexported alias so its service entries share the bound.
 const ServiceStoryTargetSupportLimit = 10
 
+// ServiceStoryRepositoryWorkloadReadLimit bounds the graph read that lists the
+// Workloads a repository DEFINES for the service-story target-support gate. It
+// only has to tell zero from one from two-or-more, so three rows are enough.
+const ServiceStoryRepositoryWorkloadReadLimit = 3
+
 // ServiceStoryTargetSupportStore is the narrow optional port a ContentStore
 // implements to answer target-support reads directly. It lives here
 // (promoted from root package query for #6060 lane B B3) so the moved
@@ -98,6 +115,18 @@ const ServiceStoryTargetSupportLimit = 10
 // root; root keeps its unexported spelling as a structural twin.
 type ServiceStoryTargetSupportStore interface {
 	ServiceStoryTargetSupportEvidence(context.Context, ServiceStoryTargetSupportFilter) (ServiceStoryTargetSupportReadModel, error)
+}
+
+// FirstMissingEvidenceReason returns the reason of the first missing_evidence
+// entry of a target-support block, or "" when the block is nil, complete, or
+// carries no reason. The story stage events log it so an operator can see why a
+// story shows no support without reading the response.
+func FirstMissingEvidenceReason(support map[string]any) string {
+	missing := MapSliceValue(support, "missing_evidence")
+	if len(missing) == 0 {
+		return ""
+	}
+	return StringVal(missing[0], "reason")
 }
 
 // LoadRepositoryStoryTargetSupport returns target-support evidence for one

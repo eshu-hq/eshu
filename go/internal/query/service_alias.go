@@ -149,10 +149,11 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 // name unchanged.
 func loadServiceStoryTargetSupport(
 	ctx context.Context,
+	graph GraphQuery,
 	content ContentStore,
 	workloadContext map[string]any,
 ) (map[string]any, error) {
-	return service.LoadServiceStoryTargetSupport(ctx, content, workloadContext)
+	return service.LoadServiceStoryTargetSupport(ctx, graph, content, workloadContext)
 }
 
 // containsString reports whether values holds candidate. The implementation

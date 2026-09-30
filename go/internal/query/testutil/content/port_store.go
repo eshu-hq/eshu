@@ -75,6 +75,11 @@ type FakePortContentStore struct {
 	// ServiceStoryTargetSupportEvidence; both are returned as given.
 	TargetSupportModel querycontract.ServiceStoryTargetSupportReadModel
 	TargetSupportErr   error
+	// TargetSupportFilter, when non-nil, receives the filter the loader built
+	// for each ServiceStoryTargetSupportEvidence call, so a handler test can
+	// assert what the loader derived (for example the graph-derived
+	// repository workload fields) rather than only the rows returned.
+	TargetSupportFilter *querycontract.ServiceStoryTargetSupportFilter
 
 	// Entities backs every entity read: the by-type, by-types, by-paths, and
 	// by-ID fetches and the K8s candidate scan all filter this one slice, so a

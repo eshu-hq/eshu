@@ -239,7 +239,11 @@ func execProofStatements(t *testing.T, ctx context.Context, db *sql.DB, statemen
 
 // targetFactsPlan is the parsed subset of an EXPLAIN (ANALYZE, BUFFERS) plan.
 type targetFactsPlan struct {
-	indexes     map[string]bool
+	indexes map[string]bool
+	// indexConds maps each index name to the Index Cond strings of the plan
+	// nodes that used it, so a proof can require the predicate to be an index
+	// condition and not a heap filter behind a scope/generation prefix scan.
+	indexConds  map[string][]string
 	executionMS float64
 	sharedHit   int64
 	sharedRead  int64
@@ -272,9 +276,10 @@ func parseTargetFactsPlan(t *testing.T, raw []byte) targetFactsPlan {
 	if err := json.Unmarshal(raw, &docs); err != nil || len(docs) != 1 {
 		t.Fatalf("decode plan: err=%v raw=%s", err, raw)
 	}
-	plan := targetFactsPlan{indexes: map[string]bool{}, executionMS: executionTimeMS(t, raw)}
+	plan := targetFactsPlan{indexes: map[string]bool{}, indexConds: map[string][]string{}, executionMS: executionTimeMS(t, raw)}
 	plan.sharedHit, plan.sharedRead = int64(numberField(docs[0].Plan, "Shared Hit Blocks")), int64(numberField(docs[0].Plan, "Shared Read Blocks"))
 	collectPlanIndexNames(docs[0].Plan, plan.indexes)
+	collectPlanIndexConds(docs[0].Plan, plan.indexConds)
 	return plan
 }
 
@@ -303,6 +308,20 @@ func collectPlanIndexNames(node map[string]any, into map[string]bool) {
 	for _, child := range children {
 		if m, ok := child.(map[string]any); ok {
 			collectPlanIndexNames(m, into)
+		}
+	}
+}
+
+func collectPlanIndexConds(node map[string]any, into map[string][]string) {
+	if name, ok := node["Index Name"].(string); ok {
+		if cond, ok := node["Index Cond"].(string); ok {
+			into[name] = append(into[name], cond)
+		}
+	}
+	children, _ := node["Plans"].([]any)
+	for _, child := range children {
+		if m, ok := child.(map[string]any); ok {
+			collectPlanIndexConds(m, into)
 		}
 	}
 }

@@ -178,6 +178,20 @@ func TestDocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef(t *testi
 type serviceStoryExternalDocsGraphReader struct {
 	t      *testing.T
 	repoID string
+	// defines answers the #7138 Repository-[:DEFINES]->Workload read. A nil
+	// definesRead disables the case, so the read falls through to the empty
+	// default and the DEFINES set reads as empty.
+	definesRead *serviceStoryDefinesRead
+}
+
+// serviceStoryDefinesRead scripts and records the bounded DEFINES read the
+// service-story target-support gate issues.
+type serviceStoryDefinesRead struct {
+	ids    []string
+	err    error
+	calls  int
+	cypher string
+	params map[string]any
 }
 
 func (g serviceStoryExternalDocsGraphReader) Run(
@@ -186,6 +200,19 @@ func (g serviceStoryExternalDocsGraphReader) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	switch {
+	case g.definesRead != nil && strings.Contains(cypher, "-[:DEFINES]->(w:Workload)") &&
+		strings.Contains(cypher, "RETURN w.id AS id"):
+		g.definesRead.calls++
+		g.definesRead.cypher = cypher
+		g.definesRead.params = params
+		if g.definesRead.err != nil {
+			return nil, g.definesRead.err
+		}
+		rows := make([]map[string]any, 0, len(g.definesRead.ids))
+		for _, id := range g.definesRead.ids {
+			rows = append(rows, map[string]any{"id": id})
+		}
+		return rows, nil
 	case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 		return []map[string]any{{"repo_id": g.repoID, "repo_name": "payments-api"}}, nil
 	case strings.Contains(cypher, "w.id = $service_id"):

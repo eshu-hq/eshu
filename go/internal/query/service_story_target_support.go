@@ -9,13 +9,30 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLimit
+
+// The row read links a support fact to a target through the one durable key a
+// support writer emits: work_item.external_link payload->>'linked_repository_id'
+// (collector/jira, a confidently typed GitHub pull-request or GitLab
+// merge-request link resolved to the canonical repository id). No other support
+// fact kind carries a target key today; record, transition and metadata rows and
+// the PagerDuty kinds stay source-only until #7463 and #7464 link them. The
+// migration 152 partial index and TestServiceStoryTargetSupportLinkIndexMatchesQuery
+// bind these literals to the statement.
+const (
+	storySupportLinkFactKind      = "work_item.external_link"
+	storySupportLinkPayloadKey    = "linked_repository_id"
+	storySupportLinkKeyExpression = "payload->>'" + storySupportLinkPayloadKey + "'"
+
+	// Per-row link basis values stamped on evidence and ambiguous rows.
+	storySupportBasisLinkedRepository = "linked_repository"
+	storySupportBasisSoleWorkload     = "repository_sole_workload"
+	storySupportBasisSharedRepository = "repository_multiple_workloads"
+)
 
 type serviceStoryTargetSupportStore interface {
 	ServiceStoryTargetSupportEvidence(
@@ -59,42 +76,50 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	defer span.End()
 
 	factKinds := serviceStoryTargetSupportFactKinds()
-	query, args := buildServiceStoryTargetSupportSQL(filter)
-	if query == "" {
-		return serviceStoryTargetSupportReadModel{}, nil
-	}
-	rows, err := cr.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		span.RecordError(err)
-		return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
+	scope := querycontract.DocumentationTargetScopeFromValues(
+		filter.Repository,
+		filter.TargetKind,
+		filter.TargetID,
+		filter.ServiceID,
+	)
+	hasSelector := querycontract.DocumentationTargetScopeHasSelector(scope)
 	limit := serviceStoryTargetSupportRowLimit(filter.Limit)
 	facts := make([]map[string]any, 0, limit)
-	for rows.Next() {
-		payload, err := scanJSONPayload(rows)
+	// An empty statement means no target-linked row can exist: the target has no
+	// repository id, or a service target whose repository the graph did not show
+	// defining exactly-or-among the target. The read then takes the zero-row
+	// path below instead of asking Postgres for rows it would discard (#7138).
+	query, args := buildServiceStoryTargetSupportSQL(filter)
+	if query == "" && !hasSelector {
+		return serviceStoryTargetSupportReadModel{}, nil
+	}
+	if query != "" {
+		rows, err := cr.db.QueryContext(ctx, query, args...)
 		if err != nil {
 			span.RecordError(err)
 			return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
 		}
-		facts = append(facts, payload)
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			payload, err := scanJSONPayload(rows)
+			if err != nil {
+				span.RecordError(err)
+				return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
+			}
+			facts = append(facts, payload)
+		}
+		if err := rows.Err(); err != nil {
+			span.RecordError(err)
+			return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
+		}
 	}
 	truncated := len(facts) > limit
 	if truncated {
 		facts = facts[:limit]
 	}
 	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
-	if len(facts) == 0 && querycontract.DocumentationTargetScopeHasSelector(querycontract.DocumentationTargetScopeFromValues(
-		filter.Repository,
-		filter.TargetKind,
-		filter.TargetID,
-		filter.ServiceID,
-	)) {
+	if len(facts) == 0 && hasSelector {
+		var err error
 		sourceOnlySummary, err = cr.serviceStoryTargetSupportSourceOnlySummary(ctx, factKinds)
 		if err != nil {
 			span.RecordError(err)
@@ -106,26 +131,49 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	}, nil
 }
 
+// storySupportLinkRepositoryID returns the repository id the row read matches
+// against payload->>'linked_repository_id', or "" when no target-linked row can
+// exist and the read must not run.
+//
+// A repository target matches its own id. A service target matches the id of
+// the repository that hosts it, but only when the graph showed that repository
+// defining the target: the service then owns the repository's links outright
+// (one defined workload) or shares them (several, reported ambiguous). Any
+// other service case, including a graph that was unavailable, is fail closed.
+// A target kind the story does not serve has no link key at all.
+func storySupportLinkRepositoryID(filter serviceStoryTargetSupportFilter) string {
+	switch strings.TrimSpace(filter.TargetKind) {
+	case "repository":
+		if id := strings.TrimSpace(filter.TargetID); id != "" {
+			return id
+		}
+		return strings.TrimSpace(filter.Repository)
+	case "service":
+		if !filter.RepositoryDefinesTarget || filter.RepositoryWorkloadCount < 1 {
+			return ""
+		}
+		return strings.TrimSpace(filter.Repository)
+	}
+	return ""
+}
+
+// buildServiceStoryTargetSupportSQL renders the bounded row read: the active
+// work_item.external_link facts whose linked_repository_id is the target's
+// repository. The predicate is the plain payload->>'key' = $1 form on purpose.
+// Migration 152's partial expression index is keyed on exactly that expression,
+// and a NULLIF wrapper would make it unusable (measured in the #7138 shim: the
+// index turns a 13 ms heap filter at 50k links per scope into a 1.7 ms descent).
+// The kind, tombstone and key conditions are literal or bound inside the LATERAL
+// so Postgres proves the index predicate in custom and generic plans alike. No
+// name, title, summary or LIKE predicate is ever added.
 func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (string, []any) {
-	refs := service.StorySupportTargetRefs(filter)
-	if len(refs) == 0 {
+	repoID := storySupportLinkRepositoryID(filter)
+	if repoID == "" {
 		return "", nil
 	}
-	args := []any{}
-	factKinds := serviceStoryTargetSupportFactKinds()
-	args = append(args, array.Of(factKinds))
-	clauses := []string{
-		"fact.is_tombstone = FALSE",
-	}
-	clauses, args = appendDocumentationTargetClause(
-		clauses,
-		args,
-		"fact.payload",
-		refs,
-	)
 	limit := serviceStoryTargetSupportRowLimit(filter.Limit)
-	args = append(args, limit+1)
-	return fmt.Sprintf(`
+	args := []any{repoID, limit + 1}
+	return `
 SELECT jsonb_build_object(
     'fact_id', fact.fact_id,
     'fact_kind', fact.fact_kind,
@@ -136,10 +184,24 @@ SELECT jsonb_build_object(
     'observed_at', fact.observed_at,
     'payload', fact.payload
 ) AS payload
-%s
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS generation
+  ON generation.scope_id = scope.scope_id
+ AND generation.generation_id = scope.active_generation_id
+CROSS JOIN LATERAL (
+  SELECT ` + serviceStoryTargetSupportFactColumns + `
+  FROM fact_records AS fact
+  WHERE fact.scope_id = scope.scope_id
+    AND fact.generation_id = scope.active_generation_id
+    AND fact.fact_kind = '` + storySupportLinkFactKind + `'
+    AND fact.is_tombstone = FALSE
+    AND fact.` + storySupportLinkKeyExpression + ` = $1
+  OFFSET 0
+) AS fact
+WHERE generation.status = 'active'
 ORDER BY fact.observed_at DESC, fact.fact_id DESC
-LIMIT $%d
-`, serviceStoryTargetSupportActiveFactsFrom(serviceStoryTargetSupportFactColumns, clauses), len(args)), args
+LIMIT $2
+`, args
 }
 
 // serviceStoryTargetSupportFactColumns are the fact columns the target-support
@@ -153,10 +215,12 @@ const serviceStoryTargetSupportFactColumns = `fact.fact_id,
          fact.observed_at,
          fact.payload`
 
-// serviceStoryTargetSupportActiveFactsFrom returns the FROM/WHERE clause both
-// support reads use: facts of the $1::text[] kinds on each scope's active
-// generation, restricted by factPredicates (fact.* conditions ANDed inside the
-// per-probe subquery) and exposing factColumns as fact.* to the outer query.
+// serviceStoryTargetSupportActiveFactsFrom returns the FROM/WHERE clause the
+// source-only aggregate uses (the row read has its own single-kind probe, see
+// buildServiceStoryTargetSupportSQL): facts of the $1::text[] kinds on each
+// scope's active generation, restricted by factPredicates (fact.* conditions
+// ANDed inside the per-probe subquery) and exposing factColumns as fact.* to
+// the outer query.
 // Each (active scope/generation, kind) pair is probed through a LATERAL
 // subquery so fact_records_scope_generation_idx
 // (scope_id, generation_id, fact_kind, ...) answers with the kind in the index
@@ -212,45 +276,91 @@ func serviceStoryTargetSupportFactKinds() []string {
 	return kinds
 }
 
+// buildStoryTargetSupport turns the rows the SQL returned into the support
+// block. It re-checks in Go what the SQL selected on, so a row that does not
+// carry the target repository's link is never evidence whatever reached it, and
+// it applies the graph gate a service target needs: repository-linked rows are
+// evidence only when the graph showed the repository defining exactly the
+// target, ambiguous when it defines several workloads including the target, and
+// dropped otherwise.
 func buildStoryTargetSupport(
 	filter serviceStoryTargetSupportFilter,
 	facts []map[string]any,
 	truncated bool,
 ) map[string]any {
-	refs := service.StorySupportTargetRefs(filter)
+	repoID := storySupportLinkRepositoryID(filter)
+	basis, ambiguousBasis := storySupportLinkBases(filter)
 	evidence := make([]map[string]any, 0, len(facts))
 	ambiguous := make([]map[string]any, 0)
 	for _, fact := range facts {
-		if serviceStorySupportFactAmbiguousForTarget(fact, refs) {
-			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact))
+		if repoID == "" || !storySupportFactLinkedToRepository(fact, repoID) {
 			continue
 		}
-		if !service.StorySupportPayloadMatchesTargetRefs(fact, refs) {
-			continue
+		switch {
+		case basis != "":
+			evidence = append(evidence, serviceStorySupportEvidenceRow(fact, basis))
+		case ambiguousBasis != "":
+			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact, ambiguousBasis))
 		}
-		evidence = append(evidence, serviceStorySupportEvidenceRow(fact))
 	}
-	out := map[string]any{
+	coverage := map[string]any{
+		"target":            serviceStoryTargetSupportScopeMap(filter),
+		"target_fact_count": len(evidence) + len(ambiguous),
+		"truncated":         truncated,
+	}
+	if strings.TrimSpace(filter.TargetKind) == "service" {
+		coverage["repository_workload_count"] = filter.RepositoryWorkloadCount
+	}
+	return map[string]any{
 		"evidence":               evidence,
 		"evidence_count":         len(evidence),
 		"work_item_count":        serviceStorySupportFamilyCount(evidence, "work_item."),
 		"incident_routing_count": serviceStorySupportFamilyCount(evidence, "incident_routing."),
 		"ambiguous_evidence":     ambiguous,
 		"ambiguous_count":        len(ambiguous),
-		"coverage": map[string]any{
-			"target":            serviceStoryTargetSupportScopeMap(filter),
-			"target_fact_count": len(evidence) + len(ambiguous),
-			"truncated":         truncated,
-		},
-		"missing_evidence": serviceStorySupportMissingEvidence(filter, evidence, ambiguous),
-		"limit":            serviceStoryTargetSupportRowLimit(filter.Limit),
-		"source":           "support_read_model",
+		"coverage":               coverage,
+		"missing_evidence":       serviceStorySupportMissingEvidence(filter, evidence, ambiguous),
+		"limit":                  serviceStoryTargetSupportRowLimit(filter.Limit),
+		"source":                 "support_read_model",
 	}
-	return out
 }
 
-func serviceStorySupportEvidenceRow(fact map[string]any) map[string]any {
+// storySupportLinkBases names how a repository-linked row attaches to the
+// target: the evidence basis, or the ambiguous basis when the row cannot be
+// attributed to one target. Both are empty when the row attaches to nothing.
+// A repository target owns its own links. A service target owns them only when
+// the graph shows its repository defining exactly that workload, and shares
+// them when the repository defines several workloads including it.
+func storySupportLinkBases(filter serviceStoryTargetSupportFilter) (evidence, ambiguous string) {
+	switch strings.TrimSpace(filter.TargetKind) {
+	case "repository":
+		return storySupportBasisLinkedRepository, ""
+	case "service":
+		if !filter.RepositoryDefinesTarget {
+			return "", ""
+		}
+		switch {
+		case filter.RepositoryWorkloadCount == 1:
+			return storySupportBasisSoleWorkload, ""
+		case filter.RepositoryWorkloadCount > 1:
+			return "", storySupportBasisSharedRepository
+		}
+	}
+	return "", ""
+}
+
+// storySupportFactLinkedToRepository reports whether fact is a support link
+// kind whose durable linked_repository_id is exactly repoID.
+func storySupportFactLinkedToRepository(fact map[string]any, repoID string) bool {
+	if StringVal(fact, "fact_kind") != storySupportLinkFactKind {
+		return false
+	}
+	return strings.TrimSpace(StringVal(mapValue(fact, "payload"), storySupportLinkPayloadKey)) == repoID
+}
+
+func serviceStorySupportEvidenceRow(fact map[string]any, linkBasis string) map[string]any {
 	row := map[string]any{
+		"link_basis":    linkBasis,
 		"fact_id":       StringVal(fact, "fact_id"),
 		"fact_kind":     StringVal(fact, "fact_kind"),
 		"scope_id":      StringVal(fact, "scope_id"),
@@ -283,6 +393,7 @@ func serviceStorySupportEvidencePayload(payload map[string]any) map[string]any {
 		"field",
 		"value_redacted",
 		"provider_remote_link_id",
+		"linked_repository_id",
 		"application_name",
 		"application_type",
 		"relationship",
@@ -315,62 +426,6 @@ func serviceStorySupportEvidencePayload(payload map[string]any) map[string]any {
 	return out
 }
 
-func serviceStorySupportFactAmbiguousForTarget(fact map[string]any, refs []querycontract.DocumentationTargetRef) bool {
-	payloads := []map[string]any{fact}
-	if payload := mapValue(fact, "payload"); len(payload) > 0 {
-		payloads = append(payloads, payload)
-	}
-	for _, payload := range payloads {
-		if supportRefListAmbiguousForTarget(payload["candidate_refs"], refs, "kind", "id") ||
-			supportRefListAmbiguousForTarget(payload["evidence_refs"], refs, "kind", "id") ||
-			supportRefListAmbiguousForTarget(payload["linked_entities"], refs, "entity_type", "entity_id") {
-			return true
-		}
-	}
-	return false
-}
-
-func supportRefListAmbiguousForTarget(raw any, refs []querycontract.DocumentationTargetRef, kindKey, idKey string) bool {
-	matched := false
-	other := false
-	switch values := raw.(type) {
-	case []any:
-		for _, value := range values {
-			matched, other = supportRefObjectMatchState(value, refs, kindKey, idKey, matched, other)
-		}
-	case []map[string]any:
-		for _, value := range values {
-			matched, other = supportRefObjectMatchState(value, refs, kindKey, idKey, matched, other)
-		}
-	}
-	return matched && other
-}
-
-func supportRefObjectMatchState(
-	raw any,
-	refs []querycontract.DocumentationTargetRef,
-	kindKey string,
-	idKey string,
-	matched bool,
-	other bool,
-) (bool, bool) {
-	value, _ := raw.(map[string]any)
-	if len(value) == 0 {
-		return matched, other
-	}
-	id := strings.TrimSpace(querycontract.DocumentationStringAny(value[idKey]))
-	if id == "" {
-		return matched, other
-	}
-	kind := strings.TrimSpace(querycontract.DocumentationStringAny(value[kindKey]))
-	for _, ref := range refs {
-		if id == ref.ID && (ref.Kind == "" || strings.EqualFold(kind, ref.Kind)) {
-			return true, other
-		}
-	}
-	return matched, true
-}
-
 func serviceStorySupportFamilyCount(rows []map[string]any, prefix string) int {
 	count := 0
 	for _, row := range rows {
@@ -401,7 +456,10 @@ func serviceStorySupportMissingEvidence(
 	if len(ambiguous) > 0 {
 		return []map[string]any{{
 			"reason": "support_correlation_ambiguous",
-			"detail": "support collector facts reference the selected target and another target, so ownership is ambiguous",
+			"detail": fmt.Sprintf(
+				"the repository that links this support defines %s, so its links cannot be attributed to the selected service",
+				storySupportWorkloadCountPhrase(filter.RepositoryWorkloadCount),
+			),
 		}}
 	}
 	if !querycontract.DocumentationTargetScopeHasSelector(
@@ -411,8 +469,17 @@ func serviceStorySupportMissingEvidence(
 	}
 	return []map[string]any{{
 		"reason": "support_target_facts_absent",
-		"detail": "no collected Jira or PagerDuty support facts explicitly referenced the selected target scope",
+		"detail": "no collected Jira or PagerDuty support fact carries a durable link to the selected target",
 	}}
+}
+
+// storySupportWorkloadCountPhrase words the workload count the DEFINES read
+// found. The read is bounded, so a count at the bound means "at least".
+func storySupportWorkloadCountPhrase(count int) string {
+	if count >= querycontract.ServiceStoryRepositoryWorkloadReadLimit {
+		return fmt.Sprintf("at least %d workloads", count)
+	}
+	return fmt.Sprintf("%d workloads", count)
 }
 
 func serviceStoryTargetSupportRowLimit(limit int) int {
