@@ -45,6 +45,19 @@ cross-package callers: the `impact` handlers, staying root tests that pin
 query text and store SQL, and the `query_test` seam tripwires. Each export
 carries a comment naming who pins it.
 
+### Section selection (#7174)
+
+`sections.go` owns the trace response's size bound. `SectionNames` lists the
+selectable families; `SectionSelection.Validate` rejects unknown values
+(wrapping `ErrInvalidSectionSelection`); `ApplySectionSelection` runs after
+`BuildDeploymentTraceResponse`, so counts, the story, and overviews still
+read the full lists. Under `EvidenceDetailHandles` with no sections, primary
+families become handle rows (one key table, `traceSections`) and the derived
+families are omitted. Every non-full family is reported in `section_detail`
+and returned for `truth.omissions`. The HTTP default is full; the MCP adapter
+defaults to handles. Measurements are in
+`docs/internal/evidence/7174-trace-deployment-chain-size-bound.md`.
+
 ## Dependencies
 
 The package imports the Go standard library, `querycontract`, and

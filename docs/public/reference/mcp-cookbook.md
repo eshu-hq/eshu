@@ -180,6 +180,15 @@ relationships or compare environments.
 { "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
 ```
 
+This returns identity handle rows and omits derived families such as
+`delivery_paths` (the MCP default `evidence_detail: handles`). Read
+`deployment_fact_summary` and `data.section_detail` first, then drill into one
+family in full:
+
+```json
+{ "service_name": "payments-api", "sections": ["delivery_paths"], "evidence_detail": "full" }
+```
+
 **Tool:** `compare_environments`
 
 ```json

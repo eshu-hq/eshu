@@ -25,7 +25,7 @@ only in diagnostics sections and local graph debugging.
 | Hardcoded-secret prompts | `investigate_hardcoded_secrets` | Ready | Returns redacted evidence only, with suppression notes and paging. |
 | Repository explanation and context | `get_repo_story`, `get_repo_context` | Ready | Use `get_repo_story` for the narrative repository dossier and `get_repo_context` for durable drilldown after story or search results identify the repository. |
 | Service explanation and onboarding | `get_service_story`, `investigate_service` | Ready | Use story first for the normal dossier path; use investigation first when coverage must be inspected before answering. |
-| Deployment chain prompts | `trace_deployment_chain` | Ready | Read `deployment_fact_summary`, `deployment_facts`, `controller_overview`, and `runtime_overview` before lower-level rows. |
+| Deployment chain prompts | `trace_deployment_chain` | Ready | Read `deployment_fact_summary`, `section_detail`, `controller_overview`, and `runtime_overview` before lower-level rows. The MCP default omits derived families such as `deployment_facts` and `delivery_paths`; request them with `sections` and `evidence_detail: full` from the `section_detail` drilldown. |
 | Deployment configuration prompts | `investigate_deployment_config` | Ready | Covers image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles. |
 | Resource, queue, database, and cloud-resource prompts | `investigate_resource` | Ready | Resolves ambiguity before returning workload users, provenance paths, source handles, and next calls. |
 | Environment comparison prompts | `compare_environments` | Ready | Returns story, summary, per-side resources, evidence, limitations, and side-specific truncation. |

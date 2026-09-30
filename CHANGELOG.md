@@ -76,6 +76,26 @@ recent shipped work grouped by feature area.
   aliases the new `sdk/go/factschema/aws/v1.ResourceTypeEC2AMI` constant,
   matching every sibling AWS resource-type constant.
 
+### `trace_deployment_chain` stays inside the MCP response budget
+
+- `POST /api/v0/impact/trace-deployment-chain` accepts two optional fields,
+  `evidence_detail` (`full` or `handles`) and `sections` (a list of family
+  names), and returns `evidence_detail` plus a `section_detail` entry per
+  family. The HTTP default is unchanged (`full`), so existing HTTP responses
+  keep every field. (#7174)
+- The MCP `trace_deployment_chain` tool now defaults to `evidence_detail:
+  handles` when `sections` is absent: primary families ship as identity rows
+  and the derived families (`delivery_paths`, `deployment_facts`,
+  `controller_driven_paths`, `k8s_relationships`, `topology_edges`,
+  `artifact_lineage`, `network_paths`, `entrypoints`) are omitted. With every
+  family at its cap the MCP result measured 198,556 counted bytes (75.7% of
+  the 262,144-byte budget), down from 1,137,086 bytes (434%). Callers that
+  read the omitted keys over MCP should pass `sections` with
+  `evidence_detail: full`, as each `section_detail` drilldown shows.
+- The truth envelope gains an additive `omissions` list
+  (`{section, detail, total}`), absent when a response is complete, so a cut
+  is never silent on either surface.
+
 ### Bare `backend "local" {}` drift ownership resolution
 
 - **Apply Terraform's own default local-backend path when resolving

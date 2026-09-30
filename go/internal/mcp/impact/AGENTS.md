@@ -34,6 +34,10 @@
 - Preserve the dispatcher-side defaults the tests pin: `limit` 25 or 50 per
   route, `max_depth` 4/8/5 per route, `direct_only` true, and
   `trace_deployment_chain`'s deliberate `max_depth` 0.
+- `trace_deployment_chain`'s `evidence_detail` defaults to `handles` without
+  `sections` and `full` with them (#7174). `sections` is the one key sent
+  only when the caller named it: its absence is what selects the default
+  family set, and it travels verbatim so the handler validates it.
 - Preserve `explain_dependency_path`'s raw-map pass-through, including its
   aliasing of the caller's map. It is the family's one exception and is
   pinned by both the child and root tests.

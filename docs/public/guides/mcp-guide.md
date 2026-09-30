@@ -33,9 +33,17 @@ Important envelope fields:
 | `truth.capability` | Capability ID from the query contract. |
 | `truth.profile` | Runtime profile, such as local or production. |
 | `truth.freshness.state` | Fresh, stale, building, or unavailable evidence. |
+| `truth.omissions` | Sections the tool withheld (`omitted`) or cut to identity rows (`handles`), each with its pre-cut `total`. Absent when the answer is complete. |
 | `error` | Structured failure such as `unsupported_capability`. |
 
 See [Truth Label Protocol](../reference/truth-label-protocol.md).
+
+`trace_deployment_chain` defaults to `evidence_detail: handles` on MCP: primary
+deployment families come back as identity rows and derived families such as
+`delivery_paths` and `deployment_facts` are omitted, so an at-cap trace fits
+the response budget. `data.section_detail` and `truth.omissions` name every
+cut. To read a family in full, call the tool again with the entry's
+`drilldown_arguments` (`sections: ["<family>"]`, `evidence_detail: "full"`).
 
 ## Pick The Right Tool Shape
 
