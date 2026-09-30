@@ -265,7 +265,9 @@ func projectSection(response map[string]any, section traceSection) {
 		section.project(response)
 		return
 	}
-	if rows, ok := response[section.name].([]map[string]any); ok {
+	// MapSliceValue accepts both []map[string]any and []any, so a producer
+	// that stores a family either way is still projected to handle keys.
+	if rows := querycontract.MapSliceValue(response, section.name); rows != nil {
 		response[section.name] = projectRows(rows, section.handleKeys)
 	}
 }

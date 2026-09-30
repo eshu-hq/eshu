@@ -452,3 +452,25 @@ func TestApplySectionSelectionImageRegistryHandleKeepsTheAmbiguityQualifier(t *t
 		t.Fatalf("handle leaked the digest_candidates list: %v", rows[1])
 	}
 }
+
+// A producer that stores a family as []any (for example rows decoded from
+// JSON) must still be projected: skipping it would ship full rows while
+// section_detail reports handles.
+func TestApplySectionSelectionProjectsFamiliesStoredAsAnySlices(t *testing.T) {
+	t.Parallel()
+
+	response := map[string]any{
+		"service_name": "payments-api",
+		"instances": []any{
+			map[string]any{"instance_id": "i-1", "environment": "prod", "platform_name": "eks", "platform_kind": "eks", "extra_evidence": "long"},
+		},
+	}
+	ApplySectionSelection(response, SectionSelection{EvidenceDetail: EvidenceDetailHandles})
+	rows, ok := response["instances"].([]map[string]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("instances = %#v, want one projected handle row", response["instances"])
+	}
+	if _, leaked := rows[0]["extra_evidence"]; leaked {
+		t.Fatalf("handle leaked a non-handle key from an []any family: %v", rows[0])
+	}
+}

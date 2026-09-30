@@ -88,8 +88,8 @@ recent shipped work grouped by feature area.
   and the derived families (`delivery_paths`, `deployment_facts`,
   `controller_driven_paths`, `k8s_relationships`, `topology_edges`,
   `artifact_lineage`, `network_paths`, `entrypoints`) are omitted. With every
-  family at its cap the MCP result measured 198,556 counted bytes (75.7% of
-  the 262,144-byte budget), down from 1,137,086 bytes (434%). Callers that
+  family at its cap the MCP result measured 198,560 counted bytes (75.7% of
+  the 262,144-byte budget), down from 1,435,236 bytes (547.5%). Callers that
   read the omitted keys over MCP should pass `sections` with
   `evidence_detail: full`, as each `section_detail` drilldown shows.
 - The truth envelope gains an additive `omissions` list
