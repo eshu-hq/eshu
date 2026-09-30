@@ -129,6 +129,11 @@ type SearchDocumentHandlers struct {
 	EshuSearchDocumentSourceLoader eshusearch.SearchDocumentSourceLoader
 	EshuSearchDocumentWriter       eshusearch.SearchDocumentWriter
 	EshuSearchDocumentLogger       *slog.Logger
+	// EshuSearchDocumentGenerationCheck is the freshness check the search
+	// document handler runs before every page and before Finalize so a
+	// superseded generation stops writing (issue #7458). It is required: an
+	// unset check makes the handler reject every intent.
+	EshuSearchDocumentGenerationCheck GenerationFreshnessCheck
 }
 
 // KubernetesHandlers groups the live-Kubernetes correlation writer plus the

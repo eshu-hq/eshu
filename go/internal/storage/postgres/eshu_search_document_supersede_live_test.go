@@ -195,16 +195,12 @@ func TestEshuSearchDocumentHandlerAbandonsSupersededGenerationLive(t *testing.T)
 		t.Fatalf("loader delivered %d pages; the fixture must stream at least two", len(gLoader.pageDocs))
 	}
 	page1 := gLoader.pageDocs[0]
-	total := 0
-	for _, n := range gLoader.pageDocs {
-		total += n
-	}
 	if gResult.Status != reducercontract.ResultStatusSuperseded {
 		t.Errorf("G status = %q, want %q", gResult.Status, reducercontract.ResultStatusSuperseded)
 	}
 	if g.facts != page1 || g.indexDocs != page1 {
-		t.Errorf("G rows facts=%d index_docs=%d, want exactly page 1 (%d) of %d",
-			g.facts, g.indexDocs, page1, total)
+		t.Errorf("G rows facts=%d index_docs=%d, want exactly page 1 (%d)",
+			g.facts, g.indexDocs, page1)
 	}
 	if gResult.CanonicalWrites != page1 {
 		t.Errorf("G CanonicalWrites = %d, want %d", gResult.CanonicalWrites, page1)
@@ -217,9 +213,17 @@ func TestEshuSearchDocumentHandlerAbandonsSupersededGenerationLive(t *testing.T)
 	}
 
 	// H runs to completion.
-	hResult, err := newHandler(NewEshuSearchDocumentSourceLoader(database)).Handle(ctx, intent(supersedeProofGenH))
+	hLoader := &activatingLoader{inner: NewEshuSearchDocumentSourceLoader(database)}
+	hResult, err := newHandler(hLoader).Handle(ctx, intent(supersedeProofGenH))
 	if err != nil {
 		t.Fatalf("H Handle error = %v", err)
+	}
+	total := 0
+	for _, n := range hLoader.pageDocs {
+		total += n
+	}
+	if total <= page1 {
+		t.Fatalf("H streamed %d documents, want more than G's page 1 (%d)", total, page1)
 	}
 	if hResult.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("H status = %q, want succeeded", hResult.Status)

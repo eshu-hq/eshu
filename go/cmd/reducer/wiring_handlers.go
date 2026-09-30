@@ -144,6 +144,10 @@ func buildReducerSearchDocumentHandlers(
 			ProjectionState: postgres.NewEshuSearchDocumentProjectionStateStore(database),
 		},
 		EshuSearchDocumentLogger: logger,
+		// The freshness check lets a superseded generation stop writing
+		// search documents between pages instead of running to Finalize
+		// (#7458). The handler rejects every intent without it.
+		EshuSearchDocumentGenerationCheck: postgres.NewGenerationFreshnessCheck(database),
 	}
 }
 

@@ -1543,6 +1543,14 @@ type Instruments struct {
 	// refusals. Full generations are not counted.
 	ProjectorDeltaBaselineFence metric.Int64Counter
 
+	// SearchDocumentGenerationSuperseded counts search-document projections
+	// the handler abandoned because its generation was superseded mid-write
+	// (#7458), labeled by a closed phase: page (the check before a page write
+	// noticed) or finalize (the check before the authoritative retire
+	// noticed). The abandoned intent is acked as a superseded result; its rows
+	// are left to retention instead of being cancelled.
+	SearchDocumentGenerationSuperseded metric.Int64Counter
+
 	// CanonicalRepositoryRetirements counts the canonical writer's
 	// path-conflict retirements of a different-id Repository (#7324), by a
 	// closed outcome: clean (no relationships deleted) or
@@ -4674,6 +4682,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerSearchDocumentGenerationSuperseded(meter, inst); err != nil {
 		return nil, err
 	}
 
